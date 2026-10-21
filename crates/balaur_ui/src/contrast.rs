@@ -162,16 +162,21 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
         (
             "contrast",
             &[],
-            "(a: string, b: string)",
+            "(a: string, b: string) -> float",
             "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         ),
         (
             "contrast_pairs",
             &[],
-            "(theme: table, ground: string)",
+            "(theme: table, ground: string) -> [ContrastPair]",
             "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
         ),
     ]);
+    m.records(&[(
+        "ContrastPair",
+        "{ role: string, ink: string, fill: string, ratio: float, need: float }",
+        "One ink drawn on one fill: the role, the two colour names, their contrast ratio and the ratio it needs.",
+    )]);
     m.function("contrast", |_: &Engine, (a, b): (String, String)| {
         let (Some(a), Some(b)) = (parse_hex(&a), parse_hex(&b)) else {
             anyhow::bail!("contrast takes two #rrggbb colours, got '{a}' and '{b}'");

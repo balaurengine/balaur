@@ -10,15 +10,42 @@ use crate::GamendState;
 use crate::client::Session;
 
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+    m.records(&[
+        (
+            "Entry",
+            "{ seq: int, request: int, kind: string, what: string, status: string, ms: float?, args: any, reply: any }",
+            "One call or socket message the plugin kept.",
+        ),
+        (
+            "Socket",
+            "{ socket: int, open: bool, topics: [string], reason: string? }",
+            "A realtime socket, whether it is open and the topics it joined.",
+        ),
+        (
+            "Connection",
+            "{ url: string, user_id: string?, username: string?, sockets: [Socket] }",
+            "The configured server, who is signed in and each socket.",
+        ),
+        (
+            "Session",
+            "{ user_id: string, username: string, display_name: string, access_token: string, refresh_token: string, expires_in: int, expires_at: int? }",
+            "A signed-in session and when its token expires.",
+        ),
+        (
+            "Server",
+            "{ name: string, url: string, production: string, local: string, plugin: string }",
+            "The Gamend server a run talks to and the two the project names.",
+        ),
+    ]);
     m.describe(&[
-        ("activity", &[], "()", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
-        ("connection", &[], "()", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
-        ("session", &[], "()", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
-        ("restore", &[], "(session: map?)", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
-        ("reply", &[], "(request: int)", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
+        ("activity", &[], "() -> [Entry]", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
+        ("connection", &[], "() -> Connection", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
+        ("session", &[], "() -> Session?", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
+        ("restore", &[], "(session: map?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
+        ("reply", &[], "(request: int) -> map?", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
         ("clear_activity", &[], "()", "Forget the calls and messages `activity` holds."),
-        ("server", &[], "()", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
-        ("run_id", &[], "()", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
+        ("server", &[], "() -> Server", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
+        ("run_id", &[], "() -> string", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
     m.function("activity", |eng: &Engine, (): ()| {
         Ok(eng.resource::<GamendState>().borrow().activity.entries())

@@ -22,6 +22,7 @@ mod config;
 mod extensions;
 mod fits;
 mod icon;
+mod native;
 pub mod preview;
 pub mod recode;
 pub mod settings;
@@ -278,6 +279,9 @@ fn runtime_name(
 
 /// A bundle's runtime directory off the roots, or fetched and unpacked.
 fn bundle_runtime(kind: Bundle, name: &str, opts: &Options<'_>) -> Result<PathBuf> {
+    if let Some(explicit) = &opts.runtime {
+        return Ok(explicit.clone());
+    }
     match find_bundle_runtime(kind, name, &opts.runtime_roots) {
         Ok(found) => Ok(found),
         Err(missing) => match opts.obtain {
@@ -327,11 +331,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // inside it as a resource rather than onto the end of a binary.
     if let Some((kind, target)) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
-        let runtime = match opts.runtime.clone() {
-            Some(explicit) => explicit,
-            None => bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?,
-        };
-        let shell = web_shell(&opts.path)?;
+        let runtime = bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?;
+        let shell = web_shell(&opts.path)?.replace("{{title}}", &game_title(&manifest, &name));
+        let web_assets = bundle::web_files(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
         let written = export_bundle(
             kind,
@@ -342,8 +344,10 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &apple,
             &android,
             &shell,
+            &web_assets,
             icons.as_ref(),
         )?;
+        native_scripts(kind, &written, opts, &mut extra, &pack, &apple, &name)?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
     let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
@@ -485,6 +489,27 @@ fn export_desktop(
     Ok(())
 }
 
+/// iOS runs no JIT, so an iOS bundle carries its `.bs` scripts as native code.
+fn native_scripts(
+    kind: Bundle,
+    app: &Path,
+    opts: &Options<'_>,
+    extra: &mut [Box<dyn balaur_plugin::Plugin>],
+    pack: &balaur::Pack,
+    apple: &AppleConfig,
+    name: &str,
+) -> Result<()> {
+    if kind != Bundle::Ios {
+        return Ok(());
+    }
+    let Some(scripts) = balaur::native_scripts(&opts.path, extra, pack)? else {
+        return Ok(());
+    };
+    let executable =
+        bundle::runtime_executable(&app.join("Info.plist")).unwrap_or_else(|| "Balaur".to_string());
+    native::build_framework(app, &executable, &scripts, apple, name)
+}
+
 /// What a signed export uses: the flag when one was passed, else what the
 /// project declared, and `None` for an ad-hoc signature.
 fn identity<'a>(flag: Option<&'a str>, declared: &'a str) -> Option<&'a str> {
@@ -567,6 +592,16 @@ fn finish_bundle(
 
 /// The exported game's name: the project directory's, or `game` for a path
 /// that has no name to read (the filesystem root, or one that vanished).
+/// What a page is titled: the game's `[application] name`, else its folder's.
+fn game_title(manifest: &toml::Table, folder: &str) -> String {
+    manifest
+        .get("application")
+        .and_then(|a| a.get("name"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or(folder)
+        .to_string()
+}
+
 fn project_name(path: &Path) -> String {
     path.canonicalize()
         .ok()

@@ -1,0 +1,52 @@
+// One search box for every list in the editor, and one rule for what a query
+// matches. A dock that grows a filter uses these rather than its own, so
+// "find in the tree" and "find in settings" feel like the same gesture.
+
+use editor;
+
+/// A search control a pooled strip holds, rather than one drawn: the same
+/// state under the same `id`, so `query` answers for either. Its edit comes
+/// back to the Editor's `search_typed` with the `id` it carries.
+pub fn control(S: editor::State, id: str, placeholder: str, width: float) -> any {
+    map()
+        .with("kind", "text_field")
+        .with("role", "input_dock")
+        .with("width", width)
+        .with("text", query(S, id))
+        .with("placeholder", placeholder)
+        .with("on", "search_typed")
+        .with("data", id)
+}
+
+/// What a search control's edit writes: the query under its `id`.
+pub fn typed(S: &mut editor::State, id: str, text: str) {
+    S.search.set(id, text);
+}
+
+/// The query a dock is filtering by, "" when it is not.
+pub fn query(S: editor::State, id: str) -> str {
+    let held = S.search.get(id);
+    if held.is_nil() { "" } else { held.as_str() }
+}
+
+/// Whether `text` satisfies `query`. Case-insensitive, and every word of the
+/// query has to appear somewhere, so "ball body" finds a node named Ball with
+/// a body component when both texts are joined before the test.
+pub fn matches(query: str, text: str) -> bool {
+    if query == "" {
+        return true;
+    }
+    let hay = text.to_lower();
+    for word in query.to_lower().split(" ") {
+        if word != "" && !hay.contains(word) {
+            return false;
+        }
+    }
+    true
+}
+
+/// What a dock says when a filter left nothing, so an empty list reads as
+/// "nothing matched" rather than "nothing exists".
+pub fn nothing_says(query: str) -> str {
+    "nothing matches \"{query}\""
+}

@@ -27,7 +27,7 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
         (
             "complete_theme",
             &[],
-            "(theme: table)",
+            "(theme: table) -> map",
             "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         ),
     ]);
@@ -557,7 +557,7 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 fn install_focus(m: &mut dyn Bindings<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
-        ("focused_widget", &[], "()", "The widget node focus is on, or nil."),
+        ("focused_widget", &[], "() -> node?", "The widget node focus is on, or nil."),
         (
             "set_focus",
             &[],
@@ -585,19 +585,19 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         (
             "click",
             &[],
-            "(node: node, opts: map?)",
+            "(node: node, opts: map?) -> bool",
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
             "reread",
             &[],
-            "(node: node)",
+            "(node: node) -> bool",
             "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         ),
         (
             "edit",
             &[],
-            "(node: node, value)",
+            "(node: node, value) -> bool",
             "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
         ),
     ]);
@@ -887,7 +887,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("color_picker", &[], "", "Draw a color picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
         ("wants_keyboard", &[], "", "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
         ("wants_pointer", &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. Answers outside `draw_ui` too; false without a window."),
-        ("takes_pointer_at", &[], "(x: number, y: number)", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
+        ("takes_pointer_at", &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
     ]);
     // Queries return design pixels, which egui's zoom makes the unit of the
     // whole pass, so scripts compute layout in one consistent unit.

@@ -414,6 +414,21 @@ pub fn on_pause(S, p) {
 
 const SCRIPT_TEMPLATE = "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n";
 
+/// A new `.bs` script: a struct named after the file, `door_bell.bs` a
+/// `DoorBell`, with the two hooks a node calls.
+fn bs_template(rel) {
+    let parts = rel.split('/').collect::<Vec>();
+    let stem = parts[parts.len() - 1].replace(".bs", "");
+    let name = "";
+    for part in stem.split('_') {
+        if part.len() > 0 {
+            name = name + part[..1].to_uppercase() + part[1..];
+        }
+    }
+    "pub struct " + name + " {\n    node: Node,\n}\n\nimpl " + name
+        + " {\n    fn init() {\n    }\n\n    fn update(dt: float) {\n    }\n}\n"
+}
+
 pub fn attach_script(S) {
     if !crate::model::has_selection(S) {
         return;
@@ -425,11 +440,11 @@ pub fn attach_script(S) {
     set_script_path(S, "scripts/" + node.name.to_lowercase() + ".rn");
 }
 
-/// Every `.rn` under scripts/, for the inspector's picker.
+/// Every `.rn` and `.bs` under scripts/, for the inspector's picker.
 pub fn script_files(S) {
     let files = [];
     for f in model::list(S, "scripts") {
-        if !f.is_dir && f.name.ends_with(".rn") {
+        if !f.is_dir && (f.name.ends_with(".rn") || f.name.ends_with(".bs")) {
             files.push("scripts/" + f.name);
         }
     }
@@ -465,7 +480,7 @@ pub fn set_script_path(S, path) {
     if rel == "" {
         return;
     }
-    if !rel.ends_with(".rn") {
+    if !rel.ends_with(".rn") && !rel.ends_with(".bs") {
         rel = rel + ".rn";
     }
     let was = model::script_rel(node);
@@ -489,7 +504,7 @@ pub fn set_script_path(S, path) {
     }
     if !fs::exists(abs) {
         make_parent(S, rel);
-        fs::write(abs, SCRIPT_TEMPLATE);
+        fs::write(abs, if rel.ends_with(".bs") { bs_template(rel) } else { SCRIPT_TEMPLATE });
     }
     // The table form keeps the node's property overrides.
     let current = node.get("script").unwrap_or(());

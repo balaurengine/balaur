@@ -1,0 +1,291 @@
+// Every glyph the shell draws, named for what it means. Phosphor Fill, in the
+// icons chain each font family falls back to; every weight of the set shares
+// its codepoints, so a solid shell is the font file and nothing else.
+
+/// A component's glyph and the theme token it is drawn in.
+pub struct Component {
+    glyph: str,
+    token: str,
+}
+
+/// A viewport tool, by `defs::tools` id.
+pub fn tool(id: str) -> str {
+    if id == "select" {
+        ""
+    } else if id == "move" {
+        ""
+    } else if id == "rotate" {
+        ""
+    } else if id == "scale" {
+        ""
+    } else if id == "zoom" {
+        ""
+    } else if id == "key" {
+        ""
+    } else if id == "bone" {
+        ""
+    } else if id == "polygon" {
+        ""
+    } else if id == "pen" {
+        ""
+    } else if id == "tiles" {
+        ""
+    } else {
+        ""
+    }
+}
+
+/// A workspace, by `defs::workspaces` id.
+pub fn workspace(id: str) -> str {
+    if id == "scene" {
+        ""
+    } else if id == "script" {
+        ""
+    } else if id == "animation" {
+        ""
+    } else if id == "physics" {
+        ""
+    } else if id == "ui" {
+        ""
+    } else {
+        ""
+    }
+}
+
+/// The mark an inspector section wears, by component. A component with none
+/// of its own takes the plain node mark, so every heading is marked.
+/// A component's glyph, and the theme token it is drawn in -- the same pair
+/// `model::node_icon` gives the tree, so a `body2d` section and a node holding
+/// one read as the same thing in both panels.
+pub fn component(name: str) -> Component {
+    if name == "transform" {
+        return Component { glyph: tool("move"), token: "node_default" };
+    }
+    if name == "widget" {
+        return Component { glyph: workspace("ui"), token: "node_ui" };
+    }
+    if name == "script" {
+        return Component { glyph: ui("scriptfile"), token: "node_default" };
+    }
+    if name == "bone2d" || name == "bone3d" || name == "skeleton" {
+        return Component { glyph: tool("bone"), token: "node_bone" };
+    }
+    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" || name == "multimesh2d" {
+        return Component { glyph: tool("polygon"), token: "node_2d" };
+    }
+    if name == "shape3d" || name == "mesh" || name == "text3d" || name == "multimesh3d" {
+        return Component { glyph: workspace("scene"), token: "node_3d" };
+    }
+    if name.starts_with("body") || name.starts_with("collider") || name.starts_with("character") || name.starts_with("joint") || name.starts_with("softbody") || name.starts_with("wheel") || name.starts_with("vehicle") || name == "tile_collision" || name == "ragdoll" {
+        return Component { glyph: workspace("physics"), token: "node_physics" };
+    }
+    if name.starts_with("camera") || name == "light" || name == "environment" {
+        return Component { glyph: ui("viewmode"), token: "node_default" };
+    }
+    if name == "animation" || name == "animation_player" {
+        return Component { glyph: panel("timeline"), token: "node_default" };
+    }
+    if name == "tilemap" || name == "tileset" {
+        return Component { glyph: panel("tiles"), token: "node_2d" };
+    }
+    if name == "audio" || name == "audio_player" {
+        return Component { glyph: panel("recordings"), token: "node_default" };
+    }
+    if name == "bindings" || name == "events" {
+        return Component { glyph: ui("events"), token: "node_default" };
+    }
+    Component { glyph: node("world"), token: "node_default" }
+}
+
+/// A dock panel, by its tab id.
+pub fn panel(id: str) -> str {
+    if id == "scene" {
+        ""
+    } else if id == "outline" {
+        ""
+    } else if id == "inspector" {
+        ""
+    } else if id == "import" {
+        ""
+    } else if id == "output" {
+        ""
+    } else if id == "problems" {
+        ""
+    } else if id == "assets" {
+        ""
+    } else if id == "docs" {
+        ""
+    } else if id == "timeline" {
+        ""
+    } else if id == "debugger" {
+        ""
+    } else if id == "recordings" {
+        ""
+    } else if id == "profiler" {
+        ""
+    } else if id == "tiles" {
+        ""
+    } else if id == "weights" {
+        ""
+    } else if id == "bonemap" {
+        ""
+    } else if id == "statemachine" {
+        ""
+    } else if id == "library" {
+        ""
+    } else if id == "material" {
+        ""
+    } else if id == "cost" {
+        ""
+    } else if id == "events" {
+        ""
+    } else {
+        ""
+    }
+}
+
+/// The shell's own controls.
+pub fn ui(name: str) -> str {
+    if name == "add" {
+        // Fill draws a stroke-only glyph as a solid tile, which is too heavy
+        // for a mark this small: these two are letters, not icons.
+        "+"
+    } else if name == "close" {
+        "×"
+    } else if name == "check" {
+        ""
+    } else if name == "reset" {
+        ""
+    } else if name == "settings" {
+        ""
+    } else if name == "about" {
+        ""
+    } else if name == "export" {
+        ""
+    } else if name == "minimize" {
+        ""
+    } else if name == "open" {
+        ""
+    } else if name == "shut" {
+        ""
+    } else if name == "caret-open" {
+        ""
+    } else if name == "caret-shut" {
+        ""
+    } else if name == "search" {
+        ""
+    } else if name == "dark" {
+        ""
+    } else if name == "light" {
+        ""
+    } else if name == "play" {
+        ""
+    } else if name == "pause" {
+        ""
+    } else if name == "stop" {
+        ""
+    } else if name == "instance" {
+        ""
+    } else if name == "events" {
+        ""
+    } else if name == "split" {
+        ""
+    } else if name == "focus" {
+        ""
+    } else if name == "unfocus" {
+        ""
+    } else if name == "restore" {
+        ""
+    } else if name == "collapse" {
+        ""
+    } else if name == "caret-left" {
+        ""
+    } else if name == "caret-right" {
+        ""
+    } else if name == "caret-up" {
+        ""
+    } else if name == "caret-down" {
+        ""
+    } else if name == "arrow-line-left" {
+        ""
+    } else if name == "arrow-line-right" {
+        ""
+    } else if name == "arrow-line-down" {
+        ""
+    } else if name == "step-over" {
+        ""
+    } else if name == "step-into" {
+        ""
+    } else if name == "step-out" {
+        ""
+    } else if name == "scriptfile" {
+        ""
+    } else if name == "lock" {
+        ""
+    } else if name == "unlock" {
+        ""
+    } else if name == "visible" {
+        ""
+    } else if name == "hidden" {
+        ""
+    } else if name == "eye-closed" {
+        ""
+    } else if name == "align-left" {
+        ""
+    } else if name == "align-right" {
+        ""
+    } else if name == "align-center-h" {
+        ""
+    } else if name == "align-top" {
+        ""
+    } else if name == "align-bottom" {
+        ""
+    } else if name == "align-center-v" {
+        ""
+    } else if name == "distribute-h" {
+        ""
+    } else if name == "distribute-v" {
+        ""
+    } else if name == "group" {
+        ""
+    } else if name == "ungroup" {
+        ""
+    } else if name == "select-all" {
+        ""
+    } else if name == "isolate" {
+        ""
+    } else if name == "filter" {
+        ""
+    } else if name == "light" {
+        ""
+    } else if name == "sky" {
+        ""
+    } else if name == "camera" {
+        ""
+    } else if name == "pen" {
+        ""
+    } else if name == "path" {
+        ""
+    } else if name == "material" {
+        ""
+    } else if name == "library" {
+        ""
+    } else if name == "viewmode" {
+        ""
+    } else if name == "bookmark" {
+        ""
+    } else if name == "copy" {
+        ""
+    } else {
+        ""
+    }
+}
+
+/// A node's kind in the tree, by the role `model::node_icon` reports.
+pub fn node(role: str) -> str {
+    if role == "world" {
+        ""
+    } else {
+        ""
+    }
+}

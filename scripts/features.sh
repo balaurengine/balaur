@@ -2,7 +2,7 @@
 # The `balaur_cli` features a game template is built with, sourced by
 # package.sh and package_runtime.sh. Each platform adds its own: `window`,
 # `apple`, `parallel`, `extensions`.
-GAME_FEATURES=audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,lang
+GAME_FEATURES=audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs,bs-jit
 # A dedicated server's: no window and no sound.
 SERVER_FEATURES=http,websocket,webtransport,gamend,multiplayer,physics2d,physics3d,parallel
 

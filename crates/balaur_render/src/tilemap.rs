@@ -668,7 +668,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_terrain", &["tilemap"], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
         ("terrain", &["tilemap"], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
-        ("tile_data", &["tilemap"], "(x: int, y: int)", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
+        ("tile_data", &["tilemap"], "(x: int, y: int) -> any", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
     ]);
     m.function(
         "tile_data",

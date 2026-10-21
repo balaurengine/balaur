@@ -730,8 +730,10 @@ pub(crate) mod keys {
 pub(crate) mod pool {
     /// The component every pooled node carries.
     pub(crate) const WIDGET: &str = "widget";
-    /// The callback that hears the reader's edit.
+    /// What hears the reader's edit: a callback, or the name of a method.
     pub(crate) const ON: &str = "on";
+    /// What a named `on` is handed first, before the edit.
+    pub(crate) const DATA: &str = "data";
     /// A spec's children: the spec is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
     /// A row's label, and the roles its label and control column wear.

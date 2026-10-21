@@ -334,6 +334,30 @@ impl AppleConfig {
         plist_document(&body)
     }
 
+    /// The `Info.plist` of a framework the app carries: `framework` is its
+    /// binary's name, `platform` the one `CFBundleSupportedPlatforms` names.
+    pub(crate) fn framework_plist(&self, name: &str, framework: &str, platform: &str) -> String {
+        let mut body = String::new();
+        string_key(&mut body, "CFBundleExecutable", framework);
+        string_key(
+            &mut body,
+            "CFBundleIdentifier",
+            &format!("{}.{}", self.identifier(name), framework.to_lowercase()),
+        );
+        string_key(&mut body, "CFBundleInfoDictionaryVersion", "6.0");
+        string_key(&mut body, "CFBundleName", framework);
+        string_key(&mut body, "CFBundlePackageType", "FMWK");
+        string_key(&mut body, "CFBundleShortVersionString", &self.version);
+        string_key(&mut body, "CFBundleVersion", &self.build_number);
+        string_key(&mut body, "MinimumOSVersion", &self.min_ios);
+        let _ = writeln!(
+            body,
+            "  <key>CFBundleSupportedPlatforms</key><array><string>{}</string></array>",
+            escape(platform)
+        );
+        plist_document(&body)
+    }
+
     /// Where the entitlements file goes and what to do with it, written next
     /// to a bundle this exporter is not allowed to sign.
     pub(crate) fn write_entitlements(&self, beside: &Path, name: &str) -> Result<Option<PathBuf>> {

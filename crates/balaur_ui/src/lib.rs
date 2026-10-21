@@ -362,8 +362,11 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             theme::load_fonts(ctx, &faces);
             balaur_text::shaper(eng);
             state.fonts_installed = true;
-            // A host that reruns the pass (`Context::will_discard`) draws
-            // this frame with the fonts bound.
+            // A host that reruns the pass draws this frame with the fonts
+            // bound; three passes, since a root's first pass only measures.
+            ctx.options_mut(|options| {
+                options.max_passes = std::num::NonZeroUsize::new(3).unwrap_or(options.max_passes);
+            });
             ctx.request_discard("fonts installed");
             drop(state);
             // The one thing this frame can still show: a splash is a picture

@@ -895,7 +895,7 @@ def check_template_features() -> list[Finding]:
     """package_runtime.sh builds the Android template from GAME_FEATURES; the
     crate's default mirrors it so a plain `cargo build` is that template."""
     import tomllib
-    game = re.search(r"^GAME_FEATURES=([a-z0-9_,]+)$", FEATURE_SETS.read_text(), re.M)
+    game = re.search(r"^GAME_FEATURES=([a-z0-9_,-]+)$", FEATURE_SETS.read_text(), re.M)
     text = ANDROID_MANIFEST.read_text()
     default = tomllib.loads(text).get("features", {}).get("default", [])
     want = set(game.group(1).split(",")) if game else set()

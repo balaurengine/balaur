@@ -471,7 +471,7 @@ pub fn code_view(S) {
         shown: true, inset: inset, note: "", path: path, rev: S.code_rev, text: text,
         scroll_to: scroll_to,
         look: #{
-            language: if file.shading { "wesl" } else { "rune" },
+            language: if file.shading { "wesl" } else if rel.ends_with(".bs") { "bs" } else { "rune" },
             breakpoints: if file.shading {
                 if S.preview_line > 0 { [S.preview_line] } else { [] }
             } else {

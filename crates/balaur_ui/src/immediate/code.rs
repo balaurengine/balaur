@@ -71,6 +71,46 @@ const RUNE: Syntax = Syntax {
     ],
 };
 
+/// balaur_bs's `.bs` scripts: Rust's look, its own types and built-ins.
+const BS: Syntax = Syntax {
+    line_comment: "//",
+    keywords: &[
+        "fn", "let", "if", "else", "while", "for", "in", "loop", "struct", "impl", "pub", "return",
+        "break", "continue", "const", "async", "await", "true", "false", "as", "extern", "self",
+    ],
+    builtins: &[
+        "int",
+        "float",
+        "bool",
+        "str",
+        "any",
+        "Node",
+        "Vec2",
+        "Vec3",
+        "Color",
+        "vec2",
+        "vec3",
+        "color",
+        "nil",
+        "map",
+        "task",
+        "engine",
+        "scene",
+        "input",
+        "physics",
+        "physics2d",
+        "physics3d",
+        "render",
+        "audio",
+        "random",
+        "ui",
+        "log",
+        "http",
+        "gamend",
+        "events",
+    ],
+};
+
 /// Shaders: WGSL plus what WESL adds to it (`import`, the `@if` family).
 const WESL: Syntax = Syntax {
     line_comment: "//",
@@ -158,10 +198,12 @@ const WESL: Syntax = Syntax {
 /// An unknown name falls back to Rune rather than rendering the editor as
 /// plain punctuation.
 pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
-    // `match` on a `&str` is not const, and two languages do not warrant a
+    // `match` on a `&str` is not const, and three languages do not warrant a
     // table.
     if matches!(language.as_bytes(), b"wesl" | b"wgsl") {
         &WESL
+    } else if matches!(language.as_bytes(), b"bs") {
+        &BS
     } else {
         &RUNE
     }
@@ -616,6 +658,14 @@ fn look_key(
 #[cfg(test)]
 mod tests {
     use super::{RUNE, syntax_for};
+
+    #[test]
+    fn bs_selects_its_own_tokens() {
+        let bl = syntax_for("bs");
+        assert!(bl.keywords.contains(&"extern") && bl.keywords.contains(&"self"));
+        assert!(bl.builtins.contains(&"any") && bl.builtins.contains(&"Node"));
+        assert!(!bl.keywords.contains(&"match"), "`.bs` has no `match`");
+    }
     #[test]
     fn rune_selects_its_own_tokens() {
         let rune = syntax_for("rune");

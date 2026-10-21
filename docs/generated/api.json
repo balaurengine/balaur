@@ -58,8 +58,4598 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
     }
+  },
+  "bs": {
+    "constants": {
+      "animation::ADVANCE_MODE_AUTO": "auto",
+      "animation::ADVANCE_MODE_DISABLED": "disabled",
+      "animation::ADVANCE_MODE_ENABLED": "enabled",
+      "animation::EASE_IN_BACK": "in_back",
+      "animation::EASE_IN_BOUNCE": "in_bounce",
+      "animation::EASE_IN_CIRC": "in_circ",
+      "animation::EASE_IN_CUBIC": "in_cubic",
+      "animation::EASE_IN_ELASTIC": "in_elastic",
+      "animation::EASE_IN_EXPO": "in_expo",
+      "animation::EASE_IN_OUT_BACK": "in_out_back",
+      "animation::EASE_IN_OUT_BOUNCE": "in_out_bounce",
+      "animation::EASE_IN_OUT_CIRC": "in_out_circ",
+      "animation::EASE_IN_OUT_CUBIC": "in_out_cubic",
+      "animation::EASE_IN_OUT_ELASTIC": "in_out_elastic",
+      "animation::EASE_IN_OUT_EXPO": "in_out_expo",
+      "animation::EASE_IN_OUT_QUAD": "in_out_quad",
+      "animation::EASE_IN_OUT_QUART": "in_out_quart",
+      "animation::EASE_IN_OUT_QUINT": "in_out_quint",
+      "animation::EASE_IN_OUT_SINE": "in_out_sine",
+      "animation::EASE_IN_OUT_SPRING": "in_out_spring",
+      "animation::EASE_IN_QUAD": "in_quad",
+      "animation::EASE_IN_QUART": "in_quart",
+      "animation::EASE_IN_QUINT": "in_quint",
+      "animation::EASE_IN_SINE": "in_sine",
+      "animation::EASE_IN_SPRING": "in_spring",
+      "animation::EASE_LINEAR": "linear",
+      "animation::EASE_OUT_BACK": "out_back",
+      "animation::EASE_OUT_BOUNCE": "out_bounce",
+      "animation::EASE_OUT_CIRC": "out_circ",
+      "animation::EASE_OUT_CUBIC": "out_cubic",
+      "animation::EASE_OUT_ELASTIC": "out_elastic",
+      "animation::EASE_OUT_EXPO": "out_expo",
+      "animation::EASE_OUT_IN_BACK": "out_in_back",
+      "animation::EASE_OUT_IN_BOUNCE": "out_in_bounce",
+      "animation::EASE_OUT_IN_CIRC": "out_in_circ",
+      "animation::EASE_OUT_IN_CUBIC": "out_in_cubic",
+      "animation::EASE_OUT_IN_ELASTIC": "out_in_elastic",
+      "animation::EASE_OUT_IN_EXPO": "out_in_expo",
+      "animation::EASE_OUT_IN_QUAD": "out_in_quad",
+      "animation::EASE_OUT_IN_QUART": "out_in_quart",
+      "animation::EASE_OUT_IN_QUINT": "out_in_quint",
+      "animation::EASE_OUT_IN_SINE": "out_in_sine",
+      "animation::EASE_OUT_IN_SPRING": "out_in_spring",
+      "animation::EASE_OUT_QUAD": "out_quad",
+      "animation::EASE_OUT_QUART": "out_quart",
+      "animation::EASE_OUT_QUINT": "out_quint",
+      "animation::EASE_OUT_SINE": "out_sine",
+      "animation::EASE_OUT_SPRING": "out_spring",
+      "animation::EVENT_ANIMATION_CHANGED": "animation_changed",
+      "animation::EVENT_ANIMATION_FINISHED": "animation_finished",
+      "animation::EVENT_ANIMATION_LOOPED": "animation_looped",
+      "animation::EVENT_ANIMATION_STARTED": "animation_started",
+      "animation::EVENT_STATE_FINISHED": "state_finished",
+      "animation::EVENT_STATE_STARTED": "state_started",
+      "animation::EVENT_TWEEN_FINISHED": "tween_finished",
+      "animation::EVENT_TWEEN_LOOPED": "tween_looped",
+      "animation::EVENT_TWEEN_STEP": "tween_step",
+      "animation::INTERPOLATION_CUBIC": "cubic",
+      "animation::INTERPOLATION_LINEAR": "linear",
+      "animation::INTERPOLATION_STEP": "step",
+      "animation::LOOP_LINEAR": "linear",
+      "animation::LOOP_NONE": "none",
+      "animation::LOOP_PINGPONG": "pingpong",
+      "animation::MODIFIER_CCDIK": "ccdik",
+      "animation::MODIFIER_FABRIK": "fabrik",
+      "animation::MODIFIER_FOLLOW": "follow",
+      "animation::MODIFIER_JIGGLE": "jiggle",
+      "animation::MODIFIER_LOOK_AT": "look_at",
+      "animation::MODIFIER_TWO_BONE_IK": "two_bone_ik",
+      "animation::PROPERTY_DEFORM": "polygon/deform",
+      "animation::PROPERTY_POSITION": "position",
+      "animation::PROPERTY_ROTATION": "rotation",
+      "animation::PROPERTY_ROTATION_EULER": "rotation_euler",
+      "animation::PROPERTY_SCALE": "scale",
+      "animation::PROPERTY_TINT": "tint",
+      "animation::PROPERTY_VISIBLE": "visible",
+      "animation::STATE_END": "end",
+      "animation::SWITCH_MODE_AT_END": "at_end",
+      "animation::SWITCH_MODE_IMMEDIATE": "immediate",
+      "animation::SWITCH_MODE_SYNC": "sync",
+      "apple::EVENT_CANCELLED": "cancelled",
+      "apple::EVENT_CLOUD_CHANGED": "cloud_changed",
+      "apple::EVENT_CREDENTIAL_STATE": "credential_state",
+      "apple::EVENT_DASHBOARD_CLOSED": "dashboard_closed",
+      "apple::EVENT_ENTITLEMENTS": "entitlements",
+      "apple::EVENT_ERROR": "error",
+      "apple::EVENT_FINISHED": "finished",
+      "apple::EVENT_IDENTITY": "identity",
+      "apple::EVENT_INVITE_ACCEPTED": "invite_accepted",
+      "apple::EVENT_MATCH_REQUESTED": "match_requested",
+      "apple::EVENT_NOTIFICATIONS": "notifications",
+      "apple::EVENT_NOTIFICATION_OPENED": "notification_opened",
+      "apple::EVENT_NOTIFICATION_RECEIVED": "notification_received",
+      "apple::EVENT_PENDING": "pending",
+      "apple::EVENT_PRODUCTS": "products",
+      "apple::EVENT_PURCHASED": "purchased",
+      "apple::EVENT_PUSH_FAILED": "push_failed",
+      "apple::EVENT_PUSH_RECEIVED": "push_received",
+      "apple::EVENT_PUSH_TOKEN": "push_token",
+      "apple::EVENT_RESTORED": "restored",
+      "apple::EVENT_SCHEDULED": "scheduled",
+      "apple::EVENT_SIGNED_IN": "signed_in",
+      "apple::EVENT_TRANSACTION": "transaction",
+      "apple::EVENT_UNSUPPORTED": "unsupported",
+      "apple::EVENT_URL": "url",
+      "audio::EVENT_FINISHED": "finished",
+      "debugger::CONTINUE": "continue",
+      "debugger::STEP_INTO": "into",
+      "debugger::STEP_OUT": "out",
+      "debugger::STEP_OVER": "over",
+      "gamend::EVENT_CLOSED": "closed",
+      "gamend::EVENT_ERROR": "error",
+      "gamend::EVENT_LOGIN": "login",
+      "gamend::EVENT_MESSAGE": "message",
+      "gamend::EVENT_OPEN": "open",
+      "gamend::EVENT_RECONNECTING": "reconnecting",
+      "gamend::EVENT_REOPENED": "reopened",
+      "gamend::EVENT_REPLY": "reply",
+      "gamend::EVENT_REST": "rest",
+      "http::EVENT_CANCELLED": "cancelled",
+      "http::EVENT_ERROR": "error",
+      "http::EVENT_PROGRESS": "progress",
+      "http::EVENT_RESPONSE": "response",
+      "http::EVENT_UPLOAD": "upload",
+      "input::GAMEPAD_AXIS_LEFT_TRIGGER": "left_trigger",
+      "input::GAMEPAD_AXIS_LEFT_X": "left_x",
+      "input::GAMEPAD_AXIS_LEFT_Y": "left_y",
+      "input::GAMEPAD_AXIS_RIGHT_TRIGGER": "right_trigger",
+      "input::GAMEPAD_AXIS_RIGHT_X": "right_x",
+      "input::GAMEPAD_AXIS_RIGHT_Y": "right_y",
+      "input::GAMEPAD_BUTTON_BACK": "back",
+      "input::GAMEPAD_BUTTON_C": "c",
+      "input::GAMEPAD_BUTTON_DPAD_DOWN": "dpad_down",
+      "input::GAMEPAD_BUTTON_DPAD_LEFT": "dpad_left",
+      "input::GAMEPAD_BUTTON_DPAD_RIGHT": "dpad_right",
+      "input::GAMEPAD_BUTTON_DPAD_UP": "dpad_up",
+      "input::GAMEPAD_BUTTON_EAST": "east",
+      "input::GAMEPAD_BUTTON_GUIDE": "guide",
+      "input::GAMEPAD_BUTTON_LEFT_SHOULDER": "left_shoulder",
+      "input::GAMEPAD_BUTTON_LEFT_STICK": "left_stick",
+      "input::GAMEPAD_BUTTON_LEFT_TRIGGER": "left_trigger",
+      "input::GAMEPAD_BUTTON_NORTH": "north",
+      "input::GAMEPAD_BUTTON_RIGHT_SHOULDER": "right_shoulder",
+      "input::GAMEPAD_BUTTON_RIGHT_STICK": "right_stick",
+      "input::GAMEPAD_BUTTON_RIGHT_TRIGGER": "right_trigger",
+      "input::GAMEPAD_BUTTON_SOUTH": "south",
+      "input::GAMEPAD_BUTTON_START": "start",
+      "input::GAMEPAD_BUTTON_WEST": "west",
+      "input::GAMEPAD_BUTTON_Z": "z",
+      "input::GAMEPAD_FALLOFF_EXPONENTIAL": "exponential",
+      "input::GAMEPAD_FALLOFF_INVERSE": "inverse",
+      "input::GAMEPAD_FALLOFF_LINEAR": "linear",
+      "input::GAMEPAD_MAPPING_DRIVER": "driver",
+      "input::GAMEPAD_MAPPING_SDL": "sdl",
+      "input::GAMEPAD_POWER_CHARGED": "charged",
+      "input::GAMEPAD_POWER_CHARGING": "charging",
+      "input::GAMEPAD_POWER_NO_BATTERY": "no_battery",
+      "input::GAMEPAD_POWER_ON_BATTERY": "on_battery",
+      "input::GAMEPAD_POWER_UNKNOWN": "unknown",
+      "input::KEY_0": "Digit0",
+      "input::KEY_1": "Digit1",
+      "input::KEY_2": "Digit2",
+      "input::KEY_3": "Digit3",
+      "input::KEY_4": "Digit4",
+      "input::KEY_5": "Digit5",
+      "input::KEY_6": "Digit6",
+      "input::KEY_7": "Digit7",
+      "input::KEY_8": "Digit8",
+      "input::KEY_9": "Digit9",
+      "input::KEY_A": "KeyA",
+      "input::KEY_ALT": "Alt",
+      "input::KEY_APOSTROPHE": "Quote",
+      "input::KEY_AUDIO_VOLUME_DOWN": "AudioVolumeDown",
+      "input::KEY_AUDIO_VOLUME_MUTE": "AudioVolumeMute",
+      "input::KEY_AUDIO_VOLUME_UP": "AudioVolumeUp",
+      "input::KEY_B": "KeyB",
+      "input::KEY_BACKQUOTE": "Backquote",
+      "input::KEY_BACKSLASH": "Backslash",
+      "input::KEY_BACKSPACE": "Backspace",
+      "input::KEY_BROWSER_BACK": "BrowserBack",
+      "input::KEY_BROWSER_FORWARD": "BrowserForward",
+      "input::KEY_BROWSER_HOME": "BrowserHome",
+      "input::KEY_BROWSER_REFRESH": "BrowserRefresh",
+      "input::KEY_BROWSER_SEARCH": "BrowserSearch",
+      "input::KEY_C": "KeyC",
+      "input::KEY_CAPS_LOCK": "CapsLock",
+      "input::KEY_COMMA": "Comma",
+      "input::KEY_CONTEXT_MENU": "ContextMenu",
+      "input::KEY_CONTROL": "Control",
+      "input::KEY_CONVERT": "Convert",
+      "input::KEY_COPY": "Copy",
+      "input::KEY_CUT": "Cut",
+      "input::KEY_D": "KeyD",
+      "input::KEY_DELETE": "Delete",
+      "input::KEY_DOWN": "ArrowDown",
+      "input::KEY_E": "KeyE",
+      "input::KEY_END": "End",
+      "input::KEY_ENTER": "Enter",
+      "input::KEY_EQUAL": "Equal",
+      "input::KEY_ESCAPE": "Escape",
+      "input::KEY_F": "KeyF",
+      "input::KEY_F1": "F1",
+      "input::KEY_F10": "F10",
+      "input::KEY_F11": "F11",
+      "input::KEY_F12": "F12",
+      "input::KEY_F13": "F13",
+      "input::KEY_F14": "F14",
+      "input::KEY_F15": "F15",
+      "input::KEY_F16": "F16",
+      "input::KEY_F17": "F17",
+      "input::KEY_F18": "F18",
+      "input::KEY_F19": "F19",
+      "input::KEY_F2": "F2",
+      "input::KEY_F20": "F20",
+      "input::KEY_F21": "F21",
+      "input::KEY_F22": "F22",
+      "input::KEY_F23": "F23",
+      "input::KEY_F24": "F24",
+      "input::KEY_F3": "F3",
+      "input::KEY_F4": "F4",
+      "input::KEY_F5": "F5",
+      "input::KEY_F6": "F6",
+      "input::KEY_F7": "F7",
+      "input::KEY_F8": "F8",
+      "input::KEY_F9": "F9",
+      "input::KEY_G": "KeyG",
+      "input::KEY_H": "KeyH",
+      "input::KEY_HOME": "Home",
+      "input::KEY_I": "KeyI",
+      "input::KEY_INSERT": "Insert",
+      "input::KEY_INTERNATIONAL_BACKSLASH": "IntlBackslash",
+      "input::KEY_INTERNATIONAL_RO": "IntlRo",
+      "input::KEY_INTERNATIONAL_YEN": "IntlYen",
+      "input::KEY_J": "KeyJ",
+      "input::KEY_K": "KeyK",
+      "input::KEY_KANA_MODE": "KanaMode",
+      "input::KEY_L": "KeyL",
+      "input::KEY_LAUNCH_MAIL": "LaunchMail",
+      "input::KEY_LEFT": "ArrowLeft",
+      "input::KEY_LEFT_ALT": "AltLeft",
+      "input::KEY_LEFT_BRACKET": "BracketLeft",
+      "input::KEY_LEFT_CONTROL": "ControlLeft",
+      "input::KEY_LEFT_META": "MetaLeft",
+      "input::KEY_LEFT_SHIFT": "ShiftLeft",
+      "input::KEY_M": "KeyM",
+      "input::KEY_MEDIA_PLAY_PAUSE": "MediaPlayPause",
+      "input::KEY_MEDIA_SELECT": "MediaSelect",
+      "input::KEY_MEDIA_STOP": "MediaStop",
+      "input::KEY_MEDIA_TRACK_NEXT": "MediaTrackNext",
+      "input::KEY_MEDIA_TRACK_PREVIOUS": "MediaTrackPrevious",
+      "input::KEY_META": "Meta",
+      "input::KEY_MINUS": "Minus",
+      "input::KEY_N": "KeyN",
+      "input::KEY_NON_CONVERT": "NonConvert",
+      "input::KEY_NUMPAD_0": "Numpad0",
+      "input::KEY_NUMPAD_1": "Numpad1",
+      "input::KEY_NUMPAD_2": "Numpad2",
+      "input::KEY_NUMPAD_3": "Numpad3",
+      "input::KEY_NUMPAD_4": "Numpad4",
+      "input::KEY_NUMPAD_5": "Numpad5",
+      "input::KEY_NUMPAD_6": "Numpad6",
+      "input::KEY_NUMPAD_7": "Numpad7",
+      "input::KEY_NUMPAD_8": "Numpad8",
+      "input::KEY_NUMPAD_9": "Numpad9",
+      "input::KEY_NUMPAD_ADD": "NumpadAdd",
+      "input::KEY_NUMPAD_COMMA": "NumpadComma",
+      "input::KEY_NUMPAD_DIVIDE": "NumpadDivide",
+      "input::KEY_NUMPAD_ENTER": "NumpadEnter",
+      "input::KEY_NUMPAD_EQUAL": "NumpadEqual",
+      "input::KEY_NUMPAD_MULTIPLY": "NumpadMultiply",
+      "input::KEY_NUMPAD_PERIOD": "NumpadDecimal",
+      "input::KEY_NUMPAD_SUBTRACT": "NumpadSubtract",
+      "input::KEY_NUM_LOCK": "NumLock",
+      "input::KEY_O": "KeyO",
+      "input::KEY_P": "KeyP",
+      "input::KEY_PAGE_DOWN": "PageDown",
+      "input::KEY_PAGE_UP": "PageUp",
+      "input::KEY_PASTE": "Paste",
+      "input::KEY_PAUSE": "Pause",
+      "input::KEY_PERIOD": "Period",
+      "input::KEY_POWER": "Power",
+      "input::KEY_PRINT_SCREEN": "PrintScreen",
+      "input::KEY_Q": "KeyQ",
+      "input::KEY_R": "KeyR",
+      "input::KEY_RIGHT": "ArrowRight",
+      "input::KEY_RIGHT_ALT": "AltRight",
+      "input::KEY_RIGHT_BRACKET": "BracketRight",
+      "input::KEY_RIGHT_CONTROL": "ControlRight",
+      "input::KEY_RIGHT_META": "MetaRight",
+      "input::KEY_RIGHT_SHIFT": "ShiftRight",
+      "input::KEY_S": "KeyS",
+      "input::KEY_SCROLL_LOCK": "ScrollLock",
+      "input::KEY_SEMICOLON": "Semicolon",
+      "input::KEY_SHIFT": "Shift",
+      "input::KEY_SLASH": "Slash",
+      "input::KEY_SLEEP": "Sleep",
+      "input::KEY_SPACE": "Space",
+      "input::KEY_T": "KeyT",
+      "input::KEY_TAB": "Tab",
+      "input::KEY_U": "KeyU",
+      "input::KEY_UP": "ArrowUp",
+      "input::KEY_V": "KeyV",
+      "input::KEY_W": "KeyW",
+      "input::KEY_WAKE_UP": "WakeUp",
+      "input::KEY_X": "KeyX",
+      "input::KEY_Y": "KeyY",
+      "input::KEY_Z": "KeyZ",
+      "input::MOUSE_BUTTON_BACK": 3,
+      "input::MOUSE_BUTTON_FORWARD": 4,
+      "input::MOUSE_BUTTON_LEFT": 0,
+      "input::MOUSE_BUTTON_MIDDLE": 2,
+      "input::MOUSE_BUTTON_RIGHT": 1,
+      "math::INFINITY": null,
+      "math::PI": 3.141592653589793,
+      "math::TAU": 6.283185307179586,
+      "multiplayer::EVENT_CLOSED": "closed",
+      "multiplayer::EVENT_CONNECTED": "connected",
+      "multiplayer::EVENT_DESYNC": "desync",
+      "multiplayer::EVENT_ERROR": "error",
+      "multiplayer::EVENT_JOINED": "joined",
+      "multiplayer::EVENT_LEFT": "left",
+      "multiplayer::EVENT_STARTED": "started",
+      "multiplayer::ROLE_CLIENT": "client",
+      "multiplayer::ROLE_HOST": "host",
+      "multiplayer::STATE_CONNECTING": "connecting",
+      "multiplayer::STATE_IDLE": "idle",
+      "multiplayer::STATE_LOBBY": "lobby",
+      "multiplayer::STATE_PLAYING": "playing",
+      "multiplayer::STATUS_ABSENT": "absent",
+      "multiplayer::STATUS_PRESENT": "present",
+      "multiplayer::TAG_LOCAL": "local",
+      "multiplayer::TRANSPORT_WEBSOCKET": "websocket",
+      "multiplayer::TRANSPORT_WEBTRANSPORT": "webtransport",
+      "physics2d::AXIS_ROTATION": "rotation",
+      "physics2d::AXIS_X": "x",
+      "physics2d::AXIS_Y": "y",
+      "physics2d::BIND_CELLS": "cells",
+      "physics2d::BIND_NEAREST": "nearest",
+      "physics2d::BIND_PARTICLES": "particles",
+      "physics2d::BODY_DYNAMIC": "dynamic",
+      "physics2d::BODY_KINEMATIC": "kinematic",
+      "physics2d::BODY_KINEMATIC_VELOCITY": "kinematic_velocity",
+      "physics2d::BODY_STATIC": "static",
+      "physics2d::CELL_COROTATIONAL": "corotational",
+      "physics2d::CELL_NEO_HOOKEAN": "neo_hookean",
+      "physics2d::CELL_VOLUME": "volume",
+      "physics2d::COLLIDE_DYNAMIC_DYNAMIC": "dynamic_dynamic",
+      "physics2d::COLLIDE_DYNAMIC_KINEMATIC": "dynamic_kinematic",
+      "physics2d::COLLIDE_DYNAMIC_STATIC": "dynamic_static",
+      "physics2d::COLLIDE_KINEMATIC_KINEMATIC": "kinematic_kinematic",
+      "physics2d::COLLIDE_KINEMATIC_STATIC": "kinematic_static",
+      "physics2d::COLLIDE_STATIC_STATIC": "static_static",
+      "physics2d::COMBINE_AVERAGE": "average",
+      "physics2d::COMBINE_CLAMPED_SUM": "clamped_sum",
+      "physics2d::COMBINE_GEOMETRIC_MEAN": "geometric_mean",
+      "physics2d::COMBINE_MAX": "max",
+      "physics2d::COMBINE_MIN": "min",
+      "physics2d::COMBINE_MULTIPLY": "multiply",
+      "physics2d::DRIVE_FOLLOW": "follow",
+      "physics2d::DRIVE_MOTORS": "motors",
+      "physics2d::DRIVE_NONE": "none",
+      "physics2d::EDGES_CHAIN": "chain",
+      "physics2d::EDGES_MESH": "mesh",
+      "physics2d::EDGES_OUTLINE": "outline",
+      "physics2d::EVENT_COLLISION": "collision",
+      "physics2d::EVENT_CONTACT_FORCE": "contact_force",
+      "physics2d::FILL_SOLID": "solid",
+      "physics2d::FILL_SURFACE": "surface",
+      "physics2d::FIT_AABB": "aabb",
+      "physics2d::FIT_CONVEX_DECOMPOSITION": "convex_decomposition",
+      "physics2d::FIT_CONVEX_HULL": "convex_hull",
+      "physics2d::FIT_OBB": "obb",
+      "physics2d::FLOW_BOTH": "both",
+      "physics2d::FLOW_COMPRESSION": "compression",
+      "physics2d::FLOW_TENSION": "tension",
+      "physics2d::FOLLOW_PD": "pd",
+      "physics2d::FOLLOW_PID": "pid",
+      "physics2d::IGNORE_DYNAMIC": "dynamic",
+      "physics2d::IGNORE_KINEMATIC": "kinematic",
+      "physics2d::IGNORE_SENSORS": "sensors",
+      "physics2d::IGNORE_SOLIDS": "solids",
+      "physics2d::IGNORE_STATIC": "static",
+      "physics2d::JOINT_BODY_DISABLED": "body_disabled",
+      "physics2d::JOINT_DISABLED": "disabled",
+      "physics2d::JOINT_ENABLED": "enabled",
+      "physics2d::JOINT_FIXED": "fixed",
+      "physics2d::JOINT_GENERIC": "generic",
+      "physics2d::JOINT_GROOVE": "groove",
+      "physics2d::JOINT_HINGE": "hinge",
+      "physics2d::JOINT_ROPE": "rope",
+      "physics2d::JOINT_SLIDER": "slider",
+      "physics2d::JOINT_SPRING": "spring",
+      "physics2d::JOINT_WAITING": "waiting",
+      "physics2d::LENGTHS_ABSOLUTE": "absolute",
+      "physics2d::LENGTHS_RELATIVE": "relative",
+      "physics2d::METHOD_EXACT": "exact",
+      "physics2d::METHOD_VHACD": "vhacd",
+      "physics2d::METHOD_VOXELS": "voxels",
+      "physics2d::MOTOR_MODEL_ACCELERATION": "acceleration",
+      "physics2d::MOTOR_MODEL_AUTO": "auto",
+      "physics2d::MOTOR_MODEL_FORCE": "force",
+      "physics2d::MOTOR_OFF": "off",
+      "physics2d::MOTOR_POSITION": "position",
+      "physics2d::MOTOR_VELOCITY": "velocity",
+      "physics2d::ORIENTATION_AUTO": "auto",
+      "physics2d::ORIENTATION_SHELL": "shell",
+      "physics2d::ORIENTATION_SOLID": "solid",
+      "physics2d::SHAPE_CAPSULE": "capsule",
+      "physics2d::SHAPE_CIRCLE": "circle",
+      "physics2d::SHAPE_CONVEX_DECOMPOSITION": "convex_decomposition",
+      "physics2d::SHAPE_CONVEX_HULL": "convex_hull",
+      "physics2d::SHAPE_CONVEX_POLYGON": "convex_polygon",
+      "physics2d::SHAPE_FIT": "fit",
+      "physics2d::SHAPE_HEIGHTFIELD": "heightfield",
+      "physics2d::SHAPE_MATCHING_AUTO": "auto",
+      "physics2d::SHAPE_MATCHING_OFF": "off",
+      "physics2d::SHAPE_MATCHING_ON": "on",
+      "physics2d::SHAPE_POLYLINE": "polyline",
+      "physics2d::SHAPE_RECTANGLE": "rectangle",
+      "physics2d::SHAPE_SEGMENT": "segment",
+      "physics2d::SHAPE_TRIANGLE": "triangle",
+      "physics2d::SHAPE_TRIANGLE_MESH": "triangle_mesh",
+      "physics2d::SHAPE_VOXELIZED_MESH": "voxelized_mesh",
+      "physics2d::SHAPE_VOXELIZED_POINTS": "voxelized_points",
+      "physics2d::SHAPE_VOXELS": "voxels",
+      "physics2d::SHAPE_WORLD_BOUNDARY": "world_boundary",
+      "physics2d::SOFT_CIRCLE": "circle",
+      "physics2d::SOFT_CUSTOM": "custom",
+      "physics2d::SOFT_GRID": "grid",
+      "physics2d::SOFT_OUTLINE": "outline",
+      "physics2d::SOFT_POLYGON": "polygon",
+      "physics2d::SOFT_POLYLINE": "polyline",
+      "physics2d::SOFT_ROPE": "rope",
+      "physics2d::SOFT_SOLVER_CONSTRAINTS": "constraints",
+      "physics2d::SOFT_SOLVER_FEM": "fem",
+      "physics2d::SOFT_TRIANGLE_MESH": "triangle_mesh",
+      "physics2d::SOFT_VOLUMETRIC": "volumetric",
+      "physics2d::SWEEP_CONVERGED": "converged",
+      "physics2d::SWEEP_FAILED": "failed",
+      "physics2d::SWEEP_OUT_OF_ITERATIONS": "out_of_iterations",
+      "physics2d::SWEEP_PENETRATING": "penetrating",
+      "physics2d::TENSION_ALL": "all",
+      "physics2d::TENSION_LISTED": "listed",
+      "physics2d::TENSION_NONE": "none",
+      "physics2d::TEST_BOTH": "both",
+      "physics2d::TEST_EITHER": "either",
+      "physics3d::AXIS_NEGATIVE_X": "-x",
+      "physics3d::AXIS_NEGATIVE_Y": "-y",
+      "physics3d::AXIS_NEGATIVE_Z": "-z",
+      "physics3d::AXIS_ROTATION_X": "rotation_x",
+      "physics3d::AXIS_ROTATION_Y": "rotation_y",
+      "physics3d::AXIS_ROTATION_Z": "rotation_z",
+      "physics3d::AXIS_X": "x",
+      "physics3d::AXIS_Y": "y",
+      "physics3d::AXIS_Z": "z",
+      "physics3d::BIND_CELLS": "cells",
+      "physics3d::BIND_NEAREST": "nearest",
+      "physics3d::BIND_PARTICLES": "particles",
+      "physics3d::BODY_DYNAMIC": "dynamic",
+      "physics3d::BODY_KINEMATIC": "kinematic",
+      "physics3d::BODY_KINEMATIC_VELOCITY": "kinematic_velocity",
+      "physics3d::BODY_STATIC": "static",
+      "physics3d::CELL_COROTATIONAL": "corotational",
+      "physics3d::CELL_NEO_HOOKEAN": "neo_hookean",
+      "physics3d::CELL_VOLUME": "volume",
+      "physics3d::COLLIDE_DYNAMIC_DYNAMIC": "dynamic_dynamic",
+      "physics3d::COLLIDE_DYNAMIC_KINEMATIC": "dynamic_kinematic",
+      "physics3d::COLLIDE_DYNAMIC_STATIC": "dynamic_static",
+      "physics3d::COLLIDE_KINEMATIC_KINEMATIC": "kinematic_kinematic",
+      "physics3d::COLLIDE_KINEMATIC_STATIC": "kinematic_static",
+      "physics3d::COLLIDE_STATIC_STATIC": "static_static",
+      "physics3d::COMBINE_AVERAGE": "average",
+      "physics3d::COMBINE_CLAMPED_SUM": "clamped_sum",
+      "physics3d::COMBINE_GEOMETRIC_MEAN": "geometric_mean",
+      "physics3d::COMBINE_MAX": "max",
+      "physics3d::COMBINE_MIN": "min",
+      "physics3d::COMBINE_MULTIPLY": "multiply",
+      "physics3d::DRIVE_FOLLOW": "follow",
+      "physics3d::DRIVE_MOTORS": "motors",
+      "physics3d::DRIVE_NONE": "none",
+      "physics3d::EDGES_CHAIN": "chain",
+      "physics3d::EDGES_MESH": "mesh",
+      "physics3d::EVENT_COLLISION": "collision",
+      "physics3d::EVENT_CONTACT_FORCE": "contact_force",
+      "physics3d::FILL_SOLID": "solid",
+      "physics3d::FILL_SURFACE": "surface",
+      "physics3d::FIT_AABB": "aabb",
+      "physics3d::FIT_CONVEX_DECOMPOSITION": "convex_decomposition",
+      "physics3d::FIT_CONVEX_HULL": "convex_hull",
+      "physics3d::FIT_OBB": "obb",
+      "physics3d::FLOW_BOTH": "both",
+      "physics3d::FLOW_COMPRESSION": "compression",
+      "physics3d::FLOW_TENSION": "tension",
+      "physics3d::FOLLOW_PD": "pd",
+      "physics3d::FOLLOW_PID": "pid",
+      "physics3d::FRICTION_PER_CONTACT": "per_contact",
+      "physics3d::FRICTION_SIMPLIFIED": "simplified",
+      "physics3d::IGNORE_DYNAMIC": "dynamic",
+      "physics3d::IGNORE_KINEMATIC": "kinematic",
+      "physics3d::IGNORE_SENSORS": "sensors",
+      "physics3d::IGNORE_SOLIDS": "solids",
+      "physics3d::IGNORE_STATIC": "static",
+      "physics3d::JOINT_BALL_SOCKET": "ball_socket",
+      "physics3d::JOINT_BODY_DISABLED": "body_disabled",
+      "physics3d::JOINT_DISABLED": "disabled",
+      "physics3d::JOINT_ENABLED": "enabled",
+      "physics3d::JOINT_FIXED": "fixed",
+      "physics3d::JOINT_GENERIC": "generic",
+      "physics3d::JOINT_HINGE": "hinge",
+      "physics3d::JOINT_ROPE": "rope",
+      "physics3d::JOINT_SLIDER": "slider",
+      "physics3d::JOINT_SPRING": "spring",
+      "physics3d::JOINT_WAITING": "waiting",
+      "physics3d::LENGTHS_ABSOLUTE": "absolute",
+      "physics3d::LENGTHS_RELATIVE": "relative",
+      "physics3d::METHOD_VHACD": "vhacd",
+      "physics3d::METHOD_VOXELS": "voxels",
+      "physics3d::MOTOR_MODEL_ACCELERATION": "acceleration",
+      "physics3d::MOTOR_MODEL_AUTO": "auto",
+      "physics3d::MOTOR_MODEL_FORCE": "force",
+      "physics3d::MOTOR_OFF": "off",
+      "physics3d::MOTOR_POSITION": "position",
+      "physics3d::MOTOR_VELOCITY": "velocity",
+      "physics3d::ORIENTATION_AUTO": "auto",
+      "physics3d::ORIENTATION_SHELL": "shell",
+      "physics3d::ORIENTATION_SOLID": "solid",
+      "physics3d::SHAPE_BOX": "box",
+      "physics3d::SHAPE_CAPSULE": "capsule",
+      "physics3d::SHAPE_CONE": "cone",
+      "physics3d::SHAPE_CONVEX_DECOMPOSITION": "convex_decomposition",
+      "physics3d::SHAPE_CONVEX_HULL": "convex_hull",
+      "physics3d::SHAPE_CONVEX_MESH": "convex_mesh",
+      "physics3d::SHAPE_CYLINDER": "cylinder",
+      "physics3d::SHAPE_FIT": "fit",
+      "physics3d::SHAPE_HEIGHTFIELD": "heightfield",
+      "physics3d::SHAPE_MATCHING_AUTO": "auto",
+      "physics3d::SHAPE_MATCHING_OFF": "off",
+      "physics3d::SHAPE_MATCHING_ON": "on",
+      "physics3d::SHAPE_POLYLINE": "polyline",
+      "physics3d::SHAPE_SEGMENT": "segment",
+      "physics3d::SHAPE_SPHERE": "sphere",
+      "physics3d::SHAPE_TRIANGLE": "triangle",
+      "physics3d::SHAPE_TRIANGLE_MESH": "triangle_mesh",
+      "physics3d::SHAPE_VOXELIZED_MESH": "voxelized_mesh",
+      "physics3d::SHAPE_VOXELIZED_POINTS": "voxelized_points",
+      "physics3d::SHAPE_VOXELS": "voxels",
+      "physics3d::SHAPE_WORLD_BOUNDARY": "world_boundary",
+      "physics3d::SOFT_BOX": "box",
+      "physics3d::SOFT_CLOTH": "cloth",
+      "physics3d::SOFT_CLOTH_TUBE": "cloth_tube",
+      "physics3d::SOFT_CUSTOM": "custom",
+      "physics3d::SOFT_ROPE": "rope",
+      "physics3d::SOFT_SOLVER_CONSTRAINTS": "constraints",
+      "physics3d::SOFT_SOLVER_FEM": "fem",
+      "physics3d::SOFT_SPHERE": "sphere",
+      "physics3d::SOFT_TRIANGLE_MESH": "triangle_mesh",
+      "physics3d::SOFT_VOLUMETRIC": "volumetric",
+      "physics3d::SWEEP_CONVERGED": "converged",
+      "physics3d::SWEEP_FAILED": "failed",
+      "physics3d::SWEEP_OUT_OF_ITERATIONS": "out_of_iterations",
+      "physics3d::SWEEP_PENETRATING": "penetrating",
+      "physics3d::TENSION_ALL": "all",
+      "physics3d::TENSION_LISTED": "listed",
+      "physics3d::TENSION_NONE": "none",
+      "physics3d::TEST_BOTH": "both",
+      "physics3d::TEST_EITHER": "either",
+      "platform::EVENT_DONE": "done",
+      "platform::EVENT_ERROR": "error",
+      "platform::EVENT_READ": "read",
+      "platform::EVENT_SCORES": "scores",
+      "platform::EVENT_SIGNED_IN": "signed_in",
+      "platform::EVENT_SIGNED_OUT": "signed_out",
+      "platform::EVENT_UNSUPPORTED": "unsupported",
+      "render::ALIGN_CENTER": "center",
+      "render::ALIGN_END": "end",
+      "render::ALIGN_START": "start",
+      "render::ALPHA_BLEND": "blend",
+      "render::ALPHA_MASK": "mask",
+      "render::ALPHA_OPAQUE": "opaque",
+      "render::ALPHA_PREMULTIPLIED": "premultiplied",
+      "render::AOV_CAMERA_NORMALS": "camera_normals",
+      "render::AOV_DEPTH": "depth",
+      "render::AOV_NORMALS": "normals",
+      "render::AOV_SEGMENTATION": "segmentation",
+      "render::FOG_EXPONENTIAL": "exponential",
+      "render::FOG_EXPONENTIAL_SQUARED": "exponential_squared",
+      "render::FOG_LINEAR": "linear",
+      "render::FOG_NONE": "none",
+      "render::FONT_ITALIC": "italic",
+      "render::FONT_NORMAL": "normal",
+      "render::LIGHT_DIRECTIONAL": "directional",
+      "render::LIGHT_POINT": "point",
+      "render::LIGHT_SPOT": "spot",
+      "render::POPULATE_GRID": "grid",
+      "render::POPULATE_RING": "ring",
+      "render::POPULATE_ROW": "row",
+      "render::POPULATE_SURFACE": "surface",
+      "render::SHAPE_BOX": "box",
+      "render::SHAPE_CAPSULE": "capsule",
+      "render::SHAPE_CIRCLE": "circle",
+      "render::SHAPE_CONE": "cone",
+      "render::SHAPE_CYLINDER": "cylinder",
+      "render::SHAPE_ELLIPSE": "ellipse",
+      "render::SHAPE_NGON": "ngon",
+      "render::SHAPE_PLANE": "plane",
+      "render::SHAPE_POLYLINE": "polyline",
+      "render::SHAPE_PRISM": "prism",
+      "render::SHAPE_PYRAMID": "pyramid",
+      "render::SHAPE_RECTANGLE": "rectangle",
+      "render::SHAPE_SPHERE": "sphere",
+      "render::SHAPE_STAR": "star",
+      "render::SHAPE_TORUS": "torus",
+      "render::SHAPE_TUBE": "tube",
+      "render::TONEMAP_ACES": "aces",
+      "render::TONEMAP_AGX": "agx",
+      "render::TONEMAP_NEUTRAL": "neutral",
+      "render::TONEMAP_NONE": "none",
+      "render::TONEMAP_REINHARD": "reinhard",
+      "render::TONEMAP_TONY_MCMAPFACE": "tony_mcmapface",
+      "replay::STATE_PAUSED": "paused",
+      "replay::STATE_PLAYING": "playing",
+      "replay::STATE_SEEKING": "seeking",
+      "replay::STATE_STOPPED": "stopped",
+      "ui::ALIGN_BASELINE": "baseline",
+      "ui::ALIGN_CENTER": "center",
+      "ui::ALIGN_END": "end",
+      "ui::ALIGN_START": "start",
+      "ui::ALIGN_STRETCH": "stretch",
+      "ui::ANCHOR_BOTTOM_LEFT": "bottom_left",
+      "ui::ANCHOR_BOTTOM_RIGHT": "bottom_right",
+      "ui::ANCHOR_CENTER": "center",
+      "ui::ANCHOR_CENTER_BOTTOM": "center_bottom",
+      "ui::ANCHOR_CENTER_LEFT": "center_left",
+      "ui::ANCHOR_CENTER_RIGHT": "center_right",
+      "ui::ANCHOR_CENTER_TOP": "center_top",
+      "ui::ANCHOR_FILL": "fill",
+      "ui::ANCHOR_FILL_ACROSS": "fill_across",
+      "ui::ANCHOR_FILL_BOTTOM": "fill_bottom",
+      "ui::ANCHOR_FILL_DOWN": "fill_down",
+      "ui::ANCHOR_FILL_LEFT": "fill_left",
+      "ui::ANCHOR_FILL_RIGHT": "fill_right",
+      "ui::ANCHOR_FILL_TOP": "fill_top",
+      "ui::ANCHOR_TOP_LEFT": "top_left",
+      "ui::ANCHOR_TOP_RIGHT": "top_right",
+      "ui::FONT_HEADING": "heading",
+      "ui::FONT_MONO": "mono",
+      "ui::FONT_STYLE_ITALIC": "italic",
+      "ui::FONT_STYLE_NORMAL": "normal",
+      "ui::FONT_STYLE_OBLIQUE": "oblique",
+      "ui::HEIGHT_SHORT": "short",
+      "ui::HEIGHT_TALL": "tall",
+      "ui::INPUT_POINTER": "pointer",
+      "ui::INPUT_TOUCH": "touch",
+      "ui::MODIFIER_ALT": "alt",
+      "ui::MODIFIER_CMD": "cmd",
+      "ui::MODIFIER_CTRL": "ctrl",
+      "ui::MODIFIER_SHIFT": "shift",
+      "ui::WIDGET_BUTTON": "button",
+      "ui::WIDGET_CHECKBOX": "checkbox",
+      "ui::WIDGET_CODE": "code",
+      "ui::WIDGET_COLOR_PICKER": "color_picker",
+      "ui::WIDGET_COLUMN": "column",
+      "ui::WIDGET_DIALOG": "dialog",
+      "ui::WIDGET_DRAW": "draw",
+      "ui::WIDGET_DROPDOWN": "dropdown",
+      "ui::WIDGET_FLOW": "flow",
+      "ui::WIDGET_FOLD": "fold",
+      "ui::WIDGET_GRID": "grid",
+      "ui::WIDGET_IMAGE": "image",
+      "ui::WIDGET_INSPECTOR": "inspector",
+      "ui::WIDGET_LABEL": "label",
+      "ui::WIDGET_LIST": "list",
+      "ui::WIDGET_MENU": "menu",
+      "ui::WIDGET_NUMBER_FIELD": "number_field",
+      "ui::WIDGET_PANEL": "panel",
+      "ui::WIDGET_PROGRESS_BAR": "progress_bar",
+      "ui::WIDGET_ROW": "row",
+      "ui::WIDGET_SCROLL": "scroll",
+      "ui::WIDGET_SEPARATOR": "separator",
+      "ui::WIDGET_SLIDER": "slider",
+      "ui::WIDGET_STACK": "stack",
+      "ui::WIDGET_SWITCH": "switch",
+      "ui::WIDGET_TABLE": "table",
+      "ui::WIDGET_TABS": "tabs",
+      "ui::WIDGET_TEXT_AREA": "text_area",
+      "ui::WIDGET_TEXT_FIELD": "text_field",
+      "ui::WIDGET_TOAST": "toast",
+      "ui::WIDGET_TREE": "tree",
+      "ui::WIDGET_WINDOW": "window",
+      "ui::WIDTH_MEDIUM": "medium",
+      "ui::WIDTH_NARROW": "narrow",
+      "ui::WIDTH_WIDE": "wide",
+      "websocket::EVENT_BINARY": "binary",
+      "websocket::EVENT_CLOSED": "closed",
+      "websocket::EVENT_ERROR": "error",
+      "websocket::EVENT_MESSAGE": "message",
+      "websocket::EVENT_OPEN": "open",
+      "websocket::STATE_CLOSED": "closed",
+      "websocket::STATE_CLOSING": "closing",
+      "websocket::STATE_CONNECTING": "connecting",
+      "websocket::STATE_OPEN": "open"
+    },
+    "functions": {
+      "animation::add_clip": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "animation::current_clip": {
+        "least": 1,
+        "signature": "(Node) -> str?"
+      },
+      "animation::current_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "animation::ease_names": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "animation::is_playing": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "animation::is_tween_running": {
+        "least": 0,
+        "signature": "(any) -> bool"
+      },
+      "animation::jump": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "animation::just_finished": {
+        "least": 1,
+        "signature": "(Node) -> str?"
+      },
+      "animation::pause": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "animation::play": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "animation::queue": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "animation::resume": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "animation::seek": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "animation::set_condition": {
+        "least": 3,
+        "signature": "(Node, str, bool)"
+      },
+      "animation::stop": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "animation::time": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "animation::travel": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "animation::tween": {
+        "least": 1,
+        "signature": "(Node, any) -> int"
+      },
+      "animation::tween_value": {
+        "least": 3,
+        "signature": "(any, any, float, str?) -> int"
+      },
+      "animation::tween_value_of": {
+        "least": 0,
+        "signature": "(any) -> float"
+      },
+      "apple::access_point": {
+        "least": 0,
+        "signature": "(any, any) -> bool"
+      },
+      "apple::authenticated": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::available": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::cancel_notification": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "apple::credential_state": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "apple::entitlements": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "apple::finish_purchase": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "apple::identity": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "apple::listen": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "apple::listen_for_cloud_changes": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::listen_for_invites": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::listen_for_urls": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::notify": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "apple::products": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "apple::purchase": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "apple::register_for_push": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "apple::request_notifications": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "apple::restore_purchases": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "apple::show_dashboard": {
+        "least": 0,
+        "signature": "(any, any) -> int"
+      },
+      "apple::sign_in": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "assets::assign_id": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "assets::directory": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "assets::duplicate": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "assets::exists": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "assets::id": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "assets::invalidate": {
+        "least": 0,
+        "signature": "()"
+      },
+      "assets::load": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "assets::path": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "assets::reload": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "assets::rename": {
+        "least": 2,
+        "signature": "(str, str) -> [str]"
+      },
+      "assets::save": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "audio::bus_limit": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "audio::bus_volume_linear": {
+        "least": 1,
+        "signature": "(str) -> float"
+      },
+      "audio::buses": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "audio::cues": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "audio::device_ready": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "audio::devices": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "audio::distance_gain": {
+        "least": 1,
+        "signature": "(int) -> float?"
+      },
+      "audio::emitter_position": {
+        "least": 1,
+        "signature": "(int) -> Vec3?"
+      },
+      "audio::is_playing": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "audio::listener_position": {
+        "least": 0,
+        "signature": "() -> Vec3"
+      },
+      "audio::pan": {
+        "least": 1,
+        "signature": "(int) -> float?"
+      },
+      "audio::play": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "audio::play_cue": {
+        "least": 1,
+        "signature": "(str, any) -> int?"
+      },
+      "audio::seek": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "audio::set_bus_volume_linear": {
+        "least": 2,
+        "signature": "(str, float)"
+      },
+      "audio::set_emitter_position": {
+        "least": 1,
+        "signature": "(int, any, any, any)"
+      },
+      "audio::set_listener_position": {
+        "least": 0,
+        "signature": "(any, any, any)"
+      },
+      "audio::set_pitch_scale": {
+        "least": 2,
+        "signature": "(int, float)"
+      },
+      "audio::set_volume_linear": {
+        "least": 2,
+        "signature": "(int, float)"
+      },
+      "audio::skip": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "audio::stop": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "audio::stop_all": {
+        "least": 0,
+        "signature": "()"
+      },
+      "audio::stop_playback": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "browser::hardware_concurrency": {
+        "least": 0,
+        "signature": "() -> int?"
+      },
+      "browser::listen": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "browser::location": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "browser::messages": {
+        "least": 0,
+        "signature": "() -> [any]"
+      },
+      "browser::post_message": {
+        "least": 0,
+        "signature": "(any) -> bool"
+      },
+      "browser::stop_listening": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "browser::user_agent": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "browser::visible": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "debugger::break_on_error": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "debugger::breakpoints": {
+        "least": 1,
+        "signature": "(str) -> [int]"
+      },
+      "debugger::request_break": {
+        "least": 0,
+        "signature": "()"
+      },
+      "debugger::resume": {
+        "least": 0,
+        "signature": "(str?)"
+      },
+      "debugger::scope": {
+        "least": 0,
+        "signature": "() -> Node"
+      },
+      "debugger::set_break_on_error": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "debugger::set_breakpoints": {
+        "least": 2,
+        "signature": "(str, [int]) -> [int]"
+      },
+      "debugger::set_scope": {
+        "least": 0,
+        "signature": "(Node?)"
+      },
+      "debugger::stop_location": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "encoding::base64": {
+        "least": 0,
+        "signature": "(any) -> str"
+      },
+      "encoding::from_base64": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "engine::args": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "engine::dark_mode": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "engine::delta": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "engine::device_id": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "engine::environment": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "engine::focused": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "engine::function_costs": {
+        "least": 0,
+        "signature": "() -> [engine::FunctionCost]"
+      },
+      "engine::has_plugin": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "engine::open_url": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "engine::paused": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "engine::plugin_version": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "engine::plugins": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "engine::quit": {
+        "least": 0,
+        "signature": "(int?)"
+      },
+      "engine::reload_script": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "engine::reveal": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "engine::script_costs": {
+        "least": 0,
+        "signature": "() -> [engine::ScriptCost]"
+      },
+      "engine::set_paused": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "engine::set_script_profiling": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "engine::set_time_scale": {
+        "least": 1,
+        "signature": "(float)"
+      },
+      "engine::target": {
+        "least": 0,
+        "signature": "() -> engine::Target"
+      },
+      "engine::tick": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "engine::tick_hz": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "engine::time": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "engine::time_scale": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "engine::timings": {
+        "least": 0,
+        "signature": "() -> engine::Timings?"
+      },
+      "engine::unix_time": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "engine::user_data_directory": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "engine::user_data_directory_of": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "events::emit": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "events::emitted": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "events::emitted_from": {
+        "least": 2,
+        "signature": "(Node, str) -> any"
+      },
+      "events::listen": {
+        "least": 2,
+        "signature": "(Node, str, Node?)"
+      },
+      "events::next": {
+        "least": 1,
+        "signature": "(str, Node?) -> int"
+      },
+      "events::stop_listening": {
+        "least": 2,
+        "signature": "(Node, str, Node?)"
+      },
+      "export::listen": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "export::output": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "export::preview": {
+        "least": 2,
+        "signature": "(str, str) -> export::Preview?"
+      },
+      "export::running_count": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "export::start": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "export::targets": {
+        "least": 0,
+        "signature": "() -> [export::Target]"
+      },
+      "fs::copy": {
+        "least": 2,
+        "signature": "(str, str)"
+      },
+      "fs::create_directory": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "fs::exists": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "fs::list": {
+        "least": 1,
+        "signature": "(str) -> [fs::Entry]"
+      },
+      "fs::modified_time": {
+        "least": 1,
+        "signature": "(str) -> float?"
+      },
+      "fs::read": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "fs::remove": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "fs::rename": {
+        "least": 2,
+        "signature": "(str, str)"
+      },
+      "fs::write": {
+        "least": 2,
+        "signature": "(str, str)"
+      },
+      "gamend::activity": {
+        "least": 0,
+        "signature": "() -> [gamend::Entry]"
+      },
+      "gamend::call_hook": {
+        "least": 3,
+        "signature": "(int, str, str, any) -> int"
+      },
+      "gamend::clear_activity": {
+        "least": 0,
+        "signature": "()"
+      },
+      "gamend::close": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "gamend::configure": {
+        "least": 0,
+        "signature": "(str?) -> str"
+      },
+      "gamend::connect": {
+        "least": 0,
+        "signature": "(any, any) -> int"
+      },
+      "gamend::connection": {
+        "least": 0,
+        "signature": "() -> gamend::Connection"
+      },
+      "gamend::interrupt": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "gamend::join": {
+        "least": 2,
+        "signature": "(int, str, any) -> int"
+      },
+      "gamend::leave": {
+        "least": 2,
+        "signature": "(int, str) -> int"
+      },
+      "gamend::login": {
+        "least": 0,
+        "signature": "(any, any, any) -> int"
+      },
+      "gamend::push": {
+        "least": 3,
+        "signature": "(int, str, str, any) -> int"
+      },
+      "gamend::register": {
+        "least": 0,
+        "signature": "(any, any, any) -> int"
+      },
+      "gamend::reply": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "gamend::rest": {
+        "least": 3,
+        "signature": "(any, str, str, any) -> any"
+      },
+      "gamend::restore": {
+        "least": 0,
+        "signature": "(any) -> bool"
+      },
+      "gamend::run_id": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "gamend::server": {
+        "least": 0,
+        "signature": "() -> gamend::Server"
+      },
+      "gamend::session": {
+        "least": 0,
+        "signature": "() -> gamend::Session?"
+      },
+      "geometry2d::area": {
+        "least": 0,
+        "signature": "(any) -> float"
+      },
+      "geometry2d::contains": {
+        "least": 0,
+        "signature": "(any, any) -> bool"
+      },
+      "geometry2d::convex_decomposition": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "geometry2d::convex_hull": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "geometry2d::difference": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "geometry2d::intersection": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "geometry2d::is_clockwise": {
+        "least": 0,
+        "signature": "(any) -> bool"
+      },
+      "geometry2d::reverse_difference": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "geometry2d::segments_intersect": {
+        "least": 0,
+        "signature": "(any, any, any, any) -> Vec2"
+      },
+      "geometry2d::symmetric_difference": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "geometry2d::triangulate": {
+        "least": 0,
+        "signature": "(any) -> [[int]]"
+      },
+      "geometry2d::union": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "geometry3d::convex_decomposition": {
+        "least": 0,
+        "signature": "(any, any) -> [any]"
+      },
+      "geometry3d::convex_hull": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "geometry3d::intersect": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "geometry3d::pieces": {
+        "least": 0,
+        "signature": "(any) -> [any]"
+      },
+      "geometry3d::split": {
+        "least": 0,
+        "signature": "(any, any) -> [any]"
+      },
+      "geometry3d::voxelize": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "hash::sha256": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "hash::sha256_text": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "http::cancel": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "http::request": {
+        "least": 0,
+        "signature": "(any, any, any) -> int"
+      },
+      "import::cancel": {
+        "least": 0,
+        "signature": "()"
+      },
+      "import::choose": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "import::file": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "import::handles": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "import::listen": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "import::running_count": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "import::start": {
+        "least": 1,
+        "signature": "(str, str?) -> bool"
+      },
+      "input::action_down": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::action_just_pressed": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::action_just_released": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::action_value": {
+        "least": 1,
+        "signature": "(str) -> float"
+      },
+      "input::actions": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::bind": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "input::bindings": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "input::composing": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::dropped_files": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::feed_action": {
+        "least": 2,
+        "signature": "(str, float)"
+      },
+      "input::feed_gamepad": {
+        "least": 1,
+        "signature": "(int, any)"
+      },
+      "input::feed_key": {
+        "least": 2,
+        "signature": "(str, bool)"
+      },
+      "input::feed_mouse": {
+        "least": 2,
+        "signature": "(float, float)"
+      },
+      "input::feed_mouse_button": {
+        "least": 2,
+        "signature": "(int, bool)"
+      },
+      "input::feed_scroll": {
+        "least": 2,
+        "signature": "(float, float)"
+      },
+      "input::feed_touch": {
+        "least": 4,
+        "signature": "(int, float, float, str)"
+      },
+      "input::gamepad_acceleration": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "input::gamepad_axis": {
+        "least": 2,
+        "signature": "(int, str) -> float"
+      },
+      "input::gamepad_can_rumble": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "input::gamepad_down": {
+        "least": 2,
+        "signature": "(int, str) -> bool"
+      },
+      "input::gamepad_gyro": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "input::gamepad_info": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "input::gamepad_just_pressed": {
+        "least": 2,
+        "signature": "(int, str) -> bool"
+      },
+      "input::gamepad_just_released": {
+        "least": 2,
+        "signature": "(int, str) -> bool"
+      },
+      "input::gamepad_name": {
+        "least": 1,
+        "signature": "(int) -> str"
+      },
+      "input::gamepad_power": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "input::gamepad_pressure": {
+        "least": 2,
+        "signature": "(int, str) -> float"
+      },
+      "input::gamepad_repeated": {
+        "least": 2,
+        "signature": "(int, str) -> bool"
+      },
+      "input::gamepad_rumble": {
+        "least": 1,
+        "signature": "(int, any) -> bool"
+      },
+      "input::gamepad_set_listener": {
+        "least": 1,
+        "signature": "(int, any)"
+      },
+      "input::gamepad_stop_rumble": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "input::gamepad_touches": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "input::gamepads": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::key_down": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::key_just_pressed": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::key_just_released": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "input::keyboard_height": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::long_press": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::mouse_delta": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "input::mouse_down": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "input::mouse_just_pressed": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "input::mouse_just_released": {
+        "least": 1,
+        "signature": "(int) -> bool"
+      },
+      "input::mouse_position": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "input::pan": {
+        "least": 0,
+        "signature": "() -> input::Pan"
+      },
+      "input::pinch": {
+        "least": 0,
+        "signature": "() -> input::Pinch"
+      },
+      "input::reset_bindings": {
+        "least": 0,
+        "signature": "()"
+      },
+      "input::scroll_delta": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "input::swipe": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::touches": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::touches_just_ended": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::touches_just_started": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::typed": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "input::vibrate": {
+        "least": 1,
+        "signature": "(float)"
+      },
+      "json::encode": {
+        "least": 0,
+        "signature": "(any) -> str"
+      },
+      "json::parse": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "log::clear": {
+        "least": 0,
+        "signature": "()"
+      },
+      "log::error": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "log::file": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "log::info": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "log::recent": {
+        "least": 0,
+        "signature": "(int?) -> [log::Entry]"
+      },
+      "log::since": {
+        "least": 0,
+        "signature": "(int?) -> log::Batch"
+      },
+      "log::warn": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "math::abs": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::acos": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::asin": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::atan": {
+        "least": 1,
+        "signature": "(float, float?) -> float"
+      },
+      "math::atan2": {
+        "least": 2,
+        "signature": "(float, float) -> float"
+      },
+      "math::ceil": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::clamp": {
+        "least": 3,
+        "signature": "(float, float, float) -> float"
+      },
+      "math::cos": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::cosh": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::exp": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::floor": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::log": {
+        "least": 1,
+        "signature": "(float, float?) -> float"
+      },
+      "math::log10": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::max": {
+        "least": 2,
+        "signature": "(float, float) -> float"
+      },
+      "math::min": {
+        "least": 2,
+        "signature": "(float, float) -> float"
+      },
+      "math::pow": {
+        "least": 2,
+        "signature": "(float, float) -> float"
+      },
+      "math::round": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::sin": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::sinh": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::sqrt": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::tan": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::tanh": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::to_degrees": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "math::to_radians": {
+        "least": 1,
+        "signature": "(float) -> float"
+      },
+      "multiplayer::add_bot": {
+        "least": 0,
+        "signature": "(str?) -> int?"
+      },
+      "multiplayer::host": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "multiplayer::join": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "multiplayer::leave": {
+        "least": 0,
+        "signature": "()"
+      },
+      "multiplayer::local_player": {
+        "least": 0,
+        "signature": "() -> int?"
+      },
+      "multiplayer::players": {
+        "least": 0,
+        "signature": "() -> [any]"
+      },
+      "multiplayer::role": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "multiplayer::set_input": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "multiplayer::set_input_for": {
+        "least": 1,
+        "signature": "(int, any)"
+      },
+      "multiplayer::settled_tick": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "multiplayer::start": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "multiplayer::state": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "multiplayer::stats": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "multiplayer::tick": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "node.add_child": {
+        "least": 2,
+        "signature": "(Node, str) -> Node"
+      },
+      "node.add_tag": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.attach_script": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.call": {
+        "least": 2,
+        "signature": "(Node, str, any) -> any"
+      },
+      "node.call_async": {
+        "least": 2,
+        "signature": "(Node, str, any) -> int"
+      },
+      "node.children": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "node.component_names": {
+        "least": 1,
+        "signature": "(Node) -> [str]"
+      },
+      "node.descendants": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "node.detach_script": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.effective_material": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.effective_tint": {
+        "least": 1,
+        "signature": "(Node) -> Color"
+      },
+      "node.effective_z_index": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.emit": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.get_component": {
+        "least": 2,
+        "signature": "(Node, str, str?) -> any"
+      },
+      "node.get_node": {
+        "least": 2,
+        "signature": "(Node, str) -> Node"
+      },
+      "node.has_component": {
+        "least": 2,
+        "signature": "(Node, str) -> bool"
+      },
+      "node.has_method": {
+        "least": 2,
+        "signature": "(Node, str) -> bool"
+      },
+      "node.has_tag": {
+        "least": 2,
+        "signature": "(Node, str) -> bool"
+      },
+      "node.interpolate": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.is_valid": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.material": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.name": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.parent": {
+        "least": 1,
+        "signature": "(Node) -> Node"
+      },
+      "node.patch_component": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.path": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.process": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.queue_free": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.remove_component": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.remove_tag": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.reset_interpolation": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.script_field": {
+        "least": 2,
+        "signature": "(Node, str) -> any"
+      },
+      "node.script_path": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.set_component": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.set_interpolate": {
+        "least": 2,
+        "signature": "(Node, bool)"
+      },
+      "node.set_material": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.set_name": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.set_parent": {
+        "least": 2,
+        "signature": "(Node, Node)"
+      },
+      "node.set_process": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.set_sibling_index": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.set_tint": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "node.set_visible": {
+        "least": 2,
+        "signature": "(Node, bool)"
+      },
+      "node.set_z_index": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.sibling_index": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.stable_id": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.states.set_state": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.states.state": {
+        "least": 1,
+        "signature": "(Node) -> str"
+      },
+      "node.tags": {
+        "least": 1,
+        "signature": "(Node) -> [str]"
+      },
+      "node.ticking": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.tint": {
+        "least": 1,
+        "signature": "(Node) -> Color"
+      },
+      "node.transform.global_position": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.transform.global_rotation_euler": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.transform.global_scale": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.transform.translate": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.visible": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.visible_in_tree": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.z_index": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "physics2d::aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics2d::active_bodies": {
+        "least": 0,
+        "signature": "() -> [Node]"
+      },
+      "physics2d::add_constant_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::add_constant_force_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "physics2d::add_constant_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics2d::add_particle_force": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics2d::add_softbody_force": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics2d::angular_velocity": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::apply_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::apply_force_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "physics2d::apply_impulse": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::apply_impulse_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "physics2d::apply_particle_impulse": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics2d::apply_softbody_impulse": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics2d::apply_softbody_impulse_at": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "physics2d::apply_softbody_radial_impulse": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "physics2d::apply_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics2d::apply_torque_impulse": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics2d::attach_particle": {
+        "least": 3,
+        "signature": "(Node, int, Node)"
+      },
+      "physics2d::bodies": {
+        "least": 0,
+        "signature": "() -> [Node]"
+      },
+      "physics2d::broad_phase_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics2d::closest_point": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics2d::closest_points": {
+        "least": 2,
+        "signature": "(Node, Node) -> any"
+      },
+      "physics2d::collider_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::collider_mass_properties": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::collider_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::collider_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::collision_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics2d::combine_voxels": {
+        "least": 2,
+        "signature": "(Node, Node)"
+      },
+      "physics2d::constant_force": {
+        "least": 1,
+        "signature": "(Node) -> Vec2"
+      },
+      "physics2d::constant_torque": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::crop_voxels": {
+        "least": 5,
+        "signature": "(Node, int, int, int, int)"
+      },
+      "physics2d::cut_softbody": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics2d::detach_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "physics2d::distance": {
+        "least": 2,
+        "signature": "(Node, Node) -> float"
+      },
+      "physics2d::effective_angular_inertia": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::effective_dominance": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::effective_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::gravity": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "physics2d::handles": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::has_pending_tears": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::heightfield_hole": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "physics2d::intersects": {
+        "least": 2,
+        "signature": "(Node, Node) -> bool"
+      },
+      "physics2d::is_ccd_active": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::is_moving": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::is_on_floor": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::is_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::joint_force": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::joint_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::kinetic_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::linear_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec2"
+      },
+      "physics2d::local_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::max_contact_impulse": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::move_character": {
+        "least": 3,
+        "signature": "(Node, float, float) -> any"
+      },
+      "physics2d::next_position": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::overlap_aabb": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics2d::overlap_point": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics2d::overlap_shape": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics2d::overlaps": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "physics2d::pin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics2d::pose_in_body": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::potential_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::predict_position": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "physics2d::predict_position_with_forces": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "physics2d::ragdoll": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics2d::raycast": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics2d::raycast_all": {
+        "least": 0,
+        "signature": "(any) -> [any]"
+      },
+      "physics2d::remove_joint": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::reset_follow": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::reset_plasticity": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::reset_softbody_forces": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::set_angular_velocity": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics2d::set_cell_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "physics2d::set_collider": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics2d::set_constant_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::set_constant_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics2d::set_edge_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "physics2d::set_gravity": {
+        "least": 2,
+        "signature": "(float, float)"
+      },
+      "physics2d::set_heightfield_hole": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "physics2d::set_joint_limits": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "physics2d::set_linear_velocity": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::set_motor_position": {
+        "least": 5,
+        "signature": "(Node, str, float, float, float)"
+      },
+      "physics2d::set_motor_velocity": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "physics2d::set_particle_damaged": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "physics2d::set_particle_position": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics2d::set_particle_target": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics2d::set_particle_velocity": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics2d::set_softbody": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics2d::set_voxel": {
+        "least": 4,
+        "signature": "(Node, int, int, bool)"
+      },
+      "physics2d::set_voxel_size": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "physics2d::shapecast": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics2d::sleep": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::softbody_area": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::softbody_attachments": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::softbody_boundary": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics2d::softbody_cell": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics2d::softbody_cells": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics2d::softbody_center": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::softbody_contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::softbody_crossing": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics2d::softbody_edge": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics2d::softbody_edges": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics2d::softbody_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::softbody_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics2d::softbody_particle_radius": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::softbody_particles": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "physics2d::softbody_position": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec2"
+      },
+      "physics2d::softbody_rest_area": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::softbody_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics2d::softbody_stress": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics2d::softbody_velocity": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec2"
+      },
+      "physics2d::softbody_volume_pieces": {
+        "least": 1,
+        "signature": "(Node) -> [any]"
+      },
+      "physics2d::solve_ik": {
+        "least": 3,
+        "signature": "(Node, float, float, any)"
+      },
+      "physics2d::swept_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics2d::tear_cell": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics2d::tear_edge": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics2d::tear_softbody": {
+        "least": 1,
+        "signature": "(Node, any, any) -> any"
+      },
+      "physics2d::teleport": {
+        "least": 3,
+        "signature": "(Node, float, float, any)"
+      },
+      "physics2d::time_of_impact": {
+        "least": 2,
+        "signature": "(Node, Node, any) -> any"
+      },
+      "physics2d::time_since_can_sleep": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::total_inertia": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::total_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics2d::unpin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics2d::velocity_at_point": {
+        "least": 3,
+        "signature": "(Node, float, float) -> Vec2"
+      },
+      "physics2d::voxel": {
+        "least": 3,
+        "signature": "(Node, int, int) -> bool"
+      },
+      "physics2d::voxel_at": {
+        "least": 3,
+        "signature": "(Node, float, float) -> [int]"
+      },
+      "physics2d::voxel_size": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics2d::wake_all": {
+        "least": 0,
+        "signature": "()"
+      },
+      "physics2d::wake_softbody": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::wake_up": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics2d::world_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics3d::active_bodies": {
+        "least": 0,
+        "signature": "() -> [Node]"
+      },
+      "physics3d::add_constant_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::add_constant_force_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "physics3d::add_constant_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::add_particle_force": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics3d::add_softbody_force": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics3d::angular_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "physics3d::apply_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::apply_force_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "physics3d::apply_impulse": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::apply_impulse_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "physics3d::apply_particle_impulse": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics3d::apply_softbody_impulse": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics3d::apply_softbody_impulse_at": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "physics3d::apply_softbody_radial_impulse": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "physics3d::apply_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::apply_torque_impulse": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::attach_particle": {
+        "least": 3,
+        "signature": "(Node, int, Node)"
+      },
+      "physics3d::bodies": {
+        "least": 0,
+        "signature": "() -> [Node]"
+      },
+      "physics3d::broad_phase_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics3d::closest_point": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics3d::closest_points": {
+        "least": 2,
+        "signature": "(Node, Node) -> any"
+      },
+      "physics3d::collider_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::collider_mass_properties": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::collider_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::collider_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::collision_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics3d::combine_voxels": {
+        "least": 2,
+        "signature": "(Node, Node)"
+      },
+      "physics3d::constant_force": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "physics3d::constant_torque": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "physics3d::contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::crop_voxels": {
+        "least": 7,
+        "signature": "(Node, int, int, int, int, int, int)"
+      },
+      "physics3d::cut_softbody": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics3d::detach_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "physics3d::distance": {
+        "least": 2,
+        "signature": "(Node, Node) -> float"
+      },
+      "physics3d::effective_angular_inertia": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::effective_dominance": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::effective_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::gravity": {
+        "least": 0,
+        "signature": "() -> Vec3"
+      },
+      "physics3d::handles": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::has_pending_tears": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::heightfield_hole": {
+        "least": 3,
+        "signature": "(Node, int, int) -> bool"
+      },
+      "physics3d::intersects": {
+        "least": 2,
+        "signature": "(Node, Node) -> bool"
+      },
+      "physics3d::is_ccd_active": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::is_moving": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::is_on_floor": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::is_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::joint_force": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::joint_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::kinetic_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::linear_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "physics3d::local_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::max_contact_impulse": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::move_character": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> any"
+      },
+      "physics3d::next_position": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::overlap_aabb": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics3d::overlap_point": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics3d::overlap_shape": {
+        "least": 0,
+        "signature": "(any) -> [Node]"
+      },
+      "physics3d::overlaps": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "physics3d::pin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics3d::pose_in_body": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::potential_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::predict_position": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "physics3d::predict_position_with_forces": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "physics3d::ragdoll": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics3d::raycast": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics3d::raycast_all": {
+        "least": 0,
+        "signature": "(any) -> [any]"
+      },
+      "physics3d::remove_joint": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::reset_follow": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::reset_plasticity": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::reset_softbody_forces": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::set_angular_velocity": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::set_brake": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics3d::set_cell_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "physics3d::set_collider": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics3d::set_constant_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::set_constant_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::set_edge_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "physics3d::set_engine_force": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics3d::set_gravity": {
+        "least": 3,
+        "signature": "(float, float, float)"
+      },
+      "physics3d::set_heightfield_hole": {
+        "least": 4,
+        "signature": "(Node, int, int, bool)"
+      },
+      "physics3d::set_joint_limits": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "physics3d::set_linear_velocity": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::set_motor_position": {
+        "least": 5,
+        "signature": "(Node, str, float, float, float)"
+      },
+      "physics3d::set_motor_velocity": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "physics3d::set_particle_damaged": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "physics3d::set_particle_position": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics3d::set_particle_target": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics3d::set_particle_velocity": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "physics3d::set_softbody": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "physics3d::set_steering": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics3d::set_voxel": {
+        "least": 5,
+        "signature": "(Node, int, int, int, bool)"
+      },
+      "physics3d::set_voxel_size": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "physics3d::set_wheel_rotation": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics3d::shapecast": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "physics3d::sleep": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::softbody_attachments": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::softbody_boundary": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics3d::softbody_cell": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics3d::softbody_cells": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics3d::softbody_center": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::softbody_contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::softbody_crossing": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "physics3d::softbody_dihedral": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics3d::softbody_dihedrals": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics3d::softbody_edge": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics3d::softbody_edges": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "physics3d::softbody_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::softbody_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "physics3d::softbody_particle_radius": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::softbody_particles": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "physics3d::softbody_position": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec3"
+      },
+      "physics3d::softbody_rest_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::softbody_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "physics3d::softbody_stress": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics3d::softbody_velocity": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec3"
+      },
+      "physics3d::softbody_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::softbody_volume_pieces": {
+        "least": 1,
+        "signature": "(Node) -> [any]"
+      },
+      "physics3d::solve_ik": {
+        "least": 4,
+        "signature": "(Node, float, float, float, any)"
+      },
+      "physics3d::speed": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::swept_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "physics3d::tear_cell": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics3d::tear_edge": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics3d::tear_softbody": {
+        "least": 1,
+        "signature": "(Node, any, any) -> any"
+      },
+      "physics3d::teleport": {
+        "least": 4,
+        "signature": "(Node, float, float, float, any)"
+      },
+      "physics3d::time_of_impact": {
+        "least": 2,
+        "signature": "(Node, Node, any) -> any"
+      },
+      "physics3d::time_since_can_sleep": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::total_inertia": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::total_inertia_rotation": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::total_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::unpin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "physics3d::vehicle_speed": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "physics3d::velocity_at_point": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> Vec3"
+      },
+      "physics3d::voxel": {
+        "least": 4,
+        "signature": "(Node, int, int, int) -> bool"
+      },
+      "physics3d::voxel_at": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> [int]"
+      },
+      "physics3d::voxel_size": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::wake_all": {
+        "least": 0,
+        "signature": "()"
+      },
+      "physics3d::wake_softbody": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::wake_up": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "physics3d::wheel_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics3d::world_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "physics::clear": {
+        "least": 0,
+        "signature": "()"
+      },
+      "physics::counters": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "physics::debug_draw": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "physics::is_paused": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "physics::quarantined": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "physics::set_debug_draw": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "physics::set_paused": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "physics::set_ragdoll_influence": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "physics::set_sleeping_allowed": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "physics::set_threads": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "physics::set_tuning": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "physics::sleeping_allowed": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "physics::threads": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "physics::tuning": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "platform::backend": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "platform::cloud_read": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "platform::cloud_write": {
+        "least": 0,
+        "signature": "(any, any, any, any) -> any"
+      },
+      "platform::player": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "platform::progress": {
+        "least": 0,
+        "signature": "(any, any, any, any) -> any"
+      },
+      "platform::scores": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "platform::set_presence": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "platform::sign_in": {
+        "least": 0,
+        "signature": "(any, any) -> any"
+      },
+      "platform::signed_in": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "platform::submit_score": {
+        "least": 0,
+        "signature": "(any, any, any, any) -> any"
+      },
+      "platform::unlock": {
+        "least": 0,
+        "signature": "(any, any, any) -> any"
+      },
+      "project::copy_example": {
+        "least": 2,
+        "signature": "(str, str) -> project::Project"
+      },
+      "project::create": {
+        "least": 2,
+        "signature": "(str, str) -> project::Project"
+      },
+      "project::editor_data_directory": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "project::examples": {
+        "least": 0,
+        "signature": "() -> [project::Example]"
+      },
+      "project::forget": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "project::home": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "project::in_tab": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "project::open": {
+        "least": 1,
+        "signature": "(str) -> project::Opened"
+      },
+      "project::pick_directory": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "project::recent": {
+        "least": 0,
+        "signature": "() -> [project::Recent]"
+      },
+      "project::templates": {
+        "least": 0,
+        "signature": "() -> [project::Template]"
+      },
+      "project::use_data": {
+        "least": 0,
+        "signature": "(str?) -> str?"
+      },
+      "project::version": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "random::float": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "random::int": {
+        "least": 2,
+        "signature": "(int, int) -> int"
+      },
+      "random::range": {
+        "least": 2,
+        "signature": "(float, float) -> float"
+      },
+      "random::seed": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "random::uuid": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "regex::escape": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
+      "regex::matches": {
+        "least": 2,
+        "signature": "(str, str) -> bool"
+      },
+      "regex::replace": {
+        "least": 3,
+        "signature": "(str, str, str, bool?) -> str"
+      },
+      "regex::search": {
+        "least": 2,
+        "signature": "(str, str) -> any"
+      },
+      "regex::search_all": {
+        "least": 2,
+        "signature": "(str, str) -> [any]"
+      },
+      "regex::split": {
+        "least": 2,
+        "signature": "(str, str) -> [str]"
+      },
+      "release::channels": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "release::check": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "release::install": {
+        "least": 2,
+        "signature": "(str, str, any) -> bool"
+      },
+      "release::installed": {
+        "least": 0,
+        "signature": "() -> release::Build"
+      },
+      "release::listen": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "render::begin_retained": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "render::bounds": {
+        "least": 1,
+        "signature": "(Node) -> [Vec3]?"
+      },
+      "render::buffer": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "render::built_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "render::camera_2d": {
+        "least": 0,
+        "signature": "() -> Vec3"
+      },
+      "render::camera_matrix": {
+        "least": 0,
+        "signature": "() -> [float]"
+      },
+      "render::camera_pose": {
+        "least": 0,
+        "signature": "() -> [float]"
+      },
+      "render::cell": {
+        "least": 3,
+        "signature": "(Node, int, int) -> int"
+      },
+      "render::check_material": {
+        "least": 1,
+        "signature": "(str) -> [script::Diagnostic]"
+      },
+      "render::clear_retained": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "render::debug_view": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "render::debug_views": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "render::draw_arc_2d": {
+        "least": 5,
+        "signature": "(float, float, float, float, float, float?, any, any)"
+      },
+      "render::draw_box": {
+        "least": 6,
+        "signature": "(float, float, float, float, float, float, any)"
+      },
+      "render::draw_capsule": {
+        "least": 5,
+        "signature": "(float, float, float, float, float, any)"
+      },
+      "render::draw_circle_2d": {
+        "least": 3,
+        "signature": "(float, float, float, any, any)"
+      },
+      "render::draw_line_2d": {
+        "least": 7,
+        "signature": "(float, float, float, float, float, float, float, float?, any)"
+      },
+      "render::draw_line_3d": {
+        "least": 9,
+        "signature": "(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)"
+      },
+      "render::draw_lines": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "render::draw_polygon_2d": {
+        "least": 0,
+        "signature": "(any, any, any)"
+      },
+      "render::draw_polyline_2d": {
+        "least": 0,
+        "signature": "(any, float?, any, any)"
+      },
+      "render::draw_rect_2d": {
+        "least": 4,
+        "signature": "(float, float, float, float, any, any)"
+      },
+      "render::draw_sphere": {
+        "least": 4,
+        "signature": "(float, float, float, float, any)"
+      },
+      "render::draw_text_2d": {
+        "least": 3,
+        "signature": "(float, float, str, any)"
+      },
+      "render::draw_text_3d": {
+        "least": 4,
+        "signature": "(float, float, float, str, any)"
+      },
+      "render::draw_texture_2d": {
+        "least": 5,
+        "signature": "(str, float, float, float, float, any, any)"
+      },
+      "render::end_retained": {
+        "least": 0,
+        "signature": "()"
+      },
+      "render::instance_color": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "render::instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "render::instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "render::instance_region": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "render::instance_transform": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "render::instances": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "render::is_on_screen": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "render::material_params": {
+        "least": 1,
+        "signature": "(str) -> [render::Param]"
+      },
+      "render::mouse_ray": {
+        "least": 0,
+        "signature": "() -> [float]"
+      },
+      "render::mouse_world_2d": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "render::outline": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "render::pick_ray": {
+        "least": 6,
+        "signature": "(float, float, float, float, float, float) -> Node"
+      },
+      "render::pick_ray_at": {
+        "least": 6,
+        "signature": "(float, float, float, float, float, float) -> render::Hit?"
+      },
+      "render::populate": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "render::screenshot": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "render::set_background": {
+        "least": 3,
+        "signature": "(float, float, float)"
+      },
+      "render::set_box": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "render::set_buffer": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "render::set_camera": {
+        "least": 6,
+        "signature": "(float, float, float, float, float, float)"
+      },
+      "render::set_camera_2d": {
+        "least": 3,
+        "signature": "(float, float, float)"
+      },
+      "render::set_cell": {
+        "least": 4,
+        "signature": "(Node, int, int, int)"
+      },
+      "render::set_debug_view": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "render::set_grid": {
+        "least": 1,
+        "signature": "(bool, float?, int?, int?)"
+      },
+      "render::set_grid_colors": {
+        "least": 6,
+        "signature": "(float, float, float, float, float, float)"
+      },
+      "render::set_instance_color": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "render::set_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "render::set_instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "render::set_instance_region": {
+        "least": 2,
+        "signature": "(Node, int, any, any)"
+      },
+      "render::set_instance_transform": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "render::set_instances": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "render::set_rectangle": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "render::set_shader_preview": {
+        "least": 2,
+        "signature": "(str, int)"
+      },
+      "render::set_shader_probe": {
+        "least": 2,
+        "signature": "(float, float)"
+      },
+      "render::set_sphere": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "render::set_terrain": {
+        "least": 4,
+        "signature": "(Node, int, int, int)"
+      },
+      "render::set_visible_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "render::shader_probe": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "render::snap_aov": {
+        "least": 2,
+        "signature": "(str, str)"
+      },
+      "render::stats": {
+        "least": 0,
+        "signature": "() -> render::Stats"
+      },
+      "render::terrain": {
+        "least": 3,
+        "signature": "(Node, int, int) -> int"
+      },
+      "render::text_size": {
+        "least": 1,
+        "signature": "(str, any) -> Vec2"
+      },
+      "render::texture_pixels_per_unit": {
+        "least": 1,
+        "signature": "(str) -> float"
+      },
+      "render::texture_size": {
+        "least": 1,
+        "signature": "(str) -> [int]"
+      },
+      "render::tile_data": {
+        "least": 3,
+        "signature": "(Node, int, int) -> any"
+      },
+      "render::trace_texture": {
+        "least": 1,
+        "signature": "(str, any) -> [[Vec2]]"
+      },
+      "render::visible_instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "replay::divergence_tick": {
+        "least": 0,
+        "signature": "() -> replay::Divergence?"
+      },
+      "replay::events": {
+        "least": 2,
+        "signature": "(int, int) -> [replay::Event]"
+      },
+      "replay::header": {
+        "least": 0,
+        "signature": "() -> replay::Header?"
+      },
+      "replay::info": {
+        "least": 1,
+        "signature": "(str) -> replay::Header"
+      },
+      "replay::length": {
+        "least": 0,
+        "signature": "() -> replay::Length?"
+      },
+      "replay::load": {
+        "least": 1,
+        "signature": "(str) -> replay::Header"
+      },
+      "replay::marks": {
+        "least": 1,
+        "signature": "(str, str?) -> [replay::Mark]"
+      },
+      "replay::pause": {
+        "least": 0,
+        "signature": "()"
+      },
+      "replay::play": {
+        "least": 0,
+        "signature": "()"
+      },
+      "replay::position": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "replay::record": {
+        "least": 1,
+        "signature": "(str, any) -> str"
+      },
+      "replay::recording": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "replay::recording_name": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "replay::seek": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "replay::state": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "replay::stop": {
+        "least": 0,
+        "signature": "(str?) -> str?"
+      },
+      "replay::unload": {
+        "least": 0,
+        "signature": "()"
+      },
+      "rollback::input": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "rollback::is_resimulating": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "save::directory": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "save::read": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "save::remove": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "save::slots": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "save::version": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "save::write": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "scene::apply_preset": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "scene::bindable_events": {
+        "least": 0,
+        "signature": "(Node?) -> [str]"
+      },
+      "scene::binding_actions": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "scene::component_expects": {
+        "least": 1,
+        "signature": "(str) -> [str]?"
+      },
+      "scene::component_properties": {
+        "least": 1,
+        "signature": "(str, any) -> any"
+      },
+      "scene::component_schema": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "scene::component_tags": {
+        "least": 1,
+        "signature": "(str) -> [str]?"
+      },
+      "scene::component_types": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "scene::get_node": {
+        "least": 1,
+        "signature": "(str) -> Node"
+      },
+      "scene::instantiate": {
+        "least": 1,
+        "signature": "(str, Node?, any)"
+      },
+      "scene::node_by_id": {
+        "least": 1,
+        "signature": "(str, Node?) -> Node"
+      },
+      "scene::preset_info": {
+        "least": 1,
+        "signature": "(str) -> scene::Preset?"
+      },
+      "scene::presets": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "scene::root": {
+        "least": 0,
+        "signature": "() -> Node"
+      },
+      "scene::set_variable": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "scene::source": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "scene::switch": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "scene::tagged": {
+        "least": 1,
+        "signature": "(str) -> [Node]"
+      },
+      "scene::variable": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "scene::variables": {
+        "least": 0,
+        "signature": "() -> [scene::Variable]"
+      },
+      "scene::warnings": {
+        "least": 1,
+        "signature": "(Node) -> [scene::Warning]"
+      },
+      "scene::with_component": {
+        "least": 1,
+        "signature": "(str) -> [Node]"
+      },
+      "script::check": {
+        "least": 2,
+        "signature": "(str, str) -> [script::Diagnostic]"
+      },
+      "script::complete": {
+        "least": 4,
+        "signature": "(str, str, int, int) -> [script::Completion]"
+      },
+      "script::definition": {
+        "least": 4,
+        "signature": "(str, str, int, int) -> script::Place?"
+      },
+      "script::format": {
+        "least": 2,
+        "signature": "(str, str) -> str"
+      },
+      "script::hover": {
+        "least": 4,
+        "signature": "(str, str, int, int) -> script::Hover?"
+      },
+      "script::references": {
+        "least": 3,
+        "signature": "(str, str, str) -> [script::Place]"
+      },
+      "script::rename": {
+        "least": 4,
+        "signature": "(str, str, str, str) -> [script::Edit]"
+      },
+      "script::signature": {
+        "least": 4,
+        "signature": "(str, str, int, int) -> script::Signature?"
+      },
+      "script::store": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "script::stored": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "script::symbols": {
+        "least": 2,
+        "signature": "(str, str) -> [script::Symbol]"
+      },
+      "settings::all": {
+        "least": 0,
+        "signature": "() -> [settings::Setting]"
+      },
+      "settings::base": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "settings::clear": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "settings::define": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "settings::get": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "settings::known_tags": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "settings::merge_toml": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "settings::overrides": {
+        "least": 1,
+        "signature": "(str) -> [str]"
+      },
+      "settings::revision": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "settings::set": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "settings::tags": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "settings::to_toml": {
+        "least": 2,
+        "signature": "(str, str) -> str"
+      },
+      "skeleton::apply_rest": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "skeleton::bones": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "skeleton::overwrite_rest": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "strings::locale": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "strings::locales": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
+      "strings::set_locale": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "strings::set_root": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "strings::system_locale": {
+        "least": 0,
+        "signature": "() -> str?"
+      },
+      "strings::tr": {
+        "least": 1,
+        "signature": "(str, any) -> str"
+      },
+      "task::frames": {
+        "least": 1,
+        "signature": "(int)"
+      },
+      "task::seconds": {
+        "least": 1,
+        "signature": "(float)"
+      },
+      "task::wait": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "toml::encode": {
+        "least": 0,
+        "signature": "(any) -> str"
+      },
+      "toml::parse": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "toml::patch": {
+        "least": 1,
+        "signature": "(str, any) -> str"
+      },
+      "ui::activate_focused": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::add_space": {
+        "least": 1,
+        "signature": "(float)"
+      },
+      "ui::available_height": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "ui::available_width": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "ui::button": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "ui::button_rect": {
+        "least": 0,
+        "signature": "() -> ui::Rect?"
+      },
+      "ui::central_rect": {
+        "least": 0,
+        "signature": "() -> [float]"
+      },
+      "ui::circle_button": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "ui::click": {
+        "least": 1,
+        "signature": "(Node, any) -> bool"
+      },
+      "ui::code_line": {
+        "least": 1,
+        "signature": "(str, any, any)"
+      },
+      "ui::complete_theme": {
+        "least": 0,
+        "signature": "(any) -> any"
+      },
+      "ui::contrast": {
+        "least": 2,
+        "signature": "(str, str) -> float"
+      },
+      "ui::contrast_pairs": {
+        "least": 2,
+        "signature": "(any, str) -> [ui::ContrastPair]"
+      },
+      "ui::dot": {
+        "least": 2,
+        "signature": "(str, float)"
+      },
+      "ui::edit": {
+        "least": 1,
+        "signature": "(Node, any) -> bool"
+      },
+      "ui::fill_rows": {
+        "least": 4,
+        "signature": "(str, any, any, bool) -> bool"
+      },
+      "ui::fill_strip": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "ui::finish_loading": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focus_next": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focus_previous": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focused_widget": {
+        "least": 0,
+        "signature": "() -> Node"
+      },
+      "ui::height_class": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "ui::image": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "ui::image_button": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "ui::label": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "ui::layout_y": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "ui::menu_item": {
+        "least": 1,
+        "signature": "(str, any) -> bool"
+      },
+      "ui::pasted_text": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "ui::progress_bar": {
+        "least": 1,
+        "signature": "(float, any)"
+      },
+      "ui::rect_stroke": {
+        "least": 4,
+        "signature": "(float, float, float, float, any)"
+      },
+      "ui::request_repaint": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "ui::reread": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "ui::scale": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "ui::separator": {
+        "least": 0,
+        "signature": "(str?)"
+      },
+      "ui::set_clipboard": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "ui::set_field_text": {
+        "least": 2,
+        "signature": "(str, str)"
+      },
+      "ui::set_focus": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "ui::set_keyboard_navigation": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "ui::set_lazy": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "ui::set_load_progress": {
+        "least": 1,
+        "signature": "(float, str?)"
+      },
+      "ui::set_scale": {
+        "least": 1,
+        "signature": "(float)"
+      },
+      "ui::set_theme": {
+        "least": 0,
+        "signature": "(any)"
+      },
+      "ui::set_widget_layer": {
+        "least": 1,
+        "signature": "(bool, float?, float?, float?, float?)"
+      },
+      "ui::set_widget_surface": {
+        "least": 2,
+        "signature": "(str, bool, float?, float?, float?, float?)"
+      },
+      "ui::shortcut": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "ui::spacing": {
+        "least": 2,
+        "signature": "(float, float)"
+      },
+      "ui::switch": {
+        "least": 1,
+        "signature": "(bool, any) -> [bool]"
+      },
+      "ui::tab_rect": {
+        "least": 1,
+        "signature": "(Node) -> ui::Rect?"
+      },
+      "ui::takes_pointer_at": {
+        "least": 2,
+        "signature": "(float, float) -> bool"
+      },
+      "ui::wants_keyboard": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "ui::wants_pointer": {
+        "least": 0,
+        "signature": "() -> bool"
+      },
+      "ui::widget_rect": {
+        "least": 1,
+        "signature": "(Node) -> ui::Rect?"
+      },
+      "ui::width_class": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "ui::window_size": {
+        "least": 0,
+        "signature": "() -> Vec2"
+      },
+      "websocket::close": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "websocket::connect": {
+        "least": 2,
+        "signature": "(any, str, any) -> any"
+      },
+      "websocket::send": {
+        "least": 1,
+        "signature": "(int, any) -> any"
+      },
+      "websocket::state": {
+        "least": 1,
+        "signature": "(int) -> any"
+      },
+      "window::refresh_rate": {
+        "least": 0,
+        "signature": "() -> float"
+      },
+      "window::safe_area": {
+        "least": 0,
+        "signature": "() -> any"
+      },
+      "window::set_app_icon": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
+      "window::set_cursor_grab": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "window::set_cursor_hidden": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "window::set_fullscreen": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "window::set_keep_awake": {
+        "least": 1,
+        "signature": "(bool)"
+      },
+      "window::set_window_mode": {
+        "least": 1,
+        "signature": "(str)"
+      }
+    },
+    "structs": {
+      "engine::FunctionCost": {
+        "calls": "int",
+        "function": "str",
+        "instructions": "int"
+      },
+      "engine::ScriptCost": {
+        "calls": "int",
+        "instructions": "int",
+        "path": "str"
+      },
+      "engine::Stages": {
+        "first": "float",
+        "fixed_update": "float",
+        "last": "float",
+        "post_update": "float",
+        "pre_update": "float",
+        "render": "float",
+        "scene_sync": "float",
+        "update": "float"
+      },
+      "engine::Target": {
+        "dev": "bool",
+        "editor": "bool",
+        "mobile": "bool",
+        "os": "str",
+        "touchscreen": "bool",
+        "web": "bool"
+      },
+      "engine::Timings": {
+        "fixed_steps": "int",
+        "frame": "float",
+        "spans": "any",
+        "stages": "engine::Stages",
+        "wall": "float"
+      },
+      "export::Preview": {
+        "after": "int",
+        "before": "int",
+        "drawn_height": "int",
+        "drawn_width": "int",
+        "gpu_bytes": "int",
+        "height": "int",
+        "source": "str",
+        "width": "int"
+      },
+      "export::Target": {
+        "bundle": "bool",
+        "fetchable": "bool",
+        "installed": "bool",
+        "name": "str",
+        "note": "str",
+        "runtime": "str"
+      },
+      "fs::Entry": {
+        "is_dir": "bool",
+        "name": "str"
+      },
+      "gamend::Connection": {
+        "sockets": "[gamend::Socket]",
+        "url": "str",
+        "user_id": "str?",
+        "username": "str?"
+      },
+      "gamend::Entry": {
+        "args": "any",
+        "kind": "str",
+        "ms": "float?",
+        "reply": "any",
+        "request": "int",
+        "seq": "int",
+        "status": "str",
+        "what": "str"
+      },
+      "gamend::Server": {
+        "local": "str",
+        "name": "str",
+        "plugin": "str",
+        "production": "str",
+        "url": "str"
+      },
+      "gamend::Session": {
+        "access_token": "str",
+        "display_name": "str",
+        "expires_at": "int?",
+        "expires_in": "int",
+        "refresh_token": "str",
+        "user_id": "str",
+        "username": "str"
+      },
+      "gamend::Socket": {
+        "open": "bool",
+        "reason": "str?",
+        "socket": "int",
+        "topics": "[str]"
+      },
+      "input::Pan": {
+        "x": "float",
+        "y": "float"
+      },
+      "input::Pinch": {
+        "scale": "float?",
+        "x": "float?",
+        "y": "float?"
+      },
+      "log::Batch": {
+        "cursor": "int",
+        "entries": "[log::Entry]",
+        "missed": "int"
+      },
+      "log::Entry": {
+        "fields": "[log::Field]",
+        "level": "str",
+        "message": "str",
+        "seq": "int",
+        "tag": "str",
+        "time": "float"
+      },
+      "log::Field": {
+        "name": "str",
+        "value": "str"
+      },
+      "project::Example": {
+        "cover": "str",
+        "id": "str",
+        "name": "str",
+        "note": "str",
+        "path": "str"
+      },
+      "project::Opened": {
+        "error": "str?"
+      },
+      "project::Project": {
+        "error": "str?",
+        "name": "str?",
+        "path": "str?"
+      },
+      "project::Recent": {
+        "exists": "bool",
+        "name": "str",
+        "opened": "float",
+        "path": "str",
+        "version": "str",
+        "when": "str"
+      },
+      "project::Template": {
+        "id": "str",
+        "note": "str"
+      },
+      "release::Build": {
+        "channel": "str",
+        "held": "str",
+        "id": "str",
+        "source": "bool",
+        "tag": "str",
+        "version": "str"
+      },
+      "render::Hit": {
+        "at": "float",
+        "node": "Node"
+      },
+      "render::NodeCost": {
+        "copies": "float",
+        "draws": "float",
+        "node": "str",
+        "texture_bytes": "float",
+        "triangles": "float"
+      },
+      "render::Param": {
+        "name": "str",
+        "type": "str",
+        "value": "any"
+      },
+      "render::Stats": {
+        "draws": "float",
+        "nodes": "[render::NodeCost]",
+        "texture_bytes": "float",
+        "textures": "float",
+        "triangles": "float"
+      },
+      "replay::Divergence": {
+        "recorded": "str",
+        "replayed": "str",
+        "tick": "int"
+      },
+      "replay::Event": {
+        "data": "any",
+        "kind": "str",
+        "label": "str",
+        "tick": "int"
+      },
+      "replay::Header": {
+        "first": "int",
+        "frames": "int",
+        "last": "int",
+        "project": "str",
+        "reason": "str?",
+        "scripts": "str",
+        "started": "str"
+      },
+      "replay::Length": {
+        "first": "int",
+        "frames": "int",
+        "last": "int"
+      },
+      "replay::Mark": {
+        "tick": "int",
+        "values": "[any]"
+      },
+      "scene::Preset": {
+        "components": "[str]",
+        "description": "str",
+        "parts": "any",
+        "tags": "[str]"
+      },
+      "scene::Variable": {
+        "name": "str",
+        "persist": "bool",
+        "type": "str",
+        "value": "any"
+      },
+      "scene::Warning": {
+        "component": "str",
+        "message": "str",
+        "property": "str?"
+      },
+      "script::Completion": {
+        "detail": "str",
+        "doc": "str",
+        "insert": "str",
+        "kind": "str",
+        "label": "str"
+      },
+      "script::Diagnostic": {
+        "column": "int",
+        "file": "str",
+        "line": "int",
+        "message": "str",
+        "severity": "str"
+      },
+      "script::Edit": {
+        "file": "str",
+        "source": "str"
+      },
+      "script::Hover": {
+        "detail": "str",
+        "doc": "str",
+        "title": "str"
+      },
+      "script::Place": {
+        "column": "int",
+        "file": "str",
+        "line": "int",
+        "url": "str"
+      },
+      "script::Signature": {
+        "active": "int",
+        "detail": "str",
+        "doc": "str",
+        "title": "str"
+      },
+      "script::Symbol": {
+        "column": "int",
+        "detail": "str",
+        "kind": "str",
+        "line": "int",
+        "name": "str"
+      },
+      "settings::Setting": {
+        "applies_now": "bool",
+        "category": "str",
+        "label": "str",
+        "path": "str",
+        "scope": "str",
+        "spec": "any"
+      },
+      "ui::ContrastPair": {
+        "fill": "str",
+        "ink": "str",
+        "need": "float",
+        "ratio": "float",
+        "role": "str"
+      },
+      "ui::Rect": {
+        "height": "float",
+        "width": "float",
+        "x": "float",
+        "y": "float"
+      }
+    },
+    "unread": []
   },
   "component_docs": {
     "animation": "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
@@ -13596,12 +18186,12 @@
       "name": "assets",
       "signatures": {
         "assign_id": "(path: string) -> string",
-        "directory": "(type_name: string)",
-        "duplicate": "(reference: string)",
-        "exists": "(reference: string)",
+        "directory": "(type_name: string) -> string",
+        "duplicate": "(reference: string) -> map",
+        "exists": "(reference: string) -> bool",
         "id": "(path: string) -> string?",
         "invalidate": "()",
-        "load": "(reference: string)",
+        "load": "(reference: string) -> map",
         "path": "(reference: string) -> string",
         "reload": "(reference: string)",
         "rename": "(from: string, to: string) -> [string]",
@@ -13793,15 +18383,15 @@
       ],
       "name": "debugger",
       "signatures": {
-        "break_on_error": "()",
-        "breakpoints": "(path: string)",
+        "break_on_error": "() -> bool",
+        "breakpoints": "(path: string) -> [int]",
         "request_break": "()",
         "resume": "(mode: string?)",
-        "scope": "()",
+        "scope": "() -> node?",
         "set_break_on_error": "(on: bool)",
-        "set_breakpoints": "(path: string, lines: [int])",
+        "set_breakpoints": "(path: string, lines: [int]) -> [int]",
         "set_scope": "(node: node?)",
-        "stop_location": "()"
+        "stop_location": "() -> map?"
       }
     },
     {
@@ -13819,8 +18409,8 @@
       ],
       "name": "encoding",
       "signatures": {
-        "base64": "(data: bytes | string)",
-        "from_base64": "(text: string)"
+        "base64": "(data: bytes | string) -> string",
+        "from_base64": "(text: string) -> bytes"
       }
     },
     {
@@ -13890,34 +18480,34 @@
       ],
       "name": "engine",
       "signatures": {
-        "args": "()",
-        "dark_mode": "()",
-        "delta": "()",
-        "device_id": "()",
+        "args": "() -> [string]",
+        "dark_mode": "() -> bool",
+        "delta": "() -> float",
+        "device_id": "() -> string",
         "environment": "(name: string) -> string?",
-        "focused": "()",
-        "function_costs": "()",
-        "has_plugin": "(name: string)",
+        "focused": "() -> bool",
+        "function_costs": "() -> [FunctionCost]",
+        "has_plugin": "(name: string) -> bool",
         "open_url": "(url: string)",
-        "paused": "()",
-        "plugin_version": "(name: string)",
-        "plugins": "()",
+        "paused": "() -> bool",
+        "plugin_version": "(name: string) -> string?",
+        "plugins": "() -> [string]",
         "quit": "(code: int?)",
         "reload_script": "(key: string)",
         "reveal": "(path: string)",
-        "script_costs": "()",
+        "script_costs": "() -> [ScriptCost]",
         "set_paused": "(on: bool)",
-        "set_script_profiling": "(on)",
+        "set_script_profiling": "(on: bool)",
         "set_time_scale": "(scale: float)",
-        "target": "()",
-        "tick": "()",
-        "tick_hz": "()",
-        "time": "()",
-        "time_scale": "()",
-        "timings": "()",
-        "unix_time": "()",
-        "user_data_directory": "()",
-        "user_data_directory_of": "(project: string)"
+        "target": "() -> Target",
+        "tick": "() -> int",
+        "tick_hz": "() -> int",
+        "time": "() -> float",
+        "time_scale": "() -> float",
+        "timings": "() -> Timings?",
+        "unix_time": "() -> float",
+        "user_data_directory": "() -> string",
+        "user_data_directory_of": "(project: string) -> string"
       }
     },
     {
@@ -14013,11 +18603,11 @@
       "signatures": {
         "copy": "(from: string, to: string)",
         "create_directory": "(path: string)",
-        "exists": "(path: string)",
-        "list": "(path: string)",
-        "modified_time": "(path: string)",
-        "read": "(path: string)",
-        "remove": "(path: string)",
+        "exists": "(path: string) -> bool",
+        "list": "(path: string) -> [Entry]",
+        "modified_time": "(path: string) -> float?",
+        "read": "(path: string) -> string?",
+        "remove": "(path: string) -> bool",
         "rename": "(from: string, to: string)",
         "write": "(path: string, text: string)"
       }
@@ -14224,8 +18814,8 @@
       ],
       "name": "hash",
       "signatures": {
-        "sha256": "(path: string)",
-        "sha256_text": "(text: string)"
+        "sha256": "(path: string) -> string",
+        "sha256_text": "(text: string) -> string"
       }
     },
     {
@@ -15242,8 +19832,8 @@
       ],
       "name": "json",
       "signatures": {
-        "encode": "(value: any)",
-        "parse": "(text: string)"
+        "encode": "(value: any) -> string",
+        "parse": "(text: string) -> any"
       }
     },
     {
@@ -15273,10 +19863,10 @@
       "signatures": {
         "clear": "()",
         "error": "(message: string)",
-        "file": "()",
+        "file": "() -> string?",
         "info": "(message: string)",
-        "recent": "(n: int?)",
-        "since": "(cursor: int?)",
+        "recent": "(n: int?) -> [Entry]",
+        "since": "(cursor: int?) -> Batch",
         "warn": "(message: string)"
       }
     },
@@ -15352,30 +19942,30 @@
       ],
       "name": "math",
       "signatures": {
-        "abs": "(x: float)",
-        "acos": "(x: float)",
-        "asin": "(x: float)",
-        "atan": "(y: float, x: float?)",
-        "atan2": "(y: float, x: float)",
-        "ceil": "(x: float)",
-        "clamp": "(x: float, low: float, high: float)",
-        "cos": "(angle: float)",
-        "cosh": "(x: float)",
-        "exp": "(power: float)",
-        "floor": "(x: float)",
-        "log": "(x: float, base: float?)",
-        "log10": "(x: float)",
-        "max": "(a: float, b: float)",
-        "min": "(a: float, b: float)",
-        "pow": "(base: float, exponent: float)",
-        "round": "(x: float)",
-        "sin": "(angle: float)",
-        "sinh": "(x: float)",
-        "sqrt": "(x: float)",
-        "tan": "(angle: float)",
-        "tanh": "(x: float)",
-        "to_degrees": "(radians: float)",
-        "to_radians": "(degrees: float)"
+        "abs": "(x: float) -> float",
+        "acos": "(x: float) -> float",
+        "asin": "(x: float) -> float",
+        "atan": "(y: float, x: float?) -> float",
+        "atan2": "(y: float, x: float) -> float",
+        "ceil": "(x: float) -> float",
+        "clamp": "(x: float, low: float, high: float) -> float",
+        "cos": "(angle: float) -> float",
+        "cosh": "(x: float) -> float",
+        "exp": "(power: float) -> float",
+        "floor": "(x: float) -> float",
+        "log": "(x: float, base: float?) -> float",
+        "log10": "(x: float) -> float",
+        "max": "(a: float, b: float) -> float",
+        "min": "(a: float, b: float) -> float",
+        "pow": "(base: float, exponent: float) -> float",
+        "round": "(x: float) -> float",
+        "sin": "(angle: float) -> float",
+        "sinh": "(x: float) -> float",
+        "sqrt": "(x: float) -> float",
+        "tan": "(angle: float) -> float",
+        "tanh": "(x: float) -> float",
+        "to_degrees": "(radians: float) -> float",
+        "to_radians": "(degrees: float) -> float"
       }
     },
     {
@@ -18438,11 +23028,11 @@
       ],
       "name": "random",
       "signatures": {
-        "float": "()",
-        "int": "(low: int, high: int)",
-        "range": "(low: float, high: float)",
+        "float": "() -> float",
+        "int": "(low: int, high: int) -> int",
+        "range": "(low: float, high: float) -> float",
         "seed": "(seed: int)",
-        "uuid": "()"
+        "uuid": "() -> string"
       }
     },
     {
@@ -19092,22 +23682,22 @@
       ],
       "name": "replay",
       "signatures": {
-        "divergence_tick": "()",
-        "events": "(from: int, to: int)",
-        "header": "()",
-        "info": "(path: string)",
-        "length": "()",
-        "load": "(path: string)",
-        "marks": "(source: string, key: string?)",
+        "divergence_tick": "() -> Divergence?",
+        "events": "(from: int, to: int) -> [Event]",
+        "header": "() -> Header?",
+        "info": "(path: string) -> Header",
+        "length": "() -> Length?",
+        "load": "(path: string) -> Header",
+        "marks": "(source: string, key: string?) -> [Mark]",
         "pause": "()",
         "play": "()",
-        "position": "()",
-        "record": "(path: string, options: any?)",
-        "recording": "()",
-        "recording_name": "()",
+        "position": "() -> int",
+        "record": "(path: string, options: any?) -> string",
+        "recording": "() -> string?",
+        "recording_name": "() -> string",
         "seek": "(tick: int)",
-        "state": "()",
-        "stop": "(reason: string?)",
+        "state": "() -> string",
+        "stop": "(reason: string?) -> string?",
         "unload": "()"
       }
     },
@@ -19153,11 +23743,11 @@
       ],
       "name": "save",
       "signatures": {
-        "directory": "()",
-        "read": "(slot: string)",
+        "directory": "() -> string",
+        "read": "(slot: string) -> map?",
         "remove": "(slot: string)",
-        "slots": "()",
-        "version": "()",
+        "slots": "() -> [string]",
+        "version": "() -> int",
         "write": "(slot: string, data: any)"
       }
     },
@@ -19183,7 +23773,7 @@
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
-        "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file.",
+        "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second; reset is a switch to the same file.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
         "variables": "Every declared variable as `{ name, type, value, persist }`, in name order.",
@@ -19217,27 +23807,27 @@
       "name": "scene",
       "signatures": {
         "apply_preset": "(node: node, name: string)",
-        "bindable_events": "(node: node?)",
-        "binding_actions": "()",
-        "component_expects": "(name: string)",
-        "component_properties": "(name: string, params: any)",
-        "component_schema": "(name: string)",
-        "component_tags": "(name: string)",
-        "component_types": "()",
-        "get_node": "(path: string)",
+        "bindable_events": "(node: node?) -> [string]",
+        "binding_actions": "() -> [string]",
+        "component_expects": "(name: string) -> [string]?",
+        "component_properties": "(name: string, params: any) -> map?",
+        "component_schema": "(name: string) -> map?",
+        "component_tags": "(name: string) -> [string]?",
+        "component_types": "() -> [string]",
+        "get_node": "(path: string) -> node?",
         "instantiate": "(source: string, parent: node?, opts: any?)",
-        "node_by_id": "(id: string, under: node?)",
-        "preset_info": "(name: string)",
-        "presets": "()",
-        "root": "()",
+        "node_by_id": "(id: string, under: node?) -> node?",
+        "preset_info": "(name: string) -> Preset?",
+        "presets": "() -> [string]",
+        "root": "() -> node",
         "set_variable": "(name: string, value: any)",
-        "source": "(path: string)",
+        "source": "(path: string) -> string?",
         "switch": "(path: string, options: map?)",
-        "tagged": "(tag: string)",
-        "variable": "(name: string)",
-        "variables": "()",
-        "warnings": "(node: node)",
-        "with_component": "(component: string)"
+        "tagged": "(tag: string) -> [node]",
+        "variable": "(name: string) -> any",
+        "variables": "() -> [Variable]",
+        "warnings": "(node: node) -> [Warning]",
+        "with_component": "(component: string) -> [node]"
       }
     },
     {
@@ -19377,7 +23967,7 @@
       "name": "skeleton",
       "signatures": {
         "apply_rest": "(node: node)",
-        "bones": "(node: node)",
+        "bones": "(node: node) -> [node]",
         "overwrite_rest": "(node: node)"
       }
     },
@@ -19404,12 +23994,12 @@
       ],
       "name": "strings",
       "signatures": {
-        "locale": "()",
-        "locales": "()",
+        "locale": "() -> string",
+        "locales": "() -> [string]",
         "set_locale": "(locale: string)",
         "set_root": "(root: string)",
-        "system_locale": "()",
-        "tr": "(key: string, args: table?)"
+        "system_locale": "() -> string?",
+        "tr": "(key: string, args: table?) -> string"
       }
     },
     {
@@ -19451,9 +24041,9 @@
       ],
       "name": "toml",
       "signatures": {
-        "encode": "(value: any)",
-        "parse": "(text: string)",
-        "patch": "(existing: string, table: any)"
+        "encode": "(value: any) -> string",
+        "parse": "(text: string) -> map",
+        "patch": "(existing: string, table: any) -> string"
       }
     },
     {

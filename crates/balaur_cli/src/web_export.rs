@@ -89,13 +89,25 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Exports the project being edited, from a browser. `targets` is what a tab can build alone: a pack and a web bundle.",
     );
+    m.records(&[
+        (
+            "Target",
+            "{ name: string, runtime: string, bundle: bool, installed: bool, fetchable: bool, note: string }",
+            "A target the project can be exported for, and what building it needs.",
+        ),
+        (
+            "Preview",
+            "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
+            "What one file becomes in a target's pack.",
+        ),
+    ]);
     m.describe(&[
-        ("targets", &[], "()", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
+        ("targets", &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map)", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
-        ("output", &[], "(target: string)", "The file name an export for this target produces."),
-        ("running_count", &[], "()", "How many exports are in flight."),
-        ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
+        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
+        ("output", &[], "(target: string) -> string", "The file name an export for this target produces."),
+        ("running_count", &[], "() -> int", "How many exports are in flight."),
+        ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
     ]);
     m.function("targets", |eng: &Engine, ()| {
         let project = eng.resource::<ExportState>().borrow().core.project.clone();

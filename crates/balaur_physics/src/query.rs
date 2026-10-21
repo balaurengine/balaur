@@ -44,7 +44,7 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
 
 pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("raycast", &[], "(opts: table)", "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
+        ("raycast", &[], "(opts: table) -> map?", "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -123,7 +123,7 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "raycast_all",
         &[],
-        "(opts: table)",
+        "(opts: table) -> [map]",
         "Every collider a ray meets, nearest first.",
     )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
@@ -176,7 +176,7 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
+        ("shapecast", &[], "(opts: table) -> map?", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
     ]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -221,10 +221,10 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("closest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
-        ("overlap_point", &[], "(opts: table)", "Every collider containing a world point."),
-        ("overlap_shape", &[], "(opts: table)", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
-        ("overlap_aabb", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
+        ("closest_point", &[], "(opts: table) -> map?", "The closest point on any collider to a world point."),
+        ("overlap_point", &[], "(opts: table) -> [node]", "Every collider containing a world point."),
+        ("overlap_shape", &[], "(opts: table) -> [node]", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
+        ("overlap_aabb", &[], "(opts: table) -> [node]", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
     ]);
     m.function("closest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -316,12 +316,12 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch or overlap."),
-        ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders."),
-        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
+        ("distance", &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
+        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders."),
+        ("intersects", &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
         ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: table) -> map?", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
@@ -403,8 +403,8 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_pair_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
-        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+        ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
+        ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();

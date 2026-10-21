@@ -15,22 +15,27 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
         (
             "widget_rect",
             &[],
-            "",
+            "-> Rect?",
             "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
             "tab_rect",
             &[],
-            "",
+            "-> Rect?",
             "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         ),
         (
             "button_rect",
             &[],
-            "",
+            "-> Rect?",
             "Where the last `button` was drawn, as `#{ x, y, width, height }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
         ),
     ]);
+    m.records(&[(
+        "Rect",
+        "{ x: float, y: float, width: float, height: float }",
+        "A drawn box: its top left corner and its size, in design pixels.",
+    )]);
     m.function(
         "widget_rect",
         |_eng: &Engine, node: balaur_script::NodeId| {

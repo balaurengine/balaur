@@ -634,7 +634,7 @@ pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
         "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );
     m.describe(&[
-        ("triangulate", &[], "(polygon: list) -> list", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
+        ("triangulate", &[], "(polygon: list) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
         ("contains", &[], "(polygon: list, point: vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
         ("segments_intersect", &[], "(a1: vec2, a2: vec2, b1: vec2, b2: vec2) -> vec2", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
         ("area", &[], "(polygon: list) -> float", "The polygon's area, always positive whatever its winding."),

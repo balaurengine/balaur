@@ -563,7 +563,7 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
-        ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
+        ("request", &[], "-> int", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
         ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished."),
     ]);
     m.function("cancel", |eng: &Engine, request: i64| {

@@ -704,10 +704,22 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// a desktop and a headless run answer the same as a still screen.
 fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("pinch", &[], "", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
-        ("pan", &[], "", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
+        ("pinch", &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
+        ("pan", &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
         ("swipe", &[], "", "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise."),
         ("long_press", &[], "", "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise."),
+    ]);
+    m.records(&[
+        (
+            "Pinch",
+            "{ scale: float?, x: float?, y: float? }",
+            "Two fingers moving apart or together since last frame, and the point between them; every field is nil with fewer than two fingers down.",
+        ),
+        (
+            "Pan",
+            "{ x: float, y: float }",
+            "The average movement of two or more fingers since last frame, in the same pixels as the mouse position.",
+        ),
     ]);
     m.function("pinch", |eng: &Engine, ()| {
         let Some(pinch) = eng.resource::<Gestures>().borrow().pinch() else {

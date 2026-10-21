@@ -104,6 +104,9 @@ pub struct Style {
     /// which for a button is "as round as its text is tall".
     pub radius: Option<f32>,
     pub padding: Option<f32>,
+    /// `padding` written per side, `[left, top, right, bottom]`, as a widget
+    /// writes its own: a screen's gutter is wider than its top.
+    pub padding_sides: Option<[f32; 4]>,
     pub stroke_width: Option<f32>,
     /// The outline in dashes rather than whole.
     pub dashed: Option<bool>,
@@ -120,6 +123,10 @@ pub struct Style {
     pub plate: Option<Color32>,
     /// Where a control's content sits across it: `left` for a row, else centred.
     pub align: Option<String>,
+    /// The pointer over the widget while it is live, a `cursor` word: a
+    /// hand on every control, the way the web shows one. A node's own
+    /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
+    pub cursor: Option<String>,
     pub font_size: Option<f32>,
     /// Which of the theme's families, by the names `font_family` offers.
     pub font: Option<String>,
@@ -180,6 +187,7 @@ impl Style {
     pub fn paint_only(&self) -> Self {
         Self {
             padding: None,
+            padding_sides: None,
             padding_x: None,
             padding_y: None,
             height: None,
@@ -206,6 +214,7 @@ impl Style {
             stroke: self.stroke.or(base.stroke),
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
+            padding_sides: self.padding_sides.or(base.padding_sides),
             stroke_width: self.stroke_width.or(base.stroke_width),
             dashed: self.dashed.or(base.dashed),
             image: self.image.clone().or_else(|| base.image.clone()),
@@ -213,6 +222,7 @@ impl Style {
             text_color: self.text_color.or(base.text_color),
             plate: self.plate.or(base.plate),
             align: self.align.clone().or_else(|| base.align.clone()),
+            cursor: self.cursor.clone().or_else(|| base.cursor.clone()),
             font_size: self.font_size.or(base.font_size),
             font: self.font.clone().or_else(|| base.font.clone()),
             weight: self.weight.or(base.weight),
@@ -513,6 +523,10 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         stroke: colour(k::STROKE),
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
+        padding_sides: body
+            .get(k::PADDING)
+            .filter(|value| value.is_array())
+            .map(|value| four_of(Some(value))),
         stroke_width: number(k::STROKE_WIDTH),
         dashed: body.get(k::DASHED).and_then(toml::Value::as_bool),
         image: body
@@ -526,6 +540,11 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         align: body
             .get(k::TEXT_ALIGN)
             .and_then(toml::Value::as_str)
+            .map(str::to_string),
+        cursor: body
+            .get(k::CURSOR)
+            .and_then(toml::Value::as_str)
+            .filter(|word| !word.is_empty())
             .map(str::to_string),
         font_size: number(k::FONT_SIZE),
         font: body
@@ -690,7 +709,7 @@ fill = "primary_fill"
 stroke = "border_default"
 stroke_width = 1.0
 corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
-padding = 8.0
+padding = 8.0                    # or per side, [left, top, right, bottom]
 gap = 4.0
 font_size = "font_size_large"
 text_color = "text_on_primary"
@@ -698,6 +717,7 @@ icon_color = "text_on_primary"
 font_family = "ui"               # ui, heading, mono or icon
 font_weight = 700
 text_align = "center"            # start, center or end
+cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on
@@ -782,6 +802,11 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     // What a `text_field` draws its line on, which is not a widget state.
     if let Some(fill) = style.fill {
         visuals.extreme_bg_color = fill;
+    }
+    // The frame a focused `text_field` wears: egui draws it in the selection
+    // stroke, so a role's `focus` table reaches it there.
+    if let Some(stroke) = style.focus.as_deref().and_then(|focus| edge(focus)) {
+        visuals.selection.stroke = stroke;
     }
     visuals.override_text_color = Some(ink);
 }

@@ -2,9 +2,12 @@
 //! pass. A form whose fields change with the selection cannot be authored,
 //! so a script says what it wants and the pool makes, reuses and hides nodes.
 //!
-//! A spec is a `widget` property table plus `on` and `on_submit`, the
-//! callbacks that hear the reader's edit. A spec carrying `controls` is a
-//! group: one node holding its controls. A node is written only when what is
+//! A spec is a `widget` property table plus `on` and `on_submit`, which hear
+//! the reader's edit: a callback, or the name of a method, called on the
+//! nearest node above the control whose script has it, with the spec's
+//! `data` and then the edit. A script that hands the engine no functions
+//! names its handler. A spec carrying `controls` is a group: one node
+//! holding its controls. A node is written only when what is
 //! asked of it changed, and spare nodes are hidden rather than freed.
 //!
 //! Nothing is polled. The pool keeps each control's callbacks, and the widget
@@ -52,15 +55,23 @@ struct HostMemo {
     worn: FxHashMap<String, FxHashSet<String>>,
 }
 
-/// A control's callbacks, kept past the fill that passed them, and where its
+/// A control's handlers, kept past the fill that passed them, and where its
 /// last write is remembered.
 struct Listener {
     host: u64,
     key: String,
-    on: Option<CallbackId>,
-    on_submit: Option<CallbackId>,
+    on: Option<Handler>,
+    on_submit: Option<Handler>,
     /// A button's `on` hears its click; any other control's hears its value.
     button: bool,
+}
+
+/// What hears a control: a function the script handed over, or a method
+/// named, with the data the spec gave it.
+#[derive(Clone)]
+enum Handler {
+    Callback(CallbackId),
+    Named { method: String, data: Value },
 }
 
 /// The node operations the pool writes through, resolved once.
@@ -220,7 +231,11 @@ impl Pool<'_> {
             return;
         };
         let kept = |name: &str| match want.get(name) {
-            Some(Value::Callback(cb)) if host.keep(*cb).is_ok() => Some(*cb),
+            Some(Value::Callback(cb)) if host.keep(*cb).is_ok() => Some(Handler::Callback(*cb)),
+            Some(Value::Str(method)) if !method.is_empty() => Some(Handler::Named {
+                method: method.clone(),
+                data: want.get(p::DATA).cloned().unwrap_or(Value::Nil),
+            }),
             _ => None,
         };
         let fresh = Listener {
@@ -348,7 +363,7 @@ impl Pool<'_> {
         self.listen(key, node, &want, button);
         let mut set = want;
         set.insert(k::VISIBLE.into(), Value::Bool(true));
-        for gone in [p::ON, k::ON_SUBMIT, k::CLICKED, k::SUBMITTED] {
+        for gone in [p::ON, p::DATA, k::ON_SUBMIT, k::CLICKED, k::SUBMITTED] {
             set.remove(gone);
         }
         self.patched(key, node, &set)
@@ -649,9 +664,37 @@ fn open_node(eng: &Engine, ops: Ops, host: Value) -> Result<Option<(Pool<'_>, Va
 
 /// Let go of what a listener kept.
 fn release(host: &dyn ScriptHost<Engine>, listener: &Listener) {
-    for cb in [listener.on, listener.on_submit].into_iter().flatten() {
-        host.release(cb);
+    for handler in [&listener.on, &listener.on_submit].into_iter().flatten() {
+        if let Handler::Callback(cb) = handler {
+            host.release(*cb);
+        }
     }
+}
+
+/// Hand `value` to what hears a control: a named method goes to the nearest
+/// node above `control` whose script has it, with the spec's data first.
+fn call(eng: &Engine, control: u64, handler: &Handler, value: Value) -> Result<()> {
+    let (method, data) = match handler {
+        Handler::Callback(cb) => return eng.invoke(*cb, &[value]).map(|_| ()),
+        Handler::Named { method, data } => (method, data),
+    };
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    let mut at = balaur_core::entity_of(balaur_script::NodeId(control)).ok();
+    while let Some(entity) = at {
+        let node = balaur_core::node_id_of(entity);
+        if host.has_method(node, method) {
+            host.call_on(node, method, &[data.clone(), value]);
+            return Ok(());
+        }
+        at = eng
+            .world()
+            .get::<&balaur_core::scene::Parent>(entity)
+            .ok()
+            .map(|p| p.0);
+    }
+    Err(anyhow!("no script above the control has `{method}`"))
 }
 
 /// Drop the hosts and controls that were freed, and what they kept. Run when a
@@ -691,7 +734,7 @@ pub(crate) fn dispatch(
     emitted: &[(balaur_core::hecs::Entity, &'static str, Value)],
     clicked: &[balaur_core::hecs::Entity],
 ) {
-    let calls: Vec<(CallbackId, Value)> = {
+    let calls: Vec<(u64, Handler, Value)> = {
         let Some(state) = eng.try_resource::<PoolState>() else {
             return;
         };
@@ -706,13 +749,13 @@ pub(crate) fn dispatch(
             let Some(listener) = state.listeners.get(&id) else {
                 continue;
             };
-            let callback = match *event {
-                crate::widget::input::CHANGE_EVENT => listener.on,
-                crate::widget::input::SUBMIT_EVENT => listener.on_submit,
+            let handler = match *event {
+                crate::widget::input::CHANGE_EVENT => listener.on.clone(),
+                crate::widget::input::SUBMIT_EVENT => listener.on_submit.clone(),
                 _ => None,
             };
-            if let Some(cb) = callback {
-                calls.push((cb, as_reported(value)));
+            if let Some(h) = handler {
+                calls.push((id, h, as_reported(value)));
             }
             heard.push((listener.host, listener.key.clone()));
         }
@@ -720,9 +763,9 @@ pub(crate) fn dispatch(
             let id = balaur_core::node_id_of(*entity).0;
             if let Some(listener) = state.listeners.get(&id)
                 && listener.button
-                && let Some(cb) = listener.on
+                && let Some(h) = listener.on.clone()
             {
-                calls.push((cb, Value::Bool(true)));
+                calls.push((id, h, Value::Bool(true)));
             }
         }
         for (host, key) in heard {
@@ -732,8 +775,8 @@ pub(crate) fn dispatch(
         }
         calls
     };
-    for (cb, value) in calls {
-        if let Err(err) = eng.invoke(cb, &[value]) {
+    for (control, handler, value) in calls {
+        if let Err(err) = call(eng, control, &handler, value) {
             tracing::error!("a pooled control's handler: {err:#}");
         }
     }
@@ -808,13 +851,13 @@ pub(crate) fn install_pool(m: &mut dyn Bindings<Engine>) {
         (
             "fill_strip",
             &[],
-            "(host: string, controls: list)",
+            "(host: string, controls: list) -> bool",
             "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen, so a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             "fill_rows",
             &[],
-            "(host: string, rows: list, label_width: number, stacked: bool)",
+            "(host: string, rows: list, label_width: number, stacked: bool) -> bool",
             "`fill_strip` for a form: each row table is a `label`, its `controls` and an optional `draw` hatch, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         ),
     ]);

@@ -184,9 +184,14 @@ pub(crate) fn padding_only(widget: &Widget, style: &crate::widget::theme::Style)
 /// The padding a style states, `fallback` across and down on the sides it
 /// leaves open.
 pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: egui::Vec2) -> Pad {
-    let across = style.padding_x.or(style.padding).unwrap_or(fallback.x);
-    let down = style.padding_y.or(style.padding).unwrap_or(fallback.y);
-    Pad::of([across, down, across, down])
+    let [left, top, right, bottom] = style.padding_sides.unwrap_or_else(|| {
+        let across = style.padding.unwrap_or(fallback.x);
+        let down = style.padding.unwrap_or(fallback.y);
+        [across, down, across, down]
+    });
+    let across = |side: f32| style.padding_x.unwrap_or(side);
+    let down = |side: f32| style.padding_y.unwrap_or(side);
+    Pad::of([across(left), down(top), across(right), down(bottom)])
 }
 
 /// The space inside a container's edge, per side.

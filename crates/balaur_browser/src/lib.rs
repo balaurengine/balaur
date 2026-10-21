@@ -179,12 +179,12 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("listen", &[], "(node: node, options: map)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
         ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
-        ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
-        ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
-        ("visible", &[], "()", "Whether the tab is in front of the player; true off the web."),
-        ("user_agent", &[], "()", "The browser's user agent string, or nil off the web."),
-        ("location", &[], "()", "The page's URL, or nil off the web."),
-        ("hardware_concurrency", &[], "()", "How many threads the browser reports, or nil off the web."),
+        ("messages", &[], "() -> [any]", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
+        ("post_message", &[], "(payload: map) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
+        ("visible", &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
+        ("user_agent", &[], "() -> string?", "The browser's user agent string, or nil off the web."),
+        ("location", &[], "() -> string?", "The page's URL, or nil off the web."),
+        ("hardware_concurrency", &[], "() -> int?", "How many threads the browser reports, or nil off the web."),
     ]);
     m.function(
         "listen",

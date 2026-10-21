@@ -204,32 +204,32 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
         (
             "handles",
             &[],
-            "(path: string)",
+            "(path: string) -> bool",
             "Whether an importer claims this file, by extension.",
         ),
         (
             "file",
             &[],
-            "(path: string)",
+            "(path: string) -> map",
             "Import one file into the edited project, in one call. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
         ),
         (
             "start",
             &[],
-            "(path: string, project: string?)",
+            "(path: string, project: string?) -> bool",
             "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
             "running_count",
             &[],
-            "()",
+            "() -> int",
             "How many imports are in flight.",
         ),
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         (
             "choose",
             &[],
-            "()",
+            "() -> bool",
             "Ask the reader for a file and import what they pick, reporting as `start` does. On a desktop that is the OS dialog; in a tab it is the page's own chooser, which takes several files at once so a `.gltf` can be picked with the images it names. Answers whether the asking began.",
         ),
         (

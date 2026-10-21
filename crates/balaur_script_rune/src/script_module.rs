@@ -83,6 +83,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
         })
         .build()?;
     inspection_verbs(&mut script, slot)?;
+    caret_verbs(&mut script, slot)?;
     tooling_verbs(&mut script, slot)?;
     search_verbs(&mut script, slot)?;
     Ok(script)
@@ -112,6 +113,9 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     script
         .function("check", move |path: &str, source: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            if let Some(rows) = crate::foreign::check(&host, path, source) {
+                return rows;
+            }
             match host
                 .check_source(&RuneHost::normalize_key(path), source)
                 .and_then(|found| finding_rows(&found))
@@ -142,6 +146,12 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             }
         })
         .build()?;
+    Ok(())
+}
+
+/// The verbs an editor asks at a caret: what may be typed, what is there,
+/// and the call it sits in.
+fn caret_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     // `script::complete(path, source, line, column)` — what may be typed at
     // that caret, as `[#{ label, kind, detail, doc, insert }]`. The same
     // answer `balaur lsp` gives an editor outside Balaur.
@@ -151,6 +161,9 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             move |path: &str, source: &str, line: i64, column: i64| {
                 let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
                 let (line, column) = at(line, column);
+                if let Some(rows) = crate::foreign::complete(&host, path, source, line, column) {
+                    return rows;
+                }
                 match host
                     .complete(&RuneHost::normalize_key(path), source, line, column)
                     .and_then(|found| completion_rows(&found))
@@ -172,6 +185,9 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             move |path: &str, source: &str, line: i64, column: i64| {
                 let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
                 let (line, column) = at(line, column);
+                if let Some(row) = crate::foreign::hover(&host, path, source, line, column) {
+                    return row;
+                }
                 match host
                     .hover(&RuneHost::normalize_key(path), source, line, column)
                     .and_then(|found| hover_row(found.as_ref()))
@@ -193,6 +209,9 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             move |path: &str, source: &str, line: i64, column: i64| {
                 let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
                 let (line, column) = at(line, column);
+                if let Some(row) = crate::foreign::signature(&host, path, source, line, column) {
+                    return row;
+                }
                 match host
                     .signature_help(&RuneHost::normalize_key(path), source, line, column)
                     .and_then(signature_row)
@@ -237,6 +256,9 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             move |path: &str, source: &str, line: i64, column: i64| {
                 let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
                 let (line, column) = at(line, column);
+                if let Some(row) = crate::foreign::definition(&host, path, source, line, column) {
+                    return row;
+                }
                 match host
                     .definition(&RuneHost::normalize_key(path), source, line, column)
                     .and_then(|found| location_row(found.as_ref()))
@@ -255,6 +277,9 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     script
         .function("symbols", move |path: &str, source: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            if let Some(rows) = crate::foreign::symbols(&host, path, source) {
+                return rows;
+            }
             match host
                 .symbols(&RuneHost::normalize_key(path), source)
                 .and_then(|found| symbol_rows(&found))
@@ -272,6 +297,9 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     script
         .function("format", move |path: &str, source: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            if let Some(text) = crate::foreign::format(&host, path, source) {
+                return text;
+            }
             match host.format(&RuneHost::normalize_key(path), source) {
                 Ok(text) => rune::to_value(text).expect("a string always converts"),
                 Err(err) => {
@@ -293,6 +321,9 @@ fn search_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     script
         .function("references", move |path: &str, source: &str, name: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            if let Some(rows) = crate::foreign::references(&host, path, source, name) {
+                return rows;
+            }
             let found = host.references(&RuneHost::normalize_key(path), source, name);
             match location_rows(&found) {
                 Ok(value) => value,
@@ -346,6 +377,9 @@ fn search_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             "rename",
             move |path: &str, source: &str, from: &str, to: &str| {
                 let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                if let Some(rows) = crate::foreign::rename(&host, path, source, from, to) {
+                    return rows;
+                }
                 match host
                     .rename(&RuneHost::normalize_key(path), source, from, to)
                     .and_then(|written| rename_rows(&written))

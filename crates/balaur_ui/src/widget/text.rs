@@ -163,9 +163,12 @@ fn label_width(
     assigned: f32,
     room: f32,
 ) -> (Option<f32>, Option<f32>) {
+    // A truncating caption's column is whatever it was given: a stretched
+    // child of a squeezed column has no `grow` and still has to be cut
+    // (a language's name in a card two to a phone's row, 2026-10-20).
     let boxed = if widget.width > 0.0 {
         widget.width
-    } else if widget.grow > 0.0 {
+    } else if widget.grow > 0.0 || widget.truncate {
         assigned
     } else {
         0.0

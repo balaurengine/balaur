@@ -110,24 +110,51 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
     );
+    m.records(&[
+        (
+            "Header",
+            "{ project: string, started: string, scripts: string, frames: int, first: int, last: int, reason: string? }",
+            "A recording's summary: its project, start time, script fingerprint, size in frames and ticks, and how it ended.",
+        ),
+        (
+            "Length",
+            "{ frames: int, first: int, last: int }",
+            "How many frames a recording holds and the first and last tick they span.",
+        ),
+        (
+            "Event",
+            "{ tick: int, kind: string, label: string, data: any }",
+            "One recorded event, with the tick it happened on.",
+        ),
+        (
+            "Mark",
+            "{ tick: int, values: [any] }",
+            "A tick at which a replay source held a non-empty list, and what it held.",
+        ),
+        (
+            "Divergence",
+            "{ tick: int, recorded: string, replayed: string }",
+            "The first tick whose replayed digest differs from the recorded one, both digests as hex.",
+        ),
+    ]);
     m.describe(&[
-        ("record", &[], "(path: string, options: any?)", "Start recording into a file; call it before the code it records runs."),
-        ("stop", &[], "(reason: string?)", "Close the recording, naming why it ended, and return the file it wrote."),
-        ("recording", &[], "()", "The file being recorded into, or nil."),
-        ("load", &[], "(path: string)", "Read a recording and put it in front of the engine, paused before its first tick."),
+        ("record", &[], "(path: string, options: any?) -> string", "Start recording into a file; call it before the code it records runs."),
+        ("stop", &[], "(reason: string?) -> string?", "Close the recording, naming why it ended, and return the file it wrote."),
+        ("recording", &[], "() -> string?", "The file being recorded into, or nil."),
+        ("load", &[], "(path: string) -> Header", "Read a recording and put it in front of the engine, paused before its first tick."),
         ("unload", &[], "()", "Drop the loaded recording and let the game run live again."),
         ("play", &[], "()", "Run the loaded recording, one recorded tick per frame."),
         ("pause", &[], "()", "Stop between ticks, holding the simulation still while the frame loop keeps drawing."),
         ("seek", &[], "(tick: int)", "Run recorded ticks until playback reaches the given tick; forward only."),
-        ("state", &[], "()", "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`."),
-        ("position", &[], "()", "The tick playback has reached."),
-        ("length", &[], "()", "The loaded recording's frame count and the ticks it spans, or nil."),
-        ("header", &[], "()", "The loaded recording's project, start time, script fingerprint and how it ended."),
-        ("info", &[], "(path: string)", "The same summary for a recording on disk, without loading it."),
-        ("events", &[], "(from: int, to: int)", "The events recorded between two ticks, each with its tick, kind, label and data."),
-        ("marks", &[], "(source: string, key: string?)", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
-        ("divergence_tick", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
-        ("recording_name", &[], "()", "A file-safe name for a recording starting now, so a list of them sorts by when they ran."),
+        ("state", &[], "() -> string", "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`."),
+        ("position", &[], "() -> int", "The tick playback has reached."),
+        ("length", &[], "() -> Length?", "The loaded recording's frame count and the ticks it spans, or nil."),
+        ("header", &[], "() -> Header?", "The loaded recording's project, start time, script fingerprint and how it ended."),
+        ("info", &[], "(path: string) -> Header", "The same summary for a recording on disk, without loading it."),
+        ("events", &[], "(from: int, to: int) -> [Event]", "The events recorded between two ticks, each with its tick, kind, label and data."),
+        ("marks", &[], "(source: string, key: string?) -> [Mark]", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
+        ("divergence_tick", &[], "() -> Divergence?", "The first tick whose replay did not reproduce the recorded digest, or nil."),
+        ("recording_name", &[], "() -> string", "A file-safe name for a recording starting now, so a list of them sorts by when they ran."),
     ]);
     for d in REPLAY_OPS {
         m.function_raw(d.name, Box::new(d.call));

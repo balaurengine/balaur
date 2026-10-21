@@ -274,6 +274,11 @@ fn draw_root(
         }
         draw_one(ui, painting, root);
     };
+    // A root's first egui pass only measures it, so a rerun draws the scene
+    // in this frame instead of one bare frame of clear colour.
+    let first_pass = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .is_none();
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
@@ -291,6 +296,9 @@ fn draw_root(
     } else {
         root_area.show(ctx, |ui| fill(ui, painting)).response
     };
+    if first_pass {
+        ctx.request_discard("a widget root's first pass");
+    }
     painting.assigned = egui::Vec2::ZERO;
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
@@ -763,7 +771,14 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let look = at.look(index);
     let (color, font) = (look.ink, look.font.clone());
-    let (tooltip, cursor, entity) = (widget.tooltip.clone(), widget.cursor.clone(), placed.entity);
+    let (tooltip, entity) = (widget.tooltip.clone(), placed.entity);
+    // The pointer over it: the node's own word, else the theme's, none off.
+    let themed = look.style.cursor.as_deref();
+    let cursor = match (widget.cursor.is_empty(), widget.disabled) {
+        (false, _) => widget.cursor.clone(),
+        (true, true) => SmolStr::default(),
+        (true, false) => themed.map_or_else(SmolStr::default, SmolStr::new),
+    };
     let through = widget.pointer_through;
     if widget.disabled {
         ui.disable();

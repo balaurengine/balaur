@@ -21,8 +21,8 @@ pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_platform as platform;
 pub use balaur_render as render;
-#[cfg(feature = "bl")]
-pub use balaur_script_lang as script_lang;
+#[cfg(feature = "bs-backend")]
+pub use balaur_script_bs as script_bs;
 pub use balaur_script_rune as script_rune;
 pub use balaur_ui as ui;
 
@@ -106,13 +106,13 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     }
 }
 
-/// `.bl` scripts run beside the project's Rune ones, chosen by extension.
-#[cfg(feature = "bl")]
+/// `.bs` scripts run beside the project's Rune ones, chosen by extension.
+#[cfg(feature = "bs-backend")]
 fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
-    balaur_script_lang::beside(rune)
+    balaur_script_bs::beside(rune)
 }
 
-#[cfg(not(feature = "bl"))]
+#[cfg(not(feature = "bs-backend"))]
 fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
     rune
 }
@@ -140,10 +140,10 @@ pub fn build_pack_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
     with_rune_host(project_root, extra, |engine, host| {
-        // `.bl` files compile through their own backend, beside Rune's.
-        #[cfg(feature = "bl")]
-        let exporter = balaur_script_lang::Exporter::new(engine, host);
-        #[cfg(feature = "bl")]
+        // `.bs` files compile through their own backend, beside Rune's.
+        #[cfg(feature = "bs-backend")]
+        let exporter = balaur_script_bs::Exporter::new(engine, host);
+        #[cfg(feature = "bs-backend")]
         let host = &exporter;
         let pack = Pack::build_with(project_root, host, keep_sources)?;
         #[cfg(feature = "compile")]
@@ -152,6 +152,45 @@ pub fn build_pack_using(
         let _ = engine;
         Ok(pack)
     })
+}
+
+/// A game's `.bs` scripts as one C file, for an export to a platform that
+/// runs no JIT: the export compiles it into a framework of this name beside
+/// the app, and each script then runs as native code.
+pub struct NativeScripts {
+    pub framework: &'static str,
+    pub c: String,
+    pub modules: usize,
+}
+
+/// The `.bs` scripts in `pack` as [`NativeScripts`], compiled through the
+/// project's own engine as its runtime compiles them; `None` when it has none
+/// or this build runs no `.bs`.
+///
+/// # Errors
+/// If the project does not boot, or a script does not compile.
+pub fn native_scripts(
+    project_root: &std::path::Path,
+    extra: ExtraPlugins<'_>,
+    pack: &Pack,
+) -> Result<Option<NativeScripts>> {
+    #[cfg(all(feature = "bs-backend", feature = "compile"))]
+    return with_rune_host(project_root, extra, |engine, _| {
+        Ok(
+            balaur_script_bs::native_source(engine, &pack.scripts)?.map(|(c, modules)| {
+                NativeScripts {
+                    framework: balaur_script_bs::NATIVE_FRAMEWORK,
+                    c,
+                    modules,
+                }
+            }),
+        )
+    });
+    #[cfg(not(all(feature = "bs-backend", feature = "compile")))]
+    {
+        let _ = (project_root, extra, pack);
+        Ok(None)
+    }
 }
 
 /// `pack` with every shader the game can draw with linked into it, for a
@@ -229,11 +268,11 @@ pub fn check_project_using(
                 });
                 continue;
             };
-            #[cfg(feature = "bl")]
-            if let Some(lang) = balaur_script_lang::LangHost::of(engine)
-                && balaur_script_lang::LangHost::claims(&rel)
+            #[cfg(feature = "bs-backend")]
+            if let Some(lang) = balaur_script_bs::BsHost::of(engine)
+                && balaur_script_bs::BsHost::claims(&rel)
             {
-                found.extend(lang.check(&rel, &source).map(|e| {
+                found.extend(lang.check(&rel, &source).into_iter().map(|e| {
                     let (line, column) = (e.pos.line as usize, e.pos.col as usize);
                     balaur_script_rune::Finding {
                         file: rel.clone(),
@@ -247,7 +286,7 @@ pub fn check_project_using(
                 }));
                 continue;
             }
-            #[cfg(not(feature = "bl"))]
+            #[cfg(not(feature = "bs-backend"))]
             let _ = engine;
             found.extend(host.check_source(&rel, &source)?);
         }
@@ -302,7 +341,7 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     #[cfg(feature = "extensions")]
     load_extensions(&mut app, &asked, &extensions)?;
     refuse_absent(&app, &asked)?;
-    deliver_launch_url();
+    deliver_launch_url(&mut app);
     Ok(app)
 }
 
@@ -310,13 +349,24 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
 ///
 /// The two halves live in different crates on purpose: the window layer is
 /// the only thing awake early enough to catch it, and the Apple plugin owns
-/// the queue a game reads it from. This is where they meet, once, after the
-/// plugins are loaded and before anything runs.
-fn deliver_launch_url() {
+/// the queue a game reads it from. They meet on the first frame, not here:
+/// on iOS, UIKit launches inside the window layer's loop, which starts only
+/// after this app is built, and the first frame comes after that launch.
+fn deliver_launch_url(app: &mut App) {
     #[cfg(all(feature = "apple", feature = "window"))]
-    if let Some(url) = balaur_render::take_launch_url() {
-        balaur_apple::deliver_launch_url(url);
+    {
+        let mut asked = false;
+        app.add_system(balaur_core::Stage::First, move |_, _| {
+            if std::mem::replace(&mut asked, true) {
+                return;
+            }
+            if let Some(url) = balaur_render::take_launch_url() {
+                balaur_apple::deliver_launch_url(url);
+            }
+        });
     }
+    #[cfg(not(all(feature = "apple", feature = "window")))]
+    let _ = app;
 }
 
 /// What a project asked of `[plugins]`: a name, and what it said about it.

@@ -148,6 +148,10 @@ jobs:
       # docs workflow already does.
       - name: scripts/api_lints.py
         run: python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error
+      # Every engine function and constant the editor names, against what a
+      # Balaur Script file compiles against, until the editor is ported.
+      - name: scripts/bs_editor_calls.py
+        run: python3 scripts/bs_editor_calls.py --api-json docs/generated/api.json --fail-on-error
       # Licence checking is off in deny.toml, so this file is the only record
       # of what the tree ships and it must not go stale.
       - name: THIRD-PARTY-NOTICES.md is current

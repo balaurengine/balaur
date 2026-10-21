@@ -21,6 +21,7 @@ mod cache;
 mod context;
 mod debugger;
 mod detach;
+mod foreign;
 mod handles;
 mod holds;
 mod inspect;

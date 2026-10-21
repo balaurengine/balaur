@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,lang-web,window` and links 307 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 307 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -21,16 +21,16 @@ atomics only that build has.
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
 | `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (24 crates) |
 | `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
+| `bs` | on | off | Balaur Script (`.bs`) beside Rune: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine with no wasmi. | `wasmi`, `wasmi_collections`, `wasmi_core`, `wasmi_ir` |
+| `bs-jit` | on | on |  | nothing |
+| `bs-web` | off | on |  | nothing |
 | `compile` | on | off | The Rune compiler and the WESL shader linker: a dev run, a pack carrying sources, the editor and `balaur check`. A template leaves it off and draws with the shaders an export linked into the pack. | nothing |
-| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (24 crates) |
-| `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
+| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (25 crates) |
+| `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | nothing |
 | `flac` | on | on | One feature per container `audio` decodes; a build without one plays none of that format. | `symphonia-bundle-flac` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
 | `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `color_quant`, `data-url`, `float-cmp`, … (30 crates) |
-| `lang` | on | off | `.bl` scripts (balaur_lang) beside the Rune ones: `lang` runs them on wasmi, `lang-jit` on wasmtime, `lang-web` on the page's own engine with no wasmi. | `wasmi`, `wasmi_collections`, `wasmi_core`, `wasmi_ir` |
-| `lang-jit` | off | off |  | `arbitrary`, `async-trait`, `cobs`, `cranelift-assembler-x64`, `cranelift-bforest`, `cranelift-bitset`, … (29 crates) |
-| `lang-web` | off | on |  | nothing |
 | `mp3` | on | on |  | `symphonia-bundle-mp3` |
 | `mp4` | on | on |  | `symphonia-codec-aac`, `symphonia-format-isomp4` |
 | `multiplayer` | on | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | `balaur_multiplayer` |

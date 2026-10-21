@@ -440,3 +440,28 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
     app.tick(DEFAULT_FIXED_DT);
     assert_eq!(app.engine.frozen_root(), None, "and it stays let go");
 }
+
+/// A client that stops reading costs itself Debug Console lines, never the
+/// game a frame: the adapter writes from its own thread and drops log lines
+/// past a backlog, so the frame loop runs on and the client is answered once
+/// it reads again.
+#[test]
+fn a_client_that_stops_reading_never_stalls_the_game() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    let mut app = app_in(dir.path());
+    let server = dap::serve(&mut app, 0).unwrap();
+    app.load_project().unwrap();
+    let mut client = Client::connect(server.addr());
+    handshake(&mut app, &mut client);
+    // Far more than the socket holds, and nothing read.
+    for frame in 0..200 {
+        for line in 0..100 {
+            tracing::info!("flood {frame} {line}");
+        }
+        app.tick(DEFAULT_FIXED_DT);
+    }
+    let threads = client.ask(&mut app, "threads", &json!({}));
+    assert_eq!(threads["threads"][0]["name"], json!("game"));
+}

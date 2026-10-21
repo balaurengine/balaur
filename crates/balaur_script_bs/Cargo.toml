@@ -1,0 +1,31 @@
+[package]
+name = "balaur_script_bs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Balaur Script behind the scripting seam: `.bs` scripts beside Rune ones."
+
+[dependencies]
+notify.workspace = true
+anyhow.workspace = true
+balaur_core.workspace = true
+balaur_bs.workspace = true
+balaur_script.workspace = true
+tracing.workspace = true
+smallvec.workspace = true
+
+# Which engines run the scripts; a build takes at least one, and the fastest
+# it has wins.
+[features]
+default = ["wasmi"]
+wasmi = ["balaur_bs/wasmi"]
+wasmtime = ["balaur_bs/wasmtime"]
+web = ["balaur_bs/web"]
+# Runs a module from the native build an export put beside the app.
+native = ["balaur_bs/native"]
+# Translates scripts to C, for an export to a platform that runs no JIT.
+c = ["balaur_bs/c"]
+
+[lints]
+workspace = true

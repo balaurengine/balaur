@@ -215,9 +215,21 @@ pub(crate) fn install_stats_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "stats",
         &[],
-        "()",
+        "() -> Stats",
         "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
     )]);
+    m.records(&[
+        (
+            "Stats",
+            "{ draws: float, triangles: float, texture_bytes: float, textures: float, nodes: [NodeCost] }",
+            "What one frame draws in total, with a row for each node that drew.",
+        ),
+        (
+            "NodeCost",
+            "{ node: string, draws: float, triangles: float, texture_bytes: float, copies: float }",
+            "What one node costs a frame: its path and the work it adds.",
+        ),
+    ]);
     m.function("stats", |eng: &Engine, ()| {
         measure(eng);
         let stats = eng.resource::<Stats>();

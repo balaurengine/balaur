@@ -327,8 +327,14 @@ impl Frontend {
             window.set_keyboard_visible(wants_keyboard);
         }
         self.frame += 1;
-        screenshot::take_if_due(app, window, self.frame, (&mut self.scene, &mut self.camera));
         !app.engine.quit_requested()
+    }
+
+    /// A screenshot that is due, of the frame just drawn: after the render,
+    /// so frame N's picture is step N's, and the first one is never read
+    /// from a target nothing has drawn into yet (it read black).
+    fn shoot(&mut self, app: &App, window: &mut Window) {
+        screenshot::take_if_due(app, window, self.frame, (&mut self.scene, &mut self.camera));
     }
 }
 
@@ -372,12 +378,31 @@ fn report_render_cost(app: &App, window: &Window) {
 
 /// Run the app inside a kiss3d window until the window closes or the game
 /// requests quit.
+#[cfg(not(target_os = "ios"))]
 #[allow(
     clippy::disallowed_methods,
     reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
 )]
 pub fn run_windowed(app: App, title: &str) -> anyhow::Result<()> {
     pollster::block_on(run_windowed_async(app, title, None))
+}
+
+/// iOS cannot block on the loop: a window opens only while winit's
+/// `UIApplicationMain` is on the stack, and that call keeps the main thread
+/// for good. So kiss3d's loop polls the future, as `#[kiss3d::main]` does,
+/// and this never returns. What a caller does after the loop, reporting the
+/// error and flushing the log, happens at the end of the future instead. A
+/// quit leaves the last frame up: iOS has no programmatic exit.
+#[cfg(target_os = "ios")]
+pub fn run_windowed(app: App, title: &str) -> anyhow::Result<()> {
+    let title = title.to_owned();
+    kiss3d::window::run_ios(async move {
+        if let Err(err) = run_windowed_async(app, &title, None).await {
+            tracing::error!("the game stopped: {err:#}");
+        }
+        balaur_core::logbuf::flush_file();
+    });
+    Ok(())
 }
 
 /// The windowed loop as a future. Native `run_windowed` blocks on it; a
@@ -428,29 +453,28 @@ pub async fn run_windowed_async(
     // `[window] max_fps`: vsync already paces a display running at the tick
     // rate, and this is what caps the loop where it does not.
     let budget = app.frame_budget();
-    let low_processor = window_settings.low_processor;
+    // Not on iOS, where every frame runs: UIKit owns the loop there and hands
+    // input over only between frames, so a wait inside one would never hear
+    // the input it waits for.
+    let low_processor = window_settings.low_processor && cfg!(not(target_os = "ios"));
     if low_processor && let Some(waker) = window.waker() {
         balaur_core::wake::set_hook(Some(Box::new(move || waker.wake())));
     }
     let mut last = Instant::now();
+    // Whether the page has been told the first frame is drawn.
+    #[cfg(target_family = "wasm")]
+    let mut announced = false;
     loop {
         if low_processor {
             sleep_until_owed(&app, &mut window).await;
         }
         // A hidden tab gets no animation frame, so `render` would never
-        // return: step the simulation on a timer and draw nothing, so a
-        // socket's heartbeats and a fixed tick keep going behind the tab.
+        // return, and no timer stands in for one: the loop waits for the tab
+        // to be shown again and goes on from there with a fresh `dt`.
         #[cfg(target_family = "wasm")]
         if crate::hidden_tab::is_hidden() {
-            crate::kiss3d_input::pump_input(&app, &window);
-            let now = Instant::now();
-            let dt = (now - last).as_secs_f32().min(0.1);
-            last = now;
-            app.advance(dt);
-            if app.engine.quit_requested() {
-                break;
-            }
-            crate::hidden_tab::sleep().await;
+            crate::hidden_tab::until_visible().await;
+            last = Instant::now();
             continue;
         }
         let now = Instant::now();
@@ -479,6 +503,15 @@ pub async fn run_windowed_async(
         if !open {
             break;
         }
+        #[cfg(target_family = "wasm")]
+        if !announced {
+            announced = true;
+            crate::hidden_tab::announce_ready();
+        }
+        f.shoot(&app, &mut window);
+        if app.engine.quit_requested() {
+            break;
+        }
         cap_frame_rate(budget, last);
     }
     Ok(())
@@ -486,10 +519,11 @@ pub async fn run_windowed_async(
 
 /// Wait out the frames nothing is owed under `[window] low_processor`: no
 /// input, no `balaur_core::wake`, no repaint due. A desktop blocks in the
-/// window system; a browser owns its loop, so a tab checks every 16 ms.
+/// window system; a browser owns its loop, so a tab waits for its next
+/// animation frame, or for turning hidden, which is the loop's own case.
 #[cfg_attr(
     not(target_family = "wasm"),
-    allow(clippy::unused_async, reason = "only a tab's sleep is awaited")
+    allow(clippy::unused_async, reason = "only a tab's wait is awaited")
 )]
 async fn sleep_until_owed(app: &App, window: &mut Window) {
     loop {
@@ -503,10 +537,10 @@ async fn sleep_until_owed(app: &App, window: &mut Window) {
         #[cfg(target_family = "wasm")]
         {
             let _ = wait;
-            if window.wait_events(None) {
+            if window.wait_events(None) || crate::hidden_tab::is_hidden() {
                 return;
             }
-            crate::hidden_tab::sleep_for(16).await;
+            crate::hidden_tab::next_frame_or_hidden().await;
         }
         #[cfg(not(target_family = "wasm"))]
         if window.wait_events(wait) {
@@ -596,6 +630,10 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
                 )
                 .await;
             if !open {
+                break;
+            }
+            f.shoot(&app, &mut window);
+            if app.engine.quit_requested() {
                 break;
             }
         }

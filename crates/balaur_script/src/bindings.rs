@@ -43,7 +43,16 @@ pub trait Bindings<C: ?Sized> {
     /// documentation. `scripts/api_lints.py` fails the build for a registered
     /// function with no entry here.
     fn describe(&mut self, _entries: &[FnDoc]) {}
+    /// The shapes this module's functions hand back, so a typed script reads
+    /// `rect.width` rather than asking a table for it.
+    fn records(&mut self, _entries: &[RecordDoc]) {}
 }
+
+/// A table a function hands back, with fixed fields: its name, its fields
+/// as a signature spells them, `"{ x: float, y: float, label: string? }"`,
+/// and one line saying what it is. A signature names it by that name,
+/// `"(node: node) -> Rect"`, or another module's as `"ui::Rect"`.
+pub type RecordDoc = (&'static str, &'static str, &'static str);
 
 /// One function's reference entry: its name, the components it reads or
 /// writes (empty when it acts on none), its script-facing signature, and one
@@ -51,10 +60,11 @@ pub trait Bindings<C: ?Sized> {
 ///
 /// The signature is `""` for anything registered through
 /// [`BindingsExt::function`], which records the real argument and return types
-/// itself. Spell one out only where a function is registered through
-/// [`Bindings::function_raw`] and so has no types to read: write what a script
-/// passes, `"(path: string, recursive: bool)"` and `"bool"`, or `"()"` for
-/// nothing.
+/// itself, or only a result, `"-> Rect"`, where that is a `Value` holding a
+/// [`RecordDoc`]. Spell one out where a function is registered through
+/// [`Bindings::function_raw`] and so has no types to read: what a script
+/// passes and gets, `"(path: string, recursive: bool) -> bool"`; with no `->`
+/// it gives nothing back.
 pub type FnDoc = (
     &'static str,
     &'static [&'static str],
@@ -139,6 +149,9 @@ macro_rules! forward_bindings {
             }
             fn describe(&mut self, entries: &[FnDoc]) {
                 (**self).describe(entries);
+            }
+            fn records(&mut self, entries: &[RecordDoc]) {
+                (**self).records(entries);
             }
         }
     )*};

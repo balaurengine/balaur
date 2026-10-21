@@ -76,7 +76,7 @@ pub fn escape(text) {
 
 /// Whether a `rest` completion carried a 2xx status.
 pub fn ok(reply) {
-    if !(reply is Object) {
+    if !(reply is Object) || !reply.contains_key("status") {
         return false;
     }
     let status = reply["status"];
@@ -97,7 +97,10 @@ pub fn error_of(reply) {
     if payload is Object && payload.contains_key("error") {
         return format!("{}", payload["error"]);
     }
-    if reply is Object {
+    if reply is Object && reply.contains_key("error") {
+        return format!("{}", reply["error"]);
+    }
+    if reply is Object && reply.contains_key("status") {
         return format!("gamend: HTTP {}", reply["status"]);
     }
     return "gamend: no reply";

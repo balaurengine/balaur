@@ -19,7 +19,8 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
     m.describe(&[(
         "check_material",
         &[],
-        "", "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "-> [script::Diagnostic]",
+        "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
     )]);
     m.function(
         "check_material",
@@ -48,7 +49,12 @@ pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>)
     m.describe(&[(
         "material_params",
         &[],
-        "", "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+        "-> [Param]", "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+    )]);
+    m.records(&[(
+        "Param",
+        "{ name: string, type: string, value: any }",
+        "One editable row of a material: a field's name, the editor type it is drawn as, and its current value.",
     )]);
     m.function(
         "material_params",

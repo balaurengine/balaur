@@ -1,0 +1,197 @@
+use icons;
+
+pub struct Workspace {
+    id: str,
+    name: str,
+    icon: str,
+}
+
+pub struct WorkspaceInspector {
+    sections: [str],
+}
+
+/// A viewport chip: its key, its label, and what it starts as; nil for one
+/// the engine backs, which `shell::chip_value` reads live each frame.
+pub struct Chip {
+    key: str,
+    label: str,
+    starts: bool?,
+}
+
+fn chip(key: str, label: str, starts: bool?) -> Chip {
+    Chip { key: key, label: label, starts: starts }
+}
+
+/// The id each workspace is known by; `workspaces` lists them in order.
+pub const WORKSPACE_SCENE: str = "scene";
+
+pub const WORKSPACE_SCRIPT: str = "script";
+
+pub const WORKSPACE_ANIMATION: str = "animation";
+
+pub const WORKSPACE_PHYSICS: str = "physics";
+
+pub const WORKSPACE_UI: str = "ui";
+
+/// The viewport chips by key; `chips` says which workspace shows each and
+/// what it starts as.
+pub const CHIP_PROJECTION: str = "proj";
+
+pub const CHIP_SNAP: str = "snap";
+
+pub const CHIP_GUIDES: str = "guides";
+
+pub const CHIP_LIGHTS: str = "lights";
+
+pub const CHIP_PATH: str = "path";
+
+pub const CHIP_COLLIDERS: str = "colliders";
+
+pub const CHIP_SLEEP: str = "sleep";
+
+pub const CHIP_SAFE: str = "safe";
+
+pub const CHIP_RESOLUTION: str = "res";
+
+pub fn workspaces() -> [Workspace] {
+    [
+        Workspace { id: WORKSPACE_SCENE, name: "Scene", icon: icons::workspace(WORKSPACE_SCENE) },
+        Workspace { id: WORKSPACE_SCRIPT, name: "Script", icon: icons::workspace(WORKSPACE_SCRIPT) },
+        Workspace { id: WORKSPACE_ANIMATION, name: "Animation", icon: icons::workspace(WORKSPACE_ANIMATION) },
+        Workspace { id: WORKSPACE_PHYSICS, name: "Physics", icon: icons::workspace(WORKSPACE_PHYSICS) },
+        Workspace { id: WORKSPACE_UI, name: "UI", icon: icons::workspace(WORKSPACE_UI) },
+    ]
+}
+
+/// The panels a workspace opens, per dock, and which of them it brings
+/// forward. A workspace says what to have open, not what may be opened: the
+/// logo menu adds and the tab marks close whatever the work needs after that.
+pub fn workspace_docks(id: str) -> any {
+    if id == "script" {
+        docks(["scene", "outline"], ["output", "problems", "docs", "debugger"], ["inspector"])
+    } else if id == "animation" {
+        docks(["scene", "outline"], ["timeline", "statemachine", "output", "library"], ["inspector"])
+    } else if id == "physics" {
+        docks(["scene"], ["output", "problems", "profiler"], ["inspector"])
+    } else if id == "ui" {
+        docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"])
+    } else {
+        docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"])
+    }
+}
+
+fn docks(left: [str], bottom: [str], right: [str]) -> any {
+    map()
+        .with("left", map().with("tabs", left).with("active", left[0]).with("shut", false))
+        .with("bottom", map().with("tabs", bottom).with("active", bottom[0]).with("shut", false))
+        .with("right", map().with("tabs", right).with("active", right[0]).with("shut", false))
+}
+
+pub fn workspace_name(id: str) -> str {
+    for p in workspaces() {
+        if p.id == id {
+            return p.name;
+        }
+    }
+    id
+}
+
+/// The hand-written sections a workspace's inspector draws beside the
+/// components. Every workspace lists every component the node carries.
+pub fn workspace_inspector(id: str) -> WorkspaceInspector {
+    if id == "script" {
+        WorkspaceInspector { sections: ["script", "events"] }
+    } else if id == "animation" {
+        WorkspaceInspector { sections: ["skeleton", "polygon", "animation"] }
+    } else if id == "physics" {
+        WorkspaceInspector { sections: ["physics"] }
+    } else if id == "ui" {
+        WorkspaceInspector { sections: ["interface"] }
+    } else {
+        // Scene is the one workspace that also shows the script a node
+        // carries: a scene file holds it.
+        WorkspaceInspector { sections: ["skeleton", "polygon", "script"] }
+    }
+}
+
+// Only tools something reads: a button that sets `S.tool` and is then ignored
+// advertises an editor that does not exist. Re-add each on its `gizmo` handler.
+pub fn tools(workspace: str) -> [str] {
+    if workspace == "scene" {
+        ["select", "move", "rotate", "scale", "pen", "tiles", "zoom"]
+    } else if workspace == "animation" {
+        ["select", "move", "bone", "polygon", "key", "zoom"]
+    } else if workspace == "physics" {
+        ["select", "move", "polygon", "zoom"]
+    } else if workspace == "ui" {
+        ["select", "move", "zoom"]
+    } else {
+        []
+    }
+}
+
+pub fn tool_name(tool: str) -> str {
+    if tool == "select" {
+        "Select"
+    } else if tool == "move" {
+        "Translate"
+    } else if tool == "rotate" {
+        "Rotate"
+    } else if tool == "scale" {
+        "Scale"
+    } else if tool == "zoom" {
+        "Zoom"
+    } else if tool == "key" {
+        "Keyframe"
+    } else if tool == "bone" {
+        "Rig bone"
+    } else if tool == "polygon" {
+        "Polygon"
+    } else if tool == "pen" {
+        "Pen"
+    } else if tool == "tiles" {
+        "Tiles"
+    } else {
+        tool
+    }
+}
+
+pub fn tool_icon(tool: str) -> str {
+    icons::tool(tool)
+}
+
+/// The viewport's overlay chips in a workspace.
+pub fn chips(workspace: str) -> [Chip] {
+    if workspace == "scene" {
+        [
+            chip(CHIP_PROJECTION, "3D · Perspective", true),
+            chip(CHIP_SNAP, "Snap 8 px", false),
+            chip(CHIP_GUIDES, "Guides", false),
+            chip(CHIP_LIGHTS, "Lights", true),
+        ]
+    } else if workspace == "animation" {
+        [chip(CHIP_PATH, "Motion path", true), chip(CHIP_SNAP, "Snap 8 px", false)]
+    } else if workspace == "physics" {
+        [chip(CHIP_COLLIDERS, "Show colliders", true), chip(CHIP_SLEEP, "Sleep bodies", nil)]
+    } else if workspace == "ui" {
+        [chip(CHIP_SAFE, "Safe area", true), chip(CHIP_RESOLUTION, "1920 × 1080", false)]
+    } else {
+        []
+    }
+}
+
+/// Whether a chip is on in a workspace: what `state`, the editor's chip
+/// state by workspace, holds for it, or what `chips` starts it as before the
+/// chip is first drawn.
+pub fn chip_on(state: any, workspace: str, key: str) -> bool {
+    let held = state.get(workspace).get(key);
+    if !held.is_nil() {
+        return held.as_bool();
+    }
+    for c in chips(workspace) {
+        if c.key == key {
+            return c.starts.or(false);
+        }
+    }
+    false
+}

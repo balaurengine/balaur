@@ -1,0 +1,20 @@
+[package]
+name = "balaur_port"
+description = "Translates the editor's Rune into Balaur Script for a person to finish"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "balaur-port"
+path = "src/main.rs"
+
+[dependencies]
+# Only the parser: no VM, no compiler.
+rune = { version = "0.14", default-features = false, features = ["std"] }
+serde_json.workspace = true

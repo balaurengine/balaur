@@ -134,6 +134,10 @@ const QUIET_RUMBLE: &str = "gilrs::ff::server=error";
 /// path is winit 0.30's; a later one moves it to `apple::appkit`.
 const QUIET_APPKIT: &str = "winit::platform_impl::macos::event_handler=off";
 
+/// Where winit's iOS backend reports the order it delivers a loop turn's
+/// events in, held to errors. The module path is winit 0.30's.
+const QUIET_IOS_REDRAW: &str = "winit::platform_impl::ios::app_state=error";
+
 /// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
 /// records from dependencies land in the same place.
 ///
@@ -151,7 +155,11 @@ pub fn capture(max_level: LevelFilter) {
         // NSApplication outlives the event loop, so AppKit delivers events
         // before it starts and after it ends. winit logs each as an error,
         // which puts four red rows in the editor's Output dock on every boot.
-        .add_directive(QUIET_APPKIT.parse().expect("a fixed directive"));
+        .add_directive(QUIET_APPKIT.parse().expect("a fixed directive"))
+        // winit 0.30 on iOS starts a turn's redraws, then sends that turn's
+        // AboutToWait anyway, and warns about its own order: a line a frame,
+        // forty a second, into the run's log file.
+        .add_directive(QUIET_IOS_REDRAW.parse().expect("a fixed directive"));
     #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
     let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
     // android-activity forwards stderr to logcat as one Info stream, colour codes

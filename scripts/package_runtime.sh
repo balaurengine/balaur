@@ -176,9 +176,9 @@ web)
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
   # what each feature costs, and gen_docs.py reads the default off features.sh.
-  # `.bl` scripts on the page's own engine, not on wasmi compiled to wasm.
+  # `.bs` scripts on the page's own engine, not on wasmi compiled to wasm.
   features=$(game_features "$variant")
-  features=${WEB_FEATURES:-${features/,lang/,lang-web},window}
+  features=${WEB_FEATURES:-${features/,bs/,bs-web},window}
   # The solver threads only where the module can: `parallel` pulls rayon in,
   # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
   # is not cross-origin isolated. The plain template must not have it.

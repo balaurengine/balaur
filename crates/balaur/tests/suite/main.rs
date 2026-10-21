@@ -5,6 +5,7 @@
 //! its own process.
 
 mod app_events;
+mod bs;
 mod components;
 mod dap;
 mod digest_cover;
@@ -14,7 +15,6 @@ mod facade;
 mod fixed_update;
 mod gamepad;
 mod interactivity;
-mod lang;
 mod presets;
 mod replay;
 mod screenshot_events;

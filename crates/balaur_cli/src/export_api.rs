@@ -75,13 +75,25 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
     );
+    m.records(&[
+        (
+            "Target",
+            "{ name: string, runtime: string, bundle: bool, installed: bool, fetchable: bool, note: string }",
+            "A target the project can be exported for, and what building it needs.",
+        ),
+        (
+            "Preview",
+            "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
+            "What one file becomes in a target's pack.",
+        ),
+    ]);
     m.describe(&[
-        ("targets", &[], "()", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
+        ("targets", &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
-        ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
-        ("running_count", &[], "()", "How many exports are in flight."),
-        ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
+        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
+        ("output", &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
+        ("running_count", &[], "() -> int", "How many exports are in flight."),
+        ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
     ]);
     m.function("targets", |eng: &Engine, ()| {
         let project = eng.resource::<ExportState>().borrow().0.project.clone();

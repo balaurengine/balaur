@@ -486,19 +486,19 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         (
             "emitted",
             &[],
-            "(name: string)",
+            "(name: string) -> list",
             "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
         ),
         (
             "emitted_from",
             &[],
-            "(node: node, name: string)",
+            "(node: node, name: string) -> list",
             "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
         ),
         (
             "next",
             &[],
-            "(name: string, from: node?)",
+            "(name: string, from: node?) -> int",
             "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
         ),
     ]);

@@ -478,7 +478,7 @@ dependencies = [
  "balaur_plugin",
  "balaur_render",
  "balaur_script",
- "balaur_script_lang",
+ "balaur_script_bs",
  "balaur_script_rune",
  "balaur_ui",
  "balaur_websocket",
@@ -589,6 +589,21 @@ dependencies = [
  "tempfile",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "balaur_bs"
+version = "0.2.0"
+dependencies = [
+ "js-sys",
+ "libloading 0.9.0",
+ "libm",
+ "smallvec",
+ "wasm-bindgen",
+ "wasm-encoder 0.262.0",
+ "wasmi",
+ "wasmparser 0.262.0",
+ "wasmtime",
 ]
 
 [[package]]
@@ -777,18 +792,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "balaur_lang"
-version = "0.2.0"
-dependencies = [
- "js-sys",
- "libm",
- "wasm-bindgen",
- "wasm-encoder 0.262.0",
- "wasmi",
- "wasmtime",
-]
-
-[[package]]
 name = "balaur_multiplayer"
 version = "0.2.0"
 dependencies = [
@@ -863,6 +866,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "balaur_port"
+version = "0.2.0"
+dependencies = [
+ "rune",
+ "serde_json",
+]
+
+[[package]]
 name = "balaur_render"
 version = "0.2.0"
 dependencies = [
@@ -911,13 +922,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "balaur_script_lang"
+name = "balaur_script_bs"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "balaur_bs",
  "balaur_core",
- "balaur_lang",
  "balaur_script",
+ "notify",
+ "smallvec",
  "tracing",
 ]
 
@@ -3367,7 +3380,6 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#4522a762e83f5d642d0883c92dc149c52d03569c"
 dependencies = [
  "android-activity",
  "bitflags 2.13.2",
@@ -3403,7 +3415,6 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#4522a762e83f5d642d0883c92dc149c52d03569c"
 dependencies = [
  "proc-macro2",
  "quote",

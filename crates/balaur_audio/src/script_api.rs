@@ -77,7 +77,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         ("stop_playback", &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
         ("set_volume_linear", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch_scale", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
-        ("device_ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
+        ("device_ready", &[], "() -> bool", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
         ("is_playing", &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
@@ -162,12 +162,12 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
 /// and this is about all of them at once.
 fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
-        ("bus_volume_linear", &[], "(bus: string)", "One bus's own gain, without its parents'."),
+        ("buses", &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
+        ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
         ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
-        ("cues", &[], "()", "Every sound named in `audio/cues.toml`, in name order."),
-        ("play_cue", &[], "(name: string, options: map)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
+        ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
+        ("play_cue", &[], "(name: string, options: map) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
     m.function("cues", |eng: &Engine, ()| {
         cue::ensure_loaded(eng);
@@ -272,12 +272,12 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
 /// emitter behind a handle that was played with a `position`.
 fn install_positional_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("listener_position", &[], "()", "Where the ears are: the current `listener` node's world position, or what `set_listener_position` last put there."),
+        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, or what `set_listener_position` last put there."),
         ("set_listener_position", &[], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
-        ("emitter_position", &[], "(handle: int)", "Where a handle played with a `position` is; nil for a flat or unknown one."),
+        ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
         ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
-        ("distance_gain", &[], "(handle: int)", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
-        ("pan", &[], "(handle: int)", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
+        ("distance_gain", &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
+        ("pan", &[], "(handle: int) -> float?", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
     ]);
     m.function("listener_position", |eng: &Engine, ()| {
         let state = eng.resource::<AudioState>();

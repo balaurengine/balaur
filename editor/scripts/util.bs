@@ -1,0 +1,449 @@
+// Small helpers the rest of the editor leans on: widget nodes, the unit
+// separator rows split on, document vectors as `[x, y, z]`, colours, and the
+// 2D frame a node's own space is drawn in.
+
+/// A vector's direction and length.
+pub struct Norm {
+    dir: [float],
+    len: float,
+}
+
+/// A colour as unit floats.
+pub struct Rgb {
+    r: float,
+    g: float,
+    b: float,
+}
+
+/// The 2D world frame of a node's own space: where its origin sits, the
+/// cosine and sine of its rotation, and its scale.
+pub struct Frame {
+    x: float,
+    y: float,
+    c: float,
+    s: float,
+    sx: float,
+    sy: float,
+}
+
+/// Texture pixels to one world unit when a component names none.
+pub const DEFAULT_PIXELS_PER_UNIT: float = 100.0;
+
+pub fn join(parts: [str], sep: str) -> str {
+    let out = "";
+    for i in 0..parts.len() {
+        if i > 0 {
+            out += sep;
+        }
+        out += parts[i];
+    }
+    out
+}
+
+pub fn last_segment(path: str) -> str {
+    let parts = path.split("/");
+    parts[parts.len() - 1]
+}
+
+/// The last segment of a `/`-separated path, which is what a column too
+/// narrow for the whole thing shows.
+pub fn leaf(path: str) -> str {
+    last_segment(path)
+}
+
+pub fn is_nil(v: any) -> bool {
+    v.is_nil()
+}
+
+/// `v` when it is a map, else an empty one.
+pub fn obj(v: any) -> any {
+    if v.kind() == "map" { v } else { map() }
+}
+
+/// `v` when it is a list, else an empty one.
+pub fn vec(v: any) -> any {
+    if v.kind() == "list" { v } else { [] }
+}
+
+/// Fill a widget node from a table.
+///
+/// `patch_component` rather than get-mutate-set: every property the table
+/// leaves out stays where it was, and a view that only sets `options` and
+/// `visible` cannot flatten the rest of the widget by forgetting one.
+pub fn fill(id: str, params: any) {
+    let found = scene::get_node(id);
+    if !found.is_valid() {
+        return;
+    }
+    found.patch_component("widget", params);
+}
+
+/// One property of a widget node, for a caller reading back what the reader
+/// left on it. The whole table is forty keys, and a view wants one of them.
+pub fn prop(id: str, key: str) -> any {
+    let found = scene::get_node(id);
+    if !found.is_valid() {
+        return nil;
+    }
+    found.get_component("widget", key)
+}
+
+/// Stop drawing a node. Only the dock that owns one may call this: every dock
+/// draws each frame, so a global hide has one turning off another's node.
+pub fn hide(id: str) {
+    let found = scene::get_node(id);
+    if !found.is_valid() {
+        return;
+    }
+    found.patch_component("widget", map().with("visible", false));
+}
+
+/// One row of a `list` or `tree`: the icon, the label, a trailing note and a
+/// colour of its own, joined by the unit separator the kind splits on.
+pub fn row(icon: str, label: str, trailing: str, tint: str) -> str {
+    cells([icon, label, trailing, tint])
+}
+
+/// Cells joined by the unit separator every row splits on.
+pub fn cells(parts: [str]) -> str {
+    join(parts, "\u{1f}")
+}
+
+pub fn f(v: any) -> float {
+    v.as_float()
+}
+
+pub fn i(v: float) -> int {
+    v as int
+}
+
+pub fn clamp(x: float, lo: float, hi: float) -> float {
+    if x < lo { lo } else if x > hi { hi } else { x }
+}
+
+pub fn max(a: float, b: float) -> float {
+    if a > b { a } else { b }
+}
+
+pub fn min(a: float, b: float) -> float {
+    if a < b { a } else { b }
+}
+
+pub fn imax(a: int, b: int) -> int {
+    if a > b { a } else { b }
+}
+
+pub fn imin(a: int, b: int) -> int {
+    if a < b { a } else { b }
+}
+
+pub fn abs(x: float) -> float {
+    if x < 0.0 { -x } else { x }
+}
+
+/// Three floats from a document vector, or `fallback`.
+pub fn vec3(v: any, fallback: [float]) -> [float] {
+    if v.kind() == "list" && v.len() >= 3 {
+        [f(v[0]), f(v[1]), f(v[2])]
+    } else {
+        fallback
+    }
+}
+
+/// Two floats from a document vector, or `fallback`.
+pub fn vec2(v: any, fallback: [float]) -> [float] {
+    if v.kind() == "list" && v.len() >= 2 {
+        [f(v[0]), f(v[1])]
+    } else {
+        fallback
+    }
+}
+
+/// A live node's `Vec3` as the `[x, y, z]` the draw and document code uses.
+pub fn xyz(v: Vec3) -> [float] {
+    [v.x, v.y, v.z]
+}
+
+pub fn vadd(a: [float], b: [float]) -> [float] {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+pub fn vsub(a: [float], b: [float]) -> [float] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+pub fn vscale(a: [float], s: float) -> [float] {
+    [a[0] * s, a[1] * s, a[2] * s]
+}
+
+pub fn vdot(a: [float], b: [float]) -> float {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+pub fn vcross(a: [float], b: [float]) -> [float] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+/// The unit vector and the length; a zero vector normalises to zero, so a
+/// caller can divide without checking first.
+pub fn vnorm(a: [float]) -> Norm {
+    let l = math::sqrt(vdot(a, a));
+    if l < 1e-6 {
+        return Norm { dir: [0.0, 0.0, 0.0], len: 0.0 };
+    }
+    Norm { dir: vscale(a, 1.0 / l), len: l }
+}
+
+pub fn dist(a: [float], b: [float]) -> float {
+    vnorm(vsub(a, b)).len
+}
+
+/// Where `needle` first sits in `text`, or nil.
+pub fn index_of(text: str, needle: str) -> int? {
+    if needle == "" {
+        return nil;
+    }
+    let at = text.find(needle);
+    if at < 0 { nil } else { at }
+}
+
+/// `text` cased the way `sample` is: all caps, capitalised, or left alone.
+/// What keeps `Arm_L` mirroring to `Arm_R` rather than to `Arm_r`.
+pub fn match_case(sample: str, text: str) -> str {
+    if sample == sample.to_lower() {
+        return text;
+    }
+    if sample == sample.to_upper() {
+        return text.to_upper();
+    }
+    capitalised(text.to_lower())
+}
+
+fn capitalised(text: str) -> str {
+    if text == "" {
+        return text;
+    }
+    text.slice(0, 1).to_upper() + text.slice(1, text.len())
+}
+
+/// Words a schema key spells lowercase that a label spells in capitals.
+fn acronyms() -> [str] {
+    ["fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"]
+}
+
+/// A schema key as a row label: `edge_radius` reads "Edge radius". The key
+/// itself is untouched, so a label never becomes the name of anything.
+pub fn prop_label(prop: str) -> str {
+    if prop == "" {
+        return prop;
+    }
+    let words: [str] = [];
+    for word in prop.split("_") {
+        words.push(if contains(acronyms(), word) { word.to_upper() } else { word });
+    }
+    capitalised(join(words, " "))
+}
+
+pub fn contains(items: [str], x: str) -> bool {
+    for it in items {
+        if it == x {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn position(items: [str], x: str) -> int? {
+    for i in 0..items.len() {
+        if items[i] == x {
+            return i;
+        }
+    }
+    nil
+}
+
+pub fn keys_sorted(o: any) -> [str] {
+    let keys = o.keys();
+    keys.sort();
+    keys
+}
+
+pub fn count_lines(text: str) -> int {
+    text.split("\n").len()
+}
+
+pub fn repeat(s: str, n: int) -> str {
+    let out = "";
+    for k in 0..n {
+        out += s;
+    }
+    out
+}
+
+/// A shallow copy of a map or a list; anything else is a value already.
+pub fn copy(v: any) -> any {
+    if v.kind() == "map" {
+        let out = map();
+        for k in v.keys() {
+            out.set(k, v.get(k));
+        }
+        return out;
+    }
+    if v.kind() == "list" {
+        let out: [any] = [];
+        for x in v {
+            out.push(x);
+        }
+        return out;
+    }
+    v
+}
+
+/// A copy all the way down.
+pub fn deep(v: any) -> any {
+    if v.kind() == "map" {
+        let out = map();
+        for k in v.keys() {
+            out.set(k, deep(v.get(k)));
+        }
+        return out;
+    }
+    if v.kind() == "list" {
+        let out: [any] = [];
+        for x in v {
+            out.push(deep(x));
+        }
+        return out;
+    }
+    v
+}
+
+/// `#rrggbb` to unit floats.
+pub fn hex_to_rgb(hex: str) -> Rgb {
+    Rgb { r: hex_pair(hex, 1), g: hex_pair(hex, 3), b: hex_pair(hex, 5) }
+}
+
+fn hex_pair(hex: str, at: int) -> float {
+    let digits = "0123456789abcdef";
+    let pair = hex.slice(at, at + 2).to_lower();
+    let hi = imax(digits.find(pair.slice(0, 1)), 0);
+    let lo = imax(digits.find(pair.slice(1, 2)), 0);
+    (hi * 16 + lo) as float / 255.0
+}
+
+/// Unit floats to `#rrggbb`: what a colour swatch reports, as a theme spells it.
+pub fn to_hex(rgba: [float]) -> str {
+    let digits = "0123456789abcdef";
+    let out = "#";
+    for k in 0..3 {
+        let n = imin(imax((rgba[k] * 255.0 + 0.5) as int, 0), 255);
+        out += digits.slice(n / 16, n / 16 + 1);
+        out += digits.slice(n % 16, n % 16 + 1);
+    }
+    out
+}
+
+/// A colour as the `[r, g, b]` the draw calls take.
+pub fn rgb(hex: str) -> [float] {
+    let c = hex_to_rgb(hex);
+    [c.r, c.g, c.b]
+}
+
+// Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
+// R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
+// the node's local axes (the matrix columns).
+pub fn basis_from_euler(r: [float]) -> [[float]] {
+    let cr = math::cos(r[0]);
+    let sr = math::sin(r[0]);
+    let cp = math::cos(r[1]);
+    let sp = math::sin(r[1]);
+    let cy = math::cos(r[2]);
+    let sy = math::sin(r[2]);
+    [
+        [cy * cp, sy * cp, -sp],
+        [cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr],
+        [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr],
+    ]
+}
+
+pub fn euler_from_basis(b: [[float]]) -> [float] {
+    let pitch = math::asin(clamp(-b[0][2], -1.0, 1.0));
+    let yaw = math::atan(b[0][1], b[0][0]);
+    let roll = math::atan(b[1][2], b[2][2]);
+    [roll, pitch, yaw]
+}
+
+pub fn rotate_basis_local(b: [[float]], axis: int, angle: float) -> [[float]] {
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let i = (axis + 1) % 3;
+    let j = (axis + 2) % 3;
+    // Columns i and j rotate into each other around column `axis`.
+    let bi = b[i];
+    let bj = b[j];
+    let out = [b[0], b[1], b[2]];
+    out[i] = [bi[0] * c + bj[0] * s, bi[1] * c + bj[1] * s, bi[2] * c + bj[2] * s];
+    out[j] = [bj[0] * c - bi[0] * s, bj[1] * c - bi[1] * s, bj[2] * c - bi[2] * s];
+    out
+}
+
+/// Rotate a ZYX euler about one of its own axes.
+pub fn rotate_euler(r: [float], axis: int, angle: float) -> [float] {
+    euler_from_basis(rotate_basis_local(basis_from_euler(r), axis, angle))
+}
+
+/// Rotate a world point about `center` by `angle` around world axis `axis`.
+pub fn rotate_about(p: [float], center: [float], axis: int, angle: float) -> [float] {
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let d = vsub(p, center);
+    let i = (axis + 1) % 3;
+    let j = (axis + 2) % 3;
+    let out = [d[0], d[1], d[2]];
+    out[i] = d[i] * c - d[j] * s;
+    out[j] = d[i] * s + d[j] * c;
+    vadd(center, out)
+}
+
+/// The 2D world frame of a node's own space. A `path2d`'s control points
+/// and a polygon's vertices are both authored in it.
+pub fn frame_of(found: Node) -> Frame {
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let s = found.transform.global_scale();
+    Frame { x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y }
+}
+
+/// A point in that frame, in the world.
+pub fn to_world(f: Frame, lx: float, ly: float) -> Vec2 {
+    let px = lx * f.sx;
+    let py = ly * f.sy;
+    Vec2 { x: f.x + f.c * px - f.s * py, y: f.y + f.s * px + f.c * py }
+}
+
+/// A world point back in that frame. A zero scale places everything at the
+/// origin, so it is read as one rather than dividing by it.
+pub fn to_local(f: Frame, wx: float, wy: float) -> Vec2 {
+    let dx = wx - f.x;
+    let dy = wy - f.y;
+    let px = f.c * dx + f.s * dy;
+    let py = -f.s * dx + f.c * dy;
+    let sx = if abs(f.sx) > 1e-6 { f.sx } else { 1.0 };
+    let sy = if abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
+    Vec2 { x: px / sx, y: py / sy }
+}
+
+/// A project path where the engine wants one. The editor's engine resolves a
+/// relative path against the *editor's* root, so a reference handed to it is
+/// made absolute against `root`, the game's; one that already is comes back
+/// as it is, never prefixed a second time.
+pub fn engine_path(root: str, rel: str) -> str {
+    if rel.starts_with("/") {
+        return rel;
+    }
+    root + "/" + rel
+}

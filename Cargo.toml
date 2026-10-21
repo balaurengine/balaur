@@ -48,8 +48,8 @@ balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0", default-features = false }
-balaur_lang = { path = "crates/balaur_lang", version = "0.2.0", default-features = false }
-balaur_script_lang = { path = "crates/balaur_script_lang", version = "0.2.0", default-features = false }
+balaur_bs = { path = "crates/balaur_bs", version = "0.2.0", default-features = false }
+balaur_script_bs = { path = "crates/balaur_script_bs", version = "0.2.0", default-features = false }
 balaur_physics = { path = "crates/balaur_physics", version = "0.2.0", default-features = false }
 balaur_animation = { path = "crates/balaur_animation", version = "0.2.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.2.0", default-features = false }
@@ -135,7 +135,7 @@ debug = false
 opt-level = 3
 
 # Optimised, wasmi dispatches each instruction by tail call, and the debug
-# checks keep LLVM from making them tail calls: a long `.bl` loop then
+# checks keep LLVM from making them tail calls: a long `.bs` loop then
 # overflows the stack. Release has neither check.
 [profile.dev.package.wasmi]
 debug-assertions = false
@@ -176,7 +176,7 @@ rune = { git = "https://github.com/balaurengine/rune.git", branch = "determinist
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 # On `balaur-wrapped-surface` (Ughuuu/kiss3d#1) until it merges into `balaur-hooks`.
-kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-wrapped-surface" }
+kiss3d = { path = "/Users/dragosdaian/Documents/appsinacup/kiss3d" }
 # 0.19.0 on the harfrust and skrifa epaint uses, so one copy of each links.
 cosmic-text = { git = "https://github.com/Ughuuu/cosmic-text.git", branch = "balaur-harfrust-0.12" }
 # 0.36.2 with glyphs filled by zeno, which the engine's own text already links,

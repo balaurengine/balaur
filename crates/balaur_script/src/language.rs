@@ -17,6 +17,14 @@ pub trait ScriptCompiler {
 
     /// Compile one source file. `rel` is the project-relative path, for errors.
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>>;
+
+    /// The engine functions the scripts compiled here call, one line each
+    /// with the types they were checked against, sorted; a pack carries them
+    /// so the runtime that loads it can say which it lacks or types
+    /// otherwise. Empty for a backend that checks at load.
+    fn api(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// The running script system, as the engine and its plugins see it.
@@ -284,6 +292,14 @@ pub trait ScriptHost<C: ?Sized> {
     /// Let the paused script go on. Nothing paused, nothing to do.
     fn resume(&self, mode: StepMode) {
         let _ = mode;
+    }
+
+    /// The editor tooling for the script at `path`, when a language other
+    /// than the host's own answers for it: how `.bs` files sit beside Rune
+    /// in an editor written against Rune's.
+    fn tools_for(&self, path: &str) -> Option<&dyn crate::LanguageTools> {
+        let _ = path;
+        None
     }
 
     /// Downcast to the concrete backend, for code written against one language

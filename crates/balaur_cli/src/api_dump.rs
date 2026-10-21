@@ -96,6 +96,52 @@ pub(crate) fn dump_api() -> Result<()> {
         })
         .unwrap_or_default();
     api["asset_types"] = serde_json::to_value(asset_types)?;
+    #[cfg(any(feature = "bs", feature = "bs-web"))]
+    if let Some(host) = balaur::script_bs::BsHost::of(&app.engine) {
+        api["bs"] = bs_api(&host.api());
+        api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
+    }
     println!("{}", serde_json::to_string_pretty(&api)?);
     Ok(())
+}
+
+/// The engine as a `.bs` script compiles against it: each function's
+/// signature and how many arguments a call must pass, each constant, and
+/// each record's fields.
+#[cfg(any(feature = "bs", feature = "bs-web"))]
+fn bs_api(api: &balaur::script_bs::HostApi) -> serde_json::Value {
+    use balaur::script_bs::Literal;
+    let functions: serde_json::Map<String, serde_json::Value> = api
+        .functions
+        .iter()
+        .map(|f| {
+            let row = serde_json::json!({"signature": f.text(), "least": f.least()});
+            (f.key.clone(), row)
+        })
+        .collect();
+    let constants: serde_json::Map<String, serde_json::Value> = api
+        .constants
+        .iter()
+        .map(|(k, v)| {
+            let v = match v {
+                Literal::Int(x) => serde_json::json!(x),
+                Literal::Float(x) => serde_json::json!(x),
+                Literal::Bool(b) => serde_json::json!(b),
+                Literal::Str(t) => serde_json::json!(t),
+            };
+            (k.clone(), v)
+        })
+        .collect();
+    let structs: serde_json::Map<String, serde_json::Value> = api
+        .structs
+        .iter()
+        .map(|(k, fields)| {
+            let fields: serde_json::Map<String, serde_json::Value> = fields
+                .iter()
+                .map(|(n, t)| (n.clone(), serde_json::json!(t.to_string())))
+                .collect();
+            (k.clone(), serde_json::Value::Object(fields))
+        })
+        .collect();
+    serde_json::json!({"functions": functions, "constants": constants, "structs": structs})
 }

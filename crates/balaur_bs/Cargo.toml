@@ -1,0 +1,43 @@
+[package]
+name = "balaur_bs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Balaur Script: a small statically typed scripting language compiled to WebAssembly; compiler, runtime and debugger."
+
+[dependencies]
+libm.workspace = true
+wasm-encoder = "0.262"
+smallvec.workspace = true
+# `deterministic` canonicalises NaNs, the one result wasm leaves to the platform.
+wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch", "deterministic"] }
+# Reads a module back for `c`, the translation an iOS export compiles.
+wasmparser = { version = "0.262", optional = true, default-features = false, features = ["std", "validate"] }
+# Opens the native build of a game's scripts an export put beside the app.
+libloading = { version = "0.9", optional = true }
+
+# A JIT runs everywhere but a browser and iOS; elsewhere `wasmtime` is inert.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
+wasmtime = { version = "48", optional = true, default-features = false, features = ["cranelift", "runtime", "std"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { version = "0.3.106", optional = true }
+wasm-bindgen = { version = "0.2.129", optional = true }
+
+[features]
+default = ["wasmi"]
+# An interpreter, on every platform: the engine when no faster one is built in.
+wasmi = ["dep:wasmi"]
+# Cranelift compiles scripts to machine code: desktop and Android. A build
+# for a browser or iOS ignores it.
+wasmtime = ["dep:wasmtime"]
+# The page's own WebAssembly engine, for a wasm32 build in a browser.
+web = ["dep:js-sys", "dep:wasm-bindgen"]
+# Modules translated to C, for an export to a platform that runs no JIT.
+c = ["dep:wasmparser"]
+# Runs a module from the native build an export made of it, when one is loaded.
+native = ["dep:libloading"]
+
+[lints]
+workspace = true

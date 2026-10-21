@@ -159,17 +159,22 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.",
     );
+    m.records(&[(
+        "Build",
+        "{ version: string, id: string, channel: string, tag: string, source: bool, held: string }",
+        "The build of the engine that is running.",
+    )]);
     m.describe(&[
         (
             "installed",
             &[],
-            "",
+            "-> Build",
             "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can.",
         ),
         (
             "channels",
             &[],
-            "",
+            "-> [string]",
             "Every release line a build may follow, in the order a version moves through them.",
         ),
         (
@@ -181,13 +186,13 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         (
             "install",
             &[],
-            "(channel: string, tag: string, options: map?)",
+            "(channel: string, tag: string, options: map?) -> bool",
             "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
         ),
         (
             "listen",
             &[],
-            "(node: Node, opts?: table)",
+            "(node: node, opts: map?)",
             "Call a method on `node` with every report a check or an install makes: `on_release_event` unless `opts.on_event` names another.",
         ),
     ]);

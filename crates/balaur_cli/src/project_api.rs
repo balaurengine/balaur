@@ -71,7 +71,39 @@ fn install_project_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "The projects this machine has opened, the templates a new one starts from, and the folder picker the OS provides. What the editor's start screen is made of.",
     );
+    project_records(m);
     describe_project_api(m);
+}
+
+/// The tables the verbs hand back, so a typed script reads them by field.
+fn project_records(m: &mut dyn Bindings<Engine>) {
+    m.records(&[
+        (
+            "Recent",
+            "{ path: string, name: string, opened: float, when: string, version: string, exists: bool }",
+            "A project this machine has opened.",
+        ),
+        (
+            "Template",
+            "{ id: string, note: string }",
+            "A template a new project may start from.",
+        ),
+        (
+            "Example",
+            "{ id: string, name: string, note: string, cover: string, path: string }",
+            "An example project shipped beside the editor.",
+        ),
+        (
+            "Project",
+            "{ path: string?, name: string?, error: string? }",
+            "A project just written to disk, or the error that stopped it.",
+        ),
+        (
+            "Opened",
+            "{ error: string? }",
+            "What opening a project answers: an error, or nothing when the editor is on its way to it.",
+        ),
+    ]);
 }
 
 /// What each verb is, for the reference and the editor's hover.
@@ -80,25 +112,25 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
         (
             "recent",
             &[],
-            "",
+            "-> [Recent]",
             "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         ),
         (
             "templates",
             &[],
-            "",
+            "-> [Template]",
             "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
         ),
         (
             "create",
             &[],
-            "(path: string, template: string)",
+            "(path: string, template: string) -> Project",
             "Write a new project at `path` from a template id, or from nothing when the id is empty. Answers `{ path, name }`, or `{ error }`.",
         ),
         (
             "open",
             &[],
-            "(path: string)",
+            "(path: string) -> Opened",
             "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
         ),
         (
@@ -110,49 +142,49 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
         (
             "home",
             &[],
-            "",
+            "-> string",
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         ),
         (
             "editor_data_directory",
             &[],
-            "",
+            "-> string",
             "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         ),
         (
             "in_tab",
             &[],
-            "",
+            "-> bool",
             "Whether this editor runs in a browser tab, where the page holds the projects and opening one is its call rather than this screen's.",
         ),
         (
             "version",
             &[],
-            "",
+            "-> string",
             "The version of the binary the editor is running in.",
         ),
         (
             "examples",
             &[],
-            "",
+            "-> [Example]",
             "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
         ),
         (
             "copy_example",
             &[],
-            "(id: string, into: string)",
+            "(id: string, into: string) -> Project",
             "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
         ),
         (
             "pick_directory",
             &[],
-            "",
+            "-> string?",
             "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         ),
         (
             "use_data",
             &[],
-            "(name: string?)",
+            "(name: string?) -> string?",
             "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
         ),
     ]);

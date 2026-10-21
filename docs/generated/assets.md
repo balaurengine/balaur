@@ -432,6 +432,7 @@ icon_color = "text_on_primary"
 font_family = "ui"               # ui, heading, mono or icon
 font_weight = 700
 text_align = "center"            # start, center or end
+cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on

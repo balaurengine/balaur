@@ -155,7 +155,7 @@ fn the_reports_section_bytes_add_up_to_the_encoded_pack() {
         report.sections.iter().map(|s| s.bytes).sum::<usize>(),
         report.total
     );
-    assert_eq!(report.sections.len(), 4);
+    assert_eq!(report.sections.len(), 5);
 }
 
 #[test]
@@ -183,6 +183,7 @@ fn the_reports_display_names_every_section_and_the_unreferenced_count() {
         "scenes",
         "scripts",
         "assets",
+        "api",
         "png",
         "art/hero.png",
     ] {
