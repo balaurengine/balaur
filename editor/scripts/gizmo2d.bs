@@ -614,11 +614,11 @@ pub fn update(S: &mut editor::State, vp: editor::Viewport) {
         if S.tool == "bone" {
             rig::update(S, over_viewport, mx, my);
         } else if S.tool == "polygon" {
-            polygon::update(S, over_viewport, mx, my);
+            polygon::update(S, over_viewport, mx.as_float(), my.as_float());
         } else if S.tool == "pen" {
-            pen::update(S, over_viewport, mx, my);
+            pen::update(S, over_viewport, mx.as_float(), my.as_float());
         } else {
-            tiles::update(S, over_viewport, mx, my);
+            tiles::update(S, over_viewport, mx.as_float(), my.as_float());
         }
         return;
     }
@@ -626,7 +626,7 @@ pub fn update(S: &mut editor::State, vp: editor::Viewport) {
     S.polygon.hover = nil;
     signals::inspector(S);
     S.tiles.hover = nil;
-    S.pen.hover = nil;
+    S.pen.hover = -1;
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = if geo.is_some() {
             let geo = geo.unwrap();

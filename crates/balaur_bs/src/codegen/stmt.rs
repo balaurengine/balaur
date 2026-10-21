@@ -85,8 +85,9 @@ impl FnGen<'_> {
         Ok(())
     }
 
-    // The `any` a target sets a key of, and the key.
-    fn any_slot(&mut self, target: &Expr) -> R<Option<(Expr, Expr)>> {
+    // The `any` a target sets a key or an index of, the key, and the method
+    // that sets it.
+    fn any_slot(&mut self, target: &Expr) -> R<Option<(Expr, Expr, &'static str)>> {
         let (base, key) = match &target.kind {
             ExprKind::Field(b, f) => (
                 b,
@@ -99,10 +100,16 @@ impl FnGen<'_> {
             ExprKind::Method(b, m, args) if m == "get" && args.len() == 1 => (b, args[0].clone()),
             _ => return Ok(None),
         };
-        if self.type_of(base)? != Ty::Any || self.type_of(&key)? == Ty::Int {
+        if self.type_of(base)? != Ty::Any {
             return Ok(None);
         }
-        Ok(Some(((**base).clone(), key)))
+        // A whole number is a list's index; anything else is a map's key.
+        let method = if self.type_of(&key)? == Ty::Int {
+            "put"
+        } else {
+            "set"
+        };
+        Ok(Some(((**base).clone(), key, method)))
     }
 
     fn assign(&mut self, target: &Expr, op: Option<BinOp>, value: &Expr, pos: Pos) -> R<()> {
@@ -139,7 +146,7 @@ impl FnGen<'_> {
             return Ok(());
         }
         // `a.key = v`, `a[k] = v` or `a.get(k) = v` on an `any`: set in place.
-        if let Some((base, key)) = self.any_slot(target)? {
+        if let Some((base, key, method)) = self.any_slot(target)? {
             let v = match op {
                 Some(op) => Expr {
                     kind: ExprKind::Bin(op, Box::new(target.clone()), Box::new(value.clone())),
@@ -147,7 +154,7 @@ impl FnGen<'_> {
                 },
                 None => value.clone(),
             };
-            self.any_method(&base, "set", &[key, v], pos)?;
+            self.any_method(&base, method, &[key, v], pos)?;
             self.e(I::Drop);
             return Ok(());
         }

@@ -214,6 +214,42 @@ fn remove_in(ctx: &mut dyn ImportCtx, (p, tag): (u32, i32), key: &Value) -> Resu
     Ok(take_at(ctx, values, j))
 }
 
+// `list.put(index, value)` or `list.insert(index, value)` in place: the
+// value shared, not copied, and whatever `put` replaced released.
+fn list_place(
+    ctx: &mut dyn ImportCtx,
+    name: &str,
+    cell: u32,
+    index: &Raw,
+    v: u32,
+) -> Result<Vec<Raw>, String> {
+    let len = array(ctx, word_at(ctx, cell + 8)).0;
+    let j = match index {
+        Raw::I64(i) => u32::try_from(*i).ok(),
+        r => u32::try_from(r.i32()).ok(),
+    };
+    let Some(j) = j.filter(|j| *j < len || (name == "insert" && *j == len)) else {
+        return Ok(vec![Raw::I32(0)]);
+    };
+    retain(ctx, v);
+    let list = array_of(ctx, cell, 8)?;
+    if name == "put" {
+        let data = array(ctx, list).1;
+        let old = word_at(ctx, data + 8 * j);
+        put(ctx, data + 8 * j, v);
+        release_any(ctx, old)?;
+    } else {
+        append(ctx, list, v)?;
+        let data = array(ctx, list).1;
+        for i in (j + 1..=len).rev() {
+            let prev = word_at(ctx, data + 8 * (i - 1));
+            put(ctx, data + 8 * i, prev);
+        }
+        put(ctx, data + 8 * j, v);
+    }
+    Ok(vec![Raw::I32(1)])
+}
+
 // `map.set(key, value)` in place: the value shared, not copied.
 fn set_in(
     ctx: &mut dyn ImportCtx,
@@ -268,7 +304,11 @@ fn change(
             append(ctx, list, v)?;
             Ok(vec![Raw::I32(1)])
         }
-        "set" | "push" => Ok(vec![Raw::I32(0)]),
+        "put" | "insert" if tag == LIST => {
+            let v = args[2].i32() as u32;
+            list_place(ctx, name, p, &args[1], v)
+        }
+        "set" | "push" | "put" | "insert" => Ok(vec![Raw::I32(0)]),
         "remove" => {
             let k = read_any(meta, &m, args[1].i32() as u32 as usize);
             let got = remove_in(ctx, (p, tag), &k)?;

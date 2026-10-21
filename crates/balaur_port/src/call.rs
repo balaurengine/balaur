@@ -481,6 +481,10 @@ impl Cx<'_> {
             }
             ("pop", Ty::Array(e)) => same(format!("{r}.pop()"), Ty::opt((**e).clone())),
             ("insert", Ty::Array(_)) => same(format!("{r}.insert({joined})"), Ty::Void),
+            // A whole-number key is a list's index; any other is a map's key.
+            ("insert", Ty::Any) if args.first().is_some_and(|k| k.t == Ty::Int) => {
+                same(format!("{r}.insert({joined})"), Ty::Bool)
+            }
             ("insert", Ty::Any) => same(format!("{r}.set({joined})"), Ty::Bool),
             ("insert", Ty::Shape(id)) => {
                 let id = *id;

@@ -152,17 +152,17 @@ pub fn geometry(S: editor::State, i: int) -> Geometry? {
 
 // How far a point is from a bone's spine — what a weight by distance and
 // the viewport's own picking both measure.
-pub fn segment_distance(p: [any], a: [any], b: [any]) -> float {
+pub fn segment_distance(p: [float], a: [float], b: [float]) -> float {
     let abx = b[0] - a[0];
     let aby = b[1] - a[1];
     let len2 = abx * abx + aby * aby;
     let t = 0.0;
-    if len2.as_float() > 1e-9 {
-        t = util::clamp((((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / len2).as_float(), 0.0, 1.0);
+    if len2 > 1e-9 {
+        t = util::clamp(((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / len2, 0.0, 1.0);
     }
-    let cx = a[0].as_float() + abx.as_float() * t;
-    let cy = a[1].as_float() + aby.as_float() * t;
-    math::sqrt((p[0].as_float() - cx) * (p[0].as_float() - cx) + (p[1].as_float() - cy) * (p[1].as_float() - cy))
+    let cx = a[0] + abx * t;
+    let cy = a[1] + aby * t;
+    math::sqrt((p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy))
 }
 
 // The bone under the cursor: the one whose diamond's spine is nearest,
@@ -176,7 +176,7 @@ pub fn pick(S: editor::State, mx: any, my: any) -> int? {
             let matched1 = geometry(S, i);
             if matched1.is_some() {
                 let g = matched1.unwrap();
-                let d = segment_distance([mx, my], g.origin, g.tip);
+                let d = segment_distance([mx.as_float(), my.as_float()], g.origin, g.tip);
                 if d < best_d {
                     best = i;
                     best_d = d;

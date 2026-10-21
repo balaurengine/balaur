@@ -140,6 +140,29 @@ fn a_map_or_a_list_changes_in_place_for_every_holder() {
 }
 
 #[test]
+fn a_list_in_an_any_is_written_by_index() {
+    let mut rt = run(r#"
+pub fn edited() -> str {
+    let l: any = map().with("xs", [1, 2, 3]).xs;
+    let held = l;
+    l[1] = "two";
+    let put = l.put(0, 10);
+    let past = l.put(3, 4);
+    let mid = l.insert(1, 1.5);
+    let end = l.insert(4, "end");
+    let beyond = l.insert(9, 0);
+    let first = map().with("n", 0).n.insert(0, 1);
+    "{held} {put} {past} {mid} {end} {beyond} {first}"
+}
+"#);
+    assert_eq!(
+        call(&mut rt, "edited", &[]),
+        Value::Str(r#"[10, 1.5, "two", 3, "end"] true false true true false false"#.into())
+    );
+    assert_eq!(rt.live(), 0, "a replaced element leaked");
+}
+
+#[test]
 fn an_any_prints_inside_a_string_as_its_text() {
     let mut rt = run("pub fn say(a: any) -> str { \"got {a}!\" }");
     let base = rt.live();

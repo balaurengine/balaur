@@ -117,6 +117,24 @@ pub fn i(v: float) -> int {
     v as int
 }
 
+/// `x` with `places` decimals, rounded: what `{:.2}` wrote.
+pub fn fixed(x: float, places: int) -> str {
+    let scale = 1;
+    for _ in 0..places {
+        scale *= 10;
+    }
+    let n = math::round(abs(x) * (scale as float)) as int;
+    let sign = if x < 0.0 && n != 0 { "-" } else { "" };
+    if places == 0 {
+        return "{sign}{n}";
+    }
+    let digits = "{n % scale}";
+    while digits.len() < places {
+        digits = "0" + digits;
+    }
+    "{sign}{n / scale}.{digits}"
+}
+
 pub fn clamp(x: float, lo: float, hi: float) -> float {
     if x < lo { lo } else if x > hi { hi } else { x }
 }
@@ -135,6 +153,10 @@ pub fn imax(a: int, b: int) -> int {
 
 pub fn imin(a: int, b: int) -> int {
     if a < b { a } else { b }
+}
+
+pub fn iabs(x: int) -> int {
+    if x < 0 { -x } else { x }
 }
 
 pub fn abs(x: float) -> float {

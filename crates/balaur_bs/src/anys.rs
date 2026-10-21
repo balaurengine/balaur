@@ -60,6 +60,11 @@ pub(crate) const METHODS: &[Method] = &[
     m("set", &[A::Str, A::Any], A::Bool),
     // The same for a list: one more element at its end.
     m("push", &[A::Any], A::Bool),
+    // A list's element at `index` replaced in place; false past its end.
+    m("put", &[A::Int, A::Any], A::Bool),
+    // A list with `value` slid in at `index`, the rest moved up; `index` at
+    // the end appends, and past it is false.
+    m("insert", &[A::Int, A::Any], A::Bool),
     // A map's entry by key, or a list's element by index, taken out in place
     // and handed back; nil when there is none.
     m("remove", &[A::Any], A::Any),

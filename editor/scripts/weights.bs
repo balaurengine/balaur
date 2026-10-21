@@ -1,0 +1,407 @@
+// The Weights dock: the picked vertices as a table, one number per bone,
+// editable in place, with the five verbs a rigger reaches for. Everything
+// here writes through `history`, so one undo takes back a whole Normalise.
+
+use editor;
+use history;
+use inspector;
+use model;
+use polygon;
+use pool;
+use rig;
+use signals;
+use util;
+
+pub class WeightsState {
+    editing: int?,
+}
+
+// The mesh under edit, its bones, and the vertices listed.
+struct Table {
+    mesh: any,
+    bones: any,
+    at: [int],
+}
+
+const NAME_W: float = 92.0;
+
+const CELL_W: float = 58.0;
+
+const ROW_H: float = 22.0;
+
+// A weight under this is noise from a brush pass and is dropped rather than
+// written; four decimals is already more than a rig needs.
+const EPSILON: float = 0.0005;
+
+/// The dock's own state, hung on `S.weights`.
+pub fn state() -> WeightsState {
+    WeightsState { editing: nil }
+}
+
+// The table, or nil when the selection is not a weighted polygon.
+fn table(S: editor::State) -> Table? {
+    let mesh = polygon::mesh(S);
+    if mesh.is_nil() {
+        return nil;
+    }
+    let bones = polygon::bones(S);
+    if bones.len() == 0 {
+        return nil;
+    }
+    Table { mesh: mesh, bones: bones, at: polygon::picked(S) }
+}
+
+fn weight_of(bone: any, at: int) -> float {
+    util::f(util::vec(bone.weights).at(at))
+}
+
+fn set_weight(bone: any, at: int, value: float) {
+    if bone.weights.kind() != "list" {
+        let none: [float] = [];
+        bone.set("weights", none);
+    }
+    let weights = bone.weights;
+    while weights.len() <= at {
+        weights.push(0.0);
+    }
+    let v = util::clamp(value, 0.0, 1.0);
+    weights[at] = if v < EPSILON { 0.0 } else { v };
+}
+
+// Every verb records first and pushes the polygon after, the one shape every
+// edit in this dock takes: `begin` before the change, `done` after it.
+fn begin(S: &mut editor::State, label: str) -> bool {
+    if !polygon::editable(S) {
+        log::warn("this polygon's mesh is a file; embed it to edit its weights");
+        return false;
+    }
+    history::record(S, label, nil);
+    true
+}
+
+fn done(S: &mut editor::State) {
+    model::apply_component(S, "polygon");
+    signals::changed(S, "weights");
+}
+
+// Bind: give every listed vertex all of its weight to the active bone.
+pub fn bind(S: &mut editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        return;
+    }
+    let t = t_or.unwrap();
+    if S.polygon.bone.is_none() {
+        log::warn("pick a bone in the inspector before binding to it");
+        return;
+    }
+    let active = S.polygon.bone.unwrap();
+    if !begin(S, "bind vertices") {
+        return;
+    }
+    for at in t.at {
+        for i in 0..t.bones.len() {
+            set_weight(t.bones[i], at, if i == active { 1.0 } else { 0.0 });
+        }
+    }
+    done(S);
+    log::info("{t.at.len()} vertices bound to {t.bones.at(active).path}");
+}
+
+// Unbind: take the listed vertices off every bone, so they ride the node.
+pub fn unbind(S: &mut editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        return;
+    }
+    let t = t_or.unwrap();
+    if !begin(S, "unbind vertices") {
+        return;
+    }
+    for at in t.at {
+        for bone in t.bones {
+            set_weight(bone, at, 0.0);
+        }
+    }
+    done(S);
+    log::info("{t.at.len()} vertices unbound");
+}
+
+// Normalise: scale each listed vertex's weights so they sum to one. The
+// engine renormalises at load anyway; doing it here is what makes the numbers
+// on screen the numbers that will be used.
+pub fn normalize(S: &mut editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        return;
+    }
+    let t = t_or.unwrap();
+    if !begin(S, "normalize weights") {
+        return;
+    }
+    for at in t.at {
+        let total = 0.0;
+        for bone in t.bones {
+            total += weight_of(bone, at);
+        }
+        if total <= EPSILON {
+            continue;
+        }
+        for bone in t.bones {
+            set_weight(bone, at, weight_of(bone, at) / total);
+        }
+    }
+    done(S);
+}
+
+// Auto: weight each listed vertex by how near it is to each bone's segment —
+// the same segment `rig::geometry` draws — falling off with the square of the
+// distance, which is what makes a joint blend rather than switch.
+pub fn auto(S: &mut editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        return;
+    }
+    let t = t_or.unwrap();
+    let segments = bone_segments(S, t.bones);
+    if segments.len() == 0 {
+        log::warn("none of the polygon's bones resolve to a node to measure from");
+        return;
+    }
+    let f = polygon::world_frame(S);
+    if f.is_none() || !begin(S, "auto weights") {
+        return;
+    }
+    for at in t.at {
+        let p = polygon::world_point(S, t.mesh, f.unwrap(), at);
+        let near: [float] = [];
+        let total = 0.0;
+        for seg in segments {
+            let d = if seg.is_some() { rig::segment_distance(p, seg.unwrap().origin, seg.unwrap().tip) } else { -1.0 };
+            // A vertex sitting on a bone would divide by zero; the floor
+            // is a millimetre at the scale a 2D rig is built in.
+            let w = if d < 0.0 { 0.0 } else { 1.0 / util::max(d * d, 1e-6) };
+            near.push(w);
+            total += w;
+        }
+        for i in 0..t.bones.len() {
+            set_weight(t.bones[i], at, if total > 0.0 { near[i] / total } else { 0.0 });
+        }
+    }
+    done(S);
+    log::info("{t.at.len()} vertices weighted by distance");
+}
+
+// Smooth: replace each listed vertex's weights with the average over itself
+// and the vertices sharing an edge with it, once. Repeated clicks blur
+// further, which is how a rigger actually uses it.
+pub fn smooth(S: &mut editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        return;
+    }
+    let t = t_or.unwrap();
+    let neighbours = edges(t.mesh);
+    if !begin(S, "smooth weights") {
+        return;
+    }
+    // Read the whole table first: smoothing in place would feed each
+    // vertex the neighbour that was already smoothed.
+    let count = t.mesh.positions.len();
+    let was: [[float]] = [];
+    for bone in t.bones {
+        let row: [float] = [];
+        for i in 0..count {
+            row.push(weight_of(bone, i));
+        }
+        was.push(row);
+    }
+    for at in t.at {
+        let ring = util::vec(neighbours.get("{at}"));
+        for i in 0..t.bones.len() {
+            let total = was[i][at];
+            for j in ring {
+                total += was[i][j.as_int()];
+            }
+            set_weight(t.bones[i], at, total / ((ring.len() + 1) as float));
+        }
+    }
+    done(S);
+}
+
+// Which vertices share an edge with which, from the outline and every drawn
+// polygon, keyed by the vertex as text. Built once per call: a mesh here is
+// hundreds of vertices, not hundreds of thousands.
+fn edges(mesh: any) -> any {
+    let out = map();
+    let outline = mesh.positions.len() - polygon::internal_count(mesh);
+    for i in 0..outline {
+        join(out, i, if i == outline - 1 { 0 } else { i + 1 });
+    }
+    for ring in util::vec(mesh.polygons) {
+        for i in 0..ring.len() {
+            join(out, ring[i].as_int(), ring[if i == ring.len() - 1 { 0 } else { i + 1 }].as_int());
+        }
+    }
+    out
+}
+
+// `a` and `b` as each other's neighbours.
+fn join(out: any, a: int, b: int) {
+    for pair in [[a, b], [b, a]] {
+        let key = "{pair[0]}";
+        if out.get(key).kind() != "list" {
+            let none: [int] = [];
+            out.set(key, none);
+        }
+        let ring = out.get(key);
+        let seen = false;
+        for x in ring {
+            if x.as_int() == pair[1] {
+                seen = true;
+            }
+        }
+        if !seen {
+            ring.push(pair[1]);
+        }
+    }
+}
+
+// Each bone's world segment, in the polygon's bone order, or nil for one
+// whose node is not there.
+fn bone_segments(S: editor::State, bones: any) -> [rig::Geometry?] {
+    let root = polygon::rig_root(S);
+    if !root.is_valid() {
+        return [];
+    }
+    let out: [rig::Geometry?] = [];
+    for bone in bones {
+        let found = root.get_node(bone.path.as_str());
+        let doc_i = if found.is_valid() { model::index_of_path(S, found.path()) } else { nil };
+        out.push(if doc_i.is_some() { rig::geometry(S, doc_i.unwrap()) } else { nil });
+    }
+    out
+}
+
+// The tab's own scene, under the bottom dock.
+const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Weights";
+
+/// Fill the tab from the polygon: the verbs' scope, a head a bone, and a row a
+/// listed vertex with a field a weight. Called by its script on a word.
+pub fn fill(S: editor::State) {
+    let t_or = table(S);
+    if t_or.is_none() {
+        util::fill(PANEL + "/Missing", map().with("visible", true));
+        util::fill(PANEL + "/Body", map().with("visible", false));
+        return;
+    }
+    let t = t_or.unwrap();
+    util::fill(PANEL + "/Missing", map().with("visible", false));
+    util::fill(PANEL + "/Body", map().with("visible", true));
+    let picked = polygon::has_pick(S);
+    util::fill(PANEL + "/Body/Verbs/Scope", map()
+        .with("text", if picked { "{t.at.len()} picked" } else { "all {t.at.len()}" }));
+    util::fill(PANEL + "/Body/Verbs/all", map().with("visible", picked));
+    pool::strip(S, PANEL + "/Body/Header", header(S, t));
+    let rows: [inspector::Row] = [];
+    for at in t.at {
+        rows.push(vertex_row(S, t, at));
+    }
+    pool::sync(S, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
+}
+
+/// A verb by the name of its button.
+pub fn verb(S: &mut editor::State, name: str) {
+    if name == "bind" {
+        bind(S);
+    } else if name == "unbind" {
+        unbind(S);
+    } else if name == "normalize" {
+        normalize(S);
+    } else if name == "auto" {
+        auto(S);
+    } else if name == "smooth" {
+        smooth(S);
+    } else if name == "all" {
+        polygon::clear_pick(S);
+    }
+}
+
+fn label(text: str, width: float, role: str) -> any {
+    map().with("kind", "label").with("role", role).with("font_size", 11).with("width", width).with("text", text)
+}
+
+fn header(S: editor::State, t: Table) -> [any] {
+    let out = [label("vertex", NAME_W, "text_code_quiet")];
+    let active = if S.polygon.bone.is_some() { S.polygon.bone.unwrap() } else { -1 };
+    for i in 0..t.bones.len() {
+        let path = t.bones.at(i).path.as_str();
+        // The bone's own last segment: a full path is wider than the column
+        // and the tooltip carries the rest.
+        out.push(map()
+            .with("kind", "button")
+            .with("role", "chip")
+            .with("width", CELL_W)
+            .with("height", 20)
+            .with("text", util::leaf(path))
+            .with("tooltip", path)
+            .with("checked", active == i)
+            .with("on", "handle")
+            .with("data", map().with("fn", header_on_0).with("at", i)));
+    }
+    out.push(label("sum", CELL_W, "text_code_quiet"));
+    out
+}
+
+fn header_on_0(S: &mut editor::State, data: any, _0: any) {
+    S.polygon.bone = data.at.as_int();
+    signals::inspector(S);
+}
+
+fn vertex_row(S: editor::State, t: Table, at: int) -> inspector::Row {
+    let hover = S.polygon.hover.is_some() && S.polygon.hover.unwrap() == at;
+    let controls = [
+        map()
+            .with("kind", "button")
+            .with("role", "chip")
+            .with("width", NAME_W - 6.0)
+            .with("height", 20)
+            .with("text", "{at}")
+            .with("tooltip", "Show this vertex alone in the viewport")
+            .with("checked", hover)
+            .with("on", "handle")
+            .with("data", map().with("fn", vertex_row_on_1).with("at", at)),
+    ];
+    let total = 0.0;
+    for bone in t.bones {
+        let was = weight_of(bone, at);
+        total += was;
+        controls.push(map()
+            .with("kind", "number_field")
+            .with("width", CELL_W - 6.0)
+            .with("value", was)
+            .with("drag_speed", 0.01)
+            .with("decimals", 2)
+            .with("min", 0.0)
+            .with("max", 1.0)
+            .with("fill", if was > 0.0 { "bg_control" } else { "bg_panel" })
+            .with("on", "handle")
+            .with("data", map().with("fn", vertex_row_on_2).with("bone", bone).with("at", at)));
+    }
+    // A sum that is not one is what a Normalise is for, so it is said rather
+    // than silently corrected.
+    let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
+    controls.push(label(util::fixed(total, 2), CELL_W, if off { "text_caption_primary" } else { "text_code_quiet" }));
+    inspector::Row { full: true, height: ROW_H, slot_role: "", controls: controls, label: "", tooltip: "", label_role: "" }
+}
+
+fn vertex_row_on_1(S: &mut editor::State, data: any, _0: any) {
+    polygon::pick_vertex(S, data.at.as_int(), false);
+}
+
+fn vertex_row_on_2(S: &mut editor::State, data: any, now: any) {
+    if begin(S, "set weight") {
+        set_weight(data.bone, data.at.as_int(), now.as_float());
+        done(S);
+    }
+}

@@ -1459,7 +1459,7 @@ impl Editor {
     }
 
     /// Fill the Tiles panel's chips and answer its atlas, and a tile picked.
-    pub fn tiles_fill() -> tiles::None2 {
+    pub fn tiles_fill() -> tiles::Palette {
         tiles::palette(self.S)
     }
 
