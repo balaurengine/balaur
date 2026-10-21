@@ -2,7 +2,7 @@ use super::Site;
 use super::func::{FnGen, LVal, Mode, R, err, op_text, show};
 use super::rt::{load, mem, store};
 use crate::Error;
-use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, Ty, UnOp};
+use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 impl FnGen<'_> {
@@ -474,6 +474,19 @@ impl FnGen<'_> {
             );
         }
         let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
+        // A branch that leaves has whatever type the other gives: it never
+        // hands a value to the `if`.
+        let (tt, et) = match els {
+            Some(e) if tt != et && et == Ty::Void && leaves(e) => {
+                else_code.push(I::Unreachable);
+                (tt.clone(), tt)
+            }
+            Some(_) if tt != et && tt == Ty::Void && leaves(then) => {
+                then_code.push(I::Unreachable);
+                (et.clone(), et)
+            }
+            _ => (tt, et),
+        };
         let ty = match (&tt, &et) {
             (Ty::Int, Ty::Float) => {
                 then_code.push(I::F64ConvertI64S);
@@ -734,6 +747,15 @@ impl FnGen<'_> {
 // A block that is only `nil`.
 fn is_nil(b: &Block) -> bool {
     b.stmts.is_empty() && matches!(b.tail.as_deref().map(|e| &e.kind), Some(ExprKind::Nil))
+}
+
+/// A block that ends in `return`, `break` or `continue`.
+fn leaves(b: &Block) -> bool {
+    b.tail.is_none()
+        && matches!(
+            b.stmts.last().map(|s| &s.kind),
+            Some(StmtKind::Return(_) | StmtKind::Break | StmtKind::Continue)
+        )
 }
 
 // A block that is only `nil` or `[]`: its type comes from where it goes.

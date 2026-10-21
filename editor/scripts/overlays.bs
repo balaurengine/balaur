@@ -1,0 +1,505 @@
+// Viewport overlays drawn as per-frame lines: the 2D grid, axis guides, the
+// selected clip's motion path, and collider outlines.
+
+use anim;
+use editor;
+use model;
+use selection;
+use util;
+
+pub struct Colliders2dPt0 {
+    _0: float,
+    _1: float,
+}
+
+pub struct Across {
+    _0: any,
+    _1: any,
+}
+
+pub struct Marked {
+    _0: Node,
+    _1: any,
+    _2: bool,
+    _3: bool,
+}
+
+pub fn grid2d(S: editor::State) {
+    let k = S.theme;
+    let cx_cy_zoom_1 = render::camera_2d();
+    let cx = cx_cy_zoom_1.at(0);
+    let cy = cx_cy_zoom_1.at(1);
+    let zoom = cx_cy_zoom_1.at(2);
+    let sw = S.screen_w * S.ui_scale;
+    let sh = S.screen_h * S.ui_scale;
+    let half_w = sw / zoom.as_float() / 2.0 + 1.0;
+    let half_h = sh / zoom.as_float() / 2.0 + 1.0;
+    if half_w > 200.0 || half_h > 200.0 {
+        return;
+    }
+    let minor = util::rgb(k.get("grid_minor").as_str());
+    let major = util::rgb(k.get("grid_major").as_str());
+    let x0 = math::floor(cx.as_float() - half_w) as int;
+    let x1 = math::ceil(cx.as_float() + half_w) as int;
+    for x in x0..x1 + 1 {
+        let c = if x % 5 == 0 { major } else { minor };
+        let xf = x as float;
+        render::draw_line_2d(xf, cy.as_float() - half_h, xf, cy.as_float() + half_h, c[0], c[1], c[2], if x == 0 { 2.0 } else { 1.0 });
+    }
+    let y0 = math::floor(cy.as_float() - half_h) as int;
+    let y1 = math::ceil(cy.as_float() + half_h) as int;
+    for y in y0..y1 + 1 {
+        let c = if y % 5 == 0 { major } else { minor };
+        let yf = y as float;
+        render::draw_line_2d(cx.as_float() - half_w, yf, cx.as_float() + half_w, yf, c[0], c[1], c[2], if y == 0 { 2.0 } else { 1.0 });
+    }
+}
+
+pub fn guides(S: &mut editor::State) {
+    let found = model::live(S, S.sel);
+    if !found.is_valid() {
+        return;
+    }
+    let p = found.transform.global_position();
+    let k = S.theme;
+    let a = util::rgb(k.get("axis_x").as_str());
+    let s = util::rgb(k.get("axis_y").as_str());
+    if model::is_2d(S) {
+        render::draw_line_2d(p.get("x").as_float() - 4.0, p.get("y").as_float(), p.get("x").as_float() + 4.0, p.get("y").as_float(), a[0], a[1], a[2], 1.0);
+        render::draw_line_2d(p.get("x").as_float(), p.get("y").as_float() - 4.0, p.get("x").as_float(), p.get("y").as_float() + 4.0, s[0], s[1], s[2], 1.0);
+        return;
+    }
+    let d = util::rgb(k.get("axis_z").as_str());
+    render::draw_line_3d(p.get("x").as_float() - 4.0, p.get("y").as_float(), p.get("z").as_float(), p.get("x").as_float() + 4.0, p.get("y").as_float(), p.get("z").as_float(), a[0], a[1], a[2], 1.0);
+    render::draw_line_3d(p.get("x").as_float(), p.get("y").as_float() - 4.0, p.get("z").as_float(), p.get("x").as_float(), p.get("y").as_float() + 4.0, p.get("z").as_float(), s[0], s[1], s[2], 1.0);
+    render::draw_line_3d(p.get("x").as_float(), p.get("y").as_float(), p.get("z").as_float() - 4.0, p.get("x").as_float(), p.get("y").as_float(), p.get("z").as_float() + 4.0, d[0], d[1], d[2], 1.0);
+}
+
+// The selected clip's position keys, joined in order, with a marker on each
+// (Motion path chip, anim workspace).
+pub fn motion_path(S: &mut editor::State) {
+    let def_or = anim::definition(S);
+    if def_or.is_nil() {
+        return;
+    }
+    let def = def_or;
+    let keys: any = nil;
+    for track in anim::tracks(def) {
+        if track.get("target").as_str() == "" && track.get("property") == animation::PROPERTY_POSITION {
+            let got2 = track.get("keys");
+            keys = util::vec(if got2.is_nil() { [] } else { got2 });
+        }
+    }
+    if keys.is_nil() {
+        return;
+    }
+    let keys = keys;
+    if keys.len() < 1 {
+        return;
+    }
+    let k = S.theme;
+    let c = util::rgb(k.get("primary_text").as_str());
+    let is2d = model::is_2d(S);
+    let previous: [float]? = nil;
+    for key in keys {
+        let got3 = key.get("value");
+        let v = util::vec3(if got3.is_nil() { nil } else { got3 }.as_float(), [0.0, 0.0, 0.0]);
+        let x = v[0];
+        let y = v[1];
+        let z = v[2];
+        if previous.is_some() {
+            let prev = previous.unwrap();
+            if is2d {
+                render::draw_line_2d(prev[0], prev[1], x, y, c[0], c[1], c[2], 1.0);
+            } else {
+                render::draw_line_3d(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
+            }
+        }
+        let d = 0.15;
+        if is2d {
+            render::draw_line_2d(x - d, y, x + d, y, c[0], c[1], c[2], 2.0);
+            render::draw_line_2d(x, y - d, x, y + d, c[0], c[1], c[2], 2.0);
+        } else {
+            render::draw_line_3d(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
+            render::draw_line_3d(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
+        }
+        previous = [x, y, z];
+    }
+}
+
+pub fn colliders2d(S: editor::State) {
+    let k = S.theme;
+    let c = util::rgb(k.node_physics.as_str());
+    for i in 0..S.doc.len() {
+        let collider = S.doc[i].collider2d;
+        if collider.kind() != "map" {
+            continue;
+        }
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let p = found.transform.global_position();
+        let angle = found.transform.global_rotation_euler().z;
+        let s = found.transform.global_scale();
+        let ca = math::cos(angle);
+        let sa = math::sin(angle);
+        if collider.kind.as_str() == physics2d::SHAPE_CIRCLE {
+            let held = collider.radius;
+            let radius = (if held.is_nil() { 0.5 } else { held.as_float() }) * s.x;
+            let from = turned(p, ca, sa, radius, 0.0);
+            for t in 1..33 {
+                let a = t.as_float() / 32.0 * math::PI * 2.0;
+                let to = turned(p, ca, sa, math::cos(a) * radius, math::sin(a) * radius);
+                render::draw_line_2d(from.x, from.y, to.x, to.y, c[0], c[1], c[2], 1.0);
+                from = to;
+            }
+        } else {
+            let size = util::vec2(collider.size, [1.0, 1.0]);
+            let hx = size[0] / 2.0 * s.x;
+            let hy = size[1] / 2.0 * s.y;
+            let a = turned(p, ca, sa, -hx, -hy);
+            let b = turned(p, ca, sa, hx, -hy);
+            let d = turned(p, ca, sa, hx, hy);
+            let e = turned(p, ca, sa, -hx, hy);
+            render::draw_line_2d(a.x, a.y, b.x, b.y, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(b.x, b.y, d.x, d.y, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(d.x, d.y, e.x, e.y, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(e.x, e.y, a.x, a.y, c[0], c[1], c[2], 1.0);
+        }
+        // Center of mass.
+        render::draw_line_2d(p.x - 0.1, p.y, p.x + 0.1, p.y, c[0], c[1], c[2], 3.0);
+        render::draw_line_2d(p.x, p.y - 0.1, p.x, p.y + 0.1, c[0], c[1], c[2], 3.0);
+    }
+}
+
+// A point offset (ox, oy) from `p`, turned by the angle whose cosine and
+// sine are `ca` and `sa`.
+fn turned(p: Vec3, ca: float, sa: float, ox: float, oy: float) -> Vec2 {
+    Vec2 { x: p.x + ca * ox - sa * oy, y: p.y + sa * ox + ca * oy }
+}
+
+// A `light2d` or `occluder2d` colour property, which the scene format writes
+// either as `#rrggbb` or as channel floats.
+fn component_rgb(value: any, fallback: [float]) -> [float] {
+    if value.kind() == "str" && value.len() >= 7 {
+        return util::rgb(value.as_str());
+    }
+    util::vec3(value.as_float(), fallback)
+}
+
+// `light2d` reach and aim, and `occluder2d` outlines (Lights chip).
+pub fn lights2d(S: editor::State) {
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let light = node.get("light2d");
+        if !light.is_nil() {
+            if light.kind() == "map" {
+                light_gizmo(found, light);
+            }
+        }
+        if !node.get("occluder2d").is_nil() {
+            occluder_outline(S, found);
+        }
+    }
+}
+
+// One light: a point's reach as a circle, a directional one's aim as a comb
+// of strokes through the node, both in the light's own colour.
+fn light_gizmo(found: Node, light: any) {
+    let got1 = light.get("color");
+    let c = component_rgb(if got1.is_nil() { nil } else { got1 }, [1.0, 1.0, 1.0]);
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().get("z");
+    let ca = math::cos(angle.as_float());
+    let sa = math::sin(angle.as_float());
+    // At rest a light2d shines along -y; the node's z rotation turns it.
+    let dx = sa;
+    let dy = -ca;
+    render::draw_line_2d(p.get("x").as_float() - 0.2, p.get("y").as_float(), p.get("x").as_float() + 0.2, p.get("y").as_float(), c[0], c[1], c[2], 2.0);
+    render::draw_line_2d(p.get("x").as_float(), p.get("y").as_float() - 0.2, p.get("x").as_float(), p.get("y").as_float() + 0.2, c[0], c[1], c[2], 2.0);
+    let got2 = light.get("kind");
+    if if got2.is_nil() { render::LIGHT_POINT } else { got2 } == render::LIGHT_DIRECTIONAL {
+        for step in -2..3 {
+            let ox = -dy * (step as float) * 0.4;
+            let oy = dx * (step as float) * 0.4;
+            render::draw_line_2d(p.get("x").as_float() + ox, p.get("y").as_float() + oy, p.get("x").as_float() + ox + dx, p.get("y").as_float() + oy + dy, c[0], c[1], c[2], 1.0);
+        }
+        return;
+    }
+    let got3 = light.get("radius");
+    let radius = util::f(if got3.is_nil() { 6.0 } else { got3.as_float() });
+    let px: any = p.get("x").as_float() + radius;
+    let py = p.get("y");
+    for t in 1..33 {
+        let a = (t as float) / 32.0 * math::PI.as_float() * 2.0;
+        let nx = p.get("x").as_float() + math::cos(a) * radius;
+        let ny = p.get("y").as_float() + math::sin(a) * radius;
+        render::draw_line_2d(px.as_float(), py.as_float(), nx, ny, c[0], c[1], c[2], 1.0);
+        px = nx;
+        py = ny;
+    }
+}
+
+// The outline a node blocks light with, as the engine resolved it — so a
+// derived one (from `collider2d`, or the node's shape) draws too.
+fn occluder_outline(S: editor::State, found: Node) {
+    let k = S.theme;
+    let c = util::rgb(k.get("primary_text").as_str());
+    // Flat x, y pairs, already closed when the occluder is.
+    let flat = found.occluder2d.outline();
+    let count = flat.len() / 2;
+    if count < 2 {
+        return;
+    }
+    for i in 0..count - 1 {
+        render::draw_line_2d(flat.at(i * 2).as_float(), flat.at(i * 2 + 1).as_float(), flat.at(i * 2 + 2).as_float(), flat.at(i * 2 + 3).as_float(), c[0], c[1], c[2], 1.0);
+    }
+}
+
+pub fn colliders(S: editor::State) {
+    let k = S.theme;
+    let c = util::rgb(k.get("node_physics").as_str());
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let collider = node.collider3d;
+        if collider.kind() != "map" {
+            continue;
+        }
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let p = found.transform.global_position();
+        let hx = 0.5;
+        let hy = 0.5;
+        let hz = 0.5;
+        let radius_some = collider.get("radius");
+        if !radius_some.is_nil() {
+            let radius = radius_some;
+            let r = util::f(radius);
+            hx = r;
+            hy = r;
+            hz = r;
+        } else {
+            let size = collider.get("size");
+            if !size.is_nil() {
+                let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
+                hx = size.at(0).as_float() / 2.0;
+                hy = size.at(1).as_float() / 2.0;
+                hz = size.at(2).as_float() / 2.0;
+            }
+        }
+        let xs = [p.get("x").as_float() - hx, p.get("x").as_float() + hx];
+        let ys = [p.get("y").as_float() - hy, p.get("y").as_float() + hy];
+        let zs = [p.get("z").as_float() - hz, p.get("z").as_float() + hz];
+        for yy in ys {
+            for zz in zs {
+                render::draw_line_3d(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
+            }
+        }
+        for xx in xs {
+            for zz in zs {
+                render::draw_line_3d(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
+            }
+        }
+        for xx in xs {
+            for yy in ys {
+                render::draw_line_3d(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
+            }
+        }
+        // Center of mass.
+        render::draw_line_3d(p.get("x").as_float() - 0.15, p.get("y").as_float(), p.get("z").as_float(), p.get("x").as_float() + 0.15, p.get("y").as_float(), p.get("z").as_float(), c[0], c[1], c[2], 3.0);
+        render::draw_line_3d(p.get("x").as_float(), p.get("y").as_float() - 0.15, p.get("z").as_float(), p.get("x").as_float(), p.get("y").as_float() + 0.15, p.get("z").as_float(), c[0], c[1], c[2], 3.0);
+    }
+}
+
+/// Where a node aims in 3D: -z turned by its rotation, the direction a
+/// `light3d` shines and a `camera` looks.
+fn forward_of(found: any) -> [float] {
+    let r = found.get("transform").global_rotation_euler();
+    let b = util::basis_from_euler([r.get("x"), r.get("y"), r.get("z")]);
+    // The basis holds the local axes as columns; -z is the third, negated.
+    [-b[2][0], -b[2][1], -b[2][2]]
+}
+
+// One segment onto `out`, in `render::draw_lines`' eleven numbers.
+fn line3(out: [any], a: [any], b: [any], c: [float], width: float) {
+    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width, 0.0]);
+}
+
+/// A ring of `radius` about `center` in the plane spanned by `u` and `v`.
+fn ring3(out: [any], center: [any], u: [float], v: [float], radius: float, c: [float], width: float) {
+    let prev = util::vadd(center, util::vscale(u, radius));
+    for t in 1..25 {
+        let a = (t as float) / 24.0 * math::PI.as_float() * 2.0;
+        let next = util::vadd(center, util::vadd(util::vscale(u, math::cos(a) * radius), util::vscale(v, math::sin(a) * radius)));
+        line3(out, prev, next, c, width);
+        prev = next;
+    }
+}
+
+/// Two axes across `dir`, for drawing a circle or a cone about it.
+fn across(dir: [float]) -> Across {
+    let up = if util::abs(dir[1]) > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let u_1 = util::vnorm(util::vcross(dir, up));
+    let u = u_1.dir;
+    let v_2 = util::vnorm(util::vcross(dir, u));
+    let v = v_2.dir;
+    Across { _0: u, _1: v }
+}
+
+/// Every `light3d` and `camera` in the scene, drawn as what it is: an arrow
+/// for a sun, a sphere at a point light's reach, a cone for a spot, and a
+/// frustum for a camera. Nothing here draws for the game.
+pub fn lights3d(S: &mut editor::State) {
+    let k = S.theme;
+    // The lines follow from each light's and camera's pose, its table and
+    // whether it is selected; a frame where none moved replays the list.
+    let key: [any] = [k.primary_text, k.text_muted];
+    let marked: [Marked] = [];
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let light = node.light3d;
+        if light.kind() != "map" {
+            light = nil;
+        }
+        let camera = !node.camera3d.is_nil();
+        if light.is_nil() && !camera {
+            continue;
+        }
+        let selected = selection::contains(S, i);
+        key.push(i);
+        key.push(selected);
+        key.extend(util::xyz(found.transform.global_position()));
+        key.extend(util::xyz(found.transform.global_rotation_euler()));
+        if !light.is_nil() {
+            // By value: an edit writes into the same table, which compares
+            // equal to itself.
+            key.push("{light}");
+        }
+        if camera {
+            key.push(found.get_component("camera3d", "fov"));
+        }
+        marked.push(Marked { _0: found, _1: light, _2: camera, _3: selected });
+    }
+    if key == S.overlay3d.key {
+        render::draw_lines(S.overlay3d.lines);
+        return;
+    }
+    let out: [any] = [];
+    for m in marked {
+        if !m._1.is_nil() {
+            light3d_gizmo(out, m._0, m._1, m._3, k);
+        }
+        if m._2 {
+            camera_gizmo(out, S, m._0, m._3, k);
+        }
+    }
+    render::draw_lines(out);
+    S.overlay3d.key = key;
+    S.overlay3d.lines = out;
+}
+
+fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, k: any) {
+    let c = if selected {
+        util::rgb(k.get("primary_text").as_str())
+    } else {
+        let got1 = light.get("color");
+        component_rgb(if got1.is_nil() { nil } else { got1 }, [1.0, 0.9, 0.7])
+    };
+    let p = util::xyz(found.transform.global_position());
+    let dir = forward_of(found);
+    let got2 = light.get("kind");
+    let kind = if got2.is_nil() { render::LIGHT_DIRECTIONAL } else { got2 };
+    let width = if selected { 2.0 } else { 1.0 };
+    // The body every kind shares: a small star at the node.
+    for axis in 0..3 {
+        let step = [0.0, 0.0, 0.0];
+        step[axis] = 0.18;
+        line3(out, util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
+    }
+    if kind == render::LIGHT_DIRECTIONAL {
+        // A sun: parallel rays through the node, so its aim reads at a glance.
+        let u_v_3 = across(dir);
+        let u = u_v_3._0;
+        let v = u_v_3._1;
+        for step in [-1.0, 0.0, 1.0] {
+            for other in [-1.0, 0.0, 1.0] {
+                let base = util::vadd(p, util::vadd(util::vscale(u, step.as_float() * 0.35), util::vscale(v, other * 0.35)));
+                line3(out, base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
+            }
+        }
+        return;
+    }
+    let got4 = light.get("radius");
+    let radius = util::f(if got4.is_nil() { 30.0 } else { got4.as_float() });
+    if kind == render::LIGHT_SPOT {
+        let got5 = light.get("outer");
+        let outer = util::f(if got5.is_nil() { 35.0 } else { got5.as_float() }) * math::PI.as_float() / 180.0;
+        let got6 = light.get("inner");
+        let inner = util::f(if got6.is_nil() { 20.0 } else { got6.as_float() }) * math::PI.as_float() / 180.0;
+        let u_v_7 = across(dir);
+        let u = u_v_7._0;
+        let v = u_v_7._1;
+        // The cone is drawn at a length the camera can see rather than at the
+        // attenuation radius, which is usually far past the scene.
+        let reach = util::min(radius, 12.0);
+        let tip = util::vadd(p, util::vscale(dir, reach));
+        for angle in [inner, outer] {
+            let r = reach * math::tan(angle);
+            ring3(out, tip, u, v, r, c, width);
+            for step in [0.0, math::PI.as_float() / 2.0, math::PI, math::PI.as_float() * 1.5] {
+                let edge = util::vadd(tip, util::vadd(util::vscale(u, math::cos(step.as_float()) * r), util::vscale(v, math::sin(step.as_float()) * r)));
+                line3(out, p, edge, c, width);
+            }
+        }
+        return;
+    }
+    // A point light: its reach as three rings, the way a sphere is drawn.
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
+    ring3(out, p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+}
+
+/// A camera's frustum, out to a length that fits a viewport rather than to its
+/// far plane, which is usually past the whole scene.
+const FRUSTUM_REACH: float = 4.0;
+
+fn camera_gizmo(out: [any], S: editor::State, found: Node, selected: bool, k: any) {
+    let c = if selected {
+        util::rgb(k.get("primary_text").as_str())
+    } else {
+        util::rgb(k.get("text_muted").as_str())
+    };
+    let width = if selected { 2.0 } else { 1.0 };
+    let p = util::xyz(found.transform.global_position());
+    let dir = forward_of(found);
+    let u_v_1 = across(dir);
+    let u = u_v_1._0;
+    let v = u_v_1._1;
+    let camera = util::obj(found.get_component("camera3d"));
+    let got2 = camera.get("fov");
+    let fov = util::f(if got2.is_nil() { 60.0 } else { got2.as_float() }) * math::PI.as_float() / 180.0;
+    let half = FRUSTUM_REACH * math::tan(fov / 2.0);
+    let centre = util::vadd(p, util::vscale(dir, FRUSTUM_REACH));
+    let corners: [[any]] = [];
+    for signs in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+        corners.push(util::vadd(centre, util::vadd(util::vscale(u, signs[0] * half * 1.6), util::vscale(v, signs[1] * half))));
+    }
+    for n in 0..4 {
+        line3(out, p, corners[n], c, width);
+        line3(out, corners[n], corners[(n + 1) % 4], c, width);
+    }
+    // Which way is up, so a rolled camera reads as rolled.
+    let top: [any] = util::vscale(util::vadd(corners[2], corners[3]), 0.5);
+    line3(out, top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
+}

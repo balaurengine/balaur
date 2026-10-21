@@ -174,3 +174,18 @@ fn a_string_writes_a_code_point_as_rust_does() {
     let e = super::compile_error("pub fn t() -> str { \"\\u{zz}\" }");
     assert!(e.contains("code point in hex"), "{e}");
 }
+
+#[test]
+fn a_branch_that_leaves_takes_the_other_branchs_type() {
+    let mut rt = super::run(
+        "pub fn first(xs: [int]) -> int {\n    let x = if xs.len() > 0 { xs[0] } else { return -1; };\n    x * 2\n}\npub fn sum(xs: [int?]) -> int {\n    let t = 0;\n    for o in xs {\n        let v = if o.is_some() { o.unwrap() } else { continue; };\n        t += v;\n    }\n    t\n}",
+    );
+    assert_eq!(
+        super::call(
+            &mut rt,
+            "first",
+            &[balaur_bs::runtime::Value::Array(vec![])]
+        ),
+        balaur_bs::runtime::Value::Int(-1)
+    );
+}
