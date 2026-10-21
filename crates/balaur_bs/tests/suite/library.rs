@@ -133,3 +133,26 @@ fn an_int_prints_as_rust_prints_it() {
     }
     assert_eq!(rt.live(), 0);
 }
+
+#[test]
+fn a_string_splits_once_and_into_its_characters() {
+    let mut rt = run(r##"
+pub fn path(s: str) -> str {
+    let parts = s.split_once("#");
+    if parts.len() == 2 { "{parts[0]}|{parts[1]}" } else { "none" }
+}
+pub fn letters(s: str) -> int { s.chars().len() }
+"##);
+    assert_eq!(
+        call(&mut rt, "path", &[Value::Str("a.png#tile#2".into())]),
+        Value::Str("a.png|tile#2".into())
+    );
+    assert_eq!(
+        call(&mut rt, "path", &[Value::Str("a.png".into())]),
+        Value::Str("none".into())
+    );
+    assert_eq!(
+        call(&mut rt, "letters", &[Value::Str("ăbc".into())]),
+        Value::Int(3)
+    );
+}

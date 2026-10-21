@@ -487,6 +487,60 @@ impl Cx<'_> {
         Ex::atom(name, Ty::Fn(sig))
     }
 
+    /// A widget spec's `on` closure as a handler the Editor's `handle`
+    /// calls: `fn(S: &mut State, data: any, value: any)`, its captures read
+    /// back out of `data` where the spec put them. The lifted name and the
+    /// captures, for the spec to carry.
+    pub(crate) fn handler(&mut self, c: &ast::ExprClosure) -> (String, Vec<String>) {
+        let params = self.closure_params(c);
+        let value = params.first().cloned().unwrap_or_else(|| "_value".into());
+        let mut caps = self.captures(&[&c.body], &params);
+        if caps.iter().any(|c| c == "this") {
+            self.flag(
+                c.span(),
+                "capture",
+                "the handler read `this`: the Editor's `handle` hands it only the state",
+            );
+        }
+        caps.retain(|c| c != "this" && c != "S" && c != "data");
+        let tys: Vec<Ty> = caps.iter().map(|c| self.local_ty(c)).collect();
+        let base = format!("{}_on", self.enclosing());
+        let ps = [("data".to_string(), Ty::Any), (value, Ty::Any)];
+        let body: &ast::Expr = &c.body;
+        let held = caps.clone();
+        let (sig, name) = self.lift(
+            c.span().range().start,
+            &base,
+            &["S".into()],
+            &ps,
+            &mut |cx| {
+                let mut prologue = vec![];
+                for (cap, t) in held.iter().zip(&tys) {
+                    let out = cx.bind(cap, false);
+                    if let Some(v) = cx.scopes.last_mut().and_then(|s| s.last_mut()) {
+                        v.ty = Some(t.clone());
+                    }
+                    let ts = match cx.p.norm(t) {
+                        Ty::Unknown | Ty::Nil | Ty::Void => "any".to_string(),
+                        t => cx.ty_str(&t),
+                    };
+                    prologue.push(format!("let {out}: {ts} = data.{cap};"));
+                }
+                let (text, t) = cx.fn_body_expr(body);
+                if prologue.is_empty() {
+                    return (text, t);
+                }
+                let inner = text.strip_prefix('{').unwrap_or(&text);
+                (format!("{{\n{}{inner}", indent(&prologue.join("\n"))), t)
+            },
+        );
+        // What the Editor calls it with, whatever its body reads them as.
+        for p in self.p.sigs[sig].params.iter_mut().skip(1) {
+            p.ty = Ty::Any;
+        }
+        (name, caps)
+    }
+
     /// A closure's body as a function body.
     pub(crate) fn fn_body_expr(&mut self, body: &ast::Expr) -> (String, Ty) {
         if let ast::Expr::Block(b) = body

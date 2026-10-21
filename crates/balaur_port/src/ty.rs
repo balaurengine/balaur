@@ -154,6 +154,15 @@ impl Shapes {
         }
     }
 
+    /// Free-form whatever its fields: a widget spec the engine reads by key.
+    pub(crate) fn force_free(&mut self, id: usize, why: &str) {
+        let s = self.get_mut(id);
+        if s.free.is_none() && !s.script {
+            s.free = Some(why.to_string());
+            self.changed = true;
+        }
+    }
+
     /// Free-form: forced, or used by computed key with no field ever used
     /// by name.
     pub(crate) fn is_free(&self, id: usize) -> bool {

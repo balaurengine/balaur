@@ -266,6 +266,25 @@ pub fn position(items: [str], x: str) -> int? {
     nil
 }
 
+/// `contains` and `position` over rows of the document.
+pub fn icontains(items: [int], x: int) -> bool {
+    for it in items {
+        if it == x {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn iposition(items: [int], x: int) -> int? {
+    for i in 0..items.len() {
+        if items[i] == x {
+            return i;
+        }
+    }
+    nil
+}
+
 pub fn keys_sorted(o: any) -> [str] {
     let keys = o.keys();
     keys.sort();

@@ -35,6 +35,8 @@ pub(crate) const METHODS: &[Method] = &[
     m("trim", &[], K::Str),
     m("replace", &[K::Str, K::Str], K::Str),
     m("split", &[K::Str], K::Strs),
+    m("split_once", &[K::Str], K::Strs),
+    m("chars", &[], K::Strs),
     m("parse_int", &[], K::Int),
     m("parse_float", &[], K::Float),
 ];
@@ -107,6 +109,11 @@ pub(crate) fn run(name: &str, recv: &str, args: &[Value]) -> Value {
                 .map(|p| Value::Str(p.to_string()))
                 .collect(),
         ),
+        // Before and after the first separator, or nothing when there is none.
+        "split_once" => Value::Array(recv.split_once(arg(0)).map_or_else(Vec::new, |(a, b)| {
+            vec![Value::Str(a.to_string()), Value::Str(b.to_string())]
+        })),
+        "chars" => Value::Array(recv.chars().map(|c| Value::Str(c.to_string())).collect()),
         "parse_int" => Value::Int(recv.trim().parse().unwrap_or(0)),
         "parse_float" => Value::Float(recv.trim().parse().unwrap_or(0.0)),
         _ => Value::Void,

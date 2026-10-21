@@ -536,3 +536,22 @@ fn script_attempt_is_dropped_and_its_call_runs() {
     has(&out, "let ok = true;");
     lacks(&out, "script::attempt");
 }
+
+#[test]
+fn a_widget_spec_names_its_handler_and_carries_what_it_read() {
+    let out = port(
+        r#"
+pub fn tabs(S, held) {
+    let spec = #{
+        kind: "button", text: held,
+        on: |_| { S.active = held; },
+    };
+    spec
+}
+"#,
+    );
+    has(&out, ".with(\"on\", \"handle\")");
+    has(&out, ".with(\"data\", map().with(\"fn\", tabs_on_0).with(\"held\", held))");
+    has(&out, "fn tabs_on_0(S: &mut State, data: any, _0: any) {");
+    has(&out, "let held: any = data.held;");
+}

@@ -28,9 +28,47 @@ impl Cx<'_> {
         } else {
             self.literal_shape(span, fields.len(), false, hint.as_ref())
         };
+        // A closure under `on` or `on_submit` is a widget's handler: the spec
+        // goes to the engine as a table naming the Editor's `handle`, with
+        // the lifted function and its captures in `data`.
+        let handlers = fields.iter().any(|(k, v, _)| {
+            matches!(k.as_str(), "on" | "on_submit") && matches!(v, Some(ast::Expr::Closure(_)))
+        });
+        if handlers
+            && let Some(id) = id
+            && self.rec()
+        {
+            self.p
+                .shapes
+                .force_free(id, "a widget spec: the pool reads its handler by name");
+        }
+        let mut data: Vec<String> = vec![];
+        let mut caps: Vec<String> = vec![];
         // Walk the values, naming nested literals by their keys.
         let mut vals: Vec<(String, Ex, Vec<String>)> = vec![];
         for (k, v, fspan) in &fields {
+            if let Some(ast::Expr::Closure(c)) = v
+                && matches!(k.as_str(), "on" | "on_submit")
+            {
+                let (name, read) = self.handler(c);
+                let (slot, method) = if k == "on" {
+                    ("fn", "handle")
+                } else {
+                    ("submit", "handle_submit")
+                };
+                data.push(format!(".with(\"{slot}\", {name})"));
+                for r in read {
+                    if !caps.contains(&r) {
+                        caps.push(r);
+                    }
+                }
+                vals.push((
+                    k.clone(),
+                    Ex::atom(format!("\"{method}\""), Ty::Str),
+                    vec![],
+                ));
+                continue;
+            }
             let before = if multi {
                 self.comments_before(fspan.range().start)
             } else {
@@ -50,6 +88,21 @@ impl Cx<'_> {
                 self.p.shapes.set_field(id, k, ex.t.clone());
             }
             vals.push((k.clone(), ex, before));
+        }
+        if !data.is_empty() {
+            if vals.iter().any(|(k, _, _)| k == "data") {
+                self.flag(
+                    span,
+                    "handler-data",
+                    "a spec with a handler already has `data`",
+                );
+            }
+            for c in &caps {
+                let out = self.lookup(c).map_or_else(|| c.clone(), |v| v.out.clone());
+                data.push(format!(".with(\"{c}\", {out})"));
+            }
+            let text = format!("map(){}", data.join(""));
+            vals.push(("data".into(), Ex::atom(text, Ty::Any), vec![]));
         }
         if let Some(Ty::Shape(id)) = id.map(|id| self.p.norm(&Ty::Shape(id))) {
             return self.struct_literal(id, &vals, multi);
