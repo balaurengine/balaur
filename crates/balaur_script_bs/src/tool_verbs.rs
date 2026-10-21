@@ -36,6 +36,7 @@ const VERBS: &[(&str, &str)] = &[
     ("references", "(source: string, name: string) -> [Place]"),
     ("rename", "(source: string, from: string, to: string) -> [Edit]"),
     ("format", "(source: string) -> string"),
+    ("exports", "() -> list"),
 ];
 
 /// Their signatures, read against the records every module declared.
@@ -76,10 +77,40 @@ pub(crate) fn call(
         return Err(format!("`script::{verb}` wants a path first"));
     };
     let key = crate::host::key_of(path);
+    if verb == "exports" {
+        return Ok(from_neutral_in(&exports(eng, &key), ret, structs));
+    }
     let after: Vec<Value> = args[1..].iter().map(to_neutral).collect();
     let answer = eng.script_host().and_then(|scripts| {
         let tools = scripts.tools_for(&key)?;
         balaur_script::tool_answer(tools, verb, &key, &after)
     });
     Ok(from_neutral_in(&answer.unwrap_or(Value::Nil), ret, structs))
+}
+
+/// What the script at `key` declares tunable, one row a property in name
+/// order: its `name`, then its spec's `type`, `default` and the rest.
+fn exports(eng: &Engine, key: &str) -> Value {
+    let Some(scripts) = eng.script_host() else {
+        return Value::List(vec![]);
+    };
+    let mut declared = match scripts.exports(key) {
+        Ok(declared) => declared,
+        Err(err) => {
+            tracing::error!("script::exports({key}): {err:#}");
+            return Value::List(vec![]);
+        }
+    };
+    declared.sort_by(|a, b| a.0.cmp(&b.0));
+    let rows = declared
+        .into_iter()
+        .map(|(name, spec)| {
+            let mut row = vec![("name".to_string(), Value::text(name))];
+            if let Value::Map(fields) = spec {
+                row.extend(fields);
+            }
+            Value::Map(row)
+        })
+        .collect();
+    Value::List(rows)
 }

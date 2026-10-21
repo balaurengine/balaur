@@ -1,0 +1,360 @@
+// Finds a theme, a folder of a dark and a light half, fills the worn half in
+// from its base, and hands it to both readers. The look lives in the files.
+
+use editor;
+use settings;
+use signals;
+use util;
+
+pub struct Resolve {
+    name: str,
+    doc: any,
+}
+
+/// The pairs the editor ships, which every other one is based on. The same
+/// list is the setting's `options`, and the self-test holds the two together.
+pub fn BUNDLED() -> [str] {
+    [
+        "balaur",
+        "atom-one",
+        "catppuccin",
+        "dracula",
+        "everforest",
+        "github",
+        "gruvbox",
+        "kanagawa",
+        "rose-pine",
+        "solarized",
+        "tokyo-night",
+    ]
+}
+
+pub const DEFAULT: str = "balaur";
+
+pub fn HALVES() -> [str] {
+    ["dark", "light"]
+}
+
+/// The roles, kinds and sizes every bundled half wears under its colours.
+const ROLES: str = "themes/roles.toml";
+
+pub const SETTING: str = "editor/appearance/theme";
+
+/// `system`, `dark` or `light`: which half of the pair is worn.
+pub const MODE_SETTING: str = "editor/appearance/mode";
+
+/// The root nodes that dress their subtree with the theme: the shell, the
+/// start screen, the palette and the one sheet.
+fn ROOTS() -> [str] {
+    ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"]
+}
+
+/// Where the person's own themes live.
+pub fn user_dir() -> str {
+    project::editor_data_directory() + "/themes"
+}
+
+pub fn is_bundled(name: str) -> bool {
+    is_bundled_any_0(name, BUNDLED())
+}
+
+fn is_bundled_any_0(name: str, items: [str]) -> bool {
+    for b in items {
+        if b == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// A pair's folder: bundled ones beside the editor, the rest in `user_dir()`.
+pub fn folder_of(name: str) -> str {
+    if is_bundled(name) {
+        "themes/" + name
+    } else {
+        user_dir() + "/" + name
+    }
+}
+
+/// One half's file.
+pub fn path_of(name: str, half: str) -> str {
+    folder_of(name) + "/" + half + ".toml"
+}
+
+/// Every pair there is to pick: the bundled ones, then the person's, by name.
+pub fn names() -> [any] {
+    let out: [any] = names_collect_1(BUNDLED());
+    for entry in util::vec(fs::list(user_dir())) {
+        if entry.get("is_dir") && !is_bundled(entry.get("name").as_str()) {
+            out.push(entry.get("name"));
+        }
+    }
+    out
+}
+
+fn names_collect_1(items: [str]) -> [str] {
+    let out: [str] = [];
+    for item in items {
+        out.push(item);
+    }
+    out
+}
+
+/// The document one half holds, unmerged, or nothing when it is missing or
+/// does not parse.
+pub fn read(name: str, half: str) -> any {
+    read_at(path_of(name, half))
+}
+
+fn read_at(path: str) -> any {
+    let text = fs::read(path);
+    if text.is_none() {
+        return nil;
+    }
+    let text = text.unwrap();
+    let doc = toml::parse(text);
+    let ok = true;
+    if ok && doc.kind() == "map" { doc } else { nil }
+}
+
+/// A bundled half as the editor wears it before anyone's edits: the shared
+/// roles under its colours.
+pub fn bundled(name: str, half: str) -> any {
+    let roles = util::obj(read_at(ROLES));
+    merge(roles, util::obj(read(name, half)))
+}
+
+/// `over` written onto `base`, table by table: a key `over` names wins, and a
+/// table both hold is merged rather than replaced.
+pub fn merge(base: any, over: any) -> any {
+    let out = map();
+    for key in base.keys() {
+        let value = base.get(key);
+        out.set(key, value);
+    }
+    for key in over.keys() {
+        let value = over.get(key);
+        let nested = value.kind() == "map" && out.has(key) && out.get(key).kind() == "map";
+        if nested {
+            let below = out.get(key);
+            out.set(key, merge(below, value));
+        } else {
+            out.set(key, value);
+        }
+    }
+    out
+}
+
+/// What `doc` says that `base` does not: the keys whose values differ, and
+/// the tables holding at least one.
+pub fn diff(base: any, doc: any) -> any {
+    let out = map();
+    for key in doc.keys() {
+        let value = doc.get(key);
+        let had = base.has(key);
+        if value.kind() == "map" {
+            let below = if had && base.get(key).kind() == "map" { base.get(key) } else { map() };
+            let inner = diff(below, value);
+            if inner.len() > 0 {
+                out.set(key, inner);
+            }
+        } else if !had || !same(base.get(key), value) {
+            out.set(key, value);
+        }
+    }
+    out
+}
+
+/// Equal as a file would spell them: `12` and `12.0` differ, and two values
+/// of different types compare without an error.
+pub fn same(a: any, b: any) -> bool {
+    a.kind() == b.kind() && a == b
+}
+
+/// The bundled pair a document is filled in from: what it names, or balaur.
+pub fn base_of(doc: any) -> str {
+    let named = util::obj(doc).base;
+    if named.kind() == "str" && is_bundled(named.as_str()) { named.as_str() } else { DEFAULT }
+}
+
+/// What a person's half states, or, for a half the folder lacks, only the
+/// base the other half names: the missing half is the base's.
+pub fn own_half(name: str, half: str) -> any {
+    let own = read(name, half);
+    if own.kind() == "map" {
+        return own;
+    }
+    let other = read(name, if half == "dark" { "light" } else { "dark" });
+    map().with("base", base_of(other))
+}
+
+/// One half of a pair, filled in from its base. A pair that no longer
+/// resolves answers balaur's, said once.
+pub fn resolve(name: str, half: str) -> Resolve {
+    if is_bundled(name) {
+        return Resolve { name: name, doc: bundled(name, half) };
+    }
+    if !fs::exists(folder_of(name)) {
+        log::warn("theme '{name}' is not at {folder_of(name)}; using {DEFAULT}");
+        return Resolve { name: DEFAULT, doc: bundled(DEFAULT, half) };
+    }
+    let own = own_half(name, half);
+    Resolve { name: name, doc: merge(bundled(base_of(own), half), own) }
+}
+
+/// A document with every token worked out, flattened for a script's
+/// `k.<token>` lookup, keeping the document, its sizes, its pair and its half
+/// beside.
+pub fn flat(name: str, half: str, doc: any) -> any {
+    let done = ui::complete_theme(doc);
+    let t = map()
+        .with("dark", done.get("dark"))
+        .with("roles", doc.get("roles"))
+        .with("colors", done.get("colors"))
+        .with("sizes", done.get("sizes"))
+        .with("name", name)
+        .with("half", half)
+        .with("doc", doc);
+    let items1 = done.get("colors");
+    for key in items1.keys() {
+        let value = items1.get(key);
+        t.set(key, value);
+    }
+    t
+}
+
+pub fn load(name: str, half: str) -> any {
+    let found = resolve(name, half);
+    flat(found.name, half, found.doc)
+}
+
+pub fn dark() -> any {
+    load(DEFAULT, "dark")
+}
+
+/// The half to wear: a start-up state's, else the mode's, else the system's.
+pub fn half_for(S: editor::State, system_dark: bool) -> any {
+    if S.theme_half != "" {
+        return S.theme_half;
+    }
+    let mode = settings::get(MODE_SETTING);
+    if mode.as_str() == "dark" || mode.as_str() == "light" {
+        return mode;
+    }
+    if system_dark { "dark" } else { "light" }
+}
+
+// What a `code` node draws its gutter in, and the token it takes it from where
+// the theme names none: the colours the code pane always drew them in.
+fn CODE_COLORS() -> [[str]] {
+    [
+        ["breakpoint_color", "primary_text"],
+        ["problem_color", "danger_text"],
+        ["warning_color", "warning_text"],
+        ["current_fill", "primary_bg"],
+    ]
+}
+
+// The document the engine wears: the theme's own, with the code colours
+// filled in from its tokens. A copy, so the Theme dialog lists what the file
+// says and nothing it does not.
+fn worn(t: any) -> any {
+    let doc = map();
+    let items1 = t.get("doc");
+    for key in items1.keys() {
+        let value = items1.get(key);
+        doc.set(key, value);
+    }
+    let colors = map();
+    let got2 = t.get("doc").get("colors");
+    let items3 = util::obj(if got2.is_nil() { map() } else { got2 });
+    for key in items3.keys() {
+        let value = items3.get(key);
+        colors.set(key, value);
+    }
+    for pair in CODE_COLORS() {
+        if !colors.has(pair[0]) {
+            let token = t.get("colors").get(pair[1]);
+            if !token.is_nil() {
+                colors.set(pair[0], token);
+            }
+        }
+    }
+    doc.set("colors", colors);
+    doc
+}
+
+// Push the active theme into egui, the widget nodes and the 3D viewport.
+pub fn apply(S: editor::State) {
+    let t = S.theme;
+    let doc = worn(t);
+    ui::set_theme(doc);
+    // The document itself, inline, on each root: one table both readers take,
+    // so a role a script names and a role a node names cannot drift.
+    for path in ROOTS() {
+        let root = scene::get_node(path);
+        if root.is_valid() {
+            root.patch_component("widget", map().with("theme", doc));
+        }
+    }
+    let bg = util::hex_to_rgb(t.bg_app.as_str());
+    render::set_background(bg.r, bg.g, bg.b);
+    let minor = util::hex_to_rgb(t.grid_minor.as_str());
+    let major = util::hex_to_rgb(t.grid_major.as_str());
+    render::set_grid_colors(minor.r, minor.g, minor.b, major.r, major.g, major.b);
+}
+
+/// Wear the named pair, in the half the mode and the system pick. The same
+/// pair and half again is a no-op, so an unrelated setting written while a
+/// theme is being edited does not throw the edit away.
+pub fn use_named(S: &mut editor::State, name: str) {
+    wear_half(S, name, half_for(S, engine::dark_mode()).as_str());
+}
+
+fn wear_half(S: &mut editor::State, name: str, half: str) {
+    if S.theme.get("name").as_str() == name && S.theme.get("half").as_str() == half {
+        return;
+    }
+    S.theme = load(name, half);
+    S.theme_rev += 1;
+    signals::outline(S);
+    apply(S);
+}
+
+/// The system turned dark or light: the worn pair follows under `system`.
+pub fn follow(S: &mut editor::State, system_dark: bool) {
+    wear_half(S, S.theme.get("name").as_str(), half_for(S, system_dark).as_str());
+}
+
+/// Read the worn half from disk again, dropping an edit nobody saved.
+pub fn reload(S: &mut editor::State) {
+    S.theme = load(S.theme.get("name").as_str(), S.theme.get("half").as_str());
+    S.theme_rev += 1;
+    signals::outline(S);
+    apply(S);
+}
+
+/// Wear a document that is not on disk yet: the theme window's live edit.
+pub fn wear(S: &mut editor::State, name: str, doc: any) {
+    S.theme = flat(name, S.theme.get("half").as_str(), doc);
+    S.theme_rev += 1;
+    signals::outline(S);
+    apply(S);
+}
+
+// `on`, not `dark`: that name would shadow `dark()` and Rune would call the
+// bool. Pins the half for the run and leaves the person's setting alone.
+pub fn set_dark(S: &mut editor::State, on: bool) {
+    S.theme_half = if on { "dark" } else { "light" };
+    wear_half(S, S.theme.get("name").as_str(), S.theme_half);
+}
+
+/// The person flipping to the other half: remembered as the mode, so the
+/// settings screen shows it and the next start opens in it.
+pub fn toggle(S: &mut editor::State) {
+    let half = if S.theme.get("half").as_str() == "dark" { "light" } else { "dark" };
+    settings::set(MODE_SETTING, half);
+    settings::commit_prefs(S);
+    S.theme_half = "";
+    wear_half(S, S.theme.get("name").as_str(), half);
+}

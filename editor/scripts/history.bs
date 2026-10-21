@@ -1,0 +1,140 @@
+// Undo/redo over the scene document. `model::build_mirror` rebuilds the live
+// scene from the document, so restoring a document restores everything.
+
+use editor;
+use signals;
+use util;
+
+/// One undo step: the document, the selection and the scene's `[[assets]]`
+/// as they were, and what the step was called.
+pub struct Frame {
+    doc: [any],
+    sels: [int],
+    assets: any,
+    label: str,
+}
+
+/// The steps behind and ahead, where the last save sits among them, and the
+/// drag a record may still fold into.
+pub class History {
+    past: [Frame],
+    future: [Frame],
+    saved: int,
+    key: str?,
+    at: float,
+}
+
+// Whole documents rather than inverse commands: an inverse per property would
+// put per-type knowledge back where the schema-driven inspector removed it.
+const MAX: int = 100;
+
+// A drag reports a change every frame; records sharing a key inside this many
+// seconds of the wall clock are one step.
+const COALESCE: float = 0.4;
+
+// The scene's `[[assets]]` travel with the nodes: a tool writes a block there,
+// and undoing it has to put the block back.
+fn frame(S: editor::State, label: str) -> Frame {
+    let assets = S.scene_doc.assets;
+    let kept = if assets.is_nil() { assets } else { util::deep(assets) };
+    Frame { doc: util::deep(S.doc), sels: util::deep(S.sels), assets: kept, label: label }
+}
+
+pub fn reset(S: &mut editor::State) {
+    S.history = History { past: [], future: [], saved: 0, key: nil, at: -1.0 };
+}
+
+// Called by every mutator *before* it mutates. `key` coalesces a continuing
+// drag into the step it started; pass `nil` for a discrete action.
+pub fn record(S: &mut editor::State, label: str, key: str?) {
+    // Every edit, a drag's continuing ones included: what a cache keys on.
+    S.doc_rev += 1;
+    signals::outline(S);
+    let h = S.history;
+    let now = engine::unix_time();
+    if key.is_some() && h.key == key && now - h.at < COALESCE {
+        h.at = now;
+        return;
+    }
+    h.key = key;
+    h.at = now;
+    h.past.push(frame(S, label));
+    if h.past.len() > MAX {
+        h.past.remove(0);
+        // The saved point scrolled off the end: nothing can reach it again.
+        h.saved = if h.saved > 0 { h.saved - 1 } else { -1 };
+    }
+    h.future = [];
+}
+
+// Break any open coalescing run, so the next edit starts its own step. Called
+// when the selection moves or a drag ends.
+pub fn commit(S: &mut editor::State) {
+    S.history.key = nil;
+}
+
+fn restore(S: &mut editor::State, into: [Frame], from: [Frame]) -> str? {
+    if from.len() == 0 {
+        return nil;
+    }
+    let top = from.pop();
+    into.push(frame(S, top.label));
+    S.doc = top.doc;
+    if !top.assets.is_nil() {
+        S.scene_doc.assets = top.assets;
+    }
+    S.doc_rev += 1;
+    signals::outline(S);
+    // Restored here rather than through `selection`, which reads the model:
+    // history owns the document and may not depend on what records into it.
+    let rows: [int] = [];
+    for i in top.sels {
+        if i >= 0 && i < S.doc.len() {
+            rows.push(i);
+        }
+    }
+    if rows.len() == 0 {
+        rows = [0];
+    }
+    S.sels = rows;
+    S.sel = rows[0];
+    S.history.key = nil;
+    top.label
+}
+
+// Both return the label of the step they moved through, or `nil` when the
+// stack is empty. The caller rebuilds the mirror: history owns data, not the
+// engine.
+pub fn undo(S: &mut editor::State) -> str? {
+    restore(S, S.history.future, S.history.past)
+}
+
+pub fn redo(S: &mut editor::State) -> str? {
+    restore(S, S.history.past, S.history.future)
+}
+
+pub fn can_undo(S: editor::State) -> bool {
+    S.history.past.len() > 0
+}
+
+// What ⌘Z would undo, for a menu or palette label.
+pub fn undo_label(S: editor::State) -> str? {
+    let past = S.history.past;
+    if past.len() > 0 { past[past.len() - 1].label } else { nil }
+}
+
+pub fn redo_label(S: editor::State) -> str? {
+    let future = S.history.future;
+    if future.len() > 0 { future[future.len() - 1].label } else { nil }
+}
+
+pub fn mark_saved(S: &mut editor::State) {
+    S.history.saved = S.history.past.len();
+}
+
+// Position in the stack, not a latch: undoing back to the last save is clean
+// again, which a boolean set by every mutator could never say.
+pub fn dirty(S: editor::State) -> bool {
+    let h = S.history;
+    h.saved < 0 || h.past.len() != h.saved
+}

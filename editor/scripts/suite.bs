@@ -82,7 +82,7 @@ pub fn step(S: &mut editor::State, editor: Node) {
     let at = util::index_of(next, "@");
     if at.is_some() {
         state = next.slice(0, at.unwrap());
-        run.budget = next.slice(at.unwrap() + 1, next.len()).parse_int().or(0);
+        run.budget = next.slice(at.unwrap() + 1, next.len()).parse_int();
     }
     S.suite = run;
     // `draw_ui` applies the list on the first pass it takes.

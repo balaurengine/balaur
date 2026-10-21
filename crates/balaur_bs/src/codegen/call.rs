@@ -441,20 +441,6 @@ impl FnGen<'_> {
         if plain && args.is_empty() && name.starts_with("as_") {
             return self.plain_as(base, name, pos).map(Some);
         }
-        // A value that is not a `T?` is always there.
-        let own = matches!(&bty, Ty::Struct(s) if self.g.sigs.contains_key(&format!("{s}.{name}")));
-        if !matches!(bty, Ty::Optional(_) | Ty::Any) && !own {
-            match (name, args.len()) {
-                ("or" | "unwrap_or", 1) | ("unwrap", 0) => return self.expr(base).map(Some),
-                ("is_some" | "is_none", 0) => {
-                    let t = self.expr(base)?;
-                    self.discard(&t);
-                    self.e(I::I32Const(i32::from(name == "is_some")));
-                    return Ok(Some(Ty::Bool));
-                }
-                _ => {}
-            }
-        }
         Ok(None)
     }
 

@@ -30,10 +30,15 @@ impl FnGen<'_> {
                 self.e(I::I32Const(0));
                 Ok(())
             }
+            // No node: the engine's own, which `is_valid` says false of.
+            Ty::Node => {
+                self.e(I::I64Const(0));
+                Ok(())
+            }
             _ => err(
                 pos,
                 format!(
-                    "`nil` goes where a `T?` or an `any` is wanted, not a {}",
+                    "`nil` goes where a `T?`, an `any` or a `Node` is wanted, not a {}",
                     show(want)
                 ),
             ),

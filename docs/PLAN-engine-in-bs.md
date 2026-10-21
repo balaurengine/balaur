@@ -177,6 +177,12 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    any struct named `*State` as a `class`, and Rune's shared objects need
    no copy warnings there.
 
+   Layer 1, the document and its state (model, selection, history, arrange,
+   session, lint, layout, docks, theme, style, plugins), is ported too. Model
+   rows are `int`s and `model::live` answers a `Node`, `nil` when none.
+   Plugins are `.bs` scripts on nodes under `Editor/Plugins`: `register()`
+   names the methods it adds, and the editor calls them with a payload.
+
    The libraries' changes:
    - `util::engine_path(root, rel)` takes `S.game_root`, not `S`.
    - `util::max`, `min` are floats; `imax`, `imin` are their int forms.

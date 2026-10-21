@@ -551,7 +551,10 @@ pub fn tabs(S, held) {
 "#,
     );
     has(&out, ".with(\"on\", \"handle\")");
-    has(&out, ".with(\"data\", map().with(\"fn\", tabs_on_0).with(\"held\", held))");
+    has(
+        &out,
+        ".with(\"data\", map().with(\"fn\", tabs_on_0).with(\"held\", held))",
+    );
     has(&out, "fn tabs_on_0(S: &mut State, data: any, _0: any) {");
     has(&out, "let held: any = data.held;");
 }

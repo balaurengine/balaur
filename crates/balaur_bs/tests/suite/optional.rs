@@ -134,3 +134,20 @@ pub fn pick(a: any, yes: bool) -> str {
         balaur_bs::runtime::Value::Str("true 0".into())
     );
 }
+
+#[test]
+fn nil_where_a_node_goes_is_no_node() {
+    let mut rt = super::run(
+        "pub fn none() -> Node { nil }\npub fn early(x: int) -> Node { if x > 0 { return nil; } nil }",
+    );
+    assert_eq!(
+        super::call(&mut rt, "none", &[]),
+        balaur_bs::runtime::Value::Node(0)
+    );
+}
+
+#[test]
+fn a_value_that_is_always_there_has_no_optional_methods() {
+    let e = super::compile_error("pub fn f(s: str) -> bool { s.is_some() }");
+    assert!(e.contains("not `is_some`"), "{e}");
+}

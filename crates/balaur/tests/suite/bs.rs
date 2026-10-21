@@ -1102,3 +1102,25 @@ fn a_pooled_control_calls_the_method_it_names_with_its_data() {
     assert_eq!(field(&app, "Panel", "said"), Some(Str("query=ball".into())));
     assert_eq!(field(&app, "Panel", "clicks"), Some(Int(7)));
 }
+
+const EXPORTER_BS: &str =
+    "pub struct Tuned { pub speed: float = 2.5, pub label: str = \"go\", seen: str }
+impl Tuned {
+    fn init() {
+        let rows = script::exports(\"scripts/s.bs\");
+        self.seen = \"{rows.len()} {rows[0].name}={rows[0].default} {rows[1].name}:{rows[1].type}\";
+    }
+}
+";
+
+/// What a script declares tunable, as the Inspector reads it.
+#[test]
+fn a_script_reads_what_another_declares_tunable() {
+    use balaur_script::Value::Str;
+    let dir = one_script("Tuned", EXPORTER_BS);
+    let app = booted(dir.path());
+    assert_eq!(
+        field(&app, "Tuned", "seen"),
+        Some(Str("2 label=go speed:float".into()))
+    );
+}

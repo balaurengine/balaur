@@ -292,16 +292,6 @@ impl Cx<'_> {
             self.engine_arg = true;
             let ex = self.expr(a);
             self.engine_arg = false;
-            if let Ty::Shape(_) = ex.t {
-                self.flag(
-                    a.span(),
-                    "struct-to-engine",
-                    format!(
-                        "passes a `{}` to `{path}`, which takes an `any`",
-                        self.ty_str(&ex.t)
-                    ),
-                );
-            }
             let want = self.p.api.param(path, i);
             if self.rec() && !ex.t.known() {
                 if want == Ty::Any {
@@ -501,17 +491,15 @@ impl Cx<'_> {
             ("remove", Ty::Shape(id)) => {
                 let id = *id;
                 self.dynamic_use(id, span, "keys are removed");
-                self.flag(span, "map", "removing a key: `any` has no `remove`");
                 same(format!("{r}.remove({joined})"), Ty::Any)
             }
-            ("remove", Ty::Any) => {
-                self.flag(
-                    span,
-                    "map",
-                    "removing a key or element of an `any`: it has no `remove`",
-                );
-                same(format!("{r}.remove({joined})"), Ty::Any)
-            }
+            ("remove", Ty::Any) => same(format!("{r}.remove({joined})"), Ty::Any),
+            ("sort", Ty::Array(_)) => same(format!("{r}.sort()"), Ty::Void),
+            ("split_once", Ty::Str) => same(
+                format!("{r}.split_once({joined})"),
+                Ty::Array(Box::new(Ty::Str)),
+            ),
+            ("chars", Ty::Str) => same(format!("{r}.chars()"), Ty::Array(Box::new(Ty::Str))),
             ("contains", Ty::Str) => same(format!("{r}.contains({joined})"), Ty::Bool),
             ("contains", _) => {
                 self.flag(

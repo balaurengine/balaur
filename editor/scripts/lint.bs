@@ -1,0 +1,269 @@
+// What is wrong with the project: every script a scene attaches, compiled
+// through the host, plus the scene itself. A finding is `#{ file, line,
+// column, severity, message }`, `file` game-relative and line 0 the file.
+
+use editor;
+use model;
+use shell;
+use signals;
+use util;
+
+pub class LintState {
+    found: [any],
+    at: float,
+    due: float,
+    roots: str,
+    warned: any,
+    warned_rev: int,
+}
+
+pub struct At2 {
+    file: str,
+    line: int,
+    column: int,
+    severity: str,
+    message: str,
+}
+
+pub struct Counts {
+    _0: int,
+    _1: int,
+}
+
+/// The module's own slice of `S`, at `S.lint`.
+///
+/// `at` is when the last sweep ran and `typed` when the buffer last changed,
+/// which is what `due` compares to hold a check off until typing stops.
+pub fn state() -> LintState {
+    LintState { found: [], at: -1.0, due: 0.0, roots: "", warned: map(), warned_rev: -1 }
+}
+
+const IDLE: float = 0.4;
+
+/// Every distinct script the document attaches, game-relative.
+///
+/// The unit a check compiles is the root, not the file: a `mod` submodule
+/// compiled on its own fails on its own imports, and its diagnostics reach us
+/// through the root that reaches it.
+fn roots(S: editor::State) -> [any] {
+    let seen = map();
+    let out: [any] = [];
+    for node in S.doc {
+        let rel = model::script_rel(node);
+        if !rel.is_nil() {
+            if !seen.has(rel) {
+                seen.set(rel, true);
+                out.push(rel);
+            }
+        } else {
+            nil
+        }
+    }
+    out
+}
+
+// The text to check: the unsaved buffer when there is one, so a finding is
+// about what is on screen rather than what is on disk.
+fn source_of(S: &mut editor::State, rel: str) -> any {
+    let buffer = S.script_buffers.get(S.game_root + "/" + rel);
+    if !buffer.is_nil() {
+        buffer
+    } else {
+        model::source(S, rel)
+    }
+}
+
+// A reference is a path, a path with `#entry`, or `#inline`; only the first
+// two name a file, and an inline definition is a table, not a string.
+fn asset_missing(S: editor::State, value: str) -> bool {
+    if value == "" || value.starts_with("#") {
+        return false;
+    }
+    let parts = value.split_once("#");
+    let path = if parts.len() == 2 { parts[0] } else { value };
+    // The mirror hands back the absolute path the engine resolved to and a
+    // scene writes a relative one; Windows spells absolute differently.
+    !fs::exists(path) && !fs::exists(S.game_root + "/" + path)
+}
+
+fn at(file: str, line: int, severity: str, message: str) -> At2 {
+    At2 { file: file, line: line, column: 0, severity: severity, message: message }
+}
+
+// The scene: files its nodes name, asset references that do not resolve, and
+// the expectations the engine already computes per node.
+fn scene_findings(S: &mut editor::State) -> [At2] {
+    let found: [At2] = [];
+    let scene = S.scene_rel;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let rel = model::script_rel(node);
+        if !rel.is_nil() {
+            if !fs::exists(S.game_root + "/" + rel.as_str()) {
+                found.push(at(scene, 0, "error", "{node.get("name")}: script {rel} does not exist"));
+            }
+        } else {
+            nil
+        }
+        let prefab = node.get("instance");
+        if !prefab.is_nil() {
+            if !fs::exists(S.game_root + "/" + prefab.as_str()) {
+                found.push(at(scene, 0, "error", "{node.get("name")}: prefab {prefab} does not exist"));
+            }
+        } else {
+            nil
+        }
+        let found_node = model::live(S, i);
+        if !found_node.is_valid() {
+            continue;
+        }
+        for warning in util::vec(scene::warnings(found_node.as_node())) {
+            found.push(at(scene, 0, "warning", "{node.get("name")}: {describe(warning)}"));
+        }
+        for comp in found_node.component_names() {
+            let schema = model::schema(S, comp.as_str());
+            let data = util::obj(found_node.get_component(comp));
+            for prop in util::keys_sorted(schema) {
+                if schema.get(prop).get("type").as_str() != "asset" {
+                    continue;
+                }
+                let value = data.get(prop).as_str();
+                if !(true) || value == "" {
+                    continue;
+                }
+                if asset_missing(S, value) {
+                    found.push(at(scene, 0, "warning", "{node.get("name")}: {comp}.{prop} → {value} does not exist"));
+                    continue;
+                }
+                // A material parses headless and links only when something
+                // draws it, so a broken shader has to be asked about.
+                if schema.get(prop).get("asset").as_str() == "material" && !value.starts_with("#") {
+                    for f in util::vec(render::check_material(value)) {
+                        found.push(at(f.get("file").as_str(), f.get("line").as_int(), f.get("severity").as_str(), "{node.get("name")}: {f.get("message")}"));
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
+/// One engine warning as a line: the component, the property when it names
+/// one, and what is off.
+pub fn describe(warning: any) -> str {
+    if util::is_nil(warning.get("property")) {
+        "{warning.get("component")}: {warning.get("message")}"
+    } else {
+        "{warning.get("component")}.{warning.get("property")}: {warning.get("message")}"
+    }
+}
+
+/// Every node's warnings by id, for the tree's mark and the counts. Asked of
+/// the engine on the outline's word, which is heard the frame after an edit,
+/// once the solver has built what the edit made; and when a file reloaded or
+/// play started or stopped.
+pub fn node_warnings(S: &mut editor::State) {
+    S.lint.warned_rev = S.doc_rev;
+    let out = map();
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let live = model::live(S, i);
+        if live.is_valid() {
+            let found = util::vec(scene::warnings(live));
+            if found.len() > 0 {
+                let got1 = node.get("id");
+                out.set(node.get("id").as_str(), found);
+            }
+        }
+    }
+    // Asked again every few frames: only a different answer is news.
+    if out != S.lint.warned {
+        S.lint.warned = out;
+        signals::outline(S);
+    }
+}
+
+/// The warnings the last ask found on the node with `id`.
+pub fn warned(S: editor::State, id: any) -> any {
+    let got1 = S.lint.warned.get(id);
+    util::vec(if got1.is_nil() { [] } else { got1 })
+}
+
+/// Check every root and the scene, and replace the finding list.
+pub fn run(S: &mut editor::State) {
+    let found: [any] = [];
+    for rel in roots(S) {
+        let src = source_of(S, rel.as_str());
+        if src.is_nil() {
+            found.push(at(S.scene_rel, 0, "error", "missing file: {rel}"));
+            continue;
+        }
+        for f in util::vec(script::check(S.game_root + "/" + rel.as_str(), src.as_str())) {
+            // The host answers in the key it was given, which is absolute.
+            found.push(at(shell::script_rel(S, f.get("file").as_str()), f.get("line").as_int(), f.get("severity").as_str(), f.get("message").as_str()));
+        }
+    }
+    for f in scene_findings(S) {
+        found.push(f);
+    }
+    S.lint.found = found;
+    signals::docks(S);
+    signals::changed(S, "problems");
+    S.lint.at = engine::unix_time();
+}
+
+// What the next sweep would look at, so an unchanged project is not swept.
+/// The project's scripts moved: a buffer typed into, a file reloaded, a
+/// script attached or taken off. The sweep runs once that has been still for
+/// `IDLE`: a check is a compile on the frame thread, tens of milliseconds for
+/// a large file, so it waits out a burst of keystrokes rather than running
+/// inside one.
+pub fn touched(S: &mut editor::State) {
+    S.lint.due = engine::unix_time() + IDLE;
+    // The frame the sweep runs in: under `low_processor` nothing else draws one.
+    ui::request_repaint(map().with("after", IDLE + 0.02));
+}
+
+/// The document moved: when the scripts it attaches did, the sweep runs on
+/// the new set.
+pub fn follow(S: &mut editor::State) {
+    let key = util::join(roots(S), "|");
+    if key != S.lint.roots {
+        S.lint.roots = key;
+        touched(S);
+    }
+}
+
+/// Run the sweep the last touch asked for, once its time has come.
+pub fn idle(S: &mut editor::State) {
+    if S.lint.due <= 0.0 || engine::unix_time() < S.lint.due {
+        return;
+    }
+    S.lint.due = 0.0;
+    run(S);
+}
+
+/// The lines of one file carrying a finding of `severity`, for the gutter.
+pub fn lines(S: editor::State, rel: str, severity: str) -> [any] {
+    let out: [any] = [];
+    for f in S.lint.found {
+        if f.get("file").as_str() == rel && f.get("severity").as_str() == severity && f.get("line").as_int() > 0 {
+            out.push(f.get("line"));
+        }
+    }
+    out
+}
+
+/// `(errors, warnings)` over the whole project.
+pub fn counts(S: editor::State) -> Counts {
+    let errors = 0;
+    let warnings = 0;
+    for f in S.lint.found {
+        if f.get("severity").as_str() == "error" {
+            errors += 1;
+        } else {
+            warnings += 1;
+        }
+    }
+    Counts { _0: errors, _1: warnings }
+}

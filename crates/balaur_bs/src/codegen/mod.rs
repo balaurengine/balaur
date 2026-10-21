@@ -1065,7 +1065,7 @@ fn sync_fn(
         fg.dbg = Some((frame, id));
     }
     fg.charge();
-    let t = if matches!(f.ret, Ty::Optional(_) | Ty::Any) {
+    let t = if matches!(f.ret, Ty::Optional(_) | Ty::Any | Ty::Node) {
         fg.block_as(&f.body, &f.ret)?
     } else {
         fg.block_body(&f.body)?

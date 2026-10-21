@@ -235,7 +235,7 @@ pub fn run(a: any) -> str {
     let name: str = a.name;
     "{gone.as_int()} {first.as_str()} {total} {a.has("n")} {name.starts_with("or")} {a.name == a.name} {a.name.or("x")} {a.missing.is_none()} {-a.score}"
 }
-pub fn plain(n: int, s: str) -> str { "{n.as_float()} {s.as_str()} {n.as_str()} {s.or("x")} {s.is_some()}" }
+pub fn plain(n: int, s: str) -> str { "{n.as_float()} {s.as_str()} {n.as_str()}" }
 "#;
     let mut rt = run(src);
     let base = rt.live();
@@ -254,7 +254,7 @@ pub fn plain(n: int, s: str) -> str { "{n.as_float()} {s.as_str()} {n.as_str()} 
     );
     assert_eq!(
         call(&mut rt, "plain", &[Value::Int(2), Value::Str("s".into())]),
-        Value::Str("2.0 s 2 s true".into())
+        Value::Str("2.0 s 2".into())
     );
     assert_eq!(rt.live(), base, "a held method leaked or freed twice");
 }

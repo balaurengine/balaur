@@ -170,7 +170,7 @@ pub class State {
     layout: any,
     viewport_live: bool,
     mode2d: bool,
-    refs: [any],
+    refs: [Node],
     sources: any,
     id_paths: any,
     scene_doc: any,
@@ -725,7 +725,7 @@ fn frame(S: &mut State, dt: float) {
     // Nothing selected is not a stale mirror. Asking `live` about -1 rebuilt
     // the refs every frame with `get_node`, which resolves by name path and
     // so replaced the id-resolved ones a duplicate name needs.
-    if S.refs.len() != S.doc.len() || (S.sel >= 0 && model::live(S, S.sel).is_nil()) {
+    if S.refs.len() != S.doc.len() || (S.sel >= 0 && !model::live(S, S.sel).is_valid()) {
         model::resolve_refs(S);
     }
     // The sweep a script edit asked for, once typing has stopped; after the
