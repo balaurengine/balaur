@@ -821,7 +821,9 @@ fn panel_of(
     }
 }
 
-fn recipient(
+/// Where a widget's handler `method` goes: the nearest node at or above
+/// `entity` whose script has it, or `entity` when none does.
+pub(crate) fn recipient(
     eng: &Engine,
     host: &dyn balaur_script::ScriptHost<Engine>,
     entity: Entity,

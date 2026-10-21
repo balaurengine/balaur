@@ -58,7 +58,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0                    # or per side, [left, top, right, bottom]\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
     }
   },
   "bs": {
@@ -1934,21 +1934,565 @@
         "least": 2,
         "signature": "(Node, str)"
       },
+      "node.animation.add_clip": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.animation.current_clip": {
+        "least": 1,
+        "signature": "(Node) -> str?"
+      },
+      "node.animation.is_playing": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.animation.just_finished": {
+        "least": 1,
+        "signature": "(Node) -> str?"
+      },
+      "node.animation.pause": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.animation.play": {
+        "least": 2,
+        "signature": "(Node, str, any)"
+      },
+      "node.animation.queue": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.animation.resume": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.animation.seek": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.animation.time": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
       "node.attach_script": {
         "least": 2,
         "signature": "(Node, str, any)"
       },
+      "node.body2d.add_constant_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.body2d.add_constant_force_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "node.body2d.add_constant_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.body2d.angular_velocity": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.apply_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.body2d.apply_force_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "node.body2d.apply_impulse": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.body2d.apply_impulse_at_point": {
+        "least": 5,
+        "signature": "(Node, float, float, float, float)"
+      },
+      "node.body2d.apply_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.body2d.apply_torque_impulse": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.body2d.constant_force": {
+        "least": 1,
+        "signature": "(Node) -> Vec2"
+      },
+      "node.body2d.constant_torque": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.effective_angular_inertia": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.effective_dominance": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.effective_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body2d.is_ccd_active": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body2d.is_moving": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body2d.is_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body2d.kinetic_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.linear_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec2"
+      },
+      "node.body2d.local_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body2d.max_contact_impulse": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.next_position": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body2d.potential_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.predict_position": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "node.body2d.predict_position_with_forces": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "node.body2d.set_angular_velocity": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.body2d.set_constant_force": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.body2d.set_constant_torque": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.body2d.set_linear_velocity": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.body2d.sleep": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.body2d.teleport": {
+        "least": 3,
+        "signature": "(Node, float, float, any)"
+      },
+      "node.body2d.time_since_can_sleep": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.total_inertia": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.total_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body2d.velocity_at_point": {
+        "least": 3,
+        "signature": "(Node, float, float) -> Vec2"
+      },
+      "node.body2d.wake_up": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.body2d.world_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.add_constant_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.add_constant_force_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "node.body3d.add_constant_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.angular_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.body3d.apply_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.apply_force_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "node.body3d.apply_impulse": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.apply_impulse_at_point": {
+        "least": 7,
+        "signature": "(Node, float, float, float, float, float, float)"
+      },
+      "node.body3d.apply_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.apply_torque_impulse": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.constant_force": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.body3d.constant_torque": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.body3d.effective_angular_inertia": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.effective_dominance": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body3d.effective_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.is_ccd_active": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body3d.is_moving": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body3d.is_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.body3d.kinetic_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body3d.linear_velocity": {
+        "least": 1,
+        "signature": "(Node) -> Vec3"
+      },
+      "node.body3d.local_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.next_position": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.potential_energy": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body3d.predict_position": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "node.body3d.predict_position_with_forces": {
+        "least": 2,
+        "signature": "(Node, float) -> any"
+      },
+      "node.body3d.set_angular_velocity": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.set_constant_force": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.set_constant_torque": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.set_linear_velocity": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.body3d.sleep": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.body3d.teleport": {
+        "least": 4,
+        "signature": "(Node, float, float, float, any)"
+      },
+      "node.body3d.time_since_can_sleep": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body3d.total_inertia": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.total_inertia_rotation": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.body3d.total_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.body3d.velocity_at_point": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> Vec3"
+      },
+      "node.body3d.wake_up": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.body3d.world_center_of_mass": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.boolean3d.built_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
       "node.call": {
         "least": 2,
-        "signature": "(Node, str, any) -> any"
+        "signature": "(Node, str, any, any, any, any) -> any"
       },
       "node.call_async": {
         "least": 2,
-        "signature": "(Node, str, any) -> int"
+        "signature": "(Node, str, any, any, any, any) -> int"
+      },
+      "node.character2d.is_on_floor": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.character2d.move_character": {
+        "least": 3,
+        "signature": "(Node, float, float) -> any"
+      },
+      "node.character3d.is_on_floor": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.character3d.move_character": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> any"
       },
       "node.children": {
         "least": 1,
         "signature": "(Node) -> [Node]"
+      },
+      "node.collider2d.aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider2d.broad_phase_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider2d.collider_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.collider2d.collider_mass_properties": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider2d.collider_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider2d.collider_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.collider2d.collision_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider2d.combine_voxels": {
+        "least": 2,
+        "signature": "(Node, Node)"
+      },
+      "node.collider2d.contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider2d.crop_voxels": {
+        "least": 5,
+        "signature": "(Node, int, int, int, int)"
+      },
+      "node.collider2d.handles": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider2d.heightfield_hole": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "node.collider2d.overlaps": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "node.collider2d.pose_in_body": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider2d.set_collider": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.collider2d.set_heightfield_hole": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "node.collider2d.set_voxel": {
+        "least": 4,
+        "signature": "(Node, int, int, bool)"
+      },
+      "node.collider2d.set_voxel_size": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.collider2d.swept_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider2d.voxel": {
+        "least": 3,
+        "signature": "(Node, int, int) -> bool"
+      },
+      "node.collider2d.voxel_at": {
+        "least": 3,
+        "signature": "(Node, float, float) -> [int]"
+      },
+      "node.collider2d.voxel_size": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider3d.broad_phase_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider3d.collider_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.collider3d.collider_mass_properties": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.collider_mesh": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.collider_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.collider3d.collision_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider3d.combine_voxels": {
+        "least": 2,
+        "signature": "(Node, Node)"
+      },
+      "node.collider3d.contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.crop_voxels": {
+        "least": 7,
+        "signature": "(Node, int, int, int, int, int, int)"
+      },
+      "node.collider3d.handles": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.heightfield_hole": {
+        "least": 3,
+        "signature": "(Node, int, int) -> bool"
+      },
+      "node.collider3d.max_contact_impulse": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.collider3d.overlaps": {
+        "least": 1,
+        "signature": "(Node) -> [Node]"
+      },
+      "node.collider3d.pose_in_body": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.collider3d.set_collider": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.collider3d.set_heightfield_hole": {
+        "least": 4,
+        "signature": "(Node, int, int, bool)"
+      },
+      "node.collider3d.set_voxel": {
+        "least": 5,
+        "signature": "(Node, int, int, int, bool)"
+      },
+      "node.collider3d.set_voxel_size": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.collider3d.swept_aabb": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.collider3d.voxel": {
+        "least": 4,
+        "signature": "(Node, int, int, int) -> bool"
+      },
+      "node.collider3d.voxel_at": {
+        "least": 4,
+        "signature": "(Node, float, float, float) -> [int]"
+      },
+      "node.collider3d.voxel_size": {
+        "least": 1,
+        "signature": "(Node) -> any"
       },
       "node.component_names": {
         "least": 1,
@@ -1978,6 +2522,14 @@
         "least": 2,
         "signature": "(Node, str, any)"
       },
+      "node.follow2d.reset_follow": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.follow3d.reset_follow": {
+        "least": 1,
+        "signature": "(Node)"
+      },
       "node.get_component": {
         "least": 2,
         "signature": "(Node, str, str?) -> any"
@@ -2006,13 +2558,141 @@
         "least": 1,
         "signature": "(Node) -> bool"
       },
+      "node.joint2d.joint_force": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.joint2d.joint_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.joint2d.remove_joint": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.joint2d.set_joint_limits": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "node.joint2d.set_motor_position": {
+        "least": 5,
+        "signature": "(Node, str, float, float, float)"
+      },
+      "node.joint2d.set_motor_velocity": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "node.joint2d.solve_ik": {
+        "least": 3,
+        "signature": "(Node, float, float, any)"
+      },
+      "node.joint3d.joint_force": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.joint3d.joint_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.joint3d.remove_joint": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.joint3d.set_joint_limits": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "node.joint3d.set_motor_position": {
+        "least": 5,
+        "signature": "(Node, str, float, float, float)"
+      },
+      "node.joint3d.set_motor_velocity": {
+        "least": 4,
+        "signature": "(Node, str, float, float)"
+      },
+      "node.joint3d.solve_ik": {
+        "least": 4,
+        "signature": "(Node, float, float, float, any)"
+      },
       "node.material": {
         "least": 1,
         "signature": "(Node) -> str"
       },
+      "node.multimesh2d.instance_region": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh2d.set_instance_region": {
+        "least": 2,
+        "signature": "(Node, int, any, any)"
+      },
+      "node.multimesh3d.buffer": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.multimesh3d.instance_color": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh3d.instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.multimesh3d.instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh3d.instance_transform": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh3d.instances": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.multimesh3d.populate": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "node.multimesh3d.set_buffer": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.multimesh3d.set_instance_color": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.multimesh3d.set_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.multimesh3d.set_instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.multimesh3d.set_instance_transform": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.multimesh3d.set_instances": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.multimesh3d.set_visible_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.multimesh3d.visible_instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
       "node.name": {
         "least": 1,
         "signature": "(Node) -> str"
+      },
+      "node.occluder2d.outline": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
       },
       "node.parent": {
         "least": 1,
@@ -2034,6 +2714,10 @@
         "least": 1,
         "signature": "(Node)"
       },
+      "node.ragdoll.set_ragdoll_influence": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
       "node.remove_component": {
         "least": 2,
         "signature": "(Node, str)"
@@ -2045,6 +2729,10 @@
       "node.reset_interpolation": {
         "least": 1,
         "signature": "(Node)"
+      },
+      "node.screen_notifier2d.is_on_screen": {
+        "least": 1,
+        "signature": "(Node) -> bool"
       },
       "node.script_field": {
         "least": 2,
@@ -2094,13 +2782,425 @@
         "least": 2,
         "signature": "(Node, int)"
       },
+      "node.shape2d.set_rectangle": {
+        "least": 3,
+        "signature": "(Node, float, float)"
+      },
+      "node.shape3d.set_box": {
+        "least": 4,
+        "signature": "(Node, float, float, float)"
+      },
+      "node.shape3d.set_sphere": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
       "node.sibling_index": {
         "least": 1,
         "signature": "(Node) -> int"
       },
+      "node.softbody2d.add_particle_force": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody2d.add_softbody_force": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody2d.apply_particle_impulse": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody2d.apply_softbody_impulse": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody2d.apply_softbody_impulse_at": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "node.softbody2d.apply_softbody_radial_impulse": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "node.softbody2d.attach_particle": {
+        "least": 3,
+        "signature": "(Node, int, Node)"
+      },
+      "node.softbody2d.cut_softbody": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "node.softbody2d.detach_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "node.softbody2d.has_pending_tears": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.softbody2d.pin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody2d.reset_plasticity": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.softbody2d.reset_softbody_forces": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.softbody2d.set_cell_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "node.softbody2d.set_edge_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "node.softbody2d.set_particle_damaged": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "node.softbody2d.set_particle_position": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody2d.set_particle_target": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody2d.set_particle_velocity": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody2d.set_softbody": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody2d.softbody_area": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody2d.softbody_attachments": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody2d.softbody_boundary": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody2d.softbody_cell": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody2d.softbody_cells": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody2d.softbody_center": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody2d.softbody_contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody2d.softbody_crossing": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "node.softbody2d.softbody_edge": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody2d.softbody_edges": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody2d.softbody_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody2d.softbody_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody2d.softbody_particle_radius": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody2d.softbody_particles": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.softbody2d.softbody_position": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec2"
+      },
+      "node.softbody2d.softbody_rest_area": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody2d.softbody_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.softbody2d.softbody_stress": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.softbody2d.softbody_velocity": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec2"
+      },
+      "node.softbody2d.softbody_volume_pieces": {
+        "least": 1,
+        "signature": "(Node) -> [any]"
+      },
+      "node.softbody2d.tear_cell": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody2d.tear_edge": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody2d.tear_softbody": {
+        "least": 1,
+        "signature": "(Node, any, any) -> any"
+      },
+      "node.softbody2d.unpin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody2d.wake_softbody": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.softbody3d.add_particle_force": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody3d.add_softbody_force": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody3d.apply_particle_impulse": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody3d.apply_softbody_impulse": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody3d.apply_softbody_impulse_at": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "node.softbody3d.apply_softbody_radial_impulse": {
+        "least": 1,
+        "signature": "(Node, any, any, any)"
+      },
+      "node.softbody3d.attach_particle": {
+        "least": 3,
+        "signature": "(Node, int, Node)"
+      },
+      "node.softbody3d.cut_softbody": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "node.softbody3d.detach_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> bool"
+      },
+      "node.softbody3d.has_pending_tears": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.softbody3d.pin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody3d.reset_plasticity": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.softbody3d.reset_softbody_forces": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.softbody3d.set_cell_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "node.softbody3d.set_edge_tear_resistance": {
+        "least": 3,
+        "signature": "(Node, int, float)"
+      },
+      "node.softbody3d.set_particle_damaged": {
+        "least": 3,
+        "signature": "(Node, int, bool)"
+      },
+      "node.softbody3d.set_particle_position": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody3d.set_particle_target": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody3d.set_particle_velocity": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.softbody3d.set_softbody": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.softbody3d.softbody_attachments": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody3d.softbody_boundary": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody3d.softbody_cell": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody3d.softbody_cells": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody3d.softbody_center": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody3d.softbody_contacts": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.softbody3d.softbody_crossing": {
+        "least": 1,
+        "signature": "(Node, any) -> any"
+      },
+      "node.softbody3d.softbody_dihedral": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody3d.softbody_dihedrals": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody3d.softbody_edge": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody3d.softbody_edges": {
+        "least": 1,
+        "signature": "(Node) -> [[int]]"
+      },
+      "node.softbody3d.softbody_mass": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody3d.softbody_particle": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.softbody3d.softbody_particle_radius": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody3d.softbody_particles": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.softbody3d.softbody_position": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec3"
+      },
+      "node.softbody3d.softbody_rest_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody3d.softbody_sleeping": {
+        "least": 1,
+        "signature": "(Node) -> bool"
+      },
+      "node.softbody3d.softbody_stress": {
+        "least": 1,
+        "signature": "(Node) -> [float]"
+      },
+      "node.softbody3d.softbody_velocity": {
+        "least": 2,
+        "signature": "(Node, int) -> Vec3"
+      },
+      "node.softbody3d.softbody_volume": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.softbody3d.softbody_volume_pieces": {
+        "least": 1,
+        "signature": "(Node) -> [any]"
+      },
+      "node.softbody3d.tear_cell": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody3d.tear_edge": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody3d.tear_softbody": {
+        "least": 1,
+        "signature": "(Node, any, any) -> any"
+      },
+      "node.softbody3d.unpin_particle": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.softbody3d.wake_softbody": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.sound.play": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.sound.seek": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.sound.skip": {
+        "least": 1,
+        "signature": "(Node)"
+      },
+      "node.sound.stop": {
+        "least": 1,
+        "signature": "(Node)"
+      },
       "node.stable_id": {
         "least": 1,
         "signature": "(Node) -> str"
+      },
+      "node.state_machine.current_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.state_machine.jump": {
+        "least": 2,
+        "signature": "(Node, str)"
+      },
+      "node.state_machine.set_condition": {
+        "least": 3,
+        "signature": "(Node, str, bool)"
+      },
+      "node.state_machine.travel": {
+        "least": 2,
+        "signature": "(Node, str)"
       },
       "node.states.set_state": {
         "least": 2,
@@ -2117,6 +3217,26 @@
       "node.ticking": {
         "least": 1,
         "signature": "(Node) -> bool"
+      },
+      "node.tilemap.cell": {
+        "least": 3,
+        "signature": "(Node, int, int) -> int"
+      },
+      "node.tilemap.set_cell": {
+        "least": 4,
+        "signature": "(Node, int, int, int)"
+      },
+      "node.tilemap.set_terrain": {
+        "least": 4,
+        "signature": "(Node, int, int, int)"
+      },
+      "node.tilemap.terrain": {
+        "least": 3,
+        "signature": "(Node, int, int) -> int"
+      },
+      "node.tilemap.tile_data": {
+        "least": 3,
+        "signature": "(Node, int, int) -> any"
       },
       "node.tint": {
         "least": 1,
@@ -2138,6 +3258,14 @@
         "least": 4,
         "signature": "(Node, float, float, float)"
       },
+      "node.vehicle3d.speed": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
+      "node.vehicle3d.vehicle_speed": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
       "node.visible": {
         "least": 1,
         "signature": "(Node) -> bool"
@@ -2145,6 +3273,26 @@
       "node.visible_in_tree": {
         "least": 1,
         "signature": "(Node) -> bool"
+      },
+      "node.wheel3d.set_brake": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.wheel3d.set_engine_force": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.wheel3d.set_steering": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.wheel3d.set_wheel_rotation": {
+        "least": 2,
+        "signature": "(Node, float)"
+      },
+      "node.wheel3d.wheel_state": {
+        "least": 1,
+        "signature": "(Node) -> any"
       },
       "node.z_index": {
         "least": 1,
@@ -24353,7 +25501,7 @@
         "dropdown": "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
         "edit": "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
         "fill_rows": "`fill_strip` for a form: each row table is a `label`, its `controls` and an optional `draw` hatch, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
-        "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen, so a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+        "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",

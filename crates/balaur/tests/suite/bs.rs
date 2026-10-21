@@ -1060,3 +1060,45 @@ fn the_ported_editor_libraries_answer_as_rune_did() {
         ))
     );
 }
+
+const NAMED_HANDLERS: &str = r#"pub struct Panel { frame: int, said: str, clicks: int }
+impl Panel {
+    pub fn update(dt: float) {
+        self.frame += 1;
+        let controls: [any] = [
+            map().with("kind", "text_field").with("text", "").with("on", "typed").with("data", "query"),
+            map().with("kind", "button").with("text", "Go").with("on", "pressed").with("data", 7),
+        ];
+        ui::fill_strip("Panel/Strip", controls);
+        if self.frame == 2 {
+            let made = scene::get_node("Panel/Strip").children();
+            ui::edit(made[0], "ball");
+            ui::click(made[1]);
+        }
+    }
+    pub fn typed(data: any, text: any) {
+        self.said = "{data}={text}";
+    }
+    pub fn pressed(data: any, on: any) {
+        if on.as_bool() {
+            self.clicks += data.as_int();
+        }
+    }
+}
+"#;
+
+// A script that hands the engine no functions names its handler: the pool
+// calls it on the script above the control, with the spec's data first.
+#[test]
+fn a_pooled_control_calls_the_method_it_names_with_its_data() {
+    use balaur_script::Value::{Int, Str};
+    let dir = one_script("Panel", NAMED_HANDLERS);
+    let scene = dir.path().join("main.toml");
+    let mut text = std::fs::read_to_string(&scene).unwrap();
+    text.push_str("\n[[nodes]]\nid = \"strip\"\nname = \"Strip\"\nparent = \"n\"\n[nodes.widget]\nkind = \"row\"\n");
+    std::fs::write(&scene, text).unwrap();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 4);
+    assert_eq!(field(&app, "Panel", "said"), Some(Str("query=ball".into())));
+    assert_eq!(field(&app, "Panel", "clicks"), Some(Int(7)));
+}

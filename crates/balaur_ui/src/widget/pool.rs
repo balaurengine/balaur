@@ -671,32 +671,6 @@ fn release(host: &dyn ScriptHost<Engine>, listener: &Listener) {
     }
 }
 
-/// Hand `value` to what hears a control: a named method goes to the nearest
-/// node above `control` whose script has it, with the spec's data first.
-fn call(eng: &Engine, control: u64, handler: &Handler, value: Value) -> Result<()> {
-    let (method, data) = match handler {
-        Handler::Callback(cb) => return eng.invoke(*cb, &[value]).map(|_| ()),
-        Handler::Named { method, data } => (method, data),
-    };
-    let host = eng
-        .script_host()
-        .ok_or_else(|| anyhow!("no script backend is running"))?;
-    let mut at = balaur_core::entity_of(balaur_script::NodeId(control)).ok();
-    while let Some(entity) = at {
-        let node = balaur_core::node_id_of(entity);
-        if host.has_method(node, method) {
-            host.call_on(node, method, &[data.clone(), value]);
-            return Ok(());
-        }
-        at = eng
-            .world()
-            .get::<&balaur_core::scene::Parent>(entity)
-            .ok()
-            .map(|p| p.0);
-    }
-    Err(anyhow!("no script above the control has `{method}`"))
-}
-
 /// Drop the hosts and controls that were freed, and what they kept. Run when a
 /// host is first filled, which is when one made for a while may have gone.
 fn sweep(eng: &Engine) {
@@ -775,8 +749,34 @@ pub(crate) fn dispatch(
         }
         calls
     };
-    for (control, handler, value) in calls {
-        if let Err(err) = call(eng, control, &handler, value) {
+    // Every named handler's node found before any runs, which may reshape
+    // the tree the search walks: the nearest above the control whose script
+    // has the method, as a widget's own handler finds it.
+    let host = eng.script_host();
+    let calls: Vec<_> = calls
+        .into_iter()
+        .map(|(control, handler, value)| {
+            let to = match (&handler, &host) {
+                (Handler::Named { method, .. }, Some(host)) => {
+                    balaur_core::entity_of(balaur_script::NodeId(control))
+                        .ok()
+                        .map(|e| crate::widget::input::recipient(eng, host.as_ref(), e, method))
+                }
+                _ => None,
+            };
+            (handler, to, value)
+        })
+        .collect();
+    for (handler, to, value) in calls {
+        let heard = match (handler, to, &host) {
+            (Handler::Callback(cb), _, _) => eng.invoke(cb, &[value]).map(|_| ()),
+            (Handler::Named { method, data }, Some(to), Some(host)) => {
+                host.call_on(balaur_core::node_id_of(to), &method, &[data, value]);
+                Ok(())
+            }
+            (Handler::Named { method, .. }, ..) => Err(anyhow!("nothing hears `{method}`")),
+        };
+        if let Err(err) = heard {
             tracing::error!("a pooled control's handler: {err:#}");
         }
     }
@@ -852,7 +852,7 @@ pub(crate) fn install_pool(m: &mut dyn Bindings<Engine>) {
             "fill_strip",
             &[],
             "(host: string, controls: list) -> bool",
-            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen, so a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             "fill_rows",

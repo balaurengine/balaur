@@ -163,9 +163,10 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - `pool::strip_when` and `sync_when` take `build: fn(&mut State) -> any`.
    - A pooled control's handler is named, with its data beside it:
      `search::control` writes `on: "search_typed", data: id`, and the
-     Editor's `search_typed(id, text)` writes the query. The pool calling a
-     named handler is engine work still to do: `.bs` hands the engine no
-     functions.
+     Editor's `search_typed(id, text)` writes the query. The pool calls a
+     string `on` or `on_submit` on the nearest node above the control whose
+     script has the method, with `data` and then the edit, as a widget's own
+     handler is found (`a_pooled_control_calls_the_method_it_names_with_its_data`).
    - Tuples are the translator's `_0`, `_1` until their module is ported.
 
    `State` and every module's `*State` are classes (decided 2026-10-21): a
