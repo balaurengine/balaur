@@ -40,7 +40,7 @@ pub(crate) fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Re
         }
     }
     if ran == 0 {
-        println!("no tests: put `.rn` files under tests/");
+        println!("no tests: put `.bs` files under tests/");
         return Ok(());
     }
     println!("{} passed, {failed} failed", ran - failed);
@@ -50,7 +50,7 @@ pub(crate) fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Re
     Ok(())
 }
 
-/// Every `.rn` under `tests/`, project-relative and sorted.
+/// Every script under `tests/`, `.bs` or `.rn`, project-relative and sorted.
 pub(crate) fn test_scripts(project_root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut dirs = vec![project_root.join("tests")];
@@ -62,7 +62,7 @@ pub(crate) fn test_scripts(project_root: &Path) -> Vec<String> {
             let path = entry.path();
             if path.is_dir() {
                 dirs.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
+            } else if matches!(path.extension().and_then(|e| e.to_str()), Some("bs" | "rn"))
                 && let Ok(rel) = path.strip_prefix(project_root)
             {
                 out.push(rel.to_string_lossy().replace('\\', "/"));

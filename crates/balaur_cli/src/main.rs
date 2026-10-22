@@ -201,9 +201,9 @@ enum Command {
         #[arg(default_value = ".")]
         path: PathBuf,
     },
-    /// Run a project's own tests: every `tests/**/*.rn` is attached to a
-    /// fresh node in a headless copy of the project and ticked; a script
-    /// error, an `assert!` included, fails it.
+    /// Run a project's own tests: every `tests/**/*.bs` is attached to a
+    /// fresh node in a headless copy of the project and ticked; a logged
+    /// error or a script that traps fails it.
     Test {
         #[arg(default_value = ".")]
         path: PathBuf,
@@ -1171,5 +1171,41 @@ mod tests {
             errors_of("tests/fail.rn") >= 1,
             "a failed assert is a logged error"
         );
+    }
+
+    #[test]
+    fn a_bs_test_fails_on_a_logged_error_or_a_trap() {
+        balaur::logbuf::capture_for_test();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        let test = |name: &str, body: &str| {
+            let source =
+                format!("pub struct T {{ node: Node }}\nimpl T {{ fn init() {{ {body} }} }}\n");
+            std::fs::write(dir.path().join(format!("tests/{name}.bs")), source).unwrap();
+        };
+        test("pass", "if 1 + 1 != 2 { log::error(\"sums\"); }");
+        test("said", "if 1 + 1 != 3 { log::error(\"not three\"); }");
+        test("trap", "let none: [int] = []; let x = none[1];");
+        assert_eq!(
+            test_scripts(dir.path()),
+            ["tests/pass.bs", "tests/said.bs", "tests/trap.bs"]
+        );
+        let errors_of = |rel: &str| {
+            balaur::logbuf::clear();
+            run_test(dir.path(), rel, 2).unwrap();
+            balaur::logbuf::recent(500)
+                .into_iter()
+                .filter(|e| e.level == "error")
+                .count()
+        };
+        assert_eq!(errors_of("tests/pass.bs"), 0);
+        assert!(errors_of("tests/said.bs") >= 1, "a logged error fails it");
+        assert!(errors_of("tests/trap.bs") >= 1, "a trap fails it");
     }
 }
