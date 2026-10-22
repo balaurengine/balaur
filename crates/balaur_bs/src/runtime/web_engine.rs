@@ -122,12 +122,6 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         WebAssembly::Module::new(&Uint8Array::from(setup.wasm).into()).map_err(|e| js_err(&e))?;
     let live: Rc<RefCell<Option<Live>>> = Rc::new(RefCell::new(None));
     let env = Object::new();
-    // A host function is variadic from JavaScript's side; this hands the Rust
-    // closure its arguments as one array.
-    let shim = Function::new_with_args(
-        "f",
-        "return function(){ return f(Array.prototype.slice.call(arguments)); }",
-    );
     let mut keep = vec![];
     let direct = setup.meta.direct.then(|| {
         DIRECT.with(|t| {
@@ -149,6 +143,15 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     } else {
         &setup.meta.imports
     };
+    // A host function is variadic from JavaScript's side; this hands the Rust
+    // closure its arguments as one array. Built only here: a page whose
+    // content policy refuses `unsafe-eval` runs direct modules alone.
+    let shim = (!one_each.is_empty()).then(|| {
+        Function::new_with_args(
+            "f",
+            "return function(){ return f(Array.prototype.slice.call(arguments)); }",
+        )
+    });
     for (index, imp) in one_each.iter().enumerate() {
         let (host, live, params) = (setup.host.clone(), live.clone(), imp.params.clone());
         let f: Import = Closure::new(move |a: Array| {
@@ -170,6 +173,8 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
             })
         });
         let wrapped = shim
+            .as_ref()
+            .ok_or_else(|| "no shim for an import".to_string())?
             .call1(&JsValue::NULL, f.as_ref())
             .map_err(|e| js_err(&e))?;
         Reflect::set(&env, &imp.name.as_str().into(), &wrapped).map_err(|e| js_err(&e))?;

@@ -464,6 +464,66 @@ fn a_script_calls_a_node_running_its_own_file() {
     assert_eq!(field(&app, "A/B", "hits"), Some(Int(10)));
 }
 
+// `Host` calls `Guest`, which calls `Host` back while `Host`'s call runs:
+// the plugin answering the Editor and calling the Editor back.
+const HOST: &str = "pub class Count { n: int }
+
+pub struct Host {
+    node: Node,
+    count: Count,
+    seen: int,
+}
+
+impl Host {
+    fn init() {
+        self.count = Count { n: 0 };
+    }
+    fn update(dt: float) {
+        self.node.get_node(\"Guest\").call(\"visit\");
+        self.seen = self.count.n;
+    }
+    pub fn note(by: int) {
+        self.count.n += by;
+    }
+}
+";
+
+const GUEST: &str = "pub struct Guest {
+    node: Node,
+}
+
+impl Guest {
+    pub fn visit() {
+        self.node.parent().call(\"note\", 3);
+    }
+}
+";
+
+#[test]
+fn a_call_back_into_a_busy_script_shares_the_class_it_keeps() {
+    use balaur_script::Value::Int;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"h\"\nname = \"Host\"\nscript = { source = \"scripts/host.bs\" }\n\n\
+         [[nodes]]\nid = \"g\"\nname = \"Guest\"\nparent = \"h\"\nscript = { source = \"scripts/guest.bs\" }\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scripts/host.bs"), HOST).unwrap();
+    std::fs::write(dir.path().join("scripts/guest.bs"), GUEST).unwrap();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 1);
+    assert_eq!(field(&app, "Host", "seen"), Some(Int(3)));
+    ticked(&mut app, 1);
+    assert_eq!(field(&app, "Host", "seen"), Some(Int(6)));
+}
+
 #[test]
 fn balaur_check_names_the_line_a_bs_script_breaks_on() {
     let broken = COUNTER.replace(

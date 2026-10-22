@@ -222,9 +222,23 @@ pub(crate) fn line(f: &balaur_bs::HostSignature) -> String {
     format!("{} {:?} -> {:?}{tail}", f.key, f.params, f.ret)
 }
 
-/// Every function of `api` as a line, sorted.
+/// Every function of `api` as a line, sorted, with the getter and setter of
+/// each component property: a script reading `node.transform.position`
+/// calls one, and a pack records it.
 pub(crate) fn lines(api: &HostApi) -> Vec<String> {
     let mut lines: Vec<String> = api.functions.iter().map(line).collect();
+    for (component, props) in &api.components {
+        for (prop, ty) in props {
+            let accessor = |end: &str, params: Vec<Ty>, ret: Ty| HostSignature {
+                key: format!("{component}.{prop}.{end}"),
+                params,
+                ret,
+                is_async: false,
+            };
+            lines.push(line(&accessor("get", vec![Ty::Node], ty.clone())));
+            lines.push(line(&accessor("set", vec![Ty::Node, ty.clone()], Ty::Void)));
+        }
+    }
     lines.sort();
     lines
 }

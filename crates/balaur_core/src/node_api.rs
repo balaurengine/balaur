@@ -92,6 +92,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_component,
     },
     NodeOp {
+        name: "try_set_component",
+        call: try_set_component,
+    },
+    NodeOp {
         name: "patch_component",
         call: patch_component,
     },
@@ -275,6 +279,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("sibling_index", &[], "()", "Where the node sits among its parent's children, counting from zero; 0 at the root."),
         ("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest."),
         ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
+        ("try_set_component", &[], "(component: string, params: any?)", "As `set_component`, answering whether the component took the table rather than failing when it refuses it: an editor writing what a reader typed asks this."),
         ("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
         ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
@@ -811,6 +816,13 @@ fn set_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     crate::components::add(eng, e, text(args, 1)?, params.as_ref())?;
     Ok(Value::Nil)
+}
+
+/// `set_component` for a caller that expects a refusal: `false` where
+/// `set_component` fails.
+fn try_set_component(eng: &Engine, args: &[Value]) -> Result<Value> {
+    node(args)?;
+    Ok(Value::Bool(set_component(eng, args).is_ok()))
 }
 
 /// Writes over what the component currently holds, so the properties the

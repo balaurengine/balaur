@@ -631,12 +631,14 @@ pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
 /// that directory is declared as a second `fs` root so the editor may write
 /// into it. Seeding `game_root` is the caller's job — see
 /// `balaur_core::files::MemoryFs`.
+/// `states` is what `balaur edit --state` takes, for a self-test in a tab.
 #[cfg(feature = "window")]
 pub async fn boot_editor_on_canvas(
     editor_pack: &[u8],
     editor_root: &str,
     game_root: &str,
     canvas_id: &str,
+    states: Option<String>,
     extra: ExtraPlugins<'_>,
 ) -> Result<()> {
     let pack = Pack::decode(editor_pack)?;
@@ -646,6 +648,7 @@ pub async fn boot_editor_on_canvas(
     // to be a directory that exists — in a browser, one the caller seeded.
     config.project_root = std::path::PathBuf::from(editor_root);
     config.script_args = vec![game_root.to_string()];
+    config.script_args.extend(states);
     let mut app = standard_app(config)?;
     // The editor's own verbs, `export` among them, which the host binary
     // registers rather than the engine: on the web they are what a tab can do

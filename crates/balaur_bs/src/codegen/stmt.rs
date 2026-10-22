@@ -332,10 +332,8 @@ impl FnGen<'_> {
         Ok(())
     }
 
-    // An `any` holding a list, walked as `for i in 0..xs.len() { let x =
-    // xs.at(i); .. }`: each element is the one the list holds, so a map
-    // changed in the loop is changed in the list. Read out as a `[any]` it
-    // would be a copy of each.
+    // An `any` list walked as `xs.at(i)` for each `i`: the elements the list
+    // holds, where reading it out as a `[any]` copied each.
     fn for_each_any(&mut self, var: &str, items: &Expr, body: &Block) -> R<()> {
         let pos = items.pos;
         let k = self.locals.len();

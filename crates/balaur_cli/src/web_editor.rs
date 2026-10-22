@@ -41,6 +41,7 @@ pub async fn start_manager(canvas_id: String, editor_pack_url: String) -> Result
         EDITOR_ROOT,
         "",
         &canvas_id,
+        page_states(),
         &mut editor_plugins(&editor_pack_url),
     )
     .await
@@ -110,6 +111,7 @@ pub async fn open_project(
         EDITOR_ROOT,
         PROJECT_ROOT,
         &canvas_id,
+        page_states(),
         &mut editor_plugins(&editor_pack_url),
     )
     .await
@@ -122,6 +124,17 @@ pub async fn open_project(
 /// a desktop, with the error a tab has to give. `project` is the start
 /// screen's: the editor's scripts name it on every platform, and the page
 /// rather than the screen is what opens a project in a tab.
+/// `?state=` on the page: the start-up states `balaur edit --state` takes, so
+/// a self-test runs in a tab as it does on a desktop.
+fn page_states() -> Option<String> {
+    let query = web_sys::window()?.location().search().ok()?;
+    let value = query
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("state="))?;
+    js_sys::decode_uri_component(value).ok().map(String::from)
+}
+
 fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 3] {
     [
         Box::new(crate::web_export::WebExportPlugin::new(

@@ -86,6 +86,9 @@ struct Instance {
     node: u64,
     path: String,
     obj: RefCell<Option<Object>>,
+    /// A second holder of `obj` while a call has it, which a call made into
+    /// the same instance meanwhile runs on (`Runtime::share`).
+    lent: RefCell<Option<Object>>,
 }
 
 /// Where [`BsHost::of`] finds the host; weak, since the host holds the engine.
@@ -516,13 +519,41 @@ impl BsHost {
             drop(rt);
             return self.run_steppable(file, inst, method, &args);
         }
-        let mut obj = inst
-            .obj
-            .borrow_mut()
-            .take()
-            .ok_or_else(|| anyhow!("[{}] {method}: the instance is busy", inst.path))?;
+        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+            drop(rt);
+            return Self::nested(file, inst, method, &args);
+        };
+        *inst.lent.borrow_mut() = rt.share(&obj);
         let out = rt.call_method(&mut obj, method, &args);
         *inst.obj.borrow_mut() = Some(obj);
+        if let Some(lent) = inst.lent.borrow_mut().take() {
+            rt.drop_object(lent);
+        }
+        let v = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
+        Ok(Some(to_neutral(&v)))
+    }
+
+    // A call into an instance while another call into it runs, the plugin
+    // that answers the Editor calling the Editor back: on a second holder of
+    // the object, so the class it keeps its state in is the one both see.
+    fn nested(file: &File, inst: &Instance, method: &str, args: &[L]) -> Result<Option<Value>> {
+        let busy = || {
+            anyhow!(
+                "[{}] {method}: the instance is busy, and holds a string, list or any outside a class",
+                inst.path
+            )
+        };
+        let mut copy = {
+            let lent = inst.lent.borrow();
+            let lent = lent.as_ref().ok_or_else(busy)?;
+            file.either(|rt| rt.share(lent), |re| re.share(lent))
+                .ok_or_else(busy)?
+        };
+        let out = match file.rt.try_borrow_mut() {
+            Ok(mut rt) => rt.call_method(&mut copy, method, args),
+            Err(_) => file.reentry.call_method(&mut copy, method, args),
+        };
+        file.drop_object(copy);
         let v = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
         Ok(Some(to_neutral(&v)))
     }
@@ -539,11 +570,13 @@ impl BsHost {
         is_async: bool,
         done: Option<u64>,
     ) -> Result<Option<Value>> {
-        let mut obj = inst
-            .obj
-            .borrow_mut()
-            .take()
-            .ok_or_else(|| anyhow!("[{}] {method}: the instance is busy", inst.path))?;
+        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+            if is_async {
+                return Err(anyhow!("[{}] {method}: the instance is busy", inst.path));
+            }
+            return Self::nested(file, inst, method, args);
+        };
+        *inst.lent.borrow_mut() = file.reentry.share(&obj);
         let out = if is_async {
             let key = format!("{}.{method}", file.ty);
             file.reentry.start(&key, args, &mut obj).map(|(task, out)| {
@@ -562,6 +595,9 @@ impl BsHost {
             file.reentry.call_method(&mut obj, method, args).map(Some)
         };
         *inst.obj.borrow_mut() = Some(obj);
+        if let Some(lent) = inst.lent.borrow_mut().take() {
+            file.drop_object(lent);
+        }
         let out = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
         Ok(out.map(|v| to_neutral(&v)))
     }
@@ -642,6 +678,7 @@ impl ScriptHost<Engine> for BsHost {
             node: node.0,
             path: key_of(path),
             obj: RefCell::new(Some(obj)),
+            lent: RefCell::new(None),
         }));
         if self.inner.holds.get() > 0 {
             self.inner.held.borrow_mut().push(node.0);

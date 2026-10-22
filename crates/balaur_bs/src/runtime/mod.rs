@@ -333,6 +333,30 @@ impl Runtime {
         self.release(&ty, &obj.raw);
     }
 
+    /// A second holder of `obj`, for a call into it while another runs: the
+    /// same fields, each class it holds counted once more, so the copy keeps
+    /// them whatever the running call does. `None` when it holds a string, a
+    /// list or an `any`, which the running call may free under the copy.
+    /// [`Runtime::drop_object`] lets go of it.
+    pub fn share(&mut self, obj: &Object) -> Option<Object> {
+        let slots = slots(&self.meta, &Ty::Struct(obj.ty.clone()));
+        let classes = |h: &Ty| matches!(h, Ty::Struct(c) if self.meta.is_class(c));
+        if !slots.iter().all(|(_, h)| h.as_ref().is_none_or(classes)) {
+            return None;
+        }
+        for ((_, heap), r) in slots.iter().zip(&obj.raw) {
+            let p = r.i32();
+            if heap.is_some() && p != 0 {
+                let n = rd32(&Live(&*self.wasm), p as usize);
+                self.wasm.write(p as usize, &(n + 1).to_le_bytes());
+            }
+        }
+        Some(Object {
+            ty: obj.ty.clone(),
+            raw: obj.raw.clone(),
+        })
+    }
+
     /// Calls a free function.
     pub fn call(&mut self, key: &str, args: &[Value]) -> Result<Value, RunError> {
         let info = self.meta.function(key).cloned().ok_or(RunError {

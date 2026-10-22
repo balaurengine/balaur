@@ -61,6 +61,11 @@ impl Reentry {
         self.inside(|rt| rt.object(ty, init))
     }
 
+    /// [`Runtime::share`] from inside the file's engine call.
+    pub fn share(&self, obj: &Object) -> Option<Object> {
+        self.inside(|rt| Ok(rt.share(obj))).ok().flatten()
+    }
+
     /// [`Runtime::drop_object`] from inside the file's engine call.
     pub fn drop_object(&self, obj: Object) -> Result<(), RunError> {
         self.inside(|rt| {

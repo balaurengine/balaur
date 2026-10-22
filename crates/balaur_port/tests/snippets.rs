@@ -267,7 +267,10 @@ pub fn say(run, n) {
 "#,
     );
     has(&out, r#"let d = "held {[run, n]}";"#);
-    assert!(!out.contains("writes only"), "a list interpolates through its text form:\n{out}");
+    assert!(
+        !out.contains("writes only"),
+        "a list interpolates through its text form:\n{out}"
+    );
     has(&out, r#"log::info("suite: done {run} after {n} frames");"#);
     has(&out, r#"let a = "{n} of {10}";"#);
     has(
