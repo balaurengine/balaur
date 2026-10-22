@@ -124,7 +124,7 @@ pub(crate) fn cache_in(dir: PathBuf) {
 /// `wasm` compiled, from the cache when it has it: compiling is most of
 /// what loading a script costs on wasmtime.
 fn module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module, String> {
-    let compile = || wasmtime::Module::new(eng, wasm).map_err(|e| format!("invalid module: {e}"));
+    let compile = || wasmtime::Module::new(eng, wasm).map_err(|e| format!("invalid module: {e:#}"));
     let Some(dir) = CACHE.get() else {
         return compile();
     };

@@ -43,6 +43,7 @@ impl FnGen<'_> {
         self.get_raw(f);
         self.spill();
         let (p, r) = self.g.wasm_sig(&sig);
+        self.g.calls_indirect.set(true);
         self.e(I::CallIndirect {
             type_index: self.g.type_idx(p, r),
             table_index: 0,

@@ -143,6 +143,9 @@ pub(crate) struct Gen {
     probes: RefCell<Vec<Probe>>,
     /// The functions a `fn` value names, in table order from slot 1.
     fn_refs: RefCell<Vec<u32>>,
+    /// A call goes through a `fn` value: the module needs a table, even with
+    /// no function of its own named as one (the value came out of an `any`).
+    pub(crate) calls_indirect: std::cell::Cell<bool>,
 }
 
 impl Gen {
@@ -567,6 +570,7 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         }),
         probes: RefCell::new(vec![]),
         fn_refs: RefCell::new(vec![]),
+        calls_indirect: std::cell::Cell::new(false),
     })
 }
 
@@ -863,7 +867,7 @@ fn export_section(
 // each function a `fn` value names, moved as far as a direct module moved them.
 fn table_sections(g: &Gen, shift: u32) -> (Option<TableSection>, Option<ElementSection>) {
     let refs = g.fn_refs.borrow();
-    if refs.is_empty() {
+    if refs.is_empty() && !g.calls_indirect.get() {
         return (None, None);
     }
     let size = refs.len() as u64 + 1;
@@ -875,6 +879,9 @@ fn table_sections(g: &Gen, shift: u32) -> (Option<TableSection>, Option<ElementS
         maximum: Some(size),
         shared: false,
     });
+    if refs.is_empty() {
+        return (Some(table), None);
+    }
     let funcs: Vec<u32> = refs.iter().map(|i| i + shift).collect();
     let mut elements = ElementSection::new();
     elements.active(

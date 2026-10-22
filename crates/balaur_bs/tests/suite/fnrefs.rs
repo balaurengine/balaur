@@ -71,3 +71,14 @@ fn only_a_plain_function_is_a_fn_value() {
         "{e}"
     );
 }
+
+// A module that calls a `fn` value it took out of an `any`, and names no
+// function as a value itself, still has the table the call goes through.
+#[test]
+fn a_call_through_a_value_from_an_any_needs_no_named_function() {
+    let mut rt = crate::run(
+        "fn through(x: any) -> int { let f: fn(int) -> int = x.get(\"f\"); f(2) }\n\
+         pub fn plain() -> int { 1 }\n",
+    );
+    assert_eq!(crate::call(&mut rt, "plain", &[]), Value::Int(1));
+}
