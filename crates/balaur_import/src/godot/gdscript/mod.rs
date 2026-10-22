@@ -239,10 +239,10 @@ mod tests {
         .join("\n");
         let out = translate(&source, &ship());
         for line in [
-            "let fps = (gd.monitor)(0);",
+            "let fps = gd::monitor(0);",
             "let inside = geometry2d::contains(this.hull, this.speed);",
-            "let text = (gd.str)(this.speed);",
-            "let letter = (gd.chr)(65);",
+            "let text = gd::str(this.speed);",
+            "let letter = gd::chr(65);",
             "\"Dictionary\"",
             "let kids = this.node.children().len();",
             "window::set_keep_awake(true);",
@@ -260,11 +260,11 @@ mod tests {
                       var gait = hull[\"parameters/playback\"]\n";
         let out = translate(source, &ship());
         for line in [
-            r#"let playback = (gd.get)(this.hull, "parameters/playback", ());"#,
-            r#"(gd.invoke1)(playback, "travel", "run")"#,
-            r#"(gd.set)(this.hull, "parameters/conditions/moving", true);"#,
-            r#"(gd.set)(this.hull, "parameters/conditions/hurt", false)"#,
-            r#"let gait = (gd.get)(this.hull, "parameters/playback", ());"#,
+            r#"let playback = gd::get(this.hull, "parameters/playback", ());"#,
+            r#"gd::invoke1(playback, "travel", "run")"#,
+            r#"gd::set(this.hull, "parameters/conditions/moving", true);"#,
+            r#"gd::set(this.hull, "parameters/conditions/hurt", false)"#,
+            r#"let gait = gd::get(this.hull, "parameters/playback", ());"#,
         ] {
             assert!(out.contains(line), "{line}\n{out}");
         }
@@ -274,7 +274,7 @@ mod tests {
     fn a_signal_calls_its_handlers_and_emits_by_name() {
         let out = translate("sunk.emit(3)\n", &ship());
         assert!(
-            out.contains(r#"(gd.emit_now)(this.node, "sunk", [3]);"#),
+            out.contains(r#"gd::emit_now(this.node, "sunk", [3]);"#),
             "{out}"
         );
     }
@@ -300,7 +300,7 @@ mod tests {
     fn a_short_circuit_into_a_field_goes_through_a_temporary() {
         let out = translate("var live = true\nhull = live || speed\n", &ship());
         assert!(
-            out.contains("let tmp1 = live || (gd.truthy)(this.speed);"),
+            out.contains("let tmp1 = live || gd::truthy(this.speed);"),
             "{out}"
         );
         assert!(out.contains("this.hull = tmp1;"), "{out}");
@@ -313,7 +313,7 @@ mod tests {
             &ship(),
         );
         assert!(
-            out.contains(r#"(gd.format)("%s of %d", [port, 2])"#),
+            out.contains(r#"gd::format("%s of %d", [port, 2])"#),
             "{out}"
         );
         assert!(out.contains("7 % 2"), "{out}");
@@ -323,7 +323,7 @@ mod tests {
     fn writing_a_godot_property_is_a_setter_call() {
         let out = translate("visible = false\nmodulate.a = 0.5\n", &ship());
         assert!(out.contains("this.node.set_visible(false);"), "{out}");
-        assert!(out.contains("(gd.set_tint)(this.node, tmp1);"), "{out}");
+        assert!(out.contains("gd::set_tint(this.node, tmp1);"), "{out}");
     }
 
     #[test]

@@ -20,12 +20,12 @@ fn a_shader_material_a_shape_and_a_theme_override_go_through_the_shim() {
     .join("\n");
     let out = convert(&source, "scripts/fx.gd", &Classes::default());
     for want in [
-        "(gd.shader_material)()",
-        "(gd.shader)()",
-        "(gd.set_shader_parameter)(m, \"tint\", 1.0)",
-        "(gd.circle_shape)()",
-        "(gd.theme_override)(this.node, \"colors\", \"font_color\",",
-        "(gd.theme_override)(this.node, \"constants\", \"separation\", 4)",
+        "gd::shader_material()",
+        "gd::shader()",
+        "gd::set_shader_parameter(m, \"tint\", 1.0)",
+        "gd::circle_shape()",
+        "gd::theme_override(this.node, \"colors\", \"font_color\",",
+        "gd::theme_override(this.node, \"constants\", \"separation\", 4)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -40,9 +40,9 @@ func tex(path: String):\n\
 \treturn ImageTexture.create_from_image(img)\n";
     let out = convert(source, "scripts/pic.gd", &Classes::default());
     for want in [
-        "(gd.image)()",
-        "(gd.image_load)(img, path)",
-        "(gd.image_texture)(img)",
+        "gd::image()",
+        "gd::image_load(img, path)",
+        "gd::image_texture(img)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -57,9 +57,9 @@ func valid(name: String) -> bool:\n\
 \treturn expression.search(name) != null\n";
     let out = convert(source, "scripts/rules.gd", &Classes::default());
     for want in [
-        "(gd.regexp)()",
-        "(gd.invoke1)(expression, \"compile\", \"^[a-z]+$\")",
-        "(gd.invoke1)(expression, \"search\", name)",
+        "gd::regexp()",
+        "gd::invoke1(expression, \"compile\", \"^[a-z]+$\")",
+        "gd::invoke1(expression, \"search\", name)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -80,7 +80,7 @@ fn a_method_called_deferred_by_name_is_that_call_with_its_arguments() {
     .join("\n");
     let out = convert(&source, "scripts/deferred.gd", &Classes::default());
     for want in [
-        "(gd.add_child)(this.node, this.btn)",
+        "gd::add_child(this.node, this.btn)",
         "_refresh(this, false)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
@@ -105,7 +105,7 @@ fn a_callable_member_is_called_as_a_value_and_a_deferred_coroutine_makes_its_cal
     .join("\n");
     let out = convert(&source, "scripts/later.gd", &Classes::default());
     assert!(
-        out.rune.contains("(gd.call_value)(this._is_idle, [])"),
+        out.rune.contains("gd::call_value(this._is_idle, [])"),
         "{}",
         out.rune
     );
@@ -134,7 +134,7 @@ fn a_base_class_property_read_bare_is_read_off_the_node() {
     let out = convert(&source, "scripts/fold.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("(gd.field)(this.node, \"foldable_group\")"),
+            .contains("gd::field(this.node, \"foldable_group\")"),
         "{}",
         out.rune
     );
@@ -183,10 +183,10 @@ fn signals_named_as_strings_and_widget_is_connected_translate() {
     .join("\n");
     let out = convert(&source, "scripts/name_edit.gd", &Classes::default());
     for want in [
-        "(gd.widget_connected)(this.node, \"on_change\", \"_on_text_changed\")",
+        "gd::widget_connected(this.node, \"on_change\", \"_on_text_changed\")",
         "let own = true;",
         "let mine = this.node.has_component(\"widget\");",
-        "(gd.environment)(\"HOME\")",
+        "gd::environment(\"HOME\")",
         "|a0| _on_added(a0)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
@@ -213,10 +213,10 @@ fn a_multimesh_and_a_transform_built_field_by_field_translate() {
     .join("\n");
     let out = convert(&source, "scripts/waves.gd", &Classes::default());
     for want in [
-        "(gd.multimesh)()",
-        "(gd.array_mesh)()",
-        "t = (gd.with_field)(t, \"x\", (gd.vec2)(2.0, 0.0));",
-        "t = (gd.with_field)(t, \"origin\",",
+        "gd::multimesh()",
+        "gd::array_mesh()",
+        "t = gd::with_field(t, \"x\", gd::vec2(2.0, 0.0));",
+        "t = gd::with_field(t, \"origin\",",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -236,8 +236,8 @@ fn a_member_read_and_written_by_name_goes_through_the_shim() {
     .join("\n");
     let out = convert(&source, "scripts/sound.gd", &Classes::default());
     for want in [
-        "(gd.set_field)(this, member, 0.0)",
-        "(gd.field)(this, member)",
+        "gd::set_field(this, member, 0.0)",
+        "gd::field(this, member)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -270,9 +270,9 @@ fn a_signal_handed_over_as_a_value_is_connected_where_it_is_waited_on() {
     classes.signal_arity.insert("finished".into(), 0);
     let out = convert(&source, "scripts/intro.gd", &classes);
     for want in [
-        "(gd.signal_value)(this.start_button, \"pressed\", \"on_click\")",
-        "(gd.signal_value)(this.anim, \"finished\", \"\")",
-        "let forward = || { (gd.emit_now)(this.node, \"gate_released\", [true]) };",
+        "gd::signal_value(this.start_button, \"pressed\", \"on_click\")",
+        "gd::signal_value(this.anim, \"finished\", \"\")",
+        "let forward = || { gd::emit_now(this.node, \"gate_released\", [true]) };",
         "pub fn __widget_on_click(this, node)",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
@@ -296,8 +296,8 @@ fn singleton_writes_and_theme_reads_translate() {
     let out = convert(&source, "scripts/perf.gd", &Classes::default());
     for want in [
         "settings::set(\"window/max_fps\", 0);",
-        "(gd.theme_constant)(this.node, \"margin_top\")",
-        "(gd.combined_min_size)(",
+        "gd::theme_constant(this.node, \"margin_top\")",
+        "gd::combined_min_size(",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
@@ -341,7 +341,7 @@ func probe() -> bool:\n\
 \treturn JavaScriptBridge != null\n";
     let out = convert(source, "scripts/probe.gd", &Classes::default());
     assert!(!out.rune.contains("todo"), "{}", out.rune);
-    assert!(out.rune.contains("(gd.truthy)(())"), "{}", out.rune);
+    assert!(out.rune.contains("gd::truthy(())"), "{}", out.rune);
 }
 
 #[test]
@@ -355,7 +355,7 @@ func _notification(what: int) -> void:\n\
     let out = convert(source, "scripts/pause.gd", &Classes::default());
     assert!(!out.rune.contains("todo"), "{}", out.rune);
     for want in [
-        "(gd.same)(what, 2017)",
+        "gd::same(what, 2017)",
         "pub fn on_focused_changed(this, focused) {",
         "let what = if focused { 2016 } else { 2017 };",
         "pub fn on_suspended_changed(this, suspended) {",
@@ -448,8 +448,8 @@ func _on_dock(ship):\n\
     classes.collision_handlers.insert("_on_dock".into());
     let out = convert(source, "scripts/dock.gd", &classes);
     for want in [
-        "_on_hit(this, (script::require(\"gd.rn\").collided)(payload));",
-        "let ship = (script::require(\"gd.rn\").collided)(ship);",
+        "_on_hit(this, gd::collided(payload));",
+        "let ship = gd::collided(ship);",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }

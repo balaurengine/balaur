@@ -60,7 +60,7 @@ fn a_rect_and_a_list_of_dictionaries_reach_the_script() {
     );
     let script = std::fs::read_to_string(out.path().join("cache.rn")).expect("the script");
     assert!(
-        script.contains("this.country_bounds = (script::require(\"gd.rn\").export_value)(this.node, \"country_bounds\", this.country_bounds);"),
+        script.contains("this.country_bounds = gd::export_value(this.node, \"country_bounds\", this.country_bounds);"),
         "{script}"
     );
 }

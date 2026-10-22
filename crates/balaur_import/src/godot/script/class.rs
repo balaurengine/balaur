@@ -46,7 +46,7 @@ pub(super) fn data_reads(data: &[String]) -> String {
         let field = safe(name);
         let _ = writeln!(
             out,
-            "    this.{field} = (script::require(\"gd.rn\").export_value)(this.node, \"{name}\", this.{field});"
+            "    this.{field} = gd::export_value(this.node, \"{name}\", this.{field});"
         );
     }
     out
@@ -76,7 +76,7 @@ pub(super) fn init_call(functions: &[Function], scene_exports: bool) -> String {
         return call.to_string();
     }
     format!(
-        "    let scene_set = (script::require(\"gd.rn\").scene_exports)(this, exports());\n{call}    (script::require(\"gd.rn\").keep_exports)(this, scene_set);\n"
+        "    let scene_set = gd::scene_exports(this, exports());\n{call}    gd::keep_exports(this, scene_set);\n"
     )
 }
 
@@ -142,7 +142,7 @@ pub(super) fn write_constructor(
             .find(|f| f.name == "_init" && !f.overridden);
         let _ = write!(
             out,
-            "\n/// Godot's `new()`: a {root} carrying this script.\npub fn new({}) {{\n{}    let node = (gd.new_node)({}, {});\n{rerun}    node\n}}\n",
+            "\n/// Godot's `new()`: a {root} carrying this script.\npub fn new({}) {{\n{}    let node = gd::new_node({}, {});\n{rerun}    node\n}}\n",
             params.join(", "),
             shim_binding(1),
             gdscript::quoted(&doc),

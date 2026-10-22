@@ -8,7 +8,7 @@ use super::Function;
 
 /// The call a frame hook opens with when the class draws.
 pub(super) const DRAW_CALL: &str =
-    "    let _ = (script::require(\"gd.rn\").draw_frame)(this.node);\n";
+    "    let _ = gd::draw_frame(this.node);\n";
 
 /// A class with a `_draw` and no `_process` gains the frame hook that draws.
 pub(super) fn write_draw_hook(out: &mut String, functions: &[Function]) {

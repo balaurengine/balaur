@@ -11,7 +11,7 @@ pub(crate) const SHIM: &str = concat!(include_str!("gd_values.rn"), include_str!
 
 #[cfg(test)]
 mod tests {
-    /// Every `(gd.name)` the translator writes names a function the shim
+    /// Every `gd::name` the translator writes names a function the shim
     /// defines: one it lacks compiles, and fails only when a game reaches it.
     #[test]
     fn every_shim_call_the_translator_writes_is_defined() {
@@ -137,12 +137,12 @@ mod tests {
             "probe.rn",
             "pub async fn init(this) {\n\
              \x20   let gd = script::require(\"gd.rn\");\n\
-             \x20   let v = (gd.vec2)(1.0, 2.0) + (gd.neg)((gd.vec2)(0.5, 0.5));\n\
-             \x20   let waited = (gd.invoke_async1)(#{ \"f\": async |x| x + 1 }, \"f\", 1).await;\n\
-             \x20   let wider = (gd.invoke1)((gd.vec2)(1.0, 5.0), \"max\", (gd.vec2)(3.0, 2.0));\n\
-             \x20   if (gd.field)(v, \"x\") == 0.5 && (gd.color_of)(\"ff0000\").r == 1.0 && waited == 2\n\
-             \x20       && (gd.find)(\"a=b\", \"=\") == 1 && (gd.size)([1, 2]) - 3 == -1\n\
-             \x20       && (gd.field)(wider, \"x\") == 3.0 && (gd.field)(wider, \"y\") == 5.0 {\n\
+             \x20   let v = gd::vec2(1.0, 2.0) + gd::neg(gd::vec2(0.5, 0.5));\n\
+             \x20   let waited = gd::invoke_async1(#{ \"f\": async |x| x + 1 }, \"f\", 1).await;\n\
+             \x20   let wider = gd::invoke1(gd::vec2(1.0, 5.0), \"max\", gd::vec2(3.0, 2.0));\n\
+             \x20   if gd::field(v, \"x\") == 0.5 && gd::color_of(\"ff0000\").r == 1.0 && waited == 2\n\
+             \x20       && gd::find(\"a=b\", \"=\") == 1 && gd::size([1, 2]) - 3 == -1\n\
+             \x20       && gd::field(wider, \"x\") == 3.0 && gd::field(wider, \"y\") == 5.0 {\n\
              \x20       this.node.set_visible(false);\n\
              \x20   }\n\
              }\n",
@@ -207,13 +207,13 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let has = (gd.invoke1)(this.node, \"has_animation\", \"start\");",
-                "    let lacks = (gd.invoke1)(this.node, \"has_animation\", \"end\");",
-                "    (gd.invoke1)(this.node, \"play\", \"start\");",
-                "    (gd.set_field)(this.node, \"speed_scale\", 4.0);",
-                "    let playing = (gd.invoke)(this.node, \"is_playing\");",
-                "    let current = (gd.invoke)(this.node, \"get_current_animation\");",
-                "    let speed = (gd.field)(this.node, \"speed_scale\");",
+                "    let has = gd::invoke1(this.node, \"has_animation\", \"start\");",
+                "    let lacks = gd::invoke1(this.node, \"has_animation\", \"end\");",
+                "    gd::invoke1(this.node, \"play\", \"start\");",
+                "    gd::set_field(this.node, \"speed_scale\", 4.0);",
+                "    let playing = gd::invoke(this.node, \"is_playing\");",
+                "    let current = gd::invoke(this.node, \"get_current_animation\");",
+                "    let speed = gd::field(this.node, \"speed_scale\");",
                 "    if has && !lacks && playing && current == \"start\" && speed == 4.0 {",
                 "        this.node.set_z_index(7);",
                 "    }",
@@ -260,21 +260,21 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let mesh = (gd.array_mesh)();",
-                "    let tri = [(gd.vec3)(0.0, 0.0, 0.0), (gd.vec3)(100.0, 0.0, 0.0), (gd.vec3)(0.0, 100.0, 0.0)];",
+                "    let mesh = gd::array_mesh();",
+                "    let tri = [gd::vec3(0.0, 0.0, 0.0), gd::vec3(100.0, 0.0, 0.0), gd::vec3(0.0, 100.0, 0.0)];",
                 "    (mesh[\"add_surface_from_arrays\"])(3, [tri]);",
-                "    let mm = (gd.multimesh)();",
-                "    (gd.set_field)(mm, \"mesh\", mesh);",
-                "    let early = (gd.transform2d)([]);",
-                "    early = (gd.with_field)(early, \"origin\", (gd.vec2)(0.0, 100.0));",
+                "    let mm = gd::multimesh();",
+                "    gd::set_field(mm, \"mesh\", mesh);",
+                "    let early = gd::transform2d([]);",
+                "    early = gd::with_field(early, \"origin\", gd::vec2(0.0, 100.0));",
                 "    (mm[\"set_instance_transform_2d\"])(0, early);",
-                "    (gd.set_field)(this.node, \"multimesh\", mm);",
-                "    (gd.set_field)(mm, \"instance_count\", 2);",
-                "    let t = (gd.transform2d)([]);",
-                "    t = (gd.with_field)(t, \"x\", (gd.vec2)(2.0, 0.0));",
-                "    t = (gd.with_field)(t, \"origin\", (gd.vec2)(300.0, 0.0));",
+                "    gd::set_field(this.node, \"multimesh\", mm);",
+                "    gd::set_field(mm, \"instance_count\", 2);",
+                "    let t = gd::transform2d([]);",
+                "    t = gd::with_field(t, \"x\", gd::vec2(2.0, 0.0));",
+                "    t = gd::with_field(t, \"origin\", gd::vec2(300.0, 0.0));",
                 "    (mm[\"set_instance_transform_2d\"])(1, t);",
-                "    (mm[\"set_instance_color\"])(1, (gd.color)(1.0, 0.0, 0.0, 0.5));",
+                "    (mm[\"set_instance_color\"])(1, gd::color(1.0, 0.0, 0.0, 0.5));",
                 "    let handle = this.node.multimesh2d;",
                 "    let (scale, turn, at) = handle.instance_transform(1).to_scale_angle_translation();",
                 "    let (_, _, first) = handle.instance_transform(0).to_scale_angle_translation();",
@@ -324,11 +324,11 @@ mod tests {
             &[
                 "pub fn _draw(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    (gd.draw_circle)(this.node, (gd.vec2)(0.0, 0.0), 4.0, (), (), (), ());",
-                "    (gd.draw_texture_rect_region)(this.node, \"sheet.png\", (gd.rect)(0.0, 0.0, 8.0, 8.0), (gd.rect)(16.0, 0.0, 16.0, 8.0), (), (), ());",
+                "    gd::draw_circle(this.node, gd::vec2(0.0, 0.0), 4.0, (), (), (), ());",
+                "    gd::draw_texture_rect_region(this.node, \"sheet.png\", gd::rect(0.0, 0.0, 8.0, 8.0), gd::rect(16.0, 0.0, 16.0, 8.0), (), (), ());",
                 "}",
                 "pub fn init(this) {",
-                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "    gd::draw_frame(this.node);",
                 "}",
                 "",
             ]
@@ -375,12 +375,12 @@ mod tests {
             "probe.rn",
             &[
                 "pub fn _draw(this) {",
-                "    (script::require(\"gd.rn\").draw_circle)(this.node, (script::require(\"gd.rn\").vec2)(0.0, 0.0), 4.0, (), (), (), ());",
+                "    gd::draw_circle(this.node, gd::vec2(0.0, 0.0), 4.0, (), (), (), ());",
                 "}",
                 "pub fn init(this) {",
-                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "    gd::draw_frame(this.node);",
                 "    this.node.set_visible(false);",
-                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "    gd::draw_frame(this.node);",
                 "}",
                 "",
             ]
@@ -433,10 +433,10 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let before = (gd.field)(this.node, \"amount\");",
-                "    (gd.set_field)(this.node, \"amount\", 10);",
+                "    let before = gd::field(this.node, \"amount\");",
+                "    gd::set_field(this.node, \"amount\", 10);",
                 "    let rate = this.node.get_component(\"particles2d\")[\"rate\"];",
-                "    let pick = (gd.option_index)(this.node.get_node(\"Pick\"));",
+                "    let pick = gd::option_index(this.node.get_node(\"Pick\"));",
                 "    if before == 40 && rate == 5.0 && pick == -1 {",
                 "        this.node.set_visible(false);",
                 "    }",
@@ -487,7 +487,7 @@ mod tests {
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
                 "    let bound = #{ \"__bound\": this.node, \"__method\": \"take\", \"__args\": [2] };",
-                "    (gd.call_value)(bound, [1]);",
+                "    gd::call_value(bound, [1]);",
                 "}",
                 "",
             ]
@@ -529,8 +529,8 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let size = (gd.field)(scene::root(), \"size\");",
-                "    if (gd.field)(size, \"x\") == 840.0 && (gd.field)(size, \"y\") == 1920.0 {",
+                "    let size = gd::field(scene::root(), \"size\");",
+                "    if gd::field(size, \"x\") == 840.0 && gd::field(size, \"y\") == 1920.0 {",
                 "        this.node.set_visible(false);",
                 "    }",
                 "}",
@@ -575,8 +575,8 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let found = (gd.resource_exists)(`res://${\"ro\"}.tscn`);",
-                "    let missing = (gd.resource_exists)(\"res://hu.tscn\");",
+                "    let found = gd::resource_exists(`res://${\"ro\"}.tscn`);",
+                "    let missing = gd::resource_exists(\"res://hu.tscn\");",
                 "    if found && !missing {",
                 "        this.node.set_visible(false);",
                 "    }",
@@ -635,11 +635,11 @@ mod tests {
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
                 "    let line = this.node.get_node(\"Route\");",
-                "    let before = (gd.invoke)(line, \"get_point_count\");",
-                "    (gd.invoke1)(line, \"add_point\", (gd.vec2)(300.0, 0.0));",
-                "    let second = (gd.invoke1)(line, \"get_point_position\", 1);",
-                "    let width = (gd.field)(line, \"width\");",
-                "    let after = (gd.size)((gd.field)(line, \"points\"));",
+                "    let before = gd::invoke(line, \"get_point_count\");",
+                "    gd::invoke1(line, \"add_point\", gd::vec2(300.0, 0.0));",
+                "    let second = gd::invoke1(line, \"get_point_position\", 1);",
+                "    let width = gd::field(line, \"width\");",
+                "    let after = gd::size(gd::field(line, \"points\"));",
                 "    if before == 2 && after == 3 && second.x == 100.0 && second.y == 200.0 && width > 9.999 && width < 10.001 {",
                 "        this.node.set_visible(false);",
                 "    }",
@@ -685,10 +685,10 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let made = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
-                "    let before = (gd.inside_tree)(made);",
-                "    let _ = (gd.add_child)(this.node, made);",
-                "    let after = (gd.inside_tree)(made);",
+                "    let made = gd::instantiate(gd::load(\"res://part.tscn\"));",
+                "    let before = gd::inside_tree(made);",
+                "    let _ = gd::add_child(this.node, made);",
+                "    let after = gd::inside_tree(made);",
                 "    if made.is_valid() && !before && after {",
                 "        this.node.set_visible(false);",
                 "    }",
@@ -754,14 +754,14 @@ mod tests {
                 "    let gd = script::require(\"gd.rn\");",
                 "    let region = this.node.get_node(\"Region\");",
                 "    let caption = this.node.get_node(\"Caption\");",
-                "    let before = (gd.text_of)(region);",
-                "    (gd.set_text)(region, \"CLUJ\");",
-                "    (gd.set_text)(caption, \"Bye\");",
-                "    (gd.patch_widget)(region, #{ \"interactive\": false });",
-                "    (gd.theme_override)(region, \"font_sizes\", \"font_size\", 30);",
+                "    let before = gd::text_of(region);",
+                "    gd::set_text(region, \"CLUJ\");",
+                "    gd::set_text(caption, \"Bye\");",
+                "    gd::patch_widget(region, #{ \"interactive\": false });",
+                "    gd::theme_override(region, \"font_sizes\", \"font_size\", 30);",
                 "    let moved = region.get_component(\"text2d\")[\"text\"];",
                 "    let size = region.get_component(\"text2d\")[\"font_size\"];",
-                "    if before == \"ALBA\" && moved == \"CLUJ\" && size == 30.0 && (gd.text_of)(caption) == \"Bye\" && !region.has_component(\"widget\") {",
+                "    if before == \"ALBA\" && moved == \"CLUJ\" && size == 30.0 && gd::text_of(caption) == \"Bye\" && !region.has_component(\"widget\") {",
                 "        this.node.set_visible(false);",
                 "    }",
                 "}",
@@ -823,10 +823,10 @@ mod tests {
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
                 "    let water = this.node.get_node(\"Water\");",
-                "    let part = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
-                "    let _ = (gd.add_child)(water, part);",
-                "    (gd.remove_child)(part);",
-                "    let _ = (gd.add_child)(water, part);",
+                "    let part = gd::instantiate(gd::load(\"res://part.tscn\"));",
+                "    let _ = gd::add_child(water, part);",
+                "    gd::remove_child(part);",
+                "    let _ = gd::add_child(water, part);",
                 "    let t = part.get_component(\"transform\");",
                 "    if t[\"position\"][0] == 1.0 && t[\"position\"][1] == 2.0 && t[\"scale\"][0] == 1.0 {",
                 "        this.node.set_visible(false);",
@@ -883,11 +883,11 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let bounds = (gd.export_value)(this.node, \"bounds\", ());",
-                "    let cities = (gd.export_value)(this.node, \"cities\", []);",
-                "    let unset = (gd.export_value)(this.node, \"regions\", 7);",
-                "    let centre = (gd.invoke)(bounds, \"get_center\");",
-                "    let pos = (gd.get)(cities[0], \"pos\", ());",
+                "    let bounds = gd::export_value(this.node, \"bounds\", ());",
+                "    let cities = gd::export_value(this.node, \"cities\", []);",
+                "    let unset = gd::export_value(this.node, \"regions\", 7);",
+                "    let centre = gd::invoke(bounds, \"get_center\");",
+                "    let pos = gd::get(cities[0], \"pos\", ());",
                 "    if centre.x == 99.0 && pos.y == 88.0 && unset == 7 {",
                 "        this.node.set_visible(false);",
                 "    }",
@@ -941,11 +941,11 @@ mod tests {
             &[
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
-                "    let before = (gd.icon_of)(this.node);",
-                "    (gd.set_icon)(this.node, (gd.load)(\"res://close.svg\"));",
+                "    let before = gd::icon_of(this.node);",
+                "    gd::set_icon(this.node, gd::load(\"res://close.svg\"));",
                 "    let image = this.node.get_component(\"widget\")[\"image\"];",
-                "    let glyph = (gd.get)(this.node.get_component(\"widget\"), \"icon\", \"\");",
-                "    if (gd.same)(before, ()) && image == \"close.webp\" && glyph == \"\" {",
+                "    let glyph = gd::get(this.node.get_component(\"widget\"), \"icon\", \"\");",
+                "    if gd::same(before, ()) && image == \"close.webp\" && glyph == \"\" {",
                 "        this.node.set_z_index(3);",
                 "    }",
                 "}",
@@ -1010,12 +1010,12 @@ mod tests {
                 "pub fn init(this) {",
                 "    let gd = script::require(\"gd.rn\");",
                 "    let tab = scene::node_by_id(\"tab\");",
-                "    let open_before = !(gd.folded)(this.node);",
-                "    (gd.add_title_bar_control)(this.node, tab);",
-                "    (gd.set_field)(this.node, \"folded\", true);",
+                "    let open_before = !gd::folded(this.node);",
+                "    gd::add_title_bar_control(this.node, tab);",
+                "    gd::set_field(this.node, \"folded\", true);",
                 "    let barred = tab.get_component(\"widget\")[\"title_bar\"];",
                 "    let shut = !this.node.get_component(\"widget\")[\"open\"];",
-                "    if open_before && barred && shut && (gd.same)(tab.parent(), this.node) && (gd.field)(this.node, \"folded\") {",
+                "    if open_before && barred && shut && gd::same(tab.parent(), this.node) && gd::field(this.node, \"folded\") {",
                 "        this.node.set_z_index(3);",
                 "    }",
                 "}",
@@ -1059,10 +1059,10 @@ mod tests {
             "probe.rn",
             "pub fn init(this) {\n\
              \x20   let gd = script::require(\"gd.rn\");\n\
-             \x20   (gd.theme_override)(this.node, \"constants\", \"h_separation\", 4);\n\
-             \x20   (gd.theme_override)(this.node, \"constants\", \"v_separation\", 2);\n\
-             \x20   let across = (gd.theme_constant)(this.node, \"h_separation\");\n\
-             \x20   let down = (gd.theme_constant)(this.node, \"v_separation\");\n\
+             \x20   gd::theme_override(this.node, \"constants\", \"h_separation\", 4);\n\
+             \x20   gd::theme_override(this.node, \"constants\", \"v_separation\", 2);\n\
+             \x20   let across = gd::theme_constant(this.node, \"h_separation\");\n\
+             \x20   let down = gd::theme_constant(this.node, \"v_separation\");\n\
              \x20   if across == 4.0 && down == 2.0 {\n\
              \x20       this.node.set_visible(false);\n\
              \x20   }\n\

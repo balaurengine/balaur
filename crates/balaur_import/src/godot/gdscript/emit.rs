@@ -308,7 +308,7 @@ impl<'a> Emitter<'a> {
                     {
                         let text = self.expression(value);
                         self.uses_shim = true;
-                        format!("(gd.int)({text})")
+                        format!("gd::int({text})")
                     }
                     Some(value) => self.expression(value),
                     // A declaration with no value: its type says what empty is.
@@ -359,7 +359,7 @@ impl<'a> Emitter<'a> {
                     iter
                 } else {
                     self.uses_shim = true;
-                    format!("(gd.iter)({iter})")
+                    format!("gd::iter({iter})")
                 };
                 let bound = safe(name);
                 let _ = writeln!(out, "{pad}for {bound} in {iter} {{");
@@ -419,7 +419,7 @@ impl<'a> Emitter<'a> {
         if let Some((object, key)) = tree_parameter(object, index) {
             let object = self.expression(object);
             self.uses_shim = true;
-            return format!("(gd.get)({object}, {}, ())", quoted(key));
+            return format!("gd::get({object}, {}, ())", quoted(key));
         }
         // `text[i]` on a string: Rune indexes no string, the shim does.
         // A string key is a dictionary's, whatever the name is called.
@@ -432,7 +432,7 @@ impl<'a> Emitter<'a> {
             let object = self.expression(object);
             let index = self.expression(index);
             self.uses_shim = true;
-            return format!("(gd.at)({object}, {index})");
+            return format!("gd::at({object}, {index})");
         }
         let compound = matches!(object, Expr::Binary(..) | Expr::Unary(..));
         let object = self.expression(object);
@@ -497,7 +497,7 @@ impl<'a> Emitter<'a> {
                 // the shim, which scales it.
                 if *op == "-" && !literal {
                     self.uses_shim = true;
-                    return format!("(gd.neg)({inner})");
+                    return format!("gd::neg({inner})");
                 }
                 format!("{op}{inner}")
             }
@@ -525,7 +525,7 @@ impl<'a> Emitter<'a> {
                 // callers test for; only a project class can be told apart.
                 if self.context.classes.contains_key(name.as_str()) {
                     self.uses_shim = true;
-                    return format!("(gd.as_class)({text}, {})", quoted(name));
+                    return format!("gd::as_class({text}, {})", quoted(name));
                 }
                 let cast = map::cast(&text, name);
                 self.shimmed(cast)
@@ -588,7 +588,7 @@ impl<'a> Emitter<'a> {
             let key = quoted(&format!("{}:{name}", self.context.static_prefix));
             // The stored value itself, so a container changed in place stays
             // changed: GDScript's statics hold their containers by reference.
-            return format!("(gd.static_ref)({key}, {fallback})");
+            return format!("gd::static_ref({key}, {fallback})");
         }
         if self.context.lazy.contains(name) {
             return format!("{name}()");
@@ -777,7 +777,7 @@ impl<'a> Emitter<'a> {
             // function is a field and must be called in parentheses.
             if let Some((key, fallback)) = self.foreign_static(class, field) {
                 self.uses_shim = true;
-                return format!("(gd.static_ref)({key}, {fallback})");
+                return format!("gd::static_ref({key}, {fallback})");
             }
             if let Some(module) = self.context.inner.get(&format!("{class}.{field}")) {
                 return format!("script::require({})", quoted(module));
@@ -801,7 +801,7 @@ impl<'a> Emitter<'a> {
                 }
                 // A constant another module computes is a function there.
                 self.uses_shim = true;
-                return format!("(gd.constant)({module}.{})", safe(field));
+                return format!("gd::constant({module}.{})", safe(field));
             }
         }
         let text = self.expression(object);
@@ -823,7 +823,7 @@ impl<'a> Emitter<'a> {
             return format!("{text}.{}", safe(field));
         }
         self.uses_shim = true;
-        format!("(gd.field)({text}, {})", quoted(field))
+        format!("gd::field({text}, {})", quoted(field))
     }
 
     /// `button.pressed` read rather than called: Godot's `Signal` as a value,
@@ -842,7 +842,7 @@ impl<'a> Emitter<'a> {
         }
         self.uses_shim = true;
         Some(format!(
-            "(gd.signal_value)({receiver}, {}, {})",
+            "gd::signal_value({receiver}, {}, {})",
             quoted(field),
             quoted(key.unwrap_or(""))
         ))
@@ -856,7 +856,7 @@ impl<'a> Emitter<'a> {
                 crate::godot::nodes::bare_document(class, crate::godot::script::NEW_NAME)
         {
             self.uses_shim = true;
-            return format!("(gd.new_node)({}, ())", quoted(&doc));
+            return format!("gd::new_node({}, ())", quoted(&doc));
         }
         if let Some(text) = map::static_call(class, method, parts) {
             return self.shimmed(text);
@@ -968,7 +968,7 @@ impl<'a> Emitter<'a> {
             if self.context.object_class && verb == "emit" {
                 self.uses_shim = true;
                 return format!(
-                    "(gd.emit_obj)(this, {}, [{}])",
+                    "gd::emit_obj(this, {}, [{}])",
                     quoted(&signal),
                     parts.join(", ")
                 );
@@ -1159,11 +1159,11 @@ pub(crate) fn typed_zero(hint: &str) -> &'static str {
         "float" => "0.0",
         "bool" => "false",
         "String" | "StringName" | "NodePath" => "\"\"",
-        "Vector2" | "Vector2i" => "(gd.vec2)(0.0, 0.0)",
-        "Vector3" | "Vector3i" => "(gd.vec3)(0.0, 0.0, 0.0)",
-        "Color" => "(gd.color)(0.0, 0.0, 0.0, 1.0)",
+        "Vector2" | "Vector2i" => "gd::vec2(0.0, 0.0)",
+        "Vector3" | "Vector3i" => "gd::vec3(0.0, 0.0, 0.0)",
+        "Color" => "gd::color(0.0, 0.0, 0.0, 1.0)",
         h if h.starts_with("Array") || (h.starts_with("Packed") && h.ends_with("Array")) => "[]",
-        h if h.starts_with("Dictionary") => "(gd.dict)([])",
+        h if h.starts_with("Dictionary") => "gd::dict([])",
         _ => "()",
     }
 }

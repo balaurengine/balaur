@@ -44,7 +44,7 @@ pub(crate) fn convert(
         }
         let _ = writeln!(
             out,
-            "    (gd.set)(this, {}, {});",
+            "    gd::set(this, {}, {});",
             quoted(key),
             rune_value(value, res)
         );
@@ -67,19 +67,19 @@ fn rune_value(value: &Value, res: &Resources<'_>) -> String {
                 .iter()
                 .map(|(k, v)| format!("[{}, {}]", rune_value(k, res), rune_value(v, res)))
                 .collect();
-            format!("(gd.dict)([{}])", parts.join(", "))
+            format!("gd::dict([{}])", parts.join(", "))
         }
         Value::Call { name, args } => match name.as_str() {
             "ExtResource" => match res.path(value) {
                 Some(path) if crate::godot::files::has_extension(path, "tres") => {
-                    format!("(gd.resource)({})", quoted(&module_path(path)))
+                    format!("gd::resource({})", quoted(&module_path(path)))
                 }
                 Some(path) => quoted(path),
                 None => "()".into(),
             },
-            "Vector2" | "Vector2i" => format!("(gd.vec2)({})", numbers(args)),
-            "Vector3" | "Vector3i" => format!("(gd.vec3)({})", numbers(args)),
-            "Color" => format!("(gd.color)({})", numbers(args)),
+            "Vector2" | "Vector2i" => format!("gd::vec2({})", numbers(args)),
+            "Vector3" | "Vector3i" => format!("gd::vec3({})", numbers(args)),
+            "Color" => format!("gd::color({})", numbers(args)),
             "NodePath" | "StringName" => args.first().map_or("\"\"".into(), |a| rune_value(a, res)),
             // `PackedStringArray(..)` and its kin: a list, with the Godot 4
             // typed `Array[T]([..])` passing its one list through.

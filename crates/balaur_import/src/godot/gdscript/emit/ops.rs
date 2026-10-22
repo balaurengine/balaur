@@ -13,7 +13,7 @@ impl Emitter<'_> {
             return text;
         }
         self.uses_shim = true;
-        format!("(gd.truthy)({text})")
+        format!("gd::truthy({text})")
     }
 
     pub(super) fn is_boolish(&self, value: &Expr) -> bool {
@@ -46,7 +46,7 @@ impl Emitter<'_> {
             let l = self.expression(left);
             let r = self.expression(right);
             self.uses_shim = true;
-            let same = format!("(gd.same)({l}, {r})");
+            let same = format!("gd::same({l}, {r})");
             return if op == "==" { same } else { format!("!{same}") };
         }
         if matches!(op, "&&" | "||") {
@@ -73,26 +73,26 @@ impl Emitter<'_> {
                 }
             };
             self.uses_shim = true;
-            return format!("(gd.format)({text}, {args})");
+            return format!("gd::format({text}, {args})");
         }
         if op == "%" && !matches!(left, Expr::Int(_) | Expr::Float(_)) {
             let l = self.expression(left);
             let r = self.expression(right);
             self.uses_shim = true;
-            return format!("(gd.modulo)({l}, {r})");
+            return format!("gd::modulo({l}, {r})");
         }
         // `a + [b]`: Godot joins two arrays; Rune adds no lists.
         if op == "+" && (matches!(left, Expr::Array(_)) || matches!(right, Expr::Array(_))) {
             let left = self.expression(left);
             let right = self.expression(right);
             self.uses_shim = true;
-            return format!("(gd.concat)({left}, {right})");
+            return format!("gd::concat({left}, {right})");
         }
         if op == "in" {
             let left = self.expression(left);
             let right = self.expression(right);
             self.uses_shim = true;
-            return format!("(gd.has)({right}, {left})");
+            return format!("gd::has({right}, {left})");
         }
         // `x == null` is `is_nil`: Rune does not compare against unit.
         if matches!(op, "==" | "!=") && (matches!(left, Expr::Nil) || matches!(right, Expr::Nil)) {
@@ -103,7 +103,7 @@ impl Emitter<'_> {
             };
             let text = self.expression(value);
             self.uses_shim = true;
-            let nil = format!("(gd.is_nil)({text})");
+            let nil = format!("gd::is_nil({text})");
             return if op == "==" { nil } else { format!("!{nil}") };
         }
         if op == "**" {
@@ -149,7 +149,7 @@ impl Emitter<'_> {
             // shim's hash map takes.
             if parts.is_empty() {
                 self.uses_shim = true;
-                return "(gd.dict)([])".into();
+                return "gd::dict([])".into();
             }
             return format!("#{{ {} }}", parts.join(", "));
         }
@@ -164,7 +164,7 @@ impl Emitter<'_> {
             })
             .collect();
         self.uses_shim = true;
-        format!("(gd.dict)([{}])", parts.join(", "))
+        format!("gd::dict([{}])", parts.join(", "))
     }
 
     pub(super) fn lambda(&mut self, params: &[String], body: &[Stmt]) -> String {

@@ -33,7 +33,7 @@ impl Emitter<'_> {
             let object = self.expression(object);
             let text = self.expression(value);
             self.uses_shim = true;
-            let _ = writeln!(out, "{pad}(gd.set)({object}, {}, {text});", quoted(key));
+            let _ = writeln!(out, "{pad}gd::set({object}, {}, {text});", quoted(key));
             return out;
         }
         // An index into a value read through the shim is no place to assign
@@ -47,12 +47,12 @@ impl Emitter<'_> {
                     text
                 } else {
                     format!(
-                        "(gd.get)({base}, {key}, ()) {} ({text})",
+                        "gd::get({base}, {key}, ()) {} ({text})",
                         op.trim_end_matches('=')
                     )
                 };
                 self.uses_shim = true;
-                let _ = writeln!(out, "{pad}let _ = (gd.set)({base}, {key}, {text});");
+                let _ = writeln!(out, "{pad}let _ = gd::set({base}, {key}, {text});");
                 return out;
             }
         }
@@ -90,7 +90,7 @@ impl Emitter<'_> {
         let text = self.expression(value);
         // A target that resolved to nothing, or to another module's own item,
         // is not a place: the whole line becomes a stub.
-        if place.starts_with("(gd.todo)") || place.starts_with("(script::require(") {
+        if place.starts_with("gd::todo") || place.starts_with("(script::require(") {
             let _ = writeln!(out, "{pad}{};", discardable(&place));
             return out;
         }
@@ -184,7 +184,7 @@ impl Emitter<'_> {
             None if plain => return None,
             None => {
                 self.uses_shim = true;
-                format!("(gd.field)({object}, {})", quoted(field))
+                format!("gd::field({object}, {})", quoted(field))
             }
         };
         let changed = format!("{getter} {operator} {text}");
@@ -196,7 +196,7 @@ impl Emitter<'_> {
             return None;
         }
         self.uses_shim = true;
-        let write = format!("(gd.set_field)({object}, {}, {changed})", quoted(field));
+        let write = format!("gd::set_field({object}, {}, {changed})", quoted(field));
         Some(format!("{pad}{};\n", discardable(&write)))
     }
 
@@ -257,7 +257,7 @@ impl Emitter<'_> {
             let text = self.expression(value);
             self.uses_shim = true;
             let mut out = String::new();
-            let _ = writeln!(out, "{pad}let {name} = (gd.static_ref)({key}, {fallback});");
+            let _ = writeln!(out, "{pad}let {name} = gd::static_ref({key}, {fallback});");
             // A property of the static's object, which may be a node or a resource.
             if let Expr::Field(object, field) = target
                 && matches!(&**object, Expr::Name(n) if *n == root)
@@ -265,7 +265,7 @@ impl Emitter<'_> {
             {
                 let _ = writeln!(
                     out,
-                    "{pad}let _ = (gd.set_field)({name}, {}, {text});",
+                    "{pad}let _ = gd::set_field({name}, {}, {text});",
                     quoted(field)
                 );
                 return Some(out);
@@ -287,7 +287,7 @@ impl Emitter<'_> {
                 format!("{read} {} {other}", op.trim_end_matches('='))
             };
             self.uses_shim = true;
-            return Some(format!("{pad}let _ = (gd.static_set)({key}, {text});\n"));
+            return Some(format!("{pad}let _ = gd::static_set({key}, {text});\n"));
         }
         if let Expr::Name(name) = target
             && !self.is_local(name)
@@ -302,7 +302,7 @@ impl Emitter<'_> {
                 format!("{read} {} {other}", op.trim_end_matches('='))
             };
             self.uses_shim = true;
-            return Some(format!("{pad}let _ = (gd.static_set)({key}, {text});\n"));
+            return Some(format!("{pad}let _ = gd::static_set({key}, {text});\n"));
         }
         None
     }
@@ -352,7 +352,7 @@ impl Emitter<'_> {
                 // is read out, changed, and written back.
                 if let Some((receiver, property)) = self.property_base(object) {
                     let getter = map::property(&receiver, &property).unwrap_or_else(|| {
-                        format!("(gd.field)({receiver}, {})", quoted(&property))
+                        format!("gd::field({receiver}, {})", quoted(&property))
                     });
                     self.uses_shim |= getter.contains(map::SHIM_MARK);
                     let name = self.temp();
@@ -360,7 +360,7 @@ impl Emitter<'_> {
                     // A vector's lane is a float, and takes no int.
                     let lane = LANES.contains(&field.as_str());
                     let text = if lane && op == "=" {
-                        format!("(gd.float)({text})")
+                        format!("gd::float({text})")
                     } else {
                         text
                     };
@@ -396,11 +396,11 @@ impl Emitter<'_> {
             && self.is_local(local)
         {
             return Some(format!(
-                "{pad}{local} = (gd.with_field)({local}, {}, {text});\n",
+                "{pad}{local} = gd::with_field({local}, {}, {text});\n",
                 quoted(&field)
             ));
         }
-        let write = format!("(gd.set_field)({object}, {}, {text})", quoted(&field));
+        let write = format!("gd::set_field({object}, {}, {text})", quoted(&field));
         Some(format!("{pad}{};\n", discardable(&write)))
     }
 }

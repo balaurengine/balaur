@@ -1,0 +1,1456 @@
+// Godot's Variant verbs, for scripts `balaur import` converted. Written by
+// the importer: edit the importer, not this file.
+//
+// A value whose GDScript type is unknown is an `any`. A Vector2 is a map of
+// `x` and `y`, a Vector3 adds `z`, a Color is `r`, `g`, `b` and `a`; an
+// object of a GDScript class is a map with its fields and `__class`, and a
+// callable a map of `__target`, a node or an object, `__method`, and what a
+// lambda captured in `__cap`. No function value crosses between scripts.
+
+use classes;
+
+pub const CLASS_KEY: str = "__class";
+pub const TARGET_KEY: str = "__target";
+pub const METHOD_KEY: str = "__method";
+pub const CAP_KEY: str = "__cap";
+
+// The kinds an `any` reports.
+const NIL: str = "nil";
+const BOOL: str = "bool";
+const INT: str = "int";
+const FLOAT: str = "float";
+const STR: str = "str";
+const LIST: str = "list";
+const MAP: str = "map";
+const NODE: str = "node";
+
+/// Godot's `null`.
+pub fn is_nil(value: any) -> bool {
+    value.is_nil()
+}
+
+/// Godot's truth: null, zero, an empty string or collection and a freed node
+/// are false; everything else is true.
+pub fn truthy(value: any) -> bool {
+    let kind = value.kind();
+    if kind == BOOL {
+        return value.as_bool();
+    }
+    if kind == NIL {
+        return false;
+    }
+    if kind == INT {
+        return value.as_int() != 0;
+    }
+    if kind == FLOAT {
+        return value.as_float() != 0.0;
+    }
+    if kind == NODE {
+        return value.as_node().is_valid();
+    }
+    if kind == STR || kind == LIST || kind == MAP {
+        return value.len() > 0;
+    }
+    true
+}
+
+/// A value that is something: not null, and not a freed node.
+pub fn valid(value: any) -> bool {
+    if value.is_nil() {
+        return false;
+    }
+    if value.kind() == NODE {
+        return value.as_node().is_valid();
+    }
+    true
+}
+
+/// An object of a GDScript class: a map that says which.
+pub fn is_object(value: any) -> bool {
+    value.kind() == MAP && value.has(CLASS_KEY)
+}
+
+/// A callable: a map naming a method on a node or an object.
+pub fn is_callable(value: any) -> bool {
+    value.kind() == MAP && value.has(METHOD_KEY)
+}
+
+/// Godot's `is Dictionary`: a map that is no object, vector or callable.
+pub fn is_dict(value: any) -> bool {
+    value.kind() == MAP && !is_object(value) && !is_callable(value) && !is_vector(value)
+}
+
+/// A Vector2 or a Vector3, as maps of their axes.
+pub fn is_vector(value: any) -> bool {
+    if value.kind() != MAP {
+        return false;
+    }
+    let n = value.len();
+    (n == 2 && value.has("x") && value.has("y"))
+        || (n == 3 && value.has("x") && value.has("y") && value.has("z"))
+}
+
+pub fn is_color(value: any) -> bool {
+    value.kind() == MAP && value.len() == 4 && value.has("r") && value.has("a")
+}
+
+/// Godot's `typeof(x) == TYPE_*`, by name: `int`, `float`, `String`,
+/// `Array`, `Dictionary`, `Object`, `Vector2`, `Vector3`, `Color`, `Nil`.
+pub fn type_of(value: any) -> str {
+    let kind = value.kind();
+    if kind == NIL {
+        "Nil"
+    } else if kind == BOOL {
+        "bool"
+    } else if kind == INT {
+        "int"
+    } else if kind == FLOAT {
+        "float"
+    } else if kind == STR {
+        "String"
+    } else if kind == LIST {
+        "Array"
+    } else if kind == NODE {
+        "Object"
+    } else if is_object(value) || is_callable(value) {
+        "Object"
+    } else if is_color(value) {
+        "Color"
+    } else if is_vector(value) {
+        if value.len() == 2 { "Vector2" } else { "Vector3" }
+    } else {
+        "Dictionary"
+    }
+}
+
+/// Godot compares values of different types as unequal; two dictionaries
+/// are equal when every key holds the same value.
+pub fn same(a: any, b: any) -> bool {
+    let ka = a.kind();
+    let kb = b.kind();
+    if ka == NIL || kb == NIL {
+        return ka == kb;
+    }
+    let numbers = (ka == INT || ka == FLOAT) && (kb == INT || kb == FLOAT);
+    if numbers {
+        return a.as_float() == b.as_float();
+    }
+    if ka != kb {
+        return false;
+    }
+    a.equals(b)
+}
+
+// `x`'s number, whichever kind it is.
+fn num(value: any) -> float {
+    let kind = value.kind();
+    if kind == INT || kind == FLOAT || kind == BOOL {
+        return value.as_float();
+    }
+    0.0
+}
+
+fn is_int(value: any) -> bool {
+    value.kind() == INT
+}
+
+/// Godot's `+`: numbers add, strings and arrays join, vectors add by axis.
+pub fn add(a: any, b: any) -> any {
+    if is_int(a) && is_int(b) {
+        return a.as_int() + b.as_int();
+    }
+    let ka = a.kind();
+    if ka == STR {
+        return "{a.as_str()}{text(b)}";
+    }
+    if ka == LIST {
+        let out: any = [];
+        for item in a {
+            out.push(item);
+        }
+        for item in b {
+            out.push(item);
+        }
+        return out;
+    }
+    if is_vector(a) {
+        return by_axis(a, b, "+");
+    }
+    num(a) + num(b)
+}
+
+pub fn sub(a: any, b: any) -> any {
+    if is_int(a) && is_int(b) {
+        return a.as_int() - b.as_int();
+    }
+    if is_vector(a) {
+        return by_axis(a, b, "-");
+    }
+    num(a) - num(b)
+}
+
+pub fn mul(a: any, b: any) -> any {
+    if is_int(a) && is_int(b) {
+        return a.as_int() * b.as_int();
+    }
+    if is_vector(a) {
+        return by_axis(a, b, "*");
+    }
+    if is_vector(b) {
+        return by_axis(b, a, "*");
+    }
+    num(a) * num(b)
+}
+
+/// Godot's `/`: two ints divide as ints, truncating toward zero.
+pub fn div(a: any, b: any) -> any {
+    if is_int(a) && is_int(b) {
+        let d = b.as_int();
+        if d == 0 {
+            return 0;
+        }
+        return a.as_int() / d;
+    }
+    if is_vector(a) {
+        return by_axis(a, b, "/");
+    }
+    num(a) / num(b)
+}
+
+/// Godot's `%`: a string on the left formats; anything else is a remainder.
+pub fn modulo(left: any, right: any) -> any {
+    if left.kind() == STR {
+        let args: any = if right.kind() == LIST { right } else { [right] };
+        return format(left.as_str(), args);
+    }
+    if is_int(left) && is_int(right) {
+        let d = right.as_int();
+        if d == 0 {
+            return 0;
+        }
+        return left.as_int() % d;
+    }
+    fmod(num(left), num(right))
+}
+
+pub fn neg(value: any) -> any {
+    if is_int(value) {
+        return -value.as_int();
+    }
+    if is_vector(value) {
+        return by_axis(value, -1.0, "*");
+    }
+    return -num(value);
+}
+
+// A vector and a vector or a number, axis by axis.
+fn by_axis(v: any, other: any, op: str) -> any {
+    let out = map();
+    for axis in v.keys() {
+        let x = v.get(axis).as_float();
+        let y = if other.kind() == MAP { other.get(axis).as_float() } else { num(other) };
+        let r = if op == "+" {
+            x + y
+        } else if op == "-" {
+            x - y
+        } else if op == "*" {
+            x * y
+        } else if y == 0.0 {
+            0.0
+        } else {
+            x / y
+        };
+        out = out.with(axis, r);
+    }
+    out
+}
+
+pub fn lt(a: any, b: any) -> bool {
+    if a.kind() == STR && b.kind() == STR {
+        // Text has no `<`: the order a sort puts the two in says.
+        let pair: any = [a, b];
+        return !a.equals(b) && pair.sorted().at(0).equals(a);
+    }
+    num(a) < num(b)
+}
+
+pub fn le(a: any, b: any) -> bool {
+    !lt(b, a)
+}
+
+pub fn gt(a: any, b: any) -> bool {
+    lt(b, a)
+}
+
+pub fn ge(a: any, b: any) -> bool {
+    !lt(a, b)
+}
+
+pub fn size(value: any) -> int {
+    if is_object(value) {
+        return classes::call(value, "size", []).as_int();
+    }
+    let kind = value.kind();
+    if kind == STR || kind == LIST || kind == MAP {
+        return value.len();
+    }
+    0
+}
+
+pub fn is_empty(value: any) -> bool {
+    size(value) == 0
+}
+
+/// `dict.get(key, fallback)`, `array[index]` and `object.get(property)`.
+pub fn get(container: any, key: any, fallback: any) -> any {
+    let kind = container.kind();
+    if kind == NODE {
+        let found = field(container.as_node(), key.as_str());
+        return if found.is_nil() { fallback } else { found };
+    }
+    if kind == MAP {
+        let name = key_text(key);
+        return if container.has(name) { container.get(name) } else { fallback };
+    }
+    if kind == LIST {
+        let at = key.as_int();
+        let count = container.len();
+        let index = if at < 0 { count + at } else { at };
+        return if index >= 0 && index < count { container.at(index) } else { fallback };
+    }
+    if kind == STR {
+        return char_at(container.as_str(), key.as_int());
+    }
+    fallback
+}
+
+/// `obj[key]`: what `get` reads, with null where nothing is.
+pub fn at(container: any, key: any) -> any {
+    get(container, key, nil)
+}
+
+/// `object.set(property, value)`, `dict[key] = value`, `array[i] = value`.
+pub fn set(owner: any, key: any, value: any) {
+    let kind = owner.kind();
+    if kind == NODE {
+        set_field(owner.as_node(), key.as_str(), value);
+    } else if kind == MAP {
+        owner.set(key_text(key), value);
+    } else if kind == LIST {
+        let at = key.as_int();
+        let index = if at < 0 { owner.len() + at } else { at };
+        owner.put(index, value);
+    }
+}
+
+// A dictionary's key as the text a map keeps it under: a map's keys are
+// text, so an int key is its digits.
+fn key_text(key: any) -> str {
+    if key.kind() == STR { key.as_str() } else { text(key) }
+}
+
+fn char_at(s: str, index: int) -> any {
+    let count = s.len();
+    let at = if index < 0 { count + index } else { index };
+    if at < 0 || at >= count {
+        return "";
+    }
+    s.slice(at, at + 1)
+}
+
+pub fn has(container: any, value: any) -> bool {
+    let kind = container.kind();
+    if kind == MAP {
+        return container.has(key_text(value));
+    }
+    if kind == LIST {
+        for item in container {
+            if same(item, value) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if kind == STR {
+        return container.as_str().contains(value.as_str());
+    }
+    if kind == NODE {
+        return !field(container.as_node(), value.as_str()).is_nil();
+    }
+    false
+}
+
+pub fn keys(container: any) -> any {
+    let out: any = [];
+    if container.kind() == MAP {
+        for key in container.keys() {
+            if key != CLASS_KEY {
+                out.push(key);
+            }
+        }
+    }
+    out
+}
+
+pub fn values(container: any) -> any {
+    if container.kind() == LIST {
+        return container;
+    }
+    let out: any = [];
+    if container.kind() == MAP {
+        for key in container.keys() {
+            if key != CLASS_KEY {
+                out.push(container.get(key));
+            }
+        }
+    }
+    out
+}
+
+pub fn append(container: any, value: any) -> any {
+    if is_object(container) {
+        return classes::call(container, "append", [value]);
+    }
+    container.push(value);
+    container
+}
+
+pub fn append_array(container: any, other: any) -> any {
+    for item in other {
+        container.push(item);
+    }
+    container
+}
+
+/// `erase`: a dictionary's key, or an array's first equal element, taken
+/// out where it is.
+pub fn erase(container: any, value: any) -> any {
+    if container.kind() == MAP {
+        container.remove(key_text(value));
+        return container;
+    }
+    if container.kind() == LIST {
+        let index = find(container, value);
+        if index >= 0 {
+            container.remove(index);
+        }
+    }
+    container
+}
+
+/// `remove_at`.
+pub fn remove_at(container: any, index: any) {
+    container.remove(index.as_int());
+}
+
+/// An array's index of `value`, or a string's of a substring; -1 when none.
+pub fn find(container: any, value: any) -> int {
+    if container.kind() == STR {
+        return container.as_str().find(value.as_str());
+    }
+    let index = 0;
+    for item in container {
+        if same(item, value) {
+            return index;
+        }
+        index += 1;
+    }
+    -1
+}
+
+pub fn clear(container: any) -> any {
+    if container.kind() == MAP {
+        for key in container.keys() {
+            container.remove(key);
+        }
+    } else if container.kind() == LIST {
+        while container.len() > 0 {
+            container.remove(container.len() - 1);
+        }
+    }
+    container
+}
+
+/// `duplicate()`: a new container holding the same values.
+pub fn duplicate(value: any) -> any {
+    if value.kind() == LIST {
+        let out: any = [];
+        for item in value {
+            out.push(item);
+        }
+        return out;
+    }
+    if value.kind() == MAP {
+        let out = map();
+        for key in value.keys() {
+            out = out.with(key, value.get(key));
+        }
+        return out;
+    }
+    if value.kind() == NODE {
+        return clone_node(value.as_node());
+    }
+    value
+}
+
+/// `duplicate(true)`: containers inside copied too.
+pub fn duplicate_deep(value: any) -> any {
+    if value.kind() == LIST {
+        let out: any = [];
+        for item in value {
+            out.push(duplicate_deep(item));
+        }
+        return out;
+    }
+    if value.kind() == MAP {
+        let out = map();
+        for key in value.keys() {
+            out = out.with(key, duplicate_deep(value.get(key)));
+        }
+        return out;
+    }
+    value
+}
+
+pub fn merge(into: any, other: any) -> any {
+    for key in other.keys() {
+        into.set(key, other.get(key));
+    }
+    into
+}
+
+pub fn front(container: any) -> any {
+    if size(container) == 0 { nil } else { container.at(0) }
+}
+
+pub fn back(container: any) -> any {
+    let count = size(container);
+    if count == 0 { nil } else { container.at(count - 1) }
+}
+
+pub fn pop_front(container: any) -> any {
+    if size(container) == 0 { nil } else { container.remove(0) }
+}
+
+pub fn pop_back(container: any) -> any {
+    let count = size(container);
+    if count == 0 { nil } else { container.remove(count - 1) }
+}
+
+/// `sort()`: numbers by value and strings by their text, where they are.
+pub fn sort(container: any) -> any {
+    let sorted = container.sorted();
+    for i in 0..sorted.len() {
+        container.put(i, sorted.at(i));
+    }
+    container
+}
+
+pub fn reverse(container: any) -> any {
+    let count = container.len();
+    for i in 0..count / 2 {
+        let held = container.at(i);
+        container.put(i, container.at(count - 1 - i));
+        container.put(count - 1 - i, held);
+    }
+    container
+}
+
+pub fn slice(container: any, from: any, upto: any) -> any {
+    let count = size(container);
+    let start = from.as_int();
+    let end = if upto.is_nil() { count } else { upto.as_int() };
+    let first = if start < 0 { count + start } else { start };
+    let last = if end < 0 { count + end } else { end };
+    let out: any = [];
+    let index = first;
+    while index < last && index < count {
+        out.push(container.at(index));
+        index += 1;
+    }
+    out
+}
+
+/// What GDScript's `for` walks: a dictionary's keys, an int's range, a
+/// string's characters, anything else as it is.
+pub fn iter(value: any) -> any {
+    let kind = value.kind();
+    if kind == MAP {
+        return keys(value);
+    }
+    if kind == INT {
+        let out: any = [];
+        for i in 0..value.as_int() {
+            out.push(i);
+        }
+        return out;
+    }
+    if kind == STR {
+        let out: any = [];
+        for c in value.as_str().chars() {
+            out.push(c);
+        }
+        return out;
+    }
+    if kind == NIL {
+        let none: any = [];
+        return none;
+    }
+    value
+}
+
+/// `range(from, upto, step)` as Godot counts it.
+pub fn range(from: int, upto: int, step: int) -> any {
+    let out: any = [];
+    if step == 0 {
+        return out;
+    }
+    let i = from;
+    while (step > 0 && i < upto) || (step < 0 && i > upto) {
+        out.push(i);
+        i += step;
+    }
+    out
+}
+
+/// Godot's `str()`: containers spelled out, strings quoted inside them.
+pub fn text(value: any) -> str {
+    let kind = value.kind();
+    if kind == STR {
+        return value.as_str();
+    }
+    if kind == NIL {
+        return "<null>";
+    }
+    if kind == INT || kind == BOOL {
+        return "{value}";
+    }
+    if kind == FLOAT {
+        return float_text(value.as_float());
+    }
+    if kind == NODE {
+        return "{value.as_node().name()}:<Node>";
+    }
+    if kind == LIST {
+        let parts: [str] = [];
+        for item in value {
+            parts.push(quoted(item));
+        }
+        return "[{joined(", ", parts)}]";
+    }
+    if is_callable(value) {
+        return "<Callable>";
+    }
+    if is_object(value) {
+        return "<{value.get(CLASS_KEY).as_str()}>";
+    }
+    if is_vector(value) || is_color(value) {
+        let parts: [str] = [];
+        for key in value.keys() {
+            parts.push(float_text(value.get(key).as_float()));
+        }
+        return "({joined(", ", parts)})";
+    }
+    let parts: [str] = [];
+    for key in value.keys() {
+        parts.push("\"{key}\": {quoted(value.get(key))}");
+    }
+    if parts.len() == 0 {
+        return "{{ }}";
+    }
+    "{{ {joined(", ", parts)} }}"
+}
+
+// A float as Godot prints one: a whole number keeps its `.0`.
+fn float_text(x: float) -> str {
+    if x == math::floor(x) && math::abs(x) < 1.0e15 {
+        return "{x as int}.0";
+    }
+    "{x}"
+}
+
+fn quoted(value: any) -> str {
+    if value.kind() == STR { "\"{value.as_str()}\"" } else { text(value) }
+}
+
+fn joined(sep: str, parts: [str]) -> str {
+    let out = "";
+    for i in 0..parts.len() {
+        out = if i == 0 { parts[i] } else { "{out}{sep}{parts[i]}" };
+    }
+    out
+}
+
+/// `print(a, b)`'s line: each value's text, with nothing between.
+pub fn str_all(values: any) -> str {
+    let out = "";
+    for value in values {
+        out = "{out}{text(value)}";
+    }
+    out
+}
+
+/// `String(x)` and `str(x)`.
+pub fn str(value: any) -> str {
+    text(value)
+}
+
+pub fn int(value: any) -> int {
+    let kind = value.kind();
+    if kind == INT {
+        return value.as_int();
+    }
+    if kind == FLOAT {
+        return value.as_float() as int;
+    }
+    if kind == BOOL {
+        return if value.as_bool() { 1 } else { 0 };
+    }
+    if kind == STR {
+        return value.as_str().parse_int();
+    }
+    0
+}
+
+pub fn float(value: any) -> float {
+    let kind = value.kind();
+    if kind == STR {
+        return value.as_str().parse_float();
+    }
+    num(value)
+}
+
+pub fn bool(value: any) -> bool {
+    truthy(value)
+}
+
+pub fn is_valid_int(s: str) -> bool {
+    let t = s.trim();
+    t != "" && "{t.parse_int()}" == t
+}
+
+pub fn is_valid_float(s: str) -> bool {
+    let t = s.trim();
+    if t == "" {
+        return false;
+    }
+    for c in t.chars() {
+        if !"0123456789.-+eE".contains(c) {
+            return false;
+        }
+    }
+    true
+}
+
+/// `char(65)`.
+pub fn chr(code: int) -> str {
+    let letters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{{|}}~";
+    if code < 32 || code > 126 {
+        return "";
+    }
+    letters.slice(code - 32, code - 31)
+}
+
+pub fn join(sep: str, parts: any) -> str {
+    let out = "";
+    let first = true;
+    for part in parts {
+        out = if first { text(part) } else { "{out}{sep}{text(part)}" };
+        first = false;
+    }
+    out
+}
+
+pub fn split(s: str, sep: str) -> any {
+    let out: any = [];
+    for part in s.split(sep) {
+        out.push(part);
+    }
+    out
+}
+
+/// `substr(from, count)`, by characters; a negative count runs to the end.
+pub fn substr(s: str, from: int, count: int) -> str {
+    let total = s.len();
+    let start = if from < 0 { 0 } else { from };
+    let end = if count < 0 { total } else { start + count };
+    s.slice(start, if end > total { total } else { end })
+}
+
+/// Godot's `"%s of %d" % [a, b]`: `%s`, `%d`, `%f`, `%.Nf`, `%x` and `%%`.
+pub fn format(template: str, args: any) -> str {
+    let out = "";
+    let chars = template.chars();
+    let at = 0;
+    let used = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        at += 1;
+        if c != "%" || at >= chars.len() {
+            out = "{out}{c}";
+            continue;
+        }
+        if chars[at] == "%" {
+            out = "{out}%";
+            at += 1;
+            continue;
+        }
+        let spec = "";
+        while at < chars.len() && !"sdfxv".contains(chars[at]) {
+            spec = "{spec}{chars[at]}";
+            at += 1;
+        }
+        let verb = if at < chars.len() { chars[at] } else { "s" };
+        at += 1;
+        let value: any = if used < args.len() { args.at(used) } else { nil };
+        used += 1;
+        if verb == "d" {
+            out = "{out}{int(value)}";
+        } else if verb == "f" {
+            out = "{out}{decimals(float(value), places(spec))}";
+        } else {
+            out = "{out}{text(value)}";
+        }
+    }
+    out
+}
+
+/// `"{a}".format({"a": 1})`, Godot's other formatter.
+pub fn format_map(template: str, values: any) -> str {
+    let out = template;
+    for key in keys(values) {
+        out = out.replace("{{{key.as_str()}}}", text(values.get(key.as_str())));
+    }
+    out
+}
+
+// The digits a `%.3f` asks for; 6 is Godot's default.
+fn places(spec: str) -> int {
+    let cut = spec.split_once(".");
+    if cut.len() < 2 || cut[1] == "" {
+        return 6;
+    }
+    cut[1].parse_int()
+}
+
+fn decimals(value: float, count: int) -> str {
+    let scale = 1.0;
+    for k in 0..count {
+        scale *= 10.0;
+    }
+    let n = math::round(math::abs(value) * scale) as int;
+    let sign = if value < 0.0 && n != 0 { "-" } else { "" };
+    if count == 0 {
+        return "{sign}{n}";
+    }
+    let whole = n / (scale as int);
+    let digits = "{n % (scale as int)}";
+    while digits.len() < count {
+        digits = "0{digits}";
+    }
+    "{sign}{whole}.{digits}"
+}
+
+pub fn min(a: any, b: any) -> any {
+    if lt(b, a) { b } else { a }
+}
+
+pub fn max(a: any, b: any) -> any {
+    if lt(a, b) { b } else { a }
+}
+
+pub fn clamp(value: any, low: any, high: any) -> any {
+    if lt(value, low) {
+        low
+    } else if lt(high, value) {
+        high
+    } else {
+        value
+    }
+}
+
+pub fn abs(value: any) -> any {
+    if is_int(value) {
+        let n = value.as_int();
+        return if n < 0 { -n } else { n };
+    }
+    math::abs(num(value))
+}
+
+pub fn sign(value: any) -> any {
+    let x = num(value);
+    let s = if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else { 0.0 };
+    if is_int(value) { s as int } else { s }
+}
+
+pub fn lerp(from: any, to: any, amount: float) -> any {
+    if is_vector(from) {
+        return add(from, mul(sub(to, from), amount));
+    }
+    num(from) + (num(to) - num(from)) * amount
+}
+
+pub fn inverse_lerp(from: float, to: float, value: float) -> float {
+    if to == from { 0.0 } else { (value - from) / (to - from) }
+}
+
+pub fn snapped(value: float, step: float) -> float {
+    if step == 0.0 { value } else { math::round(value / step) * step }
+}
+
+pub fn fmod(value: float, by: float) -> float {
+    if by == 0.0 {
+        return 0.0;
+    }
+    let q = value / by;
+    let whole = if q < 0.0 { math::ceil(q) } else { math::floor(q) };
+    value - by * whole
+}
+
+/// Godot's `posmod`: an integer remainder that never goes negative.
+pub fn posmod(value: int, by: int) -> int {
+    if by == 0 {
+        return 0;
+    }
+    let rest = value % by;
+    if rest < 0 { rest + by } else { rest }
+}
+
+pub fn move_toward(from: float, to: float, delta: float) -> float {
+    if math::abs(to - from) <= delta {
+        return to;
+    }
+    if to > from { from + delta } else { from - delta }
+}
+
+pub fn is_zero_approx(value: float) -> bool {
+    math::abs(value) < 0.00001
+}
+
+pub fn is_equal_approx(a: float, b: float) -> bool {
+    math::abs(a - b) < 0.00001
+}
+
+pub fn nan() -> float {
+    0.0 / 0.0
+}
+
+pub fn linear_to_db(value: float) -> float {
+    if value <= 0.0 { -200.0 } else { 20.0 * math::log10(value) }
+}
+
+pub fn db_to_linear(value: float) -> float {
+    math::pow(10.0, value / 20.0)
+}
+
+pub fn vec2(x: float, y: float) -> any {
+    map().with("x", x).with("y", y)
+}
+
+pub fn vec3(x: float, y: float, z: float) -> any {
+    map().with("x", x).with("y", y).with("z", z)
+}
+
+pub fn color(r: float, g: float, b: float, a: float) -> any {
+    map().with("r", r).with("g", g).with("b", b).with("a", a)
+}
+
+pub fn vec_from_angle(angle: float) -> any {
+    vec2(math::cos(angle), math::sin(angle))
+}
+
+// Godot's pixels per unit here. A converted scene stores a 2D position in
+// units with y up; a converted script reads and writes Godot's pixels, y down.
+const PIXELS: float = 100.0;
+
+/// A position the engine stores, as the pixels a Godot script reads.
+pub fn pixels_of(v: Vec3) -> any {
+    vec2(v.x * PIXELS, -v.y * PIXELS)
+}
+
+// Pixels a Godot script wrote, as the units the engine stores.
+fn units_of(at: any) -> Vec3 {
+    [at.get("x").as_float() / PIXELS, -at.get("y").as_float() / PIXELS, 0.0]
+}
+
+pub fn position_of(node: Node) -> any {
+    pixels_of(node.transform.position)
+}
+
+pub fn global_position_of(node: Node) -> any {
+    pixels_of(node.transform.global_position())
+}
+
+pub fn set_position(node: Node, at: any) {
+    node.transform.position = units_of(at);
+}
+
+pub fn set_global_position(node: Node, at: any) {
+    let here = node.transform.global_position();
+    let local = node.transform.position;
+    let want = units_of(at);
+    node.transform.position = [local.x + want.x - here.x, local.y + want.y - here.y, local.z];
+}
+
+pub fn set_scale(node: Node, by: any) {
+    node.transform.scale = [by.get("x").as_float(), by.get("y").as_float(), 1.0];
+}
+
+/// A 2D node turns about z, clockwise positive in Godot's y-down frame, so
+/// the angle a script reads is the stored one negated.
+pub fn rotation_of(node: Node) -> float {
+    -node.transform.rotation_euler.z
+}
+
+pub fn set_rotation(node: Node, radians: float) {
+    let euler = node.transform.rotation_euler;
+    node.transform.rotation_euler = [euler.x, euler.y, -radians];
+}
+
+/// A Color from whatever a script holds: a color map, a hex text, or nil
+/// for white.
+pub fn color_of(value: any) -> Color {
+    if value.kind() == MAP {
+        let a = if value.has("a") { value.get("a").as_float() } else { 1.0 };
+        return [value.get("r").as_float(), value.get("g").as_float(), value.get("b").as_float(), a];
+    }
+    if value.kind() == STR {
+        return hex_color(value.as_str());
+    }
+    return [1.0, 1.0, 1.0, 1.0];
+}
+
+// `#rrggbb` or `#rrggbbaa`.
+fn hex_color(s: str) -> Color {
+    let digits = if s.starts_with("#") { s.slice(1, s.len()) } else { s };
+    let r = hex_byte(digits, 0);
+    let g = hex_byte(digits, 2);
+    let b = hex_byte(digits, 4);
+    let a = if digits.len() >= 8 { hex_byte(digits, 6) } else { 1.0 };
+    [r, g, b, a]
+}
+
+fn hex_byte(s: str, at: int) -> float {
+    if s.len() < at + 2 {
+        return 0.0;
+    }
+    let hex = "0123456789abcdef";
+    let pair = s.slice(at, at + 2).to_lower();
+    let hi = hex.find(pair.slice(0, 1));
+    let lo = hex.find(pair.slice(1, 2));
+    if hi < 0 || lo < 0 {
+        return 0.0;
+    }
+    ((hi * 16 + lo) as float) / 255.0
+}
+
+pub fn set_tint(node: Node, tint: any) {
+    let c = color_of(tint);
+    node.set_tint(c.r, c.g, c.b, c.a);
+}
+
+fn color_map(c: Color) -> any {
+    color(c.r, c.g, c.b, c.a)
+}
+
+/// A control's size where the layer last drew it; nothing drawn yet is
+/// zero, as Godot's is before its first layout.
+pub fn size_of(node: Node) -> any {
+    let drawn = ui::widget_rect(node);
+    if drawn.is_none() {
+        return vec2(0.0, 0.0);
+    }
+    let r = drawn.unwrap();
+    vec2(r.width, r.height)
+}
+
+/// Reading a property: another script's field, its getter, one of Godot's
+/// node properties, an object's field or a map's key.
+pub fn field(owner: Node, name: str) -> any {
+    if !owner.is_valid() {
+        return nil;
+    }
+    let getter = "get_{name}";
+    if owner.has_method(getter) {
+        return owner.call(getter);
+    }
+    let held = owner.script_field(name);
+    if !held.is_nil() {
+        return held;
+    }
+    node_property(owner, name)
+}
+
+/// `owner.name` on any value.
+pub fn read(owner: any, name: str) -> any {
+    let kind = owner.kind();
+    if kind == NODE {
+        return field(owner.as_node(), name);
+    }
+    if is_object(owner) {
+        return classes::get(owner, name);
+    }
+    if kind == MAP {
+        return if owner.has(name) { owner.get(name) } else { nil };
+    }
+    nil
+}
+
+/// `owner.name = value` on any value.
+pub fn write(owner: any, name: str, value: any) {
+    let kind = owner.kind();
+    if kind == NODE {
+        set_field(owner.as_node(), name, value);
+    } else if is_object(owner) {
+        classes::set(owner, name, value);
+    } else if kind == MAP {
+        owner.set(name, value);
+    }
+}
+
+/// Writing a property on a node: its script's setter, or one of Godot's
+/// node properties.
+pub fn set_field(owner: Node, name: str, value: any) {
+    if !owner.is_valid() {
+        return;
+    }
+    let setter = "set_{name}";
+    if owner.has_method(setter) {
+        owner.call(setter, value);
+        return;
+    }
+    set_node_property(owner, name, value);
+}
+
+/// One of Godot's node properties, read off the node's components; nil for
+/// a name that is not one.
+pub fn node_property(node: Node, name: str) -> any {
+    if name == "position" {
+        position_of(node)
+    } else if name == "global_position" {
+        global_position_of(node)
+    } else if name == "scale" {
+        let s = node.transform.scale;
+        vec2(s.x, s.y)
+    } else if name == "rotation" {
+        rotation_of(node)
+    } else if name == "rotation_degrees" {
+        math::to_degrees(rotation_of(node))
+    } else if name == "size" {
+        size_of(node)
+    } else if name == "visible" {
+        node.visible()
+    } else if name == "modulate" || name == "self_modulate" {
+        color_map(node.tint())
+    } else if name == "z_index" {
+        node.z_index()
+    } else if name == "name" {
+        node.name()
+    } else {
+        nil
+    }
+}
+
+/// Writing one of Godot's node properties; false for a name that is not one.
+pub fn set_node_property(node: Node, name: str, value: any) -> bool {
+    if name == "position" {
+        set_position(node, value);
+    } else if name == "global_position" {
+        set_global_position(node, value);
+    } else if name == "scale" {
+        set_scale(node, value);
+    } else if name == "rotation" {
+        set_rotation(node, value.as_float());
+    } else if name == "rotation_degrees" {
+        set_rotation(node, math::to_radians(value.as_float()));
+    } else if name == "visible" {
+        node.set_visible(value.as_bool());
+    } else if name == "modulate" || name == "self_modulate" {
+        set_tint(node, value);
+    } else if name == "z_index" {
+        node.set_z_index(value.as_int());
+    } else if name == "name" {
+        node.set_name(value.as_str());
+    } else {
+        return false;
+    }
+    true
+}
+
+/// A copy of a node and everything under it, beside it: each component's
+/// table set on a fresh node of the same name.
+pub fn clone_node(node: Node) -> Node {
+    clone_under(node, node.parent())
+}
+
+fn clone_under(node: Node, parent: Node) -> Node {
+    let copy = parent.add_child(node.name());
+    for component in node.component_names() {
+        copy.try_set_component(component, node.get_component(component));
+    }
+    for child in node.children() {
+        clone_under(child, copy);
+    }
+    copy
+}
+
+/// `owner.name(args)` when what `owner` is is known only as it runs: a
+/// node's script, an object's class, a callable, or one of Godot's own
+/// methods on an array, a dictionary or a string.
+pub fn call(owner: any, name: str, args: any) -> any {
+    let kind = owner.kind();
+    if kind == NODE {
+        let node = owner.as_node();
+        if node.has_method(name) {
+            return node_call(node, name, args);
+        }
+        return native_node(node, name, args);
+    }
+    if is_object(owner) {
+        return classes::call(owner, name, args);
+    }
+    if is_callable(owner) && (name == "call" || name == "callv") {
+        return call_value(owner, if name == "callv" { args.at(0) } else { args });
+    }
+    native(owner, name, args)
+}
+
+// A script method on a node, with as many arguments as `args` holds.
+fn node_call(node: Node, name: str, args: any) -> any {
+    let n = args.len();
+    if n == 0 {
+        node.call(name)
+    } else if n == 1 {
+        node.call(name, args.at(0))
+    } else if n == 2 {
+        node.call(name, args.at(0), args.at(1))
+    } else if n == 3 {
+        node.call(name, args.at(0), args.at(1), args.at(2))
+    } else {
+        node.call(name, args.at(0), args.at(1), args.at(2), args.at(3))
+    }
+}
+
+/// A callable's method, run with `args`. A lambda's method takes what it
+/// captured first.
+pub fn call_value(callable: any, args: any) -> any {
+    if !is_callable(callable) {
+        return nil;
+    }
+    let target = callable.get(TARGET_KEY);
+    let method = callable.get(METHOD_KEY).as_str();
+    let full: any = [];
+    if callable.has(CAP_KEY) {
+        full.push(callable.get(CAP_KEY));
+    }
+    for arg in args {
+        full.push(arg);
+    }
+    call(target, method, full)
+}
+
+/// Godot's `Callable(target, method)`, and a bound method read off a node.
+pub fn callable(target: any, method: str) -> any {
+    map().with(TARGET_KEY, target).with(METHOD_KEY, method)
+}
+
+/// A lambda: the method the importer lifted it into, and what it captured.
+pub fn lambda(target: any, method: str, cap: any) -> any {
+    callable(target, method).with(CAP_KEY, cap)
+}
+
+// Godot's own methods on a node with no script method of the name.
+fn native_node(node: Node, name: str, args: any) -> any {
+    if name == "get_node" || name == "get_node_or_null" {
+        return node.get_node(args.at(0).as_str());
+    }
+    if name == "get_parent" {
+        return node.parent();
+    }
+    if name == "get_children" {
+        let out: any = [];
+        for child in node.children() {
+            out.push(child);
+        }
+        return out;
+    }
+    if name == "get_child_count" {
+        return node.children().len();
+    }
+    if name == "queue_free" {
+        node.queue_free();
+        return nil;
+    }
+    if name == "is_inside_tree" {
+        return node.is_valid();
+    }
+    if name == "get" {
+        return field(node, args.at(0).as_str());
+    }
+    if name == "set" {
+        set_field(node, args.at(0).as_str(), args.at(1));
+        return nil;
+    }
+    if name == "has_method" {
+        return node.has_method(args.at(0).as_str());
+    }
+    if name == "show" || name == "hide" {
+        node.set_visible(name == "show");
+        return nil;
+    }
+    nil
+}
+
+// Godot's own methods on a value that is not a node or an object.
+fn native(owner: any, name: str, args: any) -> any {
+    let kind = owner.kind();
+    let a0: any = if args.len() > 0 { args.at(0) } else { nil };
+    let a1: any = if args.len() > 1 { args.at(1) } else { nil };
+    if name == "size" || name == "length" {
+        return size(owner);
+    }
+    if name == "is_empty" {
+        return is_empty(owner);
+    }
+    if name == "has" || name == "contains" {
+        return has(owner, a0);
+    }
+    if name == "get" {
+        return get(owner, a0, a1);
+    }
+    if name == "keys" {
+        return keys(owner);
+    }
+    if name == "values" {
+        return values(owner);
+    }
+    if name == "append" || name == "push_back" {
+        return append(owner, a0);
+    }
+    if name == "erase" {
+        return erase(owner, a0);
+    }
+    if name == "find" {
+        return find(owner, a0);
+    }
+    if name == "clear" {
+        return clear(owner);
+    }
+    if name == "duplicate" {
+        return if truthy(a0) { duplicate_deep(owner) } else { duplicate(owner) };
+    }
+    if name == "front" {
+        return front(owner);
+    }
+    if name == "back" {
+        return back(owner);
+    }
+    if name == "pop_front" {
+        return pop_front(owner);
+    }
+    if name == "pop_back" {
+        return pop_back(owner);
+    }
+    if name == "sort" {
+        return sort(owner);
+    }
+    if name == "reverse" {
+        return reverse(owner);
+    }
+    if name == "slice" {
+        return slice(owner, a0, a1);
+    }
+    if name == "merge" {
+        return merge(owner, a0);
+    }
+    if kind == STR {
+        let s = owner.as_str();
+        if name == "to_lower" {
+            return s.to_lower();
+        }
+        if name == "to_upper" {
+            return s.to_upper();
+        }
+        if name == "strip_edges" {
+            return s.trim();
+        }
+        if name == "begins_with" {
+            return s.starts_with(a0.as_str());
+        }
+        if name == "ends_with" {
+            return s.ends_with(a0.as_str());
+        }
+        if name == "split" {
+            return split(s, a0.as_str());
+        }
+        if name == "replace" {
+            return s.replace(a0.as_str(), a1.as_str());
+        }
+        if name == "substr" {
+            return substr(s, a0.as_int(), if a1.is_nil() { -1 } else { a1.as_int() });
+        }
+        if name == "to_int" {
+            return int(owner);
+        }
+        if name == "to_float" {
+            return float(owner);
+        }
+        if name == "is_valid_int" {
+            return is_valid_int(s);
+        }
+        if name == "is_valid_float" {
+            return is_valid_float(s);
+        }
+        if name == "format" {
+            return format_map(s, a0);
+        }
+    }
+    if is_vector(owner) {
+        return vector_method(owner, name, a0);
+    }
+    nil
+}
+
+// A Vector2's or Vector3's own methods.
+fn vector_method(v: any, name: str, other: any) -> any {
+    let len = vector_length(v);
+    if name == "length" {
+        return len;
+    }
+    if name == "length_squared" {
+        return len * len;
+    }
+    if name == "normalized" {
+        return if len == 0.0 { v } else { by_axis(v, len, "/") };
+    }
+    if name == "distance_to" {
+        return vector_length(sub(other, v));
+    }
+    if name == "dot" {
+        let total = 0.0;
+        for axis in v.keys() {
+            total += v.get(axis).as_float() * other.get(axis).as_float();
+        }
+        return total;
+    }
+    if name == "angle" {
+        return math::atan2(v.get("y").as_float(), v.get("x").as_float());
+    }
+    if name == "abs" {
+        let out = map();
+        for axis in v.keys() {
+            out = out.with(axis, math::abs(v.get(axis).as_float()));
+        }
+        return out;
+    }
+    nil
+}
+
+fn vector_length(v: any) -> float {
+    let total = 0.0;
+    for axis in v.keys() {
+        let x = v.get(axis).as_float();
+        total += x * x;
+    }
+    math::sqrt(total)
+}

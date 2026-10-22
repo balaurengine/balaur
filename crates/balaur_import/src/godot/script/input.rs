@@ -23,37 +23,37 @@ pub(super) fn write_input_hooks(out: &mut String, functions: &[Function]) {
         (
             "on_key_down",
             "this, key",
-            "(gd.key_event)(key, true)",
+            "gd::key_event(key, true)",
             false,
         ),
         (
             "on_key_up",
             "this, key",
-            "(gd.key_event)(key, false)",
+            "gd::key_event(key, false)",
             false,
         ),
         (
             "on_pointer_down",
             "this, button",
-            "(gd.pointer_event)(button, true)",
+            "gd::pointer_event(button, true)",
             true,
         ),
         (
             "on_pointer_up",
             "this, button",
-            "(gd.pointer_event)(button, false)",
+            "gd::pointer_event(button, false)",
             true,
         ),
         (
             "on_pointer_drag",
             "this, dx, dy",
-            "(gd.motion_event)(dx, dy)",
+            "gd::motion_event(dx, dy)",
             true,
         ),
         (
             "on_scroll",
             "this, dx, dy",
-            "(gd.scroll_event)(dx, dy)",
+            "gd::scroll_event(dx, dy)",
             true,
         ),
     ];
@@ -76,11 +76,11 @@ pub(super) fn write_input_hooks(out: &mut String, functions: &[Function]) {
             if !wanted || !has(handler) {
                 continue;
             }
-            let call = format!("let _ = (gd.invoke1)(this.node, \"{handler}\", event);");
+            let call = format!("let _ = gd::invoke1(this.node, \"{handler}\", event);");
             if handler.starts_with("_unhandled") {
                 let _ = writeln!(
                     calls,
-                    "    if !(gd.input_handled)() && !{claimed} {{\n        {call}\n    }}"
+                    "    if !gd::input_handled() && !{claimed} {{\n        {call}\n    }}"
                 );
             } else {
                 let _ = writeln!(calls, "    {call}");
@@ -91,12 +91,12 @@ pub(super) fn write_input_hooks(out: &mut String, functions: &[Function]) {
             "\n/// Godot's input handlers, from the engine's hook.\n\
              pub fn {hook}({params}) {{\n\
              \x20   let gd = script::require(\"gd.rn\");\n\
-             \x20   if (gd.same)((gd.get)(this, \"input_enabled\", ()), false) {{\n\
+             \x20   if gd::same(gd::get(this, \"input_enabled\", ()), false) {{\n\
              \x20       return false;\n\
              \x20   }}\n\
              \x20   let event = {event};\n\
              {calls}\
-             \x20   return (gd.take_input_handled)();\n\
+             \x20   return gd::take_input_handled();\n\
              }}\n"
         );
     }
@@ -115,7 +115,7 @@ pub(super) fn write_widget_forwarders(out: &mut String, keys: &std::collections:
             out,
             "\n/// A widget's `{key}`, for the handlers bound to its node.\n\
              pub fn __widget_{key}({params}) {{\n\
-             \x20   let _ = (script::require(\"gd.rn\").widget_fire)(node, \"{key}\", {args});\n\
+             \x20   let _ = gd::widget_fire(node, \"{key}\", {args});\n\
              }}\n"
         );
     }

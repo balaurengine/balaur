@@ -971,7 +971,7 @@ fn write_prologue(
         let bound = safe(int);
         let _ = writeln!(
             out,
-            "    let {bound} = (script::require(\"gd.rn\").int)({bound});"
+            "    let {bound} = gd::int({bound});"
         );
     }
     collision::prologue(out, function, context);
@@ -1049,10 +1049,10 @@ fn static_init_guard(path: &str) -> String {
          /// entry point here runs it once.\n\
          fn {STATIC_INIT}() {{\n\
          {}    let key = \"{path}:static_init_done\";\n\
-         \x20   if (gd.static_get)(key, false) {{\n\
+         \x20   if gd::static_get(key, false) {{\n\
          \x20       return;\n\
          \x20   }}\n\
-         \x20   let _ = (gd.static_set)(key, true);\n\
+         \x20   let _ = gd::static_set(key, true);\n\
          \x20   _static_init();\n\
          }}\n",
         shim_binding(1)

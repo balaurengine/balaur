@@ -8,7 +8,7 @@ use crate::godot::exports::Classes;
 use crate::godot::gdscript::{self, Context, safe};
 
 /// The shim call that turns a collision record into Godot's node.
-const COLLIDED: &str = "(script::require(\"gd.rn\").collided)";
+const COLLIDED: &str = "gd::collided";
 
 /// The methods the project's scenes aim a collision signal at.
 pub(super) fn adopt(context: &mut Context, classes: &Classes) {

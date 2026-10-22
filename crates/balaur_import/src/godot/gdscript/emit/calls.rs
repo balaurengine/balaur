@@ -24,7 +24,7 @@ impl Emitter<'_> {
         let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
         self.uses_shim = true;
         Some(format!(
-            "(gd.emit_engine)({emitter}, {}, [{}])",
+            "gd::emit_engine({emitter}, {}, [{}])",
             quoted(signal),
             parts.join(", ")
         ))
@@ -53,12 +53,12 @@ impl Emitter<'_> {
         if let Some(key) = widget {
             self.widget_forwarders.insert(key.to_string());
             return Some(format!(
-                "(gd.widget_bind)({receiver}, {}, {handler})",
+                "gd::widget_bind({receiver}, {}, {handler})",
                 quoted(key)
             ));
         }
         Some(format!(
-            "(gd.connect)({receiver}, {}, {handler})",
+            "gd::connect({receiver}, {}, {handler})",
             quoted(signal)
         ))
     }
@@ -95,7 +95,7 @@ impl Emitter<'_> {
             if receiver.to_lowercase().contains("tween") {
                 let call = self.callable(args.first()?)?;
                 self.uses_shim = true;
-                return Some(format!("(gd.when_finished)({receiver}, {call})"));
+                return Some(format!("gd::when_finished({receiver}, {call})"));
             }
         }
         // Godot's handler is always a method of this class. A lambda or a
@@ -125,11 +125,11 @@ impl Emitter<'_> {
             self.uses_shim = true;
             return Some(match map::widget_signal(&signal) {
                 Some(key) => format!(
-                    "(gd.widget_connected)({receiver}, {}, {})",
+                    "gd::widget_connected({receiver}, {}, {})",
                     quoted(key),
                     quoted(handler.as_deref().unwrap_or(""))
                 ),
-                None => format!("(gd.is_connected)({receiver}, {})", quoted(&signal)),
+                None => format!("gd::is_connected({receiver}, {})", quoted(&signal)),
             });
         }
         // A widget's own signal is a key on the widget: the engine calls it on
@@ -309,7 +309,7 @@ impl Emitter<'_> {
         let object = self.expression(object);
         self.uses_shim = true;
         Some(format!(
-            "(gd.wait_signal)({object}, {}).await",
+            "gd::wait_signal({object}, {}).await",
             quoted(signal)
         ))
     }
@@ -389,7 +389,7 @@ impl Emitter<'_> {
         // The store holds the value itself, so a call that changes it in
         // place changes the static; only a first use has to put it there.
         self.before
-            .push(format!("let {name} = (gd.static_ref)({key}, {fallback});"));
+            .push(format!("let {name} = gd::static_ref({key}, {fallback});"));
         self.uses_shim = true;
         if let Some(text) = map::method(&name, method, parts) {
             return Some(self.shimmed(text));
