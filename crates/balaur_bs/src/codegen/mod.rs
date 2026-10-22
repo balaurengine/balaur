@@ -418,6 +418,9 @@ fn consts(prog: &Program, host: &HostApi) -> R<HashMap<String, Expr>> {
         if !literal {
             return err(e.pos, format!("const `{n}` must be a literal"));
         }
+        if !n.contains("::") {
+            out.insert(format!("{}::{n}", crate::modules::ROOT), e.clone());
+        }
         out.insert(n.clone(), e.clone());
     }
     Ok(out)
@@ -543,6 +546,10 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         } else {
             1
         };
+        // A root function is also what a module that uses the root calls.
+        if f.owner.is_none() && !key.contains("::") {
+            sigs.insert(format!("{}::{key}", crate::modules::ROOT), sig.clone());
+        }
         if sigs.insert(key.clone(), sig).is_some() {
             return err(f.pos, format!("`{key}` is defined twice"));
         }

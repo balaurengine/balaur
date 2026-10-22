@@ -378,3 +378,25 @@ pub fn compared() -> str {
         Value::Str("false false false true true true true true true true".into())
     );
 }
+
+#[test]
+fn a_map_changed_in_a_walk_of_an_any_list_is_changed_in_the_list() {
+    let mut rt = run(r#"
+pub fn walked() -> str {
+    let doc: any = map().with("assets", [map().with("id", "a").with("n", 1), map().with("id", "b").with("n", 1)]);
+    let seen = 0;
+    for block in doc.assets {
+        if block.id.as_str() == "a" {
+            block.set("n", 6);
+            continue;
+        }
+        seen += 1;
+    }
+    "{doc} {seen}"
+}
+"#);
+    assert_eq!(
+        call(&mut rt, "walked", &[]),
+        Value::Str(r#"{"assets": [{"id": "a", "n": 6}, {"id": "b", "n": 1}]} 1"#.into())
+    );
+}

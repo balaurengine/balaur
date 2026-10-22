@@ -32,15 +32,17 @@ pub(crate) fn link(
     let mut linked = Linker {
         modules,
         root: from.to_string(),
+        made: Made::of(root),
         done: vec![],
         stack: vec![],
-        aliases: vec![],
         out: Program::default(),
     };
     let uses = std::mem::take(&mut root.uses);
-    linked.visit(from, &uses)?;
+    let own = linked.visit(from, &uses)?;
+    if !own.is_empty() {
+        unalias(root, &own, &linked.made);
+    }
     let keys = linked.done.iter().map(|(k, _)| k.clone()).collect();
-    let aliases = std::mem::take(&mut linked.aliases);
     let mut out = linked.out;
     root.linked.append(&mut out.linked);
     root.structs.append(&mut out.structs);
@@ -53,9 +55,6 @@ pub(crate) fn link(
             root.externs.push(x);
         }
     }
-    if !aliases.is_empty() {
-        unalias(root, &aliases);
-    }
     Ok(keys)
 }
 
@@ -66,8 +65,8 @@ struct Linker<'a> {
     done: Vec<(String, String)>,
     /// The files being linked, outermost first, and their names.
     stack: Vec<(String, String)>,
-    /// What modules call the root file.
-    aliases: Vec<String>,
+    /// What the root file declares, which is all a module's name for it reaches.
+    made: Made,
     out: Program,
 }
 
@@ -79,7 +78,9 @@ fn in_file(e: &Error, key: &str) -> Error {
 }
 
 impl Linker<'_> {
-    fn visit(&mut self, from: &str, uses: &[(String, Pos)]) -> Result<(), Error> {
+    // Links what `from` uses; answers the names `from` calls the root file by.
+    fn visit(&mut self, from: &str, uses: &[(String, Pos)]) -> Result<Vec<String>, Error> {
+        let mut aliases = vec![];
         for (path, pos) in uses {
             let name = path.rsplit("::").next().unwrap_or(path).to_string();
             let Some((key, source)) = self.modules.and_then(|m| (m.0)(from, path)) else {
@@ -90,8 +91,8 @@ impl Linker<'_> {
                 });
             };
             if key == self.root {
-                if !self.aliases.contains(&name) {
-                    self.aliases.push(name);
+                if !aliases.contains(&name) {
+                    aliases.push(name);
                 }
                 continue;
             }
@@ -115,9 +116,14 @@ impl Linker<'_> {
             let mut m = parse::parse(&source).map_err(|e| in_file(&e, &key))?;
             self.stack.push((key.clone(), name.clone()));
             let inner = std::mem::take(&mut m.uses);
-            self.visit(&key, &inner)?;
+            let calls_root = self.visit(&key, &inner)?;
             self.stack.pop();
             prefix(&mut m, &name, &key);
+            // Only in the files that use the root: another's `events::listen`
+            // is the engine's even when the root is `events.bs`.
+            if !calls_root.is_empty() {
+                unalias(&mut m, &calls_root, &self.made);
+            }
             self.done.push((key, name.clone()));
             self.out.linked.push(name);
             self.out.structs.append(&mut m.structs);
@@ -127,7 +133,7 @@ impl Linker<'_> {
             self.out.externs.append(&mut m.externs);
             self.out.origin.append(&mut m.origin);
         }
-        Ok(())
+        Ok(aliases)
     }
 }
 
@@ -192,8 +198,36 @@ impl Rename for Names {
     }
 }
 
-/// The names modules call the root file by: `editor::boot` is `boot`.
-struct Unalias<'a>(&'a [String]);
+/// What a root function or constant is called from a module, a name no
+/// script writes, so no local of the same name can stand in front of it.
+pub(crate) const ROOT: &str = "#root";
+
+/// The root file's own functions, constants and structs.
+struct Made {
+    values: HashSet<String>,
+    structs: HashSet<String>,
+}
+
+impl Made {
+    fn of(root: &Program) -> Self {
+        let fns = root
+            .fns
+            .iter()
+            .filter(|f| f.owner.is_none())
+            .map(|f| f.name.clone());
+        Made {
+            values: fns
+                .chain(root.consts.iter().map(|(n, _)| n.clone()))
+                .collect(),
+            structs: root.structs.iter().map(|(n, _)| n.clone()).collect(),
+        }
+    }
+}
+
+/// The names a module calls the root file by: `editor::boot` is the root's
+/// `#root::boot`, and `editor::State` its `State`. A name the root does not
+/// declare stays as written, for the engine module of that name.
+struct Unalias<'a>(&'a [String], &'a Made);
 
 impl Unalias<'_> {
     fn bare(&self, n: &str) -> Option<String> {
@@ -207,17 +241,19 @@ impl Unalias<'_> {
 impl Rename for Unalias<'_> {
     fn func(&self, n: &str) -> Option<String> {
         self.bare(n)
+            .filter(|b| self.1.values.contains(b))
+            .map(|b| format!("{ROOT}::{b}"))
     }
     fn value(&self, n: &str) -> Option<String> {
-        self.bare(n)
+        self.func(n)
     }
     fn strukt(&self, n: &str) -> Option<String> {
-        self.bare(n)
+        self.bare(n).filter(|b| self.1.structs.contains(b))
     }
 }
 
-fn unalias(prog: &mut Program, aliases: &[String]) {
-    let names = Unalias(aliases);
+fn unalias(prog: &mut Program, aliases: &[String], made: &Made) {
+    let names = Unalias(aliases, made);
     for (_, fields) in &mut prog.structs {
         for f in fields {
             names.ty(&mut f.ty);

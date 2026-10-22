@@ -274,13 +274,11 @@ impl FnGen<'_> {
     }
 
     fn for_each(&mut self, var: &str, items: &Expr, body: &Block) -> R<()> {
-        self.scopes.push(vec![]);
-        let mut at = self.expr(items)?;
-        // An `any` holding a list walks its elements, each an `any`.
-        if at == Ty::Any {
-            at = Ty::Array(Box::new(Ty::Any));
-            self.unbox_any(&at);
+        if self.type_of(items)? == Ty::Any {
+            return self.for_each_any(var, items, body);
         }
+        self.scopes.push(vec![]);
+        let at = self.expr(items)?;
         let Ty::Array(et) = at.clone() else {
             return err(
                 items.pos,
@@ -332,5 +330,61 @@ impl FnGen<'_> {
         self.release(&arr);
         self.scopes.pop();
         Ok(())
+    }
+
+    // An `any` holding a list, walked as `for i in 0..xs.len() { let x =
+    // xs.at(i); .. }`: each element is the one the list holds, so a map
+    // changed in the loop is changed in the list. Read out as a `[any]` it
+    // would be a copy of each.
+    fn for_each_any(&mut self, var: &str, items: &Expr, body: &Block) -> R<()> {
+        let pos = items.pos;
+        let k = self.locals.len();
+        let (list, at) = (format!("#each{k}"), format!("#at{k}"));
+        let named = |n: &str| Expr {
+            kind: ExprKind::Var(n.to_string()),
+            pos,
+        };
+        let method = |name: &str, args: Vec<Expr>| Expr {
+            kind: ExprKind::Method(Box::new(named(&list)), name.to_string(), args),
+            pos,
+        };
+        let mut stmts = vec![Stmt {
+            kind: StmtKind::Let {
+                name: var.to_string(),
+                ty: Some(Ty::Any),
+                init: method("at", vec![named(&at)]),
+            },
+            pos,
+        }];
+        stmts.extend(body.stmts.iter().cloned());
+        let walk = Block {
+            stmts: vec![
+                Stmt {
+                    kind: StmtKind::Let {
+                        name: list.clone(),
+                        ty: Some(Ty::Any),
+                        init: items.clone(),
+                    },
+                    pos,
+                },
+                Stmt {
+                    kind: StmtKind::ForRange {
+                        var: at.clone(),
+                        from: Expr {
+                            kind: ExprKind::Int(0),
+                            pos,
+                        },
+                        to: method("len", vec![]),
+                        body: Block {
+                            stmts,
+                            tail: body.tail.clone(),
+                        },
+                    },
+                    pos,
+                },
+            ],
+            tail: None,
+        };
+        self.void_block(&walk)
     }
 }

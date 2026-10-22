@@ -122,3 +122,23 @@ fn modules_may_use_each_other_and_the_file_that_uses_them() {
     // a 0, b 1 bumped to a 2, b 3 bumped to a 4: then 40 from `core`.
     assert_eq!(rt.call("run", &[]), Ok(Value::Int(44)));
 }
+
+#[test]
+fn a_root_function_a_module_calls_is_no_local_of_the_same_name() {
+    let root = "use user;\npub fn layers() -> int { 2 }\npub fn run() -> int { user::go() }";
+    let files = [
+        ("scripts/tiles.bs", root),
+        (
+            "scripts/user.bs",
+            "use tiles;\npub fn go() -> int { let layers = 40; layers + tiles::layers() }",
+        ),
+    ];
+    let options = Options {
+        modules: Some(modules(&files)),
+        path: "scripts/tiles.bs".into(),
+        ..Options::default()
+    };
+    let c = compile(root, &options).unwrap_or_else(|e| panic!("{e}"));
+    let mut rt = Runtime::new(&c, HostFns::default(), Limits::default()).unwrap();
+    assert_eq!(rt.call("run", &[]), Ok(Value::Int(42)));
+}
