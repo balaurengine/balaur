@@ -366,7 +366,7 @@ fn live_state(S: editor::State) -> str {
 
 /// Every row the dock shows: the states, the new-state row, the transitions,
 /// and the fields of whichever transition is open.
-fn row_specs(S: &mut editor::State, doc: any) -> [inspector::Row] {
+fn row_specs(S: &mut editor::State, doc: any) -> [any] {
     let out = [head_spec("STATES", [])];
     let clips = anim::clip_names(S);
     let items1 = states(doc);
@@ -386,11 +386,11 @@ fn row_specs(S: &mut editor::State, doc: any) -> [inspector::Row] {
         } else {
             caption("nested machine")
         };
-        out.push(inspector::Row {
-            full: false,
-            height: ROW_H,
-            slot_role: "layout_actions",
-            controls: [
+        out.push(map()
+            .with("full", false)
+            .with("height", ROW_H)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
                 control,
                 map()
                     .with("kind", "button")
@@ -399,17 +399,14 @@ fn row_specs(S: &mut editor::State, doc: any) -> [inspector::Row] {
                     .with("tooltip", "Remove the state and its transitions")
                     .with("on", "handle")
                     .with("data", map().with("fn", row_specs_on_4).with("state", state)),
-            ],
-            label: state,
-            tooltip: "",
-            label_role: "",
-        });
+            ])
+            .with("label", state));
     }
-    out.push(inspector::Row {
-        full: true,
-        height: ROW_H,
-        slot_role: "layout_actions",
-        controls: [
+    out.push(map()
+        .with("full", true)
+        .with("height", ROW_H)
+        .with("slot_role", "layout_actions")
+        .with("controls", [
             map()
                 .with("kind", "text_field")
                 .with("role", "input_form")
@@ -426,11 +423,7 @@ fn row_specs(S: &mut editor::State, doc: any) -> [inspector::Row] {
                 .with("tooltip", "A state playing the clip of its own name")
                 .with("on", "handle")
                 .with("data", map().with("fn", row_specs_on_7)),
-        ],
-        label: "",
-        tooltip: "",
-        label_role: "",
-    });
+        ]));
     transition_specs(S, doc, out);
     out
 }
@@ -466,7 +459,7 @@ fn named(S: &mut editor::State, text: str) {
     S.machine.naming = "";
 }
 
-fn transition_specs(S: editor::State, doc: any, out: [inspector::Row]) {
+fn transition_specs(S: editor::State, doc: any, out: [any]) {
     out.push(head_spec("TRANSITIONS", [
         map()
             .with("kind", "button")
@@ -489,11 +482,11 @@ fn transition_specs(S: editor::State, doc: any, out: [inspector::Row]) {
         let from = if t.from.is_nil() { "?" } else { t.from.as_str() };
         let to = if t.to.is_nil() { "?" } else { t.to.as_str() };
         let mode = if t.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { t.advance_mode.as_str() };
-        out.push(inspector::Row {
-            full: true,
-            height: ROW_H,
-            slot_role: "layout_actions",
-            controls: [
+        out.push(map()
+            .with("full", true)
+            .with("height", ROW_H)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
                 map()
                     .with("kind", "button")
                     .with("min_width", NAME_W + FIELD_W)
@@ -510,11 +503,7 @@ fn transition_specs(S: editor::State, doc: any, out: [inspector::Row]) {
                     .with("tooltip", "Remove the transition")
                     .with("on", "handle")
                     .with("data", map().with("fn", transition_specs_on_10).with("index", index)),
-            ],
-            label: "",
-            tooltip: "",
-            label_role: "",
-        });
+            ]));
         if open {
             field_specs(S, index, t, names, targets, out);
         }
@@ -537,18 +526,18 @@ fn transition_specs_on_10(S: &mut editor::State, data: any, _0: any) {
 }
 
 /// A heading across the rows, with whatever verbs belong beside it.
-fn head_spec(text: str, verbs: [any]) -> inspector::Row {
+fn head_spec(text: str, verbs: [any]) -> any {
     let controls = [caption(text)];
     for verb in verbs {
         controls.push(verb);
     }
-    inspector::Row { full: true, height: ROW_H, slot_role: "layout_actions", controls: controls, label: "", tooltip: "", label_role: "" }
+    map().with("full", true).with("height", ROW_H).with("slot_role", "layout_actions").with("controls", controls)
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
-fn field_spec(label: str, control: any) -> inspector::Row {
-    inspector::Row { full: false, height: ROW_H, slot_role: "", controls: [control], label: "    " + label, tooltip: "", label_role: "" }
+fn field_spec(label: str, control: any) -> any {
+    map().with("full", false).with("height", ROW_H).with("controls", [control]).with("label", "    " + label)
 }
 
 fn choice(S: editor::State, at: int, key: str, current: str, choices: [str]) -> any {
@@ -629,7 +618,7 @@ fn flag_on_14(S: &mut editor::State, data: any, v: any) {
     set_field(S, at, key, v);
 }
 
-fn field_specs(S: editor::State, at: int, t: any, names: [str], targets: [str], out: [inspector::Row]) {
+fn field_specs(S: editor::State, at: int, t: any, names: [str], targets: [str], out: [any]) {
     let ease = if t.ease.is_nil() { animation::EASE_LINEAR } else { t.ease.as_str() };
     let advance = if t.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { t.advance_mode.as_str() };
     let switch = if t.switch_mode.is_nil() { animation::SWITCH_MODE_IMMEDIATE } else { t.switch_mode.as_str() };

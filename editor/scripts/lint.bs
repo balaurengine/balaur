@@ -127,8 +127,9 @@ fn scene_findings(S: &mut editor::State) -> [At2] {
                 if schema.get(prop).get("type").as_str() != "asset" {
                     continue;
                 }
-                let value = data.get(prop).as_str();
-                if !(true) || value == "" {
+                let held = data.get(prop);
+                let value = held.as_str();
+                if held.kind() != "str" || value == "" {
                     continue;
                 }
                 if asset_missing(S, value) {

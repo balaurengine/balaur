@@ -1,0 +1,264 @@
+// The Export sheet: every target this install can build, what each one still
+// needs, and where the last build landed. The verb is the engine's `export`
+// module, which is the same library `balaur export` runs.
+
+use editor;
+use inspector;
+use pool;
+use settings;
+use util;
+use window;
+
+pub class ExporterState {
+    rows: [any],
+    status: any,
+    said: any,
+    landed: str,
+}
+
+// The runtime every target puts the game on; a server target keeps its own.
+const RUNTIME_SETTING: str = "export/runtime";
+
+pub fn state() -> ExporterState {
+    ExporterState {
+        // One row per target, as `export::targets()` reports them.
+        rows: [],
+        // Per target: "started", "done" or "failed", and what it said.
+        status: map(),
+        said: map(),
+        // Where the last finished export landed, for the Open folder button.
+        landed: "",
+    }
+}
+
+pub fn open(S: &mut editor::State) {
+    refresh(S);
+    window::show(S, "export");
+}
+
+fn refresh(S: &mut editor::State) {
+    S.exporter.rows = export::targets();
+}
+
+// One event from the exporter, delivered on the tick it arrived.
+pub fn report(S: &mut editor::State, e: any) {
+    let ev = util::obj(e);
+    let target = ev.get("target").as_str();
+    let kind = ev.get("kind").as_str();
+    if target == "" {
+        return;
+    }
+    let status: any = S.exporter.status;
+    status.set(target, kind);
+    let said: any = S.exporter.said;
+    if kind == "done" {
+        let where_ = ev.get("path").as_str();
+        said.set(target, where_);
+        S.exporter.landed = where_;
+        log::info("exported {target} -> {where_}");
+        // A runtime that was downloaded on the way is installed now.
+        refresh(S);
+    } else if kind == "failed" {
+        let why = ev.get("message").as_str();
+        said.set(target, why);
+        log::warn("{target}: {why}");
+    } else {
+        said.set(target, "");
+    }
+    window::changed(S);
+}
+
+/// Fill the sheet: what its script asks for when Export is up.
+pub fn fill(S: &mut editor::State) {
+    let hosts: any = window::sheet_form(S, "export", "Export", folder_button(S));
+    if util::is_nil(hosts) {
+        return;
+    }
+    // No sidebar: the sheet is one list of targets, and `sheet_form` left it
+    // shut for us.
+    pool::sync(S, hosts.get("form"), specs(S), 0.0, false);
+}
+
+/// Every row the sheet shows: what it builds, the link to the settings it
+/// builds from, and a target with its verb.
+fn specs(S: editor::State) -> [any] {
+    if S.exporter.rows.len() == 0 {
+        let none = [note("no targets — this build has no exporter", "text_caption")];
+        return none;
+    }
+    let out: [any] = [
+        note("Builds the project this editor is editing.", "text_caption"),
+        // The sheet builds; what it builds from is a settings page, so the
+        // sentence that used to name the table is the link to it.
+        map()
+            .with("full", true)
+            .with("height", 24)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map()
+                    .with("kind", "button")
+                    .with("role", "chip")
+                    .with("text", "export settings")
+                    .with("on", "handle")
+                    .with("data", map().with("fn", specs_on_0)),
+            ]),
+    ];
+    let picker = runtime_spec(S);
+    if picker.is_some() {
+        out.push(picker);
+    }
+    for row in S.exporter.rows {
+        target_specs(S, util::obj(row), out);
+    }
+    out
+}
+
+fn specs_on_0(S: &mut editor::State, data: any, _0: any) {
+    settings::open_at(S, "export");
+}
+
+/// The `[export] runtime` choice, with the options its schema declares.
+fn runtime_spec(S: editor::State) -> any {
+    let options = util::vec(nil);
+    for def in settings::all() {
+        if def.path == RUNTIME_SETTING {
+            options = util::vec(def.spec.options);
+        }
+    }
+    if options.len() == 0 {
+        return nil;
+    }
+    let now = settings::base(RUNTIME_SETTING);
+    map()
+        .with("full", true)
+        .with("height", 24)
+        .with("slot_role", "layout_actions")
+        .with("controls", [
+            map().with("kind", "label").with("role", "text_caption").with("text", "Runtime"),
+            map()
+                .with("kind", "dropdown")
+                .with("role", "choice_form")
+                .with("width", 120)
+                .with("text", if now.kind() == "str" { now } else { options.at(0) })
+                .with("options", options)
+                .with("on", "handle")
+                .with("data", map().with("fn", runtime_spec_on_1)),
+        ])
+}
+
+fn runtime_spec_on_1(S: &mut editor::State, data: any, picked: any) {
+    pick_runtime(S, picked.as_str());
+}
+
+pub fn pick_runtime(S: &mut editor::State, picked: str) {
+    settings::write(S, RUNTIME_SETTING, picked);
+    // An export reads project.toml, so the choice is saved as it is made.
+    settings::commit_project(S);
+    refresh(S);
+}
+
+fn note(text: str, role: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 0)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", role)
+                .with("grow", 1)
+                .with("wrap", true)
+                .with("text", text),
+        ])
+}
+
+// Reveal, beside the close, once an export has landed somewhere.
+fn folder_button(S: editor::State) -> [any] {
+    if S.exporter.landed == "" {
+        return [];
+    }
+    let reveal = [
+        map()
+            .with("kind", "button")
+            .with("role", "action_form")
+            .with("text", "Reveal")
+            .with("tooltip", "Show the last export in the file manager")
+            .with("on", "handle")
+            .with("data", map().with("fn", folder_button_on_2)),
+    ];
+    reveal
+}
+
+fn folder_button_on_2(S: &mut editor::State, data: any, _0: any) {
+    engine::reveal(S.exporter.landed);
+}
+
+// What a target can do right now, in the words the button will use.
+fn readiness(installed: bool, fetchable: bool) -> str {
+    if installed {
+        "installed"
+    } else if fetchable {
+        "downloads on first export"
+    } else {
+        "source build — no release to fetch a runtime from"
+    }
+}
+
+fn target_specs(S: editor::State, row: any, out: [any]) {
+    let name = row.get("name").as_str();
+    let got2 = row.get("runtime");
+    let runtime = if got2.is_nil() { name } else { got2.as_str() };
+    let installed = row.get("installed").as_bool();
+    let fetchable = row.get("fetchable").as_bool();
+    let note_text = row.get("note").as_str();
+    let status = S.exporter.status.get(name).as_str();
+    let said = S.exporter.said.get(name).as_str();
+    let controls: [any] = [map().with("kind", "label").with("role", "text_code").with("text", name)];
+    if runtime != name {
+        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "→ " + runtime));
+    }
+    controls.push(map().with("kind", "label").with("role", "text_caption").with("text", readiness(installed, fetchable)));
+    if note_text != "" {
+        controls.push(map().with("kind", "label").with("role", "note_warning").with("text", note_text));
+    }
+    controls.push(map().with("kind", "row").with("grow", 1));
+    let verb = export_button(S, name, installed, fetchable, status);
+    if verb.kind() == "map" {
+        controls.push(verb);
+    }
+    if status == "started" {
+        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "building…"));
+    } else if status == "failed" {
+        controls.push(map().with("kind", "label").with("role", "note_danger").with("text", "failed"));
+    } else if status == "done" {
+        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "done"));
+    }
+    out.push(map().with("full", true).with("height", 24).with("slot_role", "layout_actions").with("controls", controls));
+    // The path it wrote, or the reason it did not, under the row that says so.
+    if said != "" {
+        out.push(note(said, if status == "failed" { "note_danger" } else { "text_caption" }));
+    }
+}
+
+// Nothing to build with, and nowhere to get one: nothing, instead of a
+// button that can only fail. The same while one is building.
+fn export_button(S: editor::State, name: str, installed: bool, fetchable: bool, status: str) -> any {
+    if status == "started" || !(installed || fetchable) {
+        return nil;
+    }
+    map()
+        .with("kind", "button")
+        .with("role", "action_form")
+        .with("text", if installed { "export" } else { "download & export" })
+        .with("tooltip", "Export the project for this target")
+        .with("on", "handle")
+        .with("data", map().with("fn", export_button_on_3).with("name", name))
+}
+
+fn export_button_on_3(S: &mut editor::State, data: any, _0: any) {
+    let name: str = data.name;
+    let status_map: any = S.exporter.status;
+    status_map.set(name, "started");
+    // `download` is the consent this click just gave: the engine
+    // never fetches a runtime without being told it may.
+    export::start(name, map().with("download", true));
+}

@@ -1,0 +1,161 @@
+// The shell's commands by name: what a key in scenes/panels/keys.toml runs.
+// One table, so a chord and the palette row for the same thing cannot drift.
+
+use anim;
+use arrange;
+use defs;
+use editor;
+use exporter;
+use manager;
+use model;
+use pen;
+use polygon;
+use refactor;
+use selection;
+use settings;
+use shell;
+use theme;
+use tiles;
+use window;
+
+pub struct KeysView {
+    stopped: bool,
+    playing: bool,
+}
+
+/// What the keys need to know to say which of them are live.
+pub fn keys_view(S: editor::State) -> KeysView {
+    KeysView { stopped: S.debug.paused.kind() == "map", playing: S.playing }
+}
+
+/// Run the command `name`. A command with nothing to act on does nothing.
+pub fn run(S: &mut editor::State, name: str) {
+    if name.starts_with("workspace_") {
+        workspace(S, name);
+        return;
+    }
+    if name == "palette" {
+        if S.palette {
+            shell::close_palette(S);
+        } else {
+            shell::open_palette(S, "");
+        }
+    } else if name == "save" {
+        shell::save_active(S);
+    } else if name == "format" {
+        shell::format_active(S);
+    } else if name == "definition" {
+        shell::goto_definition(S);
+    } else if name == "rename_symbol" {
+        refactor::open(S, "rename");
+    } else if name == "replace" {
+        refactor::open(S, "replace");
+    } else if name == "focus" {
+        shell::toggle_focus(S);
+    } else if name == "split" {
+        shell::toggle_split(S);
+    } else if name == "zoom_in" {
+        shell::ask_ui_scale(S, S.ui_scale + 0.125);
+    } else if name == "zoom_out" {
+        shell::ask_ui_scale(S, S.ui_scale - 0.125);
+    } else if name == "settings" {
+        settings::open(S);
+    } else if name == "export" {
+        exporter::open(S);
+    } else if name == "continue" {
+        shell::resume(S, debugger::CONTINUE);
+    } else if name == "step_over" {
+        shell::resume(S, debugger::STEP_OVER);
+    } else if name == "step_into" {
+        shell::resume(S, debugger::STEP_INTO);
+    } else if name == "step_out" {
+        shell::resume(S, debugger::STEP_OUT);
+    } else if name == "play" {
+        shell::toggle_play(S);
+    } else if name == "break" {
+        debugger::request_break();
+    } else if name == "add_child" {
+        model::add_child(S, nil);
+    } else if name == "attach_script" {
+        shell::attach_script(S);
+    } else if name == "reload" {
+        shell::reload_scripts(S);
+    } else if name == "copy" {
+        copy(S);
+    } else if name == "redo" {
+        shell::redo(S);
+    } else if name == "redo_y" {
+        shell::redo(S);
+    } else if name == "undo" {
+        shell::undo(S);
+    } else if name == "theme" {
+        theme::toggle(S);
+    } else if name == "select_all" {
+        selection::select_all(S);
+    } else if name == "ungroup" {
+        arrange::ungroup(S);
+    } else if name == "group" {
+        arrange::group(S);
+    } else if name == "unlock_all" {
+        arrange::unlock_all(S);
+    } else if name == "lock" {
+        arrange::toggle_locked(S);
+    } else if name == "show_all" {
+        arrange::show_all(S);
+    } else if name == "hide" {
+        arrange::toggle_hidden(S);
+    } else if name == "isolate" {
+        arrange::toggle_isolate(S);
+    } else if name == "key" {
+        key(S);
+    } else if name == "cancel" {
+        cancel(S);
+    } else {
+        log::warn("no command named {name}");
+    }
+}
+
+// `workspace_<n>`, one a workspace in the order the bar shows them.
+fn workspace(S: &mut editor::State, name: str) {
+    let n = name.slice("workspace_".len(), name.len()).parse_int();
+    let items1 = defs::workspaces();
+    for i in 0..items1.len() {
+        let p = items1[i];
+        if i + 1 == n {
+            shell::set_workspace(S, p.id);
+        }
+    }
+}
+
+// ⌘V is the paste event the Editor hears; only the copy half is a chord.
+fn copy(S: editor::State) {
+    if model::has_selection(S) {
+        ui::set_clipboard(model::copy_selected(S));
+    }
+}
+
+// A key on the timeline where the playhead is, in the Animation workspace.
+fn key(S: &mut editor::State) {
+    if S.workspace == defs::WORKSPACE_ANIMATION {
+        anim::add_key(S, S.anim.time);
+    }
+}
+
+// Escape stops whichever drawing tool is mid-shape. The completion popup takes
+// it first while it is open, as it takes the arrows and Enter.
+fn cancel(S: &mut editor::State) {
+    // Over the start screen it closes the screen, once the New project sheet
+    // over that has gone.
+    if manager::showing(S) {
+        if !window::showing(S, "manager-new") {
+            manager::close(S);
+        }
+        return;
+    }
+    if S.complete.open {
+        return;
+    }
+    polygon::cancel(S);
+    pen::cancel(S);
+    tiles::cancel(S);
+}

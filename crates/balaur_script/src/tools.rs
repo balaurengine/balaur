@@ -85,6 +85,32 @@ pub trait LanguageTools {
         let _ = (path, source);
         None
     }
+
+    /// Every place `needle` appears in the source, matched as text rather
+    /// than as a name.
+    fn find(&self, path: &str, source: &str, needle: &str) -> Vec<Location> {
+        if needle.is_empty() {
+            return vec![];
+        }
+        let mut found = vec![];
+        for (i, line) in source.lines().enumerate() {
+            for (at, _) in line.match_indices(needle) {
+                found.push(Location {
+                    file: path.to_string(),
+                    line: i + 1,
+                    column: line[..at].chars().count() + 1,
+                });
+            }
+        }
+        found
+    }
+
+    /// The source with every `from` written `to`, as text; `None` when it
+    /// has none.
+    fn replace(&self, path: &str, source: &str, from: &str, to: &str) -> Option<String> {
+        let _ = path;
+        (!from.is_empty() && source.contains(from)).then(|| source.replace(from, to))
+    }
 }
 
 fn text(s: impl Into<String>) -> Value {
@@ -206,6 +232,27 @@ pub fn tool_answer(
                 .references(key, source, word(1))
                 .into_iter()
                 .map(place)
+                .collect(),
+        ),
+        // `[{ file, line, column, url }]`.
+        "find" => Value::List(
+            tools
+                .find(key, source, word(1))
+                .into_iter()
+                .map(place)
+                .collect(),
+        ),
+        // `[{ file, source }]`: the one file, rewritten, or nothing.
+        "replace" => Value::List(
+            tools
+                .replace(key, source, word(1), word(2))
+                .map(|done| {
+                    Value::Map(vec![
+                        ("file".into(), text(key)),
+                        ("source".into(), text(done)),
+                    ])
+                })
+                .into_iter()
                 .collect(),
         ),
         // `[{ file, source }]`: the one file, renamed, or nothing.

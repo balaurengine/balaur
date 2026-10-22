@@ -267,12 +267,12 @@ pub fn changed(S: &mut editor::State) {
 
 /// The controls a plugin's property editor answers for a value of
 /// `datatype`, or nil when no plugin registered one.
-pub fn property_controls(S: editor::State, datatype: str, spec: any, value: any) -> any {
+pub fn property_controls(S: editor::State, datatype: str, spec: any, value: any, at: inspector::AtTop) -> any {
     let entry = S.registry.property_editors.get(datatype);
     if entry.is_nil() {
         return nil;
     }
-    ask(entry, "controls", map().with("spec", spec).with("value", value))
+    ask(entry, "controls", map().with("spec", spec).with("value", value).with("at", at))
 }
 
 /// Whether a plugin registered the start-up state `name`.

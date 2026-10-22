@@ -303,7 +303,7 @@ pub fn fill(S: editor::State) {
         .with("text", if picked { "{t.at.len()} picked" } else { "all {t.at.len()}" }));
     util::fill(PANEL + "/Body/Verbs/all", map().with("visible", picked));
     pool::strip(S, PANEL + "/Body/Header", header(S, t));
-    let rows: [inspector::Row] = [];
+    let rows: [any] = [];
     for at in t.at {
         rows.push(vertex_row(S, t, at));
     }
@@ -358,7 +358,7 @@ fn header_on_0(S: &mut editor::State, data: any, _0: any) {
     signals::inspector(S);
 }
 
-fn vertex_row(S: editor::State, t: Table, at: int) -> inspector::Row {
+fn vertex_row(S: editor::State, t: Table, at: int) -> any {
     let hover = S.polygon.hover.is_some() && S.polygon.hover.unwrap() == at;
     let controls = [
         map()
@@ -392,7 +392,7 @@ fn vertex_row(S: editor::State, t: Table, at: int) -> inspector::Row {
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
     controls.push(label(util::fixed(total, 2), CELL_W, if off { "text_caption_primary" } else { "text_code_quiet" }));
-    inspector::Row { full: true, height: ROW_H, slot_role: "", controls: controls, label: "", tooltip: "", label_role: "" }
+    map().with("full", true).with("height", ROW_H).with("controls", controls)
 }
 
 fn vertex_row_on_1(S: &mut editor::State, data: any, _0: any) {

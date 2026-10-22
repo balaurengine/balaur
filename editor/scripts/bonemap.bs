@@ -216,7 +216,7 @@ pub fn fill(S: editor::State) {
     }
     util::fill(PANEL + "/Body/Verbs/Count", map()
         .with("text", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig"));
-    let rows: [inspector::Row] = [];
+    let rows: [any] = [];
     for name in HUMANOID() {
         for spec in row(S, paths, name) {
             rows.push(spec);
@@ -239,7 +239,7 @@ pub fn verb(S: &mut editor::State, name: str) {
 // A canonical bone's row, and the rig's bones under it while it is the one
 // being picked for: a dock this narrow has nowhere to put a floating list,
 // and the row it belongs to is the one thing a reader has to keep track of.
-fn row(S: editor::State, paths: [str], name: str) -> [inspector::Row] {
+fn row(S: editor::State, paths: [str], name: str) -> [any] {
     let picked = S.bonemap.bones.get(name).as_str();
     let open = S.bonemap.picking == name;
     let controls = [
@@ -270,18 +270,17 @@ fn row(S: editor::State, paths: [str], name: str) -> [inspector::Row] {
             .with("on", "handle")
             .with("data", map().with("fn", row_on_1).with("name", name)));
     }
-    let out = [inspector::Row { full: true, height: 24, slot_role: "", controls: controls, label: "", tooltip: "", label_role: "" }];
+    let out = [map().with("full", true).with("height", 24).with("controls", controls)];
     if !open {
         return out;
     }
     for p in paths {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = p;
-        out.push(inspector::Row {
-            full: true,
-            height: 20,
-            slot_role: "",
-            controls: [
+        out.push(map()
+            .with("full", true)
+            .with("height", 20)
+            .with("controls", [
                 map().with("kind", "label").with("width", NAME_W).with("text", ""),
                 map()
                     .with("kind", "button")
@@ -293,11 +292,7 @@ fn row(S: editor::State, paths: [str], name: str) -> [inspector::Row] {
                     .with("checked", path == picked)
                     .with("on", "handle")
                     .with("data", map().with("fn", row_on_2).with("name", name).with("path", path)),
-            ],
-            label: "",
-            tooltip: "",
-            label_role: "",
-        });
+            ]));
     }
     out
 }

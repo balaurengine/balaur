@@ -109,7 +109,7 @@ pub class State {
     code_scroll: float,
     code_rev: int,
     layout_seen: float,
-    form: [inspector::Row],
+    form: [any],
     pool_keys: any,
     doc_rev: int,
     doc_settled: int,
@@ -247,7 +247,6 @@ pub class State {
     import_shipped: importer::ImportShipped,
     row_after: any,
     kit_state: any,
-    kit: kit::KitState,
     rows_query: str,
     suite: suite::Run?,
 }
@@ -536,12 +535,6 @@ pub fn fresh_state() -> State {
         import_shipped: importer::ImportShipped { rel: "", rows: [] },
         row_after: nil,
         kit_state: nil,
-        kit: kit::KitState {
-            put_bar: nil, put_rows: nil, area_node: nil, tabs: nil, pages: nil, tree_rows: nil,
-            field_row: nil, heading_row: nil, empty_row: nil, file_rows: nil,
-            save_editor_settings: nil, short_path: nil, user_data_directory: nil, changed: nil,
-            open_dialog: nil,
-        },
         rows_query: "",
         suite: nil,
     }
@@ -1141,6 +1134,81 @@ impl Editor {
         signals::heard(self.S, "plugins_changed");
     }
 
+    /// A plugin property editor's control writing its value: `data.at` is
+    /// the `at` its `controls` method was handed.
+    pub fn inspector_write(data: any, value: any) {
+        let at: inspector::AtTop = data.at;
+        inspector::write_at(self.S, at, value);
+    }
+
+    /// A plugin control's edit, handed to the method its `data` names on the
+    /// plugin's node: `on: "relay"`, `data: { to, method, .. }`.
+    pub fn relay(data: any, value: any) {
+        kit::relay(data, value);
+    }
+
+    /// The kit, for a plugin filling its dock: see kit.bs. `part` names
+    /// where on the dock `host`: "head", "foot", "side" or the body.
+    pub fn kit_bar(host: str, part: str, controls: any) {
+        kit::bar(self.S, host, part, controls);
+    }
+
+    pub fn kit_rows(host: str, part: str, specs: any) {
+        kit::rows(self.S, host, part, specs);
+    }
+
+    pub fn kit_area(host: str, part: str) -> Node {
+        kit::area(host, part)
+    }
+
+    pub fn kit_tabs(host: str, id: str, names: any) -> str {
+        kit::tabs(self.S, host, id, names)
+    }
+
+    pub fn kit_pages(host: str, id: str, groups: any) -> str {
+        kit::pages(self.S, host, id, groups)
+    }
+
+    pub fn kit_heading(title: str) -> any {
+        kit::heading(title)
+    }
+
+    pub fn kit_empty(text: str) -> any {
+        kit::empty(text)
+    }
+
+    pub fn kit_field(label: str, value: any, opts: any) -> any {
+        kit::field(self.S, label, value, opts)
+    }
+
+    pub fn kit_tree(id: str, value: any, opts: any) -> any {
+        kit::tree(self.S, id, value, opts)
+    }
+
+    pub fn kit_files(id: str, opts: any) -> any {
+        kit::files(self.S, id, opts)
+    }
+
+    pub fn kit_save_prefs() {
+        kit::save_prefs(self.S);
+    }
+
+    pub fn kit_short_path(path: str) -> str {
+        kit::short_path(path)
+    }
+
+    pub fn kit_user_data() -> str {
+        kit::game_data(self.S)
+    }
+
+    pub fn kit_changed() {
+        kit::changed(self.S);
+    }
+
+    pub fn kit_open_dialog(id: str) {
+        kit::open_dialog(self.S, id);
+    }
+
     /// Have the plugin dock `id` fill its subtree, on a word its script heard.
     pub fn plugin_fill(id: str) {
         docks::fill_plugin(self.S, id);
@@ -1216,7 +1284,7 @@ impl Editor {
         center::code_typed(self.S, text);
     }
 
-    pub fn code_caret(caret: selftest::Caret) {
+    pub fn code_caret(caret: complete::Caret) {
         center::code_caret(self.S, caret);
     }
 
@@ -1291,7 +1359,7 @@ impl Editor {
     }
 
     /// The completion list: what it shows, its keys, and a row clicked.
-    pub fn complete_view() -> complete::View2 {
+    pub fn complete_view() -> complete::View {
         complete::view(self.S)
     }
 
@@ -1304,7 +1372,7 @@ impl Editor {
     }
 
     /// The refactor sheet: what it shows, a field typed, apply and cancel.
-    pub fn refactor_view() -> refactor::View6 {
+    pub fn refactor_view() -> refactor::View {
         refactor::view(self.S)
     }
 
@@ -1446,7 +1514,7 @@ impl Editor {
     }
 
     /// The Library panel's cards or templates, its kind, and what a pick places.
-    pub fn library_view() -> library::View5 {
+    pub fn library_view() -> library::View {
         library::view(self.S)
     }
 
@@ -1531,7 +1599,7 @@ impl Editor {
     }
 
     /// The Docs panel's page for a search, and its module picker.
-    pub fn docs_view(query: str) -> docs::View3 {
+    pub fn docs_view(query: str) -> docs::View {
         docs::view(self.S, query)
     }
 
@@ -1554,7 +1622,7 @@ impl Editor {
     }
 
     /// What the Inspector panel's head says.
-    pub fn inspector_view() -> inspector::View4 {
+    pub fn inspector_view() -> inspector::View {
         inspector::view(self.S)
     }
 

@@ -140,6 +140,19 @@ fn a_map_or_a_list_changes_in_place_for_every_holder() {
 }
 
 #[test]
+fn the_invalid_node_boxes_to_nil() {
+    let mut rt = run(r#"
+fn holds(v: any) -> bool { !v.is_nil() }
+pub fn boxed() -> str {
+    let none: Node = nil;
+    let list: [any] = [none];
+    "{holds(none)} {list[0].is_nil()}"
+}
+"#);
+    assert_eq!(call(&mut rt, "boxed", &[]), Value::Str("false true".into()));
+}
+
+#[test]
 fn a_list_in_an_any_is_written_by_index() {
     let mut rt = run(r#"
 pub fn edited() -> str {

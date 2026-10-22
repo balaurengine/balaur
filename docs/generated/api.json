@@ -58,7 +58,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0                    # or per side, [left, top, right, bottom]\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0                    # or per side, [left, top, right, bottom]\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the ▸ and ▾ glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
     }
   },
   "bs": {
@@ -1192,7 +1192,7 @@
       },
       "engine::reload_script": {
         "least": 1,
-        "signature": "(str)"
+        "signature": "(str) -> str"
       },
       "engine::reveal": {
         "least": 1,
@@ -5090,6 +5090,10 @@
         "least": 1,
         "signature": "(str) -> [Node]"
       },
+      "script::api": {
+        "least": 0,
+        "signature": "() -> any"
+      },
       "script::check": {
         "least": 2,
         "signature": "(str, str) -> [script::Diagnostic]"
@@ -5101,6 +5105,14 @@
       "script::definition": {
         "least": 4,
         "signature": "(str, str, int, int) -> script::Place?"
+      },
+      "script::exports": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
+      "script::find": {
+        "least": 3,
+        "signature": "(str, str, str) -> [script::Place]"
       },
       "script::format": {
         "least": 2,
@@ -5115,6 +5127,10 @@
         "signature": "(str, str, str) -> [script::Place]"
       },
       "script::rename": {
+        "least": 4,
+        "signature": "(str, str, str, str) -> [script::Edit]"
+      },
+      "script::replace": {
         "least": 4,
         "signature": "(str, str, str, str) -> [script::Edit]"
       },
@@ -19580,7 +19596,7 @@
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
-        "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
+        "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root; answers what kept it from compiling, empty when it did.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
         "script_costs": "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine.",
         "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included.",
@@ -19641,7 +19657,7 @@
         "plugin_version": "(name: string) -> string?",
         "plugins": "() -> [string]",
         "quit": "(code: int?)",
-        "reload_script": "(key: string)",
+        "reload_script": "(key: string) -> string",
         "reveal": "(path: string)",
         "script_costs": "() -> [ScriptCost]",
         "set_paused": "(on: bool)",
@@ -20972,7 +20988,7 @@
       "doc": "JSON text to and from script values. Its `null` keeps nil through a round trip.",
       "docs": {
         "encode": "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error.",
-        "parse": "The value a JSON document describes; an error on text that does not parse."
+        "parse": "The value a JSON document describes; nil for text that does not parse, as for `null`."
       },
       "functions": [
         "encode",
@@ -24565,7 +24581,7 @@
         "draw_polyline_2d": "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`.",
         "draw_rect_2d": "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`.",
         "draw_sphere": "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame.",
-        "draw_text_2d": "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, \u2026), `pixels_per_unit` and `z_index`.",
+        "draw_text_2d": "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, …), `pixels_per_unit` and `z_index`.",
         "draw_text_3d": "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size.",
         "draw_texture_2d": "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it.",
         "end_retained": "Keep what was drawn since `begin_retained` under its key, in place of what the key held.",
@@ -24609,7 +24625,7 @@
         "snap_aov": "Render the 3D scene once more as `render.AOV_DEPTH` (nearest brightest), `AOV_NORMALS` (world space), `AOV_CAMERA_NORMALS` or `AOV_SEGMENTATION` (a colour per object) and save it as a PNG, announcing it as `screenshot` does. A read-back of the GPU, as `screenshot` is.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
         "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
-        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face \u2014 so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest.",
+        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest.",
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "tile_data": "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none.",
@@ -25179,7 +25195,7 @@
       "doc": "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
       "docs": {
         "encode": "A table written back out as TOML text; a node or callback in it is not data and is an error.",
-        "parse": "The table a TOML document describes; an error on text that does not parse.",
+        "parse": "The table a TOML document describes; nil for text that does not parse.",
         "patch": "The document's text with this table's keys written into it, keeping every comment, the key order and any table the value does not name. What a tool saving a hand-written file uses instead of `encode`."
       },
       "functions": [

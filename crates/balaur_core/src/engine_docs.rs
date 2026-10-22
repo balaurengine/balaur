@@ -51,7 +51,7 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("quit", &[], "(code: int?)", "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out."),
         ("args", &[], "() -> [string]", "The command-line arguments the app was started with, empty when it was given none."),
         ("environment", &[], "(name: string) -> string?", "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it."),
-        ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
+        ("reload_script", &[], "(key: string) -> string", "Recompile one script by its project-relative key, for a tool editing files outside the watched root; answers what kept it from compiling, empty when it did."),
         ("user_data_directory", &[], "() -> string", "A writable per-user directory for saves and settings, created on first call and named after the project."),
         ("user_data_directory_of", &[], "(project: string) -> string", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
         ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
@@ -284,7 +284,7 @@ pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
         "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
     );
     m.describe(&[
-        ("parse", &[], "(text: string) -> map", "The table a TOML document describes; an error on text that does not parse."),
+        ("parse", &[], "(text: string) -> map", "The table a TOML document describes; nil for text that does not parse."),
         ("encode", &[], "(value: any) -> string", "A table written back out as TOML text; a node or callback in it is not data and is an error."),
         ("patch", &[], "(existing: string, table: any) -> string", "The document's text with this table's keys written into it, keeping every comment, the key order and any table the value does not name. What a tool saving a hand-written file uses instead of `encode`."),
     ]);
@@ -293,7 +293,7 @@ pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
 pub(crate) fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc("JSON text to and from script values. Its `null` keeps nil through a round trip.");
     m.describe(&[
-        ("parse", &[], "(text: string) -> any", "The value a JSON document describes; an error on text that does not parse."),
+        ("parse", &[], "(text: string) -> any", "The value a JSON document describes; nil for text that does not parse, as for `null`."),
         ("encode", &[], "(value: any) -> string", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
     ]);
 }

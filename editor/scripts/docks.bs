@@ -521,7 +521,7 @@ fn host_name(id: str) -> str {
 }
 
 /// The node a plugin dock fills, made the first time it is drawn on that side
-/// and shown. Its `head`, `body` and `foot` are what `S.kit` writes to.
+/// and shown. Its `head`, `body` and `foot` are what the kit writes to.
 pub fn plugin_host(S: editor::State, side: str, id: str) -> str {
     let parent = plugins_of(side);
     let path = parent + "/" + host_name(id);

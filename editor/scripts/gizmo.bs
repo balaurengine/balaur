@@ -1104,7 +1104,7 @@ pub fn update(S: &mut editor::State) {
                 // geometry, and every shape including a mesh has bounds.
                 let hit = render::pick_ray(cam.ray_o[0].as_float(), cam.ray_o[1].as_float(), cam.ray_o[2].as_float(), cam.ray_d[0].as_float(), cam.ray_d[1].as_float(), cam.ray_d[2].as_float());
                 let landed: int? = nil;
-                if true {
+                if hit.is_valid() {
                     landed = model::index_of_live(S, hit);
                 }
                 let landed_some = landed;

@@ -35,9 +35,15 @@ const VERBS: &[(&str, &str)] = &[
     ("signature", "(source: string, line: int, column: int) -> Signature?"),
     ("references", "(source: string, name: string) -> [Place]"),
     ("rename", "(source: string, from: string, to: string) -> [Edit]"),
+    ("find", "(source: string, needle: string) -> [Place]"),
+    ("replace", "(source: string, from: string, to: string) -> [Edit]"),
     ("format", "(source: string) -> string"),
     ("exports", "() -> list"),
+    ("api", "() -> list"),
 ];
+
+// The verbs about the engine rather than a file: no path first.
+const PATHLESS: &[&str] = &["api"];
 
 /// Their signatures, read against the records every module declared.
 pub(crate) fn signatures(records: &BTreeSet<String>) -> Vec<HostSignature> {
@@ -49,9 +55,10 @@ pub(crate) fn signatures(records: &BTreeSet<String>) -> Vec<HostSignature> {
         .iter()
         .filter_map(|(name, doc)| {
             let (params, ret) = crate::doc_types::signature(doc, &cx)?;
+            let path = (!PATHLESS.contains(name)).then_some(Ty::Str);
             Some(HostSignature {
                 key: format!("{MODULE}{name}"),
-                params: std::iter::once(Ty::Str).chain(params).collect(),
+                params: path.into_iter().chain(params).collect(),
                 ret,
                 is_async: false,
             })
@@ -73,6 +80,10 @@ pub(crate) fn call(
     ret: &Ty,
     structs: &Structs,
 ) -> Result<L, String> {
+    if verb == "api" {
+        let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
+        return Ok(from_neutral_in(&answer, ret, structs));
+    }
     let Some(L::Str(path)) = args.first() else {
         return Err(format!("`script::{verb}` wants a path first"));
     };

@@ -1,0 +1,264 @@
+// The completion popup in the Script workspace: what may be typed at the caret,
+// under the caret, from the same `script::complete` an editor outside Balaur
+// reaches through `balaur lsp`.
+
+use center;
+use editor;
+use lint;
+use signals;
+use util;
+
+pub class CompleteState {
+    open: bool,
+    items: [script::Completion],
+    pick: int,
+    at_index: int,
+    rel: str,
+    x: float,
+    y: float,
+    source: str,
+    signature: script::Signature?,
+}
+
+/// Where the code pane's caret is: its character index into the source, and
+/// its place in design pixels.
+pub struct Caret {
+    index: int,
+    x: float,
+    y: float,
+}
+
+/// A 1-based line and column.
+pub struct LineCol {
+    line: int,
+    col: int,
+}
+
+/// What the list shows: where it opens, under the caret, its rows, the one
+/// picked, and the doc line of that one.
+pub struct View {
+    open: bool,
+    x: float,
+    y: float,
+    items: [str],
+    picked: str,
+    list_h: float,
+    doc: str,
+}
+
+// The list's rows, in design pixels.
+const ROW: float = 22.0;
+
+const MAX_ROWS: int = 8;
+
+pub fn state() -> CompleteState {
+    CompleteState { open: false, items: [], pick: 0, at_index: -1, rel: "", x: 0.0, y: 0.0, source: "", signature: nil }
+}
+
+/// The module's own slice of `S`, at `S.complete`.
+pub fn reset(S: &mut editor::State) {
+    S.complete.open = false;
+    S.complete.items = [];
+    S.complete.pick = 0;
+    S.complete.at_index = -1;
+}
+
+/// The 1-based line and column of a character index into `source`.
+pub fn line_col(source: str, index: int) -> LineCol {
+    let line = 1;
+    let col = 1;
+    let chars = source.chars();
+    for at in 0..util::imin(index, chars.len()) {
+        if chars[at] == "\n" {
+            line += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+    }
+    LineCol { line: line, col: col }
+}
+
+// Whether a one-character string is part of a name.
+fn word_char(c: str) -> bool {
+    c != "" && "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_".contains(c)
+}
+
+// The word being typed, so an empty prefix after a space does not open a list
+// of every module in the engine.
+pub fn prefix_at(source: str, index: int) -> str {
+    let out = "";
+    let chars = source.chars();
+    for at in 0..util::imin(index, chars.len()) {
+        if word_char(chars[at]) {
+            out = out + chars[at];
+        } else {
+            out = "";
+        }
+    }
+    out
+}
+
+// Whether the caret sits right after `::` or `.`, which is where a list opens
+// with no prefix typed yet.
+fn after_dot(source: str, index: int) -> bool {
+    let chars = source.chars();
+    if index <= 0 || index > chars.len() {
+        return false;
+    }
+    let last = chars[index - 1];
+    last == "." || (last == ":" && index >= 2 && chars[index - 2] == ":")
+}
+
+/// Ask the host what completes at the caret, and open the list when there is
+/// something to show. Called from the code pane once the editor reports one.
+pub fn update(S: &mut editor::State, rel: str, source: str, caret: Caret) {
+    let index = caret.index;
+    // Same caret, same text: the answer cannot have changed.
+    if S.complete.open && S.complete.at_index == index && S.complete.source == source {
+        return;
+    }
+    S.complete.x = caret.x;
+    S.complete.y = caret.y;
+    S.complete.at_index = index;
+    S.complete.source = source;
+    S.complete.rel = rel;
+    if prefix_at(source, index) == "" && !after_dot(source, index) {
+        S.complete.open = false;
+        S.complete.items = [];
+        return;
+    }
+    let at = line_col(source, index);
+    let found = script::complete(rel, source, at.line, at.col);
+    S.complete.items = found;
+    S.complete.pick = 0;
+    S.complete.open = found.len() > 0;
+    S.complete.signature = script::signature(rel, source, at.line, at.col);
+}
+
+/// The list's keys while it is up: the arrows move the pick, Enter and Tab
+/// accept it, and Escape closes the list.
+pub fn key(S: &mut editor::State, name: str) {
+    if !S.complete.open {
+        return;
+    }
+    let count = S.complete.items.len();
+    if name == "Down" {
+        S.complete.pick = (S.complete.pick + 1) % count;
+    } else if name == "Up" {
+        S.complete.pick = (S.complete.pick + count - 1) % count;
+    } else if name == "Accept" || name == "Tab" {
+        accept(S);
+    } else {
+        reset(S);
+    }
+    signals::changed(S, "complete");
+}
+
+/// A row clicked: accept that one.
+pub fn pick(S: &mut editor::State, row: str) {
+    let shown = rows(S);
+    for i in 0..shown.len() {
+        if shown[i] == row {
+            S.complete.pick = i;
+            accept(S);
+            signals::changed(S, "complete");
+            return;
+        }
+    }
+}
+
+// Replace the prefix under the caret with the chosen item.
+fn accept(S: &mut editor::State) {
+    let i = S.complete.pick;
+    if i < 0 || i >= S.complete.items.len() {
+        reset(S);
+        return;
+    }
+    let index = S.complete.at_index;
+    let chars = S.complete.source.chars();
+    let start = index - prefix_at(S.complete.source, index).chars().len();
+    let head = "";
+    let tail = "";
+    for n in 0..chars.len() {
+        if n < start {
+            head = head + chars[n];
+        } else if n >= index {
+            tail = tail + chars[n];
+        }
+    }
+    let path = S.game_root + "/" + S.complete.rel;
+    S.script_buffers.set(path, head + S.complete.items[i].insert + tail);
+    S.script_dirty.set(path, true);
+    lint::touched(S);
+    signals::bars(S);
+    center::code_written(S);
+    reset(S);
+}
+
+// A row's leading glyph, by what the completion is.
+fn glyph(kind: str) -> str {
+    if kind == "module" {
+        "◆"
+    } else if kind == "function" {
+        "ƒ"
+    } else if kind == "method" {
+        "→"
+    } else if kind == "constant" {
+        "●"
+    } else if kind == "field" {
+        "▪"
+    } else if kind == "property" {
+        "▫"
+    } else if kind == "keyword" {
+        "k"
+    } else {
+        "·"
+    }
+}
+
+/// The list, under the caret, with the picked entry's doc line under it. One
+/// sheet, not two: a second overlay beside this one runs off the pane.
+// A row each completion, its mark, its label and its detail.
+fn rows(S: editor::State) -> [str] {
+    let tint = S.theme.text_muted.as_str();
+    let out: [str] = [];
+    for one in S.complete.items {
+        out.push(util::row(glyph(one.kind), one.label, one.detail, tint));
+    }
+    out
+}
+
+/// What the list shows: where it opens, under the caret, its rows, the one
+/// picked, and the doc line of that one.
+pub fn view(S: editor::State) -> View {
+    if !S.complete.open || S.complete.items.len() == 0 {
+        return View { open: false, x: 0.0, y: 0.0, items: [], picked: "", list_h: 0.0, doc: "" };
+    }
+    let items = rows(S);
+    let pick = util::imin(S.complete.pick, items.len() - 1);
+    let doc = S.complete.items[pick].doc;
+    View {
+        open: true,
+        x: S.complete.x,
+        y: S.complete.y + 4.0,
+        items: items,
+        picked: items[pick],
+        list_h: (util::imin(items.len(), MAX_ROWS) as float) * ROW,
+        doc: clip(doc, 78),
+    }
+}
+
+// The doc line is one sentence in a 320 px sheet; the rest is in the Docs
+// dock, which has room for it.
+fn clip(text: str, n: int) -> str {
+    let chars = text.chars();
+    if chars.len() <= n {
+        return text;
+    }
+    let out = "";
+    for i in 0..n {
+        out = out + chars[i];
+    }
+    out + "…"
+}

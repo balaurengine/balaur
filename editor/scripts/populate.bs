@@ -81,16 +81,15 @@ pub fn fill(S: &mut editor::State) {
     pool::sync(S, hosts.unwrap().form, specs(S), LABEL_W, false);
 }
 
-fn specs(S: editor::State) -> [inspector::Row] {
+fn specs(S: editor::State) -> [any] {
     let P = S.populate;
     let node = model::selected_node(S);
     let name = component(node).unwrap_or(MULTIMESH3D);
-    let out: [inspector::Row] = [];
-    out.push(inspector::Row {
-        full: false,
-        height: 24,
-        slot_role: "",
-        controls: [
+    let out: [any] = [];
+    out.push(map()
+        .with("full", false)
+        .with("height", 24)
+        .with("controls", [
             map()
                 .with("kind", "dropdown")
                 .with("grow", 1)
@@ -98,11 +97,8 @@ fn specs(S: editor::State) -> [inspector::Row] {
                 .with("options", [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID])
                 .with("on", "handle")
                 .with("data", map().with("fn", specs_on_0)),
-        ],
-        label: "Layout",
-        tooltip: "",
-        label_role: "",
-    });
+        ])
+        .with("label", "Layout"));
     if P.kind == render::POPULATE_SURFACE {
         let paths = [NONE];
         for other in S.doc {
@@ -110,11 +106,10 @@ fn specs(S: editor::State) -> [inspector::Row] {
                 paths.push("/" + model::node_path(S.doc, other));
             }
         }
-        out.push(inspector::Row {
-            full: false,
-            height: 24,
-            slot_role: "",
-            controls: [
+        out.push(map()
+            .with("full", false)
+            .with("height", 24)
+            .with("controls", [
                 map()
                     .with("kind", "dropdown")
                     .with("grow", 1)
@@ -122,11 +117,8 @@ fn specs(S: editor::State) -> [inspector::Row] {
                     .with("options", paths)
                     .with("on", "handle")
                     .with("data", map().with("fn", specs_on_1)),
-            ],
-            label: "Surface",
-            tooltip: "",
-            label_role: "",
-        });
+            ])
+            .with("label", "Surface"));
     }
     if P.kind == render::POPULATE_GRID {
         out.push(whole(S, "Columns", P.columns, specs_write_2));
@@ -147,35 +139,26 @@ fn specs(S: editor::State) -> [inspector::Row] {
     out.push(number(S, "Scale", P.scale, 0.05, specs_write_9));
     out.push(fraction(S, "Random scale", P.random_scale, specs_write_10));
     out.push(whole(S, "Seed", P.seed, specs_write_11));
-    out.push(inspector::Row {
-        full: false,
-        height: 24,
-        slot_role: "",
-        controls: [
+    out.push(map()
+        .with("full", false)
+        .with("height", 24)
+        .with("controls", [
             map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", target_text(S, node, name)),
-        ],
-        label: "Writes",
-        tooltip: "",
-        label_role: "",
-    });
+        ])
+        .with("label", "Writes"));
     if P.said != "" {
-        out.push(inspector::Row {
-            full: false,
-            height: 24,
-            slot_role: "",
-            controls: [
+        out.push(map()
+            .with("full", false)
+            .with("height", 24)
+            .with("controls", [
                 map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", P.said),
-            ],
-            label: "",
-            tooltip: "",
-            label_role: "",
-        });
+            ]));
     }
-    out.push(inspector::Row {
-        full: true,
-        height: 30,
-        slot_role: "layout_actions",
-        controls: [
+    out.push(map()
+        .with("full", true)
+        .with("height", 30)
+        .with("slot_role", "layout_actions")
+        .with("controls", [
             map()
                 .with("kind", "button")
                 .with("role", "action_form_primary")
@@ -184,11 +167,7 @@ fn specs(S: editor::State) -> [inspector::Row] {
                 .with("tooltip", "Replace the asset's instances with this layout, as one undo step")
                 .with("on", "handle")
                 .with("data", map().with("fn", specs_on_12)),
-        ],
-        label: "",
-        tooltip: "",
-        label_role: "",
-    });
+        ]));
     out
 }
 
@@ -244,12 +223,11 @@ fn specs_on_12(S: &mut editor::State, data: any, _0: any) {
     apply(S);
 }
 
-fn whole(S: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> inspector::Row {
-    inspector::Row {
-        full: false,
-        height: 24,
-        slot_role: "",
-        controls: [
+fn whole(S: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> any {
+    map()
+        .with("full", false)
+        .with("height", 24)
+        .with("controls", [
             map()
                 .with("kind", "number_field")
                 .with("grow", 1)
@@ -257,11 +235,8 @@ fn whole(S: editor::State, label: str, value: int, write: fn(&mut editor::State,
                 .with("drag_speed", 1.0)
                 .with("on", "handle")
                 .with("data", map().with("fn", whole_on_13).with("write", write)),
-        ],
-        label: label,
-        tooltip: "",
-        label_role: "",
-    }
+        ])
+        .with("label", label)
 }
 
 fn whole_on_13(S: &mut editor::State, data: any, v: any) {
@@ -269,12 +244,11 @@ fn whole_on_13(S: &mut editor::State, data: any, v: any) {
     write(S, util::max(math::round(v.as_float()), 0.0) as int);
 }
 
-fn number(S: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> inspector::Row {
-    inspector::Row {
-        full: false,
-        height: 24,
-        slot_role: "",
-        controls: [
+fn number(S: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> any {
+    map()
+        .with("full", false)
+        .with("height", 24)
+        .with("controls", [
             map()
                 .with("kind", "number_field")
                 .with("grow", 1)
@@ -282,11 +256,8 @@ fn number(S: editor::State, label: str, value: float, step: float, write: fn(&mu
                 .with("drag_speed", step)
                 .with("on", "handle")
                 .with("data", map().with("fn", number_on_14).with("write", write)),
-        ],
-        label: label,
-        tooltip: "",
-        label_role: "",
-    }
+        ])
+        .with("label", label)
 }
 
 fn number_on_14(S: &mut editor::State, data: any, v: any) {
@@ -296,12 +267,11 @@ fn number_on_14(S: &mut editor::State, data: any, v: any) {
 
 // A share from nothing to all of it: of a half turn for rotation and tilt, of
 // `scale` for its variation.
-fn fraction(S: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> inspector::Row {
-    inspector::Row {
-        full: false,
-        height: 24,
-        slot_role: "",
-        controls: [
+fn fraction(S: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> any {
+    map()
+        .with("full", false)
+        .with("height", 24)
+        .with("controls", [
             map()
                 .with("kind", "number_field")
                 .with("grow", 1)
@@ -311,11 +281,8 @@ fn fraction(S: editor::State, label: str, value: float, write: fn(&mut editor::S
                 .with("max", 1.0)
                 .with("on", "handle")
                 .with("data", map().with("fn", fraction_on_15).with("write", write)),
-        ],
-        label: label,
-        tooltip: "",
-        label_role: "",
-    }
+        ])
+        .with("label", label)
 }
 
 fn fraction_on_15(S: &mut editor::State, data: any, v: any) {

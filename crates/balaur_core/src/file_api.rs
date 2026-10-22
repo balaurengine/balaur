@@ -227,9 +227,13 @@ pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
+// Text that does not parse is nil rather than an error: a script reading a
+// file a person edits checks what it got, and has no way to catch.
 pub(crate) fn toml_parse(_: &Engine, args: &[Value]) -> Result<Value> {
-    let parsed: toml::Value = toml::from_str(text(args, 0)?)?;
-    crate::node_api::from_toml(&parsed)
+    match toml::from_str::<toml::Value>(text(args, 0)?) {
+        Ok(parsed) => crate::node_api::from_toml(&parsed),
+        Err(_) => Ok(Value::Nil),
+    }
 }
 
 pub(crate) fn toml_encode(_: &Engine, args: &[Value]) -> Result<Value> {
@@ -309,8 +313,10 @@ pub(crate) fn as_item(value: &toml::Value) -> toml_edit::Item {
 }
 
 pub(crate) fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
-    let parsed: serde_json::Value = serde_json::from_str(text(args, 0)?)?;
-    from_json(&parsed)
+    match serde_json::from_str::<serde_json::Value>(text(args, 0)?) {
+        Ok(parsed) => from_json(&parsed),
+        Err(_) => Ok(Value::Nil),
+    }
 }
 
 pub(crate) fn json_encode(_: &Engine, args: &[Value]) -> Result<Value> {

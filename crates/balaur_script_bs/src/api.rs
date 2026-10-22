@@ -29,6 +29,8 @@ pub(crate) struct Entry {
     /// The component the function drives, from its docs: a script calls it
     /// on that component, `node.transform.translate(..)`.
     pub acts_on: Option<&'static str>,
+    /// What the function does, in its module's words: the reference's text.
+    pub doc: Option<&'static str>,
 }
 
 /// Every binding module, as the plugins registered it.
@@ -144,7 +146,10 @@ impl Bindings<Engine> for Module {
         });
     }
     fn describe(&mut self, entries: &[FnDoc]) {
-        for (name, acts_on, signature, _) in entries {
+        for (name, acts_on, signature, doc) in entries {
+            if !doc.is_empty() {
+                self.entry(name, |e| e.doc = Some(doc));
+            }
             if let Some(comp) = acts_on.first() {
                 self.entry(name, |e| e.acts_on = Some(comp));
             }
@@ -342,6 +347,69 @@ fn literal(v: &Value) -> Option<Literal> {
         Value::Str(t) => Literal::Str(t.clone()),
         _ => return None,
     })
+}
+
+/// One module's rows in the reference, as they are gathered.
+#[derive(Default)]
+struct Page {
+    functions: Vec<Value>,
+    signatures: Vec<(String, Value)>,
+    docs: Vec<(String, Value)>,
+}
+
+/// The script reference `script::api()` answers: one row a module in name
+/// order, each with its functions' names, their signatures as a script
+/// writes them, what each does, and the module's constants.
+pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
+    let mut modules: BTreeMap<&str, Page> = BTreeMap::new();
+    for f in &api.functions {
+        let Some((module, name)) = f.key.split_once("::") else {
+            continue;
+        };
+        let doc = registry
+            .modules
+            .get(module)
+            .and_then(|m| m.get(name))
+            .and_then(|e| e.doc)
+            .unwrap_or("");
+        let row = modules.entry(module).or_default();
+        row.functions.push(Value::text(name));
+        row.signatures
+            .push((name.to_string(), Value::text(f.text())));
+        row.docs.push((name.to_string(), Value::text(doc)));
+    }
+    let rows = modules
+        .into_iter()
+        .map(|(module, row)| {
+            let prefix = format!("{module}::");
+            let constants = api
+                .constants
+                .iter()
+                .filter_map(|(k, v)| {
+                    let name = k.strip_prefix(&prefix)?;
+                    let value = match v {
+                        Literal::Int(x) => x.to_string(),
+                        Literal::Float(x) => x.to_string(),
+                        Literal::Bool(b) => b.to_string(),
+                        Literal::Str(t) => format!("{t:?}"),
+                    };
+                    Some(Value::Map(vec![
+                        ("name".into(), Value::text(name)),
+                        ("value".into(), Value::text(value)),
+                    ]))
+                })
+                .collect();
+            Value::Map(vec![
+                ("name".into(), Value::text(module)),
+                ("doc".into(), Value::text("")),
+                ("functions".into(), Value::List(row.functions)),
+                ("signatures".into(), Value::Map(row.signatures)),
+                ("docs".into(), Value::Map(row.docs)),
+                ("constants".into(), Value::List(constants)),
+            ])
+        })
+        .collect();
+    Value::List(rows)
 }
 
 #[cfg(test)]

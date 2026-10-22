@@ -88,6 +88,27 @@ pub fn sync_when(
     ui::fill_rows(host_path, build(S), label_w, stacked);
 }
 
+/// `strip_due` for rows: whether the rows at `host_path` want filling for
+/// `key` at this label width and stacking. Hand what was built to
+/// `sync_keyed`.
+pub fn sync_due(S: editor::State, host_path: str, key: any, label_w: float, stacked: bool) -> bool {
+    let full: any = [key, label_w, stacked];
+    S.start_states != "" || S.pool_keys.get(host_path) != full
+}
+
+/// `sync_when`'s fill, for rows built after `sync_due` said so.
+pub fn sync_keyed(S: &mut editor::State, host_path: str, key: any, label_w: float, stacked: bool, specs: any) {
+    let full: any = [key, label_w, stacked];
+    if S.pool_keys.get(host_path) == full {
+        if ui::fill_rows(host_path, specs, label_w, stacked) {
+            log::warn("the rows at {host_path} changed while their key did not");
+        }
+        return;
+    }
+    S.pool_keys.set(host_path, full);
+    ui::fill_rows(host_path, specs, label_w, stacked);
+}
+
 /// `spec`, whose edit `f` hears with `data` and the edit: what a closure over
 /// the locals in `data` was. The Editor's `handle` makes the call.
 pub fn on(spec: any, f: fn(&mut editor::State, any, any), data: any) -> any {

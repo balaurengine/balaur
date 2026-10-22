@@ -840,8 +840,12 @@ fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
-    host.reload(text(args, 0)?)?;
-    Ok(Value::Nil)
+    // A file that does not compile is the answer, not a failure of the call:
+    // the tool that saved it says what broke and carries on.
+    Ok(match host.reload(text(args, 0)?) {
+        Ok(()) => Value::text(""),
+        Err(err) => Value::text(format!("{err:#}")),
+    })
 }
 
 fn root(eng: &Engine, _: &[Value]) -> Result<Value> {

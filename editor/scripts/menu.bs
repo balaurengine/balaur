@@ -1,0 +1,109 @@
+// The one menu the shell has, under the mark at the head of the bar: the
+// screens that are not panels, and a tick beside every panel there is, open
+// or not. A tab's close mark takes one away; this is where it comes back.
+
+use about;
+use defs;
+use docks;
+use editor;
+use exporter;
+use icons;
+use pool;
+use settings;
+use shell;
+use themewin;
+
+// A row, and the two columns the panel list runs in: seventeen panels down
+// one column is taller than the window the editor is asked to fit.
+const ROW_W: float = 216.0;
+
+const CELL_W: float = 108.0;
+
+/// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
+/// pass; the menu node draws them in its popup when it is opened.
+pub fn rows(S: &mut editor::State) -> [any] {
+    let out = [
+        action(icons::ui("search"), "Command palette", "⌘K", "palette"),
+        action(icons::ui("settings"), "Settings", "⌘,", "settings"),
+        action(icons::ui("dark"), "Theme", "", "theme"),
+        action(icons::ui("export"), "Export", "⌘E", "export"),
+        action(icons::ui("about"), "About Balaur", "", "about"),
+        rule(),
+        map().with("kind", "label").with("role", "text_heading_menu").with("text", "PANELS").with("width", ROW_W),
+    ];
+    for pair in panel_pairs(S) {
+        out.push(pair);
+    }
+    out.push(rule());
+    out.push(action(icons::ui("reset"), "Reset to {defs::workspace_name(S.workspace)}", "", "reset"));
+    out
+}
+
+// One of the menu's verbs, by the name its row carries.
+fn act(S: &mut editor::State, data: any, _value: any) {
+    let verb = data.verb.as_str();
+    if verb == "palette" {
+        shell::open_palette(S, "");
+    } else if verb == "settings" {
+        settings::open(S);
+    } else if verb == "theme" {
+        themewin::open(S);
+    } else if verb == "export" {
+        exporter::open(S);
+    } else if verb == "about" {
+        about::open(S);
+    } else if verb == "reset" {
+        docks::apply_workspace(S, S.workspace);
+    }
+}
+
+fn action(icon: str, label: str, key: str, verb: str) -> any {
+    let row = map()
+        .with("kind", "button")
+        .with("role", "item_menu")
+        .with("text", label)
+        .with("width", ROW_W)
+        .with("icon", icon)
+        .with("trailing", key);
+    pool::on(row, act, map().with("verb", verb))
+}
+
+// A rule the width of the menu: a bare one takes the width it is offered.
+fn rule() -> any {
+    map().with("kind", "separator").with("width", ROW_W)
+}
+
+// Every panel, ticked where it is open, two to a line. Clicking one closes it
+// or puts it back in the dock it belongs to, and the menu stays up.
+fn panel_pairs(S: &mut editor::State) -> [any] {
+    let ids = docks::known(S);
+    let out: [any] = [];
+    let n = 0;
+    while n < ids.len() {
+        let pair = [cell(S, ids[n])];
+        if n + 1 < ids.len() {
+            pair.push(cell(S, ids[n + 1]));
+        }
+        out.push(map().with("kind", "row").with("controls", pair));
+        n += 2;
+    }
+    out
+}
+
+fn cell(S: &mut editor::State, id: str) -> any {
+    let open = docks::side_of(S, id).is_some();
+    let row = map()
+        .with("kind", "button")
+        .with("role", if open { "item_menu" } else { "item_menu_quiet" })
+        // An em space where the tick would be: as wide as the glyph, so a shut
+        // panel's name starts where an open one's does.
+        .with("icon", if open { icons::ui("check") } else { " " })
+        .with("text", docks::name(S, id))
+        .with("width", CELL_W)
+        .with("keep_open", true);
+    pool::on(row, toggled, map().with("id", id))
+}
+
+fn toggled(S: &mut editor::State, data: any, _value: any) {
+    docks::toggle(S, data.id.as_str());
+}

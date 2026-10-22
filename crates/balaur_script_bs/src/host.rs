@@ -262,6 +262,12 @@ impl BsHost {
         self.inner.registry.borrow().unread()
     }
 
+    /// The script reference: each module's functions, what each takes and
+    /// does, and its constants, as `script::api()` answers it.
+    pub(crate) fn reference(&self) -> balaur_script::Value {
+        crate::api::reference(&self.api(), &self.inner.registry.borrow())
+    }
+
     /// What a script compiles against: the engine's functions, component
     /// properties, constants and records, typed. Built once every plugin has
     /// registered.

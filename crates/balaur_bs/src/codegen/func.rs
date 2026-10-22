@@ -559,7 +559,21 @@ impl<'a> FnGen<'a> {
         use crate::anys::{BOOL, FLOAT, INT, LIST, NODE, STR};
         let (tag, widen) = match got {
             Ty::Int => (INT, None),
-            Ty::Node => (NODE, None),
+            // The invalid node is nil: an `any` holding it is nothing.
+            Ty::Node => {
+                let id = self.local(ValType::I64);
+                self.emit([
+                    I::LocalTee(id),
+                    I::I64Eqz,
+                    I::If(BlockType::Result(ValType::I32)),
+                    I::I32Const(0),
+                    I::Else,
+                    I::LocalGet(id),
+                ]);
+                self.cell(NODE);
+                self.e(I::End);
+                return true;
+            }
             Ty::Float => (FLOAT, Some(I::I64ReinterpretF64)),
             Ty::Bool => (BOOL, Some(I::I64ExtendI32U)),
             // A `fn` value is its table slot: an int, read back as the `fn` wanted.

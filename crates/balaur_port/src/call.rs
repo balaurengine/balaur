@@ -513,21 +513,12 @@ impl Cx<'_> {
                 );
                 same(format!("{r}.contains({joined})"), Ty::Bool)
             }
-            ("contains_key", Ty::Shape(_)) => {
-                let key = l.args.first().and_then(|a| self.lit_str(a));
-                if let Some(k) = key {
-                    self.note(
-                        span,
-                        "has-field",
-                        format!("`contains_key(\"{k}\")` is `true`: a struct has every field"),
-                    );
-                    same("true".to_string(), Ty::Bool)
-                } else {
-                    if let Ty::Shape(id) = t {
-                        self.dynamic_use(id, span, "keys are tested by value");
-                    }
-                    same(format!("{r}.has({joined})"), Ty::Bool)
-                }
+            // A struct has every field, so a key test is the one thing a
+            // struct cannot answer: `#{}` and a filled table are both the
+            // shape, and the test is what tells them apart.
+            ("contains_key", Ty::Shape(id)) => {
+                self.dynamic_use(*id, span, "keys are tested for");
+                same(format!("{r}.has({joined})"), Ty::Bool)
             }
             ("contains_key", _) => same(format!("{r}.has({joined})"), Ty::Bool),
             ("get", Ty::Shape(id)) => {
