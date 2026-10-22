@@ -133,6 +133,9 @@ pub(crate) struct Gen {
     pub host: HostApi,
     pub host_calls: Vec<HostSignature>,
     pub meter: bool,
+    /// A profiled module's first global: the statement count, then the
+    /// callees' share of the call running, then the table's address.
+    pub prof_globals: Option<u32>,
     types: RefCell<(Vec<Signature>, HashMap<Signature, u32>)>,
     data: RefCell<(Vec<u8>, HashMap<String, u32>)>,
     dyns: RefCell<Dyn>,
@@ -564,6 +567,9 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         host: options.host.clone(),
         host_calls,
         meter: options.meter,
+        prof_globals: options
+            .profile
+            .then_some(GLOBALS as u32 + u32::from(options.meter)),
         types: RefCell::new((vec![], HashMap::new())),
         data: RefCell::new((vec![], HashMap::new())),
         dyns: RefCell::new(Dyn {
@@ -711,13 +717,14 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
     for f in &prog.fns {
         let key = f.key();
         let sig = g.sigs[&key].clone();
-        let fid = debug.then_some(out.func_names.len() as u32);
+        let pid = out.func_names.len() as u32;
+        let fid = debug.then_some(pid);
         out.func_names.push(key.clone());
         let at = out.bodies.len() + usize::from(f.is_async);
         let made = if f.is_async {
             asyncs::emit(g, &sig, f, fid, &mut out)
         } else {
-            emit_sync(g, &sig, f, fid, &mut out)
+            emit_sync(g, &sig, f, (fid, pid), &mut out)
         };
         // A linked function's error names the file it is in.
         let made = made.map_err(|e| match prog.origin.iter().find(|(k, _)| *k == key) {
@@ -763,15 +770,17 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
     Ok(out)
 }
 
+// `ids`: the debugger's id for the function, in a debug build, and its row
+// in a profiled module's table.
 fn emit_sync(
     g: &Gen,
     sig: &Sig,
     f: &FnDecl,
-    fid: Option<u32>,
+    ids: (Option<u32>, u32),
     out: &mut Emitted,
 ) -> R<(u32, Vec<(usize, String)>)> {
     let key = f.key();
-    let (body, pts) = sync_fn(g, sig, f, fid)?;
+    let (body, pts) = sync_fn(g, sig, f, ids)?;
     let (p, r) = g.wasm_sig(sig);
     out.bodies.push((g.type_idx(p, r), body));
     // Every method is exported: the host calls `init` and `update` by name.
@@ -828,6 +837,10 @@ fn export_section(
     ex.export(words::DBG_RESET, ExportKind::Func, g.h.dbg_reset + shift);
     if g.meter {
         ex.export(words::FUEL, ExportKind::Global, rt::G_FUEL);
+    }
+    if let Some(base) = g.prof_globals {
+        ex.export(words::STEPS, ExportKind::Global, base);
+        ex.export(words::PROF, ExportKind::Global, base + 2);
     }
     if debug {
         for (name, at) in [
@@ -948,7 +961,21 @@ fn memory_and_globals(
     if options.meter {
         globals.global(mutable, &ConstExpr::i32_const(i32::MAX));
     }
+    if options.profile {
+        for _ in 0..PROF_GLOBALS {
+            globals.global(mutable, &ConstExpr::i32_const(0));
+        }
+    }
     (memory, globals)
+}
+
+/// A profiled module's globals: the statement count, the callees' share of
+/// the call running, and the table's address.
+const PROF_GLOBALS: u32 = 3;
+
+// A direct module's instance id, after the fuel and the profile's globals.
+fn host_global(options: &Options) -> u32 {
+    GLOBALS as u32 + u32::from(options.meter) + PROF_GLOBALS * u32::from(options.profile)
 }
 
 pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Error> {
@@ -961,8 +988,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     // A browser build calls the engine through its exports, never JavaScript.
     let direct = options.direct_imports && direct::applies(&import_list);
     let (imports, shift) = if direct {
-        let host = GLOBALS as u32 + u32::from(options.meter);
-        direct::rewrite(&g, &import_list, &mut out.bodies, host)
+        direct::rewrite(&g, &import_list, &mut out.bodies, host_global(options))
     } else {
         (imports, 0)
     };
@@ -970,8 +996,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     let (table, elements) = table_sections(&g, shift);
     let mut exports = export_section(&g, &out, &dyns, debug, shift);
     if direct {
-        let host = GLOBALS as u32 + u32::from(options.meter);
-        exports.export(words::HOST_CTX, ExportKind::Global, host);
+        exports.export(words::HOST_CTX, ExportKind::Global, host_global(options));
     }
     let data = g.data.borrow().0.clone();
     let mut types = TypeSection::new();
@@ -1042,6 +1067,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         func_names: out.func_names,
         debug,
         metered: options.meter,
+        profiled: options.profile,
         direct,
         uses: vec![],
         imports: import_list,
@@ -1058,7 +1084,7 @@ fn sync_fn(
     g: &Gen,
     sig: &Sig,
     f: &FnDecl,
-    fid: Option<u32>,
+    (fid, pid): (Option<u32>, u32),
 ) -> R<(FuncBody, Vec<(usize, String)>)> {
     let (p, _) = g.wasm_sig(sig);
     let mut fg = FnGen::new(g, p.len(), Mode::Normal { ret: f.ret.clone() });
@@ -1091,6 +1117,7 @@ fn sync_fn(
         fg.dbg = Some((frame, id));
     }
     fg.charge();
+    fg.prof_enter(pid);
     // A list literal at the end is read as the result type, so `[x, y, z]`
     // ends a fn that returns a `Vec3` as it does a `let` of one.
     let lit_tail = matches!(

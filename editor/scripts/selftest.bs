@@ -2976,6 +2976,40 @@ const PLUGIN_SETTLED: int = 3;
 
 /// What a plugin left on the scene once its dock has drawn: the subtree the
 /// editor made for it, and a row per file under it.
+/// Frames `test:profiler` gives a rebuild to land, and the counts to
+/// gather after it.
+const PROFILE_SETTLED: int = 4;
+
+// The Profiler's scripts switch: every script, the editor's own among them,
+// is rebuilt with counters between frames and counts what it runs; switched
+// off, rebuilt without, it counts nothing.
+pub fn profiler(S: &mut editor::State) {
+    if S.script_profiling {
+        dock::profiler_scripts(S);
+    }
+    dock::profiler_scripts(S);
+    check(S.script_profiling, "the Profiler's scripts switch is on");
+    S.profile_demo = 0;
+    stepping(S, "profile");
+}
+
+pub fn profile_step(S: &mut editor::State) {
+    S.profile_demo += 1;
+    if S.profile_demo == PROFILE_SETTLED {
+        let costs = engine::script_costs();
+        check(costs.len() > 0, "the scripts count what they run once rebuilt");
+        let ran = costs.len() > 0 && costs[0].instructions > 0;
+        check(ran, "the dearest of them ran statements");
+        check(engine::function_costs().len() > 0, "and their functions are rows");
+        dock::profiler_scripts(S);
+        check(!S.script_profiling, "switched off");
+    } else if S.profile_demo == 2 * PROFILE_SETTLED {
+        S.profile_demo = -1;
+        check(engine::script_costs().len() == 0, "rebuilt without counters, nothing counts");
+        log::info("selftest profiler: done");
+    }
+}
+
 pub fn plugin_step(S: &mut editor::State) {
     S.plugin_demo = S.plugin_demo + 1;
     if S.plugin_demo < PLUGIN_SETTLED {
@@ -4547,6 +4581,8 @@ fn step_one(S: &mut editor::State, name: str) -> bool {
         session_step(S);
     } else if name == "plugin" {
         plugin_step(S);
+    } else if name == "profile" {
+        profile_step(S);
     } else if name == "palette" {
         palette_step(S);
     } else if name == "settings" {
@@ -4595,6 +4631,8 @@ fn under_way(S: editor::State, name: str) -> bool {
         S.session.demo.is_some()
     } else if name == "plugin" {
         S.plugin_demo >= 0
+    } else if name == "profile" {
+        S.profile_demo >= 0
     } else if name == "palette" {
         S.palette_demo >= 0
     } else if name == "settings" {

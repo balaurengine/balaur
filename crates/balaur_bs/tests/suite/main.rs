@@ -15,6 +15,7 @@ mod modules;
 #[cfg(all(feature = "c", feature = "native"))]
 mod native;
 mod optional;
+mod profile;
 mod reentry;
 mod refs;
 mod reload;

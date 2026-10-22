@@ -240,7 +240,20 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - A script detached during a frame, as a replay's scene reset detaches a
      game's, is not called again in that frame.
 
-   Left before step 8: `engine::script_costs` and `function_costs` count
-   nothing for `.bs`, so the Profiler dock and the benchmark's instructions
-   are empty; no host calls the batch exports (`T.m$batch`) yet.
+   - Profiling (decided 2026-10-22: rebuild on the switch). Switched on or
+     off, every `.bs` file is rebuilt between frames, with counters or
+     without, its instances carried across; on while on starts the tally
+     again. A file built with counters adds one to a global per statement
+     and keeps each function's calls and own statements in a table the host
+     gives it, all inline, so no function or table slot moves and a stored
+     function value survives the rebuild. `engine::script_costs` is the
+     engine's calls into each file and the statements they ran;
+     `function_costs` each function's own. Exports never carry counters.
+     `test:profiler` switches the editor's own scripts both ways.
+   - `balaur test` runs `.bs` tests, failed by a logged error or a trap.
+
+   Decided 2026-10-22 and left: the GDScript importer writes `.bs` directly,
+   typed from GDScript's hints with `any` elsewhere, and its Rune shim is
+   ported; a `.bs` formatter serves `balaur fmt`, the editor's format key
+   and CI. No host calls the batch exports (`T.m$batch`) yet.
 8. **Rune removed.**

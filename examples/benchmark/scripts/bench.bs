@@ -202,9 +202,9 @@ impl Bench {
         self.push("render_cpu_ms", ms(spans.get("render cpu")));
         self.push("render_gpu_ms", ms(spans.get("render gpu")));
         self.push("wall_ms", wall * 1000.0);
-        // Instructions rather than milliseconds: the same frame runs the same
-        // instructions on every machine, so this is the half a baseline can
-        // hold.
+        // Statements run rather than milliseconds: the same frame runs the
+        // same statements on every machine, so this is the half a baseline
+        // can hold. Kept under the name the report has always used.
         let total = 0;
         for row in engine::script_costs() {
             total += row.instructions;

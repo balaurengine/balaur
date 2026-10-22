@@ -864,6 +864,7 @@ fn states() -> any {
         .with("test:script_paths", selftest::script_paths)
         .with("test:instances", selftest::instances)
         .with("test:timings", selftest::timings)
+        .with("test:profiler", selftest::profiler)
         .with("test:placing", selftest::placing)
         .with("test:lint", selftest::linting)
         .with("test:tools", selftest::tooling)

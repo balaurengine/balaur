@@ -142,6 +142,8 @@ pub class State {
     layout_demo: int,
     rows_demo: int,
     plugin_demo: int,
+    /// `test:profiler`'s frames since it switched counting on; -1 at rest.
+    profile_demo: int,
     events_demo: int,
     palette_demo: int,
     import_demo: int,
@@ -405,6 +407,7 @@ pub fn fresh_state() -> State {
         // The same for the row views' test, and the row it asks for.
         rows_demo: -1,
         plugin_demo: -1,
+        profile_demo: -1,
         events_demo: -1,
         palette_demo: -1,
         import_demo: -1,

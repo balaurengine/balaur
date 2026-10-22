@@ -1050,7 +1050,8 @@ pub fn meter_view(S: editor::State, what: str) -> MeterView {
     MeterView { titles: titles, widths: widths, items: items, says: "", headline: frame_hint(), scripts: scripts }
 }
 
-/// The Profiler's "scripts": count what each script costs, or stop.
+/// The Profiler's "scripts": count what each script costs, or stop. Either
+/// way every script is rebuilt between frames, with counters or without.
 pub fn profiler_scripts(S: &mut editor::State) {
     let on = !S.script_profiling;
     S.script_profiling = on;
@@ -1059,10 +1060,10 @@ pub fn profiler_scripts(S: &mut editor::State) {
 
 /// What each script and each of the dearest functions cost the last frame,
 /// dearest first, against the dearest of them rather than against the budget:
-/// the unit is instructions.
+/// the unit is statements run.
 ///
-/// Instructions rather than milliseconds: the same frame runs the same
-/// instructions on every machine, so a number that moved is a change in what
+/// Statements rather than milliseconds: the same frame runs the same
+/// statements on every machine, so a number that moved is a change in what
 /// a script does. Re-armed after reading, so a row is one frame's work.
 fn script_rows(items: [str], k: any) {
     let costs = engine::script_costs();
@@ -1070,10 +1071,10 @@ fn script_rows(items: [str], k: any) {
     for row in costs {
         let count = row.instructions as float;
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
-        items.push(util::cells([row.path, "{row.instructions} instr", bar(share), k.secondary_text.as_str()]));
+        items.push(util::cells([row.path, "{row.instructions} st", bar(share), k.secondary_text.as_str()]));
     }
-    // Each function's own instructions under its file's rows: the VM's count,
-    // so a `draw` callback and a closure the pool calls are in it too.
+    // Each function's own statements under its file's rows, a handler the
+    // pool calls by name among them.
     let functions = engine::function_costs();
     let top = if functions.len() == 0 { 0.0 } else { functions[0].instructions as float };
     for n in 0..util::imin(functions.len(), FUNCTION_ROWS) {
@@ -1081,7 +1082,7 @@ fn script_rows(items: [str], k: any) {
         let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
         items.push(util::cells([
             row.function,
-            "{row.instructions} instr · {row.calls} calls",
+            "{row.instructions} st · {row.calls} calls",
             bar(share),
             k.text_muted.as_str(),
         ]));

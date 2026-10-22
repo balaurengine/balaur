@@ -28,6 +28,11 @@ pub const BOX: &str = "__box";
 pub const UNBOX: &str = "__unbox";
 /// Loop passes and calls left before a metered module traps.
 pub const FUEL: &str = "__fuel";
+/// A profiled module: the statements it has run, wrapping.
+pub const STEPS: &str = "__steps";
+/// A profiled module: where its table of calls and own statements per
+/// function sits, set by the host; 0 keeps none.
+pub const PROF: &str = "__prof";
 /// A direct module's entry point for a call of `n` slots: `__bs_call{n}`.
 pub const DIRECT_CALL: &str = "__bs_call";
 /// A direct module's way to the second and later results of a call.

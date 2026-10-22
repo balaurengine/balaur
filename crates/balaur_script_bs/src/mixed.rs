@@ -247,14 +247,15 @@ impl ScriptHost<Engine> for Mixed {
 
     fn set_profiling(&self, on: bool) {
         self.primary.set_profiling(on);
+        self.lang.set_profiling(on);
     }
 
     fn script_costs(&self) -> Vec<(String, u64, u64)> {
-        self.primary.script_costs()
+        dearest(self.primary.script_costs(), self.lang.script_costs())
     }
 
     fn function_costs(&self) -> Vec<(String, u64, u64)> {
-        self.primary.function_costs()
+        dearest(self.primary.function_costs(), self.lang.function_costs())
     }
 
     fn set_break_on_error(&self, on: bool) {
@@ -293,4 +294,12 @@ impl ScriptHost<Engine> for Mixed {
     fn as_any(&self) -> &dyn core::any::Any {
         self.primary.as_any()
     }
+}
+
+// Both backends' costs in one list, dearest first. Rune counts instructions
+// and Balaur Script statements, so the two are read apart.
+fn dearest(mut a: Vec<(String, u64, u64)>, b: Vec<(String, u64, u64)>) -> Vec<(String, u64, u64)> {
+    a.extend(b);
+    a.sort_by(|x, y| y.2.cmp(&x.2).then_with(|| x.0.cmp(&y.0)));
+    a
 }

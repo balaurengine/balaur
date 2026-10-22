@@ -577,6 +577,42 @@ fn a_script_detached_in_a_frame_is_not_called_later_in_it() {
 }
 
 #[test]
+fn a_profiler_rebuilds_the_scripts_with_counters_and_without() {
+    use balaur_script::ScriptHost as _;
+    let dir = project("spinner.bs");
+    let mut app = booted(dir.path());
+    ticked(&mut app, 2);
+    let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
+    assert!(host.script_costs().is_empty(), "nothing counts until asked");
+    host.set_profiling(true);
+    ticked(&mut app, 3);
+    let spinner = host
+        .script_costs()
+        .into_iter()
+        .find(|(path, _, _)| path == "scripts/spinner.bs")
+        .expect("the spinner is counted once rebuilt");
+    assert!(spinner.1 >= 2 && spinner.2 > 0, "{spinner:?}");
+    let update = host
+        .function_costs()
+        .into_iter()
+        .find(|(name, _, _)| name == "Spinner.update")
+        .expect("its update is a row");
+    assert!(update.1 >= 2 && update.2 > 0, "{update:?}");
+    // On again starts the count again; off rebuilds without counters.
+    host.set_profiling(true);
+    assert!(host.script_costs().is_empty());
+    assert!(host.function_costs().is_empty());
+    host.set_profiling(false);
+    ticked(&mut app, 2);
+    assert!(host.script_costs().is_empty());
+    assert!(host.function_costs().is_empty());
+    // The rebuilds carried the spinner across: it still turns.
+    let before = spun(&app);
+    ticked(&mut app, 2);
+    assert_ne!(spun(&app), before);
+}
+
+#[test]
 fn balaur_check_names_the_line_a_bs_script_breaks_on() {
     let broken = COUNTER.replace(
         "let next = self.count + 1;",

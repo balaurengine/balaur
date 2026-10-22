@@ -12,12 +12,13 @@ use balaur_script::{
 };
 use debug::Held;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use tasks::Pending;
 
 mod debug;
+mod profile;
 mod tasks;
 mod tools;
 
@@ -125,6 +126,14 @@ struct Inner {
     stopped: RefCell<Option<Held>>,
     /// Every file built with probes, so a trap stops at its line.
     break_on_error: Cell<bool>,
+    /// Files are built with counters (`host/profile.rs`).
+    profiling: Cell<bool>,
+    /// Each script's calls from the engine and the statements they ran,
+    /// since profiling started.
+    tally: RefCell<HashMap<String, (u64, u64)>>,
+    /// Files to rebuild between frames for another reason than an edit: a
+    /// profiler switched on or off.
+    rebuild: RefCell<Vec<String>>,
 }
 
 /// The `.bs` backend. Cheap to clone; clones share the one host.
@@ -182,6 +191,9 @@ impl BsHost {
                 breaks: RefCell::default(),
                 stopped: RefCell::new(None),
                 break_on_error: Cell::new(false),
+                profiling: Cell::new(false),
+                tally: RefCell::default(),
+                rebuild: RefCell::default(),
             }),
         }
     }
@@ -237,8 +249,9 @@ impl BsHost {
         HostFns::default().bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
     }
 
+    // What runs here: with counters while a profiler wants them.
     fn compile_module(&self, key: &str) -> Result<(Compiled, String)> {
-        self.compile_source(key, &self.source(key)?)
+        self.compile_with(key, &self.source(key)?, self.inner.profiling.get())
     }
 
     /// Where `use name;` in a file finds `name.bs`: beside it, then in each
@@ -341,13 +354,20 @@ impl BsHost {
             .collect()
     }
 
+    /// `source` as the file at `key` ships: an export's check and its native
+    /// build never carry a profiler's counters.
     pub(crate) fn compile_source(&self, key: &str, source: &str) -> Result<(Compiled, String)> {
+        self.compile_with(key, source, false)
+    }
+
+    fn compile_with(&self, key: &str, source: &str, profile: bool) -> Result<(Compiled, String)> {
         let compiled = balaur_bs::compile(
             source,
             &Options {
                 debug: self.probed(key),
                 host: self.api(),
                 meter: METER,
+                profile,
                 memory_max: Some(MEMORY_CAP),
                 // A browser wires the script straight to the engine's exports.
                 direct_imports: METER,
@@ -527,7 +547,9 @@ impl BsHost {
             return Self::nested(file, inst, method, &args);
         };
         *inst.lent.borrow_mut() = rt.share(&obj);
+        let before = rt.steps();
         let out = rt.call_info(&mut obj, info, &args);
+        self.charge(&inst.path, before, rt.steps());
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
             rt.drop_object(lent);
@@ -799,7 +821,7 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn pump_reloads(&self) {
-        let mut todo: Vec<String> = vec![];
+        let mut todo: Vec<String> = self.inner.rebuild.take();
         for key in self.edited() {
             // A module is no script of its own: what uses it reloads.
             let users: Vec<String> = self
@@ -961,6 +983,18 @@ impl ScriptHost<Engine> for BsHost {
 
     fn breakpoints(&self, path: &str) -> Vec<usize> {
         self.debug_breakpoints(path)
+    }
+
+    fn set_profiling(&self, on: bool) {
+        self.profile_set(on);
+    }
+
+    fn script_costs(&self) -> Vec<(String, u64, u64)> {
+        self.profile_scripts()
+    }
+
+    fn function_costs(&self) -> Vec<(String, u64, u64)> {
+        self.profile_functions()
     }
 
     fn set_break_on_error(&self, on: bool) {

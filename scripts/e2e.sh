@@ -138,6 +138,7 @@ EDITOR_STATES=(
   test:plugin_docks                         # editor/plugins/counter.bs
   test:clipboard test:script_paths          # copy, paste; Assets' file verbs
   test:recordings                           # session recording
+  test:profiler                             # scripts rebuilt with counters
   test:theme_switch test:theme_editing      # light and back; a theme diff
   test:sheet_close test:settings test:export_runtime
   test:drop test:events                     # drag-in; the Events view

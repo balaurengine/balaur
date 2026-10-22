@@ -129,7 +129,9 @@ impl BsHost {
         let Some(mut obj) = inst.obj.borrow_mut().take() else {
             return Ok(Polled::Waiting(p));
         };
+        let before = rt.steps();
         let step = poll(rt, file.compiled.meta.debug, &mut p.task, &mut obj);
+        self.charge(&p.path, before, rt.steps());
         if let Ok(Step::Paused(_)) = step {
             self.hold_task(obj, p);
             return Ok(Polled::Stopped);

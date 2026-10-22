@@ -6,8 +6,8 @@ The cases live in `examples/benchmark/scripts/cases_kinds.bs` and
 while they sit there. This runs them and prints the table.
 
 Two numbers matter and they are not the same. Wall milliseconds is what a
-player feels and moves with the machine and its load. Instructions per node is
-what the interpreter did, is identical everywhere, and is the one a baseline
+player feels and moves with the machine and its load. Statements per node is
+what the scripts ran, is identical everywhere, and is the one a baseline
 should hold.
 
 Nothing here runs in CI: a shared runner times a frame badly, and these are
@@ -122,7 +122,7 @@ def main() -> int:
 
     print(
         f"{'case':24} {'count':>7} {'wall':>8} {'frame':>8} {'script':>8} "
-        f"{'mirror':>8} {'ui':>8} {'r.cpu':>8} {'r.gpu':>8} {'instr/n':>9}"
+        f"{'mirror':>8} {'ui':>8} {'r.cpu':>8} {'r.gpu':>8} {'stmt/n':>9}"
     )
     results = {}
     for key in wanted:

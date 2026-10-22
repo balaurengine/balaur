@@ -164,6 +164,7 @@ fn busy(S: editor::State) -> bool {
         || S.window.demo >= 0
         || S.machine.demo >= 0
         || S.plugin_demo >= 0
+        || S.profile_demo >= 0
         || S.events_demo >= 0
         || S.palette_demo >= 0
         || S.showcase.is_some()

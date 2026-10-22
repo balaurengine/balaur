@@ -27,20 +27,20 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         (
             "ScriptCost",
             "{ path: string, calls: int, instructions: int }",
-            "What one script has cost since profiling started, in calls and instructions.",
+            "What one script has cost since profiling started, in calls and statements run.",
         ),
         (
             "FunctionCost",
             "{ function: string, calls: int, instructions: int }",
-            "What one function has cost since profiling started, in calls and its own instructions.",
+            "What one function has cost since profiling started, in calls and its own statements.",
         ),
     ]);
     m.describe(&[
         ("time", &[], "() -> float", "Seconds of engine time since the app started, accumulated as a float."),
         ("timings", &[], "() -> Timings?", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
-        ("set_script_profiling", &[], "(on: bool)", "Start or stop counting what each script costs. Turning it on clears the tally."),
-        ("script_costs", &[], "() -> [ScriptCost]", "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
-        ("function_costs", &[], "() -> [FunctionCost]", "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own instructions without its callees'. A `draw` callback and a closure a native call runs are in it."),
+        ("set_script_profiling", &[], "(on: bool)", "Start or stop counting what each script costs. Turning it on clears the tally; on from off, or off from on, rebuilds every Balaur Script file between frames, with counters or without, carrying its fields across."),
+        ("script_costs", &[], "() -> [ScriptCost]", "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`, `calls` the engine's calls into it. A Balaur Script file counts the statements it ran and a Rune one the VM's instructions: not seconds, so the number is the same on every machine."),
+        ("function_costs", &[], "() -> [FunctionCost]", "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements (Rune: instructions) without its callees'. A function of a module two files use counts once for the two."),
         ("delta", &[], "() -> float", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "() -> int", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
         ("set_paused", &[], "(on: bool)", "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included."),

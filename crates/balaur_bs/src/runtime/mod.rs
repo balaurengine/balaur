@@ -11,6 +11,7 @@ mod engine;
 mod host;
 #[cfg(feature = "native")]
 mod native_engine;
+mod profile;
 mod reentry;
 mod stepping;
 mod values;
@@ -159,7 +160,7 @@ impl Runtime {
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;
-        Ok(Runtime {
+        let mut rt = Runtime {
             wasm,
             host: state,
             meta,
@@ -167,7 +168,9 @@ impl Runtime {
             parked_call: None,
             error_stop: None,
             nested: false,
-        })
+        };
+        rt.arm_profile()?;
+        Ok(rt)
     }
 
     pub fn meta(&self) -> &Meta {

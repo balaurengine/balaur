@@ -76,6 +76,9 @@ pub(crate) struct FnGen<'a> {
     pub patches: Vec<(usize, String)>,
     pub sites: HashMap<u32, Site>,
     pub fast: Vec<super::hoist::Fast>,
+    /// A profiled function: its row, and the locals holding the statement
+    /// count and the callees' share when it began.
+    pub prof: Option<(u32, u32, u32)>,
 }
 
 impl<'a> FnGen<'a> {
@@ -97,6 +100,7 @@ impl<'a> FnGen<'a> {
             patches: vec![],
             fast: vec![],
             sites: HashMap::new(),
+            prof: None,
         }
     }
 
@@ -781,9 +785,80 @@ impl<'a> FnGen<'a> {
         }
     }
 
+    /// A profiled module counts the statement about to run.
+    fn count_step(&mut self) {
+        if let Some(steps) = self.g.prof_globals {
+            self.emit([
+                I::GlobalGet(steps),
+                I::I32Const(1),
+                I::I32Add,
+                I::GlobalSet(steps),
+            ]);
+        }
+    }
+
+    /// A profiled function notes where the count stood, and starts its
+    /// callees' share at nothing.
+    pub(crate) fn prof_enter(&mut self, row: u32) {
+        let Some(steps) = self.g.prof_globals else {
+            return;
+        };
+        let (start, child) = (self.local(ValType::I32), self.local(ValType::I32));
+        self.emit([
+            I::GlobalGet(steps),
+            I::LocalSet(start),
+            I::GlobalGet(steps + 1),
+            I::LocalSet(child),
+            I::I32Const(0),
+            I::GlobalSet(steps + 1),
+        ]);
+        self.prof = Some((row, start, child));
+    }
+
+    // On the way out: one call more, and the statements it ran less its
+    // callees', in its row of the table when the host keeps one; its whole
+    // count goes to its caller's callees' share.
+    fn prof_leave(&mut self) {
+        let (Some(steps), Some((row, start, child))) = (self.g.prof_globals, self.prof) else {
+            return;
+        };
+        let (child_share, table) = (steps + 1, steps + 2);
+        let at = u64::from(row) * 16;
+        let total = self.local(ValType::I32);
+        self.emit([
+            I::GlobalGet(steps),
+            I::LocalGet(start),
+            I::I32Sub,
+            I::LocalSet(total),
+            I::GlobalGet(table),
+            I::If(BlockType::Empty),
+            I::GlobalGet(table),
+            I::GlobalGet(table),
+            I::I64Load(mem(at, 3)),
+            I::I64Const(1),
+            I::I64Add,
+            I::I64Store(mem(at, 3)),
+            I::GlobalGet(table),
+            I::GlobalGet(table),
+            I::I64Load(mem(at + 8, 3)),
+            I::LocalGet(total),
+            I::GlobalGet(child_share),
+            I::I32Sub,
+            I::I64ExtendI32S,
+            I::I64Add,
+            I::I64Store(mem(at + 8, 3)),
+            I::End,
+            I::LocalGet(child),
+            I::LocalGet(total),
+            I::I32Add,
+            I::GlobalSet(child_share),
+        ]);
+    }
+
     // Debug builds: note the statement, spill and stop at a breakpoint or a
     // step (flag 1), spill alone under flag 2; a stop's edits are read back.
     pub(crate) fn probe(&mut self, pos: Pos) {
+        self.count_step();
         let Some((frame, func)) = self.dbg else {
             return;
         };
@@ -897,6 +972,7 @@ impl<'a> FnGen<'a> {
         self.set_raw(&tmp);
         self.release_owned();
         self.dbg_leave();
+        self.prof_leave();
         if let Mode::Poll { .. } = self.mode {
             for (j, (vt, _)) in self.g.slots(ty).into_iter().enumerate() {
                 self.emit([

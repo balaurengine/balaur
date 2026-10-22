@@ -57,6 +57,10 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent switches of a build, not a state enum"
+)]
 #[derive(Clone, Debug, Default)]
 pub struct Options {
     /// Instrument every statement for the debugger: slower, never shipped.
@@ -66,6 +70,9 @@ pub struct Options {
     /// Count loop passes and calls in the module itself, against the fuel a
     /// call is given: for an engine with no fuel of its own, a browser's.
     pub meter: bool,
+    /// Count every statement run, and each function's calls and own
+    /// statements, for a profiler: slower, so on only while one is wanted.
+    pub profile: bool,
     /// The most memory the module may grow to, declared in it so an engine
     /// with no limiter of its own (a browser's) keeps to it.
     pub memory_max: Option<usize>,
@@ -194,6 +201,10 @@ pub struct Compiled {
 /// A struct's declared defaults: field, whether it is `pub`, the literal.
 pub type FieldDefaults = Vec<(String, bool, Literal)>;
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "what the build was asked for, one switch each"
+)]
 #[derive(Clone, Debug, Default)]
 pub struct Meta {
     pub structs: Vec<(String, Vec<(String, Ty)>)>,
@@ -212,6 +223,9 @@ pub struct Meta {
     pub debug: bool,
     /// The module counts its own fuel in [`words::FUEL`].
     pub metered: bool,
+    /// The module counts its statements in [`words::STEPS`], and each of
+    /// `func_names` its calls and own statements in [`words::PROF`]'s table.
+    pub profiled: bool,
     /// Its imports are [`words::DIRECT_CALL`] entry points; `imports` still
     /// lists what each import index means.
     pub direct: bool,
