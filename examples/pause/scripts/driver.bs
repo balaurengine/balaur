@@ -128,7 +128,6 @@ impl Driver {
             render::screenshot("{self.frames}/{padded(self.frame)}.png");
         }
     }
-
 }
 
 // Three digits, so a directory listing plays the frames in order.

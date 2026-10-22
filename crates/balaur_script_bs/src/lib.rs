@@ -16,6 +16,7 @@ mod store;
 mod tool_verbs;
 mod waits;
 
+pub use balaur_bs::fmt;
 pub use balaur_bs::{HostApi, HostSignature, Literal};
 pub use export::Exporter;
 pub use host::{BsHost, EXTENSION};

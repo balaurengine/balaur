@@ -1,4 +1,5 @@
 mod asyncs;
+mod batch;
 mod call;
 mod direct;
 mod expr;
@@ -22,7 +23,7 @@ pub(crate) use func::show;
 use func::{FnGen, LVal, Mode, R, err};
 use rt::{
     DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LIVE,
-    GLOBALS, HELPER_COUNT, Helpers, load, mem, store,
+    GLOBALS, HELPER_COUNT, Helpers, mem,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
@@ -389,18 +390,6 @@ fn has_heap(t: &Ty, structs: &Structs, classes: &BTreeSet<String>) -> bool {
     }
 }
 
-// A batch entry runs the method once per instance with the same arguments,
-// so it exists only where no argument or result needs releasing.
-fn batchable(f: &FnDecl, structs: &Structs, classes: &BTreeSet<String>) -> bool {
-    f.public
-        && f.owner.is_some()
-        && !f.is_async
-        && f.owner.as_ref().is_some_and(|o| !classes.contains(o))
-        && f.params.iter().all(|p| !p.by_ref)
-        && !has_heap(&f.ret, structs, classes)
-        && f.params.iter().all(|p| !has_heap(&p.ty, structs, classes))
-}
-
 fn consts(prog: &Program, host: &HostApi) -> R<HashMap<String, Expr>> {
     let mut out = HashMap::new();
     for (n, v) in &host.constants {
@@ -544,7 +533,7 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
             owner: f.owner.clone(),
             kind,
         };
-        idx += if f.is_async || batchable(f, &structs, &classes) {
+        idx += if f.is_async || batch::batchable(f, &structs, &classes) {
             2
         } else {
             1
@@ -788,8 +777,8 @@ fn emit_sync(
     // its value back to.
     if (f.public || f.owner.is_some()) && !sig.has_refs() {
         out.exports.push((key.clone(), sig.idx));
-        if batchable(f, &g.structs, &g.classes) {
-            let (bt, bf) = batch_fn(g, sig);
+        if batch::batchable(f, &g.structs, &g.classes) {
+            let (bt, bf) = batch::batch_fn(g, sig);
             out.bodies.push((bt, bf));
             out.exports
                 .push((format!("{key}{}", words::BATCH), sig.idx + 1));
@@ -1169,61 +1158,4 @@ fn sync_fn(
         },
         patches,
     ))
-}
-
-// `T.m$batch(base, count, args..)`: `m` over `count` instances stored at
-// `base`, one 8-byte slot per field: one host call a frame, not one per instance.
-fn batch_fn(g: &Gen, sig: &Sig) -> (u32, FuncBody) {
-    use ValType::I32;
-    let selfv = g.self_vts(sig.owner.as_ref());
-    let argv: Vec<ValType> = sig.params.iter().flat_map(|t| g.vts(t)).collect();
-    let nret = g.vts(&sig.ret).len();
-    let mut params = vec![I32, I32];
-    params.extend(argv.clone());
-    let np = params.len() as u32;
-    let (k, addr) = (np, np + 1);
-    let temps: Vec<u32> = (0..selfv.len() as u32).map(|i| np + 2 + i).collect();
-    let mut locals = vec![I32, I32];
-    locals.extend(selfv.iter().copied());
-    let stride = 8 * selfv.len() as i32;
-    let mut code = vec![
-        I::Block(BlockType::Empty),
-        I::Loop(BlockType::Empty),
-        I::LocalGet(k),
-        I::LocalGet(1),
-        I::I32GeU,
-        I::BrIf(1),
-    ];
-    code.extend([
-        I::LocalGet(0),
-        I::LocalGet(k),
-        I::I32Const(stride),
-        I::I32Mul,
-        I::I32Add,
-        I::LocalSet(addr),
-    ]);
-    for (j, vt) in selfv.iter().enumerate() {
-        code.extend([I::LocalGet(addr), load(*vt, 8 * j as u64)]);
-    }
-    code.extend((0..argv.len() as u32).map(|a| I::LocalGet(2 + a)));
-    code.push(I::Call(sig.idx));
-    code.extend((0..nret).map(|_| I::Drop));
-    code.extend(temps.iter().rev().map(|t| I::LocalSet(*t)));
-    for (j, vt) in selfv.iter().enumerate() {
-        code.extend([
-            I::LocalGet(addr),
-            I::LocalGet(temps[j]),
-            store(*vt, 8 * j as u64),
-        ]);
-    }
-    code.extend([
-        I::LocalGet(k),
-        I::I32Const(1),
-        I::I32Add,
-        I::LocalSet(k),
-        I::Br(0),
-        I::End,
-        I::End,
-    ]);
-    (g.type_idx(params, vec![]), FuncBody { locals, code })
 }

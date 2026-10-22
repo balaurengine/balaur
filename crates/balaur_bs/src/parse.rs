@@ -5,7 +5,7 @@ use crate::ast::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-enum Tok {
+pub(crate) enum Tok {
     Ident(String),
     Int(i64),
     Float(f64),
@@ -14,7 +14,7 @@ enum Tok {
     Eof,
 }
 
-const PUNCT: [&str; 35] = [
+pub(crate) const PUNCT: [&str; 35] = [
     "..", "->", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "::", "(", ")",
     "{", "}", "[", "]", ",", ";", ":", ".", "&", "+", "-", "*", "/", "%", "=", "<", ">", "!", "?",
 ];
@@ -77,7 +77,7 @@ fn lex(src: &str, at: Pos) -> Result<Vec<(Tok, Pos)>, Error> {
 }
 
 // A number from `start`: an int, or a float when it has a fraction or an exponent.
-fn lex_number(src: &str, start: usize, pos: Pos) -> Result<(Tok, usize), Error> {
+pub(crate) fn lex_number(src: &str, start: usize, pos: Pos) -> Result<(Tok, usize), Error> {
     let b = src.as_bytes();
     let digits = |mut i: usize| {
         while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'_') {
@@ -117,7 +117,7 @@ fn lex_number(src: &str, start: usize, pos: Pos) -> Result<(Tok, usize), Error> 
 // A string literal from its opening quote; returns its text and the index past the closing one.
 // Inside a `{..}` the text is code, kept as written for `interpolate` to lex:
 // a string there is copied whole, quotes, escapes and all.
-fn lex_string(src: &str, start: usize, pos: Pos) -> Result<(String, usize), Error> {
+pub(crate) fn lex_string(src: &str, start: usize, pos: Pos) -> Result<(String, usize), Error> {
     let b = src.as_bytes();
     let mut i = start + 1;
     let mut s = String::new();

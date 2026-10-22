@@ -1,8 +1,5 @@
-// The editor's profiler on `.bs`: switching it on rebuilds every file with
-// counters between frames, as a breakpoint rebuilds a file with probes, and
-// switching it off rebuilds them without. Built without, a file costs
-// nothing extra; built with, it counts every statement it runs, and each
-// function's calls and own statements, the same on every machine.
+// The profiler on `.bs`: switched on or off, every file is rebuilt between
+// frames with counters or without, as a breakpoint rebuilds one with probes.
 
 use super::BsHost;
 use std::collections::HashMap;

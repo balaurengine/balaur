@@ -23,40 +23,6 @@ fn is_name(s: &str) -> bool {
         && !KEYWORDS.contains(&s)
 }
 
-// Braces and brackets a line opens less those it closes, outside strings and
-// comments, and what it closes before anything else.
-fn tally(line: &str) -> (i32, i32, i32, i32) {
-    let lead_braces = line
-        .chars()
-        .take_while(|c| matches!(c, '}' | ')' | ']'))
-        .filter(|c| *c == '}')
-        .count();
-    let lead_parens = line
-        .chars()
-        .take_while(|c| matches!(c, '}' | ')' | ']'))
-        .filter(|c| *c != '}')
-        .count();
-    let (mut braces, mut parens, mut in_str, mut prev) = (0, 0, false, ' ');
-    for c in line.chars() {
-        if in_str {
-            in_str = !(c == '"' && prev != '\\');
-        } else if c == '/' && prev == '/' {
-            break;
-        } else {
-            match c {
-                '"' => in_str = true,
-                '{' => braces += 1,
-                '}' => braces -= 1,
-                '(' | '[' => parens += 1,
-                ')' | ']' => parens -= 1,
-                _ => {}
-            }
-        }
-        prev = if prev == '\\' && c == '\\' { ' ' } else { c };
-    }
-    (braces, parens, lead_braces as i32, lead_parens as i32)
-}
-
 impl Analysis {
     pub fn symbols(&self) -> Vec<Symbol> {
         let Ok(prog) = crate::parse::parse(&self.src) else {
@@ -158,34 +124,9 @@ impl Analysis {
         Some(out)
     }
 
-    /// The file indented four spaces a level, a bracket's continuation one
-    /// more, trailing space gone and one blank line kept between blocks.
+    /// The file laid out by [`crate::fmt::format`], or as it is when it does
+    /// not scan.
     pub fn format(&self) -> String {
-        let (mut out, mut braces, mut parens, mut blank) = (String::new(), 0i32, 0i32, false);
-        for raw in self.src.lines() {
-            let line = raw.trim();
-            if line.is_empty() {
-                if !blank && !out.is_empty() {
-                    out.push('\n');
-                }
-                blank = true;
-                continue;
-            }
-            blank = false;
-            let (b, p, lead_b, lead_p) = tally(line);
-            let mut level = braces - lead_b + i32::from(parens - lead_p > 0);
-            if line.starts_with('.') {
-                level += 1;
-            }
-            out.push_str(&"    ".repeat(level.max(0) as usize));
-            out.push_str(line);
-            out.push('\n');
-            braces += b;
-            parens += p;
-        }
-        while out.ends_with("\n\n") {
-            out.pop();
-        }
-        out
+        crate::fmt::format(&self.src).unwrap_or_else(|_| self.src.clone())
     }
 }

@@ -301,10 +301,8 @@ impl Bench {
             }
             return;
         }
-        // A node case runs on three frames, so that only the middle one holds
-        // the work: the tree it needs is rebuilt on the first, the loop runs
-        // on the second, and the third reads what the profiler recorded for
-        // it.
+        // A node case runs on three frames so only the middle one holds the
+        // work: the tree is rebuilt, the loop runs, the profiler is read.
         if state == "prep" {
             release(w);
             let started = engine::time();

@@ -14,6 +14,7 @@ mod ast;
 #[cfg(feature = "c")]
 pub mod c;
 mod codegen;
+pub mod fmt;
 mod modules;
 mod parse;
 pub mod runtime;

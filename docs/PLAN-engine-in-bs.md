@@ -252,8 +252,14 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      `test:profiler` switches the editor's own scripts both ways.
    - `balaur test` runs `.bs` tests, failed by a logged error or a trap.
 
+   - A formatter (`balaur_bs::fmt`) serves `balaur fmt`, the editor's
+     format key and the test suite, which fails on any `.bs` in the
+     repository it would change. It keeps the author's line breaks and
+     comments, makes the spaces the house's, indents each line by the
+     brackets above it and keeps one blank line of a run. It changes no
+     token, and refuses a layout that would.
+
    Decided 2026-10-22 and left: the GDScript importer writes `.bs` directly,
    typed from GDScript's hints with `any` elsewhere, and its Rune shim is
-   ported; a `.bs` formatter serves `balaur fmt`, the editor's format key
-   and CI. No host calls the batch exports (`T.m$batch`) yet.
+   ported. No host calls the batch exports (`T.m$batch`) yet.
 8. **Rune removed.**

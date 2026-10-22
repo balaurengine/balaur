@@ -8,6 +8,7 @@ mod determinism;
 mod direct;
 mod engine_api;
 mod fnrefs;
+mod format;
 mod library;
 mod loops;
 mod memory;

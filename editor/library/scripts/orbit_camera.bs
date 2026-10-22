@@ -43,10 +43,8 @@ impl OrbitCamera {
             math::cos(yaw) * flat,
         ];
         self.node.transform.rotation_euler = [pitch, yaw, 0.0];
-        // A 3D camera is aimed by `camera.look_at` and never by the node's
-        // own rotation, so the pivot has to be named in world units. Without
-        // this the rig looks at the origin, which is only the pivot while it
-        // has not moved.
+        // A 3D camera aims by `camera.look_at`, not its rotation: name the
+        // pivot in world units, or the rig looks at the origin.
         let at = self.node.parent().transform.global_position();
         self.node.patch_component("camera3d", map().with("look_at", [at.x, at.y, at.z]));
     }

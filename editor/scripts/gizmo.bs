@@ -1188,4 +1188,3 @@ pub fn update(S: &mut editor::State) {
         shell::set_zoom(S, S.zoom - dy.as_float() * 0.5);
     }
 }
-
