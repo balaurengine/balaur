@@ -252,6 +252,14 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      `test:profiler` switches the editor's own scripts both ways.
    - `balaur test` runs `.bs` tests, failed by a logged error or a trap.
 
+   - In a browser (2026-10-22, a hidden pane at about a frame a second),
+     the `.bs` editor runs 23 self-test states on angrynerds in about five
+     minutes; the profiler's rebuild works there too. Failing there and
+     passing on a desktop: the docks' tool rows at 20 × 20, a folder rename
+     in the browser's file store, `test:recordings` never finishing, and
+     the checks that inject a key, a pick or a close (`sheet_close`,
+     `settings`, `rows`, `pool`). The Rune editor got no further than
+     `test:rename` in twenty minutes, so it gave no baseline.
    - A formatter (`balaur_bs::fmt`) serves `balaur fmt`, the editor's
      format key and the test suite, which fails on any `.bs` in the
      repository it would change. It keeps the author's line breaks and
@@ -262,4 +270,23 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    Decided 2026-10-22 and left: the GDScript importer writes `.bs` directly,
    typed from GDScript's hints with `any` elsewhere, and its Rune shim is
    ported. No host calls the batch exports (`T.m$batch`) yet.
+
+   The importer's `.bs`, as designed:
+   - A script is one file: `use gd;`, a struct with `node` and a field per
+     member, an `impl` of its methods (`_ready` is `init`, `_process` is
+     `update`), its constants, and its static functions as free functions.
+     An `@export` with a literal default is a `pub` field with that default.
+   - A hint or a literal types a value: `int`, `float`, `bool`, `str`,
+     `Vec2`, `Vec3`, `Color`, `Node` for every node class, `[T]` for a typed
+     array. Anything else is an `any`, Godot's Variant: arithmetic,
+     comparison, truth and member access on one go through `gd::`.
+   - An object class (`RefCounted`, an inner class) is an `any` map holding
+     its fields and a `__class` key, shared by reference as Godot's objects
+     are. Its methods are free functions taking that map; a call on a value
+     whose class is unknown goes through a dispatcher the importer writes
+     for the project (`classes.bs`), by class and method name.
+   - A callable or a lambda is a map of a function value, `fn(any, any) ->
+     any`, and what it captured: no closure reaches a local.
+   - The shim is `gd.bs`, ported from `gd_values.rn` and `gd_nodes.rn`.
+   - The tests compile what they convert, against the engine's API.
 8. **Rune removed.**
