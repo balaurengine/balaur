@@ -237,6 +237,7 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("info", &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
         ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
         ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
+        ("print", &[], "(line: string)", "Write a line to standard output as it stands, with no level or tag and not into the buffer: what a headless run prints for a tool to read."),
         ("recent", &[], "(n: int?) -> [Entry]", "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`."),
         ("since", &[], "(cursor: int?) -> Batch", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame."),
         ("file", &[], "() -> string?", "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it."),

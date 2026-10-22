@@ -22,7 +22,7 @@ id = "n_main"
 name = "Main"
 
 [nodes.script]
-source = "scripts/labels.rn"
+source = "scripts/labels.bs"
 [nodes.script.props]
 # Set when the manual's picture or clip is being taken; empty for a normal run.
 shot = ""

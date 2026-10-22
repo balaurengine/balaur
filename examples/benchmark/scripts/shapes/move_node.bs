@@ -1,0 +1,20 @@
+// Writing the node's transform every frame, which is what anything that
+// moves under its own script does.
+
+pub struct MoveNode {
+    node: Node,
+    t: float,
+    home: Vec3,
+}
+
+impl MoveNode {
+    fn init() {
+        self.home = self.node.transform.position;
+    }
+
+    fn update(dt: float) {
+        self.t += dt;
+        let at = self.home;
+        self.node.transform.position = [at.x, at.y + math::sin(self.t) * 4.0, at.z];
+    }
+}

@@ -1,0 +1,143 @@
+// Pause, process modes and the time scale: the boxes fall, the game pauses,
+// and it runs again at a quarter speed. This script's node is `always`, so
+// its `update` runs through the pause it asks for. Nothing else does.
+
+pub struct Driver {
+    pub shot: str = "",
+    pub frames: str = "",
+    node: Node,
+    frame: int,
+    spin: float,
+}
+
+fn INK() -> [float] {
+    [0.94, 0.95, 0.97, 1.0]
+}
+
+fn DIM() -> [float] {
+    [0.58, 0.63, 0.70, 1.0]
+}
+
+fn WARM() -> [float] {
+    [0.96, 0.72, 0.30, 1.0]
+}
+
+const PAUSE_AT: int = 60;
+
+const RESUME_AT: int = 130;
+
+const FULL_SPEED_AT: int = 180;
+
+const BOXES: int = 12;
+
+const SLOW: float = 0.25;
+
+impl Driver {
+    pub fn init() {
+        self.frame = 0;
+        self.spin = 0.0;
+        render::set_background(0.06, 0.07, 0.09);
+        render::set_camera_2d(0.0, 0.4, 147.0);
+        let n = 0;
+        while n < BOXES {
+            drop_box(self.node.parent(), n);
+            n += 1;
+        }
+    }
+}
+
+// One falling box. Dynamic, so it asks to be drawn between fixed steps on
+// its own; nothing here says `interpolate`.
+fn drop_box(parent: Node, n: int) {
+    let box = parent.add_child("Box{n}");
+    let col = (n % 6) as float;
+    let row = (n / 6) as float;
+    box.set_component("transform", map()
+        .with("position", [-3.0 + col * 1.2, 0.8 + row * 1.4, 0.0])
+        .with("rotation_euler", [0.0, 0.0, 0.25 * (n as float)]));
+    // Light gravity, so the fall is long enough to pause in the middle of.
+    box.set_component("body2d", map().with("kind", "dynamic").with("gravity_scale", 0.35));
+    box.set_component("collider2d", map()
+        .with("kind", "rectangle")
+        .with("size", [0.68, 0.68])
+        .with("restitution", 0.3));
+    box.set_component("shape2d", map()
+        .with("kind", "rectangle")
+        .with("size", [0.68, 0.68])
+        .with("corner_radius", 0.08)
+        .with("color", tint(n)));
+}
+
+fn tint(n: int) -> str {
+    if n % 3 == 0 {
+        "#e0653f"
+    } else if n % 3 == 1 {
+        "#4a8fd4"
+    } else {
+        "#5bb089"
+    }
+}
+
+fn label(x: float, y: float, text: str, size: float, color: [float]) {
+    render::draw_text_2d(x, y, text, map().with("font_size", size).with("color", color).with("text_align", "center"));
+}
+
+// A square that turns every frame, paused or not: what an `always` subtree
+// looks like from outside.
+fn marker(at: [float], angle: float) {
+    let r = 0.3;
+    let c = math::cos(angle) * r;
+    let s = math::sin(angle) * r;
+    render::draw_polygon_2d([
+        [at[0] + c - s, at[1] + s + c],
+        [at[0] - c - s, at[1] - s + c],
+        [at[0] - c + s, at[1] - s - c],
+        [at[0] + c + s, at[1] + s - c],
+    ], WARM());
+}
+
+impl Driver {
+    pub fn update(dt: float) {
+        self.frame += 1;
+        if self.frame == PAUSE_AT {
+            engine::set_paused(true);
+        }
+        if self.frame == RESUME_AT {
+            engine::set_paused(false);
+            engine::set_time_scale(SLOW);
+        }
+        if self.frame == FULL_SPEED_AT {
+            engine::set_time_scale(1.0);
+        }
+        self.spin += dt * 2.2;
+        marker([-3.6, 3.25], self.spin);
+        let paused = engine::paused();
+        let state = if paused {
+            "paused"
+        } else if engine::time_scale() < 0.9 {
+            "{engine::time_scale()}x"
+        } else {
+            "running"
+        };
+        label(0.2, 3.4, state, 44.0, if paused { WARM() } else { INK() });
+        label(0.0, 2.95, "the heading and the marker are process = \"always\"", 19.0, DIM());
+        if self.frame == PAUSE_AT + 35 && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+        if self.frames != "" && self.frame >= 2 {
+            render::screenshot("{self.frames}/{padded(self.frame)}.png");
+        }
+    }
+
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n: int) -> str {
+    if n < 10 {
+        "00{n}"
+    } else if n < 100 {
+        "0{n}"
+    } else {
+        "{n}"
+    }
+}

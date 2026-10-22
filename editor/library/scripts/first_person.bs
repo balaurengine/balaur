@@ -1,0 +1,118 @@
+// Walk with WASD, look with the mouse, space jumps.
+
+// Two nodes: `character3d` and `collider3d` here, `camera3d` on a child put at
+// eye height. With no such child it drives a camera on this node instead, and
+// cannot keep the body's wobble out of the view.
+
+// Raw keys rather than actions, so the rig works in a project that has
+// declared none: swap them for `input::action_*` to rebind.
+
+// How far ahead the looked-at point is put. The position read here is the one
+// before this frame's move, and distance is what keeps that lag off the pitch:
+// a target an arm's length ahead tilts the view five degrees during a fall.
+const FAR: float = 1000.0;
+
+// How far the body may wander from where the eye is held before the eye moves
+// at all. `snap_to_ground` lets a walking capsule rise and settle by a
+// centimetre or two, and that is noise rather than ground.
+const WOBBLE: float = 0.03;
+
+pub struct FirstPerson {
+    node: Node,
+    pub speed: float = 4.5,
+    pub sensitivity: float = 0.12,
+    pub gravity: float = 24.0,
+    pub jump: float = 7.0,
+    pub pitch: float = 0.0,
+    pub yaw: float = 0.0,
+    vy: float,
+    held: float,
+    eye: Node,
+    rise: float,
+    apart: bool,
+}
+
+impl FirstPerson {
+    fn init() {
+        self.held = self.node.transform.position.y;
+        self.eye = self.node;
+        for child in self.node.children() {
+            if child.has_component("camera3d") {
+                self.eye = child;
+                self.rise = child.transform.position.y;
+                self.apart = true;
+                break;
+            }
+        }
+    }
+
+    fn update(dt: float) {
+        let moved = input::mouse_delta();
+        self.yaw -= moved.x * self.sensitivity;
+        // Straight up and straight down are where a first-person view stops:
+        // past them the world rolls over.
+        self.pitch = math::clamp(self.pitch - moved.y * self.sensitivity, -89.0, 89.0);
+        let eye = self.node.transform.position;
+        let yaw = math::to_radians(self.yaw);
+        let pitch = math::to_radians(self.pitch);
+        // A 3D camera is aimed by `camera.look_at`, never by the node's
+        // rotation, so looking around is moving the point it looks at.
+        let flat = math::cos(pitch) * FAR;
+        let ahead = [
+            eye.x - math::sin(yaw) * flat,
+            eye.y + math::sin(pitch) * FAR,
+            eye.z - math::cos(yaw) * flat,
+        ];
+        self.eye.patch_component("camera3d", map().with("look_at", ahead));
+        self.node.transform.rotation_euler = [0.0, yaw, 0.0];
+    }
+
+    /// Carry the eye node at the body's height, give or take `WOBBLE`.
+    ///
+    /// Inside that it does not move at all, which is the solver's
+    /// millimetres; past it, exactly as the body does, which is a step or a
+    /// fall. Easing across the two instead makes a fall alternate between
+    /// holding and catching up.
+    fn hold_eye(body: float) {
+        let gap = body - self.held;
+        if gap > WOBBLE {
+            self.held = body - WOBBLE;
+        } else if gap < -WOBBLE {
+            self.held = body + WOBBLE;
+        }
+        if self.apart {
+            let at = self.eye.transform.position;
+            self.eye.transform.position = [at.x, self.rise + self.held - body, at.z];
+        }
+    }
+
+    fn fixed_update(dt: float) {
+        let forward = axis(input::KEY_W, input::KEY_S);
+        let sideways = axis(input::KEY_D, input::KEY_A);
+        // Walking is flat: the pitch aims the view, never the feet.
+        let yaw = math::to_radians(self.yaw);
+        let sin = math::sin(yaw);
+        let cos = math::cos(yaw);
+        let x = (sideways * cos - forward * sin) * self.speed * dt;
+        let z = (-sideways * sin - forward * cos) * self.speed * dt;
+        if self.node.character3d.is_on_floor() {
+            // Nothing holds it down: a push big enough to keep the capsule on
+            // the floor aims the move into it, and the controller spends
+            // whole frames resolving that instead of walking.
+            self.vy = if input::key_down(input::KEY_SPACE) { self.jump } else { 0.0 };
+        } else {
+            self.vy -= self.gravity * dt;
+        }
+        self.node.character3d.move_character(x, self.vy * dt, z);
+        // After the move, because this reads where the body ended up and the
+        // view is drawn from there.
+        self.hold_eye(self.node.transform.position.y);
+    }
+}
+
+/// One axis from two keys, so a pair reads as -1, 0 or 1.
+fn axis(positive: str, negative: str) -> float {
+    let up = if input::key_down(positive) { 1.0 } else { 0.0 };
+    let down = if input::key_down(negative) { 1.0 } else { 0.0 };
+    up - down
+}

@@ -1,0 +1,66 @@
+// Host or join from the buttons, or from the command line:
+// `balaur run examples/multiplayer -- host` in one terminal and `-- join`
+// in another. A join retries each second until the host is up.
+
+pub struct Lobby {
+    node: Node,
+    retry_in: int,
+    joining: bool,
+}
+
+const RETRY_FRAMES: int = 60;
+
+impl Lobby {
+    pub fn init() {
+        self.retry_in = 0;
+        self.joining = false;
+        for arg in engine::args() {
+            if arg == "host" {
+                self.host();
+            } else if arg == "join" {
+                self.join();
+            }
+        }
+    }
+
+    pub fn host() {
+        let at = multiplayer::host(map().with("name", "Host"));
+        let url = at.get("url");
+        self.say("Hosting at {url}; waiting for a second player.");
+    }
+
+    pub fn join() {
+        let address = settings::get("multiplayer/address");
+        self.joining = true;
+        multiplayer::join("ws://{address}", map().with("name", "Guest"));
+        self.say("Joining ws://{address}...");
+    }
+
+    pub fn update(dt: float) {
+        if self.retry_in > 0 {
+            self.retry_in -= 1;
+            if self.retry_in == 0 {
+                self.join();
+            }
+        }
+    }
+
+    pub fn on_multiplayer_event(e: any) {
+        let kind = e.get("kind");
+        if kind == multiplayer::EVENT_JOINED {
+            let name = e.get("name");
+            self.say("{name} joined; starting.");
+        } else if kind == multiplayer::EVENT_CONNECTED && self.joining {
+            self.say("In the lobby; waiting for the host to start.");
+        } else if kind == multiplayer::EVENT_ERROR && self.joining {
+            let reason = e.get("reason");
+            self.say("No host yet ({reason}); trying again.");
+            self.retry_in = RETRY_FRAMES;
+        }
+    }
+
+    fn say(text: str) {
+        log::info(text);
+        self.node.get_node("Sheet/Status").patch_component("widget", map().with("text", text));
+    }
+}

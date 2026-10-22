@@ -1,0 +1,247 @@
+// Building a case's world in the words the case describes. Bodies land in row
+// groups of `ROW`: a joint names its other end by path, and a flat container
+// of ten thousand siblings would make every one of those a linear scan.
+
+pub const ROW: int = 100;
+
+/// What one pass of a case built, and what it counted while it ran. A class,
+/// so the case's own functions write into the one the runner holds.
+pub class World {
+    pub container: Node,
+    pub dimensions: int,
+    pub draw: bool,
+    pub bodies: [Node],
+    pub rows: [Node],
+    pub statics: int,
+    pub anchor: Node,
+    pub queries: int,
+    pub hits: int,
+    pub joints: int,
+    /// What a node or load case made, freed before its next pass.
+    pub made: [Node],
+    /// The nodes a deleting case frees, in the order it frees them.
+    pub targets: [Node],
+    /// The paths a lookup case reads, from `root`.
+    pub paths: [str],
+    pub root: Node,
+}
+
+/// A fresh world under `parent`, in `dimensions`, drawing shapes or not.
+pub fn new(parent: Node, dimensions: int, draw: bool) -> World {
+    World {
+        container: parent.add_child("World"),
+        dimensions: dimensions,
+        draw: draw,
+        bodies: [],
+        rows: [],
+        statics: 0,
+        anchor: nil,
+        queries: 0,
+        hits: 0,
+        joints: 0,
+        made: [],
+        targets: [],
+        paths: [],
+        root: nil,
+    }
+}
+
+/// The group body `i` belongs to, made on demand.
+fn row_for(w: World, i: int) -> Node {
+    let index = i / ROW;
+    while w.rows.len() <= index {
+        w.rows.push(w.container.add_child("r{w.rows.len()}"));
+    }
+    w.rows[index]
+}
+
+/// A dynamic body at `at` with `shape`, in the collider component's own
+/// vocabulary. Sleeping is off, as it is in every case of the suite this
+/// mirrors: the solver is what is being measured, not the sleep heuristic.
+pub fn body(w: World, at: Vec3, shape: any) -> Node {
+    let i = w.bodies.len();
+    let node = row_for(w, i).add_child("b{i % ROW}");
+    node.transform.position = at;
+    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
+    node.set_component(kind, map().with("kind", "dynamic").with("can_sleep", false));
+    node.set_component(collider_key(w), shape);
+    draw(w, node, shape);
+    w.bodies.push(node);
+    node
+}
+
+/// An immovable body: the ground, the walls, the anchor bar.
+pub fn fixed(w: World, at: Vec3, shape: any) -> Node {
+    let node = wall(w, at, shape);
+    draw(w, node, shape);
+    node
+}
+
+/// An immovable body that is never drawn: the walls of a pit, which would
+/// hide what is inside it from the camera.
+pub fn wall(w: World, at: Vec3, shape: any) -> Node {
+    let node = w.container.add_child("s{w.statics}");
+    w.statics += 1;
+    node.transform.position = at;
+    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
+    node.set_component(kind, map().with("kind", "static"));
+    node.set_component(collider_key(w), shape);
+    node
+}
+
+/// A node of the case's own, in a row group like a body's, carrying nothing.
+///
+/// What a load case builds on: the grouping is the same reason a body has it,
+/// a flat container of twenty thousand siblings makes every lookup a scan.
+pub fn plain(w: World, i: int) -> Node {
+    let node = row_for(w, i).add_child("n{i % ROW}");
+    w.made.push(node);
+    node
+}
+
+/// Where the `i`th of `count` things goes: a square grid in the plane, its
+/// middle on the origin, `pitch` apart. The same spot every run, because a
+/// load case measures what is drawn and stepped, not where chance put it.
+pub fn grid(i: int, count: int, pitch: float) -> Vec2 {
+    let side = 1;
+    while side * side < count {
+        side += 1;
+    }
+    let half = (side as float) * pitch * 0.5;
+    Vec2 {
+        x: ((i % side) as float) * pitch - half,
+        y: ((i / side) as float) * pitch - half,
+    }
+}
+
+/// Tie two bodies at the point half way between them.
+///
+/// The joint sits on a child of `a`, because a joint component is one per
+/// node and a lattice body needs three; a node with no body of its own
+/// stands for the nearest body above it.
+pub fn pin(w: World, a: Node, b: Node, at_a: Vec3, at_b: Vec3) -> Node {
+    let node = a.add_child("j{w.joints}");
+    w.joints += 1;
+    let mid = midpoint(at_a, at_b);
+    let anchor = sub(mid, at_a);
+    let other = sub(mid, at_b);
+    let path = relative(b);
+    if w.dimensions == 2 {
+        node.set_component("joint2d", map()
+            .with("kind", "hinge")
+            .with("connected_body", path)
+            .with("anchor", [anchor.x, anchor.y])
+            .with("connected_anchor", [other.x, other.y]));
+    } else {
+        node.set_component("joint3d", map()
+            .with("kind", "ball_socket")
+            .with("connected_body", path)
+            .with("anchor", [anchor.x, anchor.y, anchor.z])
+            .with("connected_anchor", [other.x, other.y, other.z]));
+    }
+    node
+}
+
+/// The path from a joint node to another body: out of the body it hangs
+/// under, out of that body's row group, and back down. A static is a direct
+/// child of the container and has no group to descend into.
+fn relative(target: Node) -> str {
+    let name = target.name();
+    if name.starts_with("s") {
+        "../../../{name}"
+    } else {
+        "../../../{target.parent().name()}/{name}"
+    }
+}
+
+/// Free everything this world made. The nodes go at the end of the frame and
+/// the physics world is rebuilt on the next one.
+pub fn tear_down(w: World) {
+    w.container.queue_free();
+}
+
+fn collider_key(w: World) -> str {
+    if w.dimensions == 2 { "collider2d" } else { "collider3d" }
+}
+
+/// The same shape again as something the renderer can draw, when a case is
+/// being watched rather than measured. A convex hull has no drawable
+/// primitive, so it stands in as the ball it fits inside.
+fn draw(w: World, node: Node, shape: any) {
+    if !w.draw {
+        return;
+    }
+    let kind = if shape.has("kind") {
+        shape.get("kind").as_str()
+    } else if w.dimensions == 2 {
+        "rectangle"
+    } else {
+        "box"
+    };
+    let drawn = if kind != "convex_hull" {
+        copy(shape)
+    } else if w.dimensions == 2 {
+        map().with("kind", "circle").with("radius", 13.0)
+    } else {
+        map().with("kind", "sphere").with("radius", 0.45)
+    };
+    // A few colours in turn, so a stack reads as bodies rather than as a slab.
+    let colour = palette()[(w.bodies.len() + w.statics) % 5];
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, drawn.with("color", colour));
+}
+
+fn palette() -> [Color] {
+    [
+        [0.86, 0.36, 0.30, 1.0],
+        [0.95, 0.68, 0.25, 1.0],
+        [0.40, 0.70, 0.45, 1.0],
+        [0.30, 0.55, 0.85, 1.0],
+        [0.62, 0.45, 0.80, 1.0],
+    ]
+}
+
+/// A shape table without the collider-only keys the renderer would reject.
+fn copy(shape: any) -> any {
+    let out = map();
+    for key in ["kind", "radius", "height", "size"] {
+        if shape.has(key) {
+            out = out.with(key, shape.get(key));
+        }
+    }
+    out
+}
+
+pub fn midpoint(a: Vec3, b: Vec3) -> Vec3 {
+    [(a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5]
+}
+
+pub fn sub(a: Vec3, b: Vec3) -> Vec3 {
+    [a.x - b.x, a.y - b.y, a.z - b.z]
+}
+
+pub fn distance(a: Vec3, b: Vec3) -> float {
+    let d = sub(a, b);
+    math::sqrt(d.x * d.x + d.y * d.y + d.z * d.z)
+}
+
+/// A jittered lattice, as `bench_case.gd` places its piles: scattering N
+/// bodies independently starts a large fraction deeply overlapping, and the
+/// opening ticks then measure how an engine untangles a soup.
+pub fn lattice(i: int, cell: Vec3, columns: int, depth: int, origin: Vec3, jitter: float) -> Vec3 {
+    let per_layer = columns * depth;
+    let within = i % per_layer;
+    [
+        origin.x + ((within % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
+        origin.y + ((i / per_layer) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
+        origin.z + ((within / columns) as float) * cell.z + random::range(-jitter, jitter) * cell.z,
+    ]
+}
+
+/// The 2D lattice: columns across, rows downward in Godot's y-down plane.
+pub fn lattice_2d(i: int, cell: Vec2, columns: int, origin: Vec2, jitter: float) -> Vec3 {
+    [
+        origin.x + ((i % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
+        origin.y - ((i / columns) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
+        0.0,
+    ]
+}

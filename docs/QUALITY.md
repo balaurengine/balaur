@@ -228,7 +228,7 @@ says where the frame went — the script, the mirror, the UI pass, the
 renderer's two halves. It reports instructions a node beside the
 milliseconds, because that number is the same on every machine and the
 milliseconds are not. Run on demand, never in CI, and add a case by writing
-one entry in `cases_kinds.rn` or `cases_scripts.rn`.
+one entry in `cases_kinds.bs` or `cases_scripts.bs`.
 
 ## Supply chain and releases
 

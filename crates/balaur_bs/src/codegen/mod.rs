@@ -1014,10 +1014,29 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
             )
         })
         .collect();
+    let by_key = out
+        .infos
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.key.clone(), i))
+        .collect();
+    let mut by_owner: rustc_hash::FxHashMap<String, rustc_hash::FxHashMap<String, usize>> =
+        rustc_hash::FxHashMap::default();
+    for (i, f) in out.infos.iter().enumerate() {
+        if let Some(owner) = &f.owner {
+            let name = f.key.rsplit('.').next().unwrap_or(&f.key);
+            by_owner
+                .entry(owner.clone())
+                .or_default()
+                .insert(name.to_string(), i);
+        }
+    }
     let meta = Meta {
         structs,
         classes: prog.classes.clone(),
         fns: out.infos,
+        by_key,
+        by_owner,
         externs,
         probes: g.probes.borrow().clone(),
         func_names: out.func_names,
@@ -1072,7 +1091,13 @@ fn sync_fn(
         fg.dbg = Some((frame, id));
     }
     fg.charge();
-    let t = if matches!(f.ret, Ty::Optional(_) | Ty::Any | Ty::Node) {
+    // A list literal at the end is read as the result type, so `[x, y, z]`
+    // ends a fn that returns a `Vec3` as it does a `let` of one.
+    let lit_tail = matches!(
+        f.body.tail.as_deref().map(|e| &e.kind),
+        Some(ExprKind::ArrayLit(_))
+    );
+    let t = if lit_tail || matches!(f.ret, Ty::Optional(_) | Ty::Any | Ty::Node) {
         fg.block_as(&f.body, &f.ret)?
     } else {
         fg.block_body(&f.body)?

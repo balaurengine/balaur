@@ -1,0 +1,13 @@
+// One interpolated string a frame: a label that follows a number, and the
+// allocation that comes with it.
+
+pub struct StringFormat {
+    node: Node,
+    text: str,
+}
+
+impl StringFormat {
+    fn update(dt: float) {
+        self.text = "{1.0 / dt} fps";
+    }
+}

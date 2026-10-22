@@ -1,0 +1,12 @@
+// A script with no `update`: what attaching one costs when it does nothing.
+
+pub struct Empty {
+    node: Node,
+    n: float,
+}
+
+impl Empty {
+    fn init() {
+        self.n = 0.0;
+    }
+}

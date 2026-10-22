@@ -1,0 +1,43 @@
+// The camera walks a slow arc so the billboard turns and the sign does not,
+// and the score counts up through `render.set_text`.
+
+pub struct Tour {
+    node: Node,
+    score: int,
+    at: float,
+}
+
+const ARC: float = 3.2;
+
+const HEIGHT: float = 0.9;
+
+const RADIUS: float = 11.0;
+
+impl Tour {
+    pub fn init() {
+        render::set_background(0.09, 0.10, 0.14);
+        self.score = 0;
+        self.at = 0.0;
+    }
+
+    pub fn update(dt: float) {
+        // A quarter turn either side of centre, so both faces are seen.
+        self.at += dt * 0.35;
+        let angle = math::sin(self.at) * (ARC / 8.0);
+        let x = math::sin(angle) * RADIUS;
+        let z = math::cos(angle) * RADIUS;
+        render::set_camera(x, HEIGHT, z, 0.0, HEIGHT, 0.0);
+        // A score on a sign: the node keeps its style, the script the number.
+        self.score += 1;
+        let node = scene::get_node("Tour/Nameplate");
+        if node.is_valid() {
+            node.text2d.text = "a name\nfollows you · {self.score / 60}";
+        }
+        // The immediate calls need no node: a label for one frame, over the floor.
+        render::draw_text_3d(0.0, -4.4, 0.0, "drawn for one frame, from a script", map()
+            .with("font_size", 32.0)
+            .with("color", [0.55, 0.58, 0.68])
+            .with("text_align", "center")
+            .with("pixels_per_unit", 110.0));
+    }
+}

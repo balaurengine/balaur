@@ -27,10 +27,10 @@ cannot drift from what scripts actually see.
 | [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 53 | 188 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
-| [`log`](#log) | 7 | 0 | the engine |
+| [`log`](#log) | 8 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
-| [`node`](#node) | 56 | 0 | the engine |
+| [`node`](#node) | 57 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 132 | 113 | the engine |
 | [`physics3d`](#physics3d) | 142 | 120 | the engine |
@@ -264,7 +264,7 @@ cannot drift from what scripts actually see.
 
 ## `log`
 
-**Functions:** `clear`, `error`, `file`, `info`, `recent`, `since`, `warn`
+**Functions:** `clear`, `error`, `file`, `info`, `print`, `recent`, `since`, `warn`
 
 ## `math`
 
@@ -307,7 +307,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `effective_material`, `effective_tint`, `effective_z_index`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_state`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `visible_in_tree`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `effective_material`, `effective_tint`, `effective_z_index`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_state`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `try_set_component`, `visible`, `visible_in_tree`, `z_index`
 
 ## `physics`
 

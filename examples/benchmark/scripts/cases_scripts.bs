@@ -1,0 +1,48 @@
+// One case per script shape a game actually writes, N nodes each carrying
+// one script under `scripts/shapes/`. The pairs are the answers: `noop` less
+// `none` is what a script costs before it does anything.
+
+use load;
+use world;
+
+/// How many nodes a shape case builds. One number, so the shapes are read
+/// against each other rather than against their own counts.
+const COUNT: int = 2000;
+
+const PITCH: float = 8.0;
+
+pub fn all() -> [load::Case] {
+    // The control: the same nodes, carrying no script at all. Every other
+    // shape is read as the difference from this one.
+    let out = [load::case("none", COUNT, without_script)];
+    for name in [
+        "empty", "noop", "counter", "move_node", "math_loop", "vector",
+        "string_format", "children", "find_node", "input_read",
+        "component_read", "component_table", "timer_wait",
+    ] {
+        let c = load::case(name, COUNT, with_script);
+        c.script = "scripts/shapes/{name}.bs";
+        out.push(c);
+    }
+    out
+}
+
+fn without_script(w: world::World, c: load::Case, i: int) {
+    plain(w, i);
+}
+
+fn with_script(w: world::World, c: load::Case, i: int) {
+    plain(w, i).attach_script(c.script);
+}
+
+/// One node with the components a shape may touch: a `shape2d` for the two
+/// component cases, and two children for `children` to walk.
+fn plain(w: world::World, i: int) -> Node {
+    let node = world::plain(w, i);
+    let at = world::grid(i, 20000, PITCH);
+    node.transform.position = [at.x, at.y, 0.0];
+    node.set_component("shape2d", map().with("kind", "circle").with("radius", 2.0));
+    node.add_child("a");
+    node.add_child("b");
+    node
+}

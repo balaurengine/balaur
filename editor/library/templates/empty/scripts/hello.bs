@@ -1,0 +1,14 @@
+pub struct Hello {
+    node: Node,
+    elapsed: float,
+}
+
+impl Hello {
+    fn init() {
+        log::info("hello from {self.node.name()}");
+    }
+
+    fn update(dt: float) {
+        self.elapsed += dt;
+    }
+}

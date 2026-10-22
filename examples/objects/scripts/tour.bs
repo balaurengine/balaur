@@ -1,0 +1,83 @@
+// Walks the camera down the rows and, when asked, photographs each one.
+// `balaur run examples/objects -- shots=<dir>` writes one PNG per pose there,
+// which is how the website's pictures of this example are made.
+
+pub struct Tour {
+    node: Node,
+    root: Node,
+    clock: float,
+    frame: int,
+    at: int,
+    shots: str,
+}
+
+pub struct Pose {
+    slug: str,
+    eye: [float],
+    at: [float],
+}
+
+fn POSES() -> [Pose] {
+    [
+        Pose { slug: "overview", eye: [0.0, 16.0, 18.0], at: [0.0, 0.5, -16.0] },
+        Pose { slug: "primitives", eye: [0.0, 3.6, 10.0], at: [0.0, 0.8, 0.0] },
+        Pose { slug: "paths", eye: [0.0, 3.6, -2.0], at: [0.0, 0.9, -12.0] },
+        Pose { slug: "booleans", eye: [0.0, 3.6, -14.0], at: [0.0, 0.9, -24.0] },
+        Pose { slug: "multimesh", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
+        Pose { slug: "text", eye: [0.0, 3.0, -39.5], at: [0.0, 0.9, -48.0] },
+        // Past the end of the ground: an empty backdrop for the 2D layer.
+        Pose { slug: "flat", eye: [0.0, 3.0, 40.0], at: [0.0, 1.0, 50.0] },
+    ]
+}
+
+// Seconds the camera rests on a pose, and the frame within that rest on which
+// its picture is taken: the camera node moves as the pose starts, and a
+// screenshot saves the frame after it is asked for.
+const DWELL: float = 3.5;
+
+const SETTLE: int = 12;
+
+impl Tour {
+    pub fn init() {
+        self.root = self.node.parent();
+        self.clock = 0.0;
+        self.frame = 0;
+        self.at = -1;
+        self.shots = "";
+        // The 2D layer lives in its own file so the editor keeps this scene 3D.
+        scene::instantiate(scene::source("scenes/flat.toml").unwrap(), self.node);
+        for arg in engine::args() {
+            let parts = arg.split("=");
+            if parts.len() == 2 && parts[0] == "shots" {
+                self.shots = parts[1];
+            }
+        }
+    }
+
+    // The camera is a node, so it is the node that moves: the camera component
+    // reads its own transform every tick, and would undo a bare set_camera.
+    // The scene always has one, so there is nothing to check for here.
+    fn look(pose: Pose) {
+        let camera = self.root.get_node("Camera");
+        let e = pose.eye;
+        camera.transform.position = [e[0], e[1], e[2]];
+        camera.patch_component("camera3d", map().with("look_at", pose.at));
+        // The 2D shapes sit over every 3D view, so only the flat pose shows them.
+        self.node.get_node("Layer2D/Flat").set_visible(pose.slug == "flat");
+    }
+
+    pub fn update(dt: float) {
+        self.clock += dt;
+        self.frame += 1;
+        if self.at < 0 || self.clock > DWELL {
+            self.clock = 0.0;
+            self.frame = 0;
+            self.at = (self.at + 1) % POSES().len();
+            self.look(POSES()[self.at]);
+        }
+        if self.shots != "" && self.frame == SETTLE {
+            let pose = POSES()[self.at];
+            render::screenshot("{self.shots}/{self.at}-{pose.slug}.png");
+        }
+    }
+}

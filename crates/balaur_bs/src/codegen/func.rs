@@ -692,6 +692,30 @@ impl<'a> FnGen<'a> {
         if let (ExprKind::ArrayLit(items), Ty::Array(et)) = (&e.kind, want) {
             return self.array_lit(items, Some(et), e.pos).map(|_| ());
         }
+        // `[x, y, z]` where a `Vec3` goes, and the same for `Vec2` and
+        // `Color`: the struct, a field an item.
+        if let (ExprKind::ArrayLit(items), Ty::Struct(s)) = (&e.kind, want) {
+            let fields: &[&str] = match s.as_str() {
+                "Vec2" => &["x", "y"],
+                "Vec3" => &["x", "y", "z"],
+                "Color" => &["r", "g", "b", "a"],
+                _ => &[],
+            };
+            if !fields.is_empty() && items.len() == fields.len() {
+                let lit = Expr {
+                    kind: ExprKind::StructLit(
+                        s.clone(),
+                        fields
+                            .iter()
+                            .zip(items)
+                            .map(|(f, v)| ((*f).to_string(), v.clone()))
+                            .collect(),
+                    ),
+                    pos: e.pos,
+                };
+                return self.expr_as(&lit, want);
+            }
+        }
         // A list literal where a `[T]?` goes: the list, there.
         if let (ExprKind::ArrayLit(_), Ty::Optional(inner)) = (&e.kind, want)
             && matches!(**inner, Ty::Array(_))

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """What one kind of node, or one shape of script, costs a frame.
 
-The cases live in `examples/benchmark/scripts/cases_kinds.rn` and
-`cases_scripts.rn`: N of one thing, built once, then every frame measured
+The cases live in `examples/benchmark/scripts/cases_kinds.bs` and
+`cases_scripts.bs`: N of one thing, built once, then every frame measured
 while they sit there. This runs them and prints the table.
 
 Two numbers matter and they are not the same. Wall milliseconds is what a

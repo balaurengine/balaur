@@ -10,7 +10,7 @@ name = "Main"
 id = "n_world"
 name = "World"
 parent = "n_main"
-script = { source = "scripts/drop.rn" }
+script = { source = "scripts/drop.bs" }
 
 [[nodes]]
 id = "n_camera"

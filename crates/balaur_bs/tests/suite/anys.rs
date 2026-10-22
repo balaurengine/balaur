@@ -400,3 +400,22 @@ pub fn walked() -> str {
         Value::Str(r#"{"assets": [{"id": "a", "n": 6}, {"id": "b", "n": 1}]} 1"#.into())
     );
 }
+
+#[test]
+fn a_list_of_numbers_stands_where_a_vector_goes() {
+    let mut rt = run(r#"
+fn len(v: Vec3) -> float { v.x + v.y + v.z }
+fn up() -> Vec3 { [0.0, 1.0, 0.0] }
+fn tints() -> [Color] { [[1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.5]] }
+pub fn summed() -> str {
+    let p: Vec3 = [1.0, 2.0, 3.0];
+    let flat: Vec2 = [4.0, 5.0];
+    let c: Color = [0.1, 0.2, 0.3, 1.0];
+    "{len(p)} {len([1.0, 1.0, 1.0])} {flat.y} {c.a} {up().y} {tints()[1].a}"
+}
+"#);
+    assert_eq!(
+        call(&mut rt, "summed", &[]),
+        Value::Str("6.0 3.0 5.0 1.0 1.0 0.5".into())
+    );
+}

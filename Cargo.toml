@@ -116,14 +116,16 @@ mio = { version = "1", default-features = false, features = ["os-poll", "net"] }
 [profile.dev]
 debug = "line-tables-only"
 
-# The crates an editor frame runs through. Rune's handlers and the hecs, glam
-# and egui generics instantiate here: at 0 a 2000-node frame ran 2.6x the
+# The crates an editor frame runs through. The script runtime and the hecs,
+# glam and egui generics instantiate here: at 0 a 2000-node frame ran 2.6x the
 # instructions, and 2 or 3 buy 2% more. docs/PLAN-editor-performance.md §9.
 [profile.dev.package]
 balaur = { opt-level = 1 }
 balaur_core = { opt-level = 1 }
 balaur_render = { opt-level = 1 }
+balaur_bs = { opt-level = 1 }
 balaur_script = { opt-level = 1 }
+balaur_script_bs = { opt-level = 1 }
 balaur_script_rune = { opt-level = 1 }
 balaur_text = { opt-level = 1 }
 balaur_ui = { opt-level = 1 }

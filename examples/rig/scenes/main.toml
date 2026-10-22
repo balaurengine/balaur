@@ -1,6 +1,6 @@
 # A 2D rig: three skinned bones and an arm, with two clips a state machine
 # crossfades, `two_bone_ik`, `jiggle`, a `polygon/deform` track, and the
-# ragdoll `scripts/fall.rn` builds.
+# ragdoll `scripts/fall.bs` builds.
 
 [[nodes]]
 id = "n_main"
@@ -40,7 +40,7 @@ friction = 0.9
 id = "n_hero"
 name = "Hero"
 parent = "n_main"
-script = { source = "scripts/fall.rn" }
+script = { source = "scripts/fall.bs" }
 
 [nodes.transform]
 position = [0, -1.25, 0]

@@ -1,0 +1,19 @@
+// A hundred arithmetic steps a frame: the language's own speed, with no
+// binding and no allocation in the way.
+
+pub struct MathLoop {
+    node: Node,
+    out: float,
+}
+
+impl MathLoop {
+    fn update(dt: float) {
+        let total = 0.0;
+        let i = 0;
+        while i < 100 {
+            total = total + (i as float) * dt;
+            i += 1;
+        }
+        self.out = total;
+    }
+}

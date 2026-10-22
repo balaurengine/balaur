@@ -6,7 +6,7 @@ id = "n_screen"
 name = "Screen"
 
 [nodes.script]
-source = "scripts/screen.rn"
+source = "scripts/screen.bs"
 [nodes.script.props]
 # Set when the manual's picture or clip is being taken; empty for a normal run.
 shot = ""

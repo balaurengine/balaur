@@ -34,10 +34,10 @@ fn project(script: &str) -> tempfile::TempDir {
     copy(&hello(), dir.path());
     let scene = dir.path().join("scenes/main.toml");
     let text = std::fs::read_to_string(&scene).unwrap();
-    let swapped = text.replace("\"scripts/spinner.rn\"", &format!("\"scripts/{script}\""));
+    let swapped = text.replace("\"scripts/spinner.bs\"", &format!("\"scripts/{script}\""));
     assert!(
-        text != swapped || script == "spinner.rn",
-        "the scene no longer names scripts/spinner.rn"
+        text != swapped || script == "spinner.bs",
+        "the scene no longer names scripts/spinner.bs"
     );
     std::fs::write(scene, swapped).unwrap();
     dir
@@ -110,7 +110,9 @@ fn an_exported_spinner_runs_as_native_code() {
     let scripts = balaur::native_scripts(dir.path(), &mut [], &pack)
         .unwrap()
         .expect("hello has a .bs script");
-    assert_eq!((scripts.modules, scripts.framework), (1, "BalaurScripts"));
+    // hello's five scripts: the spinner, the ball, the ground, the menu and
+    // the platform.
+    assert_eq!((scripts.modules, scripts.framework), (5, "BalaurScripts"));
     let work = tempfile::tempdir().unwrap();
     let (source, lib) = (work.path().join("s.c"), work.path().join("s.lib"));
     std::fs::write(&source, &scripts.c).unwrap();
@@ -121,7 +123,7 @@ fn an_exported_spinner_runs_as_native_code() {
         .status()
         .expect("a C compiler");
     assert!(built.success());
-    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 1);
+    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 5);
 
     let mut app = booted(dir.path());
     let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
@@ -522,6 +524,56 @@ fn a_call_back_into_a_busy_script_shares_the_class_it_keeps() {
     assert_eq!(field(&app, "Host", "seen"), Some(Int(3)));
     ticked(&mut app, 1);
     assert_eq!(field(&app, "Host", "seen"), Some(Int(6)));
+}
+
+// Whichever of `A` and `B` runs first takes the other's script away in the
+// same frame, while the pass that runs them both still holds it: what a
+// replay's scene reset does to a game while the editor's call runs.
+const RIVAL: &str = "pub struct Rival {
+    node: Node,
+    said: str,
+}
+
+impl Rival {
+    fn update(dt: float) {
+        if self.said == \"\" {
+            let other = if self.node.name() == \"A\" { \"B\" } else { \"A\" };
+            self.node.parent().get_node(other).detach_script();
+        }
+        self.said = \"here\";
+    }
+}
+";
+
+#[test]
+fn a_script_detached_in_a_frame_is_not_called_later_in_it() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"r\"\nname = \"Root\"\n\n\
+         [[nodes]]\nid = \"a\"\nname = \"A\"\nparent = \"r\"\nscript = { source = \"scripts/rival.bs\" }\n\n\
+         [[nodes]]\nid = \"b\"\nname = \"B\"\nparent = \"r\"\nscript = { source = \"scripts/rival.bs\" }\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scripts/rival.bs"), RIVAL).unwrap();
+    let mut app = booted(dir.path());
+    // A frame at a time: the buffer keeps 500 lines, and the engine's trace
+    // lines would push an error out of it over two.
+    for _ in 0..2 {
+        ticked(&mut app, 1);
+        let errors: Vec<_> = balaur_core::logbuf::recent(500)
+            .into_iter()
+            .filter(|e| e.level == "error" && e.message.contains("rival.bs"))
+            .collect();
+        assert!(errors.is_empty(), "{errors:#?}");
+    }
 }
 
 #[test]

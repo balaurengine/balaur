@@ -1,0 +1,12 @@
+// One field, read and written. The smallest thing a script actually does.
+
+pub struct Counter {
+    node: Node,
+    t: float,
+}
+
+impl Counter {
+    fn update(dt: float) {
+        self.t += dt;
+    }
+}

@@ -1,0 +1,22 @@
+// Left, right and jump, over the 2D character controller.
+
+pub struct Player {
+    node: Node,
+    pub speed: float = 6.0,
+    pub jump: float = 9.0,
+    vy: float,
+}
+
+impl Player {
+    fn fixed_update(dt: float) {
+        let sideways = input::action_value("move");
+        // The controller reports whether the last move ended on the ground,
+        // which is what decides between falling and being able to jump.
+        if self.node.character2d.is_on_floor() {
+            self.vy = if input::action_just_pressed("jump") { self.jump } else { 0.0 };
+        } else {
+            self.vy -= 24.0 * dt;
+        }
+        self.node.character2d.move_character(sideways * self.speed * dt, self.vy * dt);
+    }
+}

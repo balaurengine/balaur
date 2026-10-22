@@ -220,5 +220,27 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - `node.try_set_component` answers `false` where `set_component` fails:
      an engine error ends the script's call, and the inspector expects
      refusals.
-7. **Examples, templates, the GDScript translator, docs.**
+7. **Examples, templates, the GDScript translator, docs.** In progress.
+   Every example's scripts are `.bs`; `hello` keeps `spinner.rn` beside its
+   port for the comparison test until step 8. The benchmark builds every
+   physics case as Rune did, to the same fingerprint.
+   - A benchmark case is a `Case` class. What a closure held sits in its
+     fields (`spots`, `component`, `params`, `order`), and each of its
+     functions is handed the case back. Its menu is widget nodes.
+   - `log::print` writes a line to standard output as it stands, which
+     `bench_compare.py` and `bench_load.py` read.
+   - A list literal ending a function stands for the vector, colour or list
+     the function returns.
+   - A call into a script costs less. An export's function and kinds are
+     kept and it is called unchecked; a method is found by type and name
+     without building its key; what a call shares and releases is worked out
+     once per struct. A `noop` update went from 8 µs to 0.64 µs in a dev
+     build (Rune: 0.48 µs), which now optimises `balaur_bs` and
+     `balaur_script_bs` as it did Rune's crate.
+   - A script detached during a frame, as a replay's scene reset detaches a
+     game's, is not called again in that frame.
+
+   Left before step 8: `engine::script_costs` and `function_costs` count
+   nothing for `.bs`, so the Profiler dock and the benchmark's instructions
+   are empty; no host calls the batch exports (`T.m$batch`) yet.
 8. **Rune removed.**

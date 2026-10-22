@@ -1,0 +1,17 @@
+// Vector maths, which is what a movement or a look-at does several times a
+// frame: a sum, a length and a scale, written out on the fields.
+
+pub struct Vector {
+    node: Node,
+    out: Vec3,
+}
+
+impl Vector {
+    fn update(dt: float) {
+        let a = Vec3 { x: 1.0, y: 2.0, z: 3.0 };
+        let b = Vec3 { x: dt, y: 0.5, z: 1.0 };
+        let sum = Vec3 { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+        let scale = 2.0 / math::sqrt(sum.x * sum.x + sum.y * sum.y + sum.z * sum.z);
+        self.out = Vec3 { x: sum.x * scale, y: sum.y * scale, z: sum.z * scale };
+    }
+}

@@ -28,7 +28,7 @@ pub use reentry::Reentry;
 pub use stepping::Step;
 pub use values::Value;
 
-use crate::{Compiled, Literal, Meta, Ty, show, words};
+use crate::{Compiled, FnInfo, Literal, Meta, Ty, show, words};
 use engine::{Raw, Setup, Shared, Wasm};
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
@@ -339,14 +339,10 @@ impl Runtime {
     /// list or an `any`, which the running call may free under the copy.
     /// [`Runtime::drop_object`] lets go of it.
     pub fn share(&mut self, obj: &Object) -> Option<Object> {
-        let slots = slots(&self.meta, &Ty::Struct(obj.ty.clone()));
-        let classes = |h: &Ty| matches!(h, Ty::Struct(c) if self.meta.is_class(c));
-        if !slots.iter().all(|(_, h)| h.as_ref().is_none_or(classes)) {
-            return None;
-        }
-        for ((_, heap), r) in slots.iter().zip(&obj.raw) {
-            let p = r.i32();
-            if heap.is_some() && p != 0 {
+        let plan = self.share_plan(&obj.ty)?;
+        for &k in plan.iter() {
+            let p = obj.raw[k].i32();
+            if p != 0 {
                 let n = rd32(&Live(&*self.wasm), p as usize);
                 self.wasm.write(p as usize, &(n + 1).to_le_bytes());
             }
@@ -355,6 +351,28 @@ impl Runtime {
             ty: obj.ty.clone(),
             raw: obj.raw.clone(),
         })
+    }
+
+    // The class slots of a `ty`, or nil when it holds other heap values: a
+    // walk of its fields the first time, and a lookup on every call after.
+    fn share_plan(&self, ty: &str) -> Option<Rc<[usize]>> {
+        if let Some(plan) = self.host.borrow().shares.get(ty) {
+            return plan.clone();
+        }
+        let slots = slots(&self.meta, &Ty::Struct(ty.to_string()));
+        let classes = |h: &Ty| matches!(h, Ty::Struct(c) if self.meta.is_class(c));
+        let plan = slots
+            .iter()
+            .all(|(_, h)| h.as_ref().is_none_or(classes))
+            .then(|| {
+                let heap = slots.iter().enumerate().filter(|(_, (_, h))| h.is_some());
+                heap.map(|(k, _)| k).collect::<Rc<[usize]>>()
+            });
+        self.host
+            .borrow_mut()
+            .shares
+            .insert(ty.to_string(), plan.clone());
+        plan
     }
 
     /// Calls a free function.
@@ -383,18 +401,30 @@ impl Runtime {
         method: &str,
         args: &[Value],
     ) -> Result<Value, RunError> {
-        let key = format!("{}.{method}", obj.ty);
-        let info = self.meta.function(&key).cloned().ok_or(RunError {
-            msg: format!("no method `{key}`"),
+        let meta = self.meta.clone();
+        let info = meta.method(&obj.ty, method).ok_or_else(|| RunError {
+            msg: format!("no method `{}.{method}`", obj.ty),
             line: None,
         })?;
+        self.call_info(obj, info, args)
+    }
+
+    /// [`Runtime::call_method`] for a caller that looked the method up
+    /// already, in this module's [`Meta`].
+    pub fn call_info(
+        &mut self,
+        obj: &mut Object,
+        info: &FnInfo,
+        args: &[Value],
+    ) -> Result<Value, RunError> {
         let mut a = obj.raw.clone();
         for (t, v) in info.params.iter().zip(args) {
             a.extend(self.encode(t, v)?);
         }
         let nself = obj.raw.len();
-        let out = self.invoke(&key, &a, nself + width(&self.meta, &info.ret))?;
-        obj.raw = out[..nself].to_vec();
+        let ret = width(&self.meta, &info.ret);
+        let out = self.invoke(&info.key, &a, nself + ret)?;
+        obj.raw.copy_from_slice(&out[..nself]);
         Ok(self.take(&info.ret, &out[nself..]))
     }
 
@@ -794,18 +824,46 @@ impl Runtime {
     }
 
     fn release(&mut self, ty: &Ty, raw: &[Raw]) {
-        for ((_, heap), r) in slots(&self.meta, ty).into_iter().zip(raw) {
-            if let Some(h) = heap {
-                let name = format!("{}{}", words::DEC, show(&h));
-                if self.wasm.has_func(&name) {
-                    let _ = self.invoke(&name, &[*r], 0);
-                } else {
-                    // No release export for the type: nothing in the module keeps one, so
-                    // the host made it; strings and plain arrays have no children to release.
-                    self.release_flat(&h, r.i32());
+        for part in self.release_plan(ty).iter() {
+            let r = raw[part.slot];
+            match &part.dec {
+                Some(name) => {
+                    let _ = self.invoke(name, &[r], 0);
                 }
+                // No release export for the type: nothing in the module keeps one, so
+                // the host made it; strings and plain arrays have no children to release.
+                None => self.release_flat(&part.ty, r.i32()),
             }
         }
+    }
+
+    // What letting go of a `ty` releases, slot by slot: worked out once per
+    // struct, since the host lets go of a script's copy after every call.
+    fn release_plan(&mut self, ty: &Ty) -> Rc<[host::Release]> {
+        let key = match ty {
+            Ty::Struct(name) => Some(name),
+            _ => None,
+        };
+        if let Some(plan) = key.and_then(|k| self.host.borrow().releases.get(k).cloned()) {
+            return plan;
+        }
+        let plan: Rc<[host::Release]> = slots(&self.meta, ty)
+            .into_iter()
+            .enumerate()
+            .filter_map(|(slot, (_, heap))| {
+                let ty = heap?;
+                let name = format!("{}{}", words::DEC, show(&ty));
+                let dec = self.wasm.has_func(&name).then_some(name);
+                Some(host::Release { slot, ty, dec })
+            })
+            .collect();
+        if let Some(k) = key {
+            self.host
+                .borrow_mut()
+                .releases
+                .insert(k.clone(), plan.clone());
+        }
+        plan
     }
 
     fn release_flat(&mut self, ty: &Ty, p: i32) {

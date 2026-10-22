@@ -1,0 +1,63 @@
+// Labels over the two sheets, and the pictures the manual takes. The physics
+// is the scene's; nothing here moves anything.
+
+pub struct Drop {
+    pub shot: str = "",
+    pub frames: str = "",
+    node: Node,
+    frame: int,
+}
+
+fn INK() -> [float] {
+    [0.93, 0.94, 0.96, 1.0]
+}
+
+fn FAINT() -> [float] {
+    [0.62, 0.66, 0.72, 1.0]
+}
+
+impl Drop {
+    pub fn init() {
+        self.frame = 0;
+        render::set_background(0.07, 0.08, 0.10);
+    }
+}
+
+fn label(x: float, y: float, text: str, size: float, color: [float]) {
+    render::draw_text_3d(x, y, 0.0, text, map()
+        .with("font_size", size)
+        .with("color", color)
+        .with("text_align", "center")
+        .with("pixels_per_unit", 120.0));
+}
+
+impl Drop {
+    pub fn update(dt: float) {
+        // Read off the sheet rather than written twice: the number under the
+        // label is the one the solver is actually using.
+        let strain = self.node.get_node("Tears").softbody3d.tear_strain;
+        label(-1.5, 2.15, "no tear strain", 28.0, INK());
+        label(1.5, 2.15, "tear_strain = {strain}", 28.0, INK());
+        label(-1.5, 1.8, "the cloth folds over the block", 18.0, FAINT());
+        label(1.5, 1.8, "the ball tears through", 18.0, FAINT());
+        self.frame += 1;
+        if self.frame == 260 && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+        if self.frames != "" && self.frame >= 2 && self.frame <= 301 {
+            render::screenshot("{self.frames}/{padded(self.frame)}.png");
+        }
+    }
+
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n: int) -> str {
+    if n < 10 {
+        "00{n}"
+    } else if n < 100 {
+        "0{n}"
+    } else {
+        "{n}"
+    }
+}

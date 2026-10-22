@@ -1,0 +1,30 @@
+// One picture of the screen this script sits on, for the manual and the blog.
+// `--shot=<path>` after `--` says where it goes; without it the screen is a
+// screen, and nothing is written.
+
+pub struct Shot {
+    node: Node,
+    frame: int,
+    shot: str,
+}
+
+impl Shot {
+    pub fn init() {
+        self.frame = 0;
+        self.shot = "";
+        for arg in engine::args() {
+            let parts = arg.split("=");
+            if parts[0] == "--shot" && parts.len() > 1 {
+                self.shot = parts[1];
+            }
+        }
+    }
+
+    // Late enough that the layout has settled and every popup has opened.
+    pub fn update(dt: float) {
+        self.frame += 1;
+        if self.frame == 30 && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+    }
+}

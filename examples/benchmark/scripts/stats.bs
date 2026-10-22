@@ -1,0 +1,123 @@
+// Percentiles and the run fingerprint, computed the way the Godot suite this
+// mirrors computes them, so a row here and a row there mean the same thing.
+
+/// Nearest-rank percentile over a sorted list, as `framework/stats.gd` does.
+pub fn percentile(sorted: [float], q: float) -> float {
+    if sorted.len() == 0 {
+        return 0.0;
+    }
+    let idx = (math::ceil(q * (sorted.len() as float)) as int) - 1;
+    if idx < 0 {
+        idx = 0;
+    }
+    if idx > sorted.len() - 1 {
+        idx = sorted.len() - 1;
+    }
+    sorted[idx]
+}
+
+pub fn mean(samples: [float]) -> float {
+    if samples.len() == 0 {
+        return 0.0;
+    }
+    let total = 0.0;
+    for s in samples {
+        total += s;
+    }
+    total / (samples.len() as float)
+}
+
+pub fn stddev(samples: [float], m: float) -> float {
+    if samples.len() < 2 {
+        return 0.0;
+    }
+    let acc = 0.0;
+    for s in samples {
+        acc += (s - m) * (s - m);
+    }
+    math::sqrt(acc / ((samples.len() - 1) as float))
+}
+
+/// The summary block every case reports, in the schema the Godot suite writes.
+pub fn summarize(samples: [float]) -> any {
+    let sorted: [float] = [];
+    sorted.extend(samples);
+    sorted.sort();
+    let m = mean(sorted);
+    let n = sorted.len();
+    map()
+        .with("count", n)
+        .with("mean_ms", m)
+        .with("stddev_ms", stddev(sorted, m))
+        .with("min_ms", if n == 0 { 0.0 } else { sorted[0] })
+        .with("p50_ms", percentile(sorted, 0.5))
+        .with("p95_ms", percentile(sorted, 0.95))
+        .with("p99_ms", percentile(sorted, 0.99))
+        .with("max_ms", if n == 0 { 0.0 } else { sorted[n - 1] })
+}
+
+const QUANTUM: float = 0.01;
+const FNV_PRIME: int = 16777619;
+const TWO_32: int = 4294967296;
+const NON_FINITE: int = 2147483647;
+
+/// 32-bit FNV-1a over the bodies' quantized positions, as `stats.gd` computes
+/// it: two engines that report the same fingerprint simulated the same world.
+/// Each quantized number goes in as its eight little-endian bytes.
+pub fn fingerprint(bodies: [Node], dimensions: int) -> str {
+    let hash = 2166136261;
+    for body in bodies {
+        if !body.is_valid() {
+            continue;
+        }
+        let p = body.transform.position;
+        let parts = if dimensions == 2 { [p.x, p.y] } else { [p.x, p.y, p.z] };
+        for c in parts {
+            let q = if finite(c) { math::round(c / QUANTUM) as int } else { NON_FINITE };
+            for byte in 0..8 {
+                // The low byte of a two's complement number, then the rest
+                // shifted down, which is a floor division for a negative one.
+                let low = ((q % 256) + 256) % 256;
+                q = (q - low) / 256;
+                let held = hash % 256;
+                hash = hash - held + xor_byte(held, low);
+                hash = (hash * FNV_PRIME) % TWO_32;
+            }
+        }
+    }
+    hex8(hash)
+}
+
+/// `a ^ b` for two bytes, a bit at a time.
+fn xor_byte(a: int, b: int) -> int {
+    let out = 0;
+    let bit = 1;
+    for k in 0..8 {
+        if (a / bit) % 2 != (b / bit) % 2 {
+            out += bit;
+        }
+        bit *= 2;
+    }
+    out
+}
+
+/// Eight lowercase hex digits, leading zeros kept.
+fn hex8(n: int) -> str {
+    let digits = "0123456789abcdef";
+    let out = "";
+    for k in 0..8 {
+        let d = n % 16;
+        out = "{digits.slice(d, d + 1)}{out}";
+        n = n / 16;
+    }
+    out
+}
+
+/// A number that is neither NaN nor an infinity. NaN fails every comparison,
+/// which is what the first test reads.
+pub fn finite(x: float) -> bool {
+    if !(x <= 0.0 || x >= 0.0) {
+        return false;
+    }
+    math::abs(x) < 1.0e30
+}

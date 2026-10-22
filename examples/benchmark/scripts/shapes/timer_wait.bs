@@ -1,0 +1,24 @@
+// Work every thirtieth frame instead of every one: the shape of an actor
+// that thinks on a tick rather than on a frame.
+
+pub struct TimerWait {
+    node: Node,
+    n: int,
+    out: float,
+}
+
+impl TimerWait {
+    fn update(dt: float) {
+        self.n += 1;
+        if self.n % 30 != 0 {
+            return;
+        }
+        let total = 0.0;
+        let i = 0;
+        while i < 100 {
+            total = total + (i as float) * dt;
+            i += 1;
+        }
+        self.out = total;
+    }
+}

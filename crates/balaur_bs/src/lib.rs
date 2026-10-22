@@ -22,6 +22,7 @@ pub mod words;
 
 pub use ast::{Pos, Ty};
 pub use modules::{Find, Modules};
+use rustc_hash::FxHashMap;
 
 /// What a module is known by outside the runtime: a compiled-module cache's
 /// file name, and the native build of it an export made. Two FNV-1a passes.
@@ -199,6 +200,12 @@ pub struct Meta {
     /// The structs declared `class`, each held as a pointer to its object.
     pub classes: Vec<String>,
     pub fns: Vec<FnInfo>,
+    /// Where each of `fns` sits, by key: the host finds `Type.update` on
+    /// every call, and a module of the editor's size has thousands.
+    pub by_key: FxHashMap<String, usize>,
+    /// The same for methods, by type and then name, so finding one builds
+    /// no key.
+    pub by_owner: FxHashMap<String, FxHashMap<String, usize>>,
     pub externs: Vec<ExternInfo>,
     pub probes: Vec<Probe>,
     pub func_names: Vec<String>,
@@ -229,7 +236,12 @@ impl Meta {
             .map(|(_, f)| f.as_slice())
     }
     pub fn function(&self, key: &str) -> Option<&FnInfo> {
-        self.fns.iter().find(|f| f.key == key)
+        self.by_key.get(key).map(|&i| &self.fns[i])
+    }
+    /// `ty`'s method `name`, without building its key.
+    pub fn method(&self, ty: &str, name: &str) -> Option<&FnInfo> {
+        let i = self.by_owner.get(ty)?.get(name)?;
+        Some(&self.fns[*i])
     }
     pub fn defaults(&self, ty: &str) -> &[(String, bool, Literal)] {
         self.defaults

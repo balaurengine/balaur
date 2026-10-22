@@ -1,0 +1,87 @@
+// Labels over each body, and the pictures the manual takes. The physics is
+// the scene's; nothing here moves anything.
+
+pub struct Labels {
+    pub shot: str = "",
+    pub frames: str = "",
+    node: Node,
+    frame: int,
+}
+
+fn INK() -> [float] {
+    [0.93, 0.94, 0.96, 1.0]
+}
+
+fn FAINT() -> [float] {
+    [0.62, 0.66, 0.72, 1.0]
+}
+
+const TITLE_SIZE: float = 26.0;
+
+const NOTE_SIZE: float = 18.0;
+
+const TITLE_Y: float = 5.6;
+
+const NOTE_Y: float = 5.1;
+
+// The bodies the scene lays out, each titled by its own kind.
+fn BODIES() -> [[str]] {
+    [
+        ["Block", "cells, over a peg"],
+        ["Balloon", "a hoop that holds its area"],
+        ["Star", "the outline the star draws"],
+        ["Arch", "cells carry the arch"],
+        ["Bridge", "pinned at both ends"],
+    ]
+}
+
+// Late enough that every body has landed and settled.
+const SHOT_FRAME: int = 240;
+
+const FIRST_CLIP_FRAME: int = 2;
+
+const LAST_CLIP_FRAME: int = 301;
+
+impl Labels {
+    pub fn init() {
+        self.frame = 0;
+        render::set_background(0.07, 0.08, 0.10);
+        render::set_camera_2d(0.0, 0.5, 85.0);
+    }
+}
+
+fn label(x: float, y: float, text: str, size: float, color: [float]) {
+    render::draw_text_2d(x, y, text, map().with("font_size", size).with("color", color).with("text_align", render::ALIGN_CENTER));
+}
+
+impl Labels {
+    pub fn update(dt: float) {
+        for body in BODIES() {
+            let node = self.node.get_node(body[0]);
+            // Read off the node rather than written twice: the word is the kind
+            // the solver built, and the label sits over where the body starts.
+            let x = node.transform.global_position().x;
+            label(x, TITLE_Y, node.softbody2d.kind, TITLE_SIZE, INK());
+            label(x, NOTE_Y, body[1], NOTE_SIZE, FAINT());
+        }
+        self.frame += 1;
+        if self.frame == SHOT_FRAME && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+        if self.frames != "" && self.frame >= FIRST_CLIP_FRAME && self.frame <= LAST_CLIP_FRAME {
+            render::screenshot("{self.frames}/{padded(self.frame)}.png");
+        }
+    }
+
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n: int) -> str {
+    if n < 10 {
+        "00{n}"
+    } else if n < 100 {
+        "0{n}"
+    } else {
+        "{n}"
+    }
+}

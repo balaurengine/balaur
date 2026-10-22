@@ -8,6 +8,7 @@ description = "Balaur Script: a small statically typed scripting language compil
 
 [dependencies]
 libm.workspace = true
+rustc-hash.workspace = true
 wasm-encoder = "0.262"
 smallvec.workspace = true
 # `deterministic` canonicalises NaNs, the one result wasm leaves to the platform.

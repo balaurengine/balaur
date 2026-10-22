@@ -15,8 +15,8 @@ use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
     assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
     dark_mode, device_id, encoding_base64, encoding_from_base64, environment, focused, hash_sha256,
-    hash_sha256_text, log_clear, log_error, log_file, log_info, log_recent, log_since, log_warn,
-    platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
+    hash_sha256_text, log_clear, log_error, log_file, log_info, log_print, log_recent, log_since,
+    log_warn, platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
     strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
@@ -453,6 +453,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "log",
         name: "error",
         call: log_error,
+    },
+    EngineOp {
+        module: "log",
+        name: "print",
+        call: log_print,
     },
     EngineOp {
         module: "log",

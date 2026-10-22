@@ -1,0 +1,82 @@
+// The three row views over one set of entries. The rows are `screen.bs`'s,
+// used as a module, so the gallery and this screen say the same thing about
+// the same data.
+
+use screen;
+
+pub struct Rows {
+    /// Where a picture of the screen goes, for the manual's shot.
+    /// `--shot=<path>` after `--` says where; without it the screen is a
+    /// screen, as `shot.bs` has it for the other two scenes here.
+    pub shot: str = "",
+    node: Node,
+    frame: int,
+    cards: [str],
+}
+
+fn asked() -> str {
+    for arg in engine::args() {
+        let parts = arg.split("=");
+        if parts[0] == "--shot" && parts.len() > 1 {
+            return parts[1];
+        }
+    }
+    ""
+}
+
+const LIST: str = "Sheet/Views/ListBox/List";
+
+impl Rows {
+    fn fill(name: str, params: any) {
+        let found = self.node.get_node(name);
+        if found.is_valid() {
+            found.patch_component("widget", params);
+        }
+    }
+
+    fn init() {
+        self.frame = 0;
+        self.shot = asked();
+        self.cards = screen::cards_in_order();
+        // Two rows held at once, which is what `multi` is for; a script reads
+        // `selection` back rather than the one row `text` carries.
+        self.fill(LIST, map()
+            .with("options", self.cards)
+            .with("selection", [self.cards[1], self.cards[2]])
+            .with("text", self.cards[2]));
+        self.fill("Sheet/Views/TreeBox/Outline", map().with("options", screen::outline()));
+        self.fill("Sheet/Views/TableBox/Table", map().with("options", screen::table()));
+    }
+
+    /// A row dropped somewhere else in the list, which the kind reports and this
+    /// acts on: the view draws the rows a script hands it, so moving one is
+    /// moving it here.
+    pub fn on_move(what: any) {
+        let moved = what.at(0).as_str();
+        let onto = what.at(1).as_str();
+        let side = what.at(2).as_str();
+        let out: [str] = [];
+        for row in self.cards {
+            if row == moved {
+                continue;
+            }
+            if row == onto && side == "before" {
+                out.push(moved);
+            }
+            out.push(row);
+            if row == onto && side != "before" {
+                out.push(moved);
+            }
+        }
+        self.cards = out;
+        self.fill(LIST, map().with("options", out).with("text", moved).with("selection", [moved]));
+    }
+
+    // Late enough that the layout has settled and the rows are in.
+    fn update(dt: float) {
+        self.frame += 1;
+        if self.frame == 30 && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+    }
+}

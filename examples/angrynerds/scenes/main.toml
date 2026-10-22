@@ -1,5 +1,5 @@
 # An angry-birds game. The level is pure scene data, editable in the balaur
-# editor; scripts/game.rn drives the slingshot, scoring and restarts.
+# editor; scripts/game.bs drives the slingshot, scoring and restarts.
 
 [[assets]]
 id = "table"
@@ -18,7 +18,7 @@ name = "Main"
 id = "n_game"
 name = "Game"
 parent = "n_main"
-script = { source = "scripts/game.rn" }
+script = { source = "scripts/game.bs" }
 
 [[nodes]]
 id = "n_score"
@@ -532,7 +532,7 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_restart"
 name = "Restart"
 parent = "n_main"
-script = { source = "scripts/restart_button.rn" }
+script = { source = "scripts/restart_button.bs" }
 
 [nodes.widget]
 kind = "button"

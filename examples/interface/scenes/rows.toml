@@ -5,7 +5,7 @@
 id = "n_screen"
 name = "Screen"
 [nodes.script]
-source = "scripts/rows.rn"
+source = "scripts/rows.bs"
 
 [[nodes]]
 id = "sheet"

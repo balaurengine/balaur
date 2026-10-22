@@ -1,0 +1,9 @@
+// The floor: an `update` the host calls every frame that does nothing.
+
+pub struct Noop {
+    node: Node,
+}
+
+impl Noop {
+    fn update(dt: float) {}
+}

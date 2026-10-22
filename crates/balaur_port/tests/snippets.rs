@@ -564,3 +564,18 @@ pub fn tabs(S, held) {
     has(&out, "fn tabs_on_0(S: &mut State, data: any, _0: any) {");
     has(&out, "let held: any = data.held;");
 }
+
+#[test]
+fn a_node_test_asks_whether_the_node_is_valid() {
+    let out = body(
+        r#"
+pub fn poke(this) {
+    if this.node is balaur::Node {
+        this.node.call("reverse");
+    }
+}
+"#,
+    );
+    has(&out, "if self.node.is_valid() {");
+    lacks(&out, "if true");
+}

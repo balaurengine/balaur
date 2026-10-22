@@ -1,0 +1,341 @@
+// The one script this screen has. It writes no layout and draws no pixel:
+// the scene holds the boxes, and this puts rows in the three views that hold
+// a list. A row is `icon`, `label`, `note` and an `#rrggbb`, joined by U+001F.
+
+pub struct Screen {
+    /// Where a picture of the screen goes, for the manual's shot, and where
+    /// the clip's frames go. Both empty is a normal run, which is what a
+    /// reader gets.
+    pub shot: str = "",
+    pub frames: str = "",
+    node: Node,
+    order: [int],
+    frame: int,
+    // Where the cursor last landed, so a walk knows what it is leaving.
+    at: ui::Rect?,
+    // The click ring: where it was left and how long ago.
+    ring: Ring?,
+}
+
+pub struct Entry {
+    icon: str,
+    name: str,
+    kind: str,
+    size: str,
+    tint: str,
+}
+
+pub struct Ring {
+    x: float,
+    y: float,
+    age: int,
+}
+
+const SEP: str = "\u{1f}";
+
+// What a card, an outline row and a table row are made of. One table, three
+// shapes, so the same data reaches all three views. The marks are glyphs from
+// the Phosphor face the theme names as its icon family.
+pub fn entries() -> [Entry] {
+    [
+        Entry { icon: "\u{e67c}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e67c}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e67c}", name: "Torus", kind: "mesh", size: "3.8 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e6c8}", name: "Brass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: "\u{e6c8}", name: "Glass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: "\u{e468}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
+        Entry { icon: "\u{e792}", name: "Walk", kind: "clip", size: "6.0 kB", tint: "#a98fd0" },
+        Entry { icon: "\u{e792}", name: "Idle", kind: "clip", size: "2.2 kB", tint: "#a98fd0" },
+        Entry { icon: "\u{e2c6}", name: "Hero", kind: "prefab", size: "9.7 kB", tint: "#e6e9ee" },
+        Entry { icon: "\u{e2c6}", name: "Crate", kind: "prefab", size: "1.1 kB", tint: "#e6e9ee" },
+        Entry { icon: "\u{e464}", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
+        Entry { icon: "\u{e2e2}", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
+    ]
+}
+
+pub fn row(icon: str, label: str, note: str, tint: str) -> str {
+    icon + SEP + label + SEP + note + SEP + tint
+}
+
+impl Screen {
+    fn fill(name: str, options: [str]) {
+        let found = self.node.get_node(name);
+        if found.is_valid() {
+            found.patch_component("widget", map().with("options", options));
+        }
+    }
+
+    // The cards, in whatever order `shuffle` last left them.
+    fn cards() -> [str] {
+        let out: [str] = [];
+        for e in self.order {
+            let held = entries()[e];
+            out.push(row(held.icon, held.name, held.kind, held.tint));
+        }
+        out
+    }
+}
+
+/// The cards in the order the entries are written down, for a screen that
+/// does not shuffle them.
+pub fn cards_in_order() -> [str] {
+    let out: [str] = [];
+    for e in entries() {
+        out.push(row(e.icon, e.name, e.kind, e.tint));
+    }
+    out
+}
+
+// The same entries as an outline: a kind, then its members a tab deeper.
+pub fn outline() -> [str] {
+    let out: [str] = [];
+    let seen: [str] = [];
+    for e in entries() {
+        let first = true;
+        for had in seen {
+            if had == e.kind {
+                first = false;
+            }
+        }
+        if first {
+            seen.push(e.kind);
+            out.push(row("", e.kind, "", "#98a3ae"));
+        }
+        out.push("\t" + row(e.icon, e.name, e.size, e.tint));
+    }
+    out
+}
+
+// And as a table: one cell a column, split on the separator the header is.
+pub fn table() -> [str] {
+    let out: [str] = [];
+    for e in entries() {
+        out.push(e.name + SEP + e.kind + SEP + e.size);
+    }
+    out
+}
+
+// The clip: a drawn cursor walking the strip, each view opening as it lands,
+// and the Shuffle button pressed at either end. `[at, target]`, where a
+// target is a page in the strip or the button.
+fn TOUR() -> [[any]] {
+    [
+        [50, "Shuffle"],
+        [120, "Outline"],
+        [200, "Table"],
+        [280, "Cards"],
+        [340, "Shuffle"],
+    ]
+}
+
+// How long the cursor takes to walk to its next target, in frames.
+const WALK: int = 34;
+
+// The click ring: how long it grows for, and how wide it starts and ends.
+const RIPPLE: int = 66;
+
+const RIPPLE_FROM: float = 12.0;
+
+const RIPPLE_TO: float = 90.0;
+
+const PAGES: str = "Sheet/Body/Right/Pages";
+
+impl Screen {
+    pub fn init() {
+        self.frame = 0;
+        self.at = nil;
+        self.ring = nil;
+        self.order = [];
+        let n = 0;
+        while n < entries().len() {
+            self.order.push(n);
+            n += 1;
+        }
+    }
+
+    /// The header button's `on_click`. A deterministic shuffle: the example is a
+    /// screenshot as often as it is a screen, and a random one never matches.
+    pub fn shuffle() {
+        let held = self.order;
+        let out: [int] = [];
+        let at = 0;
+        while at < held.len() {
+            out.push(held[(at * 7 + 3) % held.len()]);
+            at += 1;
+        }
+        let seen: [int] = [];
+        let kept: [int] = [];
+        for e in out {
+            let had = false;
+            for s in seen {
+                if s == e {
+                    had = true;
+                }
+            }
+            if !had {
+                seen.push(e);
+                kept.push(e);
+            }
+        }
+        for e in held {
+            let had = false;
+            for s in seen {
+                if s == e {
+                    had = true;
+                }
+            }
+            if !had {
+                kept.push(e);
+            }
+        }
+        self.order = kept;
+    }
+
+    pub fn update(dt: float) {
+        self.fill("Sheet/Body/Right/Pages/Cards", self.cards());
+        self.fill("Sheet/Body/Right/Pages/Outline", outline());
+        self.fill("Sheet/Body/Right/Pages/Table", table());
+        // One picture per run, for the showcase: taken late enough that the
+        // layout has settled and the rows are in.
+        self.frame += 1;
+        if self.frame == 30 && self.shot != "" {
+            render::screenshot(self.shot);
+        }
+        if self.frames == "" {
+            return;
+        }
+        self.walk();
+        self.ring();
+        for step in TOUR() {
+            if self.frame == step[0].as_int() {
+                self.arrive(step[1].as_str());
+            }
+        }
+        // The first frame is drawn before the sheet is laid out, so it is skipped.
+        if self.frame >= 2 && self.frame <= 361 {
+            render::screenshot("{self.frames}/{padded(self.frame)}.png");
+        }
+    }
+
+    // Where a target sits, in design px: a page answers with its button in the
+    // strip, the Shuffle button with its own box. Nil before it has drawn.
+    fn target_at(name: str) -> ui::Rect? {
+        if name == "Shuffle" {
+            return ui::widget_rect(self.node.get_node("Sheet/Head/Shuffle"));
+        }
+        ui::tab_rect(self.node.get_node("{PAGES}/{name}"))
+    }
+
+    // The cursor walks to each target over WALK frames before the frame it is due
+    // on, so it is already there when the view changes under it.
+    fn walk() {
+        let from = self.at;
+        let to = self.at;
+        let start = 0;
+        for step in TOUR() {
+            let due = step[0].as_int();
+            if self.frame <= due {
+                to = self.target_at(step[1].as_str());
+                start = due - WALK;
+                break;
+            }
+            from = self.target_at(step[1].as_str());
+        }
+        if to.is_none() {
+            return;
+        }
+        let end = to.unwrap();
+        let here = from.or(end);
+        let p = ((self.frame - start) as float) / (WALK as float);
+        let e = if p < 0.0 { 0.0 } else if p > 1.0 { 1.0 } else { p * p * (3.0 - 2.0 * p) };
+        let x = here.x + here.width / 2.0 + (end.x + end.width / 2.0 - here.x - here.width / 2.0) * e;
+        let y = here.y + here.height / 2.0 + (end.y + end.height / 2.0 - here.y - here.height / 2.0) * e;
+        let cursor = self.node.get_node("Cursor");
+        if cursor.is_valid() {
+            cursor.patch_component("widget", map().with("x", x).with("y", y).with("visible", true));
+        }
+    }
+
+    // A ring spreading from the last click, so the press is not one frame of a
+    // cursor that never moved.
+    fn ring() {
+        let node = self.node.get_node("Ripple");
+        if self.ring.is_none() || !node.is_valid() {
+            return;
+        }
+        let held = self.ring.unwrap();
+        let p = (held.age as float) / (RIPPLE as float);
+        let back = 1.0 - p;
+        let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
+        let left = back * back;
+        node.patch_component("widget", map()
+            .with("x", held.x - d / 2.0)
+            .with("y", held.y - d / 2.0)
+            .with("width", d)
+            .with("height", d)
+            .with("radius", d / 2.0)
+            .with("fill", alpha("#6fa4d8", 0.30 * left))
+            .with("stroke", alpha("#ffffff", left))
+            .with("visible", true));
+        held.age += 1;
+        self.ring = held;
+        if held.age >= RIPPLE {
+            self.ring = nil;
+            node.patch_component("widget", map().with("visible", false));
+        }
+    }
+}
+
+// `#rrggbb` with an alpha byte appended, for a ring that fades as it grows.
+fn alpha(hex: str, a: float) -> str {
+    let v = ((if a < 0.0 { 0.0 } else if a > 1.0 { 1.0 } else { a }) * 255.0) as int;
+    let digits = [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+    ];
+    hex + digits[v / 16] + digits[v % 16]
+}
+
+impl Screen {
+    // The cursor has landed: the button it is on does its own thing.
+    fn arrive(name: str) {
+        self.at = self.target_at(name);
+        if self.at.is_some() {
+            let box = self.at.unwrap();
+            self.ring = Ring { x: box.x + box.width / 2.0, y: box.y + box.height / 2.0, age: 0 };
+        }
+        if name == "Shuffle" {
+            self.shuffle();
+            return;
+        }
+        let pages = self.node.get_node(PAGES);
+        if pages.is_valid() {
+            pages.patch_component("widget", map().with("active", name));
+        }
+    }
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n: int) -> str {
+    if n < 10 {
+        "00{n}"
+    } else if n < 100 {
+        "0{n}"
+    } else {
+        "{n}"
+    }
+}

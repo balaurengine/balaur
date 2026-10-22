@@ -1,0 +1,53 @@
+// Drag to turn, wheel to pull back. The node goes under a pivot: that parent
+// is what it orbits and what it looks at, so the rig works wherever the pivot
+// is put. Angles are degrees, which is what the inspector shows.
+
+pub struct OrbitCamera {
+    node: Node,
+    pub distance: float = 8.0,
+    pub min_distance: float = 1.5,
+    pub max_distance: float = 60.0,
+    pub sensitivity: float = 0.4,
+    pub zoom_step: float = 1.0,
+    pub yaw: float = 0.0,
+    pub pitch: float = -15.0,
+    pub min_pitch: float = -80.0,
+    pub max_pitch: float = 80.0,
+    range: float,
+}
+
+impl OrbitCamera {
+    fn init() {
+        self.range = self.distance;
+    }
+
+    fn update(dt: float) {
+        if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
+            let moved = input::mouse_delta();
+            self.yaw -= moved.x * self.sensitivity;
+            self.pitch = math::clamp(self.pitch - moved.y * self.sensitivity, self.min_pitch, self.max_pitch);
+        }
+        let wheel = input::scroll_delta().y;
+        if wheel != 0.0 {
+            self.range = math::clamp(self.range - wheel * self.zoom_step, self.min_distance, self.max_distance);
+        }
+        let yaw = math::to_radians(self.yaw);
+        let pitch = math::to_radians(self.pitch);
+        // On a sphere around the pivot, and turned to face back down at it:
+        // with no yaw the camera sits at +z and looks along -z, which is the
+        // pivot.
+        let flat = math::cos(pitch) * self.range;
+        self.node.transform.position = [
+            math::sin(yaw) * flat,
+            -math::sin(pitch) * self.range,
+            math::cos(yaw) * flat,
+        ];
+        self.node.transform.rotation_euler = [pitch, yaw, 0.0];
+        // A 3D camera is aimed by `camera.look_at` and never by the node's
+        // own rotation, so the pivot has to be named in world units. Without
+        // this the rig looks at the origin, which is only the pivot while it
+        // has not moved.
+        let at = self.node.parent().transform.global_position();
+        self.node.patch_component("camera3d", map().with("look_at", [at.x, at.y, at.z]));
+    }
+}

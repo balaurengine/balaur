@@ -124,7 +124,7 @@ wanted() { # wanted <name>: true when the name and milestone filters allow it
 
 # Every file a sequence may write, scene files included: a save that lands on
 # the document re-serialises its TOML.
-edited=(examples/hello/scripts/spinner.rn examples/shaders/shaders/glow.wesl
+edited=(examples/hello/scripts/spinner.bs examples/shaders/shaders/glow.wesl
   examples/hello/scenes/main.toml examples/angrynerds/scenes/main.toml
   examples/rig/scenes/main.toml examples/shaders/scenes/main.toml)
 # Keyed by the whole path: every example's scene file is called main.toml,

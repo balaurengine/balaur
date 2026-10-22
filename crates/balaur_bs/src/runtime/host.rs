@@ -124,6 +124,20 @@ pub(crate) struct HostState {
     pub(crate) inside: Option<*mut (dyn ImportCtx + 'static)>,
     /// A direct module's call results past the first, until it reads them.
     extra: Raws,
+    /// Which slots of each script struct hold a class, worked out once, or
+    /// nil for one that holds a string, list or `any` outside a class and so
+    /// cannot be shared ([`super::Runtime::share`]).
+    pub(crate) shares: rustc_hash::FxHashMap<String, Option<Rc<[usize]>>>,
+    /// What letting go of each script struct releases ([`Release`]).
+    pub(crate) releases: rustc_hash::FxHashMap<String, Rc<[Release]>>,
+}
+
+/// One heap slot of a struct being let go of: where it sits, its type, and
+/// the module's release function for it when it has one.
+pub(crate) struct Release {
+    pub slot: usize,
+    pub ty: Ty,
+    pub dec: Option<String>,
 }
 
 fn math(name: &str) -> Option<Kind> {
@@ -214,6 +228,8 @@ impl HostState {
             next_handle: 0,
             inside: None,
             extra: Raws::new(),
+            shares: rustc_hash::FxHashMap::default(),
+            releases: rustc_hash::FxHashMap::default(),
             now: 0.0,
             debugger,
         })

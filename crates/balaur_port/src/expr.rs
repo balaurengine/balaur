@@ -524,6 +524,14 @@ impl Cx<'_> {
     /// `x.is_none()` or its opposite, for whatever `x` is.
     pub(crate) fn nil_check(val: &Ex, negate: bool) -> String {
         let base = val.at(ATOM);
+        // A node is nil when it is the invalid one.
+        if val.t == Ty::Node {
+            return if negate {
+                format!("{base}.is_valid()")
+            } else {
+                format!("!{base}.is_valid()")
+            };
+        }
         if val.t == Ty::Any || !val.t.known() {
             if negate {
                 format!("!{base}.is_nil()")
@@ -598,6 +606,10 @@ impl Cx<'_> {
             if same {
                 return Ex::new(Self::nil_check(&v, !negate), Ty::Bool, UNARY);
             }
+        }
+        // A node either is one or is the invalid node, which Rune called `()`.
+        if v.t == Ty::Node && kind == "node" {
+            return Ex::new(Self::nil_check(&v, !negate), Ty::Bool, UNARY);
         }
         let static_ok = match (&v.t, kind) {
             (Ty::Int, "int")

@@ -4,9 +4,10 @@
 use super::engine::{Args, ImportCtx, Raw, Setup, Shared, Wasm, read_from};
 use super::host::dispatch;
 use crate::{Slot, words};
+use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use wasmtime::{Caller, Engine, Extern, FuncType, Linker, Store, Val, ValType};
+use wasmtime::{Caller, Engine, Extern, FuncType, Linker, Store, Val, ValRaw, ValType};
 
 struct Data {
     mem: Option<wasmtime::Memory>,
@@ -71,6 +72,22 @@ fn raw(v: &Val) -> Raw {
         Val::F64(x) => Raw::F64(f64::from_bits(*x)),
         Val::I32(x) => Raw::I32(*x),
         _ => Raw::I32(0),
+    }
+}
+
+fn val_raw(r: Raw) -> ValRaw {
+    match r {
+        Raw::I32(x) => ValRaw::i32(x),
+        Raw::I64(x) => ValRaw::i64(x),
+        Raw::F64(x) => ValRaw::f64(x.to_bits()),
+    }
+}
+
+fn slot_of(r: Raw) -> Slot {
+    match r {
+        Raw::I32(_) => Slot::I32,
+        Raw::I64(_) => Slot::I64,
+        Raw::F64(_) => Slot::F64,
     }
 }
 
@@ -237,25 +254,91 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         .instantiate(&mut store, &module)
         .map_err(|e| e.to_string())?;
     store.data_mut().mem = inst.get_memory(&mut store, words::MEMORY);
-    Ok(Box::new(Wasmtime { store, inst }))
+    Ok(Box::new(Wasmtime {
+        store,
+        inst,
+        funcs: FxHashMap::default(),
+        slots: Vec::new(),
+    }))
 }
 
 struct Wasmtime {
     store: Store<Data>,
     inst: wasmtime::Instance,
+    /// Each export called so far, with its parameter and result kinds: the
+    /// host calls `update` on every instance every frame, and looking the
+    /// export up and checking its type each time was most of a call.
+    funcs: FxHashMap<String, Export>,
+    /// The parameters going in and the results coming out, kept between
+    /// calls so a call allocates nothing.
+    slots: Vec<ValRaw>,
+}
+
+struct Export {
+    func: wasmtime::Func,
+    params: Box<[Slot]>,
+    results: Box<[Slot]>,
+}
+
+impl Wasmtime {
+    fn export(&mut self, name: &str) -> Result<&Export, String> {
+        if !self.funcs.contains_key(name) {
+            let func = self
+                .inst
+                .get_func(&mut self.store, name)
+                .ok_or_else(|| format!("no export `{name}`"))?;
+            let ty = func.ty(&self.store);
+            let kinds = |v: &mut dyn Iterator<Item = ValType>| -> Result<Box<[Slot]>, String> {
+                v.map(|t| match t {
+                    ValType::I32 => Ok(Slot::I32),
+                    ValType::I64 => Ok(Slot::I64),
+                    ValType::F64 => Ok(Slot::F64),
+                    other => Err(format!("`{name}` takes or gives a {other}")),
+                })
+                .collect()
+            };
+            let export = Export {
+                func,
+                params: kinds(&mut ty.params())?,
+                results: kinds(&mut ty.results())?,
+            };
+            self.funcs.insert(name.to_string(), export);
+        }
+        Ok(&self.funcs[name])
+    }
 }
 
 impl Wasm for Wasmtime {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let f = self
-            .inst
-            .get_func(&mut self.store, name)
-            .ok_or_else(|| format!("no export `{name}`"))?;
-        let a: Vec<Val> = args.iter().map(|r| val(*r)).collect();
-        let mut out = vec![Val::I32(0); results];
-        f.call(&mut self.store, &a, &mut out)
+        let export = self.export(name)?;
+        let fits = args.len() == export.params.len()
+            && results == export.results.len()
+            && args
+                .iter()
+                .zip(&export.params)
+                .all(|(a, p)| slot_of(*a) == *p);
+        if !fits {
+            return Err(format!("`{name}` was called with the wrong arguments"));
+        }
+        let (func, kinds) = (export.func, export.results.clone());
+        self.slots.clear();
+        self.slots.extend(args.iter().map(|r| val_raw(*r)));
+        self.slots.resize(args.len().max(results), ValRaw::i32(0));
+        // SAFETY: the arguments were just checked against the export's own
+        // parameter kinds and count, the buffer holds the larger of its
+        // parameters and results, and a module of ours passes no references.
+        unsafe { func.call_unchecked(&mut self.store, &raw mut self.slots[..]) }
             .map_err(|e| format!("{:#}", e.root_cause()))?;
-        Ok(out.iter().map(raw).collect())
+        Ok(self
+            .slots
+            .iter()
+            .zip(kinds.iter())
+            .map(|(v, k)| match k {
+                Slot::I32 => Raw::I32(v.get_i32()),
+                Slot::I64 => Raw::I64(v.get_i64()),
+                Slot::F64 => Raw::F64(f64::from_bits(v.get_f64())),
+            })
+            .collect())
     }
     fn has_func(&mut self, name: &str) -> bool {
         self.inst.get_func(&mut self.store, name).is_some()

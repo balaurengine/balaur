@@ -70,7 +70,7 @@ impl File {
     }
 
     fn method(&self, name: &str) -> Option<&balaur_bs::FnInfo> {
-        self.compiled.meta.function(&format!("{}.{name}", self.ty))
+        self.compiled.meta.method(&self.ty, name)
     }
     fn field_ty(&self, name: &str) -> Option<Ty> {
         self.compiled
@@ -89,6 +89,9 @@ struct Instance {
     /// A second holder of `obj` while a call has it, which a call made into
     /// the same instance meanwhile runs on (`Runtime::share`).
     lent: RefCell<Option<Object>>,
+    /// Detached: a pass over the instances that began before still holds
+    /// it, and calls nothing on it.
+    gone: Cell<bool>,
 }
 
 /// Where [`BsHost::of`] finds the host; weak, since the host holds the engine.
@@ -499,7 +502,7 @@ impl BsHost {
         args: &[Value],
         done: Option<u64>,
     ) -> Result<Option<Value>> {
-        let Some(info) = file.method(method).cloned() else {
+        let Some(info) = file.method(method).filter(|_| !inst.gone.get()) else {
             return Ok(None);
         };
         let args: Vec<L> = info
@@ -524,7 +527,7 @@ impl BsHost {
             return Self::nested(file, inst, method, &args);
         };
         *inst.lent.borrow_mut() = rt.share(&obj);
-        let out = rt.call_method(&mut obj, method, &args);
+        let out = rt.call_info(&mut obj, info, &args);
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
             rt.drop_object(lent);
@@ -679,6 +682,7 @@ impl ScriptHost<Engine> for BsHost {
             path: key_of(path),
             obj: RefCell::new(Some(obj)),
             lent: RefCell::new(None),
+            gone: Cell::new(false),
         }));
         if self.inner.holds.get() > 0 {
             self.inner.held.borrow_mut().push(node.0);
@@ -727,6 +731,7 @@ impl ScriptHost<Engine> for BsHost {
             .instances
             .borrow_mut()
             .retain(|i| i.node != node.0);
+        inst.gone.set(true);
         if let Some(obj) = inst.obj.borrow_mut().take() {
             file.drop_object(obj);
         }
