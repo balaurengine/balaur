@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "Tiles"
-script = { source = "scripts/panels/tiles.rn" }
+script = { source = "scripts/panels/tiles.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

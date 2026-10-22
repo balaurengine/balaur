@@ -4,7 +4,7 @@
 [[nodes]]
 id = "imports"
 name = "Imports"
-script = { source = "scripts/panels/imports.rn" }
+script = { source = "scripts/panels/imports.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""

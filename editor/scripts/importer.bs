@@ -31,6 +31,7 @@ pub struct Fill {
 // The keys each kind offers, in the order they are drawn. `fallback` is what
 // the engine assumes when neither the project nor the sidecar says; `only`
 // names the one extension a row applies to.
+
 // The per-axis keys (`mag_filter`, `repeat_u`, `mipmap_filter` and the rest)
 // are written by hand: a row apiece would double the panel.
 fn ROWS() -> any {

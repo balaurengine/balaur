@@ -142,6 +142,7 @@ pub fn hud_step(S: editor::State) -> float {
 
 // The centre: the tool rail, then the viewport's chrome, the code pane or
 // the event bindings over the stage. The document tabs are the top bar's.
+
 // Which of the centre's surfaces are showing. Decided before the layout is
 // computed, because the rail and the document both change what is left for
 // the scene.
@@ -185,7 +186,7 @@ pub fn modes(S: &mut editor::State) {
 }
 
 /// One mark's size, the gap to the next and the sheet's own inset. Public so
-/// `layout.rn` can state a rail exactly as tall as what this draws into it:
+/// `layout.bs` can state a rail exactly as tall as what this draws into it:
 /// the two disagreed by 18 px, which showed as padding only at the foot.
 pub fn rail_metrics(S: editor::State) -> Rail2 {
     // The theme's tool tile, so a folded dock's handle is the same control on

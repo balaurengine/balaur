@@ -1,0 +1,46 @@
+// The State machine tab's one script: it has the Editor fill the header and
+// the rows when the machine, the selection or a frame of play moved.
+
+pub struct Statemachine {
+    node: Node,
+    editor: Node,
+}
+
+impl Statemachine {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "machine_changed", self.editor);
+        events::listen(self.node, "outline_changed", self.editor);
+        // The state a running machine is in moves with play.
+        events::listen(self.node, "play_frame", self.editor);
+    }
+
+    pub fn on_machine_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_play_frame(_change: any) {
+        self.refresh();
+    }
+
+    /// A control has run its own handler by now, so what is left is to show
+    /// what it changed.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" || event == "change" || event == "submit" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        self.editor.call("machine_fill");
+    }
+}

@@ -5,7 +5,7 @@
 [[nodes]]
 id = "hud"
 name = "Hud"
-script = { source = "scripts/panels/hud.rn" }
+script = { source = "scripts/panels/hud.bs" }
 [nodes.widget]
 kind = "row"
 absolute = true

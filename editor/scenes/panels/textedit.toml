@@ -4,7 +4,7 @@
 [[nodes]]
 id = "textedit"
 name = "TextEdit"
-script = { source = "scripts/panels/textedit.rn" }
+script = { source = "scripts/panels/textedit.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"

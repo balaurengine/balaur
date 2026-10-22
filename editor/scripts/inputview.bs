@@ -1,5 +1,5 @@
 // The input overlay: the keys, buttons, actions and pointer the game is fed,
-// heard as they move by its panel (scripts/panels/inputview.rn), so a replay
+// heard as they move by its panel (scripts/panels/inputview.bs), so a replay
 // shows its recording's input, and a fed frame shows what fed it.
 
 use editor;

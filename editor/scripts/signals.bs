@@ -94,9 +94,8 @@ pub fn outline(S: &mut editor::State) {
 /// leaves it as it was says nothing.
 pub fn inspector(S: &mut editor::State) {
     let polygon: any = S.polygon;
-    let clip: any = S.clip;
     let key: any = [
-        S.workspace, S.tool, S.playing, polygon, clip,
+        S.workspace, S.tool, S.playing, polygon, "{S.clip}",
         S.shader_rel, S.doctab, S.compact, S.touchscreen,
     ];
     if key == S.inspector_key {
@@ -122,8 +121,10 @@ pub fn playing_frame(S: &mut editor::State) {
 /// Called wherever one is written; a write that leaves the key says nothing.
 pub fn docks(S: &mut editor::State) {
     let counts = lint::counts(S);
+    // The text, not the map: a key holding `S.docks` itself is the map it is
+    // compared against, and never differs from it.
     let key: any = [
-        S.docks, S.layout.left.w, S.layout.right.w, S.layout.bottom.w,
+        "{S.docks}", S.layout.left.w, S.layout.right.w, S.layout.bottom.w,
         S.workspace, S.compact, counts._0 + counts._1, S.registry.panels.len(),
         session::loaded(S),
     ];
@@ -147,7 +148,9 @@ pub fn overlays_moved(S: &mut editor::State, over: bool) -> bool {
     let tile: any = S.tiles.hover;
     let anchor: any = S.tiles.anchor;
     let polygon: any = S.polygon.hover;
-    let key: any = [hot, marquee, rig, pen, tile, anchor, polygon];
+    // Their text: a hover the state keeps as a map is the one the last key
+    // held, and never differs from it.
+    let key: any = "{[hot, marquee, rig, pen, tile, anchor, polygon]}";
     let moving = S.gizmo.drag.is_some() || S.camera_drag >= 0;
     if !over && !moving && key == S.overlays_key {
         return false;

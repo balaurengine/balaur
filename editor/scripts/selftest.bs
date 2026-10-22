@@ -1176,7 +1176,7 @@ fn deselect_checks(S: &mut editor::State, had: int) {
     left::rename_open(S);
     shell::attach_script(S);
     shell::detach_script(S);
-    shell::set_script_path(S, "scripts/nothing_selected.rn");
+    shell::set_script_path(S, "scripts/nothing_selected.bs");
     shell::goto_definition(S);
     shell::format_active(S);
     statemachine::create(S);
@@ -1378,9 +1378,9 @@ pub fn physics_panel(S: &mut editor::State) {
     check(util::contains(inspector::node_components(S), collider), "the inspector lists the {collider} it added");
     // A shape action writes the mesh and the kind together, in one undo.
     let source = if two_d {
-        polygon::component(S.doc[target]).get("mesh").as_str()
+        polygon::component(S.doc[target]).get("mesh")
     } else {
-        S.doc[target].get("mesh").get("source").as_str()
+        S.doc[target].get("mesh").get("source")
     };
     model::set_component_props(S, collider, map().with("kind", "convex_decomposition").with("mesh", source));
     let written = util::obj(S.doc[target].get(collider));

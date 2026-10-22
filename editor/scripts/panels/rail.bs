@@ -1,0 +1,50 @@
+// The tool rail's one script: the workspace's tools, filled by the Editor when
+// the workspace, the tool or the room moved, and the folded left dock's
+// handle over them. A mark runs its tool itself, then the rail fills again.
+
+pub struct Rail {
+    node: Node,
+    editor: Node,
+}
+
+impl Rail {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "rail_changed", self.editor);
+        events::listen(self.node, "stage_changed", self.editor);
+    }
+
+    pub fn on_rail_changed(_change: any) {
+        self.editor.call("rail_fill");
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.handle();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" {
+            return;
+        }
+        if node.name() == "Open" && node.parent().name() == "Handle" {
+            self.editor.call("stage_verb", "open_left");
+            return;
+        }
+        self.editor.call("rail_fill");
+    }
+
+    fn handle() {
+        let view = self.editor.call("stage_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        let sheet = self.node.get_node("RailTop/Handle");
+        sheet.patch_component("widget", map().with("visible", view.get("rail_handle")).with("padding", view.get("pad")));
+        sheet.get_node("Open").patch_component("widget", map()
+            .with("icon", view.get("left").get("icon"))
+            .with("tooltip", view.get("left").get("tooltip"))
+            .with("width", view.get("d"))
+            .with("height", view.get("d"))
+            .with("corner_radius", view.get("d").as_float() / 2.0));
+    }
+}

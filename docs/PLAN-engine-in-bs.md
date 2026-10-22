@@ -207,5 +207,18 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - `manager::convert(S, folder, after)` takes `"open"`, `"forget"` or
      anything else for "keep listed".
    - `model::doc_is_2d(doc)` answers for a document without a `State`.
+
+   The editor runs as `.bs`: its scenes, its 40 panels and its two plugins
+   are switched, and every example's self-tests and the editor's own pass
+   on a desktop. In a browser tab it opens a project and runs a state given
+   as `?state=` on the page.
+   - A plugin reaches the editor through the Editor node's methods
+     (`document`, `select`, `open_scene`, `kit_*`). Those calls arrive while
+     the Editor's own call into the plugin runs: a call into a busy instance
+     runs on a second holder of it (`Runtime::share`), which is allowed when
+     every string, list or `any` it holds sits in a class, as `State` does.
+   - `node.try_set_component` answers `false` where `set_component` fails:
+     an engine error ends the script's call, and the inspector expects
+     refusals.
 7. **Examples, templates, the GDScript translator, docs.**
 8. **Rune removed.**

@@ -1,19 +1,19 @@
 # One node with the script, and the shell as `widget` nodes the engine lays
-# out for `layout.rn` to read back. They paint nothing and have their own
+# out for `layout.bs` to read back. They paint nothing and have their own
 # surface, so the rect a game's HUD is confined to never reaches them.
 
 [[nodes]]
 id = "n_editor"
 name = "Editor"
-script = { source = "scripts/editor.rn" }
+script = { source = "scripts/editor.bs" }
 
 # The viewport's lines: drawn on the words that what they show moved, and
-# kept until then. See scripts/panels/overlays.rn.
+# kept until then. See scripts/panels/overlays.bs.
 [[nodes]]
 id = "viewport_lines"
 name = "ViewportLines"
 parent = "n_editor"
-script = { source = "scripts/panels/overlays.rn" }
+script = { source = "scripts/panels/overlays.bs" }
 
 [[nodes]]
 id = "shell"
@@ -36,7 +36,7 @@ role = "layout_shell"
 id = "head"
 name = "Head"
 parent = "shell"
-script = { source = "scripts/panels/topbar.rn" }
+script = { source = "scripts/panels/topbar.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -62,7 +62,7 @@ gap = [8, 8]
 align_items = "center"
 
 # The brand, the shell's one menu, then a strip: how many workspaces and
-# documents there are changes with what is open, so `chrome.rn` fills both.
+# documents there are changes with what is open, so `chrome.bs` fills both.
 [[nodes]]
 id = "brand"
 name = "Brand"
@@ -122,7 +122,7 @@ width = 236
 id = "left_sheet"
 name = "LeftSheet"
 parent = "left"
-script = { source = "scripts/panels/dock.rn" }
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -230,7 +230,7 @@ width = 288
 id = "right_sheet"
 name = "RightSheet"
 parent = "right"
-script = { source = "scripts/panels/dock.rn" }
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -307,7 +307,7 @@ grow = 1
 id = "railslot"
 name = "RailSlot"
 parent = "upper_row"
-script = { source = "scripts/panels/rail.rn" }
+script = { source = "scripts/panels/rail.bs" }
 [nodes.widget]
 kind = "column"
 width = 44
@@ -316,7 +316,7 @@ width = 44
 gap = [0, 0]
 
 # Where a folded left dock's handle goes, above the tools rather than beside
-# them; `layout.rn` gives it a height only when there is one to draw.
+# them; `layout.bs` gives it a height only when there is one to draw.
 [[nodes]]
 id = "railtop"
 name = "RailTop"
@@ -347,7 +347,7 @@ text = ""
 padding = 0
 
 # The rail is only as tall as its tools, so it takes the top of the slot
-# rather than the whole of it; `layout.rn` states the height.
+# rather than the whole of it; `layout.bs` states the height.
 [[nodes]]
 id = "rail"
 name = "Rail"
@@ -391,7 +391,7 @@ gap = [12, 12]
 id = "bottom"
 name = "Bottom"
 parent = "centre"
-script = { source = "scripts/panels/dock.rn" }
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -540,7 +540,7 @@ parent = "bottom"
 instance = "scenes/panels/bonemap.toml"
 
 # Where a plugin dock's own subtree goes, above the status strip rather than
-# after it: `docks.rn` makes one child here per registered dock.
+# after it: `docks.bs` makes one child here per registered dock.
 [[nodes]]
 id = "bottom_plugins"
 name = "BottomPlugins"
@@ -554,7 +554,7 @@ grow = 1
 id = "status"
 name = "Status"
 parent = "bottom"
-script = { source = "scripts/panels/status.rn" }
+script = { source = "scripts/panels/status.bs" }
 # A pooled row, not a hatch: the strip is labels and a dot, so the theme can
 # dress it and the layout can keep its boxes between passes.
 [nodes.widget]
@@ -584,7 +584,7 @@ grow = 1
 gap = [12, 12]
 
 # What is left of the canvas once the hooks list has taken its width. The
-# code pane and the scene share it; `layout.rn` decides how.
+# code pane and the scene share it; `layout.bs` decides how.
 [[nodes]]
 id = "stage"
 name = "Stage"
@@ -616,7 +616,7 @@ instance = "scenes/panels/stage.toml"
 id = "doc_panel"
 name = "DocPanel"
 parent = "stage"
-script = { source = "scripts/panels/events.rn" }
+script = { source = "scripts/panels/events.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet_doc"
@@ -652,13 +652,13 @@ kind = "column"
 role = "list_doc"
 grow = 1
 
-# The file's engine-facing surface, beside the code. `layout.rn` writes 0 here
+# The file's engine-facing surface, beside the code. `layout.bs` writes 0 here
 # when it is closed; this is what it opens back to.
 [[nodes]]
 id = "hooks"
 name = "Hooks"
 parent = "canvas"
-script = { source = "scripts/panels/hooks.rn" }
+script = { source = "scripts/panels/hooks.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
@@ -701,7 +701,7 @@ visible = false
 id = "manager"
 name = "Manager"
 parent = "n_editor"
-script = { source = "scripts/panels/manager.rn" }
+script = { source = "scripts/panels/manager.bs" }
 [nodes.widget]
 kind = "column"
 layer = "shell"
@@ -838,7 +838,7 @@ gap = [0, 4]
 id = "picker"
 name = "Picker"
 parent = "n_editor"
-script = { source = "scripts/panels/picker.rn" }
+script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -882,7 +882,7 @@ grow = 1
 id = "sheet"
 name = "Sheet"
 parent = "n_editor"
-script = { source = "scripts/panels/sheet.rn" }
+script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -959,7 +959,7 @@ grow = 1
 id = "dialogs"
 name = "Dialogs"
 parent = "n_editor"
-script = { source = "scripts/panels/dialogs.rn" }
+script = { source = "scripts/panels/dialogs.bs" }
 [nodes.widget]
 kind = "column"
 anchor = "top_left"

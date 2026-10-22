@@ -192,7 +192,7 @@ wasm_stream() {
   side_env
   local bad=0
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
-    --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor \
+    --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor,bs-web \
     -- -D warnings || bad=1
   step 'clippy wasm default' shape wasm-default clippy --target wasm32-unknown-unknown \
     -p balaur_cli -- -D warnings || bad=1

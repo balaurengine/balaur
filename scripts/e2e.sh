@@ -65,7 +65,7 @@ check_run() { # check_run <label> <rc> <output>
     fail "$label logged errors"
   fi
   # A warning fails too, but for one a self-test provoked on purpose and named
-  # first (`expect_warning` in editor/scripts/selftest.rn).
+  # first (`expect_warning` in editor/scripts/selftest.bs).
   local warned expected
   warned=$(grep -E '\bWARN\b' <<<"$out" || true)
   while IFS= read -r expected; do
@@ -135,7 +135,7 @@ EDITOR_STATES=(
   test:timings                              # first: it reads the frame before
   test:layout test:picker test:every_node   # the centre; the node picker
   test:tiles "show:input,input@90"          # Tiles; a showcase, ninety frames
-  test:plugin_docks                         # editor/plugins/counter.rn
+  test:plugin_docks                         # editor/plugins/counter.bs
   test:clipboard test:script_paths          # copy, paste; Assets' file verbs
   test:recordings                           # session recording
   test:theme_switch test:theme_editing      # light and back; a theme diff
@@ -194,7 +194,7 @@ suite_part() { # suite_part <token> <log>
   ' <<<"$2"
 }
 
-# Several states in one launch (`editor/scripts/suite.rn`), on a copy since
+# Several states in one launch (`editor/scripts/suite.bs`), on a copy since
 # some write into the project. Each state's stretch of the log is held to what
 # `edit_step` holds a whole run to; the stretch before the first is the open.
 suite_step() { # suite_step <label> <project> <state>...

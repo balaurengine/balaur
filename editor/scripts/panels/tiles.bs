@@ -1,0 +1,61 @@
+// The Tiles tab's one script: it has the Editor fill its chips and its atlas
+// when the tilemap, the selection or the brush moved, and answers a tile pick.
+
+pub struct Tiles {
+    node: Node,
+    editor: Node,
+}
+
+pub struct Params {
+    visible: bool,
+    options: any,
+    text: any,
+    sheet: any,
+}
+
+impl Tiles {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "tiles_changed", self.editor);
+        events::listen(self.node, "outline_changed", self.editor);
+    }
+
+    pub fn on_tiles_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// The selection or the document moved, which picks the tilemap.
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// A chip has run its own handler by now, so what is left is to show what
+    /// it changed; a card is a tile picked.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if node.name() == "Cards" && event == "click" {
+            self.editor.call("tiles_pick", node.get_component("widget", "text"));
+            return;
+        }
+        if event == "click" || event == "change" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("tiles_fill");
+        if !(view.kind() == "map") {
+            return;
+        }
+        let cards = view.get("items").len() > 0;
+        let params = Params { visible: cards, options: view.get("items"), text: view.get("picked"), sheet: nil };
+        if cards {
+            params.sheet = view.get("sheet");
+        }
+        self.node.get_node("Cards").patch_component("widget", params);
+    }
+}

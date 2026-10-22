@@ -1,0 +1,44 @@
+// The Recordings tab's one script: it has the Editor fill a row a recording
+// when one is made, kept or dropped, and answers the verify switch.
+
+pub struct Recordings {
+    node: Node,
+    editor: Node,
+}
+
+impl Recordings {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "recordings_changed", self.editor);
+    }
+
+    pub fn on_recordings_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// The verify switch is this panel's own; a row's verbs have run their
+    /// handlers by now, so what is left is to show what they changed.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" {
+            return;
+        }
+        if node.name() == "Verify" {
+            self.editor.call("recordings_verify");
+        }
+        self.refresh();
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("recordings_fill");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("Tools/Verify").patch_component("widget", map().with("checked", view.get("verify")));
+        self.node.get_node("Nothing").patch_component("widget", map().with("visible", view.get("count").as_int() == 0));
+    }
+}

@@ -1,0 +1,29 @@
+// The picker's one script: the command palette, the node picker and rename
+// take turns on it, and whichever is up fills it through the Editor. What is
+// typed runs the field's own handler first, then the rows follow it.
+
+pub struct Picker {
+    node: Node,
+    editor: Node,
+}
+
+impl Picker {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "picker_changed", self.editor);
+    }
+
+    pub fn on_picker_changed(_change: any) {
+        self.editor.call("picker_fill");
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "closed" && node.name() == self.node.name() {
+            self.editor.call("picker_closed");
+            return;
+        }
+        if event == "click" || event == "change" || event == "submit" {
+            self.editor.call("picker_fill");
+        }
+    }
+}

@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "Inspector"
-script = { source = "scripts/panels/inspector.rn" }
+script = { source = "scripts/panels/inspector.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

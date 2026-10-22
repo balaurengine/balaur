@@ -1,0 +1,54 @@
+// The refactor sheet's one script: the name and what it becomes go to the
+// Editor as they are typed, and it says back what would change.
+
+pub struct Refactor {
+    node: Node,
+    editor: Node,
+    open: bool,
+}
+
+impl Refactor {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        self.open = false;
+        events::listen(self.node, "refactor_changed", self.editor);
+    }
+
+    pub fn on_refactor_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        let name = node.name();
+        if (name == "From" || name == "To") && event == "change" {
+            self.editor.call("refactor_set", name, value);
+        } else if name == "Apply" && event == "click" {
+            self.editor.call("refactor_apply");
+        } else if name == "Cancel" && event == "click" {
+            self.editor.call("refactor_close");
+        }
+    }
+
+    fn refresh() {
+        let view = self.editor.call("refactor_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.patch_component("widget", map().with("visible", view.get("open")));
+        if !view.get("open").as_bool() {
+            self.open = false;
+            return;
+        }
+        self.node.get_node("Title").patch_component("widget", map().with("text", view.get("title")));
+        // The fields' text only as the sheet opens: after that it is what is typed.
+        if !self.open {
+            self.node.get_node("From").patch_component("widget", map().with("text", view.get("from")).with("placeholder", view.get("from_hint")));
+            self.node.get_node("To").patch_component("widget", map().with("text", view.get("to")).with("placeholder", view.get("to_hint")));
+            ui::set_focus(self.node.get_node(if view.get("from").as_str() == "" { "From" } else { "To" }));
+        }
+        self.open = true;
+        self.node.get_node("Count").patch_component("widget", map().with("text", view.get("count")));
+        self.node.get_node("Hits").patch_component("widget", map().with("options", view.get("hits")));
+        self.node.get_node("Verbs/Apply").patch_component("widget", map().with("enabled", view.get("ready")));
+    }
+}

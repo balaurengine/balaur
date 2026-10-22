@@ -1,12 +1,10 @@
-// What a plugin fills its dock with. A plugin's script runs on its own node
-// and cannot `use` the editor's modules, so each verb is an Editor method it
-// calls by name (`kit_rows`, `kit_field`, ...; see editor.bs) on the node at
-// `Editor`.
-//
-// A verb answers a row rather than drawing one: the editor makes every
-// registered dock a subtree and the pool writes the rows onto it. A control a
-// plugin builds says `on: "relay"` with `data: { to: <its node>, method }`,
-// and the editor hands the edit to that method as `(data, value)`.
+//! What a plugin fills its dock with. A plugin cannot `use` the editor's
+//! modules, so each verb is an Editor method it calls by name: `kit_rows`,
+//! `kit_field` and the rest in editor.bs.
+
+// A verb answers a row rather than drawing one: the pool writes the rows onto
+// the subtree the editor made for the dock. A plugin's control says
+// `on: "relay"`, `data: { to, method }`, and gets `method(data, value)`.
 
 use editor;
 use pool;

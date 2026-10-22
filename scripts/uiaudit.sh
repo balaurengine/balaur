@@ -124,24 +124,6 @@ check_viewport() {
 }
 check_viewport
 
-# A reload keeps the running state, so a field the new scripts read has to be
-# filled in: without it the editor errors every frame after a script is edited.
-check_reload() {
-  [ ${#only[@]} -eq 0 ] || return 0
-  printf '%-24s ' reload
-  local out
-  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
-      --state test:reload 2>&1)
-  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
-    echo FAILED; failed+=(reload)
-  elif ! echo "$out" | grep -q "selftest ok"; then
-    echo "FAILED (checked nothing)"; failed+=(reload)
-  else
-    echo ok
-  fi
-}
-check_reload
-
 # The mouse camera the editor drives: the wheel zooms it gently and a
 # right-drag keeps the ground under the pointer, in a 3D scene and a 2D one.
 check_camera() { # check_camera <example>

@@ -1,0 +1,49 @@
+// The start screen's one script: its head, its tabs and the page under them,
+// filled by the Editor when what they show moved or the screen was resized.
+// The toolbar's verbs are this panel's own; a row's run their own handlers.
+
+pub struct Manager {
+    node: Node,
+    editor: Node,
+}
+
+fn VERBS() -> [str] {
+    ["Import", "Open", "New"]
+}
+
+impl Manager {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "manager_changed", self.editor);
+        events::listen(self.node, "resized", self.node.get_node("ManagerBody"));
+    }
+
+    pub fn on_manager_changed(_change: any) {
+        self.editor.call("manager_fill");
+    }
+
+    /// The page's width moved, which decides how many cards go across.
+    pub fn on_resized(_box: any) {
+        self.editor.call("manager_fill");
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        let name = node.name();
+        if name == "Filter" && event == "change" {
+            self.editor.call("manager_filter", value);
+        } else if event == "click" && on_widget_event_any_0(name, VERBS()) && node.parent().name() == "Tools" {
+            self.editor.call("manager_verb", name);
+        } else if event == "click" || event == "change" || event == "submit" {
+            self.editor.call("manager_fill");
+        }
+    }
+}
+
+fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+    for verb in items {
+        if verb == name {
+            return true;
+        }
+    }
+    false
+}

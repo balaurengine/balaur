@@ -1,12 +1,10 @@
-// Showcase sequences: the clips the manual shows. Each is a frame-paced list
-// of the calls the UI would make plus the input a person would feed, so a
-// clip is retaken with `--state show:<name>` and nobody at the mouse.
-//
-// A step names what it does and carries what it needs: `run` with `data` at
-// its frame, or with `data` and the span's progress every frame of a span. A
-// place the pointer goes is a table `place_of` reads when the step runs, so
-// it is where the control is then rather than where it was when the clip was
-// written.
+//! Showcase sequences: the clips the manual shows. Each is a frame-paced list
+//! of the calls the UI would make plus the input a person would feed, so a
+//! clip is retaken with `--state show:<name>` and nobody at the mouse.
+
+// A step runs at its frame, a span every frame of its stretch with its
+// progress; a place the pointer goes is read by `place_of` when the step
+// runs, so it is where the control is then.
 
 use anim;
 use center;
@@ -798,11 +796,9 @@ fn completion(S: &mut editor::State, q: Q, text: str) {
     act_verb(q, 420, "restore", map().with("rel", SPINNER));
 }
 
-// Put `text` on its own line after `fn init`, and open the popup with the
-// caret at its end. The caret's screen position is the gutter's own geometry,
-// which is what the code pane hands the popup when a person puts it there.
-// `init`, not `update`: the pane does not scroll to a caret the showcase
-// places, so the popup has to open where it already looks.
+// Put `text` on its own line after `fn init`, where the pane already looks
+// (it does not scroll to a placed caret), and open the popup at its end, at
+// the gutter's own geometry, as the code pane hands it.
 fn completing(S: &mut editor::State, data: any, _p: float) {
     let rel = data.rel.as_str();
     let text = data.text.as_str();

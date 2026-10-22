@@ -6,6 +6,7 @@ use docks;
 use editor;
 use lint;
 use model;
+use selftest;
 use shell;
 use signals;
 use util;

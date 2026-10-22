@@ -586,8 +586,11 @@ impl Editor {
     }
 
     pub fn update(dt: float) {
-        suite::step(self.S, self.node);
+        suite::reboot(self.S, self.node);
         frame(self.S, dt);
+        // Last: a reopen replaces `self.S`, and a call made back into the
+        // Editor later in this one would still be handed the old state.
+        suite::step(self.S);
     }
 
     // The system turned dark or light; the theme follows under `mode = "system"`.
@@ -822,7 +825,7 @@ fn widget_layer(S: State) {
 fn layout_key(S: State) -> any {
     [
         S.workspace, S.doctab, S.split, S.focus, S.settings.compact, S.touchscreen,
-        S.docks, S.rail_shut, S.chrome_off, S.script_open, S.events_open,
+        "{S.docks}", S.rail_shut, S.chrome_off, S.script_open, S.events_open,
         S.sel, S.shader_rel, S.ui_scale, manager::showing(S),
     ]
 }
@@ -1132,6 +1135,27 @@ impl Editor {
 
     pub fn on_plugins_changed(_change: any) {
         signals::heard(self.S, "plugins_changed");
+    }
+
+    /// The document's rows, for a plugin reading the scene: a copy, so a
+    /// change goes through the editor's verbs and its undo.
+    pub fn document() -> any {
+        self.S.doc
+    }
+
+    /// The plugins the editor loaded, by file name.
+    pub fn plugins() -> [str] {
+        self.S.registry.loaded
+    }
+
+    /// Make row `i` of `document()` the selection.
+    pub fn select(i: int) {
+        shell::choose(self.S, i);
+    }
+
+    /// Open the project's scene at `rel`.
+    pub fn open_scene(rel: str) {
+        model::open_scene(self.S, rel);
     }
 
     /// A plugin property editor's control writing its value: `data.at` is

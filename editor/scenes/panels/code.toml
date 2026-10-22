@@ -5,7 +5,7 @@
 [[nodes]]
 id = "code"
 name = "Code"
-script = { source = "scripts/panels/code.rn" }
+script = { source = "scripts/panels/code.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""

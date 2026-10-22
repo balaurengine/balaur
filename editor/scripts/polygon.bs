@@ -781,6 +781,7 @@ pub fn trace(S: &mut editor::State) {
 // Free-form deformation: an offset per vertex over the mesh's authored
 // positions, which the engine adds before it skins. The offsets live on the
 // tool, because the document's `positions` are the rest they measure from.
+
 // Whether a vertex drag is deforming rather than reshaping.
 pub fn deforming(S: editor::State) -> bool {
     S.workspace == defs::WORKSPACE_ANIMATION && S.clip.is_some() && !mesh(S).is_nil()

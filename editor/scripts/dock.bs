@@ -477,7 +477,7 @@ pub fn drop_card(S: &mut editor::State, card: any) -> bool {
     dropin::place_file(S, rel.as_str())
 }
 
-// Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
+// Keyframe timeline over the engine's clip (scripts/anim.bs is the adapter):
 // scrubbing seeks the engine's player, so the viewport shows the engine's pose.
 const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
 

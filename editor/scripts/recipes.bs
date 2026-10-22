@@ -279,10 +279,9 @@ fn names_mesh(mesh: any) -> bool {
     mesh.kind() == "map" || mesh.kind() == "str" && mesh.as_str() != ""
 }
 
-// The outline a 2D node draws, as a mesh a polygon or a collider takes: its
-// polygon's own, its sprite's traced, or its shape's corners; nil for none.
-// `trace` false only says whether there is one, without tracing an image to
-// find out.
+// The outline a 2D node draws, as a mesh: its polygon's own, its sprite's
+// traced, or its shape's corners; nil for none. `trace` false only says
+// whether there is one, without tracing an image.
 fn outline_2d(S: editor::State, node: any, trace: bool) -> any {
     if node.has("polygon") {
         let mesh = node.polygon.get(MESH);

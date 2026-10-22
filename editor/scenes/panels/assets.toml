@@ -4,7 +4,7 @@
 [[nodes]]
 id = "panel"
 name = "Assets"
-script = { source = "scripts/panels/assets.rn" }
+script = { source = "scripts/panels/assets.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

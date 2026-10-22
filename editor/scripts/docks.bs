@@ -508,7 +508,7 @@ fn plugins_of(side: str) -> str {
 // A plugin dock's own subtree: a head, a sidebar, a body and a foot. One per
 // dock and side, so a dock moved between sides leaves nothing behind it.
 fn host_fragment(name: str) -> str {
-    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.rn\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"flow\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\nvisible = false\nwidth = 150\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n";
+    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.bs\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"flow\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\nvisible = false\nwidth = 150\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n";
     text.replace("HOST", name)
 }
 
@@ -618,7 +618,7 @@ fn tab_row(S: &mut editor::State, k: any, side: str, d: any) {
         names.push(panel(S, id).get("name"));
     }
     let counts = lint::counts(S);
-    let key: any = [d, names, counts._0 + counts._1, tab_h(S), S.layout.get(side).w];
+    let key: any = ["{d}", names, counts._0 + counts._1, tab_h(S), S.layout.get(side).w];
     if pool::strip_due(S, head_of(side), key) {
         pool::strip_keyed(S, head_of(side), key, tab_controls(S, k, side, d));
     }

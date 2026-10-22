@@ -1,0 +1,54 @@
+// The Weights tab's one script: the Editor fills it when the polygon, its
+// pick or the selection moved, and it hands back the verbs. A weight's own
+// field writes itself, and a vertex's or bone's own button picks it.
+
+pub struct Weights {
+    node: Node,
+    editor: Node,
+}
+
+fn VERBS() -> [str] {
+    ["bind", "unbind", "normalize", "auto", "smooth", "all"]
+}
+
+impl Weights {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        for word in ["weights_changed", "outline_changed", "inspector_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_weights_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_inspector_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" {
+            for verb in VERBS() {
+                if node.name() == verb {
+                    self.editor.call("weights_verb", verb);
+                }
+            }
+        }
+        if event == "click" || event == "change" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows: on a word, and from the dock once it is visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        self.editor.call("weights_fill");
+    }
+}

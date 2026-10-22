@@ -113,7 +113,7 @@ fn folded(S: &mut editor::State, data: any, _value: any) {
 }
 
 // The Inspector is its own scene and script (scenes/panels/inspector.toml),
-// whose form this fills; the Import tab's is its own (importer.rn).
+// whose form this fills; the Import tab's is its own (importer.bs).
 const PANEL: str = "Editor/Shell/Body/Right/RightSheet/Inspector";
 
 const INSPECTOR_FORM: str = "Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form";
@@ -198,7 +198,7 @@ pub fn close_pool_into(S: &mut editor::State, host: str) {
     S.pool_keys.remove(host);
 }
 
-/// A row as `pool.rn` takes it, for a plugin's section.
+/// A row as `pool.bs` takes it, for a plugin's section.
 pub fn add_row(S: &mut editor::State, spec: any) {
     push(S, spec);
 }
@@ -1434,10 +1434,8 @@ fn prop_row(S: &mut editor::State, k: any, comp: str, prop: str, spec: any, data
 /// calls back into this for what it holds, so a list of colours is a row of
 /// colour editors and nothing had to know both.
 fn draw_value(S: &mut editor::State, k: any, at: AtTop, spec: any, value: any) {
-    // A plugin's editor for this datatype wins over the built-in, which is
-    // what lets a project show a curve or a colour ramp its own way. It hands
-    // back the row's controls, which write with `on: "inspector_write"` and
-    // `data: { at }`, the `at` it was handed.
+    // A plugin's editor for this datatype wins over the built-in; its controls
+    // write with `on: "inspector_write"` and `data: { at }`, the `at` it got.
     let datatype = spec.type.as_str();
     let controls = plugins::property_controls(S, datatype, spec, value, at);
     if !controls.is_nil() {

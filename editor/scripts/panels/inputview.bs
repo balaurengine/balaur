@@ -1,0 +1,261 @@
+// The input overlay's one script: it hears the keys, actions and buttons as
+// they go down and up, and the pointer as it moves, and places its chips,
+// ripples and drawn pointer from that. Nothing here reads the input itself.
+
+pub struct Inputview {
+    node: Node,
+    editor: Node,
+    shown: bool,
+    chips: any,
+    rings: [Ring],
+    next_ring: int,
+    at: At,
+    factor: float,
+}
+
+pub struct At {
+    _0: float,
+    _1: float,
+}
+
+pub struct Design {
+    _0: float,
+    _1: float,
+}
+
+pub struct Step {
+    property: str,
+    from: any,
+    to: any,
+    duration: float,
+    ease: any,
+    parallel: bool,
+}
+
+pub struct Ring {
+    slot: int,
+    until: float,
+}
+
+// How long a chip stays up after its key or button went back up, in seconds:
+// a tap is a few frames, which nobody watching a clip would catch.
+const HOLD: float = 1.0;
+
+// How long a click's ripple grows for, and how wide it starts and ends.
+const RIPPLE: float = 1.1;
+
+const RIPPLE_FROM: float = 18.0;
+
+const RIPPLE_TO: float = 140.0;
+
+const RINGS: int = 4;
+
+// The drawn pointer; the image's tip is its top-left corner.
+const PRESS: float = 22.0;
+
+impl Inputview {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        self.shown = false;
+        // A chip's name, and when it goes: zero while it is held.
+        self.chips = map();
+        self.rings = [];
+        self.next_ring = 0;
+        self.at = At { _0: 0.0, _1: 0.0 };
+        self.factor = 1.0;
+        for word in ["pointer_moved", "pointer_pressed", "pointer_released"] {
+            events::listen(self.node, word);
+        }
+        for word in ["inputview_changed", "stage_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    /// The overlay was turned on or off, or the stage it sits under moved.
+    pub fn on_inputview_changed(_change: any) {
+        self.show();
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.show();
+    }
+
+    pub fn on_key_down(key: str) {
+        self.hold(self.editor.call("inputview_key", key).as_str());
+    }
+
+    pub fn on_key_up(key: str) {
+        self.let_go(self.editor.call("inputview_key", key).as_str());
+    }
+
+    pub fn on_action(name: str) {
+        self.hold("⟐ " + name);
+    }
+
+    pub fn on_action_released(name: str) {
+        self.let_go("⟐ " + name);
+    }
+
+    pub fn on_pointer_moved(spot: any) {
+        if !self.shown {
+            return;
+        }
+        let x_y_1 = self.design(spot.at(0), spot.at(1));
+        let x = x_y_1._0;
+        let y = x_y_1._1;
+        self.at = At { _0: x.as_float(), _1: y.as_float() };
+        self.node.get_node("Pointer").patch_component("widget", map().with("visible", true).with("inset", [x, y, -1.0, -1.0]));
+        self.node.get_node("Press").patch_component("widget", map()
+            .with("inset", [x.as_float() - PRESS / 2.0, y.as_float() - PRESS / 2.0, -1.0, -1.0]));
+    }
+
+    pub fn on_pointer_pressed(e: any) {
+        self.hold(button_label(e.get("button")).as_str());
+        if !self.shown {
+            return;
+        }
+        let x_y_1 = self.design(e.get("x"), e.get("y"));
+        let x = x_y_1._0;
+        let y = x_y_1._1;
+        self.ripple(x, y);
+        if e.get("button").as_str() == "left" {
+            self.node.get_node("Press").patch_component("widget", map()
+                .with("visible", true)
+                .with("inset", [x.as_float() - PRESS / 2.0, y.as_float() - PRESS / 2.0, -1.0, -1.0]));
+        }
+    }
+
+    pub fn on_pointer_released(e: any) {
+        self.let_go(button_label(e.get("button")).as_str());
+        if e.get("button").as_str() == "left" {
+            self.node.get_node("Press").patch_component("widget", map().with("visible", false));
+        }
+    }
+
+    /// The clock: a chip let go a moment ago comes down, and a ripple that ran
+    /// its course goes, on the frame the repaint each asked for runs.
+    pub fn update(_dt: float) {
+        let now = engine::unix_time();
+        let gone: [str] = [];
+        for name in self.chips.keys() {
+            let until = self.chips.get(name);
+            if until.as_float() > 0.0 && now >= until.as_float() {
+                gone.push(name);
+            }
+        }
+        for name in gone {
+            self.chips.remove(name);
+        }
+        if gone.len() > 0 {
+            self.chips();
+        }
+        let kept: [Ring] = [];
+        for r in self.rings {
+            if now >= r.until {
+                self.node.get_node("Wash{r.slot}").patch_component("widget", map().with("visible", false));
+                self.node.get_node("Ring{r.slot}").patch_component("widget", map().with("visible", false));
+            } else {
+                kept.push(r);
+            }
+        }
+        self.rings = kept;
+        // A ripple the engine is easing moves on frames nothing else asks for.
+        if kept.len() > 0 {
+            ui::request_repaint();
+        }
+    }
+
+    fn show() {
+        let view = self.editor.call("inputview_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.shown = view.get("shown").as_bool();
+        self.factor = view.get("factor").as_float();
+        self.node.patch_component("widget", map().with("visible", view.get("shown")));
+        self.node.get_node("Chips").patch_component("widget", map().with("inset", [view.get("chips_x"), view.get("chips_y"), -1.0, -1.0]));
+    }
+
+    // Window pixels as the overlay's design pixels.
+    fn design(x: any, y: any) -> Design {
+        let f = if self.factor > 0.0 { self.factor } else { 1.0 };
+        Design { _0: x.as_float() / f, _1: y.as_float() / f }
+    }
+
+    fn hold(name: str) {
+        if name == "" {
+            return;
+        }
+        self.chips.set(name, 0.0);
+        self.chips();
+    }
+
+    fn let_go(name: str) {
+        if !self.chips.has(name) {
+            return;
+        }
+        self.chips.set(name, engine::unix_time() + HOLD);
+        ui::request_repaint(map().with("after", HOLD + 0.05));
+    }
+
+    fn chips() {
+        if !self.shown {
+            return;
+        }
+        let names: [str] = [];
+        for name in self.chips.keys() {
+            names.push(name);
+        }
+        names.sort();
+        self.editor.call("inputview_chips", names);
+    }
+}
+
+fn button_label(button: any) -> any {
+    if button.as_str() == "left" {
+        "LMB"
+    } else if button.as_str() == "right" {
+        "RMB"
+    } else if button.as_str() == "middle" {
+        "MMB"
+    } else {
+        button
+    }
+}
+
+// A ring that grows out from the click, and the wash under it: the engine
+// eases both, and the clock takes them away once they ran.
+impl Inputview {
+    fn ripple(x: any, y: any) {
+        let slot = self.next_ring % RINGS;
+        self.next_ring += 1;
+        for name in ["Wash{slot}", "Ring{slot}"] {
+            let node = self.node.get_node(name);
+            node.patch_component("widget", map()
+                .with("visible", true)
+                .with("width", RIPPLE_FROM)
+                .with("height", RIPPLE_FROM)
+                .with("corner_radius", RIPPLE_FROM / 2.0)
+                .with("inset", [x.as_float() - RIPPLE_FROM / 2.0, y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0]));
+            // Centred on the click as it grows, so the box's corner moves too.
+            let from = [x.as_float() - RIPPLE_FROM / 2.0, y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0];
+            let to = [x.as_float() - RIPPLE_TO / 2.0, y.as_float() - RIPPLE_TO / 2.0, -1.0, -1.0];
+            animation::tween(node, map()
+                .with("steps", [
+                    Step { property: "widget/width", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: false },
+                    Step { property: "widget/height", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
+                    Step {
+                        property: "widget/corner_radius",
+                        from: RIPPLE_FROM / 2.0,
+                        to: RIPPLE_TO / 2.0,
+                        duration: RIPPLE,
+                        ease: animation::EASE_OUT_CUBIC,
+                        parallel: true,
+                    },
+                    Step { property: "widget/inset", from: from, to: to, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
+                ]));
+        }
+        self.rings.push(Ring { slot: slot, until: engine::unix_time() + RIPPLE });
+        ui::request_repaint(map().with("after", RIPPLE + 0.05));
+    }
+}

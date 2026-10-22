@@ -1,0 +1,25 @@
+// The top bar's one script: the brand, its menu and the strip, filled by the
+// Editor when what they show moved. A control's own handler runs first, then
+// the bar fills again to show what it changed.
+
+pub struct Topbar {
+    node: Node,
+    editor: Node,
+}
+
+impl Topbar {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "chrome_changed", self.editor);
+    }
+
+    pub fn on_chrome_changed(_change: any) {
+        self.editor.call("chrome_fill");
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" || event == "change" {
+            self.editor.call("chrome_fill");
+        }
+    }
+}

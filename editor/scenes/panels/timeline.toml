@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "Timeline"
-script = { source = "scripts/panels/timeline.rn" }
+script = { source = "scripts/panels/timeline.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

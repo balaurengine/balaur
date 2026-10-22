@@ -4,7 +4,7 @@
 [[nodes]]
 id = "panel"
 name = "Output"
-script = { source = "scripts/panels/output.rn" }
+script = { source = "scripts/panels/output.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

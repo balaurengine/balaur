@@ -29,6 +29,8 @@ pub struct Run {
     quiet: int,
     budget: int,
     opened: bool,
+    /// A fresh state is in place and not booted yet: see `reboot`.
+    boot_due: bool,
 }
 
 /// Queue the states. Called by `shell::apply_start_state` for `suite:`.
@@ -39,12 +41,12 @@ pub fn begin(S: &mut editor::State, list: str) {
             queue.push(item);
         }
     }
-    S.suite = Run { queue: queue, current: "", frames: 0, quiet: 0, budget: 0, opened: false };
+    S.suite = Run { queue: queue, current: "", frames: 0, quiet: 0, budget: 0, opened: false, boot_due: false };
 }
 
-/// One frame of the run, at the top of the editor's `update`: start the next
+/// One frame of the run, at the end of the editor's `update`: start the next
 /// state on a fresh editor once the one before has gone quiet.
-pub fn step(S: &mut editor::State, editor: Node) {
+pub fn step(S: &mut editor::State) {
     if S.suite.is_none() {
         return;
     }
@@ -68,10 +70,11 @@ pub fn step(S: &mut editor::State, editor: Node) {
     }
     let next = run.queue.remove(0);
     // The first state runs on the editor `init` opened, as a lone `--state`
-    // would; every later one on a reopened one, in the frame of the reopen,
-    // before anything the reload started has moved.
+    // would; every later one on a reopened one, from the frame after the
+    // reopen, before anything the reload started has moved.
     if run.opened {
-        reopen(S, editor);
+        reopen(S);
+        run.boot_due = true;
     }
     run.opened = true;
     run.current = next;
@@ -85,24 +88,21 @@ pub fn step(S: &mut editor::State, editor: Node) {
         run.budget = next.slice(at.unwrap() + 1, next.len()).parse_int();
     }
     S.suite = run;
-    // `draw_ui` applies the list on the first pass it takes.
+    // The frame applies the list once the screen is measured: the first state
+    // on the screen `init` measured, a later one once its reopen has.
     S.start_states = state.replace("&", ",");
     S.states_applied = false;
-    S.platform_read = false;
     log::info("suite: start {next}");
 }
 
 // Whether the running state still has frames to take; counts this one.
 fn waiting(S: editor::State, run: &mut Run) -> bool {
     run.frames += 1;
-    // A state is applied by the pass after it is set, and a lazy UI takes
-    // no pass unless asked, so the run asks until one has taken it.
+    // A lazy UI takes no frame unless asked, and the run counts in frames:
+    // the pass that applies the state, then the quiet ones that end it.
+    ui::request_repaint();
     if !S.states_applied {
-        if run.frames < MAX_FRAMES {
-            ui::request_repaint();
-            return true;
-        }
-        return false;
+        return run.frames < MAX_FRAMES;
     }
     if run.budget > 0 {
         return run.frames < run.budget;
@@ -111,10 +111,23 @@ fn waiting(S: editor::State, run: &mut Run) -> bool {
     (run.frames < MIN_FRAMES || run.quiet < QUIET_FRAMES) && run.frames < MAX_FRAMES
 }
 
+/// At the top of the editor's `update`: boot the fresh state the end of the
+/// last one put in place. Booted in a call of its own, so a call the boot
+/// makes back into the Editor is handed the new state, not the one before.
+pub fn reboot(S: &mut editor::State, editor: Node) {
+    if S.suite.is_none() || !S.suite.unwrap().boot_due {
+        return;
+    }
+    let run = S.suite.unwrap();
+    run.boot_due = false;
+    S.suite = run;
+    editor::boot(S, editor, false);
+}
+
 /// The editor as `init` leaves it, over the same mirror node so the reload
-/// frees it: a fresh state, the project read again, the theme and the camera
-/// applied. What a state changed on disk stays changed.
-fn reopen(S: &mut editor::State, editor: Node) {
+/// frees it: a fresh state, which `reboot` reads the project into and applies
+/// the theme and the camera to. What a state changed on disk stays changed.
+fn reopen(S: &mut editor::State) {
     if S.playing {
         shell::stop_play(S);
     }
@@ -125,7 +138,6 @@ fn reopen(S: &mut editor::State, editor: Node) {
     let mirror = S.mirror;
     S = editor::fresh_state();
     S.mirror = mirror;
-    editor::boot(S, editor, false);
 }
 
 /// Whether a self-test is still stepping: every per-frame driver the editor's

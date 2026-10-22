@@ -889,7 +889,7 @@ fn states() -> any {
         .with("test:change_types", selftest::change_types)
         .with("test:import_job", selftest::importing)
         .with("test:pen", selftest::pendemo)
-        // The editor's half of the plugin seam; `counter.rn` registers the
+        // The editor's half of the plugin seam; `counter.bs` registers the
         // plugin's half under the same name and both run.
         .with("test:plugin_docks", selftest::plugin_docks)
         .with("settings", settings::open)

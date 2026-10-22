@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "Outline"
-script = { source = "scripts/panels/outline.rn" }
+script = { source = "scripts/panels/outline.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

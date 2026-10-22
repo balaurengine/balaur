@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "StateMachine"
-script = { source = "scripts/panels/statemachine.rn" }
+script = { source = "scripts/panels/statemachine.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

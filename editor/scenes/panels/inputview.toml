@@ -5,7 +5,7 @@
 [[nodes]]
 id = "view"
 name = "InputView"
-script = { source = "scripts/panels/inputview.rn" }
+script = { source = "scripts/panels/inputview.bs" }
 [nodes.widget]
 kind = "column"
 anchor = "fill"

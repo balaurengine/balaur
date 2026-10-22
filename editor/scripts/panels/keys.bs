@@ -1,0 +1,42 @@
+// The shell keys' one script: a chord clicks its button, and the button's
+// name is the command the Editor runs. F5 is play until a script stops, and
+// then it and the step keys are the debugger's.
+
+pub struct Keys {
+    node: Node,
+    editor: Node,
+}
+
+fn STOPPED() -> [str] {
+    ["continue", "step_over", "step_into", "step_out"]
+}
+
+impl Keys {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "debugger_changed", self.editor);
+    }
+
+    /// A script stopped or went on, or play started or stopped.
+    pub fn on_debugger_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" {
+            self.editor.call("command", node.name());
+        }
+    }
+
+    fn refresh() {
+        let state = self.editor.call("keys_view");
+        if !(state.kind() == "map") {
+            return;
+        }
+        for name in STOPPED() {
+            self.node.get_node(name).patch_component("widget", map().with("enabled", state.get("stopped")));
+        }
+        self.node.get_node("play").patch_component("widget", map().with("enabled", !state.get("stopped").as_bool()));
+        self.node.get_node("break").patch_component("widget", map().with("enabled", state.get("playing") && !state.get("stopped").as_bool()));
+    }
+}

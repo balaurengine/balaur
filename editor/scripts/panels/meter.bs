@@ -1,0 +1,77 @@
+// A live meter's one script, the Profiler's or the Cost tab's: what the engine
+// measured, read four times a second while the tab shows. The one panel that
+// reads on a clock, because what it shows is the cost of the frames.
+
+pub struct Meter {
+    node: Node,
+    what: str,
+    editor: Node,
+    titled: str,
+    next: float,
+}
+
+const EVERY: float = 0.25;
+
+impl Meter {
+    pub fn init() {
+        self.what = if self.node.name() == "Profiler" { "profiler" } else { "cost" };
+        self.editor = scene::get_node("Editor");
+        self.titled = "";
+        self.next = 0.0;
+    }
+
+    /// What the dock calls once it has made this tab visible: the first sample,
+    /// which starts the clock.
+    pub fn refresh() {
+        self.sample();
+    }
+
+    /// The clock: a frame the repaint it scheduled ran, while the tab shows.
+    pub fn update(_dt: float) {
+        if self.next > 0.0 && engine::unix_time() >= self.next {
+            self.sample();
+        }
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" && node.name() == "Scripts" {
+            self.editor.call("profiler_scripts");
+            self.sample();
+        }
+    }
+
+    fn sample() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            // Hidden: no clock until it shows again.
+            self.next = 0.0;
+            return;
+        }
+        self.next = engine::unix_time() + EVERY;
+        ui::request_repaint(map().with("after", EVERY));
+        let view = self.editor.call("meter_view", self.what);
+        if !(view.kind() == "map") {
+            return;
+        }
+        let table = self.node.get_node("Table");
+        let titled = "{view.get("titles")}";
+        if titled != self.titled {
+            // Widths only when the columns change: stating them every time would
+            // snap the reader's own drag away.
+            self.titled = titled;
+            table.patch_component("widget", map()
+                .with("titles", view.get("titles"))
+                .with("widths", view.get("widths"))
+                .with("sort", "")
+                .with("reverse", false));
+        }
+        table.patch_component("widget", map().with("options", view.get("items")).with("visible", view.get("items").len() > 0));
+        self.node.get_node("Nothing").patch_component("widget", map()
+            .with("visible", view.get("says").as_str() != "")
+            .with("text", view.get("says")));
+        let tools = self.node.get_node("Tools");
+        tools.get_node("Headline").patch_component("widget", map().with("text", view.get("headline")));
+        if self.what == "profiler" {
+            tools.get_node("Scripts").patch_component("widget", map().with("checked", view.get("scripts")));
+        }
+    }
+}

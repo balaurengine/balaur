@@ -1,0 +1,80 @@
+// The Library tab's one script: it lights the kind, fills that kind's cards or
+// the templates from what the Editor hands it, and answers a pick of either.
+
+pub struct Library {
+    node: Node,
+    editor: Node,
+}
+
+fn KINDS() -> [str] {
+    ["material", "sky", "model", "scene", "rig", "addon", "template"]
+}
+
+impl Library {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "library_changed", self.editor);
+        events::listen(self.node, "outline_changed", self.editor);
+    }
+
+    pub fn on_library_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// The theme moved, which inks the cards.
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" {
+            return;
+        }
+        let name = node.name();
+        if on_widget_event_any_0(name, KINDS()) {
+            self.editor.call("library_kind", name);
+        } else if name == "Cards" || name == "Table" {
+            // A pick places, so the same card twice places twice: the row is
+            // read and let go rather than kept lit.
+            let row = node.get_component("widget", "text");
+            node.patch_component("widget", map().with("text", ""));
+            if row.as_str() != "" {
+                self.editor.call("library_pick", row);
+            }
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("library_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        let kinds = self.node.get_node("Kinds");
+        for kind in KINDS() {
+            kinds.get_node(kind).patch_component("widget", map().with("checked", kind == view.get("kind").as_str()));
+        }
+        self.node.get_node("Note").patch_component("widget", map().with("visible", view.get("says").as_str() != "").with("text", view.get("says")));
+        let cards = !view.get("templates").as_bool() && view.get("items").len() > 0;
+        let table = view.get("templates") && view.get("items").len() > 0;
+        self.node.get_node("Cards").patch_component("widget", map()
+            .with("visible", cards)
+            .with("options", if cards { view.get("items") } else { [] }));
+        self.node.get_node("Table").patch_component("widget", map()
+            .with("visible", table)
+            .with("options", if table { view.get("items") } else { [] }));
+    }
+}
+
+fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+    for kind in items {
+        if kind == name {
+            return true;
+        }
+    }
+    false
+}

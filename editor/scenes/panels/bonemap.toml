@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "Bonemap"
-script = { source = "scripts/panels/bonemap.rn" }
+script = { source = "scripts/panels/bonemap.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

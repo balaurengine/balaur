@@ -4,7 +4,7 @@
 [[nodes]]
 id = "panel"
 name = "Refactor"
-script = { source = "scripts/panels/refactor.rn" }
+script = { source = "scripts/panels/refactor.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"

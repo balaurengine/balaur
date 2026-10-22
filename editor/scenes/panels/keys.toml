@@ -5,7 +5,7 @@
 [[nodes]]
 id = "keys"
 name = "Keys"
-script = { source = "scripts/panels/keys.rn" }
+script = { source = "scripts/panels/keys.bs" }
 [nodes.widget]
 kind = "row"
 x = -10000.0

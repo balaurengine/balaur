@@ -89,7 +89,7 @@ fn icon_w(S: editor::State) -> float {
     row_h(S)
 }
 
-// Here rather than in editor.rn, whose own `window` module hides the engine's.
+// Here rather than in editor.bs, whose own `window` module hides the engine's.
 // A dark system gets the light-inked mark on a dark plate.
 pub fn set_app_icon(dark: bool) {
     if dark {

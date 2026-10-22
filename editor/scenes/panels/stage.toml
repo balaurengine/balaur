@@ -5,7 +5,7 @@
 [[nodes]]
 id = "chrome"
 name = "Chrome"
-script = { source = "scripts/panels/stage.rn" }
+script = { source = "scripts/panels/stage.bs" }
 [nodes.widget]
 kind = "column"
 absolute = true
@@ -48,7 +48,7 @@ visible = false
 id = "chips"
 name = "Chips"
 parent = "chrome"
-script = { source = "scripts/panels/chips.rn" }
+script = { source = "scripts/panels/chips.bs" }
 [nodes.widget]
 kind = "scroll"
 axis = "horizontal"

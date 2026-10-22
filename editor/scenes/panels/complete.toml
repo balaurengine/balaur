@@ -5,7 +5,7 @@
 [[nodes]]
 id = "complete"
 name = "Complete"
-script = { source = "scripts/panels/complete.rn" }
+script = { source = "scripts/panels/complete.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"

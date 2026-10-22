@@ -16,7 +16,7 @@ low_processor = true
 [check]
 strict = true
 
-# `layout.rn`'s own floors, not a phone's and a tablet's: what asks
+# `layout.bs`'s own floors, not a phone's and a tablet's: what asks
 # `ui::width_class` in here, a plugin's dock among it, gets the shell's answer.
 [ui]
 narrow_below_pixels = 532

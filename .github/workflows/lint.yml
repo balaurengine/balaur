@@ -75,7 +75,7 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
-            --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor \
+            --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor,bs-web \
             -- -D warnings
       # The default features, where `window` is off: code gated on it alone
       # cannot be what an ungated module calls.

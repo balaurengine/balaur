@@ -5,7 +5,7 @@
 [[nodes]]
 id = "panel"
 name = "SceneTree"
-script = { source = "scripts/panels/scene_tree.rn" }
+script = { source = "scripts/panels/scene_tree.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

@@ -1,10 +1,10 @@
 # The Profiler tab: what the engine measured, as a table under its headline.
-# One script answers it, sampling while the tab shows: see scripts/panels/meter.rn.
+# One script answers it, sampling while the tab shows: see scripts/panels/meter.bs.
 
 [[nodes]]
 id = "panel"
 name = "Profiler"
-script = { source = "scripts/panels/meter.rn" }
+script = { source = "scripts/panels/meter.bs" }
 [nodes.widget]
 kind = "column"
 role = "layout_dock"

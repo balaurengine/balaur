@@ -1,0 +1,47 @@
+// The Import tab's one script: the file the Assets tab has selected, filled
+// by the Editor when the selection, the file or a setting moved.
+
+pub struct Import {
+    node: Node,
+    editor: Node,
+}
+
+impl Import {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        for word in ["assets_changed", "outline_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_assets_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// A field has run its own handler by now, so what is left is to show what
+    /// it changed.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" || event == "change" || event == "submit" || event == "commit" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows: on a word, and from the dock once it is visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("import_fill");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("Name").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("name")));
+        self.node.get_node("From").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("from")));
+        self.node.get_node("Nothing").patch_component("widget", map().with("visible", !view.get("ready").as_bool()).with("text", view.get("says")));
+        self.node.get_node("Scroll").patch_component("widget", map().with("visible", view.get("ready")));
+    }
+}

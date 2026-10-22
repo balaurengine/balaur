@@ -4,7 +4,7 @@
 [[nodes]]
 id = "panel"
 name = "Import"
-script = { source = "scripts/panels/import.rn" }
+script = { source = "scripts/panels/import.bs" }
 [nodes.widget]
 kind = "column"
 grow = 1

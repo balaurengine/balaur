@@ -1,9 +1,10 @@
-// Editor plugins: `.bs` scripts adding panels, dialogs, commands, inspector
-// sections, property editors, overlays and start-up states. A plugin is a
-// script on a node of its own under `Editor/Plugins`: `register()` names the
-// methods it adds, and the editor calls each on that node with a payload.
-// It holds its own state in its own fields, and reaches the editor through
-// the Editor node's methods (`toast`, `refresh`, `select`, `open_scene`).
+//! Editor plugins: `.bs` scripts on nodes under `Editor/Plugins`, adding
+//! panels, dialogs, commands, inspector sections, property editors, overlays
+//! and start-up states.
+
+// `register()` names the methods a plugin adds; the editor calls each on its
+// node with a payload, and the plugin reaches back through the Editor node's
+// methods (`document`, `select`, `open_scene`, `kit_*`).
 
 use docks;
 use editor;

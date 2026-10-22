@@ -1004,6 +1004,7 @@ pub fn id_path(S: &mut editor::State, reference: str) -> str? {
 // Game-relative file paths (a texture) are made absolute for the mirror,
 // whose engine resolves against the editor's root; `relative_file` undoes it
 // on the way back, and `S.id_paths` keeps an `id://` spelling for that.
+
 // Only a node's own values: a file the engine opens itself is resolved
 // against the root that owns it, in `balaur_core::document_paths`.
 fn absolute_files(S: &mut editor::State, value: any) -> any {
@@ -1705,7 +1706,7 @@ fn doc_value(S: &mut editor::State, name: str, data: any, previous: any) -> any 
         if is_asset && !authored.is_nil() {
             out.set(key, authored);
         } else if !readonly {
-            out.set(key, relative_file(S, value.as_str()));
+            out.set(key, relative_file(S, value));
         }
     }
     out
@@ -1876,15 +1877,9 @@ pub fn apply_component(S: &mut editor::State, name: str) {
 pub fn set_component_prop(S: &mut editor::State, name: str, prop: str, value: any) {
     history::record(S, "set {name}.{prop}", "prop:{name}:{prop}:{S.sel}");
     for i in selection::all(S) {
-        let matched1 = live(S, i);
-        let has = if matched1.is_valid() {
-            let found = matched1;
-            found.has_component(name)
-        } else {
-            false
-        };
-        if has.as_bool() {
-            set_component_prop_at(S, i.as_int(), name, prop, value.as_str());
+        let found = live(S, i);
+        if found.is_valid() && found.has_component(name) {
+            set_component_prop_at(S, i, name, prop, value);
         }
     }
 }
@@ -1941,22 +1936,19 @@ pub fn set_component_props_each(S: &mut editor::State, name: str, props_of: fn(a
 // The document keeps what it had, and the engine keeps why as a warning on
 // the property, which the inspector draws under it.
 fn write_live(found: Node, name: str, params: any) -> bool {
-    found.set_component(name, params);
-    let ok = true;
-    ok
+    found.try_set_component(name, params)
 }
 
-fn set_component_prop_at(S: &mut editor::State, i: int, name: str, prop: str, value: str) {
-    let found_or = live(S, i);
-    if !found_or.is_valid() {
+fn set_component_prop_at(S: &mut editor::State, i: int, name: str, prop: str, value: any) {
+    let found = live(S, i);
+    if !found.is_valid() {
         return;
     }
-    let found = found_or;
     let node = S.doc[i];
     let data = util::obj(found.get_component(name));
     let params = doc_value(S, name, data, node.get(name));
     params.set(prop, value);
-    if !write_live(found.as_node(), name, absolute_files(S, params)) {
+    if !write_live(found, name, absolute_files(S, params)) {
         return;
     }
     sync_component_doc_at(S, i, name);
