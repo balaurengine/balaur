@@ -101,7 +101,7 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
     ];
     // A method the shim maps is its verb; any other goes to the node's own.
     NODE.contains(&name)
-        .then(|| method("this.node", name, args).unwrap_or_else(|| invoke("this.node", name, args)))
+        .then(|| method("self.node", name, args).unwrap_or_else(|| invoke("self.node", name, args)))
 }
 
 /// Godot's numeric globals: the `i` forms answer an int, and the plain ones
@@ -220,7 +220,7 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
             3 => format!("gd::color({all}, 1.0)"),
             _ => format!("gd::color({all})"),
         },
-        "Callable" if args.is_empty() => "()".into(),
+        "Callable" if args.is_empty() => "nil".into(),
         "Callable" => format!("gd::callable({all})"),
         "preload" | "load" => loaded(&args[0]),
         "instance_from_id" => format!("gd::instance_from_id({one})"),
@@ -232,9 +232,9 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "db_to_linear" => format!("gd::db_to_linear({one})"),
         "emit_signal" => match args.len() {
             0 => return None,
-            1 => format!("this.node.emit({one}, ())"),
-            2 => format!("this.node.emit({one}, {})", args[1]),
-            _ => format!("this.node.emit({one}, [{}])", args[1..].join(", ")),
+            1 => format!("self.node.emit({one}, nil)"),
+            2 => format!("self.node.emit({one}, {})", args[1]),
+            _ => format!("self.node.emit({one}, [{}])", args[1..].join(", ")),
         },
         _ => return None,
     })
@@ -266,11 +266,11 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("ButtonGroup" | "FoldableGroup", "new") => "gd::button_group()".into(),
         ("RandomNumberGenerator", "new") => "gd::random_numbers()".into(),
         ("ProjectSettings", "get" | "get_setting") => {
-            let fallback = args.get(1).map_or("()", String::as_str);
+            let fallback = args.get(1).map_or("nil", String::as_str);
             format!("gd::project_setting({one}, {fallback})")
         }
         ("ProjectSettings", "has_setting") => {
-            format!("!gd::is_nil(gd::project_setting({one}, ()))")
+            format!("!gd::is_nil(gd::project_setting({one}, nil))")
         }
         // A project path is the path here: `fs` resolves it against the project.
         ("ProjectSettings", "globalize_path" | "localize_path") => {
@@ -379,9 +379,9 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         ("JavaScriptBridge", "eval") if one.contains("document.hidden") => {
             "!browser::visible()".into()
         }
-        ("JavaScriptBridge", "eval") if one.contains("reload") => "()".into(),
+        ("JavaScriptBridge", "eval") if one.contains("reload") => "nil".into(),
         ("JavaScriptBridge", "eval") => "-1".into(),
-        ("JavaScriptBridge", "get_interface") => "()".into(),
+        ("JavaScriptBridge", "get_interface") => "nil".into(),
         ("Vector2", "from_angle") => format!("gd::vec_from_angle({one})"),
         // Every bus is the master bus here, as `get_bus_index` says.
         ("AudioServer", "set_bus_volume_db") if args.len() == 2 => {
@@ -657,7 +657,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     }
     // A receiver only known at run time may be a rect or a table as well as
     // a node: the shim's `field` asks which.
-    let node = receiver == "this.node";
+    let node = receiver == "self.node";
     if !node && NODE_PROPERTIES.contains(&field) {
         return None;
     }
@@ -686,7 +686,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "pressed" | "button_pressed" | "editable" | "placeholder_text" | "tooltip_text"
         | "value" | "max_value" | "min_value" => {
             let key = widget_key(field);
-            format!("gd::get({receiver}.get_component(\"widget\"), \"{key}\", ())")
+            format!("gd::get({receiver}.get_component(\"widget\"), \"{key}\", nil)")
         }
         _ => return None,
     })
@@ -707,7 +707,7 @@ fn widget_key(field: &str) -> &str {
 
 /// An argument Godot lets a call leave out, as nil when it did.
 fn or_nil(arg: &str) -> &str {
-    if arg.is_empty() { "()" } else { arg }
+    if arg.is_empty() { "nil" } else { arg }
 }
 
 /// Godot's `Tween`, whose builder the shim runs over `animation::tween`.
@@ -788,7 +788,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     }
     if field == "disabled" {
         return Some(format!(
-            "gd::patch_widget({receiver}, #{{ \"enabled\": !({value}) }})"
+            "gd::patch_widget({receiver}, map().with(\"enabled\", !({value})))"
         ));
     }
     // The window's content scale is the UI's global scale here.
@@ -798,21 +798,21 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     if WIDGET.contains(&field) {
         let key = widget_key(field);
         return Some(format!(
-            "gd::patch_widget({receiver}, #{{ \"{key}\": {value} }})"
+            "gd::patch_widget({receiver}, map().with(\"{key}\", {value}))"
         ));
     }
-    if receiver != "this.node" && NODE_PROPERTIES.contains(&field) {
+    if receiver != "self.node" && NODE_PROPERTIES.contains(&field) {
         return Some(format!("gd::set_field({receiver}, \"{field}\", {value})"));
     }
     Some(match field {
         "visible" => format!("{receiver}.set_visible({value})"),
         // Godot numbers its cursor shapes; the widget names its `cursor`.
         "mouse_default_cursor_shape" => {
-            format!("gd::patch_widget({receiver}, #{{ \"cursor\": gd::cursor_word({value}) }})")
+            format!("gd::patch_widget({receiver}, map().with(\"cursor\", gd::cursor_word({value})))")
         }
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
         "mouse_filter" => {
-            format!("gd::patch_widget({receiver}, #{{ \"interactive\": {value} != 2 }})")
+            format!("gd::patch_widget({receiver}, map().with(\"interactive\", {value} != 2))")
         }
         "position" => format!("gd::set_position({receiver}, {value})"),
         "global_position" => format!("gd::set_global_position({receiver}, {value})"),
@@ -826,7 +826,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         // A control's own size is the widget panel's width and height here.
         "size" => format!("gd::set_size({receiver}, {value})"),
         "button_group" => {
-            format!("gd::patch_widget({receiver}, #{{ \"group\": {value}, \"toggle\": true }})")
+            format!("gd::patch_widget({receiver}, map().with(\"group\", {value}).with(\"toggle\", true))")
         }
         _ => return None,
     })
@@ -898,7 +898,7 @@ fn draw_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     }
     let (_, takes) = VERBS.iter().find(|(verb, _)| *verb == name)?;
     let mut parts: Vec<String> = args.iter().take(*takes).cloned().collect();
-    parts.resize(*takes, "()".to_string());
+    parts.resize(*takes, "nil".to_string());
     Some(format!("(gd.{name})({receiver}, {})", parts.join(", ")))
 }
 
@@ -915,13 +915,13 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         "get_child_count" => format!("{receiver}.children().len()"),
         "has_focus" => format!("gd::same(ui::focused_widget(), {receiver})"),
         // Focus is the widget layer's to give.
-        "release_focus" => "()".into(),
+        "release_focus" => "nil".into(),
         "add_title_bar_control" => format!("gd::add_title_bar_control({receiver}, {one})"),
         // The hook that handed the event over answers `true` for it.
         "accept_event" | "set_input_as_handled" => "gd::set_input_handled()".into(),
         // A per-node switch the hooks the translator writes read first.
         "set_process_input" | "set_process_unhandled_input" | "set_process_unhandled_key_input" => {
-            if receiver == "this.node" {
+            if receiver == "self.node" {
                 format!("this.input_enabled = {one}")
             } else {
                 format!("gd::set_field({receiver}, \"input_enabled\", {one})")
@@ -989,7 +989,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "size" | "is_empty" | "keys" | "values" | "clear" | "front" | "back" | "pop_front"
         | "pop_back" | "sort" | "reverse" => with_receiver(name),
         // The shim's `get` always takes a fallback; Godot's defaults to null.
-        "get" if args.len() == 1 => format!("gd::get({receiver}, {one}, ())"),
+        "get" if args.len() == 1 => format!("gd::get({receiver}, {one}, nil)"),
         "get" => with_receiver("get"),
         "set" if args.len() == 2 => with_receiver("set"),
         "has" | "has_key" => with_receiver("has"),
@@ -1029,7 +1029,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "has_method" => format!("{receiver}.has_method({one})"),
         "get_meta" => format!(
             "gd::get_meta({receiver}, {one}, {})",
-            args.get(1).map_or("()", String::as_str)
+            args.get(1).map_or("nil", String::as_str)
         ),
         "set_meta" => format!(
             "gd::set_meta({receiver}, {}, {})",
@@ -1052,13 +1052,13 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         }
         "get_size" if receiver != TREE => format!("gd::size_of({receiver})"),
         "get_size" | "get_screen_size" => "gd::screen_size()".into(),
-        "set_notify_transform" | "set_notify_local_transform" => "()".into(),
+        "set_notify_transform" | "set_notify_local_transform" => "nil".into(),
         "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
         "get_index" => format!("{receiver}.sibling_index()"),
         "remove_child" => format!("gd::remove_child({one})"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
-            format!("gd::patch_widget({receiver}, #{{ \"checked\": {one} }})")
+            format!("gd::patch_widget({receiver}, map().with(\"checked\", {one}))")
         }
         _ => return None,
     })
@@ -1069,7 +1069,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 /// The keys of the records the shim's `call_value` calls: another object's
 /// method, with what `bind` fixed, and a handler with how many it takes. The
 /// shim spells them too, and a test holds the two together.
-pub(crate) const BOUND_OWNER: &str = "__bound";
+pub(crate) const BOUND_OWNER: &str = "__target";
 pub(crate) const BOUND_METHOD: &str = "__method";
 pub(crate) const BOUND_ARGS: &str = "__args";
 pub(crate) const CALL_KEY: &str = "__call";
@@ -1087,7 +1087,7 @@ pub(crate) fn engine_signal(signal: &str) -> bool {
 /// takes it off again.
 pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -> String {
     let name = quoted(handler.unwrap_or(""));
-    format!("gd::patch_widget({receiver}, #{{ \"{key}\": {name} }})")
+    format!("gd::patch_widget({receiver}, map().with(\"{key}\", {name}))")
 }
 
 /// Hearing another node's signal. The engine calls the subscriber's
@@ -1124,7 +1124,7 @@ pub(crate) const MOST_ARGS: usize = 3;
 pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
     if engine_signal(signal) {
         return format!(
-            "gd::listen(this.node, {}, {receiver}, {handler})",
+            "gd::listen(self.node, {}, {receiver}, {handler})",
             quoted(signal)
         );
     }
@@ -1133,7 +1133,7 @@ pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> S
 
 pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
     if engine_signal(signal) {
-        return format!("gd::unlisten(this.node, {}, {receiver})", quoted(signal));
+        return format!("gd::unlisten(self.node, {}, {receiver})", quoted(signal));
     }
     format!("gd::disconnect({receiver}, {})", quoted(signal))
 }
@@ -1143,11 +1143,11 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
     Some(match verb {
         // Godot calls a signal's handlers as it is emitted; the engine's
         // event goes out too, for a scene's rows and the engine's listeners.
-        "emit" => format!("gd::emit_now(this.node, {name}, [{}])", args.join(", ")),
-        "connect" if !args.is_empty() => format!("gd::connect(this.node, {name}, {})", args[0]),
-        "connect" => format!("events::listen(this.node, {name}, this.node)"),
-        "disconnect" => format!("gd::disconnect(this.node, {name})"),
-        "is_connected" => format!("gd::is_connected(this.node, {name})"),
+        "emit" => format!("gd::emit_now(self.node, {name}, [{}])", args.join(", ")),
+        "connect" if !args.is_empty() => format!("gd::connect(self.node, {name}, {})", args[0]),
+        "connect" => format!("events::listen(self.node, {name}, self.node)"),
+        "disconnect" => format!("gd::disconnect(self.node, {name})"),
+        "is_connected" => format!("gd::is_connected(self.node, {name})"),
         "get_connections" => format!("/* connections of {} */ []", safe(signal)),
         _ => return None,
     })

@@ -213,6 +213,22 @@ pub(crate) fn family(class: &str) -> Family {
     Family::Node2d
 }
 
+/// Whether a GDScript type names a node class: a value a script holds as a
+/// node. A resource whose name ends in `2D` or `3D` is not one.
+pub(crate) fn is_node_class(class: &str) -> bool {
+    const NOT_NODES: &[&str] = &["Shape", "Texture", "Transform", "Parameters", "World", "Gradient"];
+    if NOT_NODES.iter().any(|part| class.contains(part)) {
+        return false;
+    }
+    class == "Node"
+        || class == "Control"
+        || PLAIN.contains(&class)
+        || BARE.contains(&class)
+        || crate::godot::controls::is_widget(class)
+        || class.ends_with("2D")
+        || class.ends_with("3D")
+}
+
 /// Classes whose transform is all they are.
 const BARE: &[&str] = &["Node", "Node2D", "Marker2D", "CanvasLayer", "Skeleton2D"];
 

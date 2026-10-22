@@ -1,15 +1,16 @@
 //! Operators and literals: the tests Godot's truth needs, binary operators
 //! regrouped where the tree lost their parentheses, dictionaries, lambdas.
 
-use super::{Emitter, safe};
+use super::{Bt, Emitter, safe};
 use crate::godot::gdscript::ast::{Expr, Stmt};
+use std::collections::BTreeSet;
 
 impl Emitter<'_> {
     /// A value tested for truth. Godot tests anything: null, zero, an empty
     /// string or collection, a freed node are false. Rune tests a bool.
     pub(super) fn condition(&mut self, value: &Expr) -> String {
         let text = self.expression(value);
-        if self.is_boolish(value) {
+        if self.is_boolish(value) || self.type_of(value) == Bt::Bool {
             return text;
         }
         self.uses_shim = true;
@@ -40,9 +41,16 @@ impl Emitter<'_> {
     }
 
     pub(super) fn binary(&mut self, op: &str, left: &Expr, right: &Expr) -> String {
-        // Godot answers false when two values are of different types; Rune
-        // throws, and a game compares a missing id with a string all day.
-        if matches!(op, "==" | "!=") && !(literal(left) && literal(right)) {
+        let (lt, rt) = (self.type_of(left), self.type_of(right));
+        let typed = (lt.numeric() && rt.numeric()) || (lt == Bt::Str && rt == Bt::Str);
+        // Godot answers false when two values are of different types, which
+        // a game leans on when it compares a missing id with a string.
+        if matches!(op, "==" | "!=")
+            && !(literal(left) && literal(right))
+            && !typed
+            && !matches!(left, Expr::Nil)
+            && !matches!(right, Expr::Nil)
+        {
             let l = self.expression(left);
             let r = self.expression(right);
             self.uses_shim = true;
@@ -111,6 +119,33 @@ impl Emitter<'_> {
             let right = self.expression(right);
             return format!("math::pow({left}, {right})");
         }
+        // Two strings joined, which `+` does not do here.
+        if op == "+" && lt == Bt::Str && rt == Bt::Str {
+            let left = self.expression(left);
+            let right = self.expression(right);
+            return format!("\"{{{left}}}{{{right}}}\"");
+        }
+        // Any other operand whose type is not known: Godot's operator on
+        // whatever the value turns out to be.
+        if !(lt.numeric() && rt.numeric()) && !matches!(op, "==" | "!=") {
+            let verb = match op {
+                "+" => Some("add"),
+                "-" => Some("sub"),
+                "*" => Some("mul"),
+                "/" => Some("div"),
+                "<" => Some("lt"),
+                "<=" => Some("le"),
+                ">" => Some("gt"),
+                ">=" => Some("ge"),
+                _ => None,
+            };
+            if let Some(verb) = verb {
+                let left = self.expression(left);
+                let right = self.expression(right);
+                self.uses_shim = true;
+                return format!("gd::{verb}({left}, {right})");
+            }
+        }
         let comparison = matches!(op, "==" | "!=" | "<" | "<=" | ">" | ">=");
         let power =
             |op: &str| crate::godot::gdscript::parse::binding(op).map_or(0, |(power, _)| power);
@@ -137,21 +172,15 @@ impl Emitter<'_> {
     pub(super) fn dict(&mut self, pairs: &[(Expr, Expr)]) -> String {
         let literal = pairs.iter().all(|(key, _)| matches!(key, Expr::Str(_)));
         if literal {
-            let parts: Vec<String> = pairs
+            let parts: Vec<(String, String)> = pairs
                 .iter()
-                .map(|(key, value)| {
-                    let key = self.expression(key);
-                    let value = self.expression(value);
-                    format!("{key}: {value}")
-                })
+                .map(|(key, value)| (self.expression(key), self.expression(value)))
                 .collect();
-            // An empty one may be keyed by anything later, which only the
-            // shim's hash map takes.
-            if parts.is_empty() {
-                self.uses_shim = true;
-                return "gd::dict([])".into();
+            let mut out = "map()".to_string();
+            for (key, value) in parts {
+                out.push_str(&format!(".with({key}, {value})"));
             }
-            return format!("#{{ {} }}", parts.join(", "));
+            return out;
         }
         // A key that is not a literal string cannot stand in an object
         // literal, so the shim builds the map from pairs.
@@ -167,26 +196,61 @@ impl Emitter<'_> {
         format!("gd::dict([{}])", parts.join(", "))
     }
 
+    /// A lambda, lifted into a method of its own: Godot captures a local by
+    /// value when the lambda is made, and so does this, in the map the
+    /// callable carries. The method takes that map first.
     pub(super) fn lambda(&mut self, params: &[String], body: &[Stmt]) -> String {
-        self.scopes.push(params.iter().cloned().collect());
-        let bound: Vec<String> = params.iter().map(|name| safe(name)).collect();
-        let outer = std::mem::replace(&mut self.awaits, false);
-        // A one-expression lambda reads as one, which is what most of these are.
-        let out = if let [Stmt::Return(Some(value)) | Stmt::Expr(value)] = body {
-            let text = self.expression(value);
-            format!("|{}| {{ {text} }}", bound.join(", "))
-        } else {
-            let text = self.block(body, 2);
-            format!("|{}| {{\n{text}    }}", bound.join(", "))
-        };
-        self.scopes.pop();
-        // A closure that waits is async, and its own waiting does not make the
-        // function around it async.
-        let inner = std::mem::replace(&mut self.awaits, outer);
-        if inner {
-            return format!("async {out}");
+        let mut used = BTreeSet::new();
+        for stmt in body {
+            names_in_stmt(stmt, &mut used);
         }
-        out
+        let captured: Vec<String> = used
+            .into_iter()
+            .filter(|name| self.is_local(name) && !params.contains(name))
+            .collect();
+        // Named for the function it is in, so two functions' never meet.
+        let name = format!(
+            "__lambda_{}_{}",
+            self.enclosing.trim_start_matches('_'),
+            self.lifted.len()
+        );
+        let outer_scopes = std::mem::replace(&mut self.scopes, vec![BTreeSet::new()]);
+        let outer_awaits = std::mem::replace(&mut self.awaits, false);
+        for local in captured.iter().chain(params.iter()) {
+            self.declare(local);
+        }
+        let mut text = String::new();
+        for local in &captured {
+            let bound = safe(local);
+            text.push_str(&format!("        let {bound} = cap.get({});\n", super::quoted(local)));
+        }
+        let returns = matches!(body, [Stmt::Return(Some(_)) | Stmt::Expr(_)]);
+        if let [Stmt::Return(Some(value)) | Stmt::Expr(value)] = body {
+            let value = self.expression(value);
+            text.push_str(&format!("        {value}\n"));
+        } else {
+            text.push_str(&self.block(body, 2));
+        }
+        self.scopes = outer_scopes;
+        let awaited = std::mem::replace(&mut self.awaits, outer_awaits);
+        let mut args = vec!["cap: any".to_string()];
+        args.extend(params.iter().map(|p| format!("{}: any", safe(p))));
+        if self.context.object_class {
+            args.insert(0, "this: any".to_string());
+        }
+        let word = if awaited { "pub async fn" } else { "pub fn" };
+        let ret = if returns { " -> any" } else { "" };
+        self.lifted.push(format!(
+            "    {word} {name}({}){ret} {{\n{text}    }}\n",
+            args.join(", ")
+        ));
+        let mut cap = "map()".to_string();
+        for local in &captured {
+            cap.push_str(&format!(".with({}, {})", super::quoted(local), safe(local)));
+        }
+        self.uses_shim = true;
+        let target = if self.context.object_class { "this" } else { "self.node" };
+        format!("gd::lambda({target}, {}, {cap})", super::quoted(&name))
     }
 }
 
@@ -203,5 +267,71 @@ fn e_op(value: &Expr) -> &'static str {
     match value {
         Expr::Binary(op, ..) => op,
         _ => "",
+    }
+}
+
+// Every bare name a statement reads, for what a lambda captures.
+fn names_in_stmt(stmt: &Stmt, out: &mut BTreeSet<String>) {
+    match stmt {
+        Stmt::Var { value: Some(v), .. } | Stmt::Expr(v) | Stmt::Return(Some(v)) => {
+            names_in(v, out);
+        }
+        Stmt::Assign { target, value, .. } => {
+            names_in(target, out);
+            names_in(value, out);
+        }
+        Stmt::If { arms, other } => {
+            for (cond, body) in arms {
+                names_in(cond, out);
+                body.iter().for_each(|s| names_in_stmt(s, out));
+            }
+            other.iter().flatten().for_each(|s| names_in_stmt(s, out));
+        }
+        Stmt::While { cond, body } => {
+            names_in(cond, out);
+            body.iter().for_each(|s| names_in_stmt(s, out));
+        }
+        Stmt::For { iter, body, .. } => {
+            names_in(iter, out);
+            body.iter().for_each(|s| names_in_stmt(s, out));
+        }
+        Stmt::Match { subject, arms } => {
+            names_in(subject, out);
+            for arm in arms {
+                arm.patterns.iter().for_each(|p| names_in(p, out));
+                arm.body.iter().for_each(|s| names_in_stmt(s, out));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn names_in(value: &Expr, out: &mut BTreeSet<String>) {
+    match value {
+        Expr::Name(name) => {
+            out.insert(name.clone());
+        }
+        Expr::Field(object, _) | Expr::Unary(_, object) | Expr::Await(object) => names_in(object, out),
+        Expr::Cast(object, _) | Expr::Is(object, ..) => names_in(object, out),
+        Expr::Index(a, b) | Expr::Binary(_, a, b) => {
+            names_in(a, out);
+            names_in(b, out);
+        }
+        Expr::Call(callee, args) => {
+            names_in(callee, out);
+            args.iter().for_each(|a| names_in(a, out));
+        }
+        Expr::Ternary { then, cond, other } => {
+            names_in(then, out);
+            names_in(cond, out);
+            names_in(other, out);
+        }
+        Expr::Array(items) => items.iter().for_each(|a| names_in(a, out)),
+        Expr::Dict(pairs) => pairs.iter().for_each(|(k, v)| {
+            names_in(k, out);
+            names_in(v, out);
+        }),
+        Expr::Lambda { body, .. } => body.iter().for_each(|s| names_in_stmt(s, out)),
+        _ => {}
     }
 }

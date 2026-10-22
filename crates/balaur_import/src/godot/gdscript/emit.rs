@@ -15,7 +15,10 @@ use super::{GETTER, SETTER};
 
 mod calls;
 mod ops;
+mod types;
 mod writes;
+
+pub(crate) use types::Bt;
 
 /// What the emitter has to know about the class it is inside, so a bare name
 /// resolves the way GDScript resolved it.
@@ -46,7 +49,7 @@ pub(crate) struct Context {
     pub project_members: BTreeSet<String>,
     /// Autoloads that are nodes of the main scene.
     pub autoload_nodes: BTreeSet<String>,
-    /// Functions the async pass found, so a call to one gets `.await`.
+    /// Functions the async pass found, so a call to one gets `await`.
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
     pub renames: BTreeMap<String, String>,
@@ -96,6 +99,10 @@ pub(crate) struct Context {
     /// Each method's parameter count, under its Rune name, so a closure or
     /// a forwarder passes it as many arguments as it takes.
     pub arity: BTreeMap<String, usize>,
+    /// Each member's type, where a hint or a literal default says it.
+    pub member_types: BTreeMap<String, Bt>,
+    /// Each method's declared result.
+    pub returns: BTreeMap<String, Bt>,
 }
 
 /// The members that stand in for Godot's per-node process switch.
@@ -154,6 +161,10 @@ pub(crate) struct Emitter<'a> {
     scopes: Vec<BTreeSet<String>>,
     /// Locals that hold a bool, by their declaration: a test of one is plain.
     bool_locals: BTreeSet<String>,
+    /// Each local's type, by its declaration.
+    pub(crate) local_types: BTreeMap<String, Bt>,
+    /// The methods this body's lambdas were lifted into.
+    pub(crate) lifted: Vec<String>,
     /// Locals and parameters typed `String`: an index on one is a character.
     pub string_locals: BTreeSet<String>,
     /// Names of temporaries already handed out, so nested ones do not collide.
@@ -205,6 +216,8 @@ impl<'a> Emitter<'a> {
             allow_await: true,
             in_static: false,
             bool_locals: BTreeSet::new(),
+            local_types: BTreeMap::new(),
+            lifted: Vec::new(),
             string_locals: BTreeSet::new(),
             enclosing: String::new(),
             awaited_here: false,
@@ -219,7 +232,29 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    fn is_local(&self, name: &str) -> bool {
+    /// What a member is read off: the struct's `self` in a node class, the
+    /// object's table, `this`, in an object class.
+    pub(crate) fn me(&self) -> &'static str {
+        if self.context.object_class { "this" } else { "self" }
+    }
+
+    /// The class's own node.
+    pub(crate) fn own_node(&self) -> &'static str {
+        if self.context.object_class { "this.node" } else { "self.node" }
+    }
+
+    /// A call of one of the class's own methods.
+    pub(crate) fn own_call(&self, bound: &str, args: &[String]) -> String {
+        if self.context.object_class {
+            let mut all = vec!["this".to_string()];
+            all.extend(args.iter().cloned());
+            format!("{bound}({})", all.join(", "))
+        } else {
+            format!("self.{bound}({})", args.join(", "))
+        }
+    }
+
+    pub(crate) fn is_local(&self, name: &str) -> bool {
         self.scopes.iter().any(|scope| scope.contains(name))
     }
 
@@ -300,6 +335,7 @@ impl<'a> Emitter<'a> {
                 let _ = writeln!(out, "{pad}// {MARKER} {text}");
             }
             Stmt::Var { name, value, hint } => {
+                let declared = hint.as_deref().map(Bt::of_hint);
                 let text = match value {
                     // A typed int takes a float as its whole part, which is
                     // what a number from JSON arrives as.
@@ -318,9 +354,16 @@ impl<'a> Emitter<'a> {
                         zero.to_string()
                     }
                 };
+                // The hint's type, else what the value is known to be, else
+                // Godot's Variant: a later write may hold anything.
+                let known = declared.unwrap_or_else(|| match value {
+                    Some(value) => self.type_of(value),
+                    None => Bt::Any,
+                });
                 let bound = safe(name);
-                let _ = writeln!(out, "{pad}let {bound} = {text};");
+                let _ = writeln!(out, "{pad}let {bound}: {} = {text};", known.text());
                 self.declare(name);
+                self.local_types.insert(name.clone(), known);
                 self.note_local_type(name, hint.as_deref(), value.as_ref());
             }
             Stmt::Assign { target, op, value } => {
@@ -350,20 +393,35 @@ impl<'a> Emitter<'a> {
                 let _ = writeln!(out, "{pad}}}");
             }
             Stmt::For { name, iter, body } => {
-                // Godot walks a dictionary's keys and counts up to an int;
-                // Rune walks an object's pairs and cannot walk an int.
-                let plain = matches!(iter, Expr::Array(_))
-                    || matches!(iter, Expr::Call(callee, _) if matches!(&**callee, Expr::Name(n) if n == "range"));
-                let iter = self.expression(iter);
-                let iter = if plain {
-                    iter
-                } else {
-                    self.uses_shim = true;
-                    format!("gd::iter({iter})")
-                };
                 let bound = safe(name);
+                // `range(a, b)` counts as an int; anything else Godot walks
+                // (a dictionary's keys, an int, a string's characters) the
+                // shim lays out as a list.
+                let counted = match iter {
+                    Expr::Call(callee, args)
+                        if matches!(&**callee, Expr::Name(n) if n == "range" && !self.is_local(n))
+                            && (1..=2).contains(&args.len()) =>
+                    {
+                        let ends: Vec<String> = args.iter().map(|a| self.expression(a)).collect();
+                        Some(if ends.len() == 1 {
+                            format!("0..{}", ends[0])
+                        } else {
+                            format!("{}..{}", ends[0], ends[1])
+                        })
+                    }
+                    _ => None,
+                };
+                let (iter, element) = match counted {
+                    Some(range) => (range, Bt::Int),
+                    None => {
+                        let iter = self.expression(iter);
+                        self.uses_shim = true;
+                        (format!("gd::iter({iter})"), Bt::Any)
+                    }
+                };
                 let _ = writeln!(out, "{pad}for {bound} in {iter} {{");
                 self.scopes.push(BTreeSet::from([name.clone()]));
+                self.local_types.insert(name.clone(), element);
                 out.push_str(&self.block(body, depth + 1));
                 self.scopes.pop();
                 let _ = writeln!(out, "{pad}}}");
@@ -380,7 +438,7 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         let subject = self.expression(subject);
         let name = self.temp();
-        let _ = writeln!(out, "{pad}let {name} = {subject};");
+        let _ = writeln!(out, "{pad}let {name}: any = {subject};");
         self.declare(&name);
         let mut started = false;
         for arm in arms {
@@ -400,7 +458,8 @@ impl<'a> Emitter<'a> {
                 .iter()
                 .map(|pattern| {
                     let value = self.expression(pattern);
-                    format!("{name} == {value}")
+                    self.uses_shim = true;
+                    format!("gd::same({name}, {value})")
                 })
                 .collect();
             let word = if started { "} else if" } else { "if" };
@@ -419,30 +478,14 @@ impl<'a> Emitter<'a> {
         if let Some((object, key)) = tree_parameter(object, index) {
             let object = self.expression(object);
             self.uses_shim = true;
-            return format!("gd::get({object}, {}, ())", quoted(key));
+            return format!("gd::get({object}, {}, nil)", quoted(key));
         }
-        // `text[i]` on a string: Rune indexes no string, the shim does.
-        // A string key is a dictionary's, whatever the name is called.
-        let stringy = match object {
-            Expr::Name(name) if self.is_local(name) => self.string_locals.contains(name),
-            Expr::Name(name) => self.context.strings.contains(name),
-            _ => false,
-        };
-        if stringy && !matches!(index, Expr::Str(_)) {
-            let object = self.expression(object);
-            let index = self.expression(index);
-            self.uses_shim = true;
-            return format!("gd::at({object}, {index})");
-        }
-        let compound = matches!(object, Expr::Binary(..) | Expr::Unary(..));
+        // Every container is an `any`, and a string's index is a character:
+        // the shim reads either.
         let object = self.expression(object);
-        let object = if compound {
-            format!("({object})")
-        } else {
-            object
-        };
         let index = self.expression(index);
-        format!("{object}[{index}]")
+        self.uses_shim = true;
+        format!("gd::at({object}, {index})")
     }
 
     pub(crate) fn expression(&mut self, value: &Expr) -> String {
@@ -450,9 +493,10 @@ impl<'a> Emitter<'a> {
             Expr::Int(text) => text.clone(),
             Expr::Float(text) => {
                 // A float literal must read as one: `1e3` and `2.` are not
-                // float tokens in Rune.
+                // float tokens here.
                 if text.contains(['e', 'E']) && !text.contains('.') {
-                    return format!("{text}f64");
+                    let (mantissa, exponent) = text.split_once(['e', 'E']).unwrap_or((text, "0"));
+                    return format!("{mantissa}.0e{exponent}");
                 }
                 if let Some(head) = text.strip_suffix('.') {
                     return format!("{head}.0");
@@ -462,10 +506,10 @@ impl<'a> Emitter<'a> {
             Expr::Str(text) => quoted(text),
             Expr::Bool(true) => "true".into(),
             Expr::Bool(false) => "false".into(),
-            Expr::Nil => "()".into(),
+            Expr::Nil => "nil".into(),
             // An object class's `self` is its table; a node class's, its node.
             Expr::SelfRef if self.context.object_class => "this".into(),
-            Expr::SelfRef => "this.node".into(),
+            Expr::SelfRef => "self.node".into(),
             Expr::Name(name) => self.name(name),
             Expr::Field(object, field) => self.field(object, field),
             Expr::Index(object, index) => self.index(object, index),
@@ -516,8 +560,12 @@ impl<'a> Emitter<'a> {
             }
             Expr::Dict(pairs) => self.dict(pairs),
             Expr::Lambda { params, body } => self.lambda(params, body),
-            Expr::NodePath(path) => format!("this.node.get_node({})", quoted(path)),
-            Expr::Unique(name) => format!("this.node.get_node({})", quoted(&format!("%{name}"))),
+            Expr::NodePath(path) => format!("{}.get_node({})", self.own_node(), quoted(path)),
+            Expr::Unique(name) => format!(
+                "{}.get_node({})",
+                self.own_node(),
+                quoted(&format!("%{name}"))
+            ),
             Expr::Await(inner) => self.await_expr(inner),
             Expr::Cast(inner, name) => {
                 let text = self.expression(inner);
@@ -561,13 +609,13 @@ impl<'a> Emitter<'a> {
         self.awaits = true;
         // A method on a receiver only known at run time may suspend:
         // the shim waits on it the way the engine resumes one.
-        if let Some(rest) = text.strip_prefix("(gd.invoke_many") {
-            return format!("(gd.invoke_async_many{rest}.await");
+        if let Some(rest) = text.strip_prefix("gd::invoke_many(") {
+            return format!("await gd::invoke_async_many({rest}");
         }
-        if let Some(rest) = text.strip_prefix("(gd.invoke") {
-            return format!("(gd.invoke_async{rest}.await");
+        if let Some(rest) = text.strip_prefix("gd::invoke") {
+            return format!("await gd::invoke_async{rest}");
         }
-        format!("{text}.await")
+        format!("await {text}")
     }
 
     fn name(&mut self, name: &str) -> String {
@@ -627,7 +675,7 @@ impl<'a> Emitter<'a> {
         }
         // Godot read a bare name off `self` when the class declared none, and
         // the node's own properties are what is left.
-        if let Some(text) = map::property("this.node", name) {
+        if let Some(text) = map::property(self.own_node(), name) {
             return self.shimmed(text);
         }
         if let Some(text) = map::global_constant(name) {
@@ -707,31 +755,26 @@ impl<'a> Emitter<'a> {
     /// record the shim's `call_value` calls.
     fn bound_record(&mut self, object: &Expr, name: &str, fixed: &[Expr]) -> String {
         let owner = self.expression(object);
-        let mut record = format!(
-            "#{{ {}: {owner}, {}: {}",
-            quoted(map::BOUND_OWNER),
-            quoted(map::BOUND_METHOD),
-            quoted(name)
-        );
+        self.uses_shim = true;
+        let mut record = format!("gd::callable({owner}, {})", quoted(name));
         if !fixed.is_empty() {
             let values: Vec<String> = fixed.iter().map(|value| self.expression(value)).collect();
             let _ = write!(
                 record,
-                ", {}: [{}]",
+                ".with({}, [{}])",
                 quoted(map::BOUND_ARGS),
                 values.join(", ")
             );
         }
-        record.push_str(" }");
         record
     }
 
     /// A member read: its getter, outside the property's own accessors.
     fn member_read(&self, name: &str) -> String {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
-            return format!("{GETTER}{name}(this)");
+            return self.own_call(&format!("{GETTER}{name}"), &[]);
         }
-        format!("this.{}", safe(name))
+        format!("{}.{}", self.me(), safe(name))
     }
 
     fn in_accessor_of(&self, name: &str) -> bool {
@@ -856,7 +899,7 @@ impl<'a> Emitter<'a> {
                 crate::godot::nodes::bare_document(class, crate::godot::script::NEW_NAME)
         {
             self.uses_shim = true;
-            return format!("gd::new_node({}, ())", quoted(&doc));
+            return format!("gd::new_node({}, nil)", quoted(&doc));
         }
         if let Some(text) = map::static_call(class, method, parts) {
             return self.shimmed(text);
@@ -909,7 +952,7 @@ impl<'a> Emitter<'a> {
             "has_signal" if args.len() == 1 => Some(if self.context.signals.contains(signal) {
                 "true".into()
             } else if map::widget_signal(signal).is_some() {
-                "this.node.has_component(\"widget\")".into()
+                format!("{}.has_component(\"widget\")", self.own_node())
             } else {
                 "false".into()
             }),
@@ -939,10 +982,9 @@ impl<'a> Emitter<'a> {
         if let Some(name) = own {
             if self.context.methods.contains(&name) {
                 let bound = self.method_name(&name);
-                let mut parts = vec!["this".to_string()];
-                parts.extend(args.iter().map(|arg| self.expression(arg)));
+                let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
                 self.pad_defaults(&name, args.len(), &mut parts);
-                let text = format!("{bound}({})", parts.join(", "));
+                let text = self.own_call(&bound, &parts);
                 return self.awaited(&name, text);
             }
             if self.context.statics.contains(&name) {
@@ -1080,12 +1122,12 @@ impl<'a> Emitter<'a> {
             return None;
         }
         if name.starts_with("is_") {
-            return Some(format!("this.{flag}"));
+            return Some(format!("{}.{flag}", self.me()));
         }
         let value = args
             .first()
             .map_or("true".to_string(), |a| self.expression(a));
-        Some(format!("this.{flag} = {value}"))
+        Some(format!("{}.{flag} = {value}", self.me()))
     }
 
     /// `super(..)` and `super.name(..)`: the base's copy, which §4's
@@ -1109,9 +1151,7 @@ impl<'a> Emitter<'a> {
             self.note(format!("`super` reaches `{base}`, which no base declares"));
             base
         };
-        let mut all = vec!["this".to_string()];
-        all.extend(parts.iter().cloned());
-        Some(format!("{target}({})", all.join(", ")))
+        Some(self.own_call(&target, parts))
     }
 
     fn method_name(&self, name: &str) -> String {
@@ -1121,7 +1161,7 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// A call to a function the async pass marked gets its `.await` here, so
+    /// A call to a function the async pass marked gets its `await` here, so
     /// callers need no `await` of their own in the source.
     fn awaited(&mut self, name: &str, text: String) -> String {
         if self.awaited_here || !self.allow_await {
@@ -1129,7 +1169,7 @@ impl<'a> Emitter<'a> {
         }
         if self.context.asyncs.contains(name) {
             self.awaits = true;
-            return format!("{text}.await");
+            return format!("await {text}");
         }
         text
     }
@@ -1162,9 +1202,11 @@ pub(crate) fn typed_zero(hint: &str) -> &'static str {
         "Vector2" | "Vector2i" => "gd::vec2(0.0, 0.0)",
         "Vector3" | "Vector3i" => "gd::vec3(0.0, 0.0, 0.0)",
         "Color" => "gd::color(0.0, 0.0, 0.0, 1.0)",
-        h if h.starts_with("Array") || (h.starts_with("Packed") && h.ends_with("Array")) => "[]",
-        h if h.starts_with("Dictionary") => "gd::dict([])",
-        _ => "()",
+        h if h.starts_with("Array") || (h.starts_with("Packed") && h.ends_with("Array")) => {
+            "gd::list()"
+        }
+        h if h.starts_with("Dictionary") => "map()",
+        _ => "nil",
     }
 }
 
@@ -1173,7 +1215,7 @@ pub(crate) fn typed_zero(hint: &str) -> &'static str {
 /// parse, not a runtime error.
 pub(crate) fn discardable(text: &str) -> String {
     if text.starts_with('(') || text.starts_with('[') {
-        return format!("let _ = {text}");
+        return format!("let _: any = {text}");
     }
     text.to_string()
 }

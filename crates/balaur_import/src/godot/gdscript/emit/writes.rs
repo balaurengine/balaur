@@ -36,33 +36,20 @@ impl Emitter<'_> {
             let _ = writeln!(out, "{pad}gd::set({object}, {}, {text});", quoted(key));
             return out;
         }
-        // An index into a value read through the shim is no place to assign
-        // to: `a.b["k"] = v` writes into the table the read handed back.
+        // A container is an `any`, which takes a write by index through the
+        // shim: a list's slot or a dictionary's key, in place.
         if let Expr::Index(object, index) = target {
             let base = self.expression(object);
-            if base.starts_with('(') {
-                let key = self.expression(index);
-                let text = self.expression(value);
-                let text = if op == "=" {
-                    text
-                } else {
-                    format!(
-                        "gd::get({base}, {key}, ()) {} ({text})",
-                        op.trim_end_matches('=')
-                    )
-                };
-                self.uses_shim = true;
-                let _ = writeln!(out, "{pad}let _ = gd::set({base}, {key}, {text});");
-                return out;
-            }
-        }
-        let indexed = matches!(target, Expr::Index(..));
-        // `a[i] += v` is not supported; expanding it is the whole fix.
-        if indexed && op != "=" {
-            let place = self.expression(target);
+            let key = self.expression(index);
             let text = self.expression(value);
-            let operator = op.trim_end_matches('=');
-            let _ = writeln!(out, "{pad}{place} = {place} {operator} {text};");
+            let text = if op == "=" {
+                text
+            } else {
+                let verb = shim_verb(op.trim_end_matches('='));
+                format!("gd::{verb}(gd::at({base}, {key}), {text})")
+            };
+            self.uses_shim = true;
+            let _ = writeln!(out, "{pad}gd::set({base}, {key}, {text});");
             return out;
         }
         let short_circuit = matches!(value, Expr::Binary("||" | "&&", ..));
@@ -93,6 +80,22 @@ impl Emitter<'_> {
         if place.starts_with("gd::todo") || place.starts_with("(script::require(") {
             let _ = writeln!(out, "{pad}{};", discardable(&place));
             return out;
+        }
+        // `+=` and its kin on a value whose type is not known: Godot's
+        // operator, through the shim, written back.
+        if op != "=" {
+            let (place_type, value_type) = (self.type_of(target), self.type_of(value));
+            let operator = op.trim_end_matches('=');
+            if place_type == super::Bt::Str && value_type == super::Bt::Str && operator == "+" {
+                let _ = writeln!(out, "{pad}{place} = \"{{{place}}}{{{text}}}\";");
+                return out;
+            }
+            if !(place_type.numeric() && value_type.numeric()) {
+                self.uses_shim = true;
+                let verb = shim_verb(operator);
+                let _ = writeln!(out, "{pad}{place} = gd::{verb}({place}, {text});");
+                return out;
+            }
         }
         let _ = writeln!(out, "{pad}{place} {op} {text};");
         out
@@ -126,7 +129,8 @@ impl Emitter<'_> {
                 let read = self.member_read(name);
                 format!("{read} {} ({text})", op.trim_end_matches('='))
             };
-            let _ = writeln!(out, "{pad}{SETTER}{name}(this, {text});");
+            let call = self.own_call(&format!("{SETTER}{name}"), &[text]);
+            let _ = writeln!(out, "{pad}{call};");
             return Some(out);
         }
         // A member with a getter and no setter is written where it is kept:
@@ -143,7 +147,7 @@ impl Emitter<'_> {
                 let read = self.member_read(name);
                 format!("{read} {} ({text})", op.trim_end_matches('='))
             };
-            let _ = writeln!(out, "{pad}this.{} = {text};", safe(name));
+            let _ = writeln!(out, "{pad}{}.{} = {text};", self.me(), safe(name));
             return Some(out);
         }
         None
@@ -222,7 +226,7 @@ impl Emitter<'_> {
                     && !self.context.consts.contains(name)
                     && map::setter("x", name, "y").is_some() =>
             {
-                Some(("this.node".to_string(), name.clone()))
+                Some((self.own_node().to_string(), name.clone()))
             }
             Expr::Field(base, property) if map::setter("x", property, "y").is_some() => {
                 if matches!(**base, Expr::SelfRef) && self.context.members.contains(property) {
@@ -340,7 +344,7 @@ impl Emitter<'_> {
                     self.note(format!("`{name}`: a static function writes no member here"));
                     return Some(format!("{pad}{};\n", discardable(&stub)));
                 }
-                ("this.node".to_string(), name.clone())
+                (self.own_node().to_string(), name.clone())
             }
             Expr::Field(object, field) => {
                 if matches!(**object, Expr::SelfRef)
@@ -407,3 +411,14 @@ impl Emitter<'_> {
 
 /// The fields of a vector or a colour.
 const LANES: &[&str] = &["x", "y", "z", "w", "r", "g", "b", "a"];
+
+/// The shim's name for an arithmetic operator.
+fn shim_verb(op: &str) -> &'static str {
+    match op {
+        "+" => "add",
+        "-" => "sub",
+        "*" => "mul",
+        "/" => "div",
+        _ => "modulo",
+    }
+}

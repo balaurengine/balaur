@@ -13,6 +13,8 @@ pub const CLASS_KEY: str = "__class";
 pub const TARGET_KEY: str = "__target";
 pub const METHOD_KEY: str = "__method";
 pub const CAP_KEY: str = "__cap";
+pub const ARGS_KEY: str = "__args";
+pub const TAKES_KEY: str = "__takes";
 
 // The kinds an `any` reports.
 const NIL: str = "nil";
@@ -1239,12 +1241,24 @@ pub fn call_value(callable: any, args: any) -> any {
     }
     let target = callable.get(TARGET_KEY);
     let method = callable.get(METHOD_KEY).as_str();
+    // A handler takes as many of a signal's values as it was made for, then
+    // what `bind` fixed.
+    let takes = if callable.has(TAKES_KEY) { callable.get(TAKES_KEY).as_int() } else { args.len() };
     let full: any = [];
     if callable.has(CAP_KEY) {
         full.push(callable.get(CAP_KEY));
     }
+    let given = 0;
     for arg in args {
-        full.push(arg);
+        if given < takes {
+            full.push(arg);
+        }
+        given += 1;
+    }
+    if callable.has(ARGS_KEY) {
+        for arg in callable.get(ARGS_KEY) {
+            full.push(arg);
+        }
     }
     call(target, method, full)
 }

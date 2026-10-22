@@ -21,7 +21,7 @@ pub(super) fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
         "randi" => "random::int(0, 2147483647)".into(),
         "randi_range" => format!("random::int({all})"),
         "randf_range" => format!("random::range({all})"),
-        "randomize" => "()".into(),
+        "randomize" => "nil".into(),
         _ => return None,
     })
 }
@@ -32,7 +32,7 @@ pub(super) fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
 pub(crate) fn singleton_write(class: &str, field: &str, value: &str) -> Option<String> {
     Some(match (class, field) {
         ("Engine", "max_fps") => format!("settings::set(\"window/max_fps\", {value})"),
-        ("OS", "low_processor_usage_mode" | "low_processor_usage_mode_sleep_usec") => "()".into(),
+        ("OS", "low_processor_usage_mode" | "low_processor_usage_mode_sleep_usec") => "nil".into(),
         _ => return None,
     })
 }
@@ -51,7 +51,7 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "FAILED" => "1",
         // No JavaScript bridge: `browser::visible` and `on_dark_mode_changed` answer what
         // its probes read, so a script finds it absent.
-        "JavaScriptBridge" => "()",
+        "JavaScriptBridge" => "nil",
         // `typeof` answers the shim's type names, so its constants are those.
         "TYPE_NIL" => "\"nil\"",
         "TYPE_BOOL" => "\"bool\"",
