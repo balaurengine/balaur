@@ -1,0 +1,1030 @@
+// Showcase sequences: the clips the manual shows. Each is a frame-paced list
+// of the calls the UI would make plus the input a person would feed, so a
+// clip is retaken with `--state show:<name>` and nobody at the mouse.
+//
+// A step names what it does and carries what it needs: `run` with `data` at
+// its frame, or with `data` and the span's progress every frame of a span. A
+// place the pointer goes is a table `place_of` reads when the step runs, so
+// it is where the control is then rather than where it was when the clip was
+// written.
+
+use anim;
+use center;
+use chrome;
+use complete;
+use defs;
+use docks;
+use dropin;
+use editor;
+use history;
+use left;
+use lint;
+use manager;
+use model;
+use rig;
+use selection;
+use session;
+use settings;
+use shell;
+use signals;
+use theme;
+use themewin;
+use util;
+use window;
+
+/// A sequence under way: its frame, the steps and spans of each phase and
+/// how far each phase has run, where the pointer is, and what the clip keeps
+/// to put back.
+pub class Q {
+    name: str,
+    at: int,
+    kept: any,
+    ptr: [float],
+    steps: [Step],
+    spans: [Span],
+    seen: int,
+    acts: [Step],
+    spans_ui: [Span],
+    seen_ui: int,
+}
+
+/// `run` with `data`, once, at frame `at`.
+pub struct Step {
+    at: int,
+    run: fn(&mut editor::State, any),
+    data: any,
+}
+
+/// `run` with `data` and how far along the span is, every frame from `from`
+/// to `to`.
+pub struct Span {
+    from: int,
+    to: int,
+    run: fn(&mut editor::State, any, float),
+    data: any,
+}
+
+// The tool rail's first button below the sheet's own padding, and the pitch of
+// the buttons under it.
+const TOOL_TOP: float = 22.0;
+
+const TOOL_PITCH: float = 32.0;
+
+// The code pane's first line, from the pane's own top, the pitch of the lines
+// under it, and one column of its monospaced face.
+const CODE_TOP: float = 21.6;
+
+const LINE_H: float = 16.0;
+
+const CHAR_W: float = 7.3;
+
+// How long the pointer takes to walk to a control, in frames. Long enough to
+// read as a hand moving, short enough that a clip is not mostly travel.
+const GLIDE: int = 22;
+
+// The example script the scripting clips edit.
+const SPINNER: str = "scripts/spinner.bs";
+
+pub fn state() -> Q? {
+    nil
+}
+
+// Whether a fed button is held: the pointer is the game's then, and a gizmo
+// reading the same snapshot would drag the selection along with it.
+pub fn feeding(S: editor::State) -> bool {
+    S.showcase.is_some() && input::mouse_down(input::MOUSE_BUTTON_LEFT)
+}
+
+/// Whether a sequence is running, so the code pane leaves the popup to it.
+pub fn driving(S: editor::State) -> bool {
+    S.showcase.is_some()
+}
+
+pub fn start(S: &mut editor::State, name: str) {
+    let q = Q { name: name, at: 0, kept: map(), ptr: [0.0, 0.0], steps: [], spans: [], seen: 0, acts: [], spans_ui: [], seen_ui: 0 };
+    if name == "scenes" {
+        scenes(S, q);
+    } else if name == "scripting" {
+        scripting(S, q);
+    } else if name == "completion" {
+        completion(S, q, "        physics2d::a");
+    } else if name == "addon_completion" {
+        completion(S, q, "        gamend::lobbies::");
+    } else if name == "animation" {
+        animation(S, q);
+    } else if name == "physics" {
+        physics(S, q);
+    } else if name == "input" {
+        input_clip(S, q);
+    } else if name == "determinism" {
+        determinism(S, q);
+    } else if name == "shaders" {
+        shaders(S, q);
+    } else if name == "focus" {
+        focusing(S, q);
+    } else if name == "manager" {
+        manager_pages(S, q);
+    } else if name == "godot" {
+        godot(S, q);
+    } else if name == "importing" {
+        importing(S, q);
+    } else if name == "theme_editor" {
+        theme_editor(S, q);
+    } else {
+        log::warn("show:{name}: no such showcase");
+        return;
+    }
+    S.show_input = true;
+    signals::changed(S, "inputview");
+    S.showcase = q;
+    log::info("showcase {name}: {q.steps.len() + q.spans.len()} steps, {q.acts.len() + q.spans_ui.len()} acts");
+}
+
+// The update phase: input is fed here, before the game's own update reads
+// the frame's snapshot. Steps fire on their frame; spans run every frame
+// from `from` to `to` with their progress.
+pub fn step(S: &mut editor::State) {
+    if S.showcase.is_none() {
+        return;
+    }
+    let q = S.showcase.unwrap();
+    q.at = q.at + 1;
+    q.seen = run_phase(S, q.steps, q.spans, q.seen, q.at);
+}
+
+// The act phase, at the end of the Editor's update: what a click on the
+// chrome would do runs here, after the game's update, as a click does.
+pub fn acts(S: &mut editor::State) {
+    if S.showcase.is_none() {
+        return;
+    }
+    let q = S.showcase.unwrap();
+    q.seen_ui = run_phase(S, q.acts, q.spans_ui, q.seen_ui, q.at);
+}
+
+// Everything due since this phase last ran, not only what is due exactly
+// now: a step missed for being one frame early would take the rest of the
+// sequence with it.
+fn run_phase(S: &mut editor::State, steps: [Step], spans: [Span], seen: int, t: int) -> int {
+    for s in steps {
+        if s.at > seen && s.at <= t {
+            let run = s.run;
+            run(S, s.data);
+        }
+    }
+    for sp in spans {
+        if t >= sp.from && t <= sp.to {
+            let run = sp.run;
+            run(S, sp.data, ((t - sp.from) as float) / ((sp.to - sp.from) as float));
+        }
+    }
+    t
+}
+
+fn at(q: Q, frame: int, run: fn(&mut editor::State, any), data: any) {
+    q.steps.push(Step { at: frame, run: run, data: data });
+}
+
+fn over(q: Q, from: int, to: int, run: fn(&mut editor::State, any, float), data: any) {
+    q.spans.push(Span { from: from, to: to, run: run, data: data });
+}
+
+fn act(q: Q, frame: int, run: fn(&mut editor::State, any), data: any) {
+    q.acts.push(Step { at: frame, run: run, data: data });
+}
+
+fn over_ui(q: Q, from: int, to: int, run: fn(&mut editor::State, any, float), data: any) {
+    q.spans_ui.push(Span { from: from, to: to, run: run, data: data });
+}
+
+// One of `verb`'s verbs as an act, with what else it reads.
+fn act_verb(q: Q, frame: int, name: str, data: any) {
+    act(q, frame, verb, data.with("verb", name));
+}
+
+fn ease(p: float) -> float {
+    p * p * (3.0 - 2.0 * p)
+}
+
+fn lerp(a: float, b: float, p: float) -> float {
+    a + (b - a) * p
+}
+
+// Design px to the window px the snapshot holds. Where the pointer landed is
+// kept on the sequence, because a glide has to know where it starts from.
+fn feed_pointer(S: &mut editor::State, x: float, y: float) {
+    let dpi = render::camera_pose()[7];
+    input::feed_mouse(x * S.ui_scale * dpi, y * S.ui_scale * dpi);
+    if S.showcase.is_some() {
+        let q = S.showcase.unwrap();
+        q.ptr = [x, y];
+    }
+}
+
+// The pointer walks to a place over `from`..`to` instead of appearing there.
+// Where it starts is only known once the walk begins, so the span's first
+// frame reads it and the rest interpolate.
+fn glide(q: Q, from: int, to: int, place: any) {
+    over(q, from, to, gliding, map().with("place", place).with("ready", false));
+}
+
+fn gliding(S: &mut editor::State, seg: any, p: float) {
+    if !seg.ready.as_bool() {
+        let target = place_of(S, seg.place);
+        let was = S.showcase.unwrap().ptr;
+        // Nothing has placed the pointer yet: start at the target rather
+        // than sweeping in from the window's corner.
+        let unplaced = was[0] == 0.0 && was[1] == 0.0;
+        seg.set("ready", true);
+        seg.set("from", if unplaced { target } else { was });
+        seg.set("to", target);
+    }
+    let e = ease(p);
+    feed_pointer(S, lerp(util::f(seg.from[0]), util::f(seg.to[0]), e), lerp(util::f(seg.from[1]), util::f(seg.to[1]), e));
+}
+
+// A 2D world point in design px, through the camera the viewport draws with.
+fn design_of_world(S: editor::State, wx: float, wy: float) -> [float] {
+    let cam = render::camera_2d();
+    let sw = S.screen_w * S.ui_scale;
+    let sh = S.screen_h * S.ui_scale;
+    return [(sw / 2.0 + (wx - cam.x) * cam.z) / S.ui_scale, (sh / 2.0 - (wy - cam.y) * cam.z) / S.ui_scale];
+}
+
+// Where the selected node sits, in design px; the pointer's own place when
+// it has none.
+fn selection_spot(S: editor::State) -> [float] {
+    let found = model::live(S, S.sel);
+    if !found.is_valid() {
+        return S.showcase.unwrap().ptr;
+    }
+    let p = found.transform.global_position();
+    design_of_world(S, p.x, p.y)
+}
+
+fn press(S: &mut editor::State, data: any) {
+    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, true);
+}
+
+fn release(S: &mut editor::State, data: any) {
+    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, false);
+}
+
+// Each of `data.keys` down, or up.
+fn keys(S: &mut editor::State, data: any) {
+    for key in util::vec(data.keys) {
+        input::feed_key(key.as_str(), data.down.as_bool());
+    }
+}
+
+// Keys held from one frame to another.
+fn hold(q: Q, from: int, to: int, held: [str]) {
+    at(q, from, keys, map().with("keys", held).with("down", true));
+    at(q, to, keys, map().with("keys", held).with("down", false));
+}
+
+fn tap(q: Q, frame: int, key: str) {
+    hold(q, frame, frame + 8, [key]);
+}
+
+// A chord held while the verb `name` runs: the overlay names the keys, which
+// is the only thing that explains a shortcut nobody can see being typed.
+fn chord(q: Q, frame: int, held: [str], name: str) {
+    at(q, frame, keys, map().with("keys", held).with("down", true));
+    act_verb(q, frame + 3, name, map());
+    at(q, frame + 16, keys, map().with("keys", held).with("down", false));
+}
+
+/// Where a control sits, in design px, read off the rects `layout.bs`
+/// publishes rather than measured off a screenshot. The showcase feeds the
+/// snapshot and the widgets read the window, so a click here is drawn rather
+/// than delivered: the sequence calls the verb itself.
+fn spot(S: editor::State, name: str) -> [float] {
+    let bottom = S.layout.bottom;
+    let right = S.layout.right;
+    if name.ends_with("_tab") {
+        return of(chrome::workspace_spot(S, name.slice(0, name.len() - 4)));
+    }
+    if name == "focus_chip" {
+        return of(chrome::focus_spot(S));
+    }
+    if name == "play" || name == "stop" {
+        return of(chrome::transport_spot(S, if name == "play" { 0 } else { 2 }));
+    }
+    if name == "recordings" {
+        // The newest recording's play button in the session list.
+        return [util::f(bottom.x) + 21.0, util::f(bottom.y) + 94.0];
+    }
+    if name == "key" {
+        return [util::f(bottom.x) + 32.0, util::f(bottom.y) + 68.0];
+    }
+    if name == "bone_tool" {
+        return tool_spot(S, "bone");
+    }
+    if name == "doc_scene" || name == "doc_code" {
+        return of(chrome::doc_spot(S, if name == "doc_scene" { "scene" } else { "script" }));
+    }
+    if name == "shader_field" {
+        // Two rows deep in the inspector, whose sections are the scene's; the
+        // column is the published one, the offset down it is the clip's.
+        return [util::f(right.x) + util::f(right.w) * 0.53, util::f(right.y) + 539.0];
+    }
+    if name == "scale_x" {
+        let found = form_spot(S, "Scale");
+        if found.len() == 2 {
+            return found;
+        }
+        return [util::f(right.x) + 127.0, util::f(right.y) + 169.0];
+    }
+    return [S.screen_w / 2.0, S.screen_h / 2.0];
+}
+
+fn of(at: chrome::Spot) -> [float] {
+    return [at.x, at.y];
+}
+
+// A tool in the rail, by the id `defs::tools` gives it in this workspace.
+fn tool_spot(S: editor::State, tool: str) -> [float] {
+    let rail = S.layout.rail;
+    let slot = util::position(defs::tools(S.workspace), tool);
+    let n = if slot.is_some() { slot.unwrap() } else { 0 };
+    return [util::f(rail.x) + util::f(rail.w) / 2.0, util::f(rail.y) + TOOL_TOP + (n as float) * TOOL_PITCH];
+}
+
+// The centre of the node at `path`, or nothing before it has drawn.
+fn centre_of(path: str) -> [float] {
+    let node = scene::get_node(path);
+    let rect = if node.is_valid() { ui::widget_rect(node) } else { nil };
+    if rect.is_none() {
+        return [];
+    }
+    let box = rect.unwrap();
+    return [box.x + box.width / 2.0, box.y + box.height / 2.0];
+}
+
+// Where an inspector row's first control sits, by the label the form gave it:
+// the pool answers where it drew the row, so a section moving does not move
+// the pointer off it. Nothing before the form has drawn.
+fn form_spot(S: editor::State, label: str) -> [float] {
+    for i in 0..S.form.len() {
+        if S.form[i].label.as_str() == label {
+            return centre_of("Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form/R{i}/C/C0");
+        }
+    }
+    return [];
+}
+
+// A row of the node tree, by document index: the tree answers where it drew
+// it, and the dock's middle is only reached before it has drawn once.
+fn row_spot(S: &mut editor::State, i: int) -> [float] {
+    let found = left::row_spot(S, i);
+    if found.is_some() {
+        return [found.unwrap().x, found.unwrap().y];
+    }
+    let box = S.layout.left;
+    return [util::f(box.x) + util::f(box.w) * 0.4, util::f(box.y) + util::f(box.h) / 2.0];
+}
+
+// The gutter of the code editor, by line: the pane's own padding, then one
+// row per line at the editor's line height.
+fn gutter_spot(S: editor::State, line: int) -> [float] {
+    let doc = S.layout.doc;
+    // The pane does not scroll, so a line past its foot answers with the last
+    // one it shows rather than a pointer drawn below the pane.
+    let last = ((util::f(doc.h) - CODE_TOP - LINE_H) / LINE_H) as int + 1;
+    let n = util::imin(line, last);
+    return [util::f(doc.x) + 17.0, util::f(doc.y) + CODE_TOP + ((n - 1) as float) * LINE_H];
+}
+
+// Scroll the code pane so `line` sits `row` lines down it, and answer where its
+// gutter mark then is. Offscreen the pane takes no wheel from a fed pointer, so
+// the clip asks for the offset outright.
+fn scrolled_gutter_spot(S: &mut editor::State, rel: str, line: int, row: int) -> [float] {
+    let doc = S.layout.doc;
+    let lines = model::source(S, rel).as_str().split("\n").len();
+    // The pane stops scrolling at its last line, and the cursor has to stop
+    // with it: past that the mark is drawn where the line is not.
+    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_H - util::f(doc.h));
+    let want = if line > row { ((line - row) as float) * LINE_H } else { 0.0 };
+    let off = util::min(want, last);
+    S.code_scroll = off;
+    return [util::f(doc.x) + 17.0, util::f(doc.y) + CODE_TOP + ((line - 1) as float) * LINE_H - off];
+}
+
+// Where the start screen's control `name` sits; the middle of the window
+// before it has drawn once.
+fn manager_spot(S: editor::State, name: str) -> [float] {
+    let found = manager::spot(S, name);
+    if found.is_some() {
+        return [found.unwrap().x, found.unwrap().y];
+    }
+    return [S.screen_w / 2.0, S.screen_h / 2.0];
+}
+
+/// Where a place the clip names is now, in design px. A place is one of:
+/// `{ spot }` a named control, `{ row }` a tree row by node name,
+/// `{ selection }`, `{ world: [x, y] }`, `{ viewport: [fx, fy] }`,
+/// `{ gutter, rel, dx }` the line holding `gutter`, `{ scrolled, rel, row }`,
+/// `{ manager }`, `{ centre }` a node's path, `{ head }` a theme head
+/// button's caption, or `{ form, at }` a theme form row's control.
+fn place_of(S: &mut editor::State, place: any) -> [float] {
+    let found: [float] = [];
+    if place.has("spot") {
+        found = spot(S, place.spot.as_str());
+    } else if place.has("row") {
+        let i = index_of(S, place.row.as_str());
+        found = row_spot(S, if i.is_some() { i.unwrap() } else { 0 });
+    } else if place.has("selection") {
+        found = selection_spot(S);
+    } else if place.has("world") {
+        found = design_of_world(S, util::f(place.world[0]), util::f(place.world[1]));
+    } else if place.has("viewport") {
+        let v = S.viewport;
+        found = [v.x + v.w * util::f(place.viewport[0]), v.y + v.h * util::f(place.viewport[1])];
+    } else if place.has("gutter") {
+        let at = gutter_spot(S, line_of(S, place.rel.as_str(), place.gutter.as_str()));
+        found = [at[0] + util::f(place.dx), at[1]];
+    } else if place.has("scrolled") {
+        let rel = place.rel.as_str();
+        found = scrolled_gutter_spot(S, rel, line_of(S, rel, place.scrolled.as_str()), place.row.as_int());
+    } else if place.has("manager") {
+        found = manager_spot(S, place.manager.as_str());
+    } else if place.has("centre") {
+        found = centre_of(place.centre.as_str());
+    } else if place.has("head") {
+        found = head_control(place.head.as_str());
+    } else if place.has("form") {
+        found = form_control(place.form.as_str(), place.at.as_int());
+    }
+    if found.len() < 2 {
+        return [0.0, 0.0];
+    }
+    found
+}
+
+// A place named by one key: `at_place("spot", "play")`.
+fn at_place(name: str, value: any) -> any {
+    map().with(name, value)
+}
+
+// A click a viewer can follow: the cursor walks in, presses where the control
+// is, the verb runs under it, and the button comes back up.
+fn click(q: Q, frame: int, place: any, name: str, data: any) {
+    glide(q, frame - GLIDE, frame, place);
+    at(q, frame, pressed_at, map().with("place", place));
+    act_verb(q, frame + 3, name, data);
+    at(q, frame + 12, release, nil);
+}
+
+fn pressed_at(S: &mut editor::State, data: any) {
+    let at = place_of(S, data.place);
+    feed_pointer(S, at[0], at[1]);
+    press(S, nil);
+}
+
+fn click_row(q: Q, frame: int, name: str) {
+    click(q, frame, at_place("row", name), "choose", map().with("name", name));
+}
+
+fn index_of(S: editor::State, name: str) -> int? {
+    for i in 0..S.doc.len() {
+        if S.doc[i].name.as_str() == name {
+            return i;
+        }
+    }
+    nil
+}
+
+// The script at `rel` as it is open: its unsaved buffer, or the file.
+fn source_of(S: &mut editor::State, rel: str) -> str {
+    let buffer = S.script_buffers.get(S.game_root + "/" + rel);
+    if buffer.is_nil() { model::source(S, rel).as_str() } else { buffer.as_str() }
+}
+
+fn line_of(S: &mut editor::State, rel: str, needle: str) -> int {
+    let lines = model::source(S, rel).as_str().split("\n");
+    for i in 0..lines.len() {
+        if lines[i].contains(needle) {
+            return i + 1;
+        }
+    }
+    0
+}
+
+// Change the open buffer the way typing would; `save_active` writes it.
+fn edit_source(S: &mut editor::State, rel: str, from: str, to: str) {
+    let abs = S.game_root + "/" + rel;
+    S.script_buffers.set(abs, source_of(S, rel).replace(from, to));
+    center::code_written(S);
+    S.script_dirty.set(abs, true);
+    lint::touched(S);
+    signals::bars(S);
+}
+
+fn restore_source(S: &mut editor::State, rel: str) {
+    let original = S.showcase.unwrap().kept.get(rel).as_str();
+    if original == "" {
+        return;
+    }
+    S.script_buffers.set(S.game_root + "/" + rel, original);
+    center::code_written(S);
+    shell::save_active(S);
+}
+
+// What the clips do, by the name a step carries, with what else it carries.
+fn verb(S: &mut editor::State, data: any) {
+    let name = data.verb.as_str();
+    if name == "workspace" {
+        shell::set_workspace(S, data.id.as_str());
+    } else if name == "choose" {
+        let i = index_of(S, data.name.as_str());
+        if i.is_some() {
+            shell::choose(S, i.unwrap());
+        }
+    } else if name == "play" {
+        shell::toggle_play(S);
+    } else if name == "stop" {
+        shell::stop_play(S);
+    } else if name == "undo" {
+        shell::undo(S);
+    } else if name == "save" {
+        shell::save_active(S);
+    } else if name == "focus" {
+        shell::toggle_focus(S);
+    } else if name == "palette" {
+        shell::open_palette(S, "");
+    } else if name == "dock" {
+        docks::show(S, data.id.as_str());
+    } else if name == "doctab" {
+        S.doctab = data.id.as_str();
+        signals::inspector(S);
+    } else if name == "shader" {
+        S.shader_rel = data.rel.as_str();
+        S.doctab = "script";
+        signals::inspector(S);
+    } else if name == "debug_view" {
+        render::set_debug_view(data.id.as_str());
+    } else if name == "zoom" {
+        shell::set_zoom(S, util::f(data.to));
+    } else if name == "keep" {
+        S.showcase.unwrap().kept.set(data.rel.as_str(), model::source(S, data.rel.as_str()).as_str());
+    } else if name == "edit" {
+        edit_source(S, data.rel.as_str(), data.from.as_str(), data.to.as_str());
+    } else if name == "restore" {
+        restore_source(S, data.rel.as_str());
+    } else if name == "breakpoint" {
+        let rel = data.rel.as_str();
+        shell::toggle_breakpoint(S, rel, line_of(S, rel, data.needle.as_str()));
+    } else if name == "step_over" {
+        if S.debug.paused.kind() == "map" {
+            shell::resume(S, debugger::STEP_OVER);
+        }
+    } else if name == "continue" {
+        if S.debug.paused.kind() == "map" {
+            shell::resume(S, debugger::CONTINUE);
+        }
+    } else if name == "record" {
+        history::record(S, data.label.as_str(), nil);
+    } else if name == "seek" {
+        anim::seek(S, util::f(data.t));
+    } else if name == "key" {
+        anim::add_key(S, S.anim.time);
+    } else if name == "bone_tool" {
+        S.tool = "bone";
+        signals::inspector(S);
+    } else if name == "fit_level" {
+        // The angrynerds level framed for the viewport: the game's own camera
+        // is set for a whole window, and the editor's panels cover its edges.
+        render::set_camera_2d(1.0, 2.2, 30.0);
+    } else if name == "fit_figure" {
+        fit_figure(S);
+    } else if name == "open_newest" {
+        let rows = session::listing(S);
+        if rows.len() > 0 {
+            session::open(S, rows[0].name);
+        }
+    } else if name == "verify" {
+        S.session.verify = true;
+        signals::changed(S, "recordings");
+    } else if name == "manager" {
+        manager::open(S);
+    } else if name == "manager_tab" {
+        S.manager.tab = data.id.as_str();
+    } else if name == "manager_new" {
+        manager::open_new(S);
+    } else if name == "convert" {
+        // Nothing to convert without a `convert:` beside this state, which is
+        // what `scripts/showcase.sh` gives it.
+        if S.manager.convert_from != "" {
+            S.manager.converted = manager::convert(S, S.manager.convert_from, "keep");
+        }
+    } else if name == "forget_converted" {
+        if S.manager.converted != "" {
+            project::forget(S.manager.converted);
+        }
+    } else if name == "drip_off" {
+        // The queue's own drip is off; the pointer takes one file per beat.
+        S.import_drip = false;
+    } else if name == "import_next" {
+        if S.import_queue.len() > 0 {
+            dropin::take(S, S.import_queue.remove(0));
+        }
+    } else if name == "theme" {
+        shell::close_palette(S);
+        themewin::open(S);
+    } else if name == "theme_duplicate" {
+        themewin::duplicate(S);
+    } else if name == "theme_page" {
+        S.themewin.page = data.id.as_str();
+    } else if name == "theme_role" {
+        themewin::show_role(S, data.id.as_str(), "");
+    } else if name == "theme_save" {
+        themewin::save(S);
+    } else if name == "window_hide" {
+        window::hide(S);
+    } else if name == "theme_put_back" {
+        // Put back what the take changed on disk, with the editor still
+        // wearing the copy for the frames already written.
+        fs::remove(theme::path_of(S.theme.name.as_str(), S.theme.half.as_str()));
+        if data.kept.kind() == "str" {
+            fs::write(data.prefs.as_str(), data.kept.as_str());
+        } else {
+            fs::remove(data.prefs.as_str());
+        }
+    }
+}
+
+// The rig scene carries a `camera` node, which outvotes the editor's own
+// zoom every frame, so the clip's framing is that node's.
+fn fit_figure(S: &mut editor::State) {
+    let held = S.sel;
+    let found = index_of(S, "Camera");
+    if found.is_some() {
+        selection::only(S, found.unwrap());
+        model::set_transform(S, found.unwrap(), rig::Parts { position: [0.6, 0.1, 0.0], rotation_euler: [], scale: [] });
+        model::set_component_prop(S, "camera2d", "pixels_per_unit", 150.0);
+    }
+    selection::only(S, held);
+}
+
+// The pointer follows a place every frame of a span, `dx` right of it by
+// the end.
+fn follow(S: &mut editor::State, data: any, p: float) {
+    let at = place_of(S, data.place);
+    feed_pointer(S, at[0] + util::f(data.dx) * ease(p), at[1]);
+}
+
+fn following(place: any, dx: float) -> any {
+    map().with("place", place).with("dx", dx)
+}
+
+// The slingshot: grab the bird, pull down and left, let go.
+fn fling(q: Q, from: int) {
+    glide(q, from - GLIDE, from, at_place("world", [-8.0, 2.2]));
+    at(q, from + 10, press, nil);
+    over(q, from + 10, from + 70, pulling, nil);
+    at(q, from + 80, release, nil);
+}
+
+fn pulling(S: &mut editor::State, data: any, p: float) {
+    let e = ease(p);
+    let at = design_of_world(S, lerp(-8.0, -10.2, e), lerp(2.2, 1.3, e));
+    feed_pointer(S, at[0], at[1]);
+}
+
+// The screen the editor starts on: its pages in turn, then the sheet that
+// makes a project from a template.
+fn manager_pages(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "manager", map());
+    click(q, 50, at_place("manager", "examples"), "manager_tab", map().with("id", "examples"));
+    click(q, 210, at_place("manager", "projects"), "manager_tab", map().with("id", "projects"));
+    click(q, 330, at_place("manager", "new"), "manager_new", map());
+}
+
+// A Godot project converted from the start screen: the pointer on Import
+// project, then the count climbing where a folder picker would have been.
+fn godot(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "manager", map());
+    click(q, 60, at_place("manager", "import"), "convert", map());
+    // Forgotten past the last frame the clip takes: the row the conversion
+    // leaves in the list is what it ends on.
+    act_verb(q, 839, "forget_converted", map());
+    // The note and the bar the import puts up push the toolbar down, so the
+    // pointer rides the button rather than staying where it was pressed.
+    over(q, 72, 400, follow, following(at_place("manager", "import"), 0.0));
+}
+
+// Files arriving one at a time, each let go where the pointer is: the editor
+// keeps drawing while the job writes them.
+fn importing(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(q, 1, "dock", map().with("id", "assets"));
+    act_verb(q, 1, "drip_off", map());
+    drop_file(q, 70, 0.34, 0.44);
+    drop_file(q, 190, 0.56, 0.34);
+    drop_file(q, 310, 0.44, 0.62);
+    drop_file(q, 430, 0.62, 0.54);
+}
+
+// The pointer walks somewhere in the viewport and lets the next file go.
+fn drop_file(q: Q, frame: int, fx: float, fy: float) {
+    click(q, frame, at_place("viewport", [fx, fy]), "import_next", map());
+}
+
+// The code pane taking the window: a node with a script, the Focus chip
+// folding the three docks away, and the shortcut putting them back.
+fn focusing(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCRIPT));
+    click_row(q, 40, "Spinner");
+    click(q, 200, at_place("spot", "focus_chip"), "focus", map());
+    chord(q, 480, [input::KEY_LEFT_SHIFT, input::KEY_LEFT_META, input::KEY_BACKSLASH], "focus");
+}
+
+// Scenes and nodes, `examples/hello`: the tree, the inspector following the
+// selection, an edit, and its undo.
+fn scenes(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    click_row(q, 30, "Platform");
+    click_row(q, 150, "Ball");
+    click_row(q, 250, "Spinner");
+    click_row(q, 350, "CrateB");
+    click_row(q, 450, "Spinner");
+    // A drag on the inspector's scale field, with the button held throughout.
+    glide(q, 520 - GLIDE, 520, at_place("spot", "scale_x"));
+    at(q, 540, press, nil);
+    at(q, 540, verb, map().with("verb", "record").with("label", "scale Spinner"));
+    over_ui(q, 540, 620, scaling, nil);
+    over(q, 540, 620, follow, following(at_place("spot", "scale_x"), 30.0));
+    at(q, 630, release, nil);
+    chord(q, 700, [input::KEY_LEFT_META, input::KEY_Z], "undo");
+}
+
+fn scaling(S: &mut editor::State, data: any, p: float) {
+    let s = lerp(1.0, 2.4, ease(p));
+    model::set_transform(S, S.sel, rig::Parts { position: [], rotation_euler: [], scale: [s, s, s] });
+}
+
+// Scripting, `examples/hello`: a change saved while the scene runs, then a
+// breakpoint stepped in the Debugger dock.
+fn scripting(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "keep", map().with("rel", SPINNER));
+    click(q, 30, at_place("spot", "script_tab"), "workspace", map().with("id", defs::WORKSPACE_SCRIPT));
+    click_row(q, 110, "Spinner");
+    click(q, 200, at_place("spot", "play"), "play", map());
+    // The cursor rests on the edited line, or on the last one the pane can
+    // show when the edit is below its foot.
+    glide(q, 300 - GLIDE, 300, map().with("gutter", "self.angle += dt").with("rel", SPINNER).with("dx", 220.0));
+    act_verb(q, 320, "edit", map().with("rel", SPINNER).with("from", "(self.speed + nudge").with("to", "(self.speed * 4.0 + nudge"));
+    chord(q, 400, [input::KEY_LEFT_META, input::KEY_S], "save");
+    // Scrolled to first: the line the breakpoint goes on is near the file's
+    // foot, and a mark on a line half off the pane reads as nothing happening.
+    let place = map().with("scrolled", "action_just_pressed").with("rel", SPINNER).with("row", 8);
+    click(q, 520, place, "breakpoint", map().with("rel", SPINNER).with("needle", "action_just_pressed"));
+    chord(q, 640, ["F10"], "step_over");
+    chord(q, 720, ["F10"], "step_over");
+    act_verb(q, 800, "breakpoint", map().with("rel", SPINNER).with("needle", "let nudge"));
+    act_verb(q, 800, "continue", map());
+    act_verb(q, 860, "restore", map().with("rel", SPINNER));
+}
+
+// Completion, `examples/hello`: the caret lands after `text`, a module path,
+// and the popup opens under it. The caret is placed rather than typed, the
+// way `edit_source` writes the buffer rather than typing into it.
+fn completion(S: &mut editor::State, q: Q, text: str) {
+    act_verb(q, 1, "keep", map().with("rel", SPINNER));
+    // Re-opened every frame: `center::code_pane` runs after this and would
+    // otherwise close it from the widget's own caret, which offscreen is none.
+    over_ui(q, 20, 400, completing, map().with("rel", SPINNER).with("text", text));
+    act_verb(q, 420, "restore", map().with("rel", SPINNER));
+}
+
+// Put `text` on its own line after `fn init`, and open the popup with the
+// caret at its end. The caret's screen position is the gutter's own geometry,
+// which is what the code pane hands the popup when a person puts it there.
+// `init`, not `update`: the pane does not scroll to a caret the showcase
+// places, so the popup has to open where it already looks.
+fn completing(S: &mut editor::State, data: any, _p: float) {
+    let rel = data.rel.as_str();
+    let text = data.text.as_str();
+    let line = line_of(S, rel, "fn init");
+    let lines = model::source(S, rel).as_str().split("\n");
+    let out: [str] = [];
+    let head: [str] = [];
+    for i in 0..lines.len() {
+        out.push(lines[i]);
+        if i < line {
+            head.push(lines[i]);
+        }
+        if i + 1 == line {
+            out.push(text);
+        }
+    }
+    let joined = util::join(out, "\n");
+    let index = util::join(head, "\n").chars().len() + 1 + text.chars().len();
+    S.script_buffers.set(S.game_root + "/" + rel, joined);
+    let at = gutter_spot(S, line + 1);
+    complete::update(S, rel, joined, complete::Caret {
+        index: index,
+        x: at[0] + 34.0 + (text.chars().len() as float) * CHAR_W,
+        y: at[1] + LINE_H,
+    });
+}
+
+// Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
+fn animation(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "fit_figure", map());
+    click(q, 20, at_place("spot", "animation_tab"), "workspace", map().with("id", defs::WORKSPACE_ANIMATION));
+    click_row(q, 90, "Thigh");
+    click(q, 150, at_place("spot", "bone_tool"), "bone_tool", map());
+    over_ui(q, 200, 340, scrubbing, nil);
+    act_verb(q, 380, "seek", map().with("t", 1.0));
+    // Drag the bone itself: the cursor sits on it while it turns.
+    glide(q, 430 - GLIDE, 430, at_place("selection", true));
+    at(q, 430, press, nil);
+    act_verb(q, 434, "record", map().with("label", "pose Thigh"));
+    over_ui(q, 434, 520, posing, nil);
+    over(q, 434, 520, follow, following(at_place("selection", true), 0.0));
+    at(q, 530, release, nil);
+    click(q, 600, at_place("spot", "key"), "key", map());
+    click(q, 700, at_place("spot", "play"), "play", map());
+    // Stopped while the figure is still on its feet: the rig's own script
+    // ragdolls it a few seconds in, which reads as the clip breaking.
+    click(q, 800, at_place("spot", "stop"), "stop", map());
+}
+
+fn scrubbing(S: &mut editor::State, data: any, p: float) {
+    anim::seek(S, 2.0 * ease(p));
+}
+
+fn posing(S: &mut editor::State, data: any, p: float) {
+    model::set_transform(S, S.sel, rig::Parts { position: [], rotation_euler: [0.0, 0.0, lerp(0.5, 0.95, ease(p))], scale: [] });
+}
+
+// Physics, `examples/angrynerds`: the collider overlays, then play and a
+// shot at the towers.
+fn physics(S: &mut editor::State, q: Q) {
+    click(q, 20, at_place("spot", "physics_tab"), "workspace", map().with("id", defs::WORKSPACE_PHYSICS));
+    act_verb(q, 23, "zoom", map().with("to", 45.0));
+    click_row(q, 80, "Bird");
+    click(q, 150, at_place("spot", "play"), "play", map());
+    act_verb(q, 160, "fit_level", map());
+    fling(q, 220);
+}
+
+// Input, `examples/hello`: the overlay, fed the keys and clicks a person
+// would press.
+fn input_clip(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    click_row(q, 30, "Spinner");
+    click(q, 110, at_place("spot", "play"), "play", map());
+    tap(q, 200, "Space");
+    hold(q, 260, 340, [input::KEY_A]);
+    hold(q, 370, 450, [input::KEY_D]);
+    glide(q, 470 - GLIDE, 470, at_place("viewport", [0.3, 0.6]));
+    over(q, 470, 520, sweeping, nil);
+    at(q, 530, press, nil);
+    at(q, 545, release, nil);
+    tap(q, 600, "Space");
+    hold(q, 650, 710, [input::KEY_LEFT_SHIFT, input::KEY_W]);
+}
+
+fn sweeping(S: &mut editor::State, data: any, p: float) {
+    let v = S.viewport;
+    let e = ease(p);
+    feed_pointer(S, v.x + v.w * lerp(0.3, 0.55, e), v.y + v.h * lerp(0.6, 0.45, e));
+}
+
+// Determinism, `examples/angrynerds`: play records, the bird flies, stop;
+// open the session and it flies again with nobody at the mouse; scrub back,
+// pause, play on.
+fn determinism(S: &mut editor::State, q: Q) {
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(q, 1, "zoom", map().with("to", 45.0));
+    act_verb(q, 1, "verify", map());
+    act_verb(q, 1, "dock", map().with("id", "recordings"));
+    click_row(q, 40, "Bird");
+    click(q, 120, at_place("spot", "play"), "play", map());
+    act_verb(q, 123, "dock", map().with("id", "recordings"));
+    act_verb(q, 130, "fit_level", map());
+    fling(q, 200);
+    click(q, 520, at_place("spot", "stop"), "stop", map());
+    act_verb(q, 523, "dock", map().with("id", "recordings"));
+    click(q, 640, at_place("spot", "recordings"), "open_newest", map());
+    act_verb(q, 650, "fit_level", map());
+}
+
+// Shaders, `examples/shaders`: the material in the inspector, its shader in
+// the code editor, a channel view, and a save that relinks the sprite.
+fn shaders(S: &mut editor::State, q: Q) {
+    let rel = "shaders/glow.wesl";
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    // The dock names each previewed line and its type as it is asked for.
+    act_verb(q, 1, "dock", map().with("id", "output"));
+    act_verb(q, 1, "keep", map().with("rel", rel));
+    click_row(q, 40, "Logo");
+    click(q, 150, at_place("spot", "shader_field"), "shader", map().with("rel", rel));
+    // No per-line value preview: `render::set_shader_preview` relinks the
+    // material in a run and not in the editor, so the viewport would show the
+    // same picture whichever line was asked for.
+    click(q, 320, at_place("spot", "doc_scene"), "doctab", map().with("id", "scene"));
+    act_verb(q, 400, "debug_view", map().with("id", "uv"));
+    act_verb(q, 520, "debug_view", map().with("id", "normals"));
+    act_verb(q, 640, "debug_view", map().with("id", ""));
+    click(q, 700, at_place("spot", "doc_code"), "doctab", map().with("id", "script"));
+    act_verb(q, 780, "edit", map().with("rel", rel).with("from", "dist * params.rings").with("to", "dist * params.rings * 3.0"));
+    chord(q, 840, [input::KEY_LEFT_META, input::KEY_S], "save");
+    click(q, 900, at_place("spot", "doc_scene"), "doctab", map().with("id", "scene"));
+    act_verb(q, 1080, "doctab", map().with("id", "script"));
+    act_verb(q, 1080, "restore", map().with("rel", rel));
+}
+
+// The Theme window, `examples/hello`: a duplicate's primary colour walked to
+// amber, every token derived from it following, and a chip's padding dragged.
+// The copy and the preferences file are put back.
+const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
+
+const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
+
+// A form row's control, found by the row's label: the rows are pooled, so a
+// row's index moves with whatever the page shows above it.
+fn form_control(label: str, at: int) -> [float] {
+    let host = scene::get_node(FORM);
+    if !host.is_valid() {
+        return [];
+    }
+    for row in host.children() {
+        let named = row.get_node("L");
+        if row.get_component("widget", "visible").as_bool() && named.is_valid()
+            && named.get_component("widget", "text").as_str() == label {
+            return centre_of("{FORM}/{row.name()}/H/C/C{at}");
+        }
+    }
+    return [];
+}
+
+// The head row's buttons, by their caption.
+fn head_control(text: str) -> [float] {
+    let slot = FORM + "/R0/H/C";
+    let host = scene::get_node(slot);
+    if !host.is_valid() {
+        return [];
+    }
+    for control in host.children() {
+        if control.get_component("widget", "text").as_str() == text {
+            return centre_of(slot + "/" + control.name());
+        }
+    }
+    return [];
+}
+
+fn mix(a: str, b: str, p: float) -> str {
+    let x = util::hex_to_rgb(a);
+    let y = util::hex_to_rgb(b);
+    util::to_hex([lerp(x.r, y.r, p), lerp(x.g, y.g, p), lerp(x.b, y.b, p)])
+}
+
+fn theme_editor(S: &mut editor::State, q: Q) {
+    let prefs = settings::prefs_path();
+    let was = fs::read(prefs);
+    act_verb(q, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    chord(q, 40, [input::KEY_LEFT_META, input::KEY_K], "palette");
+    over_ui(q, 70, 110, typing, map().with("word", "theme"));
+    click(q, 150, at_place("centre", "Editor/Picker/PickerScroll/PickerRows/R0"), "theme", map());
+    click(q, 250, at_place("head", "Duplicate"), "theme_duplicate", map());
+    // One source: the fills, the inks and the tints derived from it follow.
+    glide(q, 330 - GLIDE, 330, map().with("form", "primary").with("at", 0));
+    at(q, 330, press, nil);
+    over_ui(q, 335, 455, recolouring, nil);
+    at(q, 460, release, nil);
+    click(q, 540, at_place("centre", SIDE + "/C3"), "theme_page", map().with("id", "controls"));
+    click(q, 620, map().with("form", "chip").with("at", 1), "theme_role", map().with("id", "chip"));
+    let padding = map().with("form", "  padding_x").with("at", 0);
+    glide(q, 700 - GLIDE, 700, padding);
+    at(q, 700, press, nil);
+    over_ui(q, 705, 785, padding_out, nil);
+    over(q, 705, 785, follow, following(padding, 40.0));
+    at(q, 790, release, nil);
+    // The bar reads title, spring, Save, close: Save is its third node.
+    click(q, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", map());
+    click(q, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", map());
+    let put_back = map().with("verb", "theme_put_back").with("prefs", prefs);
+    if was.is_some() {
+        put_back.set("kept", was.unwrap());
+    }
+    at(q, 1030, verb, put_back);
+}
+
+// The palette's query typed a letter at a time.
+fn typing(S: &mut editor::State, data: any, p: float) {
+    let word = data.word.as_str();
+    let last = word.len() as float;
+    S.palette_query = word.slice(0, util::min(last, p * (last + 1.0)) as int);
+}
+
+fn recolouring(S: &mut editor::State, data: any, p: float) {
+    themewin::edit(S, ["colors"], "primary", mix("#4287cc", "#c8843e", ease(p)));
+}
+
+fn padding_out(S: &mut editor::State, data: any, p: float) {
+    themewin::edit(S, ["roles", "chip"], "padding_x", (lerp(8.0, 16.0, ease(p)) + 0.5) as int);
+}

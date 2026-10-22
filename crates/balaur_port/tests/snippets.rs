@@ -261,10 +261,13 @@ pub fn say(run, n) {
     let a = format!("{} of {}", n, 10);
     let b = format!("{:.2}", 1.5);
     let c = "braces {} stay";
-    a + b + c
+    let d = format!("held {:?}", [run, n]);
+    a + b + c + d
 }
 "#,
     );
+    has(&out, r#"let d = "held {[run, n]}";"#);
+    assert!(!out.contains("writes only"), "a list interpolates through its text form:\n{out}");
     has(&out, r#"log::info("suite: done {run} after {n} frames");"#);
     has(&out, r#"let a = "{n} of {10}";"#);
     has(

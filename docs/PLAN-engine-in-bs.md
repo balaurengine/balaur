@@ -193,5 +193,19 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - `defs::chips` gives `[Chip { key, label, starts }]`, `starts` nil for an
      engine-backed chip; `chip_on(S.chip_state, workspace, key)`.
    - `icons::component` gives `Component { glyph, token }`.
+
+   Layers 2 to 4 are ported: the tools, the panels, then `selftest` and
+   `showcase`. With them the whole editor checks as `.bs`.
+   - A self-test that runs over frames keeps its state in a class on `S`
+     (`CameraCheck`, `PickCheck`, ...), so a step's writes stay put.
+     `step_all` steps each by name; no callbacks.
+   - A showcase clip is data: `Step { at, run, data }` and
+     `Span { from, to, run, data }`, with a place the pointer goes read by
+     `place_of` when the step runs. A click runs a verb by name.
+   - `test:reload` is gone. The runtime carries each field by name and type
+     (`balaur_bs` `reload::an_edit_keeps_every_field_that_kept_its_name`).
+   - `manager::convert(S, folder, after)` takes `"open"`, `"forget"` or
+     anything else for "keep listed".
+   - `model::doc_is_2d(doc)` answers for a document without a `State`.
 7. **Examples, templates, the GDScript translator, docs.**
 8. **Rune removed.**

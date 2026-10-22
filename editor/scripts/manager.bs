@@ -1176,7 +1176,8 @@ fn import_project(S: &mut editor::State, folder: str) {
 
 /// Start converting `folder` into a balaur project beside it, a few files a
 /// frame. Answers where it will land, or "" with the reason in
-/// `S.manager.failed`; `after(S, path)` runs once every file is written.
+/// `S.manager.failed`. Once every file is written, `after` "open" opens it,
+/// "forget" drops it from the list, and anything else leaves it listed.
 pub fn convert(S: &mut editor::State, folder: str, after: str) -> str {
     if converting(S) {
         S.manager.failed = "a project is already being imported";

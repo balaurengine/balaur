@@ -150,7 +150,7 @@ pub class State {
     rows_want: int,
     rows_waited: int,
     gesture_demo: int,
-    gesture_from: [any],
+    gesture_from: [float],
     frame: int,
     capture: shell::Capture?,
     show_input: bool,

@@ -106,16 +106,8 @@ impl Cx<'_> {
                 "a value too complex to interpolate in place",
             );
         }
-        if let Ty::Shape(_) | Ty::Array(_) = ex.t {
-            self.flag(
-                span,
-                "interp",
-                format!(
-                    "interpolating a `{}`: .bs writes only numbers, bools and strings",
-                    self.ty_str(&ex.t)
-                ),
-            );
-        }
+        // A list, struct or optional writes what its `any` says of it, so
+        // nothing here needs flagging.
         format!("{{{}}}", ex.s)
     }
 
@@ -165,7 +157,9 @@ impl Cx<'_> {
                         spec.push(c);
                     }
                     let (name, fmtspec) = spec.split_once(':').unwrap_or((&spec, ""));
-                    if !fmtspec.is_empty() {
+                    // `{:?}` is the text form .bs writes anyway; a width or a
+                    // precision it has no way to say.
+                    if !fmtspec.is_empty() && fmtspec != "?" && fmtspec != "#?" {
                         self.flag(
                             mc.span(),
                             "format-spec",

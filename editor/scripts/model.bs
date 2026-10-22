@@ -462,18 +462,19 @@ pub fn is_2d(S: &mut editor::State) -> bool {
     if key == S.is_2d_at {
         return S.is_2d_was;
     }
-    let found = scan_2d(S);
+    let found = doc_is_2d(S.doc);
     S.is_2d_at = key;
     S.is_2d_was = found;
     found
 }
 
-// More nodes 2D than 3D, read off the engine's tags, so every 2D component
-// counts, a plugin's included, and a 3D scene with one 2D label stays 3D.
-fn scan_2d(S: editor::State) -> bool {
+/// More nodes of `doc` 2D than 3D, read off the engine's tags, so every 2D
+/// component counts, a plugin's included, and a 3D scene with one 2D label
+/// stays 3D.
+pub fn doc_is_2d(doc: [any]) -> bool {
     let flat = 0;
     let deep = 0;
-    for node in S.doc {
+    for node in doc {
         let kind = facet(node);
         if kind == DIM_2D {
             flat += 1;

@@ -852,7 +852,6 @@ fn states() -> any {
         .with("test:physics", selftest::physics_panel)
         .with("test:physics_clicks", selftest::physics_clicks)
         .with("test:deselect", selftest::deselected)
-        .with("test:reload", selftest::reloaded)
         .with("test:viewport_clicks", selftest::viewport_clicks)
         .with("test:camera", selftest::camera_keeps_pointer)
         .with("test:tiles", selftest::tiles_tool)

@@ -27,14 +27,10 @@ pub struct Panels {
     table: any,
 }
 
-pub struct Pair9 {
-    _0: any,
-    _1: any,
-}
-
+/// The active tab's box and the strip it scrolls in.
 pub struct ActiveTabBox {
-    _0: Node,
-    _1: Node,
+    tab: ui::Rect,
+    strip: ui::Rect,
 }
 
 pub struct Inner2 {
@@ -579,44 +575,39 @@ fn tail_of(side: str) -> str {
     head_stem(side) + "Tail"
 }
 
-/// The box the panel's own tools were given, in design pixels, or `None`
-/// before the row has drawn. The self-test reads it: a hatch with no box is
-/// a dock whose tools are there and invisible.
-/// The active tab's box and the strip it scrolls in, or `None` before the
+/// The active tab's box and the strip it scrolls in, or nil before the
 /// row has drawn. A tab past the strip's end is a panel showing with no tab.
 pub fn active_tab_box(S: &mut editor::State, side: str) -> ActiveTabBox? {
     let at = 0;
-    let items1 = shown_tabs(S, side);
-    for i in 0..items1.len() {
-        let id = items1[i];
-        if id == S.docks.get(side).active {
+    let shown = shown_tabs(S, side);
+    let active = S.docks.get(side).get("active");
+    for i in 0..shown.len() {
+        if shown[i].equals(active) {
             at = i;
         }
     }
     let tab = scene::get_node("{head_of(side)}/C{at}");
     let strip = scene::get_node(head_stem(side) + "Tabs");
-    if util::is_nil(tab) || util::is_nil(strip) {
+    if !tab.is_valid() || !strip.is_valid() {
         return nil;
     }
-    let tab_strip_2 = Pair9 { _0: ui::widget_rect(tab), _1: ui::widget_rect(strip) };
-    let tab = tab_strip_2._0;
-    let strip = tab_strip_2._1;
-    if util::is_nil(tab) || util::is_nil(strip) {
+    let tab_box = ui::widget_rect(tab);
+    let strip_box = ui::widget_rect(strip);
+    if tab_box.is_none() || strip_box.is_none() {
         return nil;
     }
-    ActiveTabBox { _0: tab, _1: strip }
+    ActiveTabBox { tab: tab_box.unwrap(), strip: strip_box.unwrap() }
 }
 
-pub fn tools_box(side: str) -> any {
+/// The box the panel's own tools were given, in design pixels, or nil
+/// before the row has drawn. The self-test reads it: a hatch with no box is
+/// a dock whose tools are there and invisible.
+pub fn tools_box(side: str) -> ui::Rect? {
     let found = scene::get_node(tail_of(side) + "/C0");
-    if util::is_nil(found) {
+    if !found.is_valid() {
         return nil;
     }
-    let box = ui::widget_rect(found);
-    if util::is_nil(box) {
-        return nil;
-    }
-    box
+    ui::widget_rect(found)
 }
 
 fn tab_row(S: &mut editor::State, k: any, side: str, d: any) {
