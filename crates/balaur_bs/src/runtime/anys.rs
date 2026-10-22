@@ -63,7 +63,7 @@ fn compare(
     let this = read_any(meta, &m, p as usize);
     if name == "equals" {
         let other = read_any(meta, &m, args[1].i32() as u32 as usize);
-        return Ok(vec![Raw::I32(i32::from(this == other))]);
+        return Ok(vec![Raw::I32(i32::from(same(&this, &other)))]);
     }
     let mut items = match this {
         Value::Array(items) => items,
@@ -71,6 +71,25 @@ fn compare(
     };
     items.sort_by(order);
     encode_owned(ctx, meta, &Ty::Any, &Value::Array(items)).map(smallvec::SmallVec::into_vec)
+}
+
+// Whether two values are equal as values: numbers by number whatever their
+// kind, maps by key whatever their order, and nil only to nil.
+fn same(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Int(x), Value::Float(y)) | (Value::Float(y), Value::Int(x)) => {
+            (*x as f64).total_cmp(y).is_eq()
+        }
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same(a, b))
+        }
+        (Value::Map(x), Value::Map(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, v)| y.iter().any(|(j, w)| k == j && same(v, w)))
+        }
+        _ => a == b,
+    }
 }
 
 // How `sorted` orders two values: numbers by value, strings by text, and

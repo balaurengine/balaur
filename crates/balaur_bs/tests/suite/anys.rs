@@ -361,3 +361,20 @@ pub fn run() -> str {
     assert_eq!(call(&mut rt, "run", &[]), Value::Str("1 5 5 a".into()));
     assert_eq!(rt.live(), base);
 }
+
+#[test]
+fn an_any_equals_a_plain_value_only_when_it_holds_it() {
+    let mut rt = run(r#"
+pub fn compared() -> str {
+    let row: any = map().with("n", 3).with("half", 1.5).with("on", false).with("name", "");
+    let missing = "{row.get("x") == false} {row.get("x") == ""} {row.get("x") == 0} {row.get("x") != false}";
+    let held = "{row.get("on") == false} {row.get("name") == ""} {row.n == 3} {row.n == 3.0} {row.half == 1.5}";
+    let maps = map().with("a", 1).with("b", 2) == map().with("b", 2.0).with("a", 1);
+    "{missing} {held} {maps}"
+}
+"#);
+    assert_eq!(
+        call(&mut rt, "compared", &[]),
+        Value::Str("false false false true true true true true true true".into())
+    );
+}

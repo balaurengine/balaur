@@ -117,7 +117,8 @@ impl FnGen<'_> {
                 );
             }
             Kind::Extern | Kind::Host => {
-                let borrowed = self.host_args(&sig.params, args, pos, name)?;
+                let borrowed =
+                    self.host_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, name)?;
                 self.e(I::Call(sig.idx));
                 for b in borrowed {
                     self.release(&b);
@@ -476,7 +477,12 @@ impl FnGen<'_> {
         name: &str,
     ) -> R<Ty> {
         self.expr(base)?;
-        let borrowed = self.host_args(&sig.params[1..], args, pos, name)?;
+        let borrowed = self.host_args(
+            &sig.params[1..],
+            &args.iter().collect::<Vec<_>>(),
+            pos,
+            name,
+        )?;
         self.e(I::Call(sig.idx));
         for b in borrowed {
             self.release(&b);
@@ -500,9 +506,10 @@ impl FnGen<'_> {
                 ),
             );
         }
-        let all: Vec<Expr> = std::iter::once(base.clone())
-            .chain(args.iter().cloned())
-            .collect();
+        // Borrowed, not cloned: a copy of the receiver is a tree `type_of`
+        // has not seen, so each link of a `.with(..)` chain typed the whole
+        // chain under it again.
+        let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
         let borrowed = self.host_args(&crate::anys::params(m), &all, pos, name)?;
         self.e(I::Call(self.g.imp.anys[name]));
         for b in borrowed {
@@ -612,9 +619,10 @@ impl FnGen<'_> {
                 ),
             );
         }
-        let all: Vec<Expr> = std::iter::once(base.clone())
-            .chain(args.iter().cloned())
-            .collect();
+        // Borrowed, not cloned: a copy of the receiver is a tree `type_of`
+        // has not seen, so each link of a `.with(..)` chain typed the whole
+        // chain under it again.
+        let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
         let borrowed = self.host_args(&crate::strings::params(m), &all, pos, name)?;
         self.e(I::Call(self.g.imp.strs[name]));
         for b in borrowed {

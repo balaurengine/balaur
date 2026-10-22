@@ -204,7 +204,8 @@ fn terminate(fg: &mut FnGen<'_>, term: Term, b: usize, sig: &Sig, f: &FnDecl, l:
             };
             let s = fg.g.sigs[name].clone();
             fg.sites.insert(site, Site::Host);
-            let borrowed = fg.host_args(&s.params, args, call.pos, name)?;
+            let borrowed =
+                fg.host_args(&s.params, &args.iter().collect::<Vec<_>>(), call.pos, name)?;
             fg.emit([I::Call(s.idx), I::LocalSet(l.handle)]);
             for v in borrowed {
                 fg.release(&v);

@@ -571,8 +571,14 @@ impl FnGen<'_> {
         let mut ta = self.expr(a)?;
         let mark = self.code.len();
         let mut tb = self.expr(b)?;
-        // An `any` meets a plain value as that value's kind.
         let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
+        // `==` asks whether the `any` holds that value, so nil is no `false`
+        // and no `""`: both are compared as values. Anything else meets the
+        // plain value as that value's kind.
+        let mixed = (ta == Ty::Any && plain(&tb)) || (tb == Ty::Any && plain(&ta));
+        if mixed && matches!(op, BinOp::Eq | BinOp::Ne) {
+            return self.equal_as_values(op, &ta, &tb, pos);
+        }
         if ta == Ty::Any && plain(&tb) {
             let held = self.temp(&tb);
             self.set_raw(&held);
@@ -593,19 +599,7 @@ impl FnGen<'_> {
         // Two `any`s: equal as values, else compared and counted as floats.
         if ta == Ty::Any && tb == Ty::Any {
             if matches!(op, BinOp::Eq | BinOp::Ne) {
-                let b = self.temp(&Ty::Any);
-                self.set_raw(&b);
-                let a = self.temp(&Ty::Any);
-                self.set_raw(&a);
-                self.get_raw(&a);
-                self.get_raw(&b);
-                self.e(I::Call(self.g.imp.anys["equals"]));
-                self.release(&a);
-                self.release(&b);
-                if op == BinOp::Ne {
-                    self.e(I::I32Eqz);
-                }
-                return Ok(Ty::Bool);
+                return self.equal_as_values(op, &ta, &tb, pos);
             }
             let held = self.temp(&Ty::Any);
             self.set_raw(&held);
@@ -618,23 +612,7 @@ impl FnGen<'_> {
         // Lists or structs are equal as values: both boxed and compared.
         let boxed = |t: &Ty| matches!(t, Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_));
         if matches!(op, BinOp::Eq | BinOp::Ne) && (boxed(&ta) || boxed(&tb)) {
-            let b = self.temp(&tb);
-            self.set_raw(&b);
-            self.coerce(&ta, &Ty::Any, pos)?;
-            self.take_out(&b);
-            self.coerce(&tb, &Ty::Any, pos)?;
-            let both = (self.temp(&Ty::Any), self.temp(&Ty::Any));
-            self.set_raw(&both.1);
-            self.set_raw(&both.0);
-            self.get_raw(&both.0);
-            self.get_raw(&both.1);
-            self.e(I::Call(self.g.imp.anys["equals"]));
-            self.release(&both.0);
-            self.release(&both.1);
-            if op == BinOp::Ne {
-                self.e(I::I32Eqz);
-            }
-            return Ok(Ty::Bool);
+            return self.equal_as_values(op, &ta, &tb, pos);
         }
         if ta != tb {
             return err(
@@ -652,6 +630,28 @@ impl FnGen<'_> {
         })?;
         self.e(i);
         Ok(out)
+    }
+
+    // The two values on the stack, `a` under `b`, boxed and compared as
+    // `any.equals` compares them.
+    fn equal_as_values(&mut self, op: BinOp, ta: &Ty, tb: &Ty, pos: Pos) -> R<Ty> {
+        let b = self.temp(tb);
+        self.set_raw(&b);
+        self.coerce(ta, &Ty::Any, pos)?;
+        self.take_out(&b);
+        self.coerce(tb, &Ty::Any, pos)?;
+        let both = (self.temp(&Ty::Any), self.temp(&Ty::Any));
+        self.set_raw(&both.1);
+        self.set_raw(&both.0);
+        self.get_raw(&both.0);
+        self.get_raw(&both.1);
+        self.e(I::Call(self.g.imp.anys["equals"]));
+        self.release(&both.0);
+        self.release(&both.1);
+        if op == BinOp::Ne {
+            self.e(I::I32Eqz);
+        }
+        Ok(Ty::Bool)
     }
 
     pub(crate) fn operator(&self, op: BinOp, t: &Ty) -> Option<(I<'static>, Ty)> {
@@ -708,7 +708,7 @@ impl FnGen<'_> {
     pub(crate) fn host_args(
         &mut self,
         want: &[Ty],
-        args: &[Expr],
+        args: &[&Expr],
         pos: Pos,
         what: &str,
     ) -> R<Vec<LVal>> {
