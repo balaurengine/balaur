@@ -103,11 +103,22 @@ pub(crate) fn exports(source: &str, classes: &Classes) -> Vec<Export> {
     out
 }
 
+/// What a script's `extends` names, written on its own line or after
+/// `class_name Name` on the same one.
+pub(crate) fn extends_text(source: &str) -> Option<&str> {
+    source.lines().find_map(|line| {
+        if let Some(rest) = line.strip_prefix("extends ") {
+            return Some(rest.trim());
+        }
+        let rest = line.strip_prefix("class_name ")?;
+        Some(rest.split_once(" extends ")?.1.trim())
+    })
+}
+
 /// The file a script's `extends` names, when it is a script of this project:
 /// `extends "res://base.gd"` or `extends SomeClassName`.
 fn extended(source: &str, classes: &Classes) -> Option<String> {
-    let line = source.lines().find(|l| l.starts_with("extends "))?;
-    let target = line["extends ".len()..].trim();
+    let target = extends_text(source)?;
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
         return Some(crate::godot::relative_path(path).to_string());
     }
@@ -407,8 +418,7 @@ pub(crate) fn inherits(classes: &Classes, script: &str, base: &str) -> bool {
 
 /// What a file's `extends` names: a class, or the project path of a script.
 fn extends_target(source: &str) -> Option<String> {
-    let line = source.lines().find(|l| l.starts_with("extends "))?;
-    let target = line["extends ".len()..].trim();
+    let target = extends_text(source)?;
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
         return Some(crate::godot::relative_path(path).to_string());
     }

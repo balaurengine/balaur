@@ -822,8 +822,7 @@ fn chain(source: &str, classes: &Classes) -> Vec<String> {
 }
 
 fn extended(source: &str, classes: &Classes) -> Option<String> {
-    let line = source.lines().find(|l| l.starts_with("extends "))?;
-    let target = line["extends ".len()..].trim();
+    let target = crate::godot::exports::extends_text(source)?;
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
         return Some(crate::godot::relative_path(path).to_string());
     }
