@@ -8,6 +8,9 @@ use pool;
 use style;
 use util;
 
+/// What marks an action's name among the keys held: the panel's `ACTION`.
+pub const ACTION: str = "action:";
+
 pub struct View7 {
     shown: bool,
     factor: float,
@@ -202,10 +205,10 @@ pub fn fill_chips(S: editor::State, names: [any]) {
     let k = S.theme;
     let out: [any] = [];
     for name in names {
-        let action = name.starts_with("⟐ ");
+        let action = name.starts_with(ACTION);
         out.push(map()
             .with("kind", "button")
-            .with("text", if action { name.slice(4, name.len()) } else { name })
+            .with("text", if action { name.slice(ACTION.len(), name.len()) } else { name })
             .with("height", 30)
             .with("font_size", style::MD)
             .with("font_weight", 700)

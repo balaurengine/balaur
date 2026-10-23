@@ -2,6 +2,10 @@
 // they go down and up, and the pointer as it moves, and places its chips,
 // ripples and drawn pointer from that. Nothing here reads the input itself.
 
+/// What marks an action's name among the keys held, as `inputview.bs`'s
+/// `ACTION` reads it.
+const ACTION: str = "action:";
+
 pub struct Inputview {
     node: Node,
     editor: Node,
@@ -89,11 +93,11 @@ impl Inputview {
     }
 
     pub fn on_action(name: str) {
-        self.hold("⟐ " + name);
+        self.hold(ACTION + name);
     }
 
     pub fn on_action_released(name: str) {
-        self.let_go("⟐ " + name);
+        self.let_go(ACTION + name);
     }
 
     pub fn on_pointer_moved(spot: any) {

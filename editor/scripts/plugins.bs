@@ -185,9 +185,31 @@ pub fn run(S: &mut editor::State, command: any) {
 pub fn section_rows(S: &mut editor::State, k: any, node: any) {
     for entry in S.registry.inspector_sections {
         for row in util::vec(ask(entry, "rows", map().with("theme", k).with("node", node))) {
-            inspector::add_row(S, row);
+            inspector::add_row(S, calls_back(entry, util::obj(row)));
         }
     }
+}
+
+// A control naming a `call` presses back into the plugin: that method runs
+// on the plugin's node with the control's `data`.
+fn calls_back(entry: any, row: any) -> any {
+    let controls: [any] = [];
+    for control in util::vec(row.get("controls")) {
+        let call = control.get("call");
+        if call.kind() == "str" {
+            let data = map().with("owner", entry.owner).with("call", call).with("payload", control.get("data"));
+            control.remove("call");
+            controls.push(pool::on(control, pressed, data));
+        } else {
+            controls.push(control);
+        }
+    }
+    row.with("controls", controls)
+}
+
+fn pressed(S: &mut editor::State, data: any, _value: any) {
+    data.owner.as_node().call(data.call.as_str(), data.payload);
+    changed(S);
 }
 
 /// Viewport lines a plugin draws, kept with the editor's own until what they

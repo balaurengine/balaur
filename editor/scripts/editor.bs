@@ -1146,6 +1146,17 @@ impl Editor {
         self.S.doc
     }
 
+    /// The folder of the game the editor has open, which a plugin's paths
+    /// are relative to.
+    pub fn game_root() -> str {
+        self.S.game_root
+    }
+
+    /// The open scene's file; "" when none is open.
+    pub fn open_scene_path() -> str {
+        self.S.scene_path
+    }
+
     /// The plugins the editor loaded, by file name.
     pub fn plugins() -> [str] {
         self.S.registry.loaded
