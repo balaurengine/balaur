@@ -154,6 +154,8 @@ pub(crate) fn global(name: &str, args: &[String], me: &str) -> Option<String> {
     Some(match name {
         // Variant conversions and queries live in the shim, which dispatches
         // on the value the way Godot's Variant did.
+        // Godot's `str(a, b, ..)` joins its arguments' text.
+        "str" if args.len() > 1 => format!("gd::str_all({})", any_list(args)),
         "str" | "int" | "float" | "bool" => format!("gd::{name}({all})"),
         "String" if args.len() == 1 => format!("gd::str({one})"),
         "char" => format!("gd::chr({one})"),
