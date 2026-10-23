@@ -318,7 +318,7 @@ fn attaching_a_script_without_a_backend_is_a_clear_error() {
     let err = call(
         &app.engine,
         "attach_script",
-        &[node, Value::Str("s.rn".into())],
+        &[node, Value::Str("s.bs".into())],
     )
     .unwrap_err();
     assert!(
