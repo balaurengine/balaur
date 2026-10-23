@@ -38,9 +38,9 @@ pub enum Value {
     Map(Vec<(String, Value)>),
     /// Several return values, not a list of one.
     ///
-    /// Lua and Rune both let a function return more than one thing, and
-    /// `local text, changed = ui.text_field(...)` is how the widgets are meant
-    /// to read. A tuple return becomes this; a `Vec` still becomes a `List`.
+    /// A binding may hand back more than one thing, as a widget hands back
+    /// its text and whether it changed. A tuple return becomes this; a `Vec`
+    /// still becomes a `List`.
     Many(Vec<Value>),
 }
 

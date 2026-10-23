@@ -1,7 +1,7 @@
 //! The scripting seam: traits only, no backend.
 //!
 //! Subsystems declare their bindings against [`Bindings`] and never name a
-//! language. A backend (`balaur_script_rune`) implements
+//! language. A backend (`balaur_script_bs`) implements
 //! [`ScriptHost`] and consume those declarations, so a second language
 //! costs one new crate rather than an edit to every subsystem.
 

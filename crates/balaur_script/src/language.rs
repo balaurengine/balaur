@@ -61,8 +61,7 @@ pub trait ScriptHost<C: ?Sized> {
     ///
     /// Each `Value` is a map in the component schema's own vocabulary:
     /// `type` and `default`, plus whatever of `min`, `max`, `step`,
-    /// `options`, `asset`, `help` and `order` was written. Those first two
-    /// are reserved words in Rune, so a script quotes them as keys. A script that
+    /// `options`, `asset`, `help` and `order` was written. A script that
     /// wrote a bare default gets one built for it, so every reader sees one
     /// shape and an inspector reaches for the editor it already has.
     ///
@@ -294,9 +293,9 @@ pub trait ScriptHost<C: ?Sized> {
         let _ = mode;
     }
 
-    /// The editor tooling for the script at `path`, when a language other
-    /// than the host's own answers for it: how `.bs` files sit beside Rune
-    /// in an editor written against Rune's.
+    /// The editor tooling for the script at `path`, when a language this host
+    /// runs answers for it: what `balaur lsp` and the editor's `script`
+    /// module ask.
     fn tools_for(&self, path: &str) -> Option<&dyn crate::LanguageTools> {
         let _ = path;
         None
