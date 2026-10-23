@@ -96,12 +96,10 @@ impl Shape {
                 let _ = writeln!(out, "use {module};");
             }
         }
-        if !self.doc.is_empty() {
+        out.push('\n');
+        for line in &self.doc {
+            out.push_str(line);
             out.push('\n');
-            for line in &self.doc {
-                out.push_str(line);
-                out.push('\n');
-            }
         }
         if let Some(name) = &self.node_class {
             self.write_struct(&mut out, name);
@@ -144,7 +142,7 @@ impl Shape {
     }
 
     fn write_struct(&self, out: &mut String, name: &str) {
-        let _ = write!(out, "\npub struct {name} {{\n    node: Node,\n");
+        let _ = write!(out, "pub struct {name} {{\n    node: Node,\n");
         for field in &self.props {
             write_field(out, field);
         }

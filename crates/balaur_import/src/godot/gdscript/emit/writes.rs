@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use super::{Emitter, discardable, map, quoted, replace_root, safe, tree_parameter};
+use super::{Emitter, discardable, map, quoted, replace_root, tree_parameter};
 use crate::godot::gdscript::ast::Expr;
 use crate::godot::gdscript::{GETTER, SETTER};
 
@@ -194,23 +194,6 @@ impl Emitter<'_> {
         None
     }
 
-    /// A chain as somewhere to write, rather than as a value to read: a field
-    /// on a local table is a field, not a call into the shim.
-    pub(super) fn place(&mut self, value: &Expr) -> String {
-        match value {
-            Expr::Field(object, field) => {
-                let base = self.place(object);
-                format!("{base}.{}", safe(field))
-            }
-            Expr::Index(object, index) => {
-                let base = self.place(object);
-                let index = self.expression(index);
-                format!("{base}[{index}]")
-            }
-            other => self.expression(other),
-        }
-    }
-
     /// `node.x += 1` on a Godot property: read through the getter, change the
     /// value, write it back through the setter.
     pub(super) fn compound_write(
@@ -299,24 +282,13 @@ impl Emitter<'_> {
             let key = quoted(&format!("{}:{root}", self.context.static_prefix));
             let name = self.temp();
             self.declare(&name);
-            let text = self.expression(value);
             self.uses_shim = true;
             let mut out = String::new();
-            let _ = writeln!(out, "{pad}let {name} = gd::static_ref({key}, {fallback});");
-            // A property of the static's object, which may be a node or a resource.
-            if let Expr::Field(object, field) = target
-                && matches!(&**object, Expr::Name(n) if *n == root)
-                && op == "="
-            {
-                let _ = writeln!(
-                    out,
-                    "{pad}let _ = gd::set_field({name}, {}, {text});",
-                    quoted(field)
-                );
-                return Some(out);
-            }
-            let place = self.place(&replace_root(target, &name));
-            let _ = writeln!(out, "{pad}{place} {op} {text};");
+            let _ = writeln!(out, "{pad}let {name}: any = gd::static_ref({key}, {fallback});");
+            // The store hands out a copy: the write lands in it, and it goes
+            // back into the store.
+            out.push_str(&self.assignment(&replace_root(target, &name), op, value, pad));
+            let _ = writeln!(out, "{pad}gd::static_set({key}, {name});");
             return Some(out);
         }
         if let Expr::Field(object, field) = target
@@ -409,10 +381,17 @@ impl Emitter<'_> {
                         text
                     };
                     let write = map::setter(&receiver, &property, &name)?;
-                    self.uses_shim |= write.contains(map::SHIM_MARK);
+                    self.uses_shim = true;
                     self.declare(&name);
+                    let lane_key = quoted(field);
+                    let changed = if op == "=" {
+                        text
+                    } else {
+                        let verb = shim_verb(op.trim_end_matches('='));
+                        format!("gd::{verb}(gd::field({name}, {lane_key}), {text})")
+                    };
                     return Some(format!(
-                        "{pad}let {name} = {getter};\n{pad}{name}.{field} {op} {text};\n{pad}{write};\n"
+                        "{pad}let {name}: any = {getter};\n{pad}{name} = gd::with_field({name}, {lane_key}, {changed});\n{pad}{write};\n"
                     ));
                 }
                 (self.expression(object), field.clone())
@@ -433,6 +412,26 @@ impl Emitter<'_> {
             return None;
         }
         self.uses_shim = true;
+        // A member holding a vector or a colour is a value in Godot: the
+        // changed copy takes its place, so nothing else holding it sees the
+        // write.
+        let member = match target {
+            Expr::Field(base, _) => match &**base {
+                Expr::Name(name) if !self.is_local(name) => Some(name.clone()),
+                Expr::Field(me, name) if matches!(**me, Expr::SelfRef) => Some(name.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(name) = member.filter(|m| {
+            self.context.members.contains(m)
+                && !self.context.getters.contains(m)
+                && !self.context.setters.contains(m)
+        }) {
+            let read = self.member(&name);
+            let changed = format!("gd::with_field({read}, {}, {text})", quoted(&field));
+            return Some(format!("{pad}{};\n", self.member_store(&name, &changed)));
+        }
         // A local may hold a value whose fields are read-only, a transform:
         // the write answers the changed value, which takes the local's place.
         if let Expr::Field(base, _) = target

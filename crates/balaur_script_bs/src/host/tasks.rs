@@ -129,9 +129,15 @@ impl BsHost {
         let Some(mut obj) = inst.obj.borrow_mut().take() else {
             return Ok(Polled::Waiting(p));
         };
+        // A call back into the node while the task runs is lent a holder of
+        // the object, as one while a plain method runs is.
+        *inst.lent.borrow_mut() = rt.share(&obj);
         let before = rt.steps();
         let step = poll(rt, file.compiled.meta.debug, &mut p.task, &mut obj);
         self.charge(&p.path, before, rt.steps());
+        if let Some(lent) = inst.lent.borrow_mut().take() {
+            rt.drop_object(lent);
+        }
         if let Ok(Step::Paused(_)) = step {
             self.hold_task(obj, p);
             return Ok(Polled::Stopped);

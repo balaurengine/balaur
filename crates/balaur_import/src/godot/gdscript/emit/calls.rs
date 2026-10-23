@@ -165,7 +165,11 @@ impl Emitter<'_> {
         } else {
             map::engine_event(&signal).to_string()
         };
-        self.forwarders.insert(event.clone(), (handler, hid));
+        // Only an engine event reaches `on_<name>`; a script's signal calls
+        // the handlers `connect` kept.
+        if map::engine_signal(&event) {
+            self.forwarders.insert(event.clone(), (handler, hid));
+        }
         Some(map::signal_subscribe(&receiver, &event, &closure))
     }
 
@@ -364,7 +368,9 @@ impl Emitter<'_> {
         // The store holds the value itself, so a call that changes it in
         // place changes the static; only a first use has to put it there.
         self.before
-            .push(format!("let {name} = gd::static_ref({key}, {fallback});"));
+            .push(format!("let {name}: any = gd::static_ref({key}, {fallback});"));
+        // The store hands out a copy, which goes back once the call changed it.
+        self.after.push(format!("gd::static_set({key}, {name});"));
         self.uses_shim = true;
         if let Some(text) = map::method(&name, method, parts) {
             return Some(self.shimmed(text));

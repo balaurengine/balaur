@@ -579,8 +579,10 @@ impl Walk<'_> {
             let Some(export) = exports.iter().find(|e| &e.name == key) else {
                 continue;
             };
+            // A type no prop holds is filed as Godot's value, which the
+            // script reads back in `init`.
             let Some(kind) = export.kind else {
-                match crate::godot::exports::tagged(value).filter(|_| export.data) {
+                match crate::godot::exports::tagged(value) {
                     Some(value) => {
                         data.insert(key.clone(), value);
                     }

@@ -74,39 +74,11 @@ pub(crate) struct Export {
     pub hint: String,
     pub kind: Option<Kind>,
     pub default: String,
-    /// The GDScript text of its value, for a kind `exports()` cannot hold.
-    pub value: Option<String>,
     /// A value type no prop holds, a `Rect2`, a `Dictionary` or an `Array` of
     /// them: the scene files it in the node's `meta` for `init` to read.
     pub data: bool,
 }
 
-impl Export {
-    /// The `exports()` entry, or `None` for a type this does not carry.
-    pub(crate) fn entry(&self) -> Option<String> {
-        let kind = self.kind?;
-        // Quoted keys: `default` is a Rune keyword and cannot stand bare.
-        let typed = |ty: &str| format!("#{{ \"type\": \"{ty}\", \"default\": {} }}", self.default);
-        // A list says what it holds, the way every composite spec does.
-        let listed = |ty: &str| {
-            format!(
-                "#{{ \"type\": \"list\", \"of\": #{{ \"type\": \"{ty}\" }}, \"default\": {} }}",
-                self.default
-            )
-        };
-        Some(match kind {
-            // A bare default already says what these are.
-            Kind::Int | Kind::Float | Kind::Bool | Kind::Str => self.default.clone(),
-            Kind::Node => typed("node"),
-            Kind::Path => typed("string"),
-            Kind::Vec2 => typed("vec2"),
-            Kind::Vec3 => typed("vec3"),
-            Kind::Color => typed("color"),
-            Kind::Strings => listed("string"),
-            Kind::Nodes => listed("node"),
-        })
-    }
-}
 
 /// Every `@export` a GDScript file has: its base's first, then its own, a
 /// redeclared name keeping the later one, as GDScript's inheritance does.
@@ -242,7 +214,6 @@ fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> O
         hint,
         kind,
         default,
-        value: value.map(str::to_string),
         data,
     })
 }
@@ -604,6 +575,8 @@ pub(crate) fn classes_module(
 ) -> String {
     use crate::godot::gdscript::{module_name, module_use, quoted};
     use crate::godot::scene::script_path;
+    use crate::godot::script::CLASS_KEY;
+    let class_read = format!("    let module: str = obj.get(\"{CLASS_KEY}\").text();\n");
     let mut out = String::from(
         "// Written by `balaur import`: the project's classes, for what asks for one by name.\n\n",
     );
@@ -653,7 +626,8 @@ pub(crate) fn classes_module(
         ));
     }
     out.push_str("    nil\n}\n");
-    out.push_str("\n/// One of an object's class's functions, by name.\npub fn call(obj: any, method: str, args: any) -> any {\n    let module: str = obj.get(\"__class\").text();\n");
+    out.push_str("\n/// One of an object's class's functions, by name.\npub fn call(obj: any, method: str, args: any) -> any {\n");
+    out.push_str(&class_read);
     for object in objects.iter().filter(linked) {
         out.push_str(&format!(
             "    if module == {} {{\n        return {}::__call(obj, method, args);\n    }}\n",
@@ -662,7 +636,8 @@ pub(crate) fn classes_module(
         ));
     }
     out.push_str("    nil\n}\n");
-    out.push_str("\n/// An object's property, through its getter where its class declares one.\npub fn get(obj: any, name: str) -> any {\n    let module: str = obj.get(\"__class\").text();\n");
+    out.push_str("\n/// An object's property, through its getter where its class declares one.\npub fn get(obj: any, name: str) -> any {\n");
+    out.push_str(&class_read);
     for object in objects.iter().filter(linked).filter(|o| o.accessors) {
         out.push_str(&format!(
             "    if module == {} {{\n        return {}::__get(obj, name);\n    }}\n",
@@ -671,7 +646,8 @@ pub(crate) fn classes_module(
         ));
     }
     out.push_str("    obj.get(name)\n}\n");
-    out.push_str("\n/// An object's property written, through its setter where its class declares one.\npub fn set(obj: any, name: str, value: any) {\n    let module: str = obj.get(\"__class\").text();\n");
+    out.push_str("\n/// An object's property written, through its setter where its class declares one.\npub fn set(obj: any, name: str, value: any) {\n");
+    out.push_str(&class_read);
     for object in objects.iter().filter(linked).filter(|o| o.accessors) {
         out.push_str(&format!(
             "    if module == {} {{\n        {}::__set(obj, name, value);\n        return;\n    }}\n",
@@ -887,9 +863,9 @@ pub(crate) fn split_top(text: &str) -> Vec<String> {
 mod tests {
     use super::{Classes, Kind, exports, literal};
 
-    fn one(line: &str, classes: &Classes) -> (Option<Kind>, Option<String>) {
+    fn one(line: &str, classes: &Classes) -> (Option<Kind>, String) {
         let export = exports(line, classes).pop().expect("an export");
-        (export.kind, export.entry())
+        (export.kind, export.default)
     }
 
     #[test]
@@ -923,58 +899,44 @@ mod tests {
     }
 
     #[test]
-    fn each_godot_type_is_the_spec_this_engine_checks() {
+    fn each_godot_type_is_a_kind_with_a_balaur_script_default() {
         let none = Classes::default();
-        assert_eq!(
-            one("@export var speed := 2.0", &none),
-            (Some(Kind::Float), Some("2.0".into()))
-        );
-        assert_eq!(
-            one("@export var hp: float = 3", &none).1.as_deref(),
-            Some("3.0")
-        );
-        assert_eq!(
-            one("@export var go: Button", &none).1.as_deref(),
-            Some("#{ \"type\": \"node\", \"default\": \"\" }")
-        );
-        assert_eq!(
-            one("@export var art: Texture2D", &none).1.as_deref(),
-            Some("#{ \"type\": \"string\", \"default\": \"\" }")
-        );
-        assert_eq!(
-            one("@export var hearts: Array[CanvasItem]", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"node\" }, \"default\": [] }")
-        );
-        assert_eq!(
-            one("@export var names: Array[String]", &none).1.as_deref(),
-            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"string\" }, \"default\": [] }")
-        );
-        assert_eq!(
-            one("@export var at: Vector2 = Vector2(1, 2)", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"vec2\", \"default\": [1.0, 2.0] }")
-        );
-        // `:=` names no type, and a setter block leaves a trailing colon.
-        assert_eq!(
-            one("@export var tint := Color(0.5, 0.25, 0.125, 1.0):", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"color\", \"default\": [0.5, 0.25, 0.125, 1.0] }")
-        );
-        assert_eq!(
-            one("@export var span := Vector2(-4000.0, 50000.0)", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"vec2\", \"default\": [-4000.0, 50000.0] }")
-        );
-        assert_eq!(one("@export var table: Dictionary", &none), (None, None));
-        assert_eq!(
-            one("@export var weights: Array[float]", &none),
-            (None, None)
-        );
+        let cases = [
+            ("@export var speed := 2.0", Kind::Float, "2.0"),
+            ("@export var hp: float = 3", Kind::Float, "3.0"),
+            ("@export var go: Button", Kind::Node, "\"\""),
+            ("@export var art: Texture2D", Kind::Path, "\"\""),
+            ("@export var hearts: Array[CanvasItem]", Kind::Nodes, "[]"),
+            ("@export var names: Array[String]", Kind::Strings, "[]"),
+            (
+                "@export var at: Vector2 = Vector2(1, 2)",
+                Kind::Vec2,
+                "[1.0, 2.0]",
+            ),
+            // `:=` names no type, and a setter block leaves a trailing colon.
+            (
+                "@export var tint := Color(0.5, 0.25, 0.125, 1.0):",
+                Kind::Color,
+                "[0.5, 0.25, 0.125, 1.0]",
+            ),
+            (
+                "@export var span := Vector2(-4000.0, 50000.0)",
+                Kind::Vec2,
+                "[-4000.0, 50000.0]",
+            ),
+        ];
+        for (line, kind, default) in cases {
+            assert_eq!(one(line, &none), (Some(kind), default.to_string()), "{line}");
+        }
+        // No prop holds these: the scene files them in the node's `meta`.
+        for line in [
+            "@export var table: Dictionary",
+            "@export var weights: Array[float]",
+        ] {
+            let export = exports(line, &none).pop().expect("an export");
+            assert_eq!(export.kind, None, "{line}");
+            assert!(export.data, "{line}");
+        }
     }
 
     /// `PirateShipAnimation extends Node2D`: a project class is what it
@@ -1064,7 +1026,7 @@ mod tests {
     }
 
     #[test]
-    fn a_literal_reads_as_rune_and_an_expression_does_not() {
+    fn a_literal_reads_as_balaur_script_and_an_expression_does_not() {
         assert_eq!(literal("Vector2(1, 2.5)").as_deref(), Some("[1.0, 2.5]"));
         assert_eq!(literal(".5").as_deref(), Some("0.5"));
         assert_eq!(literal("&\"boats\"").as_deref(), Some("\"boats\""));

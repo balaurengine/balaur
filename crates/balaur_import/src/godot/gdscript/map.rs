@@ -14,7 +14,7 @@ pub(crate) use events::{engine_event, is_collision_event};
 pub(crate) use globals::{global_constant, singleton_write};
 pub(crate) use widgets::{ON_CHANGE, ON_CLICK, ON_SUBMIT, widget_signal};
 
-use super::emit::{quoted, safe};
+use super::emit::quoted;
 
 /// What `get_tree()` becomes. Its verbs are the scene module's, so the
 /// receiver is a marker the method table recognises rather than a value.
@@ -677,7 +677,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "global_position" => format!("gd::global_position_of({receiver})"),
         "position" => format!("gd::position_of({receiver})"),
         "scale" => format!("gd::vec_of({node}.transform.scale)"),
-        "modulate" | "self_modulate" => format!("{node}.tint()"),
+        "modulate" | "self_modulate" => format!("gd::node_property({node}, \"modulate\")"),
         "z_index" => format!("{node}.z_index()"),
         "name" => format!("{node}.name()"),
         "rotation_degrees" => format!("math::to_degrees(gd::rotation_of({receiver}))"),
@@ -992,7 +992,6 @@ fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
 #[allow(clippy::match_same_arms)]
 pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     let node = node_text(receiver);
-    let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
     if let Some(text) = tween_verb(receiver, name, args) {
         return Some(text);
@@ -1108,7 +1107,9 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 /// The keys of the records the shim's `call_value` calls: another object's
 /// method, with what `bind` fixed, and a handler with how many it takes. The
 /// shim spells them too, and a test holds the two together.
+#[cfg(test)]
 pub(crate) const BOUND_OWNER: &str = "__target";
+#[cfg(test)]
 pub(crate) const BOUND_METHOD: &str = "__method";
 pub(crate) const BOUND_ARGS: &str = "__args";
 pub(crate) const CALL_TAKES: &str = "__takes";

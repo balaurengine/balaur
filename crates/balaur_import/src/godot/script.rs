@@ -137,12 +137,6 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             .map(|e| e.name.clone())
             .collect();
     }
-    for export in exports.iter().filter(|e| e.kind.is_none() && !e.data) {
-        notes.push(format!(
-            "export `{}` is a {}, which a scene cannot set; it starts at its default",
-            export.name, export.hint
-        ));
-    }
 
     let module = crate::godot::scene::script_path(path);
     let mut shape = Shape {

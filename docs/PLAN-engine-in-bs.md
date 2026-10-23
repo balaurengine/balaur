@@ -271,22 +271,45 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    typed from GDScript's hints with `any` elsewhere, and its Rune shim is
    ported. No host calls the batch exports (`T.m$batch`) yet.
 
-   The importer's `.bs`, as designed:
-   - A script is one file: `use gd;`, a struct with `node` and a field per
-     member, an `impl` of its methods (`_ready` is `init`, `_process` is
-     `update`), its constants, and its static functions as free functions.
-     An `@export` with a literal default is a `pub` field with that default.
-   - A hint or a literal types a value: `int`, `float`, `bool`, `str`,
-     `Vec2`, `Vec3`, `Color`, `Node` for every node class, `[T]` for a typed
-     array. Anything else is an `any`, Godot's Variant: arithmetic,
-     comparison, truth and member access on one go through `gd::`.
-   - An object class (`RefCounted`, an inner class) is an `any` map holding
-     its fields and a `__class` key, shared by reference as Godot's objects
-     are. Its methods are free functions taking that map; a call on a value
-     whose class is unknown goes through a dispatcher the importer writes
-     for the project (`classes.bs`), by class and method name.
-   - A callable or a lambda is a map of a function value, `fn(any, any) ->
-     any`, and what it captured: no closure reaches a local.
-   - The shim is `gd.bs`, ported from `gd_values.rn` and `gd_nodes.rn`.
-   - The tests compile what they convert, against the engine's API.
+   The importer's `.bs`, as built (2026-10-23):
+   - A node script is one file: its `use` lines, a struct of `node`, the
+     int, float and bool exports as `pub` props with their defaults, and
+     `my`, a class holding every member; then its constants and an `impl`
+     (`_ready` is `init`, `_process` is `update`). The members sit in a
+     class because a call back into the same node, a signal handler or a
+     lambda the shim runs, is lent a second holder of the struct, and only
+     a class is shared between the two: a struct holding a string, a list
+     or an `any` cannot be lent at all. `my` is built with the struct and
+     never reassigned, or the lent holder keeps the old one.
+   - Every other export (a string, a vector, a node, a path, a list) is
+     filed by the scene in the node's `meta` and read back in `init`, in
+     Godot's order: declared values, `_init`, what the scene set, then
+     `@onready`.
+   - A hint or a `:=` literal types a value as `int`, `float`, `bool` or
+     `str`; anything else, a node included since one may be null, is an
+     `any`, and what GDScript does to it goes through `gd::`. An int beside
+     a float widens; a float into an int place truncates. A parameter with
+     a default arrives as an `any`, nil where the call left it out.
+   - An object class (`RefCounted`, `Resource`, an inner class) is a map
+     with its members and `__class`, its module's path. Its methods are
+     free functions taking it as `this`, and its `__call` answers one by
+     name. The project's `classes.bs` makes one by module, dispatches
+     `call`, `get` and `set` on `__class`, and lists for Godot's `is` the
+     scripts each `class_name` covers. A node class answers `__is`,
+     `__get` and `__set` itself.
+   - A callable is a map of its target, a node or an object, and a method
+     name, with what `bind` fixed; a lambda is lifted into a method taking
+     what it captured. A tween's callback is a hidden child running
+     `gd_callback.bs`, since a tween step calls a method by name.
+   - Static functions are the module's, and a node class's are methods
+     too; a class named in a body is `use`d and reached as `module::item`.
+     A module is named by its file, which is never an engine module's (a
+     clash takes a `_gd` suffix); two files of one name cannot be linked
+     into one script, so `classes.bs` leaves the second object class out.
+   - The shim is `gd.bs`, about 6,700 lines, with no bitwise operators
+     in the language: `gd::bit_or` and its kin work on the bits.
+   - Over `../breaking boxes`, `../chain-kill` and the godot-benchmarks
+     project every converted script compiles, and each project boots and
+     runs 120 frames headless; what is left is the same unmapped calls the
+     Rune importer left (`to_local`, `get_global_mouse_position`).
 8. **Rune removed.**

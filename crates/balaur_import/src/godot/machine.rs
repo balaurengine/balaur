@@ -470,7 +470,7 @@ advance_expression_base_node = NodePath("..")
             "hero.gd",
             &crate::godot::exports::Classes::default(),
         )
-        .rune;
+        .text;
         assert!(rune.contains(&format!("pub fn {name}(this)")), "{rune}");
     }
 }
