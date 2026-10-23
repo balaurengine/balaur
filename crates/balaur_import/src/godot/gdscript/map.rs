@@ -358,7 +358,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         }
         ("Marshalls", "raw_to_base64" | "utf8_to_base64") => format!("encoding::base64({one})"),
         ("FileAccess", "get_sha256") => format!("hash::sha256(gd::project_path({one}))"),
-        ("DirAccess", "rename_absolute") => format!("fs::rename({all})"),
+        ("DirAccess", "rename_absolute") => format!("gd::rename({all})"),
         ("DirAccess", "remove_absolute") => format!("fs::remove({one})"),
         ("DirAccess", "open") => format!("gd::dir_open({one})"),
         ("DisplayServer", "screen_set_keep_on") => format!("window::set_keep_awake({one})"),
@@ -441,7 +441,7 @@ pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
         ("Color", "ORANGE") => "gd::color(1.0, 0.647, 0.0, 1.0)".into(),
         ("Color", "GRAY") => "gd::color(0.75, 0.75, 0.75, 1.0)".into(),
         ("Vector2", "INF") => "gd::vec2(1.0 / 0.0, 1.0 / 0.0)".into(),
-        ("Transform2D", "IDENTITY") => "balaur::Transform2d::IDENTITY".into(),
+        ("Transform2D", "IDENTITY") => "gd::transform2d([])".into(),
         (class, name) => class_constant(class, name)?.to_string(),
     })
 }

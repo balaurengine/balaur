@@ -9,7 +9,11 @@ use super::render::{Fun, Shape};
 /// builds the event, hands it to every handler the class has, and answers
 /// whether one of them took it. `_unhandled_input` waits on the widget
 /// layer's claim, as Godot's waited on its controls.
-pub(super) fn write_input_hooks(shape: &mut Shape, functions: &[Function]) {
+pub(super) fn write_input_hooks(
+    shape: &mut Shape,
+    functions: &[Function],
+    context: &crate::godot::gdscript::Context,
+) {
     let has = |name: &str| functions.iter().any(|f| f.name == name);
     let handlers = [
         "_input",
@@ -77,7 +81,13 @@ pub(super) fn write_input_hooks(shape: &mut Shape, functions: &[Function]) {
             if !wanted || !has(handler) {
                 continue;
             }
-            let call = format!("self.{handler}(event);");
+            // A handler that waits is started through the node, which runs it
+            // on; whether it took the event is not known in time.
+            let call = if context.asyncs.contains(handler) {
+                format!("self.node.call_async(\"{handler}\", event);")
+            } else {
+                format!("self.{handler}(event);")
+            };
             if handler.starts_with("_unhandled") {
                 calls.push_str(&format!(
                     "if !gd::input_handled() && !{claimed} {{\n{call}\n}}\n"

@@ -564,6 +564,12 @@ pub fn color_with_alpha(c: any, alpha: any) -> any {
     out
 }
 
+/// `DirAccess.rename_absolute(from, to)`: the move, and Godot's `OK` back.
+pub fn rename(from: any, to: any) -> int {
+    fs::rename(text(from), text(to));
+    0
+}
+
 /// `OS.shell_open(url)`: the engine opens it; Godot's `OK` back.
 pub fn open_url(url: any) -> int {
     engine::open_url(text(url));

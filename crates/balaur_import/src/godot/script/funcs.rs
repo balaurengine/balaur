@@ -33,8 +33,11 @@ pub(super) fn write_functions(
         if static_init {
             body.push_str(&format!("{STATIC_INIT}();\n"));
         }
-        body.push_str(&init_prologue(functions, plan));
-        shape.funs.push(Fun::method("init", &[], body));
+        let waits = context.asyncs.contains("_init");
+        body.push_str(&init_prologue(functions, plan, waits));
+        let mut init = Fun::method("init", &[], body);
+        init.is_async = waits;
+        shape.funs.push(init);
         seen.insert("init".into());
     }
     for function in functions {
@@ -94,7 +97,11 @@ pub(super) fn write_functions(
             text.push_str(&format!("{STATIC_INIT}();\n"));
         }
         if node && name == "init" {
-            text.push_str(&init_prologue(functions, plan));
+            text.push_str(&init_prologue(
+                functions,
+                plan,
+                context.asyncs.contains("_init"),
+            ));
         }
         if node && name == "update" && functions.iter().any(|f| f.name == "_draw") {
             text.push_str(draw::DRAW_CALL);
@@ -147,7 +154,11 @@ pub(super) fn write_functions(
         {
             text.push_str(&format!("return {};\n", zero_of(ty)));
         }
-        let is_async = !synchronous && (body.awaits || context.asyncs.contains(&function.name));
+        // `init` waits on a `_init` that waits.
+        let is_async = !synchronous
+            && (body.awaits
+                || context.asyncs.contains(&function.name)
+                || (name == "init" && context.asyncs.contains("_init")));
         shape.funs.push(Fun {
             name,
             params,
@@ -163,7 +174,7 @@ pub(super) fn write_functions(
     }
     write_forwarders(shape, functions, context, &forwarders);
     input::write_widget_forwarders(shape, &widget_keys);
-    input::write_input_hooks(shape, functions);
+    input::write_input_hooks(shape, functions, context);
     draw::write_draw_hook(shape, functions);
     notification::write_notification_hooks(shape, functions, context);
 }
@@ -257,14 +268,14 @@ fn needs_init(functions: &[Function], plan: &Plan) -> bool {
 
 /// What `init` does before `_ready`'s body, in Godot's order: the members'
 /// declared values, `_init`, what the scene set, then `@onready`.
-fn init_prologue(functions: &[Function], plan: &Plan) -> String {
+fn init_prologue(functions: &[Function], plan: &Plan, waits: bool) -> String {
     let mut out = String::new();
     for line in &plan.defaults {
         out.push_str(line);
         out.push('\n');
     }
     if class::constructs(functions) {
-        out.push_str(&class::init_call(functions));
+        out.push_str(&class::init_call(functions, waits));
     }
     for line in plan.exports.iter().chain(&plan.ready) {
         out.push_str(line);

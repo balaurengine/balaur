@@ -189,6 +189,8 @@ pub(crate) struct Emitter<'a> {
     /// Set for the expression a statement is made of, where a wait may
     /// stand as it is.
     bare: bool,
+    /// For each call being written, whether an explicit `await` is on it.
+    direct_waits: Vec<bool>,
     /// Set when the body reached a shim call, so the caller binds `gd`.
     pub uses_shim: bool,
     /// Signal name to handler for each cross-script `connect`.
@@ -242,6 +244,7 @@ impl<'a> Emitter<'a> {
             enclosing: String::new(),
             awaited_here: false,
             bare: false,
+            direct_waits: Vec::new(),
             before: Vec::new(),
             after: Vec::new(),
         }
@@ -806,7 +809,7 @@ impl<'a> Emitter<'a> {
                     || !(self.context.methods.contains(name) || self.context.statics.contains(name))
             }
             None => matches!(inner, Expr::Call(..)),
-        };
+        } && !(text.starts_with("gd::") || text.starts_with("self.node."));
         if !waits {
             self.uses_shim = true;
             return format!("await gd::wait_on({text})");
@@ -1202,6 +1205,16 @@ impl<'a> Emitter<'a> {
     }
 
     fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
+        // An explicit `await` is this call's, not the calls among its
+        // arguments', which get their own.
+        let direct = std::mem::take(&mut self.awaited_here);
+        self.direct_waits.push(direct);
+        let out = self.call_inner(callee, args);
+        self.direct_waits.pop();
+        out
+    }
+
+    fn call_inner(&mut self, callee: &Expr, args: &[Expr]) -> String {
         if let Some(text) = self.callable_shorthand(callee, args) {
             return text;
         }
@@ -1428,7 +1441,12 @@ impl<'a> Emitter<'a> {
     /// A call to a function the async pass marked gets its `await` here, so
     /// callers need no `await` of their own in the source.
     fn awaited(&mut self, name: &str, text: String) -> String {
-        if self.awaited_here || !self.allow_await {
+        let direct = self
+            .direct_waits
+            .last()
+            .copied()
+            .unwrap_or(self.awaited_here);
+        if direct || !self.allow_await {
             return text;
         }
         if self.context.asyncs.contains(name) {

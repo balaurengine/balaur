@@ -16,12 +16,13 @@ pub(super) fn constructs(functions: &[Function]) -> bool {
 
 /// The call that runs a node class's `_init` with every parameter at its
 /// default: nil, which each defaulted parameter fills in.
-pub(super) fn init_call(functions: &[Function]) -> String {
+pub(super) fn init_call(functions: &[Function], waits: bool) -> String {
     let takes = functions
         .iter()
         .find(|f| f.name == "_init" && !f.overridden)
         .map_or(0, |f| f.params.len());
-    format!("self._init({});\n", vec!["nil"; takes].join(", "))
+    let wait = if waits { "await " } else { "" };
+    format!("{wait}self._init({});\n", vec!["nil"; takes].join(", "))
 }
 
 /// The Godot class a script's chain of `extends` ends at: `RefCounted` for
@@ -242,16 +243,30 @@ pub(super) fn write_object(
     if accessors {
         let mut get = String::new();
         let mut set = String::new();
+        // A static's accessors take no object.
+        let me = |member: &str| {
+            if context.static_vars.contains_key(member) {
+                ""
+            } else {
+                "this"
+            }
+        };
         for member in &context.getters {
             let name = gdscript::quoted(member);
             get.push_str(&format!(
-                "if name == {name} {{\nreturn {GETTER}{member}(this);\n}}\n"
+                "if name == {name} {{\nreturn {GETTER}{member}({});\n}}\n",
+                me(member)
             ));
         }
         for member in &context.setters {
             let name = gdscript::quoted(member);
+            let args = if me(member).is_empty() {
+                "value"
+            } else {
+                "this, value"
+            };
             set.push_str(&format!(
-                "if name == {name} {{\n{SETTER}{member}(this, value);\nreturn;\n}}\n"
+                "if name == {name} {{\n{SETTER}{member}({args});\nreturn;\n}}\n"
             ));
         }
         get.push_str("return this.get(name);\n");
