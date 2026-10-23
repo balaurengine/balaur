@@ -7,6 +7,51 @@
 /// The text written to `gd.bs` beside a converted project.
 pub(crate) const SHIM: &str = include_str!("gd.bs");
 
+/// Each shim function's parameter types, read off its declaration.
+fn signatures() -> &'static std::collections::BTreeMap<String, Vec<String>> {
+    static SIGNATURES: std::sync::OnceLock<std::collections::BTreeMap<String, Vec<String>>> =
+        std::sync::OnceLock::new();
+    SIGNATURES.get_or_init(|| {
+        SHIM.lines()
+            .filter_map(|line| {
+                let rest = line
+                    .strip_prefix("pub fn ")
+                    .or_else(|| line.strip_prefix("pub async fn "))?;
+                let (name, rest) = rest.split_once('(')?;
+                let (params, _) = rest.split_once(')')?;
+                let types = params
+                    .split(',')
+                    .filter(|p| !p.trim().is_empty())
+                    .map(|p| {
+                        p.split_once(':')
+                            .map_or("any", |(_, t)| t.trim())
+                            .to_string()
+                    })
+                    .collect();
+                Some((name.to_string(), types))
+            })
+            .collect()
+    })
+}
+
+/// `args` filled to every parameter `verb` declares: what Godot let the call
+/// leave out is nil, or the zero of a typed parameter.
+pub(crate) fn padded(verb: &str, args: &mut Vec<String>) {
+    let Some(types) = signatures().get(verb) else {
+        return;
+    };
+    while args.len() < types.len() {
+        let zero = match types[args.len()].as_str() {
+            "int" => "0",
+            "float" => "0.0",
+            "bool" => "false",
+            "str" => "\"\"",
+            _ => "nil",
+        };
+        args.push(zero.into());
+    }
+}
+
 /// The script a tween's callback step runs, written beside the shim.
 pub(crate) const CALLBACK: &str = include_str!("gd_callback.bs");
 
@@ -43,7 +88,10 @@ mod tests {
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect();
-                if !name.is_empty() && piece[name.len()..].starts_with('(') && !defined.contains(&name) {
+                if !name.is_empty()
+                    && piece[name.len()..].starts_with('(')
+                    && !defined.contains(&name)
+                {
                     missing.insert(name);
                 }
             }
@@ -84,10 +132,8 @@ mod tests {
     /// and settings, as every converted script links it.
     #[test]
     fn the_shim_compiles() {
-        let classes = crate::godot::exports::classes_module(
-            &crate::godot::exports::Classes::default(),
-            &[],
-        );
+        let classes =
+            crate::godot::exports::classes_module(&crate::godot::exports::Classes::default(), &[]);
         let settings = "pub fn setting(path: str) -> any {\n    nil\n}\n".to_string();
         let files = [
             ("gd.bs", super::SHIM.to_string()),

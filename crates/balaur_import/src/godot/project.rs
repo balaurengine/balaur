@@ -167,7 +167,10 @@ fn settings_module(document: &Document) -> String {
                 _ => continue,
             };
             let path = crate::godot::gdscript::quoted(&format!("{}/{key}", section.kind));
-            let _ = writeln!(arms, "    if path == {path} {{\n        return {literal};\n    }}");
+            let _ = writeln!(
+                arms,
+                "    if path == {path} {{\n        return {literal};\n    }}"
+            );
         }
     }
     format!(

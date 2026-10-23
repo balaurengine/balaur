@@ -35,7 +35,7 @@ pub(super) fn control_verb(receiver: &str, name: &str, args: &[String]) -> Optio
         // `Image.load(path)`; the global `load` is a preload by another name.
         // An `Image` or a `ConfigFile`: the shim tells which it holds.
         "load" if receiver != TREE && args.len() == 1 => {
-            format!("gd::load_into({receiver}, {one})")
+            format!("gd::image_load({receiver}, {one})")
         }
         _ => return None,
     })

@@ -270,7 +270,11 @@ impl<'a> Emitter<'a> {
     /// The class's own node. An object class has none: its node calls reach
     /// a node that is not there, and do nothing.
     pub(crate) fn own_node(&self) -> &'static str {
-        if self.context.object_class { "scene::node_by_id(\"\")" } else { "self.node" }
+        if self.context.object_class {
+            "scene::node_by_id(\"\")"
+        } else {
+            "self.node"
+        }
     }
 
     /// A project module, used by this file, as the prefix its items take.
@@ -362,6 +366,32 @@ impl<'a> Emitter<'a> {
         for line in after {
             let _ = writeln!(out, "{pad}{line}");
         }
+        self.bare_modules(out)
+    }
+
+    /// A class named as a value, not an item of it: its module's file, which
+    /// is what the shim knows a class by.
+    fn bare_modules(&self, text: String) -> String {
+        let mut out = text;
+        for (name, path) in &self.modules {
+            let prefix = format!("{name}::");
+            let mut done = String::with_capacity(out.len());
+            let mut rest = out.as_str();
+            while let Some(at) = rest.find(&prefix) {
+                let before = rest[..at].chars().last();
+                let after = rest[at + prefix.len()..].chars().next();
+                let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+                done.push_str(&rest[..at]);
+                if word(before) || word(after) {
+                    done.push_str(&prefix);
+                } else {
+                    done.push_str(&quoted(path));
+                }
+                rest = &rest[at + prefix.len()..];
+            }
+            done.push_str(rest);
+            out = done;
+        }
         out
     }
 
@@ -405,7 +435,9 @@ impl<'a> Emitter<'a> {
                         self.uses_shim = true;
                         format!("gd::int({text})")
                     }
-                    Some(value) if declared == Some(Bt::Float) && self.type_of(value) == Bt::Int => {
+                    Some(value)
+                        if declared == Some(Bt::Float) && self.type_of(value) == Bt::Int =>
+                    {
                         self.float_operand(value)
                     }
                     Some(value) => self.expression(value),
@@ -433,7 +465,10 @@ impl<'a> Emitter<'a> {
             }
             Stmt::Expr(value) => {
                 let text = self.expression(value);
-                let _ = writeln!(out, "{pad}{};", discardable(&text));
+                // A call that is nothing here leaves no statement.
+                if text != "nil" {
+                    let _ = writeln!(out, "{pad}{};", discardable(&text));
+                }
             }
             Stmt::If { arms, other } => {
                 for (index, (cond, body)) in arms.iter().enumerate() {
@@ -464,7 +499,19 @@ impl<'a> Emitter<'a> {
                         if matches!(&**callee, Expr::Name(n) if n == "range" && !self.is_local(n))
                             && (1..=2).contains(&args.len()) =>
                     {
-                        let ends: Vec<String> = args.iter().map(|a| self.expression(a)).collect();
+                        // A range counts in ints; Godot truncates a float end.
+                        let ends: Vec<String> = args
+                            .iter()
+                            .map(|a| {
+                                let text = self.expression(a);
+                                if self.type_of(a) == Bt::Int {
+                                    text
+                                } else {
+                                    self.uses_shim = true;
+                                    format!("gd::int({text})")
+                                }
+                            })
+                            .collect();
                         Some(if ends.len() == 1 {
                             format!("0..{}", ends[0])
                         } else {
@@ -556,7 +603,7 @@ impl<'a> Emitter<'a> {
 
     pub(crate) fn expression(&mut self, value: &Expr) -> String {
         match value {
-            Expr::Int(text) => text.clone(),
+            Expr::Int(text) => int_literal(text),
             Expr::Float(text) => {
                 // A float literal must read as one: `1e3` and `2.` are not
                 // float tokens here.
@@ -914,7 +961,11 @@ impl<'a> Emitter<'a> {
         }
         if let Expr::Name(name) = object
             && !self.is_local(name)
-            && self.context.enums.get(name).is_some_and(|m| m.contains(field))
+            && self
+                .context
+                .enums
+                .get(name)
+                .is_some_and(|m| m.contains(field))
         {
             return enum_member(name, field);
         }
@@ -922,7 +973,11 @@ impl<'a> Emitter<'a> {
         if let Expr::Field(inner, name) = object
             && let Expr::Name(class) = &**inner
             && !self.is_local(class)
-            && self.context.class_enums.get(class).is_some_and(|e| e.contains(name))
+            && self
+                .context
+                .class_enums
+                .get(class)
+                .is_some_and(|e| e.contains(name))
         {
             let module = self.class_module(class);
             return format!("{module}{}", enum_member(name, field));
@@ -1293,6 +1348,25 @@ impl<'a> Emitter<'a> {
         }
         text
     }
+}
+
+/// An int literal in decimal: Balaur Script has no `0x` or `0b`.
+fn int_literal(text: &str) -> String {
+    let clean = text.replace('_', "");
+    let (digits, radix) = if let Some(hex) = clean
+        .strip_prefix("0x")
+        .or_else(|| clean.strip_prefix("0X"))
+    {
+        (hex, 16)
+    } else if let Some(bin) = clean
+        .strip_prefix("0b")
+        .or_else(|| clean.strip_prefix("0B"))
+    {
+        (bin, 2)
+    } else {
+        return clean;
+    };
+    i64::from_str_radix(digits, radix).map_or(clean.clone(), |v| v.to_string())
 }
 
 /// The same chain with its root name swapped for a local, so a read-modify-

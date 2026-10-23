@@ -132,7 +132,12 @@ pub(super) fn write_functions(
         // A path that ends without a `return` answers the type's zero, as
         // Godot answers null.
         if let Some(ty) = &ret
-            && !body.text.trim_end().lines().last().is_some_and(|l| l.trim_start().starts_with("return"))
+            && !body
+                .text
+                .trim_end()
+                .lines()
+                .last()
+                .is_some_and(|l| l.trim_start().starts_with("return"))
         {
             text.push_str(&format!("return {};\n", zero_of(ty)));
         }
@@ -263,12 +268,21 @@ fn init_prologue(functions: &[Function], plan: &Plan) -> String {
 /// so a callable or another script reaches it through the node, as Godot
 /// let them.
 fn static_forwarders(shape: &mut Shape, functions: &[Function]) {
-    let mut methods: BTreeSet<String> =
-        shape.funs.iter().filter(|f| f.method).map(|f| f.name.clone()).collect();
+    let mut methods: BTreeSet<String> = shape
+        .funs
+        .iter()
+        .filter(|f| f.method)
+        .map(|f| f.name.clone())
+        .collect();
     let statics: Vec<(String, Vec<String>, Option<String>)> = shape
         .funs
         .iter()
-        .filter(|f| !f.method && functions.iter().any(|g| g.is_static && safe(&g.name) == f.name))
+        .filter(|f| {
+            !f.method
+                && functions
+                    .iter()
+                    .any(|g| g.is_static && safe(&g.name) == f.name)
+        })
         .map(|f| (f.name.clone(), f.params.clone(), f.ret.clone()))
         .collect();
     for (name, params, ret) in statics {

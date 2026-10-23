@@ -21,12 +21,42 @@ pub(super) fn write_input_hooks(shape: &mut Shape, functions: &[Function]) {
         return;
     }
     let hooks: [(&str, &[&str], &str, bool); 6] = [
-        ("on_key_down", &["key: str"], "gd::key_event(key, true)", false),
-        ("on_key_up", &["key: str"], "gd::key_event(key, false)", false),
-        ("on_pointer_down", &["button: any"], "gd::pointer_event(button, true)", true),
-        ("on_pointer_up", &["button: any"], "gd::pointer_event(button, false)", true),
-        ("on_pointer_drag", &["dx: float", "dy: float"], "gd::motion_event(dx, dy)", true),
-        ("on_scroll", &["dx: float", "dy: float"], "gd::scroll_event(dx, dy)", true),
+        (
+            "on_key_down",
+            &["key: str"],
+            "gd::key_event(key, true)",
+            false,
+        ),
+        (
+            "on_key_up",
+            &["key: str"],
+            "gd::key_event(key, false)",
+            false,
+        ),
+        (
+            "on_pointer_down",
+            &["button: any"],
+            "gd::pointer_event(button, true)",
+            true,
+        ),
+        (
+            "on_pointer_up",
+            &["button: any"],
+            "gd::pointer_event(button, false)",
+            true,
+        ),
+        (
+            "on_pointer_drag",
+            &["dx: float", "dy: float"],
+            "gd::motion_event(dx, dy)",
+            true,
+        ),
+        (
+            "on_scroll",
+            &["dx: float", "dy: float"],
+            "gd::scroll_event(dx, dy)",
+            true,
+        ),
     ];
     for (hook, params, event, pointer) in hooks {
         if has(hook) {
@@ -85,7 +115,9 @@ pub(super) fn write_widget_forwarders(shape: &mut Shape, keys: &BTreeSet<String>
                 params,
                 format!("gd::widget_fire(node, \"{key}\", {args});\n"),
             )
-            .doc(&format!("A widget's `{key}`, for the handlers bound to its node.")),
+            .doc(&format!(
+                "A widget's `{key}`, for the handlers bound to its node."
+            )),
         );
     }
 }

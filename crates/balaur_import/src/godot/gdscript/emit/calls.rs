@@ -230,7 +230,11 @@ impl Emitter<'_> {
         // What a signal hands the handler past what `bind` fixed: the rest of
         // what the method takes. The shim passes no more than that.
         let open = takes.saturating_sub(bound.len());
-        let target = if self.context.object_class { "this" } else { self.own_node() };
+        let target = if self.context.object_class {
+            "this"
+        } else {
+            self.own_node()
+        };
         let mut text = format!("gd::callable({target}, {})", quoted(&method));
         if !values.is_empty() {
             let _ = write!(
@@ -285,8 +289,15 @@ impl Emitter<'_> {
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
         // A static function is reached as a method of the class's node, which
         // forwards to it; an object class's, through its dispatcher.
-        let target = if self.context.object_class { "this" } else { self.own_node() };
-        (format!("gd::callable({target}, {})", quoted(&method)), Some(takes))
+        let target = if self.context.object_class {
+            "this"
+        } else {
+            self.own_node()
+        };
+        (
+            format!("gd::callable({target}, {})", quoted(&method)),
+            Some(takes),
+        )
     }
 
     pub(super) fn own_method(&self, target: &Expr) -> Option<String> {

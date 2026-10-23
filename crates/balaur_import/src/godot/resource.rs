@@ -37,7 +37,11 @@ pub(crate) fn convert(
     };
     let mut body = String::new();
     let module = crate::godot::scene::script_path(script);
-    let _ = writeln!(body, "    let this: any = classes::make({});", quoted(&module));
+    let _ = writeln!(
+        body,
+        "    let this: any = classes::make({});",
+        quoted(&module)
+    );
     let mut uses = std::collections::BTreeSet::from(["classes".to_string()]);
     for (key, value) in &section.fields {
         if key == "script" || key.starts_with("metadata/") {

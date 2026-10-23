@@ -872,9 +872,8 @@ fn a_class_that_draws_draws_every_frame_through_the_shim() {
     .join("\n");
     let out = convert(&lines, "scripts/lines.gd", &Classes::default());
     assert!(
-        out.rune.contains(
-            "pub fn update(this, delta) {\n    let _ = gd::draw_frame(this.node);"
-        ),
+        out.rune
+            .contains("pub fn update(this, delta) {\n    let _ = gd::draw_frame(this.node);"),
         "{}",
         out.rune
     );

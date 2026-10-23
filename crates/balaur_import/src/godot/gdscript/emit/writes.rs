@@ -396,9 +396,8 @@ impl Emitter<'_> {
                 // `node.modulate.a = x`: the base is a property, so its value
                 // is read out, changed, and written back.
                 if let Some((receiver, property)) = self.property_base(object) {
-                    let getter = map::property(&receiver, &property).unwrap_or_else(|| {
-                        format!("gd::field({receiver}, {})", quoted(&property))
-                    });
+                    let getter = map::property(&receiver, &property)
+                        .unwrap_or_else(|| format!("gd::field({receiver}, {})", quoted(&property)));
                     self.uses_shim |= getter.contains(map::SHIM_MARK);
                     let name = self.temp();
                     let text = self.expression(value);

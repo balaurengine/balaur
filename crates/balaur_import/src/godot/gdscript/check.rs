@@ -36,7 +36,9 @@ pub(crate) fn errors(files: &[(&str, String)], attach: &str) -> Vec<String> {
     };
     put(
         "main.toml",
-        &format!("[[nodes]]\nid = \"check\"\nname = \"Check\"\nscript = {{ source = \"{script}\" }}\n"),
+        &format!(
+            "[[nodes]]\nid = \"check\"\nname = \"Check\"\nscript = {{ source = \"{script}\" }}\n"
+        ),
     );
     match balaur::check_project(root) {
         Ok(found) => found

@@ -132,11 +132,18 @@ impl Emitter<'_> {
         {
             return super::quoted(&format!("{a}{b}"));
         }
-        // Two strings joined, which `+` does not do here.
+        // Strings joined, which `+` does not do here: one interpolation, a
+        // literal part written in place and any other spliced in.
         if op == "+" && lt == Bt::Str && rt == Bt::Str {
-            let left = self.expression(left);
-            let right = self.expression(right);
-            return format!("\"{{{left}}}{{{right}}}\"");
+            let mut parts = Vec::new();
+            self.string_parts(left, &mut parts);
+            self.string_parts(right, &mut parts);
+            let mut text = String::from("\"");
+            for part in parts {
+                text.push_str(&part);
+            }
+            text.push('"');
+            return text;
         }
         // Any other operand whose type is not known: Godot's operator on
         // whatever the value turns out to be.
@@ -190,6 +197,26 @@ impl Emitter<'_> {
             group(right, text, true)
         };
         format!("{left_text} {op} {right_text}")
+    }
+
+    /// The pieces of a chain of strings joined by `+`, each as it stands
+    /// inside one string literal.
+    fn string_parts(&mut self, value: &Expr, parts: &mut Vec<String>) {
+        if let Expr::Binary("+", left, right) = value
+            && self.type_of(left) == Bt::Str
+            && self.type_of(right) == Bt::Str
+        {
+            self.string_parts(left, parts);
+            self.string_parts(right, parts);
+            return;
+        }
+        if let Expr::Str(text) = value {
+            let quoted = super::quoted(text);
+            parts.push(quoted[1..quoted.len() - 1].to_string());
+            return;
+        }
+        let text = self.expression(value);
+        parts.push(format!("{{{text}}}"));
     }
 
     /// An operand as a float: an int widened.
@@ -258,7 +285,10 @@ impl Emitter<'_> {
         let mut text = String::new();
         for local in &captured {
             let bound = safe(local);
-            text.push_str(&format!("        let {bound} = cap.get({});\n", super::quoted(local)));
+            text.push_str(&format!(
+                "        let {bound} = cap.get({});\n",
+                super::quoted(local)
+            ));
         }
         // A lambda answers what it returns; a lone expression is a statement,
         // as it is in GDScript.
@@ -287,7 +317,11 @@ impl Emitter<'_> {
             cap.push_str(&format!(".with({}, {})", super::quoted(local), safe(local)));
         }
         self.uses_shim = true;
-        let target = if self.context.object_class { "this" } else { "self.node" };
+        let target = if self.context.object_class {
+            "this"
+        } else {
+            "self.node"
+        };
         format!("gd::lambda({target}, {}, {cap})", super::quoted(&name))
     }
 }
@@ -361,7 +395,9 @@ fn names_in(value: &Expr, out: &mut BTreeSet<String>) {
         Expr::Name(name) => {
             out.insert(name.clone());
         }
-        Expr::Field(object, _) | Expr::Unary(_, object) | Expr::Await(object) => names_in(object, out),
+        Expr::Field(object, _) | Expr::Unary(_, object) | Expr::Await(object) => {
+            names_in(object, out)
+        }
         Expr::Cast(object, _) | Expr::Is(object, ..) => names_in(object, out),
         Expr::Index(a, b) | Expr::Binary(_, a, b) => {
             names_in(a, out);

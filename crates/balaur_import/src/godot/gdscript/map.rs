@@ -256,7 +256,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Time", "get_unix_time_from_system") => "engine::unix_time()".into(),
         ("Time", "get_ticks_msec") => "((engine::time() * 1000.0) as int)".into(),
         ("Time", "get_ticks_usec") => "((engine::time() * 1000000.0) as int)".into(),
-        ("Time", _) => format!("engine::unix_time() /* Time.{name} */"),
+        ("Time", _) => format!("gd::todo(\"Time.{name}\")"),
         ("Engine", "get_frames_per_second" | "get_process_frames" | "get_physics_frames") => {
             "engine::tick()".into()
         }
@@ -309,7 +309,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
             format!("fs::modified_time(gd::project_path({one}))")
         }
         ("FileAccess", "get_file_as_string") => {
-            format!("gd::or_text(fs::read(gd::project_path({one})))")
+            format!("gd::or_text(fs::read(gd::project_path({one})), \"\")")
         }
         ("Engine", "get_main_loop") => TREE.into(),
         // Every bus is the master bus here; `-1` is Godot's "no such bus".
@@ -834,7 +834,9 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "visible" => format!("{node}.set_visible({value})"),
         // Godot numbers its cursor shapes; the widget names its `cursor`.
         "mouse_default_cursor_shape" => {
-            format!("gd::patch_widget({receiver}, map().with(\"cursor\", gd::cursor_word({value})))")
+            format!(
+                "gd::patch_widget({receiver}, map().with(\"cursor\", gd::cursor_word({value})))"
+            )
         }
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
         "mouse_filter" => {
@@ -852,7 +854,9 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         // A control's own size is the widget panel's width and height here.
         "size" => format!("gd::set_size({receiver}, {value})"),
         "button_group" => {
-            format!("gd::patch_widget({receiver}, map().with(\"group\", {value}).with(\"toggle\", true))")
+            format!(
+                "gd::patch_widget({receiver}, map().with(\"group\", {value}).with(\"toggle\", true))"
+            )
         }
         _ => return None,
     })
@@ -951,7 +955,10 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
             if receiver == "self.node" {
                 format!("self.{}.{} = {one}", super::MY, super::INPUT_FLAG)
             } else {
-                format!("gd::set_field({receiver}, \"{}\", {one})", super::INPUT_FLAG)
+                format!(
+                    "gd::set_field({receiver}, \"{}\", {one})",
+                    super::INPUT_FLAG
+                )
             }
         }
         _ => return None,
@@ -965,7 +972,10 @@ fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     Some(match name {
         "get_nodes_in_group" => format!("scene::tagged({one})"),
         "create_timer" => format!("gd::timer({one})"),
-        "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
+        // A path known only as it runs: `load` makes it the converted scene's.
+        "change_scene_to_file" | "change_scene_to_packed" => {
+            format!("scene::switch(gd::text(gd::load({one})))")
+        }
         "reload_current_scene" => "scene::switch(scene::source())".into(),
         "quit" if receiver == TREE => format!(
             "engine::quit({})",
@@ -1000,12 +1010,13 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         return Some(text);
     }
     // A shim verb takes the value Godot called it on as its first argument.
+    // A shim verb takes every argument it declares: what Godot let the call
+    // leave out is nil.
     let with_receiver = |verb: &str| {
-        if args.is_empty() {
-            format!("gd::{verb}({receiver})")
-        } else {
-            format!("gd::{verb}({receiver}, {all})")
-        }
+        let mut all = vec![receiver.to_string()];
+        all.extend(args.iter().cloned());
+        super::shim::padded(verb, &mut all);
+        format!("gd::{verb}({})", all.join(", "))
     };
     Some(match name {
         // Collections and strings, through the shim: Godot answered all of
@@ -1122,7 +1133,11 @@ pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -
 /// One script calling another's method. Godot reached it off the node; here
 /// the node is asked for it, and an object's class answers for it.
 pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> String {
-    format!("{INVOKE}{receiver}, {}, {})", quoted(method), any_list(args))
+    format!(
+        "{INVOKE}{receiver}, {}, {})",
+        quoted(method),
+        any_list(args)
+    )
 }
 
 /// The shim call a method of a value known only at run time goes through.
@@ -1165,7 +1180,7 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
         "connect" => format!("events::listen(self.node, {name}, self.node)"),
         "disconnect" => format!("gd::disconnect(self.node, {name})"),
         "is_connected" => format!("gd::is_connected(self.node, {name})"),
-        "get_connections" => format!("/* connections of {} */ gd::list()", safe(signal)),
+        "get_connections" => "gd::list()".into(),
         _ => return None,
     })
 }

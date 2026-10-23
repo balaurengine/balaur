@@ -73,9 +73,16 @@ pub(super) fn plan(
     let object = context.object_class;
     let store = |name: &str, value: &str| {
         if object {
-            format!("this.set({}, {value});", crate::godot::gdscript::quoted(name))
+            format!(
+                "this.set({}, {value});",
+                crate::godot::gdscript::quoted(name)
+            )
         } else {
-            format!("self.{}.{} = {value};", crate::godot::gdscript::MY, safe(name))
+            format!(
+                "self.{}.{} = {value};",
+                crate::godot::gdscript::MY,
+                safe(name)
+            )
         }
     };
     let mut seen = std::collections::BTreeSet::new();
@@ -114,7 +121,11 @@ pub(super) fn plan(
     for (name, line) in &declared_names {
         let body = super::declaration_start(line).unwrap_or(line);
         let rest = declared(body.strip_prefix("var ").unwrap_or_default());
-        let kind = if object { Bt::Any } else { member_type(rest, name) };
+        let kind = if object {
+            Bt::Any
+        } else {
+            member_type(rest, name)
+        };
         let hint = rest[name.len()..]
             .trim_start()
             .strip_prefix(':')
@@ -127,7 +138,10 @@ pub(super) fn plan(
             .and_then(super::scalar_literal)
             .and_then(|(lit, text)| fits(kind, lit, &text));
         let mut f = field(name, kind, None);
-        if !object && !onready && let Some(text) = &literal {
+        if !object
+            && !onready
+            && let Some(text) = &literal
+        {
             f.default = Some(text.clone());
         }
         plan.fields.push(f);
@@ -138,7 +152,8 @@ pub(super) fn plan(
                 default: prop_default(export, kind),
                 public: true,
             });
-            plan.exports.push(store(name, &format!("self.{}", safe(name))));
+            plan.exports
+                .push(store(name, &format!("self.{}", safe(name))));
         }
         let zero = typed_zero(hint);
         let text = match value {

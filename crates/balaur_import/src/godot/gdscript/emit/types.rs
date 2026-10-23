@@ -61,6 +61,15 @@ impl Bt {
 impl Emitter<'_> {
     /// What an expression's type is known to be, without emitting it.
     pub(crate) fn type_of(&self, value: &Expr) -> Bt {
+        // A member read through its getter is what the getter answers.
+        let own = match value {
+            Expr::Name(name) if !self.is_local(name) => Some(name),
+            Expr::Field(object, name) if matches!(**object, Expr::SelfRef) => Some(name),
+            _ => None,
+        };
+        if own.is_some_and(|name| self.context.getters.contains(name)) {
+            return Bt::Any;
+        }
         match value {
             Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Str(_) => Bt::of_literal(value),
             Expr::Name(name) if self.is_local(name) => {
@@ -82,10 +91,18 @@ impl Emitter<'_> {
                 match *op {
                     "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||" | "in" => Bt::Bool,
                     "+" | "-" | "*" if l.numeric() && r.numeric() => {
-                        if l == Bt::Int && r == Bt::Int { Bt::Int } else { Bt::Float }
+                        if l == Bt::Int && r == Bt::Int {
+                            Bt::Int
+                        } else {
+                            Bt::Float
+                        }
                     }
                     "/" if l.numeric() && r.numeric() => {
-                        if l == Bt::Int && r == Bt::Int { Bt::Int } else { Bt::Float }
+                        if l == Bt::Int && r == Bt::Int {
+                            Bt::Int
+                        } else {
+                            Bt::Float
+                        }
                     }
                     "+" if l == Bt::Str && r == Bt::Str => Bt::Str,
                     _ => Bt::Any,

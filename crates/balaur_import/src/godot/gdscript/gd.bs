@@ -201,6 +201,9 @@ pub fn mul(a: any, b: any) -> any {
     if is_int(a) && is_int(b) {
         return a.as_int() * b.as_int();
     }
+    if is_transform(a) {
+        return transform_mul(a, b);
+    }
     if is_vector(a) {
         return by_axis(a, b, "*");
     }
@@ -1108,7 +1111,8 @@ fn node_field(node: Node, name: str) -> any {
 const GET: str = "__get";
 const SET: str = "__set";
 
-/// `owner.name = value` on any value.
+/// `owner.name = value` on any value; a record's write reaches what it stands
+/// for.
 pub fn set_field(owner: any, name: str, value: any) {
     let kind = owner.kind();
     if kind == NODE {
@@ -1124,7 +1128,9 @@ pub fn set_field(owner: any, name: str, value: any) {
     } else if is_object(owner) {
         classes::set(owner, name, value);
     } else if kind == MAP {
-        owner.set(name, value);
+        if !record_set(owner, name, value) {
+            owner.set(name, value);
+        }
     }
 }
 
@@ -1250,7 +1256,8 @@ pub fn node_property(node: Node, name: str) -> any {
     if key != "" {
         return get(w, key, nil);
     }
-    nil
+    // A resource the node holds: its material, its multimesh, its shape.
+    record_property(node, name)
 }
 
 /// Writing one of Godot's node properties; false for a name that is not one.
@@ -1296,8 +1303,10 @@ pub fn set_node_property(node: Node, name: str, value: any) -> bool {
         node.patch_component(WD_MACHINE, map().with("enabled", truthy(value)));
     } else if name == "text" && (wd_has(node, WD_TEXT2D) || wd_has(node, WD_WIDGET)) {
         set_text(node, value);
+    } else if wd_set_widget_property(node, name, value) {
+        return true;
     } else {
-        return wd_set_widget_property(node, name, value);
+        return set_record_property(node, name, value);
     }
     true
 }
@@ -1458,9 +1467,17 @@ fn native_node(node: Node, name: str, args: any) -> any {
     nil
 }
 
-// Godot's own methods on a value that is not a node or an object.
+// Godot's own methods on a value that is not a node or an object: a record's
+// by its tag first, then the collections', strings' and vectors'.
 fn native(owner: any, name: str, args: any) -> any {
     let kind = owner.kind();
+    let tag = ms_tag(owner);
+    if tag != "" {
+        let answered = ms_record_verb(tag, owner, name, args);
+        if !ms_unhandled(answered) {
+            return answered;
+        }
+    }
     let a0: any = if args.len() > 0 { args.at(0) } else { nil };
     let a1: any = if args.len() > 1 { args.at(1) } else { nil };
     if name == "size" || name == "length" {
@@ -1484,7 +1501,7 @@ fn native(owner: any, name: str, args: any) -> any {
     if name == "append" || name == "push_back" {
         return append(owner, a0);
     }
-    if name == "erase" {
+    if name == "erase" && kind != STR {
         return erase(owner, a0);
     }
     if name == "find" {
@@ -1560,6 +1577,10 @@ fn native(owner: any, name: str, args: any) -> any {
         }
         if name == "format" {
             return format_map(s, a0);
+        }
+        let more = ms_string_verb(s, name, args);
+        if !ms_unhandled(more) {
+            return more;
         }
     }
     if is_vector(owner) {
@@ -2047,8 +2068,9 @@ pub fn resource_of(path: str, make: fn() -> any) -> any {
     made
 }
 
-/// `load(path)` with a path known only at run time: the project path, and
-/// a scene's as the converted `.toml`.
+/// `load(path)` with a path known only at run time: the project path, a
+/// scene's as the converted `.toml`, a `.csv` as its records, an `.svg` as
+/// the raster the import wrote beside it.
 pub fn load(path: any) -> any {
     if path.kind() != STR {
         return nil;
@@ -2058,13 +2080,38 @@ pub fn load(path: any) -> any {
         let out: any = "{p.slice(0, p.len() - 5)}.toml";
         return out;
     }
+    if p.ends_with(".csv") {
+        return csv_resource(p);
+    }
+    if p.ends_with(".svg") {
+        let stem = p.slice(0, p.len() - 4);
+        if fs::exists("{stem}.webp") {
+            let out: any = "{stem}.webp";
+            return out;
+        }
+        if fs::exists("{stem}.png") {
+            let out: any = "{stem}.png";
+            return out;
+        }
+    }
     let out: any = p;
     out
 }
 
-/// Whether a project file is there.
+/// Whether the file the import wrote for a resource is there: a scene's
+/// `.toml`, a resource's module, or the file itself.
 pub fn resource_exists(path: any) -> bool {
-    path.kind() == STR && fs::exists(project_path(path.as_str()))
+    if path.kind() != STR {
+        return false;
+    }
+    let p = project_path(path.as_str());
+    if p.ends_with(".tscn") {
+        return fs::exists("{p.slice(0, p.len() - 5)}.toml");
+    }
+    if p.ends_with(".tres") {
+        return fs::exists(ms_module_file("{p.slice(0, p.len() - 5)}_tres")) || fs::exists(p);
+    }
+    fs::exists(p)
 }
 
 // ---- Signals ----------------------------------------------------------------
@@ -2870,30 +2917,8 @@ fn wd_hex_byte(x: float) -> str {
 
 // ---- Shader parameters and images --------------------------------------------
 
-/// `material.set_shader_parameter(name, value)` on a `ShaderMaterial`
-/// record, which keeps it.
-pub fn set_shader_parameter(material: any, name: any, value: any) {
-    if material.kind() == MAP && material.has("params") {
-        material.get("params").set(key_text(name), value);
-    }
-}
 
-pub fn get_shader_parameter(material: any, name: any) -> any {
-    if material.kind() == MAP && material.has("params") {
-        return get(material.get("params"), key_text(name), nil);
-    }
-    nil
-}
 
-/// `Image.load(path)`: the record names the file, which
-/// `ImageTexture.create_from_image` answers as the texture's path.
-pub fn image_load(image: any, path: any) -> any {
-    if image.kind() != MAP || !image.has("__image") {
-        return -1;
-    }
-    image.set("path", project_path(text(path)));
-    0
-}
 
 // ---- Lines, particles, cameras -----------------------------------------------
 
@@ -4426,4 +4451,2507 @@ pub fn shift_right(a: any, n: any) -> int {
         i += 1;
     }
     out
+}
+
+// ---- Resources, records and platform ----------------------------------------
+//
+// Godot's resources and singletons a script builds or asks: each a map with a
+// tag key, whose methods `native` answers by the tag.
+
+const MS_CONFIG: str = "__config";
+const MS_JSON: str = "__json";
+const MS_REGEX: str = "__regex";
+const MS_MATCH: str = "__regex_match";
+const MS_FILE: str = "__file";
+const MS_DIR: str = "__dir";
+const MS_RNG: str = "__rng";
+const MS_IMAGE: str = "__image";
+const MS_SHADER: str = "__shader";
+const MS_MATERIAL: str = "__material";
+const MS_MESH: str = "__mesh";
+const MS_MULTIMESH: str = "__multimesh";
+const MS_XFORM: str = "__xform";
+const MS_SHAPE: str = "__shape";
+const MS_WINDOW: str = "__window";
+const MS_EVENT: str = "__event";
+
+// What a record verb answers for a name it does not carry.
+const MS_UNHANDLED: str = "__unhandled";
+
+// The tag a record carries, or "" for any other value.
+fn ms_tag(value: any) -> str {
+    if value.kind() != MAP {
+        return "";
+    }
+    if value.has(MS_XFORM) {
+        return MS_XFORM;
+    }
+    if value.has(MS_CONFIG) {
+        return MS_CONFIG;
+    }
+    if value.has(MS_JSON) {
+        return MS_JSON;
+    }
+    if value.has(MS_REGEX) {
+        return MS_REGEX;
+    }
+    if value.has(MS_MATCH) {
+        return MS_MATCH;
+    }
+    if value.has(MS_FILE) {
+        return MS_FILE;
+    }
+    if value.has(MS_DIR) {
+        return MS_DIR;
+    }
+    if value.has(MS_RNG) {
+        return MS_RNG;
+    }
+    if value.has(MS_IMAGE) {
+        return MS_IMAGE;
+    }
+    if value.has(MS_SHADER) {
+        return MS_SHADER;
+    }
+    if value.has(MS_MATERIAL) {
+        return MS_MATERIAL;
+    }
+    if value.has(MS_MESH) {
+        return MS_MESH;
+    }
+    if value.has(MS_MULTIMESH) {
+        return MS_MULTIMESH;
+    }
+    if value.has(MS_SHAPE) {
+        return MS_SHAPE;
+    }
+    if value.has(MS_WINDOW) {
+        return MS_WINDOW;
+    }
+    ""
+}
+
+fn ms_unhandled(value: any) -> bool {
+    value.kind() == STR && value.as_str() == MS_UNHANDLED
+}
+
+// A record's own method, by its tag.
+fn ms_record_verb(tag: str, rec: any, name: str, args: any) -> any {
+    if tag == MS_XFORM {
+        return ms_xform_verb(rec, name, args);
+    }
+    if tag == MS_CONFIG {
+        return ms_config_verb(rec, name, args);
+    }
+    if tag == MS_JSON {
+        return ms_json_verb(rec, name, args);
+    }
+    if tag == MS_REGEX {
+        return ms_regex_verb(rec, name, args);
+    }
+    if tag == MS_MATCH {
+        return ms_match_verb(rec, name, args);
+    }
+    if tag == MS_FILE {
+        return ms_file_verb(rec, name, args);
+    }
+    if tag == MS_DIR {
+        return ms_dir_verb(rec, name, args);
+    }
+    if tag == MS_RNG {
+        return ms_rng_verb(name, args);
+    }
+    if tag == MS_IMAGE {
+        return ms_image_verb(rec, name, args);
+    }
+    if tag == MS_SHADER {
+        if name == "get_code" {
+            return rec.get("code");
+        }
+        if name == "set_code" {
+            rec.set("code", text(arg(args, 0)));
+            return nil;
+        }
+    }
+    if tag == MS_MATERIAL {
+        return ms_material_verb(rec, name, args);
+    }
+    if tag == MS_MESH {
+        return ms_mesh_verb(rec, name, args);
+    }
+    if tag == MS_MULTIMESH {
+        return ms_multimesh_verb(rec, name, args);
+    }
+    if tag == MS_SHAPE {
+        return ms_shape_verb(rec, name, args);
+    }
+    MS_UNHANDLED
+}
+
+// ---- Platform ------------------------------------------------------------------
+
+/// Godot's viewport rectangle: the window's design size, from the origin.
+pub fn viewport_rect() -> any {
+    let size = ui::window_size();
+    rect(0.0, 0.0, size.x, size.y)
+}
+
+/// The window's design size: `get_screen_size`, `window_get_size`.
+pub fn screen_size() -> any {
+    let size = ui::window_size();
+    vec2(size.x, size.y)
+}
+
+/// Godot's `get_window()`: its content scale is the UI's scale, its size the
+/// window in its own pixels. Writing `content_scale_factor` or `mode` reaches
+/// the window.
+pub fn window() -> any {
+    let size = ui::window_size();
+    let by = ui::scale();
+    map().with(MS_WINDOW, true).with("content_scale_factor", by).with("size", vec2(size.x * by, size.y * by)).with("mode", 0)
+}
+
+/// `OS.has_feature(name)`, over the table the engine reports where it runs.
+pub fn has_feature(name: str) -> bool {
+    let here = engine::target();
+    let tag = name.to_lower();
+    if tag == "editor" {
+        return here.editor;
+    }
+    if tag == "web" || tag == "html5" || tag == "javascript" {
+        return here.web;
+    }
+    if tag == "mobile" {
+        return here.mobile;
+    }
+    if tag == "pc" {
+        return !here.mobile && !here.web;
+    }
+    if tag == "touchscreen" {
+        return here.touchscreen;
+    }
+    if tag == "debug" {
+        return here.dev;
+    }
+    if tag == "release" || tag == "template" {
+        return !here.dev;
+    }
+    if tag == "standalone" {
+        return !here.editor;
+    }
+    if tag == "linuxbsd" {
+        return here.os == "linux";
+    }
+    here.os == tag
+}
+
+/// `OS.get_name()`, in Godot's spelling.
+pub fn os_name() -> str {
+    let os = engine::target().os;
+    if os == "macos" {
+        "macOS"
+    } else if os == "windows" {
+        "Windows"
+    } else if os == "linux" {
+        "Linux"
+    } else if os == "android" {
+        "Android"
+    } else if os == "ios" {
+        "iOS"
+    } else if os == "web" {
+        "Web"
+    } else {
+        os
+    }
+}
+
+/// `OS.get_environment`: "" for a variable that is unset.
+pub fn environment(name: str) -> str {
+    let value = engine::environment(name);
+    if value.is_none() {
+        return "";
+    }
+    value.unwrap()
+}
+
+pub fn has_environment(name: str) -> bool {
+    !engine::environment(name).is_none()
+}
+
+/// `Performance.get_monitor`, by the ids the importer gives the names: frame
+/// time and node counts from the engine, the rest zero.
+pub fn monitor(id: any) -> any {
+    let which = int(id);
+    let timings = engine::timings();
+    let frame = if timings.is_none() { 0.0 } else { timings.unwrap().frame };
+    if which == 0 {
+        return if frame > 0.0 { 1.0 / frame } else { 0.0 };
+    }
+    if which == 1 || which == 2 {
+        return frame;
+    }
+    if which == 7 || which == 9 {
+        return scene::root().descendants().len() + 1;
+    }
+    0
+}
+
+// ---- ConfigFile -------------------------------------------------------------------
+
+/// Godot's `ConfigFile.new()`: sections of keys, kept in the `save` slot named
+/// after the file it loads from or saves to; `user://settings.cfg` is the
+/// slot `settings`.
+pub fn config() -> any {
+    map().with(MS_CONFIG, true).with("data", map()).with("slot", "settings")
+}
+
+fn ms_is_config(value: any) -> bool {
+    value.kind() == MAP && value.has(MS_CONFIG)
+}
+
+// A path's file name up to its first dot.
+fn ms_slot_of(path: any) -> str {
+    let parts = text(path).split("/");
+    let head = parts[parts.len() - 1].split(".");
+    head[0]
+}
+
+// A config's section, made empty where it has none.
+fn ms_section(owner: any, section: any) -> any {
+    let data: any = owner.get("data");
+    let name = key_text(section);
+    if !data.has(name) {
+        data.set(name, map());
+    }
+    data.get(name)
+}
+
+/// `ConfigFile.load(path)`: 0, or Godot's `ERR_FILE_NOT_FOUND` where the slot
+/// holds nothing. Any other value's own `load` gets the call.
+pub fn config_load(owner: any, path: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "load", list_of([path]));
+    }
+    let slot = ms_slot_of(path);
+    owner.set("slot", slot);
+    let stored: any = save::read(slot);
+    if stored.kind() != MAP {
+        owner.set("data", map());
+        return 7;
+    }
+    owner.set("data", stored);
+    0
+}
+
+pub fn config_save(owner: any, path: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "save", list_of([path]));
+    }
+    if path.kind() == STR && path.as_str() != "" {
+        owner.set("slot", ms_slot_of(path));
+    }
+    save::write(owner.get("slot").as_str(), owner.get("data"));
+    0
+}
+
+/// `get_value(section, key, default)`: a key holding nothing reads as the
+/// default, as a missing one does.
+pub fn config_get(owner: any, section: any, key: any, fallback: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "get_value", list_of([section, key, fallback]));
+    }
+    let held: any = get(get(owner.get("data"), section, nil), key, nil);
+    if held.is_nil() {
+        return fallback;
+    }
+    held
+}
+
+/// `set_value`: null takes the key out, as Godot's does.
+pub fn config_set(owner: any, section: any, key: any, value: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "set_value", list_of([section, key, value]));
+    }
+    let table: any = ms_section(owner, section);
+    let name = key_text(key);
+    if !value.is_nil() {
+        table.set(name, value);
+    } else if table.has(name) {
+        table.remove(name);
+    }
+    nil
+}
+
+pub fn config_erase_key(owner: any, section: any, key: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "erase_section_key", list_of([section, key]));
+    }
+    let table: any = ms_section(owner, section);
+    let name = key_text(key);
+    if table.has(name) {
+        table.remove(name);
+    }
+    nil
+}
+
+pub fn config_has_section(owner: any, section: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "has_section", list_of([section]));
+    }
+    has(owner.get("data"), section)
+}
+
+pub fn config_has_key(owner: any, section: any, key: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "has_section_key", list_of([section, key]));
+    }
+    has(get(owner.get("data"), section, map()), key)
+}
+
+pub fn config_erase_section(owner: any, section: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "erase_section", list_of([section]));
+    }
+    let data: any = owner.get("data");
+    let name = key_text(section);
+    if data.has(name) {
+        data.remove(name);
+    }
+    nil
+}
+
+pub fn config_sections(owner: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "get_sections", list());
+    }
+    keys(owner.get("data"))
+}
+
+pub fn config_keys(owner: any, section: any) -> any {
+    if !ms_is_config(owner) {
+        return call(owner, "get_section_keys", list_of([section]));
+    }
+    keys(get(owner.get("data"), section, map()))
+}
+
+fn ms_config_verb(cfg: any, name: str, args: any) -> any {
+    let a0 = arg(args, 0);
+    let a1 = arg(args, 1);
+    if name == "load" {
+        return config_load(cfg, a0);
+    }
+    if name == "save" {
+        return config_save(cfg, a0);
+    }
+    if name == "get_value" {
+        return config_get(cfg, a0, a1, arg(args, 2));
+    }
+    if name == "set_value" {
+        return config_set(cfg, a0, a1, arg(args, 2));
+    }
+    if name == "has_section" {
+        return config_has_section(cfg, a0);
+    }
+    if name == "has_section_key" {
+        return config_has_key(cfg, a0, a1);
+    }
+    if name == "erase_section" {
+        return config_erase_section(cfg, a0);
+    }
+    if name == "erase_section_key" {
+        return config_erase_key(cfg, a0, a1);
+    }
+    if name == "get_sections" {
+        return config_sections(cfg);
+    }
+    if name == "get_section_keys" {
+        return config_keys(cfg, a0);
+    }
+    if name == "clear" {
+        cfg.set("data", map());
+        return nil;
+    }
+    MS_UNHANDLED
+}
+
+// ---- JSON ---------------------------------------------------------------------------
+
+// `JSON.new()`'s verbs, on the record base `json_object` makes. Text that is
+// not JSON at all answers Godot's `ERR_PARSE_ERROR`.
+fn ms_json_verb(rec: any, name: str, args: any) -> any {
+    if name == "parse" {
+        let source = text(arg(args, 0));
+        if source.trim() == "" {
+            rec.set("data", nil);
+            rec.set("error", "Expected value");
+            return 43;
+        }
+        rec.set("data", json::parse(source));
+        rec.set("error", "");
+        return 0;
+    }
+    if name == "get_data" {
+        return rec.get("data");
+    }
+    if name == "get_error_message" {
+        return get(rec, "error", "");
+    }
+    if name == "get_error_line" {
+        return 0;
+    }
+    if name == "stringify" {
+        return json::encode(arg(args, 0));
+    }
+    MS_UNHANDLED
+}
+
+// ---- RegEx --------------------------------------------------------------------------
+
+/// Godot's `RegEx.new()`: a record over `regex::*`, the pattern compiled on
+/// every call.
+pub fn regexp() -> any {
+    map().with(MS_REGEX, true).with("pattern", "").with("valid", false)
+}
+
+/// `RegEx.create_from_string(pattern)`.
+pub fn regexp_of(pattern: any) -> any {
+    let rx = regexp();
+    ms_regex_verb(rx, "compile", list_of([pattern]));
+    rx
+}
+
+fn ms_regex_verb(rx: any, name: str, args: any) -> any {
+    let pattern = rx.get("pattern").as_str();
+    if name == "compile" {
+        // The engine has no way to test a pattern without failing the call,
+        // so any non-empty pattern is taken as valid.
+        let given = text(arg(args, 0));
+        rx.set("pattern", given);
+        rx.set("valid", given != "");
+        return if given != "" { 0 } else { 1 };
+    }
+    if name == "is_valid" {
+        return rx.get("valid");
+    }
+    if name == "get_pattern" {
+        return pattern;
+    }
+    if name == "clear" {
+        rx.set("pattern", "");
+        rx.set("valid", false);
+        return nil;
+    }
+    if name == "search" {
+        return ms_search(pattern, text(arg(args, 0)), arg(args, 1), arg(args, 2));
+    }
+    if name == "search_all" {
+        let out: any = list();
+        let subject = text(arg(args, 0));
+        if pattern == "" {
+            return out;
+        }
+        for found in regex::search_all(pattern, subject) {
+            out.push(ms_match_of(found, subject, 0));
+        }
+        return out;
+    }
+    if name == "sub" {
+        if pattern == "" {
+            return text(arg(args, 0));
+        }
+        return regex::replace(pattern, text(arg(args, 0)), text(arg(args, 1)), truthy(arg(args, 2)));
+    }
+    if name == "get_group_count" {
+        return ms_group_count(pattern);
+    }
+    if name == "get_names" {
+        return list();
+    }
+    MS_UNHANDLED
+}
+
+// How many capture groups a pattern opens: each `(` not escaped and not `(?`.
+fn ms_group_count(pattern: str) -> int {
+    let chars = pattern.chars();
+    let count = 0;
+    let i = 0;
+    while i < chars.len() {
+        if chars[i] == "\\" {
+            i += 2;
+            continue;
+        }
+        if chars[i] == "(" && !(i + 1 < chars.len() && chars[i + 1] == "?") {
+            count += 1;
+        }
+        i += 1;
+    }
+    count
+}
+
+// `search(subject, offset, end)`: the first match in that span.
+fn ms_search(pattern: str, subject: str, offset: any, end: any) -> any {
+    if pattern == "" {
+        return nil;
+    }
+    let total = subject.len();
+    let from = if offset.is_nil() { 0 } else { int(offset) };
+    let upto = if end.is_nil() || int(end) < 0 { total } else { int(end) };
+    let start = if from < 0 { 0 } else if from > total { total } else { from };
+    let stop = if upto > total { total } else if upto < start { start } else { upto };
+    let found: any = regex::search(pattern, subject.slice(start, stop));
+    ms_match_of(found, subject, start)
+}
+
+// A `RegExMatch` over one `regex::search` answer: the whole match is group 0,
+// and a group that took no part reads as "".
+fn ms_match_of(found: any, subject: str, shift: int) -> any {
+    if found.is_nil() {
+        return nil;
+    }
+    let strings: any = list();
+    strings.push(found.get("text"));
+    for g in found.get("groups") {
+        if g.is_nil() {
+            strings.push("");
+        } else {
+            strings.push(g);
+        }
+    }
+    map().with(MS_MATCH, true).with("subject", subject).with("strings", strings).with("start", found.get("start").as_int() + shift).with("end", found.get("end").as_int() + shift)
+}
+
+fn ms_match_verb(m: any, name: str, args: any) -> any {
+    let strings: any = m.get("strings");
+    let which: any = arg(args, 0);
+    let group = if which.kind() == INT { which.as_int() } else { 0 };
+    let known = group >= 0 && group < strings.len();
+    if name == "get_string" {
+        return if known { strings.at(group) } else { "" };
+    }
+    if name == "get_start" || name == "get_end" {
+        if !known {
+            return -1;
+        }
+        // The engine reports where the whole match lies; a group is found
+        // inside it by its text.
+        let whole = strings.at(0).as_str();
+        let part = strings.at(group).as_str();
+        let at = m.get("start").as_int() + whole.find(part);
+        return if name == "get_start" { at } else { at + part.len() };
+    }
+    if name == "get_group_count" {
+        return strings.len() - 1;
+    }
+    if name == "get_strings" {
+        return strings;
+    }
+    if name == "get_names" {
+        return map();
+    }
+    if name == "get_subject" {
+        return m.get("subject");
+    }
+    MS_UNHANDLED
+}
+
+// ---- Files ---------------------------------------------------------------------------
+
+const MS_FILE_ERROR: str = "file:last_error";
+
+/// Godot's `FileAccess.open(path, mode)`: a record holding the file's text and
+/// a cursor, each store written through; nil when a read finds no file, with
+/// `file_error()` saying why.
+pub fn file_open(path: any, mode: any) -> any {
+    let at = project_path(text(path));
+    let how = int(mode);
+    let content = "";
+    // READ (1) and READ_WRITE (3) start from what is there; WRITE (2) and
+    // WRITE_READ (7) start the file empty.
+    if how == 1 || how == 3 {
+        let read = fs::read(at);
+        if read.is_none() {
+            script::store(MS_FILE_ERROR, 7);
+            return nil;
+        }
+        content = read.unwrap();
+    } else {
+        fs::write(at, "");
+    }
+    script::store(MS_FILE_ERROR, 0);
+    map().with(MS_FILE, true).with("path", at).with("mode", how).with("text", content).with("cursor", 0).with("eof", false).with("open", true)
+}
+
+/// `FileAccess.get_open_error()`: 0 once an open worked.
+pub fn file_error() -> any {
+    let held: any = script::stored(MS_FILE_ERROR);
+    if held.is_nil() {
+        return 0;
+    }
+    held
+}
+
+// The next line from the cursor, without its line break.
+fn ms_file_line(f: any) -> str {
+    let all = f.get("text").as_str();
+    let at = f.get("cursor").as_int();
+    let total = all.len();
+    if at >= total {
+        f.set("eof", true);
+        return "";
+    }
+    let rest = all.slice(at, total);
+    let cut = rest.find("\n");
+    let line = if cut < 0 { rest } else { rest.slice(0, cut) };
+    if cut < 0 {
+        f.set("cursor", total);
+        f.set("eof", true);
+    } else {
+        f.set("cursor", at + cut + 1);
+    }
+    if line != "" && line.ends_with(ms_cr()) {
+        return line.slice(0, line.len() - 1);
+    }
+    line
+}
+
+// A carriage return, which a string literal here cannot spell.
+fn ms_cr() -> str {
+    json::parse("\"\\r\"").as_str()
+}
+
+// Text written at the cursor, over what was there, then to disk.
+fn ms_file_store(f: any, s: str) {
+    if f.get("mode").as_int() == 1 {
+        return;
+    }
+    let all = f.get("text").as_str();
+    let at = f.get("cursor").as_int();
+    let total = all.len();
+    let head = all.slice(0, if at > total { total } else { at });
+    let after = at + s.len();
+    let tail = if after < total { all.slice(after, total) } else { "" };
+    let joined_text = "{head}{s}{tail}";
+    f.set("text", joined_text);
+    f.set("cursor", head.len() + s.len());
+    fs::write(f.get("path").as_str(), joined_text);
+}
+
+fn ms_file_verb(f: any, name: str, args: any) -> any {
+    if name == "get_as_text" {
+        return f.get("text");
+    }
+    if name == "get_length" {
+        return f.get("text").as_str().len();
+    }
+    if name == "get_line" {
+        return ms_file_line(f);
+    }
+    if name == "get_csv_line" {
+        let delim: any = arg(args, 0);
+        let sep = if delim.kind() == STR { delim.as_str() } else { "," };
+        let rows: any = ms_csv_rows(ms_file_line(f), sep);
+        return if rows.len() > 0 { rows.at(0) } else { list() };
+    }
+    if name == "eof_reached" {
+        return f.get("eof");
+    }
+    if name == "get_position" {
+        return f.get("cursor");
+    }
+    if name == "seek" {
+        f.set("cursor", int(arg(args, 0)));
+        f.set("eof", false);
+        return nil;
+    }
+    if name == "seek_end" {
+        f.set("cursor", f.get("text").as_str().len() + int(arg(args, 0)));
+        return nil;
+    }
+    if name == "store_string" {
+        ms_file_store(f, text(arg(args, 0)));
+        return true;
+    }
+    if name == "store_line" {
+        ms_file_store(f, "{text(arg(args, 0))}\n");
+        return true;
+    }
+    // A Variant is stored as a line of JSON: a file only this port reads back.
+    if name == "store_var" {
+        ms_file_store(f, "{json::encode(arg(args, 0))}\n");
+        return true;
+    }
+    if name == "get_var" {
+        let line = ms_file_line(f);
+        if line.trim() == "" {
+            return nil;
+        }
+        return json::parse(line);
+    }
+    if name == "close" {
+        f.set("open", false);
+        return nil;
+    }
+    if name == "flush" {
+        return nil;
+    }
+    if name == "is_open" {
+        return f.get("open");
+    }
+    if name == "get_path" || name == "get_path_absolute" {
+        return f.get("path");
+    }
+    if name == "get_error" {
+        return 0;
+    }
+    MS_UNHANDLED
+}
+
+/// Godot's `DirAccess.open(path)`: the directory's entries, read when opened,
+/// behind Godot's verbs; nil where there is no directory.
+pub fn dir_open(path: any) -> any {
+    let at = project_path(text(path));
+    if !fs::exists(at) {
+        return nil;
+    }
+    map().with(MS_DIR, true).with("path", at).with("entries", ms_entries(at)).with("at", 0).with("last", nil)
+}
+
+fn ms_entries(at: str) -> any {
+    let out: any = list();
+    for entry in fs::list(at) {
+        out.push(map().with("name", entry.name).with("is_dir", entry.is_dir));
+    }
+    out
+}
+
+// A name a directory verb takes: a project path as itself, else inside it.
+fn ms_dir_child(dir: any, name: any) -> str {
+    let n = text(name);
+    if n.starts_with("res://") || n.starts_with("user://") || n.starts_with("/") {
+        return project_path(n);
+    }
+    let base = dir.get("path").as_str();
+    if base == "" {
+        return n;
+    }
+    "{base}/{n}"
+}
+
+fn ms_dir_names(dir: any, dirs: bool) -> any {
+    let out: any = list();
+    for entry in dir.get("entries") {
+        if entry.get("is_dir").as_bool() == dirs {
+            out.push(entry.get("name"));
+        }
+    }
+    out
+}
+
+fn ms_dir_verb(dir: any, name: str, args: any) -> any {
+    if name == "list_dir_begin" {
+        dir.set("entries", ms_entries(dir.get("path").as_str()));
+        dir.set("at", 0);
+        return 0;
+    }
+    if name == "list_dir_end" {
+        return nil;
+    }
+    if name == "get_next" {
+        let entries: any = dir.get("entries");
+        let at = dir.get("at").as_int();
+        if at >= entries.len() {
+            dir.set("last", nil);
+            return "";
+        }
+        dir.set("at", at + 1);
+        dir.set("last", entries.at(at));
+        return entries.at(at).get("name");
+    }
+    if name == "current_is_dir" {
+        let last: any = dir.get("last");
+        return !last.is_nil() && last.get("is_dir").as_bool();
+    }
+    if name == "get_files" {
+        return ms_dir_names(dir, false);
+    }
+    if name == "get_directories" {
+        return ms_dir_names(dir, true);
+    }
+    if name == "file_exists" || name == "dir_exists" {
+        return fs::exists(ms_dir_child(dir, arg(args, 0)));
+    }
+    if name == "make_dir" || name == "make_dir_recursive" {
+        fs::create_directory(ms_dir_child(dir, arg(args, 0)));
+        return 0;
+    }
+    if name == "remove" {
+        return if fs::remove(ms_dir_child(dir, arg(args, 0))) { 0 } else { 1 };
+    }
+    if name == "rename" {
+        fs::rename(ms_dir_child(dir, arg(args, 0)), ms_dir_child(dir, arg(args, 1)));
+        return 0;
+    }
+    if name == "copy" {
+        fs::copy(ms_dir_child(dir, arg(args, 0)), ms_dir_child(dir, arg(args, 1)));
+        return 0;
+    }
+    if name == "get_current_dir" {
+        return dir.get("path");
+    }
+    if name == "change_dir" {
+        let to = ms_dir_child(dir, arg(args, 0));
+        if !fs::exists(to) {
+            return 1;
+        }
+        dir.set("path", to);
+        dir.set("entries", ms_entries(to));
+        dir.set("at", 0);
+        return 0;
+    }
+    MS_UNHANDLED
+}
+
+/// A `.csv` as the godot-csv-importer resource a script loads: `records`, its
+/// rows as lists of text, the first row included. Read once, as a preload is.
+pub fn csv_resource(path: str) -> any {
+    let key = "csv:{path}";
+    let held: any = script::stored(key);
+    if !held.is_nil() {
+        return held;
+    }
+    let source = fs::read(path);
+    let rows: any = if source.is_none() { list() } else { ms_csv_rows(source.unwrap(), ",") };
+    let made: any = map().with("records", rows);
+    script::store(key, made);
+    made
+}
+
+// Delimited rows, a quoted field keeping its delimiters, doubled quotes and
+// line breaks.
+fn ms_csv_rows(source: str, sep: str) -> any {
+    let rows: any = list();
+    let row: any = list();
+    let cell = "";
+    let quoted_cell = false;
+    let chars = source.chars();
+    let cr = ms_cr();
+    let at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        if quoted_cell {
+            if c == "\"" {
+                if at + 1 < chars.len() && chars[at + 1] == "\"" {
+                    cell = "{cell}\"";
+                    at += 1;
+                } else {
+                    quoted_cell = false;
+                }
+            } else {
+                cell = "{cell}{c}";
+            }
+        } else if c == "\"" {
+            quoted_cell = true;
+        } else if c == sep {
+            row.push(cell);
+            cell = "";
+        } else if c == "\n" {
+            row.push(cell);
+            rows.push(row);
+            row = list();
+            cell = "";
+        } else if c != cr {
+            cell = "{cell}{c}";
+        }
+        at += 1;
+    }
+    if cell != "" || row.len() > 0 {
+        row.push(cell);
+        rows.push(row);
+    }
+    rows
+}
+
+// ---- Shaders, shapes, images, meshes ---------------------------------------------
+
+/// Godot's `Shader.new()`: the code a script assigns, kept and never compiled;
+/// the engine draws with its own `material` assets.
+pub fn shader() -> any {
+    map().with(MS_SHADER, true).with("code", "")
+}
+
+/// Godot's `ShaderMaterial.new()`: the shader it names and the parameters set
+/// on it.
+pub fn shader_material() -> any {
+    map().with(MS_MATERIAL, true).with("shader", nil).with("params", map()).with("node", nil)
+}
+
+// The material record a value holds: itself, or a node's.
+fn ms_material_of(owner: any) -> any {
+    if ms_tag(owner) == MS_MATERIAL {
+        return owner;
+    }
+    if owner.kind() == NODE {
+        let held: any = get_meta(owner, "material", nil);
+        if ms_tag(held) == MS_MATERIAL {
+            return held;
+        }
+    }
+    nil
+}
+
+pub fn set_shader_parameter(material: any, name: any, value: any) -> any {
+    let m = ms_material_of(material);
+    if !m.is_nil() {
+        m.get("params").set(text(name), value);
+        ms_keep(m, "material");
+        return nil;
+    }
+    if is_object(material) {
+        return call(material, "set_shader_parameter", list_of([name, value]));
+    }
+    nil
+}
+
+pub fn get_shader_parameter(material: any, name: any) -> any {
+    let m = ms_material_of(material);
+    if !m.is_nil() {
+        return get(m.get("params"), text(name), nil);
+    }
+    if is_object(material) {
+        return call(material, "get_shader_parameter", list_of([name]));
+    }
+    nil
+}
+
+fn ms_material_verb(m: any, name: str, args: any) -> any {
+    if name == "set_shader_parameter" {
+        return set_shader_parameter(m, arg(args, 0), arg(args, 1));
+    }
+    if name == "get_shader_parameter" {
+        return get_shader_parameter(m, arg(args, 0));
+    }
+    if name == "set_shader" {
+        m.set("shader", arg(args, 0));
+        ms_keep(m, "material");
+        return nil;
+    }
+    if name == "get_shader" {
+        return m.get("shader");
+    }
+    MS_UNHANDLED
+}
+
+/// Godot's `CircleShape2D.new()`: the shape a `CollisionShape2D` is handed,
+/// in pixels, as the `collider2d` it becomes once set.
+pub fn circle_shape() -> any {
+    map().with(MS_SHAPE, "circle").with("radius", 10.0).with("node", nil)
+}
+
+pub fn rect_shape() -> any {
+    map().with(MS_SHAPE, "rect").with("size", vec2(20.0, 20.0)).with("node", nil)
+}
+
+// The `collider2d` keys a shape record describes, in units.
+fn ms_collider_of(shape: any) -> any {
+    if shape.get(MS_SHAPE).as_str() == "circle" {
+        return map().with("kind", "circle").with("radius", num(shape.get("radius")) / PIXELS);
+    }
+    let size: any = shape.get("size");
+    map().with("kind", "rectangle").with("size", list_of([num(get(size, "x", 0.0)) / PIXELS, num(get(size, "y", 0.0)) / PIXELS]))
+}
+
+// A shape record over the collider a scene gave a node, which writes reach.
+fn ms_shape_of_node(node: Node) -> any {
+    if !node.has_component("collider2d") {
+        return nil;
+    }
+    let collider: any = node.get_component("collider2d");
+    let kind = text(get(collider, "kind", "rectangle"));
+    let shape: any = if kind == "circle" { circle_shape() } else { rect_shape() };
+    if kind == "circle" {
+        shape.set("radius", num(get(collider, "radius", 0.5)) * PIXELS);
+    } else {
+        let size: any = get(collider, "size", list_of([1.0, 1.0]));
+        shape.set("size", vec2(num(get(size, 0, 1.0)) * PIXELS, num(get(size, 1, 1.0)) * PIXELS));
+    }
+    shape.set("node", node);
+    set_meta(node, "shape", shape);
+    shape
+}
+
+fn ms_shape_apply(shape: any) {
+    let node = node_of(shape.get("node"));
+    if node.is_valid() {
+        node.patch_component("collider2d", ms_collider_of(shape));
+        ms_keep(shape, "shape");
+    }
+}
+
+fn ms_shape_verb(shape: any, name: str, args: any) -> any {
+    if name == "get_radius" {
+        return get(shape, "radius", 0.0);
+    }
+    if name == "get_size" {
+        return get(shape, "size", vec2(0.0, 0.0));
+    }
+    if name == "set_radius" || name == "set_size" {
+        shape.set(name.slice(4, name.len()), arg(args, 0));
+        ms_shape_apply(shape);
+        return nil;
+    }
+    MS_UNHANDLED
+}
+
+/// Godot's `Image.new()`: a record naming the file `load` read, which
+/// `ImageTexture.create_from_image` answers as the texture's path.
+pub fn image() -> any {
+    map().with(MS_IMAGE, true).with("path", "")
+}
+
+/// `x.load(path)` with one argument: an image's, a config's, or any other
+/// value's own `load`.
+pub fn image_load(image: any, path: any) -> any {
+    if ms_tag(image) == MS_IMAGE {
+        image.set("path", project_path(text(path)));
+        return 0;
+    }
+    if ms_is_config(image) {
+        return config_load(image, path);
+    }
+    call(image, "load", list_of([path]))
+}
+
+/// `ImageTexture.create_from_image(image)`: the texture is the image's path.
+pub fn image_texture(image: any) -> any {
+    if ms_tag(image) == MS_IMAGE {
+        return image.get("path");
+    }
+    if image.kind() == STR {
+        return image;
+    }
+    nil
+}
+
+// A texture's size in pixels, by its path.
+fn ms_texture_size(path: str) -> any {
+    if path == "" {
+        return vec2(0.0, 0.0);
+    }
+    let size = render::texture_size(path);
+    if size.len() < 2 {
+        return vec2(0.0, 0.0);
+    }
+    vec2(size[0] as float, size[1] as float)
+}
+
+fn ms_image_verb(img: any, name: str, args: any) -> any {
+    if name == "load" {
+        return image_load(img, arg(args, 0));
+    }
+    let size: any = ms_texture_size(img.get("path").as_str());
+    if name == "get_size" {
+        return size;
+    }
+    if name == "get_width" {
+        return size.get("x").as_float() as int;
+    }
+    if name == "get_height" {
+        return size.get("y").as_float() as int;
+    }
+    if name == "is_empty" {
+        return img.get("path").as_str() == "";
+    }
+    MS_UNHANDLED
+}
+
+/// Godot's `ArrayMesh.new()`: the triangles `add_surface_from_arrays` hands
+/// it, in units, as the inline `mesh` asset a multimesh draws.
+pub fn array_mesh() -> any {
+    map().with(MS_MESH, true).with("positions", list()).with("indices", list()).with("flat", true).with("surfaces", 0)
+}
+
+fn ms_mesh_verb(mesh: any, name: str, args: any) -> any {
+    if name == "add_surface_from_arrays" {
+        ms_add_surface(mesh, int(arg(args, 0)), arg(args, 1));
+        return nil;
+    }
+    if name == "clear_surfaces" {
+        mesh.set("positions", list());
+        mesh.set("indices", list());
+        mesh.set("surfaces", 0);
+        return nil;
+    }
+    if name == "get_surface_count" {
+        return mesh.get("surfaces");
+    }
+    MS_UNHANDLED
+}
+
+// One surface: its vertices (`ARRAY_VERTEX`, 0), in pixels for a 2D mesh, and
+// its triangles from `ARRAY_INDEX` (12) or, without one, the vertices in
+// threes, or as a strip for `PRIMITIVE_TRIANGLE_STRIP` (4).
+fn ms_add_surface(mesh: any, primitive: int, arrays: any) {
+    let vertices: any = get(arrays, 0, nil);
+    if vertices.kind() != LIST {
+        return;
+    }
+    let positions: any = mesh.get("positions");
+    let indices: any = mesh.get("indices");
+    let base = positions.len();
+    for v in vertices {
+        if v.kind() == MAP && v.has("z") {
+            positions.push(list_of([num(v.get("x")), num(v.get("y")), num(v.get("z"))]));
+            mesh.set("flat", false);
+        } else {
+            let at = units_of(v);
+            positions.push(list_of([at.x, at.y]));
+        }
+    }
+    let index: any = get(arrays, 12, nil);
+    let count = vertices.len();
+    if index.kind() == LIST && index.len() >= 3 {
+        let i = 0;
+        while i + 2 < index.len() {
+            indices.push(list_of([base + int(index.at(i)), base + int(index.at(i + 1)), base + int(index.at(i + 2))]));
+            i += 3;
+        }
+    } else if primitive == 4 {
+        for i in 0..count - 2 {
+            if i % 2 == 0 {
+                indices.push(list_of([base + i, base + i + 1, base + i + 2]));
+            } else {
+                indices.push(list_of([base + i + 1, base + i, base + i + 2]));
+            }
+        }
+    } else {
+        let i = 0;
+        while i + 2 < count {
+            indices.push(list_of([base + i, base + i + 1, base + i + 2]));
+            i += 3;
+        }
+    }
+    mesh.set("surfaces", mesh.get("surfaces").as_int() + 1);
+}
+
+// ---- MultiMesh ---------------------------------------------------------------------
+
+/// Godot's `MultiMesh.new()`: the instances a `MultiMeshInstance2D` or `3D`
+/// draws, kept as Godot's flat buffer in the engine's units. `multimesh = mm`
+/// gives the node a `multimesh2d` or `multimesh3d` over it; each write after
+/// that goes to the node as the whole buffer, since a script cannot build the
+/// `Transform2d` the engine's per-instance setter takes.
+pub fn multimesh() -> any {
+    map().with(MS_MULTIMESH, true).with("mesh", nil).with("instance_count", 0).with("visible_instance_count", -1).with("transform_format", nil).with("use_colors", false).with("use_custom_data", false).with("node", nil).with("flat", true).with("buffer", list())
+}
+
+fn ms_mm_stride(mm: any) -> int {
+    if mm.get("flat").as_bool() { 16 } else { 20 }
+}
+
+// One plain instance: no turn, white, no custom data.
+fn ms_mm_blank(out: any, flat: bool) {
+    let row: [float] = if flat {
+        [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    } else {
+        [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    };
+    for x in row {
+        out.push(x);
+    }
+}
+
+// The buffer as `instance_count` instances: new ones plain, extra ones gone.
+fn ms_mm_sync(mm: any) {
+    let buffer: any = mm.get("buffer");
+    let stride = ms_mm_stride(mm);
+    let want = int(mm.get("instance_count")) * stride;
+    let flat = mm.get("flat").as_bool();
+    while buffer.len() < want {
+        ms_mm_blank(buffer, flat);
+    }
+    while buffer.len() > want {
+        buffer.remove(buffer.len() - 1);
+    }
+}
+
+// The instances moved between a 2D buffer and a 3D one.
+fn ms_mm_set_flat(mm: any, flat: bool) {
+    if mm.get("flat").as_bool() == flat {
+        return;
+    }
+    let old: any = mm.get("buffer");
+    let from = ms_mm_stride(mm);
+    let out: any = list();
+    let count = old.len() / from;
+    for i in 0..count {
+        let at = i * from;
+        for k in 0..8 {
+            if !flat && (k == 2 || k == 6) {
+                out.push(0.0);
+            } else {
+                out.push(old.at(at + k));
+            }
+        }
+        if !flat {
+            out.push(0.0);
+            out.push(0.0);
+            out.push(1.0);
+            out.push(0.0);
+        }
+        for k in from - 8..from {
+            out.push(old.at(at + k));
+        }
+    }
+    mm.set("flat", flat);
+    mm.set("buffer", out);
+}
+
+// A record a node holds, kept again beside it: what metadata keeps is a copy,
+// so each write to the record is stored over the last.
+fn ms_keep(rec: any, name: str) {
+    let node = node_of(rec.get("node"));
+    if node.is_valid() {
+        set_meta(node, name, rec);
+    }
+}
+
+// The buffer, sent to the node once there is one.
+fn ms_mm_push(mm: any) {
+    let node = node_of(mm.get("node"));
+    if !node.is_valid() {
+        return;
+    }
+    ms_keep(mm, "multimesh");
+    render::set_buffer(node, mm.get("buffer"));
+    let visible = int(mm.get("visible_instance_count"));
+    if visible >= 0 {
+        render::set_visible_instance_count(node, visible);
+    }
+}
+
+// Instance `index`'s slot, the count grown to reach it: Godot refuses an
+// index past the count, and a port that wrote one first gets it grown.
+fn ms_mm_slot(mm: any, index: int) -> int {
+    if index >= int(mm.get("instance_count")) {
+        mm.set("instance_count", index + 1);
+    }
+    ms_mm_sync(mm);
+    index * ms_mm_stride(mm)
+}
+
+// The mesh a multimesh names, as an inline `mesh` asset.
+fn ms_mesh_asset(mesh: any, flat: bool) -> any {
+    let out: any = map().with("type", "mesh");
+    if ms_tag(mesh) != MS_MESH {
+        return out.with("positions", list()).with("indices", list());
+    }
+    let positions: any = list();
+    for p in mesh.get("positions") {
+        if flat && p.len() > 2 {
+            positions.push(list_of([p.at(0), p.at(1)]));
+        } else if !flat && p.len() == 2 {
+            positions.push(list_of([p.at(0), p.at(1), 0.0]));
+        } else {
+            positions.push(p);
+        }
+    }
+    out.with("positions", positions).with("indices", mesh.get("indices"))
+}
+
+// The node's component over the multimesh, then its instances.
+fn ms_multimesh_attach(mm: any, node: Node) {
+    mm.set("node", node);
+    let format: any = mm.get("transform_format");
+    let flat = if node.has_component("multimesh2d") {
+        true
+    } else if node.has_component("multimesh3d") {
+        false
+    } else if !format.is_nil() {
+        int(format) == 0
+    } else {
+        mm.get("flat").as_bool()
+    };
+    ms_mm_set_flat(mm, flat);
+    let component = if flat { "multimesh2d" } else { "multimesh3d" };
+    let mesh: any = mm.get("mesh");
+    if !node.has_component(component) || ms_tag(mesh) == MS_MESH {
+        let source: any = map().with("type", "multimesh").with("mesh", ms_mesh_asset(mesh, flat));
+        node.patch_component(component, map().with("source", source));
+    }
+    ms_mm_sync(mm);
+    ms_mm_push(mm);
+}
+
+// A multimesh record over the one a scene gave a node.
+fn ms_multimesh_of_node(node: Node) -> any {
+    let flat = node.has_component("multimesh2d");
+    if !flat && !node.has_component("multimesh3d") {
+        return nil;
+    }
+    let mm = multimesh();
+    mm.set("flat", flat);
+    mm.set("transform_format", if flat { 0 } else { 1 });
+    let held: any = render::buffer(node);
+    let buffer: any = list();
+    if held.kind() == LIST {
+        for x in held {
+            buffer.push(x);
+        }
+    }
+    mm.set("buffer", buffer);
+    mm.set("instance_count", buffer.len() / ms_mm_stride(mm));
+    mm.set("node", node);
+    set_meta(node, "multimesh", mm);
+    mm
+}
+
+// A Godot `Transform2D`, pixels and y down, into a 2D row in units, y up: the
+// basis mirrored through the x axis on both sides, the origin as a position.
+fn ms_mm_write_2d(buffer: any, at: int, t: any) {
+    let x: any = get(t, "x", vec2(1.0, 0.0));
+    let y: any = get(t, "y", vec2(0.0, 1.0));
+    let o: any = get(t, "origin", vec2(0.0, 0.0));
+    buffer.put(at, num(x.get("x")));
+    buffer.put(at + 1, -num(y.get("x")));
+    buffer.put(at + 3, num(o.get("x")) / PIXELS);
+    buffer.put(at + 4, -num(x.get("y")));
+    buffer.put(at + 5, num(y.get("y")));
+    buffer.put(at + 7, -num(o.get("y")) / PIXELS);
+}
+
+// A `Transform3D` as a map of `basis` (`x`, `y`, `z`) and `origin`, which 3D
+// shares the engine's frame for.
+fn ms_mm_write_3d(buffer: any, at: int, t: any) {
+    let basis: any = get(t, "basis", map());
+    let o: any = get(t, "origin", vec3(0.0, 0.0, 0.0));
+    let axes: [str] = ["x", "y", "z"];
+    for col in 0..3 {
+        let fallback: any = vec3(if col == 0 { 1.0 } else { 0.0 }, if col == 1 { 1.0 } else { 0.0 }, if col == 2 { 1.0 } else { 0.0 });
+        let axis: any = get(basis, axes[col], fallback);
+        buffer.put(at + col, num(get(axis, "x", 0.0)));
+        buffer.put(at + 4 + col, num(get(axis, "y", 0.0)));
+        buffer.put(at + 8 + col, num(get(axis, "z", 0.0)));
+    }
+    buffer.put(at + 3, num(get(o, "x", 0.0)));
+    buffer.put(at + 7, num(get(o, "y", 0.0)));
+    buffer.put(at + 11, num(get(o, "z", 0.0)));
+}
+
+fn ms_mm_write_four(buffer: any, at: int, value: any) {
+    let c = color_of(value);
+    buffer.put(at, c.r);
+    buffer.put(at + 1, c.g);
+    buffer.put(at + 2, c.b);
+    buffer.put(at + 3, c.a);
+}
+
+fn ms_mm_read_four(buffer: any, at: int) -> any {
+    color(num(buffer.at(at)), num(buffer.at(at + 1)), num(buffer.at(at + 2)), num(buffer.at(at + 3)))
+}
+
+fn ms_multimesh_verb(mm: any, name: str, args: any) -> any {
+    let index = int(arg(args, 0));
+    let value: any = arg(args, 1);
+    if name == "set_instance_transform_2d" {
+        if mm.get("transform_format").is_nil() && !node_of(mm.get("node")).is_valid() {
+            ms_mm_set_flat(mm, true);
+        }
+        let at = ms_mm_slot(mm, index);
+        if mm.get("flat").as_bool() {
+            ms_mm_write_2d(mm.get("buffer"), at, value);
+        }
+        ms_mm_push(mm);
+        return nil;
+    }
+    if name == "set_instance_transform" {
+        if mm.get("transform_format").is_nil() && !node_of(mm.get("node")).is_valid() {
+            ms_mm_set_flat(mm, false);
+        }
+        let at = ms_mm_slot(mm, index);
+        if !mm.get("flat").as_bool() {
+            ms_mm_write_3d(mm.get("buffer"), at, value);
+        }
+        ms_mm_push(mm);
+        return nil;
+    }
+    if name == "set_instance_color" || name == "set_instance_custom_data" {
+        let at = ms_mm_slot(mm, index);
+        let stride = ms_mm_stride(mm);
+        let offset = if name == "set_instance_color" { stride - 8 } else { stride - 4 };
+        ms_mm_write_four(mm.get("buffer"), at + offset, value);
+        ms_mm_push(mm);
+        return nil;
+    }
+    if index < 0 || index >= int(mm.get("instance_count")) {
+        if name == "get_instance_count" {
+            return mm.get("instance_count");
+        }
+        if name == "get_instance_transform_2d" || name == "get_instance_color" || name == "get_instance_custom_data" {
+            return nil;
+        }
+        return MS_UNHANDLED;
+    }
+    ms_mm_sync(mm);
+    let buffer: any = mm.get("buffer");
+    let stride = ms_mm_stride(mm);
+    let at = index * stride;
+    if name == "get_instance_transform_2d" {
+        let a = num(buffer.at(at));
+        let c = -num(buffer.at(at + 1));
+        let b = -num(buffer.at(at + 4));
+        let d = num(buffer.at(at + 5));
+        return ms_xform(a, b, c, d, num(buffer.at(at + 3)) * PIXELS, -num(buffer.at(at + 7)) * PIXELS);
+    }
+    if name == "get_instance_color" {
+        return ms_mm_read_four(buffer, at + stride - 8);
+    }
+    if name == "get_instance_custom_data" {
+        return ms_mm_read_four(buffer, at + stride - 4);
+    }
+    if name == "get_instance_count" {
+        return mm.get("instance_count");
+    }
+    MS_UNHANDLED
+}
+
+// A write to a multimesh's property: the count, the visible count, the format
+// and the mesh each reach the node once attached.
+fn ms_multimesh_set(mm: any, name: str, value: any) {
+    mm.set(name, value);
+    if name == "instance_count" {
+        ms_mm_sync(mm);
+        ms_mm_push(mm);
+    } else if name == "visible_instance_count" {
+        ms_mm_push(mm);
+    } else if name == "transform_format" {
+        if !node_of(mm.get("node")).is_valid() {
+            ms_mm_set_flat(mm, int(value) == 0);
+        }
+    } else if name == "mesh" {
+        let node = node_of(mm.get("node"));
+        if node.is_valid() {
+            let flat = mm.get("flat").as_bool();
+            let source: any = map().with("type", "multimesh").with("mesh", ms_mesh_asset(value, flat));
+            node.patch_component(if flat { "multimesh2d" } else { "multimesh3d" }, map().with("source", source));
+            ms_mm_push(mm);
+        }
+    } else {
+        ms_keep(mm, "multimesh");
+    }
+}
+
+// ---- Transform2D -----------------------------------------------------------------
+
+// A Godot `Transform2D`: its `x` and `y` columns and `origin`, in pixels, y down.
+fn ms_xform(xx: float, xy: float, yx: float, yy: float, ox: float, oy: float) -> any {
+    map().with(MS_XFORM, true).with("x", vec2(xx, xy)).with("y", vec2(yx, yy)).with("origin", vec2(ox, oy))
+}
+
+// A transform from a turn, a scale, a skew and a position, as Godot builds one.
+fn ms_xform_parts(angle: float, sx: float, sy: float, skew: float, ox: float, oy: float) -> any {
+    ms_xform(math::cos(angle) * sx, math::sin(angle) * sx, -math::sin(angle + skew) * sy, math::cos(angle + skew) * sy, ox, oy)
+}
+
+pub fn is_transform(value: any) -> bool {
+    value.kind() == MAP && value.has("origin") && value.has("x") && value.has("y")
+}
+
+/// `Transform2D(..)`: nothing, a copy, a turn and an origin, the three
+/// columns, or a turn, a scale, a skew and an origin.
+pub fn transform2d(args: [any]) -> any {
+    let n = args.len();
+    if n == 1 && is_transform(args[0]) {
+        let t: any = args[0];
+        return ms_xform(ms_lane(t, "x", "x"), ms_lane(t, "x", "y"), ms_lane(t, "y", "x"), ms_lane(t, "y", "y"), ms_lane(t, "origin", "x"), ms_lane(t, "origin", "y"));
+    }
+    if n == 2 {
+        let at: any = args[1];
+        return ms_xform_parts(num(args[0]), 1.0, 1.0, 0.0, num(get(at, "x", 0.0)), num(get(at, "y", 0.0)));
+    }
+    if n == 3 {
+        let x: any = args[0];
+        let y: any = args[1];
+        let o: any = args[2];
+        return ms_xform(num(get(x, "x", 1.0)), num(get(x, "y", 0.0)), num(get(y, "x", 0.0)), num(get(y, "y", 1.0)), num(get(o, "x", 0.0)), num(get(o, "y", 0.0)));
+    }
+    if n == 4 {
+        let s: any = args[1];
+        let at: any = args[3];
+        return ms_xform_parts(num(args[0]), num(get(s, "x", 1.0)), num(get(s, "y", 1.0)), num(args[2]), num(get(at, "x", 0.0)), num(get(at, "y", 0.0)));
+    }
+    ms_xform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+}
+
+// One lane of one of a transform's columns.
+fn ms_lane(t: any, column: str, lane: str) -> float {
+    num(get(get(t, column, nil), lane, 0.0))
+}
+
+/// A node's global transform as Godot's `Transform2D`, in pixels, y down.
+pub fn global_transform(node: any) -> any {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return ms_xform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    }
+    let scale = n.transform.global_scale();
+    let turn = -n.transform.global_rotation_euler().z;
+    let at = pixels_of(n.transform.global_position());
+    ms_xform_parts(turn, scale.x, scale.y, 0.0, num(at.get("x")), num(at.get("y")))
+}
+
+
+// `t.basis_xform(v)`: the columns alone.
+fn ms_basis(t: any, v: any) -> any {
+    let vx = num(get(v, "x", 0.0));
+    let vy = num(get(v, "y", 0.0));
+    vec2(ms_lane(t, "x", "x") * vx + ms_lane(t, "y", "x") * vy, ms_lane(t, "x", "y") * vx + ms_lane(t, "y", "y") * vy)
+}
+
+fn ms_point(t: any, v: any) -> any {
+    let b = ms_basis(t, v);
+    vec2(num(b.get("x")) + ms_lane(t, "origin", "x"), num(b.get("y")) + ms_lane(t, "origin", "y"))
+}
+
+fn ms_compose(a: any, b: any) -> any {
+    let x = ms_basis(a, b.get("x"));
+    let y = ms_basis(a, b.get("y"));
+    let o = ms_point(a, b.get("origin"));
+    ms_xform(num(x.get("x")), num(x.get("y")), num(y.get("x")), num(y.get("y")), num(o.get("x")), num(o.get("y")))
+}
+
+fn ms_det(t: any) -> float {
+    ms_lane(t, "x", "x") * ms_lane(t, "y", "y") - ms_lane(t, "y", "x") * ms_lane(t, "x", "y")
+}
+
+fn ms_inverse(t: any) -> any {
+    let det = ms_det(t);
+    if det == 0.0 {
+        return ms_xform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    }
+    let a = ms_lane(t, "y", "y") / det;
+    let b = -ms_lane(t, "x", "y") / det;
+    let c = -ms_lane(t, "y", "x") / det;
+    let d = ms_lane(t, "x", "x") / det;
+    let ox = ms_lane(t, "origin", "x");
+    let oy = ms_lane(t, "origin", "y");
+    ms_xform(a, b, c, d, -(a * ox + c * oy), -(b * ox + d * oy))
+}
+
+fn ms_rotation(t: any) -> float {
+    math::atan2(ms_lane(t, "x", "y"), ms_lane(t, "x", "x"))
+}
+
+fn ms_scale(t: any) -> any {
+    let sx = math::sqrt(ms_lane(t, "x", "x") * ms_lane(t, "x", "x") + ms_lane(t, "x", "y") * ms_lane(t, "x", "y"));
+    let sy = math::sqrt(ms_lane(t, "y", "x") * ms_lane(t, "y", "x") + ms_lane(t, "y", "y") * ms_lane(t, "y", "y"));
+    vec2(sx, if ms_det(t) < 0.0 { -sy } else { sy })
+}
+
+/// Godot's `*` with a transform on the left: another transform composes, a
+/// vector or a list of them is carried through it.
+pub fn transform_mul(t: any, other: any) -> any {
+    if is_transform(other) {
+        return ms_compose(t, other);
+    }
+    if other.kind() == LIST {
+        let out: any = list();
+        for p in other {
+            out.push(ms_point(t, p));
+        }
+        return out;
+    }
+    if is_vector(other) {
+        return ms_point(t, other);
+    }
+    nil
+}
+
+fn ms_xform_verb(t: any, name: str, args: any) -> any {
+    let a0: any = arg(args, 0);
+    if name == "affine_inverse" || name == "inverse" {
+        return ms_inverse(t);
+    }
+    if name == "xform" || name == "basis_xform" {
+        return if name == "xform" { ms_point(t, a0) } else { ms_basis(t, a0) };
+    }
+    if name == "xform_inv" {
+        return ms_point(ms_inverse(t), a0);
+    }
+    if name == "basis_xform_inv" {
+        let vx = num(get(a0, "x", 0.0));
+        let vy = num(get(a0, "y", 0.0));
+        return vec2(ms_lane(t, "x", "x") * vx + ms_lane(t, "x", "y") * vy, ms_lane(t, "y", "x") * vx + ms_lane(t, "y", "y") * vy);
+    }
+    if name == "get_origin" {
+        return t.get("origin");
+    }
+    if name == "get_rotation" {
+        return ms_rotation(t);
+    }
+    if name == "get_scale" {
+        return ms_scale(t);
+    }
+    if name == "determinant" {
+        return ms_det(t);
+    }
+    if name == "get_skew" {
+        let s = ms_scale(t);
+        let sx = num(s.get("x"));
+        let sy = num(s.get("y"));
+        if sx == 0.0 || sy == 0.0 {
+            return 0.0;
+        }
+        let dot = (ms_lane(t, "x", "x") * ms_lane(t, "y", "x") + ms_lane(t, "x", "y") * ms_lane(t, "y", "y")) / (sx * sy);
+        return math::acos(dot) - math::PI / 2.0;
+    }
+    if name == "translated" || name == "translated_local" {
+        let by = if name == "translated" { a0 } else { ms_basis(t, a0) };
+        return ms_xform(ms_lane(t, "x", "x"), ms_lane(t, "x", "y"), ms_lane(t, "y", "x"), ms_lane(t, "y", "y"), ms_lane(t, "origin", "x") + num(get(by, "x", 0.0)), ms_lane(t, "origin", "y") + num(get(by, "y", 0.0)));
+    }
+    if name == "rotated" || name == "rotated_local" {
+        let turn = ms_xform_parts(num(a0), 1.0, 1.0, 0.0, 0.0, 0.0);
+        return if name == "rotated" { ms_compose(turn, t) } else { ms_compose(t, turn) };
+    }
+    if name == "scaled" || name == "scaled_local" {
+        let sx = num(get(a0, "x", 1.0));
+        let sy = num(get(a0, "y", 1.0));
+        let by = ms_xform(sx, 0.0, 0.0, sy, 0.0, 0.0);
+        return if name == "scaled" { ms_compose(by, t) } else { ms_compose(t, by) };
+    }
+    if name == "orthonormalized" {
+        let s = ms_scale(t);
+        let r = ms_rotation(t);
+        return ms_xform_parts(r, 1.0, if num(s.get("y")) < 0.0 { -1.0 } else { 1.0 }, 0.0, ms_lane(t, "origin", "x"), ms_lane(t, "origin", "y"));
+    }
+    if name == "interpolate_with" {
+        let w = num(arg(args, 1));
+        let r0 = ms_rotation(t);
+        let r1 = ms_rotation(a0);
+        let s0 = ms_scale(t);
+        let s1 = ms_scale(a0);
+        let o0: any = t.get("origin");
+        let o1: any = a0.get("origin");
+        let sx = num(s0.get("x")) + (num(s1.get("x")) - num(s0.get("x"))) * w;
+        let sy = num(s0.get("y")) + (num(s1.get("y")) - num(s0.get("y"))) * w;
+        let ox = num(o0.get("x")) + (num(o1.get("x")) - num(o0.get("x"))) * w;
+        let oy = num(o0.get("y")) + (num(o1.get("y")) - num(o0.get("y"))) * w;
+        return ms_xform_parts(r0 + (r1 - r0) * w, sx, sy, 0.0, ox, oy);
+    }
+    if name == "is_equal_approx" {
+        let keys_list: [str] = ["x", "y", "origin"];
+        for column in keys_list {
+            if !is_equal_approx(ms_lane(t, column, "x"), ms_lane(a0, column, "x")) || !is_equal_approx(ms_lane(t, column, "y"), ms_lane(a0, column, "y")) {
+                return false;
+            }
+        }
+        return true;
+    }
+    MS_UNHANDLED
+}
+
+// ---- Nodes ---------------------------------------------------------------------------
+
+/// Godot's `get_node_or_null(path)`: nothing for no path or no node there,
+/// the node for a node, the node at the path otherwise.
+pub fn node_at(owner: any, path: any) -> any {
+    if path.kind() == NODE {
+        return path;
+    }
+    if path.kind() != STR || path.as_str() == "" || owner.kind() != NODE {
+        return nil;
+    }
+    let found = owner.as_node().get_node(path.as_str());
+    if found.is_valid() {
+        return found;
+    }
+    nil
+}
+
+/// Godot's `find_children(pattern, type, recursive)`: the descendants whose
+/// name matches a pattern of `*` and `?`, of that class when one is named.
+pub fn find_children(node: any, pattern: str, type_name: str, recursive: bool) -> any {
+    let out: any = list();
+    let n = node_of(node);
+    if !n.is_valid() {
+        return out;
+    }
+    let pool = if recursive { n.descendants() } else { n.children() };
+    for child in pool {
+        if ms_glob(pattern, child.name()) && (type_name == "" || is_a(child, type_name)) {
+            out.push(child);
+        }
+    }
+    out
+}
+
+// Godot's `match`: `*` for any run of characters, `?` for one.
+fn ms_glob(pattern: str, name: str) -> bool {
+    if pattern == "" || pattern == "*" {
+        return true;
+    }
+    let p = pattern.chars();
+    let s = name.chars();
+    let pi = 0;
+    let si = 0;
+    let star = -1;
+    let mark = 0;
+    while si < s.len() {
+        if pi < p.len() && (p[pi] == "?" || p[pi] == s[si]) {
+            pi += 1;
+            si += 1;
+        } else if pi < p.len() && p[pi] == "*" {
+            star = pi;
+            mark = si;
+            pi += 1;
+        } else if star >= 0 {
+            pi = star + 1;
+            mark += 1;
+            si = mark;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == "*" {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+// ---- Geometry ------------------------------------------------------------------------
+
+// A Godot polygon as the `[x, y]` pairs `geometry2d` takes.
+fn ms_points(polygon: any) -> any {
+    let out: any = list();
+    for p in polygon {
+        if p.kind() == MAP {
+            out.push(list_of([num(p.get("x")), num(p.get("y"))]));
+        } else {
+            out.push(p);
+        }
+    }
+    out
+}
+
+fn ms_vectors(points: any) -> any {
+    let out: any = list();
+    for p in points {
+        out.push(vec2(num(p.at(0)), num(p.at(1))));
+    }
+    out
+}
+
+/// `Geometry2D.triangulate_polygon`: the triangles' indices, flat.
+pub fn triangulate(polygon: any) -> any {
+    let out: any = list();
+    for triangle in geometry2d::triangulate(ms_points(polygon)) {
+        out.push(triangle[0]);
+        out.push(triangle[1]);
+        out.push(triangle[2]);
+    }
+    out
+}
+
+/// `Geometry2D.merge_polygons`: every outline and hole of the union, flat.
+pub fn merge_polygons(a: any, b: any) -> any {
+    let out: any = list();
+    let shapes: any = geometry2d::union(ms_points(a), ms_points(b));
+    for shape in shapes {
+        for path in shape {
+            out.push(ms_vectors(path));
+        }
+    }
+    out
+}
+
+// ---- Random numbers ------------------------------------------------------------------
+
+/// Godot's `RandomNumberGenerator.new()`: its methods over the engine's one
+/// seeded generator, which keeps a replay the same; `seed` is kept, not used.
+pub fn random_numbers() -> any {
+    map().with(MS_RNG, true).with("seed", 0).with("state", 0)
+}
+
+fn ms_rng_verb(name: str, args: any) -> any {
+    if name == "randf" {
+        return random::float();
+    }
+    if name == "randf_range" {
+        return random::range(num(arg(args, 0)), num(arg(args, 1)));
+    }
+    if name == "randi" {
+        return random::int(0, 2147483647);
+    }
+    if name == "randi_range" {
+        return random::int(int(arg(args, 0)), int(arg(args, 1)));
+    }
+    if name == "randfn" {
+        let mean: any = arg(args, 0);
+        let deviation: any = arg(args, 1);
+        let u = 1.0 - random::float();
+        let v = random::float();
+        let normal = math::sqrt(-2.0 * math::log(u)) * math::cos(math::TAU * v);
+        return (if mean.is_nil() { 0.0 } else { num(mean) }) + normal * (if deviation.is_nil() { 1.0 } else { num(deviation) });
+    }
+    if name == "rand_weighted" {
+        let weights: any = arg(args, 0);
+        let total = 0.0;
+        for w in weights {
+            total += num(w);
+        }
+        let pick = random::float() * total;
+        let index = 0;
+        for w in weights {
+            pick -= num(w);
+            if pick < 0.0 {
+                return index;
+            }
+            index += 1;
+        }
+        return if index > 0 { index - 1 } else { -1 };
+    }
+    if name == "randomize" {
+        return nil;
+    }
+    MS_UNHANDLED
+}
+
+// ---- Classes -------------------------------------------------------------------------
+
+/// Godot's `x is Name`: a project class by the scripts that are it or extend
+/// it, an object by its class, a node's Godot class by the component or
+/// widget kind it became, a record or a value by what it holds.
+pub fn is_a(value: any, name: str) -> bool {
+    let kind = value.kind();
+    if kind == NIL {
+        return false;
+    }
+    if kind == NODE {
+        let node = value.as_node();
+        if !node.is_valid() {
+            return false;
+        }
+        // A converted script says which classes it is.
+        if node.has_method("__is") && truthy(node.call("__is", name)) {
+            return true;
+        }
+        if classes::scripts(name).len() > 0 {
+            return false;
+        }
+        return ms_node_is(node, name);
+    }
+    if kind == MAP {
+        if value.has(MS_EVENT) {
+            return ms_event_is(text(value.get(MS_EVENT)), name);
+        }
+        if value.has(CLASS_KEY) {
+            let class = text(value.get(CLASS_KEY));
+            if class == name {
+                return true;
+            }
+            for s in classes::scripts(name) {
+                if s == class {
+                    return true;
+                }
+            }
+            return name == "Object" || name == "RefCounted";
+        }
+        return ms_record_is(value, name);
+    }
+    if kind == INT {
+        return name == "int";
+    }
+    if kind == FLOAT {
+        return name == "float";
+    }
+    if kind == BOOL {
+        return name == "bool";
+    }
+    if kind == STR {
+        return name == "String" || name == "StringName" || name == "NodePath";
+    }
+    if kind == LIST {
+        return name == "Array" || (name.starts_with("Packed") && name.ends_with("Array"));
+    }
+    false
+}
+
+/// `x as Name`: `x` when it is one, else nothing.
+pub fn as_class(value: any, name: str) -> any {
+    if is_a(value, name) {
+        return value;
+    }
+    nil
+}
+
+// Godot's input event classes a hook's event stands for: a finger is a click
+// here, so a pointer event is Godot's touch as well as its mouse.
+fn ms_event_is(kind: str, name: str) -> bool {
+    if name == "InputEvent" || name == kind {
+        return true;
+    }
+    if kind == "InputEventKey" {
+        return name == "InputEventWithModifiers";
+    }
+    if kind == "InputEventMouseButton" {
+        return name == "InputEventWithModifiers" || name == "InputEventMouse" || name == "InputEventScreenTouch";
+    }
+    if kind == "InputEventMouseMotion" {
+        return name == "InputEventWithModifiers" || name == "InputEventMouse" || name == "InputEventScreenDrag";
+    }
+    false
+}
+
+// A node's Godot class, by what the import made of it: the component a class
+// converts to, or the widget kind a Control became.
+fn ms_node_is(node: Node, name: str) -> bool {
+    if name == "Node" || name == "Object" || name == "CanvasItem" {
+        return true;
+    }
+    let widget = node.has_component("widget");
+    if name == "Control" {
+        return widget;
+    }
+    if name == "Node2D" {
+        return !widget;
+    }
+    let component = ms_class_component(name);
+    if component != "" {
+        if name == "RigidBody2D" || name == "StaticBody2D" {
+            return node.has_component(component) && !node.has_component("character2d");
+        }
+        return node.has_component(component);
+    }
+    if widget {
+        let wkind = text(get(node.get_component("widget"), "kind", ""));
+        let wants = ms_widget_kind(name);
+        if wants != "" {
+            return wants == wkind;
+        }
+        if name == "BaseButton" {
+            return wkind == "button" || wkind == "checkbox" || wkind == "dropdown";
+        }
+        if name == "Range" {
+            return wkind == "slider" || wkind == "progress_bar";
+        }
+        if name == "Container" {
+            return wkind == "row" || wkind == "column" || wkind == "grid" || wkind == "stack" || wkind == "flow" || wkind == "scroll" || wkind == "tabs";
+        }
+    }
+    node.has_tag(name)
+}
+
+// The component a Godot node class converts to.
+fn ms_class_component(name: str) -> str {
+    if name == "Sprite2D" || name == "AnimatedSprite2D" {
+        "sprite"
+    } else if name == "Camera2D" {
+        "camera2d"
+    } else if name == "Camera3D" {
+        "camera3d"
+    } else if name == "CollisionShape2D" || name == "CollisionPolygon2D" {
+        "collider2d"
+    } else if name == "CharacterBody2D" {
+        "character2d"
+    } else if name == "RigidBody2D" || name == "StaticBody2D" || name == "AnimatableBody2D" || name == "PhysicsBody2D" || name == "CollisionObject2D" {
+        "body2d"
+    } else if name == "AnimationPlayer" {
+        "animation"
+    } else if name == "Timer" {
+        "timer"
+    } else if name == "AudioStreamPlayer" || name == "AudioStreamPlayer2D" {
+        "sound"
+    } else if name == "Line2D" {
+        "shape2d"
+    } else if name == "Polygon2D" {
+        "polygon"
+    } else if name == "CPUParticles2D" || name == "GPUParticles2D" {
+        "particles2d"
+    } else if name == "MultiMeshInstance2D" {
+        "multimesh2d"
+    } else if name == "MultiMeshInstance3D" {
+        "multimesh3d"
+    } else if name == "PointLight2D" || name == "DirectionalLight2D" || name == "Light2D" {
+        "light2d"
+    } else if name == "Bone2D" {
+        "bone2d"
+    } else if name == "TileMapLayer" {
+        "tilemap"
+    } else {
+        ""
+    }
+}
+
+// The widget kind a Control class converts to: the importer's `WIDGET_KINDS`.
+fn ms_widget_kind(name: str) -> str {
+    if name == "Label" || name == "RichTextLabel" {
+        "label"
+    } else if name == "Button" || name == "LinkButton" || name == "MenuButton" {
+        "button"
+    } else if name == "TextureButton" || name == "TextureRect" || name == "NinePatchRect" {
+        "image"
+    } else if name == "CheckBox" || name == "CheckButton" {
+        "checkbox"
+    } else if name == "LineEdit" || name == "TextEdit" || name == "SpinBox" {
+        "text_field"
+    } else if name == "OptionButton" {
+        "dropdown"
+    } else if name == "HSlider" || name == "VSlider" || name == "Slider" {
+        "slider"
+    } else if name == "ProgressBar" || name == "TextureProgressBar" {
+        "progress_bar"
+    } else if name == "ColorRect" || name == "Panel" || name == "PanelContainer" || name == "MarginContainer" || name == "CenterContainer" {
+        "stack"
+    } else if name == "HBoxContainer" || name == "BoxContainer" {
+        "row"
+    } else if name == "VBoxContainer" {
+        "column"
+    } else if name == "GridContainer" {
+        "grid"
+    } else if name == "ScrollContainer" {
+        "scroll"
+    } else if name == "TabContainer" || name == "TabBar" {
+        "tabs"
+    } else {
+        ""
+    }
+}
+
+// A record's or a value's Godot class.
+fn ms_record_is(value: any, name: str) -> bool {
+    if name == "Object" || name == "RefCounted" || name == "Resource" {
+        return ms_tag(value) != "";
+    }
+    let tag = ms_tag(value);
+    if tag == MS_REGEX {
+        return name == "RegEx";
+    }
+    if tag == MS_MATCH {
+        return name == "RegExMatch";
+    }
+    if tag == MS_CONFIG {
+        return name == "ConfigFile";
+    }
+    if tag == MS_JSON {
+        return name == "JSON";
+    }
+    if tag == MS_FILE {
+        return name == "FileAccess";
+    }
+    if tag == MS_DIR {
+        return name == "DirAccess";
+    }
+    if tag == MS_RNG {
+        return name == "RandomNumberGenerator";
+    }
+    if tag == MS_IMAGE {
+        return name == "Image";
+    }
+    if tag == MS_SHADER {
+        return name == "Shader";
+    }
+    if tag == MS_MATERIAL {
+        return name == "ShaderMaterial" || name == "Material";
+    }
+    if tag == MS_MESH {
+        return name == "ArrayMesh" || name == "Mesh";
+    }
+    if tag == MS_MULTIMESH {
+        return name == "MultiMesh";
+    }
+    if tag == MS_XFORM {
+        return name == "Transform2D";
+    }
+    if tag == MS_SHAPE {
+        let circle = value.get(MS_SHAPE).as_str() == "circle";
+        return name == "Shape2D" || (circle && name == "CircleShape2D") || (!circle && name == "RectangleShape2D");
+    }
+    if tag == MS_WINDOW {
+        return name == "Window" || name == "Viewport";
+    }
+    if name == "Vector2" || name == "Vector2i" {
+        return is_vector(value) && value.len() == 2;
+    }
+    if name == "Vector3" || name == "Vector3i" {
+        return is_vector(value) && value.len() == 3;
+    }
+    if name == "Color" {
+        return is_color(value);
+    }
+    if name == "Rect2" || name == "Rect2i" {
+        return value.len() == 2 && value.has("position") && value.has("size");
+    }
+    if name == "Callable" {
+        return is_callable(value);
+    }
+    if name == "Dictionary" {
+        return is_dict(value);
+    }
+    false
+}
+
+// ---- String verbs --------------------------------------------------------------------
+
+pub fn to_lower(value: any) -> str {
+    text(value).to_lower()
+}
+
+pub fn to_upper(value: any) -> str {
+    text(value).to_upper()
+}
+
+pub fn strip_edges(value: any) -> str {
+    text(value).trim()
+}
+
+pub fn begins_with(value: any, prefix: any) -> bool {
+    text(value).starts_with(text(prefix))
+}
+
+pub fn ends_with(value: any, suffix: any) -> bool {
+    text(value).ends_with(text(suffix))
+}
+
+/// `contains` on a string; an array or a dictionary answers `has`.
+pub fn contains(value: any, part: any) -> bool {
+    if value.kind() == STR {
+        return value.as_str().contains(text(part));
+    }
+    has(value, part)
+}
+
+// The last index of `part` in `s`, -1 when none.
+fn ms_rfind(s: str, part: str) -> int {
+    if part == "" {
+        return s.len();
+    }
+    let found = -1;
+    let from = 0;
+    while from <= s.len() {
+        let at = s.slice(from, s.len()).find(part);
+        if at < 0 {
+            break;
+        }
+        found = from + at;
+        from = found + 1;
+    }
+    found
+}
+
+// A path's directory and file name, Godot's `get_base_dir` and `get_file`.
+fn ms_path_parts(s: str) -> [str] {
+    let slash = ms_rfind(s, "/");
+    if slash < 0 {
+        return ["", s];
+    }
+    let dir = s.slice(0, slash);
+    let parts: [str] = [if dir == "res:/" || dir == "user:/" { "{dir}/" } else { dir }, s.slice(slash + 1, s.len())];
+    parts
+}
+
+// The code of a printable character, as `char` makes it.
+fn ms_code_of(c: str) -> int {
+    if c == "\n" {
+        return 10;
+    }
+    if c == "\t" {
+        return 9;
+    }
+    for code in 32..127 {
+        if chr(code) == c {
+            return code;
+        }
+    }
+    0
+}
+
+fn ms_hex_value(s: str) -> int {
+    let digits = s.to_lower();
+    let negative = digits.starts_with("-");
+    let body = if negative { digits.slice(1, digits.len()) } else { digits };
+    let rest = if body.starts_with("0x") { body.slice(2, body.len()) } else { body };
+    let out = 0;
+    for c in rest.chars() {
+        let d = "0123456789abcdef".find(c);
+        if d < 0 {
+            break;
+        }
+        out = out * 16 + d;
+    }
+    if negative { -out } else { out }
+}
+
+// Godot's string methods past base `native`'s; `MS_UNHANDLED` for the rest.
+fn ms_string_verb(s: str, name: str, args: any) -> any {
+    let a0: any = arg(args, 0);
+    let a1: any = arg(args, 1);
+    let total = s.len();
+    if name == "left" {
+        let n = int(a0);
+        let upto = if n < 0 { total + n } else { n };
+        return substr(s, 0, if upto < 0 { 0 } else { upto });
+    }
+    if name == "right" {
+        let n = int(a0);
+        let from = if n < 0 { -n } else { total - n };
+        return substr(s, if from < 0 { 0 } else { from }, -1);
+    }
+    if name == "repeat" {
+        let out = "";
+        for k in 0..int(a0) {
+            out = "{out}{s}";
+        }
+        return out;
+    }
+    if name == "rfind" {
+        return ms_rfind(s, text(a0));
+    }
+    if name == "findn" {
+        return s.to_lower().find(text(a0).to_lower());
+    }
+    if name == "count" {
+        let part = text(a0);
+        if part == "" {
+            return 0;
+        }
+        return s.split(part).len() - 1;
+    }
+    if name == "trim_prefix" {
+        let p = text(a0);
+        return if p != "" && s.starts_with(p) { s.slice(p.len(), total) } else { s };
+    }
+    if name == "trim_suffix" {
+        let p = text(a0);
+        return if p != "" && s.ends_with(p) { s.slice(0, total - p.len()) } else { s };
+    }
+    if name == "get_base_dir" {
+        return ms_path_parts(s)[0];
+    }
+    if name == "get_file" {
+        return ms_path_parts(s)[1];
+    }
+    if name == "get_extension" {
+        let file = ms_path_parts(s)[1];
+        let dot = ms_rfind(file, ".");
+        return if dot < 0 { "" } else { file.slice(dot + 1, file.len()) };
+    }
+    if name == "get_basename" {
+        let dot = ms_rfind(s, ".");
+        let slash = ms_rfind(s, "/");
+        return if dot <= slash { s } else { s.slice(0, dot) };
+    }
+    if name == "path_join" {
+        let other = text(a0);
+        return if s == "" || s.ends_with("/") { "{s}{other}" } else { "{s}/{other}" };
+    }
+    if name == "is_absolute_path" {
+        return s.starts_with("res://") || s.starts_with("user://") || s.starts_with("/");
+    }
+    if name == "is_relative_path" {
+        return !(s.starts_with("res://") || s.starts_with("user://") || s.starts_with("/"));
+    }
+    if name == "join" {
+        return join(s, a0);
+    }
+    if name == "get_slice" {
+        let parts = s.split(text(a0));
+        let i = int(a1);
+        return if i >= 0 && i < parts.len() { parts[i] } else { "" };
+    }
+    if name == "get_slice_count" {
+        return s.split(text(a0)).len();
+    }
+    if name == "split_floats" {
+        let out: any = list();
+        for part in s.split(text(a0)) {
+            out.push(part.parse_float());
+        }
+        return out;
+    }
+    if name == "lpad" || name == "rpad" {
+        let fill = if a1.kind() == STR { a1.as_str() } else { " " };
+        let out = s;
+        while out.len() < int(a0) {
+            out = if name == "lpad" { "{fill}{out}" } else { "{out}{fill}" };
+        }
+        return out;
+    }
+    if name == "pad_zeros" {
+        let negative = s.starts_with("-");
+        let body = if negative { s.slice(1, total) } else { s };
+        let dot = body.find(".");
+        let whole = if dot < 0 { body } else { body.slice(0, dot) };
+        let rest = if dot < 0 { "" } else { body.slice(dot, body.len()) };
+        while whole.len() < int(a0) {
+            whole = "0{whole}";
+        }
+        return if negative { "-{whole}{rest}" } else { "{whole}{rest}" };
+    }
+    if name == "pad_decimals" {
+        return decimals(s.parse_float(), int(a0));
+    }
+    if name == "capitalize" {
+        let words: [str] = [];
+        for word in s.replace("_", " ").split(" ") {
+            if word != "" {
+                words.push("{word.slice(0, 1).to_upper()}{word.slice(1, word.len()).to_lower()}");
+            }
+        }
+        return joined(" ", words);
+    }
+    if name == "insert" {
+        let at = int(a0);
+        let cut = if at > total { total } else if at < 0 { 0 } else { at };
+        return "{s.slice(0, cut)}{text(a1)}{s.slice(cut, total)}";
+    }
+    if name == "erase" {
+        let at = int(a0);
+        let n = if a1.is_nil() { 1 } else { int(a1) };
+        let end = if at + n > total { total } else { at + n };
+        return "{s.slice(0, at)}{s.slice(end, total)}";
+    }
+    if name == "match" {
+        return ms_glob(text(a0), s);
+    }
+    if name == "matchn" {
+        return ms_glob(text(a0).to_lower(), s.to_lower());
+    }
+    if name == "sha256_text" {
+        return hash::sha256_text(s);
+    }
+    if name == "strip_escapes" {
+        return s.trim();
+    }
+    if name == "lstrip" || name == "rstrip" {
+        let set = text(a0);
+        let chars = s.chars();
+        let from = 0;
+        let upto = chars.len();
+        if name == "lstrip" {
+            while from < upto && set.contains(chars[from]) {
+                from += 1;
+            }
+        } else {
+            while upto > from && set.contains(chars[upto - 1]) {
+                upto -= 1;
+            }
+        }
+        return s.slice(from, upto);
+    }
+    if name == "unicode_at" {
+        return ms_code_of(substr(s, int(a0), 1));
+    }
+    if name == "hex_to_int" {
+        return ms_hex_value(s);
+    }
+    if name == "casecmp_to" || name == "nocasecmp_to" {
+        let a: any = if name == "casecmp_to" { s } else { s.to_lower() };
+        let b: any = if name == "casecmp_to" { text(a0) } else { text(a0).to_lower() };
+        return if a.equals(b) { 0 } else if lt(a, b) { -1 } else { 1 };
+    }
+    // A texture is its path here, so its size is the file's.
+    if name == "get_size" {
+        return ms_texture_size(s);
+    }
+    if name == "get_width" || name == "get_height" {
+        let size: any = ms_texture_size(s);
+        return size.get(if name == "get_width" { "x" } else { "y" }).as_float() as int;
+    }
+    MS_UNHANDLED
+}
+
+// ---- Properties a script sets records under ------------------------------------------
+
+/// The resource a node holds under one of Godot's properties: its `material`,
+/// `multimesh` or `shape`, as the record a script set or one over what the
+/// scene gave it; nil for another name.
+pub fn record_property(node: Node, name: str) -> any {
+    if name != "material" && name != "multimesh" && name != "shape" {
+        return nil;
+    }
+    let held: any = get_meta(node, name, nil);
+    if !held.is_nil() {
+        return held;
+    }
+    if name == "multimesh" {
+        return ms_multimesh_of_node(node);
+    }
+    if name == "shape" {
+        return ms_shape_of_node(node);
+    }
+    nil
+}
+
+/// Writing one: a multimesh attaches to the node, a shape becomes its
+/// `collider2d`, a material is kept beside it. False for any other name.
+pub fn set_record_property(node: Node, name: str, value: any) -> bool {
+    let tag = ms_tag(value);
+    if name == "multimesh" && tag == MS_MULTIMESH {
+        ms_multimesh_attach(value, node);
+        set_meta(node, name, value);
+        return true;
+    }
+    if name == "shape" && tag == MS_SHAPE {
+        value.set("node", node);
+        ms_shape_apply(value);
+        set_meta(node, name, value);
+        return true;
+    }
+    if name == "material" {
+        if tag == MS_MATERIAL {
+            value.set("node", node);
+        }
+        set_meta(node, name, value);
+        return true;
+    }
+    false
+}
+
+/// A record's property written: a multimesh's count, format or mesh, a
+/// shape's size, a window's scale or mode reach what they stand for. False
+/// for a value that is no such record, which the caller writes itself.
+pub fn record_set(owner: any, name: str, value: any) -> bool {
+    let tag = ms_tag(owner);
+    if tag == MS_MULTIMESH {
+        ms_multimesh_set(owner, name, value);
+        return true;
+    }
+    if tag == MS_SHAPE {
+        owner.set(name, value);
+        ms_shape_apply(owner);
+        return true;
+    }
+    if tag == MS_WINDOW {
+        owner.set(name, value);
+        if name == "content_scale_factor" {
+            ui::set_scale(num(value));
+        } else if name == "mode" {
+            window::set_fullscreen(int(value) >= 3);
+        }
+        return true;
+    }
+    false
+}
+
+
+
+
+
+
+
+// The module the import writes for a stem: each part's other characters as
+// `_`, and one starting with a digit led by `_`.
+fn ms_module_file(stem: str) -> str {
+    let alnum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let parts: [str] = [];
+    for part in stem.split("/") {
+        let name = "";
+        for c in part.chars() {
+            name = if alnum.contains(c) { "{name}{c}" } else { "{name}_" };
+        }
+        if name == "" || "0123456789".contains(name.slice(0, 1)) {
+            name = "_{name}";
+        }
+        parts.push(name);
+    }
+    "{joined("/", parts)}.bs"
 }

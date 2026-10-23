@@ -97,13 +97,31 @@ pub(super) fn write_node(
         fun.method = false;
         shape.funs.push(fun);
     }
+    // Godot's `is`: the class names this script is, its bases' among them.
+    let names = class_names(source, classes);
+    let test = if names.is_empty() {
+        "false".to_string()
+    } else {
+        names
+            .iter()
+            .map(|n| format!("class == {}", gdscript::quoted(n)))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    shape.funs.push(
+        Fun::method("__is", &["class: str"], format!("return {test};\n"))
+            .doc("Whether the node is of a class, as Godot's `is` asks it.")
+            .returns("bool"),
+    );
     let mut get = String::new();
     let mut set = String::new();
     for member in &context.members {
         let name = gdscript::quoted(member);
         let field = format!("self.{MY}.{}", safe(member));
         if context.getters.contains(member) {
-            get.push_str(&format!("if name == {name} {{\nreturn self.{GETTER}{member}();\n}}\n"));
+            get.push_str(&format!(
+                "if name == {name} {{\nreturn self.{GETTER}{member}();\n}}\n"
+            ));
         } else {
             get.push_str(&format!("if name == {name} {{\nreturn {field};\n}}\n"));
         }
@@ -112,7 +130,9 @@ pub(super) fn write_node(
                 "if name == {name} {{\nself.{SETTER}{member}(value);\nreturn;\n}}\n"
             ));
         } else {
-            set.push_str(&format!("if name == {name} {{\n{field} = value;\nreturn;\n}}\n"));
+            set.push_str(&format!(
+                "if name == {name} {{\n{field} = value;\nreturn;\n}}\n"
+            ));
         }
     }
     get.push_str("return gd::node_property(self.node, name);\n");
@@ -127,6 +147,25 @@ pub(super) fn write_node(
             .doc("A member, as another script writes it; else the node's own property."),
     );
     shape.uses.insert("gd".into());
+}
+
+/// The `class_name` of each script in a class's chain, and the Godot class
+/// the chain ends at.
+fn class_names(source: &str, classes: &Classes) -> Vec<String> {
+    let mut out = Vec::new();
+    for level in super::chain(source, classes) {
+        if let Some(name) = level
+            .lines()
+            .find_map(|line| line.strip_prefix("class_name "))
+            .map(super::name_of)
+            .filter(|n| !n.is_empty())
+        {
+            out.push(name);
+        }
+    }
+    out.push(builtin_root(source, classes));
+    out.dedup();
+    out
 }
 
 /// An object class: `new()` makes its map, and `__call`, `__get` and
@@ -205,7 +244,9 @@ pub(super) fn write_object(
         let mut set = String::new();
         for member in &context.getters {
             let name = gdscript::quoted(member);
-            get.push_str(&format!("if name == {name} {{\nreturn {GETTER}{member}(this);\n}}\n"));
+            get.push_str(&format!(
+                "if name == {name} {{\nreturn {GETTER}{member}(this);\n}}\n"
+            ));
         }
         for member in &context.setters {
             let name = gdscript::quoted(member);

@@ -11,17 +11,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::godot::exports::{Classes, split_top};
-use crate::godot::scene::script_path;
 use crate::godot::gdscript::{
     self, BASE_SUFFIX, Bt, Context, INPUT_FLAG, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, safe,
 };
-pub(crate) use class::NEW_NAME;
+use crate::godot::scene::script_path;
+pub(crate) use class::{CLASS_KEY, NEW_NAME};
 use class::{OBJECT_ROOTS, builtin_root};
 use constants::{enum_members, scalar_literal, write_constants, write_enums};
 pub(crate) use inner::{
     defaulted, function_names, inner_classes, inner_file, inner_scripts, member_names,
     signal_arities,
 };
+pub(crate) use members::is_prop;
 use render::Shape;
 
 /// A converted file, and what the port will have to deal with.
@@ -89,9 +90,13 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     // Inheritance is flattened: a base's functions are this file's too, under
     // the derived ones, and the first of a name is the one kept.
     let inherited = chain(source, classes);
-    let calls_super = source.lines().any(|line| {
-        let code = line.split('#').next().unwrap_or_default();
-        code.contains("super(") || code.contains("super.")
+    // A base's function this class inherits may call `super` as surely as
+    // one of its own.
+    let calls_super = inherited.iter().any(|level| {
+        level.lines().any(|line| {
+            let code = line.split('#').next().unwrap_or_default();
+            code.contains("super(") || code.contains("super.")
+        })
     });
     for base in inherited.iter().skip(1) {
         for mut function in split_functions(base) {
@@ -180,7 +185,9 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     }
     funcs::write_functions(&mut shape, &functions, &context, &mut notes, &plan);
     let object = if context.object_class {
-        Some(class::write_object(&mut shape, &module, &functions, &context, &plan))
+        Some(class::write_object(
+            &mut shape, &module, &functions, &context, &plan,
+        ))
     } else {
         class::write_node(&mut shape, source, &module, classes, &functions, &context);
         None
@@ -241,7 +248,11 @@ fn struct_name(source: &str, path: &str) -> String {
         .map(name_of)
         .filter(|n| !n.is_empty());
     let name = named.unwrap_or_else(|| {
-        let stem = path.rsplit('/').next().unwrap_or(path).trim_end_matches(".gd");
+        let stem = path
+            .rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .trim_end_matches(".gd");
         stem.split(|c: char| !c.is_ascii_alphanumeric())
             .filter(|w| !w.is_empty())
             .map(|w| {
@@ -252,7 +263,16 @@ fn struct_name(source: &str, path: &str) -> String {
             })
             .collect()
     });
-    let taken = ["Node", "Vec2", "Vec3", "Vec4", "Color", "Quat", "Transform", "Rect"];
+    let taken = [
+        "Node",
+        "Vec2",
+        "Vec3",
+        "Vec4",
+        "Color",
+        "Quat",
+        "Transform",
+        "Rect",
+    ];
     if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
         return format!("Script{name}");
     }
@@ -707,7 +727,11 @@ fn translated_value(value: &str, context: &Context) -> String {
 
 /// One GDScript expression as Balaur Script, with whether it reached the
 /// shim, read the way a body reads it.
-pub(super) fn expression(value: &str, context: &Context, in_static: bool) -> Option<(String, bool)> {
+pub(super) fn expression(
+    value: &str,
+    context: &Context,
+    in_static: bool,
+) -> Option<(String, bool)> {
     let body = gdscript::body(
         &[format!("var _x = {value}")],
         context,
@@ -1056,8 +1080,8 @@ mod inner;
 mod input;
 mod members;
 mod notification;
-mod render;
 #[cfg(test)]
 mod port_tests;
+mod render;
 #[cfg(test)]
 mod tests;

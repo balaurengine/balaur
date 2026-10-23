@@ -598,7 +598,10 @@ pub(crate) fn scene_value(
 /// The project's `classes.bs`: each class with the scripts that are it or
 /// extend it, for Godot's `is`, and each object class by its module, for
 /// what makes one, calls its functions and reads its properties by name.
-pub(crate) fn classes_module(classes: &Classes, objects: &[crate::godot::script::ObjectClass]) -> String {
+pub(crate) fn classes_module(
+    classes: &Classes,
+    objects: &[crate::godot::script::ObjectClass],
+) -> String {
     use crate::godot::gdscript::{module_name, module_use, quoted};
     use crate::godot::scene::script_path;
     let mut out = String::from(
@@ -638,9 +641,8 @@ pub(crate) fn classes_module(classes: &Classes, objects: &[crate::godot::script:
         ));
     }
     out.push_str("    return [];\n}\n");
-    let linked = |object: &&crate::godot::script::ObjectClass| {
-        uses.contains(&module_use(&object.module))
-    };
+    let linked =
+        |object: &&crate::godot::script::ObjectClass| uses.contains(&module_use(&object.module));
     out.push_str("\n/// A new object of the class whose module is `module`, every argument at\n/// its default.\npub fn make(module: str) -> any {\n");
     for object in objects.iter().filter(linked) {
         let args = vec!["nil"; object.takes].join(", ");
