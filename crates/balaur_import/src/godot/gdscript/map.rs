@@ -139,7 +139,7 @@ fn numeric(name: &str, args: &[String]) -> Option<String> {
 }
 
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
-pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
+pub(crate) fn global(name: &str, args: &[String], me: &str) -> Option<String> {
     if let Some(text) = numeric(name, args) {
         return Some(text);
     }
@@ -164,8 +164,8 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         ),
         "len" => format!("gd::size({one})"),
         // Object's own `get` and `set`, called bare: a member by its name.
-        "get" if args.len() == 1 => format!("gd::field(this, {one})"),
-        "set" if args.len() == 2 => format!("gd::set_field(this, {all})"),
+        "get" if args.len() == 1 => format!("gd::field({me}, {one})"),
+        "set" if args.len() == 2 => format!("gd::set_field({me}, {all})"),
         "is_instance_valid" => format!("gd::valid({one})"),
         "typeof" => format!("gd::type_of({one})"),
         "is_zero_approx" => format!("gd::is_zero_approx({one})"),
@@ -874,7 +874,7 @@ fn string_verb(name: &str) -> Option<&'static str> {
         "split" => "split",
         "join" => "join",
         "substr" => "substr",
-        "length" => "size",
+        "length" => "length",
         "format" => "format_map",
         "to_int" => "int",
         "to_float" => "float",
@@ -1154,8 +1154,11 @@ pub(crate) fn any_list(items: &[String]) -> String {
 
 /// A node emitter is heard as an event, through the module's forwarder; a
 /// class table keeps the handler and calls it itself.
-pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
-    if engine_signal(signal) {
+/// `engine` says whether the signal is the engine's, which a node hears
+/// from another; `event` is the name the engine sends it under.
+pub(crate) fn signal_subscribe(receiver: &str, engine: bool, event: &str, handler: &str) -> String {
+    let signal = event;
+    if engine {
         return format!(
             "gd::listen(self.node, {}, {receiver}, {handler})",
             quoted(signal)

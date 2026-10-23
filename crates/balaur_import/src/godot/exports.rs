@@ -79,7 +79,6 @@ pub(crate) struct Export {
     pub data: bool,
 }
 
-
 /// Every `@export` a GDScript file has: its base's first, then its own, a
 /// redeclared name keeping the later one, as GDScript's inheritance does.
 pub(crate) fn exports(source: &str, classes: &Classes) -> Vec<Export> {

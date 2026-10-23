@@ -301,7 +301,8 @@ fn a_signal_handed_over_as_a_value_is_connected_where_it_is_waited_on() {
         "await self._reached(gd::signal_value(self.my.anim, \"finished\", \"\"));",
         "let forward: any = gd::lambda(self.node, \"__lambda_reached_0\", map());",
         "gd::call(waited, \"connect\", gd::list_of([forward, 4]));",
-        "let reached: bool = await task::wait(events::next(\"gate_released\", self.node));",
+        "let tmp1: any = await task::wait(events::next(\"gate_released\", self.node));",
+        "let reached: bool = tmp1;",
         "pub fn __widget_on_click(node: Node) {",
     ] {
         assert!(out.text.contains(want), "{want} in\n{}", out.text);

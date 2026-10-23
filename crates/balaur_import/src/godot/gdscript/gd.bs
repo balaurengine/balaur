@@ -297,6 +297,14 @@ pub fn ge(a: any, b: any) -> bool {
     !lt(a, b)
 }
 
+/// Godot's `length()`: a vector's, a string's characters.
+pub fn length(value: any) -> any {
+    if is_vector(value) {
+        return vector_length(value);
+    }
+    size(value)
+}
+
 pub fn size(value: any) -> int {
     if is_object(value) {
         return classes::call(value, "size", []).as_int();
@@ -316,7 +324,11 @@ pub fn is_empty(value: any) -> bool {
 pub fn get(container: any, key: any, fallback: any) -> any {
     let kind = container.kind();
     if kind == NODE {
-        let found = field(container.as_node(), key.as_str());
+        let node = container.as_node();
+        if key.kind() == STR && key.as_str() == TREE_PLAYBACK && node.has_component(STATE_MACHINE) {
+            return map().with(PLAYBACK_KEY, node);
+        }
+        let found = field(node, key.as_str());
         return if found.is_nil() { fallback } else { found };
     }
     if kind == MAP {
@@ -344,7 +356,13 @@ pub fn at(container: any, key: any) -> any {
 pub fn set(owner: any, key: any, value: any) {
     let kind = owner.kind();
     if kind == NODE {
-        set_field(owner.as_node(), key.as_str(), value);
+        let node = owner.as_node();
+        let name = key.as_str();
+        if name.starts_with(TREE_CONDITIONS) && node.has_component(STATE_MACHINE) {
+            node.state_machine.set_condition(name.slice(TREE_CONDITIONS.len(), name.len()), truthy(value));
+            return;
+        }
+        set_field(node, name, value);
     } else if kind == MAP {
         owner.set(key_text(key), value);
     } else if kind == LIST {
@@ -1469,7 +1487,37 @@ fn native_node(node: Node, name: str, args: any) -> any {
 
 // Godot's own methods on a value that is not a node or an object: a record's
 // by its tag first, then the collections', strings' and vectors'.
+// An AnimationTree's parameters, which here are its `state_machine`'s.
+const STATE_MACHINE: str = "state_machine";
+const TREE_PLAYBACK: str = "parameters/playback";
+const TREE_CONDITIONS: str = "parameters/conditions/";
+const PLAYBACK_KEY: str = "__playback";
+
+// Godot's `AnimationNodeStateMachinePlayback`, over a tree node's machine.
+fn playback_verb(playback: any, name: str, args: any) -> any {
+    let node = playback.get(PLAYBACK_KEY).as_node();
+    if !node.is_valid() || !node.has_component(STATE_MACHINE) {
+        return nil;
+    }
+    if name == "travel" {
+        node.state_machine.travel(text(arg(args, 0)));
+    } else if name == "start" {
+        node.state_machine.jump(text(arg(args, 0)));
+    } else if name == "get_current_node" {
+        let now: any = node.state_machine.current_state();
+        return now;
+    } else if name == "is_playing" {
+        return get(node.get_component(STATE_MACHINE), "enabled", false);
+    } else if name == "stop" {
+        node.patch_component(STATE_MACHINE, map().with("enabled", false));
+    }
+    nil
+}
+
 fn native(owner: any, name: str, args: any) -> any {
+    if owner.kind() == MAP && owner.has(PLAYBACK_KEY) {
+        return playback_verb(owner, name, args);
+    }
     let kind = owner.kind();
     let tag = ms_tag(owner);
     if tag != "" {

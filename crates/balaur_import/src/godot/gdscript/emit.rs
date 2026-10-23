@@ -186,6 +186,9 @@ pub(crate) struct Emitter<'a> {
     temps: usize,
     /// Set while emitting a function that awaits.
     pub awaits: bool,
+    /// Set for the expression a statement is made of, where a wait may
+    /// stand as it is.
+    bare: bool,
     /// Set when the body reached a shim call, so the caller binds `gd`.
     pub uses_shim: bool,
     /// Signal name to handler for each cross-script `connect`.
@@ -238,6 +241,7 @@ impl<'a> Emitter<'a> {
             string_locals: BTreeSet::new(),
             enclosing: String::new(),
             awaited_here: false,
+            bare: false,
             before: Vec::new(),
             after: Vec::new(),
         }
@@ -271,7 +275,7 @@ impl<'a> Emitter<'a> {
     /// The class's own node. An object class has none: its node calls reach
     /// a node that is not there, and do nothing.
     pub(crate) fn own_node(&self) -> &'static str {
-        if self.context.object_class {
+        if self.context.object_class || self.in_static {
             "scene::node_by_id(\"\")"
         } else {
             "self.node"
@@ -362,6 +366,21 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         for line in before {
             let _ = writeln!(out, "{pad}{line}");
+        }
+        // What must run after a `return` runs before it, on the value kept.
+        let returned = body
+            .trim_start()
+            .strip_prefix("return ")
+            .and_then(|t| t.trim_end().strip_suffix(';'))
+            .map(str::to_string);
+        if let Some(value) = returned.filter(|_| !after.is_empty()) {
+            let name = self.temp();
+            let _ = writeln!(out, "{pad}let {name}: any = {value};");
+            for line in after {
+                let _ = writeln!(out, "{pad}{line}");
+            }
+            let _ = writeln!(out, "{pad}return {name};");
+            return self.bare_modules(out);
         }
         out.push_str(&body);
         for line in after {
@@ -465,6 +484,7 @@ impl<'a> Emitter<'a> {
                 out.push_str(&self.assignment(target, op, value, &pad));
             }
             Stmt::Expr(value) => {
+                self.bare = true;
                 let text = self.expression(value);
                 // A call that is nothing here leaves no statement.
                 if text != "nil" {
@@ -602,7 +622,22 @@ impl<'a> Emitter<'a> {
         format!("gd::at({object}, {index})")
     }
 
+    /// An expression as text. A wait inside a larger expression is read into
+    /// a local first: Balaur Script awaits only as a statement, a `let` or
+    /// an assignment.
     pub(crate) fn expression(&mut self, value: &Expr) -> String {
+        let bare = std::mem::take(&mut self.bare);
+        let text = self.expression_text(value);
+        if bare || !text.starts_with("await ") {
+            return text;
+        }
+        let name = self.temp();
+        self.declare(&name);
+        self.before.push(format!("let {name}: any = {text};"));
+        name
+    }
+
+    fn expression_text(&mut self, value: &Expr) -> String {
         match value {
             Expr::Int(text) => int_literal(text),
             Expr::Float(text) => {
@@ -1221,7 +1256,12 @@ impl<'a> Emitter<'a> {
         if let Expr::Name(name) = callee
             && !self.is_local(name)
         {
-            if let Some(text) = map::global(name, &parts) {
+            let me = if self.context.object_class {
+                "this"
+            } else {
+                "self.node"
+            };
+            if let Some(text) = map::global(name, &parts, me) {
                 return self.shimmed(text);
             }
             if let Some(text) = map::value_type(name, &parts) {

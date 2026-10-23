@@ -167,10 +167,11 @@ impl Emitter<'_> {
         };
         // Only an engine event reaches `on_<name>`; a script's signal calls
         // the handlers `connect` kept.
-        if map::engine_signal(&event) {
+        let engine = map::engine_signal(&signal) || map::engine_signal(&event);
+        if engine {
             self.forwarders.insert(event.clone(), (handler, hid));
         }
-        Some(map::signal_subscribe(&receiver, &event, &closure))
+        Some(map::signal_subscribe(&receiver, engine, &event, &closure))
     }
 
     /// A Godot `Callable` as a Rune closure: a lambda as itself, a method of
@@ -293,7 +294,10 @@ impl Emitter<'_> {
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
         // A static function is reached as a method of the class's node, which
         // forwards to it; an object class's, through its dispatcher.
-        let target = if self.context.object_class {
+        // A static function has no instance to reach one through.
+        let target = if self.in_static {
+            "nil"
+        } else if self.context.object_class {
             "this"
         } else {
             self.own_node()
@@ -367,8 +371,9 @@ impl Emitter<'_> {
         self.declare(&name);
         // The store holds the value itself, so a call that changes it in
         // place changes the static; only a first use has to put it there.
-        self.before
-            .push(format!("let {name}: any = gd::static_ref({key}, {fallback});"));
+        self.before.push(format!(
+            "let {name}: any = gd::static_ref({key}, {fallback});"
+        ));
         // The store hands out a copy, which goes back once the call changed it.
         self.after.push(format!("gd::static_set({key}, {name});"));
         self.uses_shim = true;

@@ -43,6 +43,13 @@ impl Emitter<'_> {
             let _ = writeln!(out, "{pad}{};", self.member_store(name, &text));
             return out;
         }
+        // A write into a static: the store's copy changes, then goes back.
+        if matches!(target, Expr::Index(..))
+            && self.static_root(target).is_some()
+            && let Some(text) = self.static_write(target, op, value, pad)
+        {
+            return text;
+        }
         if let Expr::Index(object, index) = target
             && op == "="
             && let Some((object, key)) = tree_parameter(object, index)
@@ -284,7 +291,10 @@ impl Emitter<'_> {
             self.declare(&name);
             self.uses_shim = true;
             let mut out = String::new();
-            let _ = writeln!(out, "{pad}let {name}: any = gd::static_ref({key}, {fallback});");
+            let _ = writeln!(
+                out,
+                "{pad}let {name}: any = gd::static_ref({key}, {fallback});"
+            );
             // The store hands out a copy: the write lands in it, and it goes
             // back into the store.
             out.push_str(&self.assignment(&replace_root(target, &name), op, value, pad));
@@ -342,6 +352,10 @@ impl Emitter<'_> {
         {
             let text = self.expression(value);
             if let Some(write) = map::singleton_write(class, field, &text) {
+                // A setting the engine has no part for is no statement.
+                if write == "nil" {
+                    return Some(String::new());
+                }
                 return Some(format!("{pad}{};\n", discardable(&write)));
             }
         }

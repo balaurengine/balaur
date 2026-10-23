@@ -213,7 +213,6 @@ pub(crate) fn family(class: &str) -> Family {
     Family::Node2d
 }
 
-
 /// Classes whose transform is all they are.
 const BARE: &[&str] = &["Node", "Node2D", "Marker2D", "CanvasLayer", "Skeleton2D"];
 

@@ -146,14 +146,20 @@ pub(super) fn plan(
         }
         plan.fields.push(f);
         if let Some(export) = export.filter(|e| is_prop(e)) {
+            let default = prop_default(export, kind);
+            let copy = store(name, &format!("self.{}", safe(name)));
+            // Godot applies what the scene set: a prop still at its default
+            // leaves what `_init` wrote.
+            plan.exports.push(match &default {
+                Some(value) => format!("if self.{} != {value} {{\n{copy}\n}}", safe(name)),
+                None => copy,
+            });
             plan.props.push(Field {
                 name: safe(name),
                 ty: kind.text().to_string(),
-                default: prop_default(export, kind),
+                default,
                 public: true,
             });
-            plan.exports
-                .push(store(name, &format!("self.{}", safe(name))));
         }
         let zero = typed_zero(hint);
         let text = match value {
