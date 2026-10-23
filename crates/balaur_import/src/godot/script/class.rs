@@ -28,9 +28,7 @@ pub(super) fn init_call(functions: &[Function], waits: bool) -> String {
 /// The Godot class a script's chain of `extends` ends at: `RefCounted` for
 /// one that names none.
 pub(super) fn builtin_root(source: &str, classes: &Classes) -> String {
-    let mut root = source
-        .lines()
-        .find_map(|l| l.strip_prefix("extends "))
+    let mut root = crate::godot::exports::extends_text(source)
         .map(|t| {
             t.trim()
                 .chars()
