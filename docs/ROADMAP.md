@@ -153,7 +153,7 @@ being built, marked `done`, never back in the shipped one.
 | **Menus, popups and tooltips** — a menu bar with submenus, a context menu a right click or a long press opens, shortcuts on rows, and a toast. | 0.2 done | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
 | **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Theme states and icons** — `disabled` and `focus` tables in a `widget_theme`, and the icons a check, a spin box, a tab and a slider draw. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
-| **egui as the painter** — the immediate `ui` draw calls go, each kind paints its face from the theme, and one seam holds every shape. | 0.3 | [PLAN-egui-as-painter.md](PLAN-egui-as-painter.md) |
+| **egui as the painter** — the immediate `ui` draw calls go, each kind paints its face from the theme, and one seam holds every shape. | 0.3 done | [PLAN-egui-as-painter.md](PLAN-egui-as-painter.md) |
 | **Dark mode on every platform** — `dark_mode()` and `on_dark_mode_changed` answer on Windows, Linux, iOS and Android, as on macOS and in a browser. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the script graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |

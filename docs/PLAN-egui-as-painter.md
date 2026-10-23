@@ -1,6 +1,7 @@
 # Plan: egui as the painter
 
-> **Status:** phases 0 and 1 built 2026-10-23. The question was "is egui,
+> **Status:** phases 0 to 3 and 5 built 2026-10-23 and 24. Phase 4 is
+> measured and left, and its section says why. The question was "is egui,
 > an immediate-mode library, the right UI for the engine?". §0 is where egui
 > stands after [PLAN-editor-as-scene.md](PLAN-editor-as-scene.md) §9: the
 > engine's UI is a retained tree of its own, and egui is what paints it and
@@ -357,23 +358,59 @@ four scenes shot before phase 2 and after this phase match to the pixel.
 
 ### Phase 4. One pass a frame
 
-egui reruns the whole pass when a pass only learned a size
+**Measured 2026-10-23, not built.** Eight of the editor's showcase clips,
+offscreen at 1600x1000 with the input each scripts, on `7b87b215`:
+
+| Clip | Frames | `ui rerun` a frame |
+| --- | ---: | ---: |
+| `scenes`, `scripting`, `focus`, `theme_editor` | 640 to 1040 | 0.00 |
+| `animation`, `physics`, `input`, `manager` | 600 to 880 | 0.01 |
+
+- Every rerun past the fonts' has one cause, logged from egui's
+  `request_discard_reasons`: `layer.rs`'s "a widget root's first pass",
+  4 to 8 a clip, as a sheet, a menu or a dialog first shows. egui sizes a
+  new `Area` invisibly, and the layer asks for a rerun so the root draws
+  in the frame it appeared.
+- The layer has that root's box from taffy, but egui takes no size for a
+  new area from outside: `Areas::set_state` is crate-private. Removing the
+  rerun is a public setter in the egui fork, one function, and then
+  seeding the state before `Area::show`.
+- What they cost: under 0.5% of the `ui` row's time in every clip. Left
+  until the fork takes the setter.
+
+egui reruns the whole pass when a pass asks it to
 (`Context::request_discard`), and the profiler files the second as
-`ui rerun`. The layer has every rect from taffy before it draws, so a
-rerun is a kind asking egui for a size it already knows.
-
-Phase 0 found none on a still shell: the one rerun in a run is the pass
-that binds the fonts. What is left is the passes input causes.
-
-- Count `ui rerun` over a showcase clip (`--state show:<name>`), which feeds
-  the input a person would: a menu opening, a dropdown, a scroll, a drag.
-- For each kind that asks: `ScrollArea` sizing its content, a `Popup`
-  placing itself, a `ComboBox` measuring its list. Each gets its size from
-  the arena instead, with `min_scrolled_height` and `list_height` where the
-  kind has them.
-- Target: no `ui rerun` past the first frames of a clip.
+`ui rerun`. The plan took the asker for a kind sizing itself, a
+`ScrollArea`, a `Popup`, a `ComboBox`; the log says it is the root's area.
 
 ### Phase 5. Measure again, and what the site says
+
+**Built 2026-10-24.** `c2763ada`, the commit before phase 1, against
+`286f1e13`, phase 3: only this plan's four commits between them. Same
+features and scripts as §0.1, on the same Apple M1, at a load of 2 to 3.
+
+| Web module, `wasm-opt -Oz` | Before | After |
+| --- | ---: | ---: |
+| template, brotli | 4,935,882 B | 4,902,038 B |
+| template, raw | 17,374,604 B | 17,267,400 B |
+| editor, brotli | 6,469,516 B | 6,439,409 B |
+| editor, raw | 23,009,023 B | 22,902,019 B |
+| `egui`'s code, either module | 0.244 MiB | 0.211 MiB |
+
+| Offscreen, docks open, 1000 frames | Before | After |
+| --- | ---: | ---: |
+| `examples/angrynerds`, instructions a frame | 16.5 M | 15.9 M |
+| `examples/angrynerds`, `ui` | 0.545 ms | 0.500 ms |
+| generated 2001 nodes, instructions a frame | 77.9 M | 77.3 M |
+| generated 2001 nodes, `ui` | 1.421 ms | 1.379 ms |
+| `ui rerun` a frame, both | 0.00 | 0.00 |
+
+- The native editor, release with `window`, is 67,316,064 bytes before and
+  66,976,368 after.
+- Starting the editor costs the same: 4.55 G instructions on
+  `angrynerds` and 52.31 G at 2001 nodes, both times.
+- The ROADMAP row is done. forge's manual page describes one layer, and
+  its reference is synced from `docs/generated`.
 
 - Phase 0's two numbers again, into §0 beside the first.
 - The ROADMAP row this plan adds moves to done.
