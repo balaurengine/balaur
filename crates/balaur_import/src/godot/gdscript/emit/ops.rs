@@ -271,11 +271,12 @@ impl Emitter<'_> {
             .into_iter()
             .filter(|name| self.is_local(name) && !params.contains(name))
             .collect();
-        // Named for the function it is in, so two functions' never meet.
+        // Named for the function it is in, and numbered across the file.
+        let serial = self.context.lambdas.get();
+        self.context.lambdas.set(serial + 1);
         let name = format!(
-            "__lambda_{}_{}",
-            self.enclosing.trim_start_matches('_'),
-            self.lifted.len()
+            "__lambda_{}_{serial}",
+            self.enclosing.trim_start_matches('_')
         );
         let outer_scopes = std::mem::replace(&mut self.scopes, vec![BTreeSet::new()]);
         let outer_awaits = std::mem::replace(&mut self.awaits, false);

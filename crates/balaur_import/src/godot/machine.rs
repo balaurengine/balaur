@@ -465,12 +465,17 @@ advance_expression_base_node = NodePath("..")
             "extends CharacterBody2D\n{}",
             check_functions(&converted.checks)
         );
-        let rune = crate::godot::script::convert(
+        let text = crate::godot::script::convert(
             &source,
             "hero.gd",
             &crate::godot::exports::Classes::default(),
         )
         .text;
-        assert!(rune.contains(&format!("pub fn {name}(this)")), "{rune}");
+        // The check is a method of the node's script, which the machine asks.
+        let at = text
+            .find(&format!("    pub fn {name}() -> any {{"))
+            .unwrap_or_else(|| panic!("no check `{name}` in:\n{text}"));
+        assert!(text[..at].contains("\nimpl Hero {\n"), "{text}");
+        assert!(text[at..].contains("1.0"), "{text}");
     }
 }

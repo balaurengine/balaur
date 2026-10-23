@@ -2,6 +2,7 @@
 //! the shim keeps, signals as values, and the calls Godot makes bare.
 
 use super::convert;
+use super::tests::{assert_compiles, flat, function};
 use crate::godot::exports::Classes;
 
 #[test]
@@ -24,10 +25,11 @@ fn a_shader_material_a_shape_and_a_theme_override_go_through_the_shim() {
         "gd::shader()",
         "gd::set_shader_parameter(m, \"tint\", 1.0)",
         "gd::circle_shape()",
-        "gd::theme_override(this.node, \"colors\", \"font_color\",",
-        "gd::theme_override(this.node, \"constants\", \"separation\", 4)",
+        "m = gd::with_field(m, \"shader\", gd::shader());",
+        "gd::theme_override(self.node, \"colors\", \"font_color\", gd::color(1.0, 0.0, 0.0, 1.0));",
+        "gd::theme_override(self.node, \"constants\", \"separation\", 4);",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
 }
 
@@ -44,7 +46,7 @@ func tex(path: String):\n\
         "gd::image_load(img, path)",
         "gd::image_texture(img)",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
 }
 
@@ -58,10 +60,11 @@ func valid(name: String) -> bool:\n\
     let out = convert(source, "scripts/rules.gd", &Classes::default());
     for want in [
         "gd::regexp()",
-        "gd::invoke1(expression, \"compile\", \"^[a-z]+$\")",
-        "gd::invoke1(expression, \"search\", name)",
+        "let expression: any = gd::regexp();",
+        "gd::call(expression, \"compile\", gd::list_of([\"^[a-z]+$\"]));",
+        "return !gd::is_nil(gd::call(expression, \"search\", gd::list_of([name])));",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
 }
 
@@ -80,12 +83,12 @@ fn a_method_called_deferred_by_name_is_that_call_with_its_arguments() {
     .join("\n");
     let out = convert(&source, "scripts/deferred.gd", &Classes::default());
     for want in [
-        "gd::add_child(this.node, this.btn)",
-        "_refresh(this, false)",
+        "gd::add_child(self.node, self.my.btn);",
+        "self._refresh(false);",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("call_value"), "{}", out.rune);
+    assert!(!out.text.contains("call_value"), "{}", out.text);
 }
 
 #[test]
@@ -105,20 +108,23 @@ fn a_callable_member_is_called_as_a_value_and_a_deferred_coroutine_makes_its_cal
     .join("\n");
     let out = convert(&source, "scripts/later.gd", &Classes::default());
     assert!(
-        out.rune.contains("gd::call_value(this._is_idle, [])"),
+        out.text
+            .contains("gd::call_value(self.my._is_idle, gd::list());"),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(out.rune.contains("pub async fn init(this)"), "{}", out.rune);
+    assert!(out.text.contains("pub async fn init() {"), "{}", out.text);
     assert!(
-        out.rune.contains("_focus_later(this).await"),
+        out.text.contains("await self._focus_later();"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        !out.rune.contains("_provider()"),
+        flat(&out.text).contains(
+            r#"let tmp1: any = gd::static_ref("scripts/later.gd:_provider", nil); gd::call_value(tmp1, gd::list());"#
+        ) && !out.text.contains("_provider()"),
         "a static Callable is a value:\n{}",
-        out.rune
+        out.text
     );
 }
 
@@ -133,12 +139,13 @@ fn a_base_class_property_read_bare_is_read_off_the_node() {
     .join("\n");
     let out = convert(&source, "scripts/fold.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("gd::field(this.node, \"foldable_group\")"),
+        out.text.contains(
+            "return gd::same(gd::field(other, \"foldable_group\"), gd::field(self.node, \"foldable_group\"));"
+        ),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -152,9 +159,19 @@ fn a_node_s_auto_translate_mode_and_get_stack_translate() {
     ]
     .join("\n");
     let out = convert(&source, "scripts/lang.gd", &Classes::default());
-    assert!(!out.rune.contains("AUTO_TRANSLATE"), "{}", out.rune);
-    assert!(out.rune.contains("let frames = [];"), "{}", out.rune);
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("AUTO_TRANSLATE"), "{}", out.text);
+    assert!(
+        out.text
+            .contains("gd::set_field(self.node, \"auto_translate_mode\", 2);"),
+        "{}",
+        out.text
+    );
+    assert!(
+        out.text.contains("let frames: any = gd::list();"),
+        "{}",
+        out.text
+    );
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -183,15 +200,23 @@ fn signals_named_as_strings_and_widget_is_connected_translate() {
     .join("\n");
     let out = convert(&source, "scripts/name_edit.gd", &Classes::default());
     for want in [
-        "gd::widget_connected(this.node, \"on_change\", \"_on_text_changed\")",
-        "let own = true;",
-        "let mine = this.node.has_component(\"widget\");",
-        "gd::environment(\"HOME\")",
-        "|a0| _on_added(a0)",
+        "if !gd::truthy(gd::widget_connected(self.node, \"on_change\", \"_on_text_changed\")) {",
+        "gd::patch_widget(self.node, map().with(\"on_change\", \"_on_text_changed\"));",
+        "gd::connect(self.node, \"editing_toggled\", gd::callable(self.node, \"_on_toggled\").with(\"__takes\", 1));",
+        "let own: any = true;",
+        "let mine: any = self.node.has_component(\"widget\");",
+        "let home: any = gd::environment(\"HOME\");",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    // BUG: a static function is the module's, where there is no `self`: its
+    // handler is the module function `_on_added`, not a callable on a node.
+    let hook = function(&out.text, "\npub fn hook(tree: any) {");
+    assert!(
+        hook.contains("\"node_added\"") && hook.contains("_on_added") && !hook.contains("self."),
+        "{hook}"
+    );
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -218,9 +243,9 @@ fn a_multimesh_and_a_transform_built_field_by_field_translate() {
         "t = gd::with_field(t, \"x\", gd::vec2(2.0, 0.0));",
         "t = gd::with_field(t, \"origin\",",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -235,13 +260,15 @@ fn a_member_read_and_written_by_name_goes_through_the_shim() {
     ]
     .join("\n");
     let out = convert(&source, "scripts/sound.gd", &Classes::default());
+    // BUG: a node class has no `this`; Godot's `set`/`get` on itself go
+    // through the node, whose `__set`/`__get` answer for its members.
     for want in [
-        "gd::set_field(this, member, 0.0)",
-        "gd::field(this, member)",
+        "gd::set_field(self.node, member, 0.0);",
+        "return gd::field(self.node, member);",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -270,15 +297,25 @@ fn a_signal_handed_over_as_a_value_is_connected_where_it_is_waited_on() {
     classes.signal_arity.insert("finished".into(), 0);
     let out = convert(&source, "scripts/intro.gd", &classes);
     for want in [
-        "gd::signal_value(this.start_button, \"pressed\", \"on_click\")",
-        "gd::signal_value(this.anim, \"finished\", \"\")",
-        "let forward = || { gd::emit_now(this.node, \"gate_released\", [true]) };",
-        "pub fn __widget_on_click(this, node)",
+        "gd::signal_value(self.my.start_button, \"pressed\", \"on_click\")",
+        "await self._reached(gd::signal_value(self.my.anim, \"finished\", \"\"));",
+        "let forward: any = gd::lambda(self.node, \"__lambda_reached_0\", map());",
+        "gd::call(waited, \"connect\", gd::list_of([forward, 4]));",
+        "let reached: bool = await task::wait(events::next(\"gate_released\", self.node));",
+        "pub fn __widget_on_click(node: Node) {",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
-    assert!(!out.rune.contains("PORT("), "{}", out.rune);
+    assert!(
+        function(&out.text, "pub fn __lambda_reached_0(cap: any) {")
+            .contains("gd::emit_now(self.node, \"gate_released\", gd::list_of([true]));"),
+        "the lambda is lifted into a method: {}",
+        out.text
+    );
+    assert!(!out.text.contains("PORT("), "{}", out.text);
+    // BUG: `if not await f(..)` awaits inside a condition, which Balaur
+    // Script refuses; the await goes in a `let` first.
+    assert!(!out.text.contains("gd::truthy(await "), "{}", out.text);
 }
 
 #[test]
@@ -296,12 +333,15 @@ fn singleton_writes_and_theme_reads_translate() {
     let out = convert(&source, "scripts/perf.gd", &Classes::default());
     for want in [
         "settings::set(\"window/max_fps\", 0);",
-        "gd::theme_constant(this.node, \"margin_top\")",
-        "gd::combined_min_size(",
+        "let top: any = gd::theme_constant(self.node, \"margin_top\");",
+        "let content: any = gd::combined_min_size(self.node.get_node(\"Content\"));",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
+    // BUG: a write to a singleton property the engine has no answer for is a
+    // bare `nil;` statement, which does not compile; it should be left out.
+    assert!(!flat(&out.text).contains(" nil; "), "{}", out.text);
 }
 
 #[test]
@@ -318,18 +358,30 @@ fn a_member_with_only_a_getter_is_written_where_it_is_kept() {
     .join("\n");
     let out = convert(&source, "addons/message.gd", &Classes::default());
     assert!(
-        out.rune.contains("this._message = #{ \"topic\": topic };"),
+        out.text
+            .contains(r#"this.set("_message", map().with("topic", topic));"#),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(!out.rune.contains("__get__message(this) ="), "{}", out.rune);
+    assert!(
+        flat(&out.text)
+            .contains("pub fn __get__message(this: any) -> any { return to_dictionary(this); }"),
+        "a read elsewhere goes through the getter: {}",
+        out.text
+    );
+    assert!(!out.text.contains("__get__message(this) ="), "{}", out.text);
 }
 
 #[test]
-fn a_bitwise_not_is_rune_s_bang_on_an_integer() {
+fn a_bitwise_not_and_a_shift_on_an_integer_go_through_the_shim() {
     let source = "extends RefCounted\nfunc unzig(n: int) -> int:\n\treturn ~(n >> 1)\n";
     let out = convert(source, "addons/packer.gd", &Classes::default());
-    assert!(out.rune.contains("return !(n >> 1);"), "{}", out.rune);
+    let unzig = function(&out.text, "pub fn unzig(this: any, n: int) -> int {");
+    assert!(
+        unzig.contains("return gd::bit_not(") && unzig.contains("gd::shift_right(n, 1)"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -340,8 +392,13 @@ func probe() -> bool:\n\
 \t\treturn false\n\
 \treturn JavaScriptBridge != null\n";
     let out = convert(source, "scripts/probe.gd", &Classes::default());
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
-    assert!(out.rune.contains("gd::truthy(())"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
+    assert!(out.text.contains("if !gd::truthy(nil) {"), "{}", out.text);
+    assert!(
+        out.text.contains("return !gd::is_nil(nil);"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -353,20 +410,27 @@ func _notification(what: int) -> void:\n\
 \telif what == NOTIFICATION_WM_CLOSE_REQUEST:\n\
 \t\tprint(\"closing\")\n";
     let out = convert(source, "scripts/pause.gd", &Classes::default());
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
     for want in [
         "gd::same(what, 2017)",
-        "pub fn on_focused_changed(this, focused) {",
-        "let what = if focused { 2016 } else { 2017 };",
-        "pub fn on_suspended_changed(this, suspended) {",
-        "let what = if suspended { 2015 } else { 2014 };",
-        "pub fn on_locale_changed(this, locale) {",
-        "let what = 2010;",
-        "pub fn on_quit_requested(this) {",
-        "let what = 1006;",
+        "pub fn on_focused_changed(focused: bool) {",
+        "let what: int = if focused { 2016 } else { 2017 };",
+        "pub fn on_suspended_changed(suspended: bool) {",
+        "let what: int = if suspended { 2015 } else { 2014 };",
+        "pub fn on_locale_changed(locale: str) {",
+        "let what: int = 2010;",
+        "pub fn on_quit_requested() {",
+        "let what: int = 1006;",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
+    assert_eq!(
+        out.text.matches("self._notification(what);").count(),
+        4,
+        "{}",
+        out.text
+    );
+    assert_compiles("scripts/pause.gd", &out.text, &[]);
 }
 
 #[test]
@@ -377,8 +441,8 @@ var client\n\
 func _ready():\n\
 \tclient.rejoined.connect(progress.refresh.bind(true, 2))\n";
     let out = convert(source, "scripts/sync.gd", &Classes::default());
-    let want = "#{ \"__bound\": this.progress, \"__method\": \"refresh\", \"__args\": [true, 2] }";
-    assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    let want = r#"gd::connect(self.my.client, "rejoined", gd::callable(self.my.progress, "refresh").with("__args", gd::list_of([true, 2])));"#;
+    assert!(out.text.contains(want), "{want} in\n{}", out.text);
 }
 
 #[test]
@@ -394,19 +458,21 @@ func get_label() -> String:\n\
 \treturn label\n";
     let out = convert(source, "scripts/city.gd", &Classes::default());
     assert!(
-        out.rune.contains("this.complete = is_complete;"),
+        function(&out.text, "pub fn set_complete(is_complete: bool) {")
+            == "pub fn set_complete(is_complete: bool) { self.my.complete = is_complete; }",
         "the setter writes the field, not itself: {}",
-        out.rune
+        out.text
     );
     assert!(
-        !out.rune.contains("__set_complete(this, is_complete)"),
-        "{}",
-        out.rune
-    );
-    assert!(
-        !out.rune.contains("return __get_label(this)"),
+        function(&out.text, "pub fn get_label() -> str {")
+            == "pub fn get_label() -> str { return self.my.label; }",
         "the getter reads the field, not itself: {}",
-        out.rune
+        out.text
+    );
+    assert!(
+        flat(&out.text).contains("pub fn __set_complete(value: any) { self.set_complete(value); }"),
+        "another write goes through the setter: {}",
+        out.text
     );
 }
 
@@ -421,16 +487,19 @@ func _on_hit(body):\n\
 func _on_gone():\n\
 \tprint(\"gone\")\n";
     let out = convert(source, "scripts/deck.gd", &Classes::default());
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
+    assert!(!out.text.contains("\"body_entered\""), "{}", out.text);
+    // BUG: the engine's own name for the signal is no `ENGINE_SIGNALS` entry,
+    // so the connect is a script signal's `gd::connect`, which the engine's
+    // event never reaches, and no `on_<event>` forwarder is written.
     for want in [
-        "\"collision_enter\"",
+        "gd::listen(self.node, \"collision_enter\", self.node.get_node(\"Hatch\"), ",
         "pub fn on_collision_enter(",
-        "\"screen_exit\"",
+        "gd::listen(self.node, \"screen_exit\", self.node.get_node(\"Coin\"), ",
         "pub fn on_screen_exit(",
     ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+        assert!(out.text.contains(want), "{want} in\n{}", out.text);
     }
-    assert!(!out.rune.contains("\"body_entered\""), "{}", out.rune);
 }
 
 /// The engine hands a collision a record; a Godot handler is handed the
@@ -447,16 +516,23 @@ func _on_dock(ship):\n\
     let mut classes = Classes::default();
     classes.collision_handlers.insert("_on_dock".into());
     let out = convert(source, "scripts/dock.gd", &classes);
-    for want in [
-        "_on_hit(this, gd::collided(payload));",
-        "let ship = gd::collided(ship);",
-    ] {
-        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
-    }
     assert!(
-        !out.rune.contains("let body = (script::require"),
+        function(&out.text, "pub fn _on_dock(ship: any) {").contains("ship = gd::collided(ship);"),
+        "a handler a scene connects takes the node out first: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("body = gd::collided(body)"),
         "a handler no scene connects is left alone: {}",
-        out.rune
+        out.text
+    );
+    // BUG: as in `a_signal_the_engine_names_its_own_way_is_heard_by_that_name`,
+    // a script's connect to the collision is no forwarder that hands the
+    // handler the node.
+    assert!(
+        out.text.contains("self._on_hit(gd::collided(payload));"),
+        "{}",
+        out.text
     );
 }
 

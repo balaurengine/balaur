@@ -108,6 +108,9 @@ pub(crate) struct Context {
     pub class_lazy: BTreeMap<String, BTreeSet<String>>,
     /// Another class's named enums, by class.
     pub class_enums: BTreeMap<String, BTreeSet<String>>,
+    /// How many lambdas the file's bodies have lifted so far, so no two of
+    /// its methods share a name.
+    pub lambdas: std::cell::Cell<usize>,
 }
 
 /// An enum member's constant: `State.IDLE` is `State__IDLE`.

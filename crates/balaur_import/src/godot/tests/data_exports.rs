@@ -58,9 +58,9 @@ fn a_rect_and_a_list_of_dictionaries_reach_the_script() {
         filed["cities"][0]["pos"]["__godot"].as_str(),
         Some("Vector2")
     );
-    let script = std::fs::read_to_string(out.path().join("cache.rn")).expect("the script");
+    let script = std::fs::read_to_string(out.path().join("cache.bs")).expect("the script");
     assert!(
-        script.contains("this.country_bounds = gd::export_value(this.node, \"country_bounds\", this.country_bounds);"),
+        script.contains("self.my.country_bounds = gd::export_value(self.node, \"country_bounds\", self.my.country_bounds);"),
         "{script}"
     );
 }

@@ -926,7 +926,11 @@ mod tests {
             ),
         ];
         for (line, kind, default) in cases {
-            assert_eq!(one(line, &none), (Some(kind), default.to_string()), "{line}");
+            assert_eq!(
+                one(line, &none),
+                (Some(kind), default.to_string()),
+                "{line}"
+            );
         }
         // No prop holds these: the scene files them in the node's `meta`.
         for line in [

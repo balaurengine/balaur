@@ -3,6 +3,68 @@ use std::collections::BTreeMap;
 use super::convert;
 use crate::godot::exports::Classes;
 
+/// Every error compiling `text`, the conversion of `godot`, against the
+/// engine: beside the shim, an empty dispatcher, the settings and the
+/// callback module, as a converted project links it, and any `extra` files
+/// it uses. Boots an engine, so a handful of tests call it, not all.
+pub(super) fn compile_errors(godot: &str, text: &str, extra: &[(&str, String)]) -> Vec<String> {
+    let path = crate::godot::scene::script_path(godot);
+    let mut files: Vec<(&str, String)> = vec![
+        ("gd.bs", crate::godot::gdscript::SHIM.to_string()),
+        (
+            "classes.bs",
+            crate::godot::exports::classes_module(&Classes::default(), &[]),
+        ),
+        (
+            "godot_settings.bs",
+            "pub fn setting(path: str) -> any {\n    nil\n}\n".into(),
+        ),
+        (
+            "gd_callback.bs",
+            crate::godot::gdscript::CALLBACK.to_string(),
+        ),
+        (path.as_str(), text.to_string()),
+    ];
+    files.extend(extra.iter().cloned());
+    crate::godot::gdscript::check::errors(&files, &path)
+}
+
+/// `godot`'s conversion compiles against the engine.
+#[track_caller]
+pub(super) fn assert_compiles(godot: &str, text: &str, extra: &[(&str, String)]) {
+    let errors = compile_errors(godot, text, extra);
+    assert!(errors.is_empty(), "{errors:#?}\n{text}");
+}
+
+/// The text with every run of whitespace one space, so an assertion over
+/// lines does not depend on the formatter's indent.
+pub(super) fn flat(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The function that `signature` opens, through its closing brace, flat.
+pub(super) fn function(text: &str, signature: &str) -> String {
+    let start = text
+        .find(signature)
+        .unwrap_or_else(|| panic!("no `{signature}` in:\n{text}"));
+    let mut depth = 0;
+    let mut end = text.len();
+    for (at, c) in text[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = start + at + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    flat(&text[start..end])
+}
+
 const SHIP: &str = "extends Node\n\
 class_name Ship\n\
 \n\
@@ -33,38 +95,61 @@ func match(a):\n\
 #[test]
 fn hooks_are_renamed_and_every_other_function_keeps_its_name() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-    assert!(out.rune.contains("pub fn init(this) {"), "{}", out.rune);
+    assert!(out.text.contains("pub fn init() {"), "{}", out.text);
     assert!(
-        out.rune.contains("pub fn update(this, delta) {"),
+        out.text.contains("pub fn update(delta: float) {"),
         "the hook keeps the name its body reads: {}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
-            .contains("pub fn _on_go_pressed(this, force, loud) {"),
+        out.text
+            .contains("pub fn _on_go_pressed(force: float, loud_arg: any) {"),
         "a signature over three lines, and the handler name a scene points at: {}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("pub fn knots(v) {"),
-        "a static function takes no `this`"
+        out.text.contains("\npub fn knots(v: any) -> any {"),
+        "a static function is the module's, with no `self`: {}",
+        out.text
     );
-    assert!(out.rune.contains("pub fn match_(this, a) {"));
-    assert!(out.notes.iter().any(|n| n.contains("`match`")));
+    assert!(
+        out.text.contains("pub fn match(a: any) {"),
+        "`match` is no Balaur Script keyword: {}",
+        out.text
+    );
+    assert!(
+        !out.notes.iter().any(|n| n.contains("`match`")),
+        "{:?}",
+        out.notes
+    );
+}
+
+/// A node class with exports, members, a signal, hooks, a defaulted
+/// parameter and a static function compiles against the engine.
+#[test]
+fn a_node_class_compiles() {
+    let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
+    assert_compiles("scripts/ship.gd", &out.text, &[]);
 }
 
 #[test]
 fn exports_carry_their_defaults_and_their_types_fill_the_rest() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
+    for want in [
+        "pub crew: int = 4,",
+        "pub speed: float = 2.0,",
+        "label: str,",
+        "self.my.crew = self.crew;",
+        "self.my.speed = self.speed;",
+        r#"self.my.label = gd::export_value(self.node, "label", self.my.label);"#,
+    ] {
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
+    }
     assert!(
-        out.rune
-            .contains("#{ \"speed\": 2.0, \"label\": \"\", \"crew\": 4 }"),
-        "{}",
-        out.rune
-    );
-    assert!(
-        !out.rune.contains("\"hidden\""),
-        "a plain var is not an export"
+        !out.text.contains("pub hidden")
+            && !out.text.contains(r#"export_value(self.node, "hidden""#),
+        "a plain var is not an export: {}",
+        out.text
     );
 }
 
@@ -72,20 +157,21 @@ fn exports_carry_their_defaults_and_their_types_fill_the_rest() {
 fn bodies_are_translated_rather_than_commented() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
     assert!(
-        out.rune.contains(r#"log::info(gd::str_all(["ahoy"]))"#),
+        out.text
+            .contains(r#"log::print(gd::str_all(gd::list_of(["ahoy"])))"#),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
-            .contains(r#"gd::emit_now(this.node, "sunk", [3]);"#),
+        out.text
+            .contains(r#"gd::emit_now(self.node, "sunk", gd::list_of([3]));"#),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("return v * 1.94;"),
+        out.text.contains("return gd::mul(v, 1.94);"),
         "a static body too: {}",
-        out.rune
+        out.text
     );
 }
 
@@ -97,20 +183,20 @@ func _process(delta):\n\
 \t\tset_process(false)\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(
-        out.rune.contains("this.process_enabled = false;"),
+        out.text.contains("self.my.process_enabled = false;"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
-            .contains("    if !this.process_enabled {\n        return;\n    }"),
+        flat(&out.text)
+            .contains("pub fn update(delta: float) { if !self.my.process_enabled { return; }"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("this.process_enabled = true;"),
+        out.text.contains("process_enabled: bool = true,"),
         "on by default: {}",
-        out.rune
+        out.text
     );
 }
 
@@ -136,9 +222,9 @@ func _done():\n\
         "gd::tween_callback(tween, ",
         "gd::when_finished(tween, ",
     ] {
-        assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
     }
-    assert!(!out.rune.contains("PORT(gdscript)"), "{}", out.rune);
+    assert!(!out.text.contains("PORT(gdscript)"), "{}", out.text);
 }
 
 #[test]
@@ -149,12 +235,18 @@ func go(button):\n\
 func _finish(button):\n\
 \tpass\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(!out.rune.contains("todo"), "{}", out.rune);
-    assert!(out.rune.contains(", 4)"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
+    assert!(
+        out.text.contains(
+            r#"gd::list_of([gd::callable(self.node, "_finish").with("__args", gd::list_of([button])).with("__takes", 0), 4])"#
+        ),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
-fn a_widget_signal_connected_binds_the_shim_it_patches_through() {
+fn a_widget_signal_connected_uses_the_shim_it_patches_through() {
     let source = "extends Button\n\n\
 func _ready() -> void:\n\
 \tpressed.connect(_on_pressed)\n\n\
@@ -162,11 +254,10 @@ func _on_pressed() -> void:\n\
 \tpass\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     let at = out
-        .rune
-        .find("gd::patch_widget")
-        .expect("the connect patches the widget");
-    let bound = out.rune[..at].rfind("let gd = script::require(\"gd.rn\");");
-    assert!(bound.is_some(), "{}", out.rune);
+        .text
+        .find(r#"gd::patch_widget(self.node, map().with("on_click", "_on_pressed"));"#)
+        .unwrap_or_else(|| panic!("the connect patches the widget: {}", out.text));
+    assert!(out.text[..at].contains("\nuse gd;\n"), "{}", out.text);
 }
 
 #[test]
@@ -177,8 +268,8 @@ func dark() -> bool:\n\
 \t\treturn DisplayServer.is_dark_mode()\n\
 \treturn false\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("if gd::truthy(true) {"), "{}", out.rune);
-    assert!(out.rune.contains("engine::dark_mode()"), "{}", out.rune);
+    assert!(out.text.contains("if gd::truthy(true) {"), "{}", out.text);
+    assert!(out.text.contains("engine::dark_mode()"), "{}", out.text);
 }
 
 #[test]
@@ -188,8 +279,8 @@ func grow():\n\
 \tget_window().content_scale_factor = 2.0\n\
 \treturn OS.is_debug_build()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("ui::set_scale(2.0)"), "{}", out.rune);
-    assert!(out.rune.contains("engine::target().dev"), "{}", out.rune);
+    assert!(out.text.contains("ui::set_scale(2.0)"), "{}", out.text);
+    assert!(out.text.contains("engine::target().dev"), "{}", out.text);
 }
 
 #[test]
@@ -202,39 +293,50 @@ func go():\n\
 \tsend(\"b\", \"r\")\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(
-        out.rune.contains("send(this, \"a\", NO_REF, 3)"),
+        out.text.contains("self.send(\"a\", NO_REF, 3);"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("send(this, \"b\", \"r\", 3)"),
+        out.text.contains("self.send(\"b\", \"r\", 3);"),
         "{}",
-        out.rune
+        out.text
     );
 }
 
 #[test]
-fn an_object_class_new_is_a_table_its_functions_take() {
+fn an_object_class_new_is_a_map_its_functions_take() {
     let source = "extends RefCounted\nclass_name Machine\n\nvar state = \"idle\"\n\n\
 func _init(owner_name, states):\n\
 \tstate = owner_name\n\n\
 func me():\n\
 \treturn self\n";
     let out = convert(source, "scripts/machine.gd", &Classes::default());
+    let text = flat(&out.text);
     assert!(
-        out.rune.contains("return this;"),
-        "an object's `self` is its table: {}",
-        out.rune
+        text.contains("pub fn me(this: any) -> any { return this; }"),
+        "an object's `self` is its map: {}",
+        out.text
     );
     assert!(
-        out.rune.contains("pub fn new(owner_name, states) {")
-            && out
-                .rune
-                .contains("let this = #{ \"__class\": \"scripts/machine.rn\" };")
-            && out.rune.contains("_init(this, owner_name, states);"),
+        text.contains(
+            r#"pub fn new(owner_name: any, states: any) -> any { let this: any = map().with("__class", "scripts/machine.bs"); this.set("state", "idle"); _init(this, owner_name, states); return this; }"#
+        ),
         "{}",
-        out.rune
+        out.text
     );
+    assert!(
+        text.contains(r#"pub fn _init(this: any, owner_name: any, states: any) { this.set("state", owner_name); }"#),
+        "a member is the map's key: {}",
+        out.text
+    );
+    assert!(
+        text.contains(r#"pub fn __call(this: any, method: str, args: any) -> any {"#)
+            && text.contains(r#"if method == "me" { return me(this); }"#),
+        "the dispatcher reaches each function by name: {}",
+        out.text
+    );
+    assert_compiles("scripts/machine.gd", &out.text, &[]);
 }
 
 #[test]
@@ -242,15 +344,15 @@ fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
     let source = "extends Label\nclass_name Caption\n\nfunc _init():\n\tpass\n";
     let out = convert(source, "scripts/caption.gd", &Classes::default());
     assert!(
-        out.rune.contains("pub fn new() {") && out.rune.contains("gd::new_node("),
+        out.text.contains("pub fn new() -> Node {") && out.text.contains("gd::new_node("),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(out.rune.contains("\"scripts/caption.rn\")"), "{}", out.rune);
+    assert!(out.text.contains("\"scripts/caption.bs\")"), "{}", out.text);
     assert!(
-        out.rune.contains("    _init(this);\n"),
+        flat(&out.text).contains("pub fn init() { self._init(); }"),
         "init runs `_init`: {}",
-        out.rune
+        out.text
     );
 }
 
@@ -258,7 +360,7 @@ fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
 fn comparing_a_missing_value_with_a_string_answers_false() {
     let source = "extends Node\n\nfunc check(id):\n\treturn id == \"ann\"\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("gd::same(id, \"ann\")"), "{}", out.rune);
+    assert!(out.text.contains("gd::same(id, \"ann\")"), "{}", out.text);
 }
 
 #[test]
@@ -266,16 +368,17 @@ fn godots_hidden_signal_is_the_engines_visibility_event() {
     let source = "extends Control\n\nfunc _ready():\n\thidden.connect(_on_hidden)\n\nfunc _on_hidden():\n\tprint(\"gone\")\n";
     let out = convert(source, "scripts/panel.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("gd::listen(this.node, \"visibility_changed\""),
+        out.text
+            .contains("gd::listen(self.node, \"visibility_changed\", self.node, "),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
-            .contains("pub fn on_visibility_changed(this, payload) {\n    if payload {"),
+        flat(&out.text).contains(
+            "pub fn on_visibility_changed(payload: any) { if gd::truthy(payload) { return; } self._on_hidden(); }"
+        ),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -295,13 +398,13 @@ fn another_classs_function_handed_over_is_the_function_itself() {
     };
     let source = "extends Node\n\nfunc wire():\n\tvar f = Codec.decode\n\treturn f\n";
     let out = convert(source, "scripts/a.gd", &classes);
+    assert!(out.text.contains("\nuse scripts::codec;\n"), "{}", out.text);
     assert!(
-        out.rune
-            .contains("script::require(\"scripts/codec.rn\").decode"),
+        out.text.contains("let f: any = codec::decode;"),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(!out.rune.contains("gd.constant"), "{}", out.rune);
+    assert!(!out.text.contains("gd::field("), "{}", out.text);
 }
 
 #[test]
@@ -323,16 +426,16 @@ fn another_class_static_var_reads_and_writes_its_store() {
     let source = "extends Node\n\nfunc toggle():\n\tif Settings.debug_mode:\n\t\tSettings.debug_mode = false\n";
     let out = convert(source, "scripts/a.gd", &classes);
     assert!(
-        out.rune
+        out.text
             .contains("gd::static_ref(\"scripts/settings.gd:debug_mode\", false)"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
+        out.text
             .contains("gd::static_set(\"scripts/settings.gd:debug_mode\", false)"),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -361,11 +464,16 @@ fn super_reaches_the_base_copy_of_an_overridden_function() {
     let out = convert(source, "scripts/shark.gd", &classes);
     std::fs::remove_dir_all(&dir).ok();
     assert!(
-        out.rune.contains("pub fn swim__base(this, speed)"),
+        out.text.contains("pub fn swim__base(speed: any) -> any {"),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(out.rune.contains("swim__base(this, speed)"), "{}", out.rune);
+    assert!(
+        out.text
+            .contains("return gd::mul(self.swim__base(speed), 2);"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -380,10 +488,23 @@ func note(key):\n\
 \t_cache[key] = true\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains(r#"gd::static_ref("scripts/a.gd:_cache", gd::dict([]))"#),
+        out.text
+            .contains(r#"let tmp1: any = gd::static_ref("scripts/a.gd:_cache", map());"#),
         "{}",
-        out.rune
+        out.text
+    );
+    // BUG: the store hands out a copy, so a write into the static must go
+    // back with `static_set`, and not after the `return` that ends the
+    // function: `seen` writes back unreachably, `note` never does.
+    let seen = function(&out.text, "pub fn seen() -> any {");
+    assert!(
+        !seen.contains("return gd::size(tmp1); gd::static_set"),
+        "{seen}"
+    );
+    let note = function(&out.text, "pub fn note(key: any) {");
+    assert!(
+        note.contains(r#"gd::static_set("scripts/a.gd:_cache", "#),
+        "{note}"
     );
 }
 
@@ -395,11 +516,13 @@ static var _theme: Theme\n\
 static func grow(size):\n\
 \t_theme.default_font_size = size\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
+    let text = flat(&out.text);
     assert!(
-        out.rune
-            .contains(r#"gd::set_field(tmp1, "default_font_size", size)"#),
+        text.contains(
+            r#"pub fn grow(size: any) { let tmp1: any = gd::static_ref("scripts/a.gd:_theme", nil); tmp1 = gd::with_field(tmp1, "default_font_size", size); gd::static_set("scripts/a.gd:_theme", tmp1); }"#
+        ),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -413,11 +536,11 @@ func fill(icon, label):\n\
 \tselected = 0\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     for expected in [
-        "gd::clear(this.node)",
-        r#"gd::invoke2(this.node, "add_icon_item", icon, label)"#,
-        "gd::option_select(this.node, 0)",
+        "gd::clear(self.node);",
+        r#"gd::call(self.node, "add_icon_item", gd::list_of([icon, label]));"#,
+        "gd::option_select(self.node, 0);",
     ] {
-        assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
+        assert!(out.text.contains(expected), "{expected}\n{}", out.text);
     }
 }
 
@@ -430,9 +553,10 @@ func poke(box):\n\
 \tbox.pressed.emit()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(
-        out.rune.contains(r#"gd::emit_engine(box, "pressed", [])"#),
+        out.text
+            .contains(r#"gd::emit_engine(box, "pressed", gd::list());"#),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -443,7 +567,12 @@ fn visible_in_tree_asks_the_ancestors_too() {
 func shown(box):\n\
 \treturn box.is_visible_in_tree()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("box.visible_in_tree()"), "{}", out.rune);
+    assert!(
+        out.text
+            .contains("return gd::node_of(box).visible_in_tree();"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -458,9 +587,9 @@ func push(other):\n\
     let out = convert(source, "scripts/a.gd", &Classes::default());
     for expected in [
         r#"v = gd::with_field(v, "x", 3);"#,
-        r#"gd::set_field(this.velocity, "y", gd::field(this.velocity, "y") + 1)"#,
+        r#"gd::set_field(self.my.velocity, "y", gd::field(self.my.velocity, "y") + 1);"#,
     ] {
-        assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
+        assert!(out.text.contains(expected), "{expected}\n{}", out.text);
     }
 }
 
@@ -474,34 +603,40 @@ func seed(other):\n\
 \tother.state_changed.emit(other.state)\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     for expected in [
-        r#"let _ = gd::set(gd::field(other, "state"), "id", "ro");"#,
-        r#"gd::emit_engine(other, "state_changed", [gd::field(other, "state")])"#,
+        r#"gd::set(gd::field(other, "state"), "id", "ro");"#,
+        r#"gd::emit_engine(other, "state_changed", gd::list_of([gd::field(other, "state")]));"#,
     ] {
-        assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
+        assert!(out.text.contains(expected), "{expected}\n{}", out.text);
     }
 }
 
 #[test]
-fn a_body_that_calls_the_shim_binds_it_first() {
+fn a_script_that_calls_the_shim_uses_it_first() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-    assert!(
-        out.rune
-            .contains(r#"    let gd = script::require("gd.rn");"#),
-        "{}",
-        out.rune
-    );
+    let used = out.text.find("\nuse gd;\n").expect("the shim's `use`");
+    let called = out.text.find("gd::").expect("a call into the shim");
+    assert!(used < called, "{}", out.text);
 }
 
 #[test]
 fn a_class_constant_becomes_a_module_constant() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-    assert!(out.rune.contains("pub const LIMIT = 9;"), "{}", out.rune);
+    assert!(
+        out.text.contains("\npub const LIMIT: int = 9;\n"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
 fn a_member_with_a_value_lands_in_defaults() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-    assert!(out.rune.contains("this.hidden = 1;"), "{}", out.rune);
+    assert!(
+        flat(&out.text)
+            .contains("pub class ShipState { process_enabled: bool = true, hidden: int = 1,"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -513,17 +648,16 @@ func outer():\n\
 func inner():\n\
 \tawait ready\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(out.text.contains("pub async fn inner() {"), "{}", out.text);
+    assert!(out.text.contains("pub async fn outer() {"), "{}", out.text);
+    assert!(out.text.contains("await self.inner();"), "{}", out.text);
     assert!(
-        out.rune.contains("pub async fn inner(this)"),
+        out.text
+            .contains(r#"await task::wait(events::next("ready", self.node));"#),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(
-        out.rune.contains("pub async fn outer(this)"),
-        "{}",
-        out.rune
-    );
-    assert!(out.rune.contains("inner(this).await;"), "{}", out.rune);
+    assert_compiles("scripts/a.gd", &out.text, &[]);
 }
 
 #[test]
@@ -538,20 +672,29 @@ func fit_to(overlay: Control, heart: Control, margin: float) -> void:\n\
 \tfit.call()\n\
 \theart.resized.connect(fit)\n";
     let out = convert(source, "scripts/fit.gd", &Classes::default());
-    assert!(!out.rune.contains("PORT(gdscript)"), "{}", out.rune);
+    assert!(!out.text.contains("PORT(gdscript)"), "{}", out.text);
 }
 
 #[test]
 fn parentheses_the_operators_would_regroup_are_kept() {
     let source = "extends Node\n\
 \n\
-func skew(a, b):\n\
+func skew(a: float, b: float):\n\
+\treturn (a - b) * 2.0 - (a - (b - 1))\n\
+\n\
+func loose(a, b):\n\
 \treturn (a - b) * 2.0 - (a - (b - 1))\n";
     let out = convert(source, "scripts/skew.gd", &Classes::default());
     assert!(
-        out.rune.contains("(a - b) * 2.0 - (a - (b - 1))"),
-        "{}",
-        out.rune
+        out.text.contains("return (a - b) * 2.0 - (a - (b - 1.0));"),
+        "typed operands keep the operators: {}",
+        out.text
+    );
+    assert!(
+        out.text
+            .contains("return gd::sub(gd::mul(gd::sub(a, b), 2.0), gd::sub(a, gd::sub(b, 1)));"),
+        "untyped ones nest the shim's calls the same way: {}",
+        out.text
     );
 }
 
@@ -568,8 +711,11 @@ func landed(runner):\n\
 \t\t20.0\n\
 \t)\n";
     let out = convert(source, "scripts/landed.gd", &Classes::default());
-    assert!(!out.rune.contains("PORT(gdscript)"), "{}", out.rune);
-    assert!(out.rune.contains("20.0"), "{}", out.rune);
+    assert!(!out.text.contains("PORT(gdscript)"), "{}", out.text);
+    assert!(out.text.contains("20.0"), "{}", out.text);
+    // BUG: Balaur Script takes no `return await ..`: the value is awaited
+    // into a `let` and that returned.
+    assert!(!out.text.contains("return await "), "{}", out.text);
 }
 
 #[test]
@@ -590,24 +736,32 @@ func bump():\n\
 \t\tpass\n";
     let out = convert(source, "scripts/prop.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("__set_hp(this, __get_current(this) + 1);"),
+        out.text
+            .contains("__set_hp(this, gd::add(__get_current(this), 1));"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("pub fn __get_current(this)"),
+        out.text
+            .contains("pub fn __get_current(this: any) -> any {"),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune
-            .contains("this.hp = gd::int(math::clamp(value, 0, 9));"),
+        out.text
+            .contains(r#"this.set("hp", gd::int(math::clamp(value, 0, 9)));"#),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(out.rune.contains("this.hp = 3;"), "{}", out.rune);
-    assert!(!out.rune.contains("PORT(gdscript)"), "{}", out.rune);
+    assert!(out.text.contains(r#"this.set("hp", 3);"#), "{}", out.text);
+    let text = flat(&out.text);
+    assert!(
+        text.contains(r#"if name == "current" { return __get_current(this); }"#)
+            && text.contains(r#"if name == "hp" { __set_hp(this, value); return; }"#),
+        "another script's read and write go through the accessors: {}",
+        out.text
+    );
+    assert!(!out.text.contains("PORT(gdscript)"), "{}", out.text);
 }
 
 #[test]
@@ -622,13 +776,13 @@ static var _data: Dictionary:\n\
 static func get_data() -> Dictionary:\n\
 \treturn _data\n";
     let out = convert(source, "scripts/meta.gd", &Classes::default());
-    assert!(out.rune.contains("return __get__data();"), "{}", out.rune);
-    assert!(out.rune.contains("pub fn __get__data()"), "{}", out.rune);
+    assert!(out.text.contains("return __get__data();"), "{}", out.text);
+    assert!(out.text.contains("pub fn __get__data()"), "{}", out.text);
     assert!(
-        out.rune
+        out.text
             .contains(r#"gd::static_set("scripts/meta.gd:_data""#),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -641,11 +795,18 @@ enum SessionState {\n\
 \tPLAYING,\n\
 }\n";
     let out = convert(source, "scripts/s.gd", &Classes::default());
+    for want in [
+        "pub const SessionState__IDLE: int = 0;",
+        "pub const SessionState__STARTING: int = 1;",
+        "pub const SessionState__PLAYING: int = 2;",
+        r#"map().with("IDLE", 0).with("STARTING", 1).with("PLAYING", 2)"#,
+    ] {
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
+    }
     assert!(
-        out.rune
-            .contains(r#"pub const SessionState = #{ "IDLE": 0, "STARTING": 1, "PLAYING": 2 };"#),
+        out.text.contains("pub fn SessionState() -> any {"),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -670,7 +831,34 @@ func make():\n\
         inner[0].1
     );
     let out = convert(source, "scripts/r.gd", &Classes::default());
-    assert!(out.rune.contains("scripts/r__Tracker.rn"), "{}", out.rune);
+    assert!(
+        out.text.contains("\nuse scripts::r__Tracker;\n"),
+        "{}",
+        out.text
+    );
+    assert!(
+        out.text.contains("return r__Tracker::new();"),
+        "{}",
+        out.text
+    );
+    // The inner class is an object class of its own, and both compile.
+    let file = super::inner_file("scripts/r.gd", "Tracker");
+    let (_, text) = &super::inner_scripts(source, "scripts/r.gd")[0];
+    let tracker = convert(text, &file, &Classes::default());
+    let tracker_path = crate::godot::scene::script_path(&file);
+    assert!(
+        flat(&tracker.text).contains(
+            r#"pub fn bump(this: any) { this.set("seen", gd::add(this.get("seen"), 1)); }"#
+        ),
+        "{}",
+        tracker.text
+    );
+    assert_compiles(&file, &tracker.text, &[]);
+    assert_compiles(
+        "scripts/r.gd",
+        &out.text,
+        &[(tracker_path.as_str(), tracker.text.clone())],
+    );
 }
 
 #[test]
@@ -698,22 +886,26 @@ class Packer:\n\
     );
     assert_eq!(packer.matches("const LIMIT").count(), 1, "{packer}");
     let out = convert(packer, "proto/pb__Packer.gd", &Classes::default());
-    assert!(
-        out.rune
-            .contains(r#"pub const PB_ERR = #{ "NO_ERRORS": 0, "TRUNCATED": 1 };"#),
-        "{}",
-        out.rune
-    );
-    assert!(out.rune.contains("pub const LIMIT = 3;"), "{}", out.rune);
-    assert!(out.rune.contains("proto/pb__Field.rn"), "{}", out.rune);
-    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+    for want in [
+        "pub const PB_ERR__NO_ERRORS: int = 0;",
+        "pub const PB_ERR__TRUNCATED: int = 1;",
+        "pub fn PB_ERR() -> any {",
+        "pub const LIMIT: int = 3;",
+        "\nuse proto::pb__Field;\n",
+        "let field: any = pb__Field::new();",
+        "gd::same(value, PB_ERR__NO_ERRORS)",
+        r#"gd::lt(gd::field(field, "state"), LIMIT)"#,
+    ] {
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
+    }
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
 fn an_inner_class_is_reached_through_a_preload_of_its_file() {
     let mut classes = Classes::default();
     classes.inner.insert(
-        "proto/pb.rn.Field".to_string(),
+        "proto/pb.bs.Field".to_string(),
         "proto/pb__Field.gd".to_string(),
     );
     let source = "extends Node\n\
@@ -722,12 +914,16 @@ func make():\n\
 \treturn PB.Field.new()\n";
     let out = convert(source, "scripts/u.gd", &classes);
     assert!(
-        out.rune
-            .contains(r#"script::require("proto/pb__Field.rn").new"#),
+        out.text.contains("\nuse proto::pb__Field;\n"),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(!out.rune.contains("gd.invoke"), "{}", out.rune);
+    assert!(
+        out.text.contains("return pb__Field::new();"),
+        "{}",
+        out.text
+    );
+    assert!(!out.text.contains("gd::call("), "{}", out.text);
 }
 
 #[test]
@@ -749,20 +945,30 @@ class Msg:\n\
     let mut classes = Classes::default();
     classes
         .inner
-        .insert("proto/pb.rn.Msg".into(), "proto/pb__Msg.gd".into());
+        .insert("proto/pb.bs.Msg".into(), "proto/pb__Msg.gd".into());
     classes.inner.insert(
-        "proto/pb__Msg.rn.Part".into(),
+        "proto/pb__Msg.bs.Part".into(),
         "proto/pb__Msg__Part.gd".into(),
     );
-    let part = r#"script::require("proto/pb__Msg__Part.rn").new"#;
+    let part = "return pb__Msg__Part::new();";
     let out = convert(msg, "proto/pb__Msg.gd", &classes);
-    assert!(out.rune.contains(part), "{}", out.rune);
+    assert!(out.text.contains(part), "{}", out.text);
+    assert!(
+        out.text.contains("\nuse proto::pb__Msg__Part;\n"),
+        "{}",
+        out.text
+    );
     let user = "extends Node\n\
 const PB = preload(\"res://proto/pb.gd\")\n\
 func make():\n\
 \treturn PB.Msg.Part.new()\n";
     let out = convert(user, "scripts/u.gd", &classes);
-    assert!(out.rune.contains(part), "{}", out.rune);
+    assert!(out.text.contains(part), "{}", out.text);
+    assert!(
+        out.text.contains("\nuse proto::pb__Msg__Part;\n"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
@@ -773,8 +979,14 @@ var found := false\n\
 func mark():\n\
 \tfound = true\n";
     let out = convert(source, "scripts/cell.gd", &Classes::default());
-    assert!(out.rune.contains("this.found = true;"), "{}", out.rune);
-    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+    assert!(out.text.contains("self.my.found = true;"), "{}", out.text);
+    assert!(
+        out.text
+            .contains(r##"self.my.tint = gd::color_of("#ff8a7a");"##),
+        "{}",
+        out.text
+    );
+    assert!(!out.text.contains("PORT("), "{}", out.text);
 }
 
 #[test]
@@ -787,12 +999,19 @@ func _ready():\n\
 \tchanged.connect(bar.refresh)\n\
 \tserver.done.connect(bar.refresh)\n";
     let out = convert(source, "scripts/lobby.gd", &Classes::default());
-    let bound = r#"#{ "__bound": this.bar, "__method": "refresh" }"#;
-    assert_eq!(out.rune.matches(bound).count(), 2, "{}", out.rune);
+    let bound = r#"gd::callable(self.my.bar, "refresh")"#;
+    assert_eq!(out.text.matches(bound).count(), 2, "{}", out.text);
     assert!(
-        !out.rune.contains(r#"gd::field(this.bar, "refresh")"#),
+        out.text.contains(
+            r#"gd::connect(self.my.server, "done", gd::callable(self.my.bar, "refresh"));"#
+        ),
         "{}",
-        out.rune
+        out.text
+    );
+    assert!(
+        !out.text.contains(r#"gd::field(self.my.bar, "refresh")"#),
+        "{}",
+        out.text
     );
 }
 
@@ -805,8 +1024,8 @@ func _ready():\n\
 func _on_state(old, new):\n\
 \tpass\n";
     let out = convert(source, "scripts/flow.gd", &Classes::default());
-    let record = r#"#{ "__call": { |arg0, arg1| { _on_state(this, arg0, arg1) } }, "__takes": 2 }"#;
-    assert!(out.rune.contains(record), "{}", out.rune);
+    let record = r#"gd::connect(self.my.machine, "state_changed", gd::callable(self.node, "_on_state").with("__takes", 2));"#;
+    assert!(out.text.contains(record), "{}", out.text);
 }
 
 #[test]
@@ -819,19 +1038,21 @@ func _unhandled_input(event):\n\
 \tset_process_input(false)\n";
     let out = convert(source, "scripts/popup.gd", &Classes::default());
     for want in [
-        "pub fn on_key_down(this, key) {",
-        "let event = gd::key_event(key, true);",
-        r#"let _ = gd::invoke1(this.node, "_input", event);"#,
+        "pub fn on_key_down(key: str) -> bool {",
+        "let event: any = gd::key_event(key, true);",
+        "self._input(event);",
         "if !gd::input_handled() && !ui::wants_keyboard() {",
-        "pub fn on_pointer_down(this, button) {",
+        "self._unhandled_input(event);",
+        "pub fn on_pointer_down(button: any) -> bool {",
         "!ui::wants_pointer()",
         "return gd::take_input_handled();",
         "gd::set_input_handled()",
-        "this.input_enabled = false;",
+        "self.my.input_enabled = false;",
     ] {
-        assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
     }
-    assert_eq!(out.rune.matches("pub fn on_").count(), 6, "{}", out.rune);
+    assert_eq!(out.text.matches("pub fn on_").count(), 6, "{}", out.text);
+    assert_compiles("scripts/popup.gd", &out.text, &[]);
 }
 
 #[test]
@@ -850,17 +1071,21 @@ fn a_class_that_draws_draws_every_frame_through_the_shim() {
     .join("\n");
     let out = convert(&pips, "scripts/pips.gd", &Classes::default());
     for want in [
-        "pub fn update(this, dt) {\n    let _ = gd::draw_frame(this.node);\n}",
-        "gd::draw_circle(this.node, gd::vec2(i * 12, 0), 4.0, gd::color(1.0, 0.0, 0.0, 1.0), (), (), ())",
+        "pub fn update(dt: float) { gd::draw_frame(self.node); }",
+        "gd::draw_circle(self.node, gd::vec2(i * 12, 0), 4.0, gd::color(1.0, 0.0, 0.0, 1.0), nil, nil, nil)",
     ] {
-        assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
+        assert!(
+            flat(&out.text).contains(want),
+            "no `{want}` in:\n{}",
+            out.text
+        );
     }
     assert!(
-        out.rune.contains("gd::queue_redraw(this.node)"),
+        out.text.contains("gd::queue_redraw(self.node)"),
         "{}",
-        out.rune
+        out.text
     );
-    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+    assert!(!out.text.contains("PORT("), "{}", out.text);
     let lines = [
         "extends Node2D",
         "func _process(delta):",
@@ -872,16 +1097,15 @@ fn a_class_that_draws_draws_every_frame_through_the_shim() {
     .join("\n");
     let out = convert(&lines, "scripts/lines.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("pub fn update(this, delta) {\n    let _ = gd::draw_frame(this.node);"),
+        flat(&out.text).contains("pub fn update(delta: float) { gd::draw_frame(self.node);"),
         "{}",
-        out.rune
+        out.text
     );
     assert_eq!(
-        out.rune.matches("pub fn update(").count(),
+        out.text.matches("pub fn update(").count(),
         1,
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -895,14 +1119,14 @@ func _on_letter(letter):\n\
 \tpass\n";
     let out = convert(source, "scripts/pad.gd", &Classes::default());
     assert!(
-        out.rune.contains(r#"gd::widget_bind(this.btn, "on_click", #{ "__call": { let tmp1 = "a"; || { _on_letter(this, tmp1) } }, "__takes": 0 })"#),
+        out.text.contains(r#"gd::widget_bind(self.my.btn, "on_click", gd::callable(self.node, "_on_letter").with("__args", gd::list_of(["a"])).with("__takes", 0));"#),
         "{}",
-        out.rune
+        out.text
     );
     assert!(
-        out.rune.contains("pub fn __widget_on_click(this, node) {\n    let _ = gd::widget_fire(node, \"on_click\", []);\n}"),
+        flat(&out.text).contains(r#"pub fn __widget_on_click(node: Node) { gd::widget_fire(node, "on_click", gd::list()); }"#),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -915,10 +1139,10 @@ func _ready():\n\
 \tpopup.closed.connect(on_closed)\n";
     let out = convert(source, "scripts/intro.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains(r#"gd::connect(this.popup, "closed", this.on_closed)"#),
+        out.text
+            .contains(r#"gd::connect(self.my.popup, "closed", self.my.on_closed);"#),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -936,12 +1160,16 @@ func save(state):\n\
 \tstate[\"packet\"] = 1\n\
 \tstate[2] = 3\n";
     let out = convert(source, "scripts/words.gd", &Classes::default());
-    assert!(out.rune.contains("gd::at(alphabet, 0)"), "{}", out.rune);
-    assert!(out.rune.contains("letters[0]"), "{}", out.rune);
-    assert!(out.rune.contains("gd::at(this.title, 0)"), "{}", out.rune);
-    assert!(out.rune.contains("gd::at(state, 1)"), "{}", out.rune);
-    assert!(out.rune.contains("state[\"packet\"] = 1;"), "{}", out.rune);
-    assert!(out.rune.contains("state[2] = 3;"), "{}", out.rune);
+    for want in [
+        "return gd::add(gd::at(alphabet, 0), gd::at(letters, 0));",
+        "return gd::at(self.my.title, 0);",
+        "pub fn label(state: str) -> any {",
+        "return gd::at(state, 1);",
+        r#"gd::set(state, "packet", 1);"#,
+        "gd::set(state, 2, 3);",
+    ] {
+        assert!(out.text.contains(want), "no `{want}` in:\n{}", out.text);
+    }
 }
 
 #[test]
@@ -952,10 +1180,11 @@ func _ready():\n\
 \tname_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND\n";
     let out = convert(source, "scripts/entry.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("gd::patch_widget(this.name_label, #{ \"cursor\": gd::cursor_word(2) })"),
+        out.text.contains(
+            "gd::patch_widget(self.my.name_label, map().with(\"cursor\", gd::cursor_word(2)));"
+        ),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -968,14 +1197,14 @@ func _ready():\n\
 \tprint(placeholder_text, tooltip_text)\n";
     let out = convert(source, "scripts/field.gd", &Classes::default());
     for wanted in [
-        "gd::patch_widget(this.node, #{ \"placeholder\": \"Name\" })",
-        "gd::patch_widget(this.node, #{ \"tooltip\": \"Who\" })",
-        "gd::get(this.node.get_component(\"widget\"), \"placeholder\", ())",
-        "gd::get(this.node.get_component(\"widget\"), \"tooltip\", ())",
+        "gd::patch_widget(self.node, map().with(\"placeholder\", \"Name\"));",
+        "gd::patch_widget(self.node, map().with(\"tooltip\", \"Who\"));",
+        "gd::get(self.node.get_component(\"widget\"), \"placeholder\", nil)",
+        "gd::get(self.node.get_component(\"widget\"), \"tooltip\", nil)",
     ] {
-        assert!(out.rune.contains(wanted), "{wanted} in {}", out.rune);
+        assert!(out.text.contains(wanted), "{wanted} in {}", out.text);
     }
-    assert!(!out.rune.contains("_text\""), "{}", out.rune);
+    assert!(!out.text.contains("_text\""), "{}", out.text);
 }
 
 #[test]
@@ -985,8 +1214,8 @@ func _ready():\n\
 \tmouse_default_cursor_shape = Control.CURSOR_VSPLIT\n\
 \tmouse_default_cursor_shape = CursorShape.CURSOR_HELP\n";
     let out = convert(source, "scripts/seam.gd", &Classes::default());
-    assert!(out.rune.contains("gd::cursor_word(14)"), "{}", out.rune);
-    assert!(out.rune.contains("gd::cursor_word(16)"), "{}", out.rune);
+    assert!(out.text.contains("gd::cursor_word(14)"), "{}", out.text);
+    assert!(out.text.contains("gd::cursor_word(16)"), "{}", out.text);
 }
 
 #[test]
@@ -996,10 +1225,10 @@ func _ready():\n\
 \tmouse_filter = Control.MOUSE_FILTER_IGNORE\n";
     let out = convert(source, "scripts/veil.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains("gd::patch_widget(this.node, #{ \"interactive\": 2 != 2 })"),
+        out.text
+            .contains("gd::patch_widget(self.node, map().with(\"interactive\", 2 != 2));"),
         "{}",
-        out.rune
+        out.text
     );
 }
 
@@ -1018,13 +1247,20 @@ fn a_constant_holding_a_triple_quoted_string_over_lines_is_one_declaration() {
     ]
     .join("\n");
     let inner = super::inner_scripts(&source, "addons/deeplink.gd");
-    let (path, text) = inner
+    let (name, text) = inner
         .iter()
-        .find(|(path, _)| path.contains("Plugin"))
+        .find(|(name, _)| name == "Plugin")
         .expect("the inner class's file");
-    let rune = convert(text, path, &Classes::default()).rune;
-    assert!(rune.contains("pub const HEADER = "), "{rune}");
-    assert!(rune.contains("<plist version="), "{rune}");
-    assert!(rune.contains("pub const SUFFIX = \".ipa\";"), "{rune}");
-    assert!(!rune.contains("PORT("), "{rune}");
+    let file = super::inner_file("addons/deeplink.gd", name);
+    let out = convert(text, &file, &Classes::default()).text;
+    assert_eq!(out.matches("HEADER() -> any").count(), 1, "{out}");
+    assert!(
+        flat(&out).contains(
+            r#"pub fn HEADER() -> any { "<?xml version=\"1.0\"?>\n<plist version=\"1.0\">\n<array>\n" }"#
+        ),
+        "{out}"
+    );
+    assert!(out.contains("pub const SUFFIX: str = \".ipa\";"), "{out}");
+    assert!(out.contains("gd::add(HEADER(), SUFFIX)"), "{out}");
+    assert!(!out.contains("PORT("), "{out}");
 }

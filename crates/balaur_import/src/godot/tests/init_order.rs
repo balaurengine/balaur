@@ -54,7 +54,7 @@ fn an_export_the_scene_set_outlives_init_and_one_it_did_not_keeps_init_s_value()
     let world = app.engine.world();
     let fold = balaur_core::scene::find_node(&world, app.engine.root(), "Fold")
         .expect("the scene's root is the fold");
-    let script = std::fs::read_to_string(out.path().join("fold.rn")).unwrap_or_default();
+    let script = std::fs::read_to_string(out.path().join("fold.bs")).unwrap_or_default();
     assert_eq!(
         world
             .get::<&balaur_core::scene::Appearance>(fold)
