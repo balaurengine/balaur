@@ -15,16 +15,22 @@ fn a_script_awaits_a_call_and_takes_another_through_a_handler() {
     }
     run_until(
         r#"
-pub async fn init(this) {
-    let store = platform::backend();
-    let r = task::wait(platform::sign_in()).await;
-    log::info(`platform-await ${store} ${r["kind"]}`);
-    this.request = platform::unlock(this.node, "first_blood", #{ on_event: "on_store" });
-}
+pub struct S { node: Node, request: int }
+impl S {
+    async fn init() {
+        let store = platform::backend();
+        let r = await task::wait(platform::sign_in().as_int());
+        let kind = r.get("kind");
+        log::info("platform-await {store} {kind}");
+        self.request = platform::unlock(self.node, "first_blood", map().with("on_event", "on_store")).as_int();
+    }
 
-pub fn on_store(this, e) {
-    if e["request"] == this.request {
-        log::info(`platform-handler ${e["kind"]} ${e["call"]}`);
+    pub fn on_store(e: any) {
+        if e.get("request").as_int() == self.request {
+            let kind = e.get("kind");
+            let call = e.get("call");
+            log::info("platform-handler {kind} {call}");
+        }
     }
 }
 "#,
@@ -41,11 +47,16 @@ fn a_script_reads_the_player_before_a_sign_in_has_landed() {
         return;
     }
     run_until(
-        r"
-pub fn init(this) {
-    log::info(`platform-empty ${platform::signed_in()} ${platform::backend()}`);
+        r#"
+pub struct S { node: Node }
+impl S {
+    fn init() {
+        let signed = platform::signed_in();
+        let store = platform::backend();
+        log::info("platform-empty {signed} {store}");
+    }
 }
-",
+"#,
         &["platform-empty false none"],
     );
 }

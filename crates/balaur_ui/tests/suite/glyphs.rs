@@ -4,13 +4,13 @@
 
 use std::path::{Path, PathBuf};
 
-/// Every `.rn` under `dir`, recursively.
+/// Every `.bs` under `dir`, recursively.
 fn scripts(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
             scripts(&path, out);
-        } else if path.extension().is_some_and(|e| e == "rn") {
+        } else if path.extension().is_some_and(|e| e == "bs") {
             out.push(path);
         }
     }
@@ -56,7 +56,7 @@ fn editor_scripts_draw_only_bundled_glyphs() {
     let mut missing = Vec::new();
     for path in files {
         // The font smoke test draws scripts the bundle has no face for.
-        if path.file_name().is_some_and(|n| n == "selftest.rn") {
+        if path.file_name().is_some_and(|n| n == "selftest.bs") {
             continue;
         }
         let text = std::fs::read_to_string(&path).unwrap();

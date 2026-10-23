@@ -18,7 +18,7 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"s.rn\" }}\n\
+            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"s.bs\" }}\n\
              [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
              [[nodes]]\nid = \"l\"\nname = \"Shown\"\nparent = \"n\"\n\
              widget = {{ kind = \"label\", text = \"hi\", anchor = \"bottom_right\" }}\n\n\
@@ -30,14 +30,19 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.rn"),
-        "pub fn init(this) { this.edits = 0.0; this.seen = \"\"; this.depth = -1.0; }\n\
-         pub fn edited(this, edit) {\n\
-             this.edits += 1.0;\n\
-             this.depth = edit.path.len() as f64;\n\
-             this.seen = format!(\"{} {:?}\", edit.property, edit.value);\n\
-         }\n\
-         pub fn update(this, dt) {}\n",
+        dir.path().join("s.bs"),
+        "pub struct Root { node: Node, edits: float, seen: str, depth: float }
+impl Root {
+    fn init() { self.depth = -1.0; }
+    pub fn edited(edit: any) {
+        self.edits += 1.0;
+        self.depth = edit.get(\"path\").len() as float;
+        let property = edit.get(\"property\");
+        let value = edit.get(\"value\");
+        self.seen = \"{property} {value}\";
+    }
+}
+",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
@@ -81,14 +86,14 @@ fn shown_rows(app: &App) -> usize {
 
 fn number(app: &App, name: &str) -> Option<f64> {
     let root = node(app, "Root").expect("the scene has a Root node");
-    balaur::script_rune::rune_of(&app.engine).number_field(root, name)
+    crate::support::script_number(app, root, name)
 }
 
-/// The last edit the script heard: its property, then its value as Rune
-/// writes it out.
+/// The last edit the script heard: its property, then its value as an
+/// `any` prints.
 fn seen(app: &App) -> Option<String> {
     let root = node(app, "Root").expect("the scene has a Root node");
-    balaur::script_rune::rune_of(&app.engine).text_field(root, "seen")
+    crate::support::script_text(app, root, "seen")
 }
 
 /// Ticks and passes enough for the rows to be filled and drawn.
@@ -253,23 +258,27 @@ fn an_inspector_a_script_pools_fills_and_draws_its_rows() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.rn\" }\n\
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\
          [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
          [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\n\
          widget = { kind = \"column\", anchor = \"fill\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.rn"),
-        "pub fn init(this) { this.edits = 0.0; this.path = \"\"; }\n\
-         pub fn update(this, dt) {\n\
-             this.path = scene::get_node(\"Root\").path();\n\
-             ui::fill_rows(\"Root/Bar\", [#{ full: true, height: 0, controls: [#{\n\
-                 kind: \"inspector\", grow: 1, gap: [2, 2], target: this.path,\n\
-                 component: \"transform\", label_width: 60.0,\n\
-                 on: |edit| { this.edits += 1.0; },\n\
-             }] }], 60.0, false);\n\
-         }\n",
+        dir.path().join("s.bs"),
+        "pub struct Root { node: Node, edits: float, path: str }
+impl Root {
+    fn update(dt: float) {
+        self.path = scene::get_node(\"Root\").path();
+        let inspector = map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"gap\", [2, 2])
+            .with(\"target\", self.path).with(\"component\", \"transform\").with(\"label_width\", 60.0)
+            .with(\"on\", \"edited\");
+        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [inspector])];
+        ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
+    }
+    pub fn edited(data: any, edit: any) { self.edits += 1.0; }
+}
+",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
@@ -279,7 +288,7 @@ fn an_inspector_a_script_pools_fills_and_draws_its_rows() {
     let ctx = egui::Context::default();
     settle(&mut app, &ctx);
     let root = node(&app, "Root").unwrap();
-    let said = balaur::script_rune::rune_of(&app.engine).text_field(root, "path");
+    let said = crate::support::script_text(&app, root, "path");
     let inspector = node(&app, "Root/Bar/R0/H/C/C0").expect("the pooled control");
     assert_eq!(
         prop(&app, inspector, "kind"),
@@ -309,24 +318,29 @@ fn a_slot_that_stops_being_an_inspector_takes_its_rows_with_it() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.rn\" }\n\
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\
          [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
          [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\n\
          widget = { kind = \"column\", anchor = \"fill\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.rn"),
-        "pub fn init(this) { this.inspecting = true; }\n\
-         pub fn update(this, dt) {\n\
-             let control = if this.inspecting {\n\
-                 #{ kind: \"inspector\", grow: 1, target: \"Root\", component: \"transform\" }\n\
-             } else {\n\
-                 #{ controls: [#{ kind: \"label\", text: \"a\" }, #{ kind: \"label\", text: \"b\" }] }\n\
-             };\n\
-             ui::fill_rows(\"Root/Bar\", [#{ full: true, height: 0, controls: [control] }], 60.0, false);\n\
-         }\n\
-         pub fn flip(this) { this.inspecting = !this.inspecting; }\n",
+        dir.path().join("s.bs"),
+        "pub struct Root { node: Node, flipped: bool }
+impl Root {
+    fn update(dt: float) {
+        let control = if self.flipped {
+            let labels: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"a\"), map().with(\"kind\", \"label\").with(\"text\", \"b\")];
+            map().with(\"controls\", labels)
+        } else {
+            map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"target\", \"Root\").with(\"component\", \"transform\")
+        };
+        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [control])];
+        ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
+    }
+    pub fn flip() { self.flipped = !self.flipped; }
+}
+",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
@@ -343,7 +357,8 @@ fn a_slot_that_stops_being_an_inspector_takes_its_rows_with_it() {
     };
     let flip = |app: &App| {
         let root = node(app, "Root").unwrap();
-        balaur::script_rune::rune_of(&app.engine).call_on(root, "flip", &[]);
+        let host = app.engine.script_host().expect("a script host");
+        host.call_on(balaur::node_id_of(root), "flip", &[]);
     };
     settle(&mut app, &ctx);
     assert_eq!(

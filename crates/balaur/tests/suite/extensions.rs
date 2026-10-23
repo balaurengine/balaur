@@ -51,13 +51,16 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.rn"),
-        "pub fn init(this) { this.said = greeter::greet(\"world\"); }\n\
-         pub fn update(this, dt) { this.count = greeter::greetings(); }\n",
+        dir.path().join("scripts/s.bs"),
+        "pub struct Root { node: Node, said: str, count: int }\n\
+         impl Root {\n\
+             fn init() { self.said = greeter::greet(\"world\"); }\n\
+             fn update(dt: float) { self.count = greeter::greetings(); }\n\
+         }\n",
     )
     .unwrap();
     if with_extension {
@@ -76,10 +79,21 @@ fn ship_greeter(dir: &Path) {
     .unwrap();
 }
 
-/// The scene's `Root`, the node the project's script is attached to.
-fn root_node(app: &balaur::App) -> balaur::hecs::Entity {
-    let world = app.engine.world();
-    balaur::scene::find_node(&world, app.engine.root(), "Root").expect("the scene has a Root")
+/// What the script on the scene's `Root` holds in `name`.
+fn field(app: &balaur::App, name: &str) -> Option<balaur_script::Value> {
+    let root = {
+        let world = app.engine.world();
+        balaur::scene::find_node(&world, app.engine.root(), "Root").expect("the scene has a Root")
+    };
+    let host = app.engine.script_host().expect("a script host");
+    host.script_field(balaur::node_id_of(root), name)
+}
+
+fn said(app: &balaur::App) -> Option<String> {
+    match field(app, "said") {
+        Some(balaur_script::Value::Str(text)) => Some(text),
+        _ => None,
+    }
 }
 
 #[test]
@@ -88,9 +102,8 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    let said = balaur::script_rune::rune_of(&app.engine).text_field(root_node(&app), "said");
     assert_eq!(
-        said.as_deref(),
+        said(&app).as_deref(),
         Some("hello, world"),
         "the extension's binding did not reach the script"
     );
@@ -99,7 +112,11 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
 #[test]
 fn a_project_without_extensions_still_boots() {
     let dir = project(false);
-    std::fs::write(dir.path().join("scripts/s.rn"), "pub fn init(this) {}\n").unwrap();
+    std::fs::write(
+        dir.path().join("scripts/s.bs"),
+        "pub struct Root { node: Node }\n",
+    )
+    .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
@@ -115,10 +132,9 @@ fn an_extension_survives_many_frames() {
     for _ in 0..60 {
         app.tick(1.0 / 60.0);
     }
-    let count = balaur::script_rune::rune_of(&app.engine).number_field(root_node(&app), "count");
     assert_eq!(
-        count,
-        Some(1.0),
+        field(&app, "count"),
+        Some(balaur_script::Value::Int(1)),
         "the extension's state did not survive the run"
     );
 }
@@ -135,8 +151,7 @@ fn play_own_pack() {
     let config = AppConfig::packed(balaur::Pack::decode(&pack).unwrap());
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
-    let said = balaur::script_rune::rune_of(&app.engine).text_field(root_node(&app), "said");
-    assert_eq!(said.as_deref(), Some("hello, world"));
+    assert_eq!(said(&app).as_deref(), Some("hello, world"));
 }
 
 /// Run `game`, a copy of this binary, as the calling test, from a directory

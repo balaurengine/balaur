@@ -14,7 +14,7 @@ fn app_with(script: &str) -> (tempfile::TempDir, balaur::App) {
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scenes/hear.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scenes/hear.bs"), script).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -30,7 +30,7 @@ said = { type = "text", value = "" }
 [[nodes]]
 id = "n_ear"
 name = "Ear"
-script = { source = "scenes/hear.rn" }
+script = { source = "scenes/hear.bs" }
 "#;
 
 fn variable(app: &balaur::App, name: &str) -> balaur_script::Value {
@@ -51,17 +51,24 @@ fn said(app: &balaur::App) -> String {
 }
 
 /// Appends what it heard to `said`, so the order shows too.
-const TELL: &str = "fn tell(what) {\n\
-    scene::set_variable(\"heard\", scene::variable(\"heard\") + 1);\n\
-    scene::set_variable(\"said\", `${scene::variable(\"said\")}${what};`);\n\
-}\n";
+const TELL: &str = r#"fn tell(what: str) {
+    scene::set_variable("heard", scene::variable("heard").as_int() + 1);
+    let said = scene::variable("said").as_str();
+    scene::set_variable("said", said + what + ";");
+}
+"#;
+
+/// The ear's script: `tell` and a node script whose methods are `methods`.
+fn ear(methods: &str) -> String {
+    format!("{TELL}pub struct Ear {{ node: Node }}\nimpl Ear {{\n{methods}}}\n")
+}
 
 #[test]
 fn the_right_and_middle_buttons_reach_a_node_as_the_left_does() {
-    let script = format!(
-        "{TELL}pub fn on_pointer_down(this, button) {{ tell(`down ${{button}}`); }}\n\
-         pub fn on_pointer_up(this, button) {{ tell(`up ${{button}}`); }}\n"
-    );
+    let script = ear(r#"
+    pub fn on_pointer_down(button: str) { tell("down {button}"); }
+    pub fn on_pointer_up(button: str) { tell("up {button}"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     app.tick(1.0 / 60.0);
     for (button, down) in [(1, true), (2, true), (1, false), (2, false)] {
@@ -78,13 +85,13 @@ fn the_right_and_middle_buttons_reach_a_node_as_the_left_does() {
 
 #[test]
 fn an_action_let_go_is_heard_as_one_pressed_is() {
-    let script = format!(
-        "{TELL}pub fn update(this, dt) {{\n\
-             if scene::variable(\"heard\") == 0 {{ input::feed_action(\"jump\", 1.0); }}\n\
-         }}\n\
-         pub fn on_action(this, name) {{ tell(`pressed ${{name}}`); }}\n\
-         pub fn on_action_released(this, name) {{ tell(`released ${{name}}`); }}\n"
-    );
+    let script = ear(r#"
+    fn update(dt: float) {
+        if scene::variable("heard").as_int() == 0 { input::feed_action("jump", 1.0); }
+    }
+    pub fn on_action(name: str) { tell("pressed {name}"); }
+    pub fn on_action_released(name: str) { tell("released {name}"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     for _ in 0..6 {
         app.tick(1.0 / 60.0);
@@ -94,12 +101,12 @@ fn an_action_let_go_is_heard_as_one_pressed_is() {
 
 #[test]
 fn the_device_s_changes_reach_every_script() {
-    let script = format!(
-        "{TELL}pub fn on_suspended_changed(this, suspended) {{ tell(`suspended ${{suspended}}`); }}\n\
-         pub fn on_safe_area_changed(this, insets) {{ tell(`insets ${{insets[1]}}`); }}\n\
-         pub fn on_orientation_changed(this, way) {{ tell(way); }}\n\
-         pub fn on_low_memory(this) {{ tell(\"low memory\"); }}\n"
-    );
+    let script = ear(r#"
+    pub fn on_suspended_changed(suspended: bool) { tell("suspended {suspended}"); }
+    pub fn on_safe_area_changed(insets: any) { tell("insets {insets.at(1)}"); }
+    pub fn on_orientation_changed(way: str) { tell(way); }
+    pub fn on_low_memory() { tell("low memory"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     balaur_core::facts::update_device(&app.engine, |device| device.screen_size = [800.0, 600.0]);
     app.tick(1.0 / 60.0);
@@ -119,17 +126,17 @@ fn the_device_s_changes_reach_every_script() {
 
 #[test]
 fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
-    let script = format!(
-        "{TELL}pub fn update(this, dt) {{\n\
-             if scene::variable(\"said\") == \"\" {{\n\
-                 scene::set_variable(\"said\", \"asked;\");\n\
-                 settings::set(\"audio/volume\", 0.5);\n\
-                 strings::set_locale(\"fr\");\n\
-             }}\n\
-         }}\n\
-         pub fn on_setting_changed(this, change) {{ tell(change[\"path\"]); }}\n\
-         pub fn on_locale_changed(this, locale) {{ tell(locale); }}\n"
-    );
+    let script = ear(r#"
+    fn update(dt: float) {
+        if scene::variable("said").as_str() == "" {
+            scene::set_variable("said", "asked;");
+            settings::set("audio/volume", 0.5);
+            strings::set_locale("fr");
+        }
+    }
+    pub fn on_setting_changed(change: any) { tell(change.get("path").as_str()); }
+    pub fn on_locale_changed(locale: str) { tell(locale); }
+"#);
     let (_dir, mut app) = app_with(&script);
     for _ in 0..3 {
         app.tick(1.0 / 60.0);
@@ -142,16 +149,16 @@ fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
 #[test]
 fn a_script_listening_for_logged_hears_a_line_written() {
     balaur_core::logbuf::capture_for_test();
-    let script = format!(
-        "{TELL}pub fn init(this) {{ events::listen(this.node, \"logged\"); }}\n\
-         pub fn update(this, dt) {{\n\
-             if scene::variable(\"said\") == \"\" {{\n\
-                 scene::set_variable(\"said\", \"asked;\");\n\
-                 log::info(\"a line for the log view\");\n\
-             }}\n\
-         }}\n\
-         pub fn on_logged(this, total) {{ tell(\"logged\"); }}\n"
-    );
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "logged"); }
+    fn update(dt: float) {
+        if scene::variable("said").as_str() == "" {
+            scene::set_variable("said", "asked;");
+            log::info("a line for the log view");
+        }
+    }
+    pub fn on_logged(total: any) { tell("logged"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     for _ in 0..3 {
         app.tick(1.0 / 60.0);
@@ -163,16 +170,16 @@ fn a_script_listening_for_logged_hears_a_line_written() {
 /// each frame: a file declared stale is heard at the next pump.
 #[test]
 fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
-    let script = format!(
-        "{TELL}pub fn init(this) {{ events::listen(this.node, \"assets_reloaded\"); }}\n\
-         pub fn update(this, dt) {{\n\
-             if scene::variable(\"said\") == \"\" {{\n\
-                 scene::set_variable(\"said\", \"asked;\");\n\
-                 assets::invalidate();\n\
-             }}\n\
-         }}\n\
-         pub fn on_assets_reloaded(this, generation) {{ tell(\"reloaded\"); }}\n"
-    );
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "assets_reloaded"); }
+    fn update(dt: float) {
+        if scene::variable("said").as_str() == "" {
+            scene::set_variable("said", "asked;");
+            assets::invalidate();
+        }
+    }
+    pub fn on_assets_reloaded(generation: any) { tell("reloaded"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     for _ in 0..3 {
         app.tick(1.0 / 60.0);
@@ -184,16 +191,16 @@ fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
 /// folder each frame: a slot written is heard at the next pump.
 #[test]
 fn a_script_listening_for_saved_hears_a_slot_written() {
-    let script = format!(
-        "{TELL}pub fn init(this) {{ events::listen(this.node, \"saved\"); }}\n\
-         pub fn update(this, dt) {{\n\
-             if scene::variable(\"said\") == \"\" {{\n\
-                 scene::set_variable(\"said\", \"asked;\");\n\
-                 save::write(\"probe\", #{{ n: 1 }});\n\
-             }}\n\
-         }}\n\
-         pub fn on_saved(this, count) {{ tell(\"saved\"); }}\n"
-    );
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "saved"); }
+    fn update(dt: float) {
+        if scene::variable("said").as_str() == "" {
+            scene::set_variable("said", "asked;");
+            save::write("probe", map().with("n", 1));
+        }
+    }
+    pub fn on_saved(count: any) { tell("saved"); }
+"#);
     let (dir, mut app) = app_with(&script);
     // Kept in the test's own folder, not the user's data directory.
     balaur_core::save::set_home(&app.engine, Some(dir.path().join("data")));
@@ -207,10 +214,10 @@ fn a_script_listening_for_saved_hears_a_slot_written() {
 /// frame: a turn is heard at the pump of the frame it happened in.
 #[test]
 fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
-    let script = format!(
-        "{TELL}pub fn init(this) {{ events::listen(this.node, \"pointer_scrolled\"); }}\n\
-         pub fn on_pointer_scrolled(this, turn) {{ tell(`scrolled ${{turn[1]}}`); }}\n"
-    );
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "pointer_scrolled"); }
+    pub fn on_pointer_scrolled(turn: any) { tell("scrolled {turn.at(1)}"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     app.tick(1.0 / 60.0);
     {
@@ -227,10 +234,10 @@ fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
 /// drop is heard at the pump of the frame it landed in, with its paths.
 #[test]
 fn a_script_listening_for_files_dropped_hears_the_paths() {
-    let script = format!(
-        "{TELL}pub fn init(this) {{ events::listen(this.node, \"files_dropped\"); }}\n\
-         pub fn on_files_dropped(this, paths) {{ tell(`dropped ${{paths[0]}}`); }}\n"
-    );
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "files_dropped"); }
+    pub fn on_files_dropped(paths: any) { tell("dropped {paths.at(0).as_str()}"); }
+"#);
     let (_dir, mut app) = app_with(&script);
     app.tick(1.0 / 60.0);
     {

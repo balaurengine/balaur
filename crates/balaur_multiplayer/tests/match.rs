@@ -14,16 +14,19 @@ const LOBBY: &str = r#"
 [[nodes]]
 id = "n_lobby"
 name = "Lobby"
-script = { source = "scripts/lobby.rn" }
+script = { source = "scripts/lobby.bs" }
 "#;
 
 const LOBBY_SCRIPT: &str = r#"
-pub fn host_match(this, transport) {
-    multiplayer::host(#{ transport: transport, name: "host" });
-}
+pub struct Lobby { node: Node }
+impl Lobby {
+    pub fn host_match(transport: str) {
+        multiplayer::host(map().with("transport", transport).with("name", "host"));
+    }
 
-pub fn join_match(this, url, hash) {
-    multiplayer::join(url, #{ cert_hash: hash, name: "guest" });
+    pub fn join_match(url: str, hash: any) {
+        multiplayer::join(url, map().with("cert_hash", hash).with("name", "guest"));
+    }
 }
 "#;
 
@@ -33,7 +36,7 @@ const ARENA: &str = r#"
 [[nodes]]
 id = "n_arena"
 name = "Arena"
-script = { source = "scripts/arena.rn" }
+script = { source = "scripts/arena.bs" }
 
 [[nodes]]
 id = "n_p0"
@@ -56,28 +59,30 @@ transform = { position = [0.0, 0.0, 0.0] }
 "#;
 
 const ARENA_SCRIPT: &str = r#"
-pub fn init(this) {
-    this.me = multiplayer::local_player();
-    this.view = this.node.get_node("View");
-}
-
-pub fn fixed_update(this, dt) {
-    let me = multiplayer::local_player();
-    multiplayer::set_input(multiplayer::tick() % 5 + me * 10);
-    for slot in [0, 1] {
-        let step = rollback::input(slot);
-        if step is i64 {
-            let marker = this.node.get_node(`P${slot}`);
-            let at = marker.transform.position;
-            marker.transform.position = [at.x + (step as f64) * 0.01, at.y, at.z];
-        }
+pub struct Arena { node: Node, view: Node }
+impl Arena {
+    fn init() {
+        self.view = self.node.get_node("View");
     }
-    let mine = this.node.get_node(`P${me}`);
-    this.view.transform.position = mine.transform.position;
-}
 
-pub fn leave_match(this) {
-    multiplayer::leave();
+    fn fixed_update(dt: float) {
+        let me = multiplayer::local_player().or(0);
+        multiplayer::set_input(multiplayer::tick() % 5 + me * 10);
+        for slot in [0, 1] {
+            let step = rollback::input(slot);
+            if step.kind() == "int" {
+                let marker = self.node.get_node("P{slot}");
+                let at = marker.transform.position;
+                marker.transform.position = vec3(at.x + step.as_int() * 0.01, at.y, at.z);
+            }
+        }
+        let mine = self.node.get_node("P{me}");
+        self.view.transform.position = mine.transform.position;
+    }
+
+    pub fn leave_match() {
+        multiplayer::leave();
+    }
 }
 "#;
 
@@ -89,8 +94,8 @@ fn project() -> tempfile::TempDir {
         ("project.toml", PROJECT),
         ("lobby.toml", LOBBY),
         ("arena.toml", ARENA),
-        ("scripts/lobby.rn", LOBBY_SCRIPT),
-        ("scripts/arena.rn", ARENA_SCRIPT),
+        ("scripts/lobby.bs", LOBBY_SCRIPT),
+        ("scripts/arena.bs", ARENA_SCRIPT),
     ] {
         std::fs::write(root.join(path), text).unwrap();
     }

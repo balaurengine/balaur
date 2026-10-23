@@ -2,7 +2,7 @@
 //! coupled axes, the switch, an articulation's own numbers and gears, and what
 //! `joint_state` reads back.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
@@ -265,15 +265,15 @@ fn run_checked(scene: &str, script: &str, ticks: u32, done: &str) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..ticks {
         app.tick(1.0 / 60.0);
     }
-    let errors: Vec<String> = balaur_core::logbuf::recent(80)
+    let errors: Vec<String> = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -299,7 +299,7 @@ id = "n_swing"
 name = "Swing"
 parent = "n_world"
 body3d = { kind = "dynamic", mass = 1.0 }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -339,22 +339,25 @@ axes = [{ axis = "rotation_x", limits = [-0.3, 0.3] }]
 fn joint_state_reads_a_hinges_angle_its_coordinates_and_its_limit() {
     run_checked(
         PENDULUMS,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks += 1;
-    if this.ticks == 20 {
-        let swing = this.node.joint3d.joint_state();
-        assert!(swing.status == physics3d::JOINT_ENABLED, "status {}", swing.status);
-        let angle = swing.angle;
-        let coordinate = swing.coordinates.rotation_x;
-        assert!(angle.abs() > 0.1, "the pendulum never swung: {}", angle);
-        assert!((angle - coordinate).abs() < 0.02, "angle {} against coordinate {}", angle, coordinate);
-        assert!(swing.velocities.rotation_x.abs() > 0.1, "no joint velocity");
-        let held = scene::get_node("World/Impulse").joint3d.joint_state();
-        assert!(held.angle.abs() < 0.35, "the limit did not hold: {}", held.angle);
-        assert!(held.limit_impulses.rotation_x.abs() > 0.0, "the limit carried no impulse");
-        log::error("checked: joint state");
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 20 {
+            let swing = self.node.joint3d.joint_state();
+            let status = swing.get("status").as_str();
+            if status != physics3d::JOINT_ENABLED { log::error("status {status}"); }
+            let angle = swing.get("angle").as_float();
+            let coordinate = swing.get("coordinates").get("rotation_x").as_float();
+            if math::abs(angle) <= 0.1 { log::error("the pendulum never swung: {angle}"); }
+            if math::abs(angle - coordinate) >= 0.02 { log::error("angle {angle} against coordinate {coordinate}"); }
+            if math::abs(swing.get("velocities").get("rotation_x").as_float()) <= 0.1 { log::error("no joint velocity"); }
+            let held = scene::get_node("World/Impulse").joint3d.joint_state();
+            let held_angle = held.get("angle").as_float();
+            if math::abs(held_angle) >= 0.35 { log::error("the limit did not hold: {held_angle}"); }
+            if math::abs(held.get("limit_impulses").get("rotation_x").as_float()) <= 0.0 { log::error("the limit carried no impulse"); }
+            log::error("checked: joint state");
+        }
     }
 }
 "#,
@@ -378,7 +381,7 @@ id = "n_upper"
 name = "Upper"
 parent = "n_world"
 body3d = { kind = "dynamic", mass = 1.0 }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -420,16 +423,17 @@ gear_offset = 0.2
 fn a_geared_joint_follows_the_joint_it_names() {
     run_checked(
         GEARED,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks += 1;
-    if this.ticks == 30 {
-        let upper = this.node.joint3d.joint_state().coordinates.rotation_x;
-        let lower = scene::get_node("World/Lower").joint3d.joint_state().coordinates.rotation_x;
-        assert!(upper.abs() > 0.1, "the chain never swung: {}", upper);
-        assert!((lower - (0.2 - upper)).abs() < 0.05, "upper {} lower {}", upper, lower);
-        log::error("checked: geared");
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 30 {
+            let upper = self.node.joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
+            let lower = scene::get_node("World/Lower").joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
+            if math::abs(upper) <= 0.1 { log::error("the chain never swung: {upper}"); }
+            if math::abs(lower - (0.2 - upper)) >= 0.05 { log::error("upper {upper} lower {lower}"); }
+            log::error("checked: geared");
+        }
     }
 }
 "#,

@@ -1,7 +1,7 @@
 //! What a body hears beyond its own collider: a collision on any collider
 //! under it, its own sleep, and a soft body's collisions and torn edges.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::variables::Variables;
 
 use crate::LOG;
@@ -20,8 +20,8 @@ fields = { type = "int", value = 0 }
 whole = { type = "int", value = 0 }
 "#;
 
-const BUMP: &str = "fn bump(name, by) {
-    scene::set_variable(name, scene::variable(name) + by);
+const BUMP: &str = "fn bump(name: str, by: int) {
+    scene::set_variable(name, scene::variable(name).as_int() + by);
 }
 ";
 
@@ -37,8 +37,8 @@ fn run(scene: &str, script: &str, ticks: usize) -> balaur::App {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), format!("{COUNTERS}\n{scene}")).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), format!("{BUMP}\n{script}")).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), format!("{BUMP}\n{script}")).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..ticks {
         app.tick(1.0 / 60.0);
@@ -73,7 +73,7 @@ size = [20.0, 1.0, 20.0]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic", time_to_sleep = 0.1 }
 
 [nodes.transform]
@@ -89,9 +89,12 @@ kind = "box"
 size = [1.0, 1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub fn on_collision_enter(this, collision) { bump("hit", 1); }
-pub fn on_sleeping_changed(this, asleep) { if asleep { bump("slept", 1); } }
-pub fn fixed_update(this, dt) { bump("ticks", 1); }
+        r#"pub struct S { node: Node }
+impl S {
+    pub fn on_collision_enter(collision: any) { bump("hit", 1); }
+    pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
+    fn fixed_update(dt: float) { bump("ticks", 1); }
+}
 "#,
         240,
     );
@@ -127,7 +130,7 @@ size = [20.0, 1.0]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body2d = { kind = "dynamic", time_to_sleep = 0.1 }
 
 [nodes.transform]
@@ -143,16 +146,19 @@ kind = "rectangle"
 size = [1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub fn on_collision_enter(this, collision) { bump("hit", 1); }
-pub fn on_sleeping_changed(this, asleep) { if asleep { bump("slept", 1); } }
-pub fn fixed_update(this, dt) {
-    bump("ticks", 1);
-    if this.node.body2d.is_moving() {
-        scene::set_variable("moved", 1);
-    }
-    let touching = this.node.get_node("Shape").collider2d.contacts().len();
-    if touching > scene::variable("touching") {
-        scene::set_variable("touching", touching);
+        r#"pub struct S { node: Node }
+impl S {
+    pub fn on_collision_enter(collision: any) { bump("hit", 1); }
+    pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
+    fn fixed_update(dt: float) {
+        bump("ticks", 1);
+        if self.node.body2d.is_moving() {
+            scene::set_variable("moved", 1);
+        }
+        let touching = self.node.get_node("Shape").collider2d.contacts().len();
+        if touching > scene::variable("touching").as_int() {
+            scene::set_variable("touching", touching);
+        }
     }
 }
 "#,
@@ -198,20 +204,23 @@ size = [20.0, 1.0, 20.0]
 id = "n_rope"
 name = "Rope"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 "#,
-        r#"pub fn init(this) {
-    // One end pinned and edges that break at a tenth of their rest length,
-    // so the heavy free end tears it and falls onto the ground.
-    this.node.softbody3d.set_softbody(#{
-        kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
-        pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0,
-        edge_hz: 4.0, mass: 400.0, events: ["collision"],
-    });
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        // One end pinned and edges that break at a tenth of their rest length,
+        // so the heavy free end tears it and falls onto the ground.
+        self.node.softbody3d.set_softbody(map()
+            .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
+            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
+            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0)
+            .with("events", ["collision"]));
+    }
+    pub fn on_tear(tear: any) { bump("edges", tear.get("edges").len()); }
+    pub fn on_collision_enter(collision: any) { bump("hit", 1); }
+    fn fixed_update(dt: float) { bump("ticks", 1); }
 }
-pub fn on_tear(this, tear) { bump("edges", tear["edges"].len()); }
-pub fn on_collision_enter(this, collision) { bump("hit", 1); }
-pub fn fixed_update(this, dt) { bump("ticks", 1); }
 "#,
         180,
     );
@@ -231,22 +240,24 @@ fn a_tear_in_a_step_hears_the_record_a_scripted_tear_answers() {
         r#"[[nodes]]
 id = "n_rope"
 name = "Rope"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 "#,
-        r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{
-        kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
-        pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0,
-        edge_hz: 4.0, mass: 400.0,
-    });
-}
-pub fn on_tear(this, tear) {
-    bump("tears", 1);
-    for key in ["pieces", "edges", "cells", "removed_edges", "split_particles", "inserted_particles", "piece_particles", "clusters", "moved_joints"] {
-        if tear.contains_key(key) { bump("fields", 1); }
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.softbody3d.set_softbody(map()
+            .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
+            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
+            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0));
     }
-    if tear.piece_particles.len() == tear.pieces { bump("whole", 1); }
-    bump("edges", tear.edges.len());
+    pub fn on_tear(tear: any) {
+        bump("tears", 1);
+        for key in ["pieces", "edges", "cells", "removed_edges", "split_particles", "inserted_particles", "piece_particles", "clusters", "moved_joints"] {
+            if tear.has(key) { bump("fields", 1); }
+        }
+        if tear.get("piece_particles").len() == tear.get("pieces").as_int() { bump("whole", 1); }
+        bump("edges", tear.get("edges").len());
+    }
 }
 "#,
         45,

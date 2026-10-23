@@ -494,14 +494,17 @@ fn a_heightfield_loses_its_asset_holes_and_the_ones_a_script_cuts() {
         )
         .replace(
             "parent = \"n_world\"\n",
-            "parent = \"n_world\"\nscript = { source = \"scripts/s.rn\" }\n",
+            "parent = \"n_world\"\nscript = { source = \"scripts/s.bs\" }\n",
         )),
-        r"pub fn init(this) {
-    this.node.collider3d.set_heightfield_hole(1, 1, true);
-}
+        r"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.collider3d.set_heightfield_hole(1, 1, true);
+    }
 
-pub fn probe(this) {
-    [this.node.collider3d.heightfield_hole(0, 1), this.node.collider3d.heightfield_hole(0, 0)]
+    pub fn probe() -> [bool] {
+        [self.node.collider3d.heightfield_hole(0, 1), self.node.collider3d.heightfield_hole(0, 0)]
+    }
 }
 ",
     );
@@ -539,14 +542,17 @@ fn a_2d_heightfield_loses_the_segments_its_holes_name() {
         )
         .replace(
             "parent = \"n_world\"\n",
-            "parent = \"n_world\"\nscript = { source = \"scripts/s.rn\" }\n",
+            "parent = \"n_world\"\nscript = { source = \"scripts/s.bs\" }\n",
         )),
-        r"pub fn init(this) {
-    this.node.collider2d.set_heightfield_hole(5, true);
-}
+        r"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.collider2d.set_heightfield_hole(5, true);
+    }
 
-pub fn probe(this) {
-    [this.node.collider2d.heightfield_hole(1), this.node.collider2d.heightfield_hole(0)]
+    pub fn probe() -> [bool] {
+        [self.node.collider2d.heightfield_hole(1), self.node.collider2d.heightfield_hole(0)]
+    }
 }
 ",
     );
@@ -745,16 +751,18 @@ body3d = { kind = "dynamic", gravity_scale = 0.0 }
 id = "n_part"
 name = "Part"
 parent = "n_body"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 collider3d = { kind = "box", mass = 3.0, collision_margin = 0.1 }
 transform = { position = [1.0, 0.0, 0.0] }
 "#,
-        r"pub fn probe(this) {
-    let c = this.node.collider3d;
-    let (ax, ay, az, bx, by, bz) = c.aabb();
-    let (cx, cy, cz, dx, dy, dz) = c.collision_aabb();
-    let (ex, ey, ez, fx, fy, fz) = c.broad_phase_aabb();
-    [c.collider_mass_properties(), c.pose_in_body(), bx, dx, fx, true]
+        r"pub struct S { node: Node }
+impl S {
+    pub fn probe() -> [any] {
+        let shape = self.node.collider3d.aabb();
+        let collision = self.node.collider3d.collision_aabb();
+        let broad = self.node.collider3d.broad_phase_aabb();
+        [self.node.collider3d.collider_mass_properties(), self.node.collider3d.pose_in_body(), shape[3], collision[3], broad[3], true]
+    }
 }
 ",
     );
@@ -764,7 +772,7 @@ transform = { position = [1.0, 0.0, 0.0] }
     };
     assert_eq!(found[5], Value::Bool(true), "the probe ran");
     assert!((number(entry(&found[0], "mass")) - 3.0).abs() < 1e-5);
-    assert_eq!(*entry(&found[1], "position"), Value::Vec3([1.0, 0.0, 0.0]));
+    assert_eq!(boot::vector(entry(&found[1], "position")), [1.0, 0.0, 0.0]);
     let (shape, collision, broad) = (number(&found[2]), number(&found[3]), number(&found[4]));
     assert!(
         collision > shape + 0.09,
@@ -798,16 +806,19 @@ collider3d = { kind = "box", size = [10.0, 1.0, 10.0] }
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic" }
 collider3d = { kind = "box", events = ["contact_force"] }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
-        r#"pub fn on_contact_force(this, contact) {
-    scene::set_variable("max_force", contact.max_force);
-    scene::set_variable("total_y", contact.total_force.y);
-    if contact.started {
-        scene::set_variable("started", scene::variable("started") + 1);
+        r#"pub struct S { node: Node }
+impl S {
+    pub fn on_contact_force(contact: any) {
+        scene::set_variable("max_force", contact.get("max_force"));
+        scene::set_variable("total_y", contact.get("total_force").at(1));
+        if contact.get("started").as_bool() {
+            scene::set_variable("started", scene::variable("started").as_int() + 1);
+        }
     }
 }
 "#,

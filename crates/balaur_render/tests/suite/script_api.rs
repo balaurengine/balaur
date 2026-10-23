@@ -36,23 +36,25 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.rn"),
-        format!("pub fn init(this) {{\n{body}\n}}\n"),
+        dir.path().join("scripts/s.bs"),
+        format!("pub struct N {{ node: Node }}\nimpl N {{\nfn init() {{\n{body}\n}}\n}}\n"),
     )
     .unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }
-    let lines = balaur_core::logbuf::recent(50);
+    let lines = balaur_core::logbuf::recent(500);
     let errors = lines
         .iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
@@ -71,15 +73,15 @@ fn run_clean(body: &str) {
 fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
-        this.node.shape3d.set(#{ kind: "box", size: [2.0, 4.0, 6.0] });
-        let kind = this.node.shape3d.kind;
-        assert!(kind == "box", "the last shape set should win, got {}", kind);
+        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.set_component("shape3d", map().with("kind", "box").with("size", [2.0, 4.0, 6.0]));
+        let kind = self.node.shape3d.kind;
+        if kind != "box" { log::error("the last shape set should win, got {kind}"); }
 
-        this.node.shape2d.set(#{ kind: "circle", radius: 0.25 });
-        this.node.shape2d.set(#{ kind: "rectangle", size: [2.0, 4.0] });
-        let kind_2d = this.node.shape2d.kind;
-        assert!(kind_2d == "rectangle", "the last 2D shape set should win, got {}", kind_2d);
+        self.node.set_component("shape2d", map().with("kind", "circle").with("radius", 0.25));
+        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
+        let kind_2d = self.node.shape2d.kind;
+        if kind_2d != "rectangle" { log::error("the last 2D shape set should win, got {kind_2d}"); }
         "#,
     );
 }
@@ -88,12 +90,12 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 fn a_colour_set_from_a_script_reads_back() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
-        this.node.shape3d.color = [0.25, 0.5, 0.75, 1.0];
-        let [r, g, b, _] = this.node.shape3d.color;
-        assert!(math::abs(r - 0.25) < 1e-4, "red was not kept: {}", r);
-        assert!(math::abs(g - 0.5) < 1e-4);
-        assert!(math::abs(b - 0.75) < 1e-4);
+        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.shape3d.color = color(0.25, 0.5, 0.75, 1.0);
+        let c = self.node.shape3d.color;
+        if math::abs(c.r - 0.25) >= 0.0001 { log::error("red was not kept: {c.r}"); }
+        if math::abs(c.g - 0.5) >= 0.0001 { log::error("green was not kept: {c.g}"); }
+        if math::abs(c.b - 0.75) >= 0.0001 { log::error("blue was not kept: {c.b}"); }
         "#,
     );
 }
@@ -102,10 +104,10 @@ fn a_colour_set_from_a_script_reads_back() {
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
-        this.node.shape3d.color = [1.0, 0.0, 0.0, 1.0];
-        let [r, _, _, _] = this.node.shape3d.color;
-        assert!(math::abs(r - 1.0) < 1e-4);
+        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.patch_component("shape3d", map().with("color", [1.0, 0.0, 0.0]));
+        let r = self.node.shape3d.color.r;
+        if math::abs(r - 1.0) >= 0.0001 { log::error("red was not kept: {r}"); }
         "#,
     );
 }
@@ -118,13 +120,13 @@ fn the_camera_can_be_aimed_and_its_pose_read() {
     run_clean(
         r#"
         render::set_camera(1.0, 2.0, 3.0, 0.0, 0.0, 0.0);
-        let (ex, ey, ez, tx, ty, tz, _, dpi) = render::camera_pose();
-        for v in [ex, ey, ez, tx, ty, tz] {
-            assert!(v is f64, "camera_pose returned a non-number");
-        }
+        let pose = render::camera_pose();
+        let count = pose.len();
+        if count != 8 { log::error("camera_pose answered {count} numbers"); }
         // Screen maths divides by it; a zero made the editor's pointer NaN.
-        assert!(dpi == 1.0, "a headless scale should be one");
-        assert!(render::camera_matrix() is Vec);
+        let dpi = pose[7];
+        if dpi != 1.0 { log::error("a headless scale should be one, got {dpi}"); }
+        let matrix: [float] = render::camera_matrix();
         "#,
     );
 }
@@ -132,14 +134,12 @@ fn the_camera_can_be_aimed_and_its_pose_read() {
 #[test]
 fn the_2d_camera_reports_its_centre_and_zoom() {
     run_clean(
-        r#"
+        r"
         render::set_camera_2d(4.0, 5.0, 2.0);
-        let (cx, cy, zoom) = render::camera_2d();
         // Like camera_pose, this reports the viewport a backend writes each
         // frame, so headless it stays at its default rather than echoing back.
-        assert!(cx is f64 && cy is f64, "centre is not numeric");
-        assert!(zoom is f64, "zoom is not numeric");
-        "#,
+        let view: Vec3 = render::camera_2d();
+        ",
     );
 }
 
@@ -147,13 +147,17 @@ fn the_2d_camera_reports_its_centre_and_zoom() {
 fn bounds_reports_the_box_a_2d_shape_draws() {
     let (_app, errors, lines) = run_logged(
         r#"
-        let none = render::bounds(this.node);
-        assert!(none == (), "a node that draws nothing has no bounds, got {:?}", none);
-        this.node.shape2d.set(#{ kind: "rectangle", size: [2.0, 4.0] });
-        let found = render::bounds(this.node);
-        assert!(found is Vec && found.len() == 2, "a 2D shape has bounds, got {:?}", found);
-        let half = found[1];
-        assert!(half.x == 1.0 && half.y == 2.0 && half.z == 0.0, "half the size it draws, got {:?}", half);
+        if render::bounds(self.node).is_some() { log::error("a node that draws nothing has no bounds"); }
+        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
+        let found = render::bounds(self.node);
+        if found.is_none() {
+            log::error("a 2D shape has bounds");
+            return;
+        }
+        let corners = found.unwrap();
+        if corners.len() != 2 { log::error("bounds are two vectors, got {corners.len()}"); }
+        let half = corners[1];
+        if half.x != 1.0 || half.y != 2.0 || half.z != 0.0 { log::error("half the size it draws, got {half.x} {half.y} {half.z}"); }
         log::info("bounds read");
         "#,
     );
@@ -179,8 +183,8 @@ fn the_grid_and_background_are_settable() {
 fn debug_lines_can_be_drawn_in_both_dimensions() {
     run_clean(
         r"
-        render::draw_line_3d(0, 0, 0, 1, 1, 1, 1.0, 0.0, 0.0);
-        render::draw_line_2d(0, 0, 1, 1, 1.0, 0.0, 0.0, 2.0);
+        render::draw_line_3d(0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0);
+        render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 2.0);
         ",
     );
 }
@@ -202,7 +206,7 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
 #[test]
 fn an_app_icon_keeps_the_plate_a_script_names() {
     let (app, errors) =
-        run(r#"window::set_app_icon("project.toml", #{ plate: [0.1, 0.2, 0.3] });"#);
+        run(r#"window::set_app_icon("project.toml", map().with("plate", [0.1, 0.2, 0.3]));"#);
     assert!(errors.is_empty(), "{errors:#?}");
     let icon = app.engine.resource::<balaur_render::AppIconConfig>();
     assert_eq!(icon.borrow().plate, [26, 51, 77, 255]);
@@ -213,7 +217,7 @@ fn an_app_icon_keeps_the_plate_a_script_names() {
 
 #[test]
 fn an_app_icon_option_it_does_not_know_is_refused_by_name() {
-    let (_app, errors) = run(r#"window::set_app_icon("project.toml", #{ tint: 1 });"#);
+    let (_app, errors) = run(r#"window::set_app_icon("project.toml", map().with("tint", 1));"#);
     assert!(
         errors
             .iter()
@@ -228,8 +232,8 @@ fn an_app_icon_option_it_does_not_know_is_refused_by_name() {
 fn a_node_with_no_shape_says_so() {
     run_clean(
         r#"
-        let bare = this.node.add_child("Bare");
-        assert!(!bare.shape3d.has(), "a bare node should carry no shape3d");
+        let bare = self.node.add_child("Bare");
+        if bare.has_component("shape3d") { log::error("a bare node should carry no shape3d"); }
         "#,
     );
 }
@@ -240,11 +244,13 @@ fn immediate_shapes_are_accepted_from_a_script() {
         r#"render::draw_box(0.0, 0.0, 0.0, 0.5, 0.5, 0.5, [1.0, 1.0, 1.0]);
 render::draw_sphere(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
 render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, [0.0, 0.0, 1.0]);
-render::draw_polygon_2d([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], [1.0, 1.0, 0.0, 1.0]);
+let triangle: [any] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
+render::draw_polygon_2d(triangle, [1.0, 1.0, 0.0, 1.0]);
 render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
 render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
 render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, math::PI / 2.0, 2.0);
-render::draw_polyline_2d([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]], 1.0, [0.0, 1.0, 0.0, 1.0]);
+let line: [any] = [[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]];
+render::draw_polyline_2d(line, 1.0, [0.0, 1.0, 0.0, 1.0]);
 render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
     );
 }
@@ -252,9 +258,9 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 #[test]
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], #{ z_index: 2 });
-render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, #{ z_index: -1 });
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, (), #{ region_origin: [8, 0], region_size: [8, 8] });"#,
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], map().with("z_index", 2));
+render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, map().with("z_index", -1));
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with("region_origin", [8, 0]).with("region_size", [8, 8]));"#,
         0,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -276,7 +282,8 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, (), #{ region_ori
         ),
         "{shapes:?}"
     );
-    let (_app, errors) = run(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, (), #{ z: 1 });");
+    let (_app, errors) =
+        run(r#"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), map().with("z", 1));"#);
     assert!(
         errors.iter().any(|e| e.contains("not 'z'")),
         "a misspelt option is refused: {errors:#?}"
@@ -286,9 +293,10 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, (), #{ region_ori
 #[test]
 fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
     let (app, errors, lines) = run_logged(
-        r#"this.node.set_component("tilemap", #{ cells: [[-1, -1]] });
-this.node.tilemap.set_cell(3, 1, 7);
-log::info(`cell ${this.node.tilemap.cell(3, 1)} ${this.node.tilemap.cell(0, 0)} ${this.node.tilemap.cell(9, 9)}`);"#,
+        r#"let cells: [any] = [[-1, -1]];
+self.node.set_component("tilemap", map().with("cells", cells));
+self.node.tilemap.set_cell(3, 1, 7);
+log::info("cell {self.node.tilemap.cell(3, 1)} {self.node.tilemap.cell(0, 0)} {self.node.tilemap.cell(9, 9)}");"#,
     );
     assert!(errors.is_empty(), "{errors:#?}");
     assert!(
@@ -324,25 +332,30 @@ fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
     .unwrap();
     std::fs::write(
         root.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        root.join("scripts/s.rn"),
-        r#"pub fn init(this) {
-    assert!(render::texture_pixels_per_unit("art/set.png") == 64.0, "the import setting was not read");
-    assert!(render::texture_pixels_per_unit("art/plain.png") == 100.0, "an image with none is not at 100");
-    log::error("checked: pixels per unit");
+        root.join("scripts/s.bs"),
+        r#"pub struct N { node: Node }
+impl N {
+    fn init() {
+        if render::texture_pixels_per_unit("art/set.png") != 64.0 { log::error("the import setting was not read"); }
+        if render::texture_pixels_per_unit("art/plain.png") != 100.0 { log::error("an image with none is not at 100"); }
+        log::error("checked: pixels per unit");
+    }
 }
 "#,
     )
     .unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(root.to_string_lossy().as_ref())).unwrap();
+    let mut config = AppConfig::dev(root.to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors: Vec<String> = balaur_core::logbuf::recent(50)
+    let errors: Vec<String> = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -380,38 +393,53 @@ fn a_traced_island_winds_counter_clockwise_and_a_hole_clockwise() {
     .unwrap();
     std::fs::write(
         root.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        root.join("scripts/s.rn"),
-        r#"fn windings(loops) {
-    let out = [];
+        root.join("scripts/s.bs"),
+        r#"fn windings(loops: [[Vec2]]) -> [str] {
+    let out: [str] = [];
     for found in loops {
-        let points = [];
+        let points: [any] = [];
         for p in found {
             points.push([p.x, p.y]);
         }
         out.push(if geometry2d::is_clockwise(points) { "cw" } else { "ccw" });
     }
-    out
+    return out;
 }
 
-pub fn init(this) {
-    let all = windings(render::trace_texture("art/shapes.png", #{ tolerance: 0.0, holes: true }));
-    let largest = windings(render::trace_texture("art/shapes.png", #{ tolerance: 0.0 }));
-    log::error(`checked: ${all.len()} ${largest.len()} ${largest[0]}`);
-    log::error(`ccw ${all.iter().filter(|w| w == "ccw").count()} cw ${all.iter().filter(|w| w == "cw").count()}`);
+fn count(words: [str], word: str) -> int {
+    let n = 0;
+    for w in words {
+        if w == word { n += 1; }
+    }
+    return n;
+}
+
+pub struct N { node: Node }
+impl N {
+    fn init() {
+        let all = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0).with("holes", true)));
+        let largest = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0)));
+        log::error("checked: {all.len()} {largest.len()} {largest[0]}");
+        let ccw = count(all, "ccw");
+        let cw = count(all, "cw");
+        log::error("ccw {ccw} cw {cw}");
+    }
 }
 "#,
     )
     .unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(root.to_string_lossy().as_ref())).unwrap();
+    let mut config = AppConfig::dev(root.to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors: Vec<String> = balaur_core::logbuf::recent(50)
+    let errors: Vec<String> = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

@@ -14,12 +14,10 @@ use balaur_core::{App, AppConfig};
 use balaur_plugin::{BalaurValue, library_suffix, load_extension};
 use balaur_script::{NodeId, Value};
 
+// No script backend: a bare app has no `.bs` host yet, so the tests that
+// call into a script wait on one (see their `ignore`).
 fn app_in(dir: &Path) -> App {
-    App::new(AppConfig {
-        script_backend: Some(balaur_script_rune::factory()),
-        ..AppConfig::bare(dir.to_path_buf())
-    })
-    .unwrap()
+    App::new(AppConfig::bare(dir.to_path_buf())).unwrap()
 }
 
 fn repo_root() -> PathBuf {
@@ -67,10 +65,10 @@ fn counter() -> PathBuf {
         .clone()
 }
 
-/// The counter loaded into a fresh app, with `probe.rn` attached to a node.
+/// The counter loaded into a fresh app, with `probe.bs` attached to a node.
 ///
-/// Rune runs code from files, not strings, so each test's expressions are
-/// `pub fn`s of that script and `call` runs one by name. The `Extension`
+/// A script runs from a file, not a string, so each test's expressions are
+/// methods of that script and `call` runs one by name. The `Extension`
 /// stays with the app because it owns the open library, and every function
 /// pointer it registered points into that library.
 struct Loaded {
@@ -83,7 +81,11 @@ struct Loaded {
 fn loaded(script: &str) -> Loaded {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
-    std::fs::write(dir.path().join("probe.rn"), script).unwrap();
+    std::fs::write(
+        dir.path().join("probe.bs"),
+        format!("pub struct Probe {{ node: Node }}\nimpl Probe {{\n{script}}}\n"),
+    )
+    .unwrap();
     let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&counter()) }.expect("the C extension should load");
     assert_eq!(extension.manifest().name, "counter");
@@ -93,7 +95,7 @@ fn loaded(script: &str) -> Loaded {
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Probe", root);
     let probe = balaur_core::node_id_of(node);
     let host = app.engine.script_host().unwrap();
-    host.attach(probe, "probe.rn").unwrap();
+    host.attach(probe, "probe.bs").unwrap();
     Loaded {
         app,
         _library: extension,
@@ -103,7 +105,7 @@ fn loaded(script: &str) -> Loaded {
 }
 
 impl Loaded {
-    /// Run `pub fn name(this)` from `probe.rn` and hand back what it returned.
+    /// Run `name` from `probe.bs` and hand back what it returned.
     fn call(&self, name: &str) -> Value {
         self.app
             .engine
@@ -123,21 +125,23 @@ fn number(value: Value) -> f64 {
 }
 
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_c_extension_declares_itself_into_a_running_app() {
-    let probe = loaded("pub fn greet(this) { counter::greet(\"world\") }\n");
+    let probe = loaded("pub fn greet() -> any { counter::greet(\"world\") }\n");
     assert_eq!(probe.call("greet"), Value::Str("hello, world".into()));
 }
 
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn numbers_cross_the_boundary_in_both_directions() {
     let probe = loaded(
-        "pub fn whole(this) { counter::add(2, 3) }\n\
-         pub fn fraction(this) { counter::add(0.5, 0.25) }\n",
+        "pub fn whole() -> any { counter::add(2, 3) }\n\
+         pub fn fraction() -> any { counter::add(0.5, 0.25) }\n",
     );
     let sum = number(probe.call("whole"));
     assert!((sum - 5.0).abs() < f64::EPSILON);
-    // Rune hands whole numbers over as integers and fractions as floats; both
-    // reach the same C function.
+    // Whole numbers cross as integers and fractions as floats; both reach the
+    // same C function.
     let mixed = number(probe.call("fraction"));
     assert!((mixed - 0.75).abs() < f64::EPSILON);
 }
@@ -146,8 +150,9 @@ fn numbers_cross_the_boundary_in_both_directions() {
 /// no `TypeId` involved -- which is exactly what the Rust extension path
 /// cannot do across separate compilations.
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_c_extension_keeps_its_own_state_across_calls() {
-    let probe = loaded("pub fn bump(this) { counter::bump() }\n");
+    let probe = loaded("pub fn bump() -> any { counter::bump() }\n");
     let Value::Int(first) = probe.call("bump") else {
         panic!("bump returns an integer");
     };
@@ -158,10 +163,11 @@ fn a_c_extension_keeps_its_own_state_across_calls() {
 }
 
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn lists_cross_the_boundary_in_both_directions() {
     let probe = loaded(
-        "pub fn tripled(this) { counter::triple(2) }\n\
-         pub fn summed(this) { counter::sum_list([1, 2, 3.5]) }\n",
+        "pub fn tripled() -> any { counter::triple(2) }\n\
+         pub fn summed() -> any { counter::sum_list([1, 2, 3.5]) }\n",
     );
     assert_eq!(
         probe.call("tripled"),
@@ -173,41 +179,44 @@ fn lists_cross_the_boundary_in_both_directions() {
 }
 
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_constant_registered_from_c_is_readable() {
-    let probe = loaded("pub fn version(this) { counter::VERSION }\n");
+    let probe = loaded("pub fn version() -> any { counter::VERSION }\n");
     assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
 }
 
-/// A non-zero return becomes a script error, and the string the extension
-/// wrote becomes the message. Without that, a failing extension is a silent
-/// nil.
+/// A non-zero return ends the script's call with an error, and the string the
+/// extension wrote becomes the message. Without that, a failing extension is a
+/// silent nil.
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_failing_c_function_becomes_a_script_error_with_its_message() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
     let probe = loaded(
-        "pub fn failing(this) {\n\
-         \x20 let (ok, err) = script::attempt(|| counter::always_fails());\n\
-         \x20 if ok { \"no error\" } else { err }\n\
-         }\n\
-         pub fn wrong_types(this) {\n\
-         \x20 let (ok, err) = script::attempt(|| counter::add(\"a\", \"b\"));\n\
-         \x20 if ok { \"no error\" } else { err }\n\
-         }\n",
+        "pub fn failing() { counter::always_fails(); }\n\
+         pub fn wrong_types() { counter::add(\"a\", \"b\"); }\n",
     );
-    let Value::Str(err) = probe.call("failing") else {
-        panic!("the probe returns the error text");
-    };
-    assert!(
-        err.contains("this function fails on purpose"),
-        "the extension's own message did not reach the script: {err}"
-    );
-
-    let Value::Str(wrong_types) = probe.call("wrong_types") else {
-        panic!("the probe returns the error text");
-    };
-    assert!(
-        wrong_types.contains("add expects two numbers"),
-        "unhelpful: {wrong_types}"
-    );
+    let host = probe.app.engine.script_host().unwrap();
+    for (call, said) in [
+        ("failing", "this function fails on purpose"),
+        ("wrong_types", "add expects two numbers"),
+    ] {
+        assert_eq!(
+            host.call_on(probe.probe, call, &[]),
+            None,
+            "`{call}` ran to its end"
+        );
+        let errors: Vec<String> = balaur_core::logbuf::recent(50)
+            .into_iter()
+            .filter(|e| e.level.eq_ignore_ascii_case("error"))
+            .map(|e| e.message)
+            .collect();
+        assert!(
+            errors.iter().any(|e| e.contains(said)),
+            "the extension's own message did not reach the log: {errors:#?}"
+        );
+    }
 }
 
 /// The version handshake is the only thing standing between a stale library

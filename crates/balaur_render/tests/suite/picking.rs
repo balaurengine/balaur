@@ -18,7 +18,7 @@ indices = [[0, 1, 2]]
 [[nodes]]
 id = "n_wedge"
 name = "Wedge"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.mesh]
 source = "#wedge"
@@ -26,18 +26,19 @@ source = "#wedge"
 
 /// The move at the end is the control: a script that never ran leaves the
 /// node where the scene put it, and the assertions below would hold vacuously.
-const SCRIPT: &str = r#"pub fn init(this) {
-    let through = render::pick_ray(-0.5, -0.5, 5.0, 0.0, 0.0, -1.0);
-    let hit = through is balaur::Node;
-    if !hit {
-        log::error("the ray through the triangle picked nothing");
+const SCRIPT: &str = r#"pub struct Wedge { node: Node }
+impl Wedge {
+    fn init() {
+        let through = render::pick_ray(-0.5, -0.5, 5.0, 0.0, 0.0, -1.0);
+        if !through.is_valid() {
+            log::error("the ray through the triangle picked nothing");
+        }
+        let gap = render::pick_ray(0.6, 0.6, 5.0, 0.0, 0.0, -1.0);
+        if gap.is_valid() {
+            log::error("the ray through the gap picked the node's box, not its triangles");
+        }
+        self.node.transform.position = vec3(0.0, 3.0, 0.0);
     }
-    let gap = render::pick_ray(0.6, 0.6, 5.0, 0.0, 0.0, -1.0);
-    let missed = gap is balaur::Node;
-    if missed {
-        log::error("the ray through the gap picked the node's box, not its triangles");
-    }
-    this.node.transform.position = [0.0, 3.0, 0.0];
 }
 "#;
 
@@ -53,13 +54,15 @@ fn run() -> (App, Vec<String>) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), SCRIPT).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), SCRIPT).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors = balaur_core::logbuf::recent(50)
+    let errors = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

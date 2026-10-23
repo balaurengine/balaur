@@ -309,7 +309,11 @@ mod logcat {
 /// Capture only, without stderr output. For tests.
 pub fn capture_for_test() {
     open_buffer();
-    let _ = tracing_subscriber::registry().with(CaptureLayer).try_init();
+    // wasmtime's `log::trace!` lines, a few per script call, would fill the
+    // ring before a test reads it.
+    let _ = tracing_subscriber::registry()
+        .with(CaptureLayer.with_filter(LevelFilter::DEBUG))
+        .try_init();
 }
 
 /// The buffer, opened if it is not open already.

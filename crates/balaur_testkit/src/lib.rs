@@ -89,10 +89,10 @@ pub fn run_until_within(
     .expect("could not write the project manifest");
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .expect("could not write the project's main scene");
-    std::fs::write(dir.path().join("scripts/s.rn"), source)
+    std::fs::write(dir.path().join("scripts/s.bs"), source)
         .expect("could not write the script under test");
     for (path, contents) in files {
         let target = dir.path().join(path);
@@ -104,23 +104,28 @@ pub fn run_until_within(
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref()))
-        .expect("the standard app would not boot");
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    // The watcher sees the files just written and reloads them, which ends a
+    // script's pending awaits.
+    config.watch = false;
+    let mut app = standard_app(config).expect("the standard app would not boot");
     app.load_project().expect("the temp project would not load");
-    // Markers accumulate across ticks: dependency debug logging (ureq's pool
-    // chatter) floods the bounded buffer, so all of them are never in one
-    // window together.
+    // Every line since the last tick, from boot on: debug logging (ureq's
+    // pool chatter, the script engine's traces) floods any fixed window, and
+    // an error logged at load would scroll out before the first look.
     let mut seen: Vec<Option<String>> = markers.iter().map(|_| None).collect();
+    let mut cursor = 0;
     let deadline = Instant::now() + deadline;
     while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
-        let recent = balaur_core::logbuf::recent(50);
-        let errors: Vec<_> = recent
+        let (fresh, next, _) = balaur_core::logbuf::since(cursor);
+        cursor = next;
+        let errors: Vec<_> = fresh
             .iter()
             .filter(|e| e.level.eq_ignore_ascii_case("error"))
             .collect();
         assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-        for entry in &recent {
+        for entry in &fresh {
             for (at, marker) in markers.iter().enumerate() {
                 if seen[at].is_none() && entry.message.contains(marker) {
                     seen[at] = Some(entry.message.clone());
@@ -131,8 +136,10 @@ pub fn run_until_within(
             return seen.into_iter().flatten().collect();
         }
     }
-    panic!(
-        "the script never logged all of {markers:?}; log: {:#?}",
-        balaur_core::logbuf::recent(50)
-    );
+    let told: Vec<String> = balaur_core::logbuf::recent(500)
+        .into_iter()
+        .filter(|e| matches!(e.level.as_str(), "info" | "warn" | "error"))
+        .map(|e| format!("{} {}", e.level, e.message))
+        .collect();
+    panic!("the script never logged all of {markers:?}; log: {told:#?}");
 }

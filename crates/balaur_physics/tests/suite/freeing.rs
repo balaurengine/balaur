@@ -2,7 +2,7 @@
 //! nothing: a collider that answers raycasts forever, or a handle a script
 //! call indexes rapier's arena with, are the same bug seen twice.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
@@ -242,16 +242,16 @@ fn run(scene: &str, script: &str) -> Vec<String> {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..30 {
         app.tick(1.0 / 60.0);
     }
-    balaur_core::logbuf::recent(80)
+    balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -266,7 +266,7 @@ name = "World"
 id = "n_watcher"
 name = "Watcher"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [[nodes]]
 id = "n_target"
@@ -287,21 +287,19 @@ radius = 0.5
 fn a_raycast_stops_finding_a_freed_node() {
     let errors = run(
         TWO_BALLS,
-        r#"pub fn init(this) { this.ticks = 0; this.hit_before = false; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    let opts = #{ origin: [0.0, 8.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 };
-    if this.ticks == 2 {
-        let hit = physics3d::raycast(opts);
-        this.hit_before = !(hit is Tuple);
-        let target = scene::get_node("/World/Target");
-        target.queue_free();
-    }
-    if this.ticks == 8 {
-        assert!(this.hit_before, "the ray never found the target to begin with");
-        let hit = physics3d::raycast(opts);
-        assert!(hit is Tuple, "the freed node still answers raycasts");
+        r#"pub struct S { node: Node, ticks: int, hit_before: bool }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        let opts = map().with("origin", [0.0, 8.0, 0.0]).with("direction", [0.0, -1.0, 0.0]).with("max_distance", 100.0);
+        if self.ticks == 2 {
+            self.hit_before = !physics3d::raycast(opts).is_nil();
+            scene::get_node("/World/Target").queue_free();
+        }
+        if self.ticks == 8 {
+            if !self.hit_before { log::error("the ray never found the target to begin with"); }
+            if !physics3d::raycast(opts).is_nil() { log::error("the freed node still answers raycasts"); }
+        }
     }
 }
 "#,
@@ -310,33 +308,65 @@ pub fn fixed_update(this, dt) {
 }
 
 /// A script that kept `other` from a collision event and calls into it a step
-/// later used to panic inside rapier's arena.
+/// later used to panic inside rapier's arena. A failing engine call ends the
+/// script call it is in, so each reader is a method of its own.
 #[test]
 fn a_call_on_a_freed_node_errors_rather_than_panicking() {
-    let errors = run(
+    let mut b = crate::boot::project(
         TWO_BALLS,
-        r#"pub fn init(this) { this.ticks = 0; this.target = scene::get_node("/World/Target"); }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 2 {
-        this.target.queue_free();
+        r#"pub struct S { node: Node, ticks: int, target: Node }
+impl S {
+    fn init() {
+        self.target = scene::get_node("/World/Target");
     }
-    if this.ticks == 8 {
-        let gone = this.target;
-        let (aabb_ok, _) = script::attempt(|| gone.collider3d.aabb());
-        let (mass_ok, _) = script::attempt(|| gone.collider3d.collider_mass());
-        let (volume_ok, _) = script::attempt(|| gone.collider3d.collider_volume());
-        let (swept_ok, _) = script::attempt(|| gone.collider3d.swept_aabb());
-        assert!(!aabb_ok, "aabb answered for a freed node");
-        assert!(!mass_ok, "collider_mass answered for a freed node");
-        assert!(!volume_ok, "collider_volume answered for a freed node");
-        assert!(!swept_ok, "swept_aabb answered for a freed node");
+
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 2 {
+            self.target.queue_free();
+        }
+    }
+
+    pub fn aabb() {
+        self.target.collider3d.aabb();
+        log::error("aabb answered for a freed node");
+    }
+
+    pub fn mass() {
+        self.target.collider3d.collider_mass();
+        log::error("collider_mass answered for a freed node");
+    }
+
+    pub fn volume() {
+        self.target.collider3d.collider_volume();
+        log::error("collider_volume answered for a freed node");
+    }
+
+    pub fn swept() {
+        self.target.collider3d.swept_aabb();
+        log::error("swept_aabb answered for a freed node");
     }
 }
 "#,
     );
-    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+    b.tick(8);
+    let watcher = balaur_core::node_id_of(b.node("World/Watcher"));
+    let host = b.app.engine.script_host().unwrap();
+    for reader in ["aabb", "mass", "volume", "swept"] {
+        assert_eq!(
+            host.call_on(watcher, reader, &[]),
+            None,
+            "{reader} answered for a freed node"
+        );
+    }
+    let errors = crate::boot::errors();
+    assert_eq!(errors.len(), 4, "one error a reader: {errors:#?}");
+    assert!(
+        errors
+            .iter()
+            .all(|e| !e.contains("answered for a freed node")),
+        "a reader answered for a freed node: {errors:#?}"
+    );
 }
 
 /// A soft body names its node in `user_data`, which a tear event reads, so a

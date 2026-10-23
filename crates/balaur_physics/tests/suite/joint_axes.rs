@@ -311,7 +311,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -326,24 +326,25 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub fn init(this) {
-    this.ticks = 0;
-    let joint = this.node.joint3d;
-    joint.set_joint_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
-    joint.set_motor_velocity(physics3d::AXIS_ROTATION_X, 0.0, 0.5);
-    joint.collide_connected = true;
-    let axes = joint.axes;
-    assert_eq!(axes.len(), 1, "the two calls wrote other than one record");
-    assert_eq!(axes[0].axis, physics3d::AXIS_ROTATION_X, "the record names another axis");
-    assert_eq!(axes[0].motor, physics3d::MOTOR_VELOCITY, "the motor call wrote no motor");
-    assert!((axes[0].limits[1] - 0.2).abs() < 0.0001, "the motor call dropped the limit");
-}
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn init() {
+        self.node.joint3d.set_joint_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
+        self.node.joint3d.set_motor_velocity(physics3d::AXIS_ROTATION_X, 0.0, 0.5);
+        self.node.joint3d.collide_connected = true;
+        let axes = self.node.joint3d.axes;
+        if axes.len() != 1 { log::error("the two calls wrote other than one record"); }
+        if axes[0].get("axis").as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
+        if axes[0].get("motor").as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
+        if math::abs(axes[0].get("limits").at(1).as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
+    }
 
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        let y = this.node.transform.position.y;
-        assert!(y > -0.3, "the patch rebuilt the joint without the script's limit: y is {}", y);
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            let y = self.node.transform.position.y;
+            if y <= -0.3 { log::error("the patch rebuilt the joint without the script's limit: y is {y}"); }
+        }
     }
 }
 "#,
@@ -395,7 +396,7 @@ id = "n_lower"
 name = "Lower"
 parent = "n_world"
 bodyDIM = { kind = "dynamic", gravity_scale = 0.0 }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [2.0, 0.0, 0.0]
@@ -423,18 +424,19 @@ fn arm_2d() -> String {
 }
 
 /// Logs the distance left to the target as an error the harness collects.
-const ARM_SCRIPT: &str = r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 2 {
-        CALL;
-    }
-    if this.ticks == 3 {
-        let p = this.node.transform.position;
-        let dx = p.x - 1.2;
-        let dy = p.y - 1.2;
-        log::error(format!("reach {}", math::sqrt(dx * dx + dy * dy)));
+const ARM_SCRIPT: &str = r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 2 {
+            CALL;
+        }
+        if self.ticks == 3 {
+            let p = self.node.transform.position;
+            let dx = p.x - 1.2;
+            let dy = p.y - 1.2;
+            log::error("reach {math::sqrt(dx * dx + dy * dy)}");
+        }
     }
 }
 "#;
@@ -446,7 +448,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     let arm = arm_3d();
     let reach = arm_reach(
         &arm,
-        "this.node.joint3d.solve_ik(1.2, 1.2, 0.0, #{ damping: 0.1, iterations: 100 })",
+        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, map().with(\"damping\", 0.1).with(\"iterations\", 100))",
     );
     assert!(
         reach < 0.05,
@@ -454,7 +456,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     );
     let held = arm_reach(
         &arm,
-        "this.node.joint3d.solve_ik(1.2, 1.2, 0.0, #{ damping: 0.1, iterations: 100, constrain: [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"] })",
+        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, map().with(\"damping\", 0.1).with(\"iterations\", 100).with(\"constrain\", [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"]))",
     );
     assert!(
         held > reach,
@@ -466,7 +468,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
 fn a_2d_chain_is_solved_for_a_position() {
     let reach = arm_reach(
         &arm_2d(),
-        "this.node.joint2d.solve_ik(1.2, 1.2, #{ damping: 0.1, iterations: 100 })",
+        "self.node.joint2d.solve_ik(1.2, 1.2, map().with(\"damping\", 0.1).with(\"iterations\", 100))",
     );
     assert!(
         reach < 0.05,

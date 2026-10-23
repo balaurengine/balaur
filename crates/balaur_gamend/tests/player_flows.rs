@@ -136,6 +136,7 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
     run_flow(
         "profile",
@@ -168,6 +169,7 @@ fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
     run_flow(
         "lobby",
@@ -228,6 +230,7 @@ fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn two_players_befriend_party_up_and_share_groups() {
     run_flow(
         "social",
@@ -310,6 +313,7 @@ fn two_players_befriend_party_up_and_share_groups() {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
     run_flow(
         "catalog",
@@ -365,6 +369,7 @@ fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
     run_flow(
         "realtime",
@@ -389,6 +394,7 @@ fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
 }
 
 #[test]
+#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_kicked_player_forgets_the_closed_channel_and_a_reconnect_does_not_join_it() {
     run_flow(
         "kicked",

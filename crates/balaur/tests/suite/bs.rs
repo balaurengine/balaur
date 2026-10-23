@@ -1,7 +1,9 @@
-//! `examples/hello`'s spinner in balaur_bs, beside its Rune original.
+//! `examples/hello`'s spinner in balaur_bs, and the rest of what a `.bs`
+//! script asks of the engine.
 //!
 //! The same scene ticked the same frames must leave the node at the same
-//! rotation, to the bit, whichever language turned it.
+//! rotation, to the bit, whichever way the script was run: a dev build's
+//! module, an export's pack or its native code.
 
 #![cfg(any(feature = "bs", feature = "bs-jit"))]
 
@@ -88,23 +90,30 @@ fn run(script: &str) -> [u32; 4] {
     spun(&app)
 }
 
+// hello gives the spinner a speed of 3.5, so over its 2 s it turns 7 radians
+// about y: the quaternion (0, sin 3.5, 0, cos 3.5).
 #[test]
-fn the_spinner_turns_the_same_in_either_language() {
-    let rune = run("spinner.rn");
-    let lang = run("spinner.bs");
-    assert_ne!(
-        rune,
-        [0, 0, 0, 1f32.to_bits()],
-        "the Rune spinner never turned"
+fn the_spinner_turns_about_y_by_its_speed() {
+    const SIN: f32 = -0.350_783_23;
+    const COS: f32 = -0.936_456_7;
+    let [x, y, z, w] = run("spinner.bs").map(f32::from_bits);
+    // q and -q are the same turn.
+    let sign = if w * COS >= 0.0 { 1.0 } else { -1.0 };
+    assert!(x.abs() < 1e-6 && z.abs() < 1e-6, "{:?}", [x, y, z, w]);
+    assert!(
+        (y - sign * SIN).abs() < 1e-4 && (w - sign * COS).abs() < 1e-4,
+        "the spinner ended at {:?}",
+        [x, y, z, w]
     );
-    assert_eq!(lang, rune, "the .bs spinner ended somewhere else");
 }
 
 // What an iOS export does with Xcode's compiler, here with this machine's:
-// the spinner's C, built and loaded, turns it to the same bits as Rune.
+// the spinner's C, built and loaded, turns it to the same bits as the module.
 #[cfg(all(feature = "bs", unix))]
 #[test]
 fn an_exported_spinner_runs_as_native_code() {
+    // Before the load: a loaded build runs every later copy of the module.
+    let module = run("spinner.bs");
     let dir = project("spinner.bs");
     let pack = balaur::build_pack(dir.path()).unwrap();
     let scripts = balaur::native_scripts(dir.path(), &mut [], &pack)
@@ -129,7 +138,7 @@ fn an_exported_spinner_runs_as_native_code() {
     let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
     assert_eq!(host.runs_natively("scripts/spinner.bs"), Some(true));
     ticked(&mut app, FRAMES);
-    assert_eq!(spun(&app), run("spinner.rn"));
+    assert_eq!(spun(&app), module);
 }
 
 #[test]
@@ -189,7 +198,7 @@ fn an_exported_bs_spinner_runs_from_the_pack_alone() {
     ticked(&mut app, FRAMES);
     assert_eq!(
         spun(&app),
-        run("spinner.rn"),
+        run("spinner.bs"),
         "the packed spinner ended somewhere else"
     );
 }
@@ -444,20 +453,6 @@ fn balaur_check_names_the_line_a_bs_script_breaks_on() {
     assert!(balaur::check_project(dir.path()).unwrap().is_empty());
 }
 
-const MOVER_RN: &str = "pub fn init(this) {
-    this.arm = this.node.get_node(\"Arm\");
-    this.arm.set_name(\"Hand\");
-    this.node.add_tag(\"mover\");
-    this.seen = this.node.children().len();
-    this.label = this.node.path();
-}
-
-pub fn update(this, dt) {
-    this.node.transform.translate(dt, 0.0, 0.0);
-    this.arm.transform.translate(0.0, dt, 0.0);
-}
-";
-
 const MOVER_BS: &str = "pub struct Mover { node: Node, arm: Node, seen: int, label: str }
 
 impl Mover {
@@ -528,30 +523,51 @@ fn moved(ext: &str, source: &str) -> (u32, u32, Vec<String>, Vec<Option<balaur_s
 }
 
 #[test]
-fn node_operations_do_in_bs_what_they_do_in_rune() {
-    let rune = moved("rn", MOVER_RN);
-    let lang = moved("bs", MOVER_BS);
-    assert_ne!(rune.0, 0, "the Rune Mover never moved");
-    assert_eq!(rune.2, ["mover"]);
-    assert_eq!(lang, rune);
+fn node_operations_reach_the_node_its_children_and_its_tags() {
+    use balaur_script::Value::{Int, Str};
+    let (x, y, tags, read) = moved("bs", MOVER_BS);
+    // Thirty frames of a sixtieth each, translated by dt.
+    let walked = 30.0 * DT;
+    assert!(
+        (f32::from_bits(x) - walked).abs() < 1e-5,
+        "the Mover is at {}",
+        f32::from_bits(x)
+    );
+    assert!(
+        (f32::from_bits(y) - walked).abs() < 1e-5,
+        "the Hand is at {}",
+        f32::from_bits(y)
+    );
+    assert_eq!(tags, ["mover"]);
+    assert_eq!(read[0], Some(Int(1)), "the Mover has one child");
+    assert!(
+        matches!(&read[1], Some(Str(path)) if path.ends_with("Mover")),
+        "{:?}",
+        read[1]
+    );
 }
 
-const HITTER_RN: &str = "pub fn init(this) {
-    this.done = false;
-}
+const HITTER_BS: &str = "pub struct Hitter { node: Node, done: bool }
 
-pub fn update(this, dt) {
-    if !this.done {
-        this.done = true;
-        this.node.get_node(\"Target\").call(\"take\", #{ damage: 3, tags: [\"fire\", \"ice\"] });
+impl Hitter {
+    fn update(dt: float) {
+        if !self.done {
+            self.done = true;
+            let hit = map().with(\"damage\", 3).with(\"tags\", [\"fire\", \"ice\"]);
+            self.node.get_node(\"Target\").call(\"take\", hit);
+        }
     }
 }
 ";
 
-const LISTENER_RN: &str = "pub fn hear(this, msg) {
-    this.heard = msg.got;
-    this.who = msg.who;
-    msg.got * 2
+const LISTENER_BS: &str = "pub struct Listener { node: Node, heard: int, who: str }
+
+impl Listener {
+    pub fn hear(msg: any) -> int {
+        self.heard = msg[\"got\"].as_int();
+        self.who = msg[\"who\"].as_str();
+        self.heard * 2
+    }
 }
 ";
 
@@ -568,7 +584,7 @@ impl Target {
 ";
 
 #[test]
-fn payloads_cross_between_rune_and_bs_as_any() {
+fn payloads_cross_between_scripts_as_any() {
     use balaur_script::Value::{Int, Str};
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
@@ -584,14 +600,14 @@ fn payloads_cross_between_rune_and_bs_as_any() {
         )
     };
     let under = "parent = \"h\"\n";
-    let scene = node("h", "Hitter", "h.rn", "")
+    let scene = node("h", "Hitter", "h.bs", "")
         + &node("t", "Target", "t.bs", under)
-        + &node("l", "Listener", "l.rn", under);
+        + &node("l", "Listener", "l.bs", under);
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     for (file, source) in [
-        ("h.rn", HITTER_RN),
+        ("h.bs", HITTER_BS),
         ("t.bs", TARGET_BS),
-        ("l.rn", LISTENER_RN),
+        ("l.bs", LISTENER_BS),
     ] {
         std::fs::write(dir.path().join("scripts").join(file), source).unwrap();
     }
@@ -761,8 +777,12 @@ fn a_record_result_is_a_struct_a_script_reads_by_field() {
     assert_eq!(field(&app, "Checker", "first"), Some(Str("A".into())));
 }
 
-const ORC_RN: &str = "pub fn info(this) {
-    #{ hp: 7, name: \"orc\" }
+const ORC_BS: &str = "pub struct Orc { node: Node }
+
+impl Orc {
+    pub fn info() -> any {
+        map().with(\"hp\", 7).with(\"name\", \"orc\")
+    }
 }
 ";
 
@@ -789,10 +809,10 @@ fn task_wait_hands_an_async_init_what_the_engine_answered() {
     )
     .unwrap();
     let scene = "[[nodes]]\nid = \"a\"\nname = \"Asker\"\nscript = { source = \"scripts/a.bs\" }\n\n\
-                 [[nodes]]\nid = \"o\"\nname = \"Orc\"\nparent = \"a\"\nscript = { source = \"scripts/o.rn\" }\n";
+                 [[nodes]]\nid = \"o\"\nname = \"Orc\"\nparent = \"a\"\nscript = { source = \"scripts/o.bs\" }\n";
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     std::fs::write(dir.path().join("scripts/a.bs"), ASKER_BS).unwrap();
-    std::fs::write(dir.path().join("scripts/o.rn"), ORC_RN).unwrap();
+    std::fs::write(dir.path().join("scripts/o.bs"), ORC_BS).unwrap();
     let mut app = booted(dir.path());
     assert_eq!(
         field(&app, "Asker", "hp"),
@@ -817,10 +837,6 @@ fn a_bs_file_answers_the_editor_s_tooling() {
     let dir = one_script("Tooled", TOOLED_BS);
     let app = booted(dir.path());
     let host = app.engine.script_host().unwrap();
-    assert!(
-        host.tools_for("scripts/x.rn").is_none(),
-        "Rune answers for its own"
-    );
     let tools = host
         .tools_for("scripts/s.bs")
         .expect("a .bs file has tools");
@@ -846,21 +862,35 @@ fn a_bs_file_answers_the_editor_s_tooling() {
     assert_eq!((found.len(), found[0].line), (1, 1));
 }
 
-const ASKS_TOOLS_RN: &str = "pub fn init(this) {
-    let src = \"pub struct T { speed: float }\\nimpl T {\\n    fn update(dt: float) {\\n        self.\\n    }\\n}\\n\";
-    let rows = script::complete(\"scripts/t.bs\", src, 4, 14);
-    this.completed = rows.len();
-    this.first = rows[0].label;
-    this.errors = script::check(\"scripts/t.bs\", \"fn f() -> int { true }\").len();
-    let hover = script::hover(\"scripts/t.bs\", \"pub struct T { speed: float }\\nfn g(t: T) -> float { t.speed }\\n\", 2, 26);
-    this.hover = hover.title;
-    let syms = script::symbols(\"scripts/t.bs\", \"pub struct T { pub hp: int = 3 }\\nimpl T {\\n    fn update(dt: float) {\\n    }\\n}\\n\");
-    this.symbols = syms.len();
-    this.hook = syms[2].name + \":\" + syms[2].kind;
-    this.renamed = script::rename(\"scripts/t.bs\", \"pub struct T { hp: int }\\n\", \"hp\", \"health\")[0].source;
-    this.formatted = script::format(\"scripts/t.bs\", \"fn f() {\\nlet x = 1;\\n}\\n\");
+const ASKS_TOOLS_BS: &str = r#"pub struct Editor {
+    node: Node,
+    completed: int,
+    first: str,
+    errors: int,
+    hover: str,
+    symbols: int,
+    hook: str,
+    renamed: str,
+    formatted: str,
 }
-";
+
+impl Editor {
+    fn init() {
+        let src = "pub struct T {{ speed: float }}\nimpl T {{\n    fn update(dt: float) {{\n        self.\n    }}\n}}\n";
+        let rows = script::complete("scripts/t.bs", src, 4, 14);
+        self.completed = rows.len();
+        self.first = rows[0].label;
+        self.errors = script::check("scripts/t.bs", "fn f() -> int {{ true }}").len();
+        let hover = script::hover("scripts/t.bs", "pub struct T {{ speed: float }}\nfn g(t: T) -> float {{ t.speed }}\n", 2, 26);
+        self.hover = hover.unwrap().title;
+        let syms = script::symbols("scripts/t.bs", "pub struct T {{ pub hp: int = 3 }}\nimpl T {{\n    fn update(dt: float) {{\n    }}\n}}\n");
+        self.symbols = syms.len();
+        self.hook = syms[2].name + ":" + syms[2].kind;
+        self.renamed = script::rename("scripts/t.bs", "pub struct T {{ hp: int }}\n", "hp", "health")[0].source;
+        self.formatted = script::format("scripts/t.bs", "fn f() {{\nlet x = 1;\n}}\n");
+    }
+}
+"#;
 
 #[test]
 fn the_editor_s_script_module_answers_for_a_bs_file() {
@@ -874,10 +904,10 @@ fn the_editor_s_script_module_answers_for_a_bs_file() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"e\"\nname = \"Editor\"\nscript = { source = \"scripts/e.rn\" }\n",
+        "[[nodes]]\nid = \"e\"\nname = \"Editor\"\nscript = { source = \"scripts/e.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/e.rn"), ASKS_TOOLS_RN).unwrap();
+    std::fs::write(dir.path().join("scripts/e.bs"), ASKS_TOOLS_BS).unwrap();
     let app = booted(dir.path());
     // The field and the method.
     assert_eq!(field(&app, "Editor", "completed"), Some(Int(2)));
@@ -902,8 +932,8 @@ fn the_editor_s_script_module_answers_for_a_bs_file() {
     );
 }
 
-/// One script, as `scripts/s.<ext>` on a node named `B`.
-fn bench_project(ext: &str, source: &str) -> tempfile::TempDir {
+/// One script, as `scripts/s.bs` on a node named `B`.
+fn bench_project(source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -913,12 +943,10 @@ fn bench_project(ext: &str, source: &str) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        format!(
-            "[[nodes]]\nid = \"n\"\nname = \"B\"\nscript = {{ source = \"scripts/s.{ext}\" }}\n"
-        ),
+        "[[nodes]]\nid = \"n\"\nname = \"B\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join(format!("scripts/s.{ext}")), source).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), source).unwrap();
     dir
 }
 
@@ -932,8 +960,8 @@ fn bench_project(ext: &str, source: &str) -> tempfile::TempDir {
 )]
 fn engine_calls_cost() {
     const CALLS: u32 = 200_000;
-    let time = |ext: &str, source: String| {
-        let dir = bench_project(ext, &source);
+    let time = |source: String| {
+        let dir = bench_project(&source);
         let mut app = booted(dir.path());
         ticked(&mut app, 2);
         (0..5)
@@ -949,35 +977,24 @@ fn engine_calls_cost() {
             "pub struct B {{ node: Node, out: float }}\nimpl B {{\n    fn update(dt: float) {{\n        let t = 0.0;\n        for i in 0..{CALLS} {{ {body} }}\n        self.out = t;\n    }}\n}}\n"
         )
     };
-    let rn = |body: &str| {
-        format!(
-            "pub fn update(this, dt) {{\n    let t = 0.0;\n    for i in 0..{CALLS} {{ {body} }}\n    this.out = t;\n}}\n"
-        )
-    };
     let rows = [
         (
             "binding, one string argument",
             bs("t += input::action_value(\"spin\");"),
-            rn("t += input::action_value(\"spin\");"),
         ),
         (
             "node operation",
             bs("if self.node.is_valid() { t += 1.0; }"),
-            rn("if this.node.is_valid() { t += 1.0; }"),
+        ),
+        (
+            "component property read",
+            bs("t += self.node.transform.position.x;"),
         ),
     ];
-    eprintln!(
-        "{:<32}{:>14}{:>14}",
-        "ns per engine call", "Balaur Script", "Rune"
-    );
-    for (label, b, r) in rows {
-        eprintln!("{label:<32}{:>14.0}{:>14.0}", time("bs", b), time("rn", r));
+    eprintln!("{:<32}{:>14}", "ns per engine call", "Balaur Script");
+    for (label, source) in rows {
+        eprintln!("{label:<32}{:>14.0}", time(source));
     }
-    eprintln!(
-        "{:<32}{:>14.0}",
-        "component property read",
-        time("bs", bs("t += self.node.transform.position.x;"))
-    );
 }
 
 const LIBRARY_CHECK_BS: &str = "use util;
@@ -997,10 +1014,10 @@ impl Check {
 }
 ";
 
-/// The editor's libraries ported by hand to Balaur Script answer as their
-/// Rune originals did: one call each, read back from the script's field.
+/// The editor's `util`, `defs` and `icons` libraries, one call each, read
+/// back from the script's field.
 #[test]
-fn the_ported_editor_libraries_answer_as_rune_did() {
+fn the_editor_libraries_answer_a_script_that_uses_them() {
     use balaur_script::Value::Str;
     let dir = one_script("Check", LIBRARY_CHECK_BS);
     let editor = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/scripts");

@@ -69,7 +69,7 @@ fn a_pack() -> Pack {
         String::from("[[nodes]]\nid = \"n\"\nname = \"Root\"\n"),
     );
     pack.scripts
-        .insert(String::from("s.rn"), vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        .insert(String::from("s.bs"), vec![1, 2, 3, 4, 5, 6, 7, 8]);
     pack.assets
         .insert(String::from("art/a.png"), vec![0x89, b'P', b'N', b'G']);
     pack

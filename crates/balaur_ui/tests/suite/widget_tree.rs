@@ -70,14 +70,17 @@ fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
 /// an ancestor, and the click has to find it there.
 #[test]
 fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
-    let script = "pub fn init(this) {\n    this.hits = 0;\n}\n\
-                  pub fn on_go(this) {\n    this.hits += 1;\n}\n\
-                  pub fn hits(this) {\n    this.hits\n}\n";
+    let script = "pub struct Owner { node: Node, hits: int }
+impl Owner {
+    pub fn on_go() { self.hits += 1; }
+    pub fn hits() -> int { self.hits }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     let column = add_child_widget(
         &app,
@@ -110,16 +113,21 @@ fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
 /// `on_widget_event`, with no handler named on any of them.
 #[test]
 fn a_panel_script_hears_every_control_under_it_through_on_widget_event() {
-    let script = "pub fn init(this) {\n    this.heard = 0;\n    this.last = \"\";\n}\n\
-                  pub fn on_widget_event(this, event, node, value) {\n    \
-                  this.heard += 1;\n    this.last = format!(\"{} {}\", event, node.name());\n}\n\
-                  pub fn last(this) {\n    this.last\n}\n\
-                  pub fn heard(this) {\n    this.heard\n}\n";
+    let script = "pub struct Panel { node: Node, heard: int, last: str }
+impl Panel {
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        self.heard += 1;
+        self.last = \"{event} {node.name()}\";
+    }
+    pub fn last() -> str { self.last }
+    pub fn heard() -> int { self.heard }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let panel = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Panel", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(panel), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(panel), "scripts/paint.bs")
         .unwrap();
     let column = add_child_widget(
         &app,

@@ -4,8 +4,11 @@
 use balaur::input::InputSnapshot;
 use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
-const SCRIPT: &str = "pub fn fixed_update(this, dt) {
-    if input::key_down(input::KEY_SPACE) { this.node.transform.translate(dt, 0.0, 0.0); }
+const SCRIPT: &str = "pub struct Runner { node: Node }
+impl Runner {
+    fn fixed_update(dt: float) {
+        if input::key_down(input::KEY_SPACE) { self.node.transform.translate(dt, 0.0, 0.0); }
+    }
 }
 ";
 
@@ -18,10 +21,10 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.rn\" }\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.bs\" }\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.rn"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("s.bs"), SCRIPT).unwrap();
 }
 
 fn booted(dir: &std::path::Path) -> App {

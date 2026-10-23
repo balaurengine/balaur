@@ -1,7 +1,7 @@
 //! The 2D voxel collider: a grid of filled cells a script may dig into, the
 //! shape tile collision is built on.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::App;
 use balaur_physics::PhysicsState2d;
 use balaur_physics::rapier2d::math::IVector;
@@ -18,7 +18,7 @@ cells = [[0, 0, 0], [0, 1, 0], [1, 0, 0]]
 [[nodes]]
 id = "n_wall"
 name = "Wall"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider2d]
 kind = "voxels"
@@ -27,14 +27,17 @@ voxels = "#wall"
 
 /// The script's last write is the control: a cell nothing else fills, which
 /// the assertion below reads back off the shape.
-const SCRIPT: &str = r#"pub fn init(this) {
-    assert!(this.node.collider2d.voxel(0, 1), "the cell above the corner should be filled");
-    assert!(!this.node.collider2d.voxel(4, 4), "a cell nobody wrote should be empty");
-    this.node.collider2d.set_voxel(0, 1, false);
-    assert!(!this.node.collider2d.voxel(0, 1), "digging left the cell filled");
-    let (x, y) = this.node.collider2d.voxel_at(0.5, 0.5);
-    assert!(x == 0 && y == 0, "a world point landed in the wrong cell");
-    this.node.collider2d.set_voxel(7, 7, true);
+const SCRIPT: &str = r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        if !self.node.collider2d.voxel(0, 1) { log::error("the cell above the corner should be filled"); }
+        if self.node.collider2d.voxel(4, 4) { log::error("a cell nobody wrote should be empty"); }
+        self.node.collider2d.set_voxel(0, 1, false);
+        if self.node.collider2d.voxel(0, 1) { log::error("digging left the cell filled"); }
+        let cell = self.node.collider2d.voxel_at(0.5, 0.5);
+        if !(cell[0] == 0 && cell[1] == 0) { log::error("a world point landed in the wrong cell"); }
+        self.node.collider2d.set_voxel(7, 7, true);
+    }
 }
 "#;
 
@@ -50,13 +53,13 @@ fn run() -> (App, Vec<String>) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), SCRIPT).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), SCRIPT).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors = balaur_core::logbuf::recent(80)
+    let errors = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

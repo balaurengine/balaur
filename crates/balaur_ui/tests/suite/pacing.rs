@@ -12,7 +12,7 @@ fn sleeps_at_most(next: &NextFrame, most: Duration) -> bool {
 
 #[test]
 fn a_ui_nobody_asked_to_redraw_lets_the_loop_sleep() {
-    let (_dir, app, ctx, errors) = draw_with("this.drew = true;");
+    let (_dir, app, ctx, errors) = draw_with("");
     assert!(errors.is_empty(), "{errors:?}");
     assert_eq!(
         balaur_ui::next_frame(&app.engine, &ctx),
@@ -73,8 +73,9 @@ fn a_request_spent_by_its_own_pass_still_owes_the_next_frame() {
 
 #[test]
 fn a_repaint_asked_for_as_another_comes_due_is_kept() {
-    let (_dir, app, ctx, errors) =
-        draw_with("ui::request_repaint(#{ after: 0.0 }); ui::request_repaint(#{ after: 30.0 });");
+    let (_dir, app, ctx, errors) = draw_with(
+        r#"ui::request_repaint(map().with("after", 0.0)); ui::request_repaint(map().with("after", 30.0));"#,
+    );
     assert!(errors.is_empty(), "{errors:?}");
     balaur_ui::honour_lazy(&app.engine);
     assert!(balaur_ui::wants_pass(&app.engine, &ctx, false));
@@ -84,7 +85,7 @@ fn a_repaint_asked_for_as_another_comes_due_is_kept() {
 
 #[test]
 fn a_repaint_scheduled_ahead_is_how_long_the_loop_may_sleep() {
-    let (_dir, app, ctx, errors) = draw_with("ui::request_repaint(#{ after: 30.0 });");
+    let (_dir, app, ctx, errors) = draw_with(r#"ui::request_repaint(map().with("after", 30.0));"#);
     assert!(errors.is_empty(), "{errors:?}");
     let next = balaur_ui::next_frame(&app.engine, &ctx);
     assert!(sleeps_at_most(&next, Duration::from_secs(30)), "{next:?}");

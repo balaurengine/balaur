@@ -1,6 +1,6 @@
 //! `tile_collision`: a tile map's own cells, as one voxel collider.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::App;
 use balaur_core::scene::find_node;
 use balaur_physics::PhysicsState2d;
@@ -25,7 +25,7 @@ collision = "full"
 [[nodes]]
 id = "n_map"
 name = "Map"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.tilemap]
 tileset = "#dungeon"
@@ -60,10 +60,10 @@ fn boot_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
@@ -73,7 +73,7 @@ fn boot_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
 
 /// Every error logged since the buffer was last cleared, with its fields.
 fn logged_errors() -> Vec<String> {
-    balaur_core::logbuf::recent(50)
+    balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))
@@ -107,7 +107,7 @@ fn filled(app: &App) -> [bool; 4] {
 
 #[test]
 fn the_solid_cells_of_a_map_become_one_voxel_collider() {
-    let (app, errors) = run("", 1);
+    let (app, errors) = run("pub struct S { node: Node }\n", 1);
     assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
     assert_eq!(
         filled(&app),
@@ -135,8 +135,11 @@ fn the_solid_cells_of_a_map_become_one_voxel_collider() {
 #[test]
 fn digging_a_cell_rebuilds_what_the_map_collides_with() {
     let (app, errors) = run(
-        r"pub fn init(this) {
-    this.node.tilemap.set_cell(0, 0, -1);
+        r"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.tilemap.set_cell(0, 0, -1);
+    }
 }
 ",
         2,
@@ -230,7 +233,7 @@ fn one_way_on_the_component_lets_a_body_up_through_full_cells() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let scene = SCENE
-        .replace("script = { source = \"scripts/s.rn\" }\n", "")
+        .replace("script = { source = \"scripts/s.bs\" }\n", "")
         .replace("friction = 0.9", "one_way = true")
         + r#"
 [[nodes]]

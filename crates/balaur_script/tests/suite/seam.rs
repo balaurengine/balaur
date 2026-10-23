@@ -115,8 +115,8 @@ fn a_wrong_argument_type_is_an_error_not_a_panic() {
     );
 }
 
-/// A backend that builds the slots for each call, as Rune's does, and so
-/// hands them over rather than having the binding copy them.
+/// A backend that builds the slots for each call, and so hands them over
+/// rather than having the binding copy them.
 #[derive(Default)]
 struct OwningModule {
     functions: Vec<(String, OwnedFn<Host>)>,

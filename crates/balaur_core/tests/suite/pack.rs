@@ -388,7 +388,7 @@ fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
 }
 
 /// A nested project's scripts are its own: `editor/library` is a project, and
-/// its `addons/<name>/<file>.rn` resolve only when mounted at *its* root.
+/// its `addons/<name>/<file>.bs` resolve only when mounted at *its* root.
 #[test]
 fn a_nested_projects_scripts_ship_as_source() {
     let dir = project();

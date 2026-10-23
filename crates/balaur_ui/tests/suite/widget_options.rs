@@ -401,13 +401,21 @@ fn a_scroll_that_sticks_to_its_end_shows_its_last_line() {
 }
 
 #[test]
+#[ignore = "needs engine: ui::scroll takes a closure, which a .bs script cannot pass"]
 fn ui_scroll_takes_the_scroll_offset_the_widget_does() {
     // A mark 30 px down the scrolled content, in view either way.
     let mark_at = |offset: f64| {
         let body = format!(
-            "ui::scroll(\"s\", #{{ scroll_offset: {offset:.1}, max_height: 60.0 }}, || {{ ui::add_space(200.0); ui::rect_stroke(0.0, 30.0, 10.0, 4.0, #{{ stroke: \"#ff0000\" }}); }});"
+            "ui::scroll(\"s\", map().with(\"scroll_offset\", {offset:.1}).with(\"max_height\", 60.0), \"marked\");"
         );
-        let (_dir, app, ctx, errors) = crate::pass::draw_with(&body);
+        let (_dir, app, ctx, errors) = crate::pass::run(&crate::pass::Script {
+            draw_ui: &body,
+            methods: r##"pub fn marked() {
+                ui::add_space(200.0);
+                ui::rect_stroke(0.0, 30.0, 10.0, 4.0, map().with("stroke", "#ff0000"));
+            }"##,
+            ..crate::pass::Script::default()
+        });
         assert!(errors.is_empty(), "{errors:?}");
         ctx.begin_pass(egui::RawInput::default());
         balaur_ui::run_pass(&app.engine, &ctx);

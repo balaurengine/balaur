@@ -171,7 +171,7 @@ cells = [[0, 0, 0]]
 [[nodes]]
 id = "n_world"
 name = "World"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [[nodes]]
 id = "n_a"
@@ -205,17 +205,17 @@ transform = { position = [0.0, 10.0, 0.0] }
 fn a_2d_voxel_grid_resizes_crops_and_joins_its_neighbour() {
     let mut b = boot::project(
         GRIDS,
-        r#"pub fn init(this) {
-    let a = this.node.get_node("A").collider2d;
-    a.combine_voxels(this.node.get_node("B"));
-    let cropped = this.node.get_node("Cropped").collider2d;
-    cropped.crop_voxels(0, 0, 1, 0);
-    let alone = this.node.get_node("Alone").collider2d;
-    alone.set_voxel_size(0.5, 0.5);
-}
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.get_node("A").collider2d.combine_voxels(self.node.get_node("B"));
+        self.node.get_node("Cropped").collider2d.crop_voxels(0, 0, 1, 0);
+        self.node.get_node("Alone").collider2d.set_voxel_size(0.5, 0.5);
+    }
 
-pub fn probe(this) {
-    this.node.get_node("Alone").collider2d.voxel_size()
+    pub fn probe() -> any {
+        self.node.get_node("Alone").collider2d.voxel_size()
+    }
 }
 "#,
     );
@@ -239,7 +239,7 @@ pub fn probe(this) {
         "crop kept a cell outside the range"
     );
     assert!(state_at("World/Cropped", 0).is_some_and(|s| !s.is_empty()));
-    assert_eq!(b.call(b.node("World"), "probe"), Value::Vec2([0.5, 0.5]));
+    assert_eq!(boot::vector(&b.call(b.node("World"), "probe")), [0.5, 0.5]);
 }
 
 #[test]
@@ -259,7 +259,7 @@ name = "World"
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, initial_linear_velocity = [6.0, 0.0] }
 collider2d = { kind = "circle", radius = 0.5 }
 
@@ -277,20 +277,21 @@ parent = "n_world"
 collider2d = { kind = "voxels", voxels = "#one" }
 transform = { position = [0.0, 8.0, 0.0] }
 "##,
-        r#"pub fn probe(this) {
-    let c = this.node.collider2d;
-    let wall = this.node.parent().get_node("Wall");
-    let cells = this.node.parent().get_node("Cells").collider2d;
-    let (ax, ay, bx, by) = c.aabb();
-    let (sx, sy, tx, ty) = c.swept_aabb();
-    let (cx, cy, dx, dy) = c.collision_aabb();
-    let (ex, ey, fx, fy) = c.broad_phase_aabb();
-    let found = [bx, tx, dx, fx, c.collider_mass(), c.collider_volume(),
-        physics2d::closest_points(this.node, wall),
-        physics2d::time_of_impact(this.node, wall, #{ velocity_a: [6.0, 0.0] }),
-        c.collider_mass_properties(), c.pose_in_body(), c.handles(), cells.collider_mesh(), true];
-    c.set_collider(#{ kind: "rectangle", size: [2.0, 2.0] });
-    found
+        r#"pub struct S { node: Node }
+impl S {
+    pub fn probe() -> [any] {
+        let n = self.node;
+        let wall = n.parent().get_node("Wall");
+        let cells = n.parent().get_node("Cells");
+        let found = [n.collider2d.aabb()[2], n.collider2d.swept_aabb()[2], n.collider2d.collision_aabb()[2],
+            n.collider2d.broad_phase_aabb()[2], n.collider2d.collider_mass(), n.collider2d.collider_volume(),
+            physics2d::closest_points(n, wall),
+            physics2d::time_of_impact(n, wall, map().with("velocity_a", [6.0, 0.0])),
+            n.collider2d.collider_mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
+            cells.collider2d.collider_mesh(), true];
+        n.collider2d.set_collider(map().with("kind", "rectangle").with("size", [2.0, 2.0]));
+        found
+    }
 }
 "#,
     );
@@ -315,15 +316,15 @@ transform = { position = [0.0, 8.0, 0.0] }
     let area = std::f64::consts::PI * 0.25;
     assert!((number(&found[4]) - area).abs() < 1e-3, "{:?}", found[4]);
     assert!((number(&found[5]) - area).abs() < 1e-3, "{:?}", found[5]);
-    assert_eq!(*entry(&found[6], "a"), Value::Vec2([0.5, 0.0]));
-    assert_eq!(*entry(&found[6], "b"), Value::Vec2([2.5, 0.0]));
+    assert_eq!(boot::vector(entry(&found[6], "a")), [0.5, 0.0]);
+    assert_eq!(boot::vector(entry(&found[6], "b")), [2.5, 0.0]);
     assert!(
         (number(entry(&found[7], "distance")) - 2.0 / 6.0).abs() < 1e-3,
         "{:?}",
         found[7]
     );
     assert!((number(entry(&found[8], "mass")) - area).abs() < 1e-3);
-    assert_eq!(*entry(&found[9], "position"), Value::Vec2([0.0, 0.0]));
+    assert_eq!(boot::vector(entry(&found[9], "position")), [0.0, 0.0]);
     assert!(
         !matches!(entry(&found[10], "body"), Value::Nil),
         "handles named no body"

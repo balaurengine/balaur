@@ -191,7 +191,7 @@ pub fn settle(app: &App, ctx: &egui::Context) {
     pass(app, ctx, vec![]);
 }
 
-/// An app whose project also holds `scripts/paint.rn`, for the `draw` kind.
+/// An app whose project also holds `scripts/paint.bs`, for the `draw` kind.
 pub fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -201,10 +201,29 @@ pub fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(dir.path().join("scripts/paint.rn"), body).unwrap();
+    std::fs::write(dir.path().join("scripts/paint.bs"), body).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     (dir, standard_app(config).unwrap())
+}
+
+/// A number `node`'s script holds under `name`, whichever kind it is.
+pub fn script_number(app: &App, node: Entity, name: &str) -> Option<f64> {
+    let host = app.engine.script_host()?;
+    match host.script_field(balaur::node_id_of(node), name)? {
+        balaur_script::Value::Num(n) => Some(n),
+        balaur_script::Value::Int(n) => Some(n as f64),
+        _ => None,
+    }
+}
+
+/// A string `node`'s script holds under `name`.
+pub fn script_text(app: &App, node: Entity, name: &str) -> Option<String> {
+    let host = app.engine.script_host()?;
+    match host.script_field(balaur::node_id_of(node), name)? {
+        balaur_script::Value::Str(s) => Some(s),
+        _ => None,
+    }
 }
 
 pub fn key(k: egui::Key) -> Vec<egui::Event> {
