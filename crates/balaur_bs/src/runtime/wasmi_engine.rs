@@ -9,6 +9,10 @@ struct Data {
     mem: Option<wasmi::Memory>,
     host: Shared,
     limits: Option<wasmi::StoreLimits>,
+    /// What the host function a stop parked in still owes the module: nothing
+    /// for a probe of its own, one i64 for the entry point a direct module's
+    /// probe rides in.
+    owed: Vec<ValType>,
 }
 
 struct Ctx<'a, 'b>(&'a mut Caller<'b, Data>);
@@ -116,6 +120,7 @@ fn link_direct(linker: &mut Linker<Data>, meta: &crate::Meta) -> Result<(), Stri
             let first =
                 direct_call(&host, &mut Ctx(&mut c), index, &bits).map_err(wasmi::Error::new)?;
             if host.borrow().debugger.is_parked() {
+                c.data_mut().owed = vec![ValType::I64];
                 return Err(wasmi::Error::host(Park));
             }
             results[0] = Val::I64(first.cast_signed());
@@ -159,11 +164,13 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
             imp.params.iter().map(|s| vt(*s)),
             imp.results.iter().map(|s| vt(*s)),
         );
+        let owed: Vec<ValType> = imp.results.iter().map(|s| vt(*s)).collect();
         let call = move |mut c: Caller<'_, Data>, params: &[Val], results: &mut [Val]| {
             let host = c.data().host.clone();
             let args: Args = params.iter().map(raw).collect();
             let out = dispatch(&host, &mut Ctx(&mut c), index, &args).map_err(wasmi::Error::new)?;
             if host.borrow().debugger.is_parked() {
+                c.data_mut().owed.clone_from(&owed);
                 return Err(wasmi::Error::host(Park));
             }
             for (slot, r) in results.iter_mut().zip(out) {
@@ -184,6 +191,7 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
             mem: None,
             host: setup.host,
             limits,
+            owed: Vec::new(),
         },
     );
     if store.data().limits.is_some() {
@@ -303,9 +311,14 @@ impl Wasm for Wasmi {
     fn resume(&mut self) -> Result<Outcome, String> {
         let (trap, results) = self.parked.take().ok_or("no call is parked")?;
         let mut out = vec![Val::I32(0); results];
-        // A probe returns nothing, so it is resumed with nothing.
+        // The probe answered nothing; what the function it trapped in owes is
+        // handed back as zeros, which the module never reads.
+        let owed: Vec<Val> = std::mem::take(&mut self.store.data_mut().owed)
+            .into_iter()
+            .map(Val::default_for_ty)
+            .collect();
         let call = trap
-            .resume(&mut self.store, &[], &mut out)
+            .resume(&mut self.store, &owed, &mut out)
             .map_err(|e| e.to_string())?;
         self.settle(call, &out)
     }

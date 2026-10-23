@@ -191,8 +191,15 @@ mod parked {
     use balaur_bs::{Options, compile};
 
     fn on_wasmi() -> Runtime {
+        on_wasmi_with(false)
+    }
+
+    // `direct`: the browser's module shape, whose every import rides an
+    // entry point that answers one i64, the probe included.
+    fn on_wasmi_with(direct: bool) -> Runtime {
         let options = Options {
             debug: true,
+            direct_imports: direct,
             ..Options::default()
         };
         let c = compile(SCRIPT, &options).unwrap();
@@ -238,6 +245,24 @@ mod parked {
             rt.call("crash", &[Value::Int(1)]).unwrap(),
             Value::Float(2.0)
         );
+    }
+
+    #[test]
+    fn a_direct_module_parks_and_resumes_as_the_ordinary_one_does() {
+        let mut rt = on_wasmi_with(true);
+        let mut m = rt.object("Mover", &[]).unwrap();
+        rt.debugger().set_breakpoint(5);
+        let p = paused(
+            rt.call_method_steppable(&mut m, "walk", &[Value::Int(2)])
+                .unwrap(),
+        );
+        assert_eq!((p.line, p.reason), (5, StopReason::Breakpoint));
+        let p = paused(rt.resume(Command::StepOver, &mut m).unwrap());
+        assert_eq!((p.line, p.reason), (6, StopReason::Step));
+        rt.debugger().clear_breakpoint(5);
+        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        assert_eq!(done, Step::Done(Value::Float(3.0)));
+        assert_eq!(rt.get(&m, "steps"), Some(Value::Int(2)));
     }
 
     #[test]
