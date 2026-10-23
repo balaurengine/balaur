@@ -140,6 +140,10 @@ web-sys = { version = "0.3.106", features = [
     "DomStringList",
     "Event",
     "EventTarget",
+    # `balaur-project-kept`, the page's word that files are kept, with the
+    # paths that changed (src/web_store.rs).
+    "CustomEvent",
+    "CustomEventInit",
     "IdbDatabase",
     "IdbFactory",
     "IdbKeyRange",

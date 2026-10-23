@@ -31,6 +31,10 @@ OUT="/out/${SIGN_ARTIFACT}"
 [ -f "$IN" ] || fail "no artifact at ${IN}"
 [ -d /creds ] || fail "no credentials mounted at /creds"
 mkdir -p /out || fail "cannot write to /out; mount it read-write"
+# The mounts keep their host owner and mode; export.sh says why that is uid
+# 10001's problem and not `:rw`'s.
+[ -w /out ] || fail "/out is not writable by uid $(id -u); chmod 0777 the directory mounted there"
+{ [ -r /creds ] && [ -x /creds ]; } || fail "/creds is not readable by uid $(id -u)"
 [ -w /work ] || fail "/work is not writable by uid $(id -u); mount it as --tmpfs /work:rw,exec,mode=1777"
 
 notarize_apple() {

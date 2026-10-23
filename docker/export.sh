@@ -21,6 +21,10 @@ WORK=/work/src
 [ -d "$SRC" ] || fail "no project at ${SRC}; mount one"
 mkdir -p "$OUT" || fail "cannot write to ${OUT}; mount it read-write"
 
+# A mount keeps its host owner and mode, and this is uid 10001: `:rw` alone
+# is not enough. Checked now, not after minutes of export (docker/README.md).
+[ -w "$OUT" ] || fail "${OUT} is not writable by uid $(id -u); chmod 0777 the directory mounted there"
+
 # podman hands the same --tmpfs flag out as 1777 on one host and 0755 on
 # another, and this runs as an ordinary user. Fail here, not inside a `cp`.
 [ -w /work ] || fail "/work is not writable by uid $(id -u); mount it as --tmpfs /work:rw,exec,mode=1777"
@@ -37,6 +41,7 @@ OUTPUT="${BALAUR_OUTPUT:-$DEFAULT_OUTPUT}"
 # An export writes into the project it exports, so it cannot run on a
 # read-only /src. Staged into /work instead; /src stays untouched.
 log "==> stage source"
+log "\$ cp -a ${SRC}/. ${WORK}"
 mkdir -p "$WORK" || fail "could not create ${WORK}"
 cp -a "${SRC}/." "$WORK" || fail "could not stage source"
 
@@ -76,9 +81,13 @@ case "$BALAUR_TARGET" in
     ;;
 esac
 
+set -- "$@" --output "${OUT}/${OUTPUT}"
+
+# The command as it runs, so a failure can be reproduced from the log.
 log "==> export ${BALAUR_TARGET}"
+log "\$ balaur $*"
 cd "$WORK"
-balaur "$@" --output "${OUT}/${OUTPUT}" || fail "export failed"
+balaur "$@" || fail "export failed"
 
 # Exactly one artifact per run. The package asked for wins, the tree it was
 # made from goes, and so does an .apk a project's own keystore also made.
