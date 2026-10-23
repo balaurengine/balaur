@@ -272,7 +272,7 @@ fn paint_bar(
     );
     let shade = if animate {
         let time = ui.input(|i| i.time);
-        egui::lerp(0.7..=1.0, time.cos().abs()) as f32
+        egui::lerp(0.7..=1.0, libm::cos(time).abs()) as f32
     } else {
         1.0
     };
@@ -285,12 +285,12 @@ fn paint_bar(
     if animate && style.radius.is_none() {
         let time = ui.input(|i| i.time);
         let start = time * std::f64::consts::TAU;
-        let end = start + 240f64.to_radians() * time.sin();
+        let end = start + 240f64.to_radians() * libm::sin(time);
         let reach = half - 2.0;
         let points: Vec<egui::Pos2> = (0..20)
             .map(|i| {
                 let angle = egui::lerp(start..=end, f64::from(i) / 20.0);
-                let (sin, cos) = angle.sin_cos();
+                let (sin, cos) = (libm::sin(angle), libm::cos(angle));
                 filled.right_center() + reach * vec2(cos as f32, sin as f32) + vec2(-half, 0.0)
             })
             .collect();

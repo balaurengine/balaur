@@ -357,7 +357,7 @@ fn from_normalized(normalized: f64, range: RangeInclusive<f64>, scale: &Scale) -
         -from_normalized(normalized, -min..=-max, scale)
     } else if 0.0 <= min {
         let (low, high) = log_ends(min, max, scale);
-        10.0_f64.powf(lerp(low..=high, normalized))
+        libm::pow(10.0, lerp(low..=high, normalized))
     } else {
         let cut = zero_cut(min, max);
         if normalized < cut {
@@ -391,7 +391,7 @@ fn to_normalized(value: f64, range: RangeInclusive<f64>, scale: &Scale) -> f64 {
         to_normalized(-value, -min..=-max, scale)
     } else if 0.0 <= min {
         let (low, high) = log_ends(min, max, scale);
-        remap_clamp(value.log10(), low..=high, 0.0..=1.0)
+        remap_clamp(libm::log10(value), low..=high, 0.0..=1.0)
     } else {
         let cut = zero_cut(min, max);
         if value < 0.0 {
@@ -407,21 +407,21 @@ fn to_normalized(value: f64, range: RangeInclusive<f64>, scale: &Scale) -> f64 {
 #[allow(clippy::float_cmp, reason = "zero and infinity are exact ends")]
 fn log_ends(min: f64, max: f64, scale: &Scale) -> (f64, f64) {
     if min == 0.0 && max == f64::INFINITY {
-        (scale.smallest_positive.log10(), ENDLESS)
+        (libm::log10(scale.smallest_positive), ENDLESS)
     } else if min == 0.0 {
         if scale.smallest_positive < max {
-            (scale.smallest_positive.log10(), max.log10())
+            (libm::log10(scale.smallest_positive), libm::log10(max))
         } else {
-            (max.log10() - ENDLESS, max.log10())
+            (libm::log10(max) - ENDLESS, libm::log10(max))
         }
     } else if max == f64::INFINITY {
         if min < scale.largest_finite {
-            (min.log10(), scale.largest_finite.log10())
+            (libm::log10(min), libm::log10(scale.largest_finite))
         } else {
-            (min.log10(), min.log10() + ENDLESS)
+            (libm::log10(min), libm::log10(min) + ENDLESS)
         }
     } else {
-        (min.log10(), max.log10())
+        (libm::log10(min), libm::log10(max))
     }
 }
 
@@ -432,12 +432,12 @@ fn zero_cut(min: f64, max: f64) -> f64 {
     let below = if min == f64::NEG_INFINITY {
         ENDLESS
     } else {
-        min.abs().log10().abs()
+        libm::log10(min.abs()).abs()
     };
     let above = if max == f64::INFINITY {
         ENDLESS
     } else {
-        max.log10().abs()
+        libm::log10(max).abs()
     };
     below / (below + above)
 }

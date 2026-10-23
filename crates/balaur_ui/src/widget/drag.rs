@@ -158,8 +158,8 @@ impl DragNumber<'_> {
             ui.data_mut(|data| data.remove::<Typed>(id));
         }
         let aim = f64::from(ui.input(egui::InputState::aim_radius));
-        let auto =
-            (aim / self.speed.abs()).log10().ceil().clamp(0.0, 15.0) as usize + usize::from(slow);
+        let auto = libm::log10(aim / self.speed.abs()).ceil().clamp(0.0, 15.0) as usize
+            + usize::from(slow);
         let most = self.max_decimals.unwrap_or(auto + 2).max(self.min_decimals);
         Moment {
             id,
