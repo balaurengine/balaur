@@ -1,153 +1,234 @@
-//! A class's members: the defaults `init` sets, and the `get`/`set` blocks
-//! a property declares.
+//! A class's members: the fields that keep them, the defaults set as the
+//! instance is made, and the `get`/`set` blocks a property declares.
 
 use std::fmt::Write as _;
 
+use super::render::Field;
 use super::{
-    Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, assigned, gdscript, name_of, safe, shim_binding,
+    Context, INPUT_FLAG, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, assigned, expression, name_of, safe,
     top_level,
 };
+use crate::godot::exports::{Export, Kind};
+use crate::godot::gdscript::{Bt, typed_zero};
 
-/// The members a Godot class declared with a value: the plain ones the
-/// engine sets when the instance is made, and the ones that wait for the
-/// scene — an exported vector's shape, and every `@onready`.
-pub(super) fn write_members(
-    out: &mut String,
-    levels: &[String],
-    context: &Context,
-    exports: &[crate::godot::exports::Export],
-    notes: &mut Vec<String>,
-) -> Members {
-    let mut assignments: Vec<String> = Vec::new();
-    // What the scene has to land first: an export's shape, and `@onready`.
-    let mut scened: Vec<String> = Vec::new();
-    // First, so a default that fails still leaves the hooks running.
-    for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
-        if context.members.contains(flag) {
-            assignments.push(format!("    this.{flag} = true;"));
-        }
-    }
-    // An exported vector or colour arrives as a list; the body reads `.x`.
-    for export in exports {
-        use crate::godot::exports::Kind;
-        let field = safe(&export.name);
-        let shape = match export.kind {
-            Some(Kind::Vec2 | Kind::Vec3) => "vec_of",
-            Some(Kind::Color) => "color_of",
-            Some(_) => continue,
-            // A kind the scene cannot set starts at its declared value.
-            None => {
-                let text = export
-                    .value
-                    .as_deref()
-                    .and_then(|value| member_default(value, context))
-                    .unwrap_or_else(|| gdscript::typed_zero(&export.hint).to_string());
-                assignments.push(format!("    this.{field} = {text};"));
-                continue;
-            }
-        };
-        scened.push(format!("    this.{field} = (gd.{shape})(this.{field});"));
-    }
-    // Godot sets an `@onready` member once the scene is in: after the rest,
-    // from the `init` hook, where this node's children are already built.
-    let mut ready: Vec<String> = Vec::new();
-    // A base's members first, so a derived class's own default is the last.
-    for line in levels.iter().rev().flat_map(|level| top_level(level)) {
-        let trimmed = line.as_str();
-        // An exported member is set from the scene.
-        if trimmed.starts_with("@export") {
-            continue;
-        }
-        let onready = trimmed.starts_with("@onready");
-        let body = trimmed.trim_start_matches("@onready").trim_start();
+/// What a class's members need: where each is kept and what sets it.
+#[derive(Default)]
+pub(crate) struct Plan {
+    /// The struct's props: the exports a scene sets as a number or a flag.
+    pub props: Vec<Field>,
+    /// The members' class's fields, a literal default where one was declared.
+    pub fields: Vec<Field>,
+    /// Every member's declared value a field's default could not hold, in
+    /// declaration order, a base's first: set before `_init` runs.
+    pub defaults: Vec<String>,
+    /// What the scene set, after `_init`: each prop copied in, and each
+    /// export the scene filed in the node's `meta` read back.
+    pub exports: Vec<String>,
+    /// Every `@onready`, once the scene is in.
+    pub ready: Vec<String>,
+}
+
+/// Whether an export is a struct prop: a number or a flag, which the scene
+/// sets by name and the struct can hold without a string or a list.
+pub(crate) fn is_prop(export: &Export) -> bool {
+    matches!(export.kind, Some(Kind::Int | Kind::Float | Kind::Bool)) && !export.data
+}
+
+/// Each member's type, by its hint, or by the literal a `:=` infers it from.
+pub(super) fn types(source: &str) -> Vec<(String, Bt)> {
+    let mut out = Vec::new();
+    for line in top_level(source) {
+        let body = super::declaration_start(&line).unwrap_or(&line);
         let Some(rest) = body.strip_prefix("var ") else {
             continue;
         };
         let rest = declared(rest);
         let name = name_of(rest);
-        // Godot's `var x: int` is 0 before it is written, and an untyped
-        // `var x` is null, which a read answers rather than failing.
+        out.push((name.clone(), member_type(rest, &name)));
+    }
+    out
+}
+
+// A declaration's type: its hint, else its `:=` literal's, else `any`.
+fn member_type(rest: &str, name: &str) -> Bt {
+    let after = rest[name.len()..].trim_start();
+    if let Some(typed) = after.strip_prefix(":=") {
+        return super::scalar_literal(typed).map_or(Bt::Any, |(kind, _)| kind);
+    }
+    let hint = after
+        .strip_prefix(':')
+        .map_or("", |t| t.split('=').next().unwrap_or_default().trim());
+    Bt::of_hint(hint)
+}
+
+/// Where the members go and what sets them. A node class keeps them as the
+/// fields of its members' class; an object class, as its map's keys.
+pub(super) fn plan(
+    levels: &[String],
+    context: &Context,
+    exports: &[Export],
+    notes: &mut Vec<String>,
+) -> Plan {
+    let mut plan = Plan::default();
+    let object = context.object_class;
+    let store = |name: &str, value: &str| {
+        if object {
+            format!(
+                "this.set({}, {value});",
+                crate::godot::gdscript::quoted(name)
+            )
+        } else {
+            format!(
+                "self.{}.{} = {value};",
+                crate::godot::gdscript::MY,
+                safe(name)
+            )
+        }
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG, INPUT_FLAG] {
+        if context.members.contains(flag) {
+            seen.insert(flag.to_string());
+            plan.fields.push(field(flag, Bt::Bool, Some("true".into())));
+            if object {
+                plan.defaults.push(store(flag, "true"));
+            }
+        }
+    }
+    // A derived class's declaration of a name is the one kept.
+    let mut lines: Vec<String> = Vec::new();
+    for level in levels {
+        for line in top_level(level) {
+            lines.push(line);
+        }
+    }
+    let mut declared_names = Vec::new();
+    for line in &lines {
+        let body = super::declaration_start(line).unwrap_or(line);
+        if line.starts_with("static ") || body.starts_with("static ") {
+            continue;
+        }
+        let Some(rest) = body.strip_prefix("var ") else {
+            continue;
+        };
+        let name = name_of(declared(rest));
+        if seen.insert(name.clone()) {
+            declared_names.push((name, line.clone()));
+        }
+    }
+    // A base's members first, as Godot sets them.
+    declared_names.reverse();
+    for (name, line) in &declared_names {
+        let body = super::declaration_start(line).unwrap_or(line);
+        let rest = declared(body.strip_prefix("var ").unwrap_or_default());
+        let kind = if object {
+            Bt::Any
+        } else {
+            member_type(rest, name)
+        };
         let hint = rest[name.len()..]
             .trim_start()
             .strip_prefix(':')
             .map_or("", |t| t.split('=').next().unwrap_or_default().trim());
-        assignments.push(format!(
-            "    this.{} = {};",
-            safe(&name),
-            gdscript::typed_zero(hint)
-        ));
-        let Some(value) = assigned(rest) else {
-            continue;
+        let export = exports.iter().find(|e| &e.name == name);
+        let onready = line.starts_with("@onready");
+        let value = assigned(rest);
+        // A literal the field itself starts at, where its type takes one.
+        let literal = value
+            .and_then(super::scalar_literal)
+            .and_then(|(lit, text)| fits(kind, lit, &text));
+        let mut f = field(name, kind, None);
+        if !object
+            && !onready
+            && let Some(text) = &literal
+        {
+            f.default = Some(text.clone());
+        }
+        plan.fields.push(f);
+        if let Some(export) = export.filter(|e| is_prop(e)) {
+            let default = prop_default(export, kind);
+            let copy = store(name, &format!("self.{}", safe(name)));
+            // Godot applies what the scene set: a prop still at its default
+            // leaves what `_init` wrote.
+            plan.exports.push(match &default {
+                Some(value) => format!("if self.{} != {value} {{\n{copy}\n}}", safe(name)),
+                None => copy,
+            });
+            plan.props.push(Field {
+                name: safe(name),
+                ty: kind.text().to_string(),
+                default,
+                public: true,
+            });
+        }
+        let zero = typed_zero(hint);
+        let text = match value {
+            Some(value) if literal.is_none() || object => match expression(value, context, false) {
+                Some((text, _)) => Some(text),
+                None => {
+                    notes.push(format!("`{name}`: its default did not translate"));
+                    None
+                }
+            },
+            Some(_) => None,
+            // No value: Godot's zero for the type, which a field's own zero is
+            // unless the type is a container or a vector.
+            None if zero.contains("gd::") || zero == "map()" || object => Some(zero.to_string()),
+            None => None,
         };
-        let Some(text) = member_default(value, context) else {
-            notes.push(format!("`{name}`: its default did not translate"));
-            continue;
-        };
-        let line = format!("    this.{} = {text};", safe(&name));
-        if onready {
-            ready.push(line);
-        } else {
-            assignments.push(line);
+        if let Some(text) = text {
+            let line = store(name, &text);
+            if onready {
+                plan.ready.push(line);
+            } else {
+                plan.defaults.push(line);
+            }
+        }
+        if let Some(export) = export.filter(|e| !is_prop(e) && !object) {
+            if let Some(read) = export_read(export, &store) {
+                plan.exports.push(read);
+            }
         }
     }
-    scened.extend(ready);
-    let held = Members {
-        defaults: !assignments.is_empty(),
-        scened: !scened.is_empty(),
-    };
-    write_block(
-        out,
-        &assignments,
-        "pub fn defaults",
-        "The defaults the class declared with its members, which the engine\n/// applies when the instance is made.",
-    );
-    write_block(
-        out,
-        &scened,
-        "fn scene_defaults",
-        "The members that wait for the scene: an exported vector arrives as a\n/// list, and `@onready` is Godot's \"once the tree is in\".",
-    );
-    held
+    plan
 }
 
-/// Which halves of a class's members were written.
-pub(crate) struct Members {
-    pub defaults: bool,
-    pub scened: bool,
-}
-
-fn write_block(out: &mut String, lines: &[String], signature: &str, doc: &str) {
-    if lines.is_empty() {
-        return;
+fn field(name: &str, kind: Bt, default: Option<String>) -> Field {
+    Field {
+        name: safe(name),
+        ty: kind.text().to_string(),
+        default,
+        public: false,
     }
-    let binding = if lines.iter().any(|line| line.contains("(gd.")) {
-        shim_binding(1)
-    } else {
-        String::new()
-    };
-    let _ = write!(
-        out,
-        "\n/// {doc}\n{signature}(this) {{\n{binding}{}\n}}\n",
-        lines.join("\n")
-    );
 }
 
-/// A member's declared value as Rune, read inside `defaults(this)`.
-fn member_default(value: &str, context: &Context) -> Option<String> {
-    let body = gdscript::body(
-        &[format!("var _x = {value}")],
-        context,
-        0,
-        &[],
-        false,
-        false,
-        "",
-    );
-    body.rune
-        .trim()
-        .strip_prefix("let _x = ")
-        .and_then(|t| t.strip_suffix(';'))
-        .map(str::to_string)
+// A literal as a field of `kind` takes it: an int widens to a float.
+fn fits(kind: Bt, literal: Bt, text: &str) -> Option<String> {
+    match (kind, literal) {
+        (Bt::Float, Bt::Int) => Some(format!("{text}.0")),
+        (a, b) if a == b && a != Bt::Any && a != Bt::Node => Some(text.to_string()),
+        _ => None,
+    }
+}
+
+// A prop's default: the export's literal, fitted to the field.
+fn prop_default(export: &Export, kind: Bt) -> Option<String> {
+    let (lit, text) = super::scalar_literal(&export.default)?;
+    fits(kind, lit, &text)
+}
+
+// An export the scene filed in the node's `meta`, read back over its
+// default: a node by its path, a list of nodes by theirs.
+fn export_read(export: &Export, store: &dyn Fn(&str, &str) -> String) -> Option<String> {
+    let name = &export.name;
+    let quoted = crate::godot::gdscript::quoted(name);
+    let field = format!("self.{}.{}", crate::godot::gdscript::MY, safe(name));
+    let read = match export.kind {
+        Some(Kind::Node) => format!("gd::export_node(self.node, {quoted}, {field})"),
+        Some(Kind::Nodes) => format!("gd::export_nodes(self.node, {quoted}, {field})"),
+        _ => format!("gd::export_value(self.node, {quoted}, {field})"),
+    };
+    Some(store(name, &read))
 }
 
 /// A class's properties with accessors: `var hp: int:` then `get:` or

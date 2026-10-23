@@ -9,60 +9,64 @@ pub(super) fn control_verb(receiver: &str, name: &str, args: &[String]) -> Optio
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
         // A theme override lands on the widget key that carries it, if any.
-        "add_theme_color_override" => format!("(gd.theme_override)({receiver}, \"colors\", {all})"),
+        "add_theme_color_override" => format!("gd::theme_override({receiver}, \"colors\", {all})"),
         "add_theme_constant_override" => {
-            format!("(gd.theme_override)({receiver}, \"constants\", {all})")
+            format!("gd::theme_override({receiver}, \"constants\", {all})")
         }
         "add_theme_font_size_override" => {
-            format!("(gd.theme_override)({receiver}, \"font_sizes\", {all})")
+            format!("gd::theme_override({receiver}, \"font_sizes\", {all})")
         }
         "remove_theme_color_override"
         | "remove_theme_constant_override"
         | "remove_theme_font_size_override"
         | "remove_theme_stylebox_override"
         | "add_theme_stylebox_override"
-        | "add_theme_font_override" => "()".into(),
+        | "add_theme_font_override" => "nil".into(),
         // An option button's popup is the button itself here: its rows.
         "get_popup" => receiver.into(),
-        "get_theme_constant" => format!("(gd.theme_constant)({receiver}, {one})"),
+        "get_theme_constant" => format!("gd::theme_constant({receiver}, {one})"),
         "get_combined_minimum_size" | "get_minimum_size" => {
-            format!("(gd.combined_min_size)({receiver})")
+            format!("gd::combined_min_size({receiver})")
         }
-        "get_theme_color" => format!("(gd.theme_color)({receiver}, {one})"),
-        "get_theme_font_size" => format!("(gd.theme_font_size)({receiver}, {one})"),
-        "set_shader_parameter" => format!("(gd.set_shader_parameter)({receiver}, {all})"),
-        "get_shader_parameter" => format!("(gd.get_shader_parameter)({receiver}, {one})"),
+        "get_theme_color" => format!("gd::theme_color({receiver}, {one})"),
+        "get_theme_font_size" => format!("gd::theme_font_size({receiver}, {one})"),
+        "set_shader_parameter" => format!("gd::set_shader_parameter({receiver}, {all})"),
+        "get_shader_parameter" => format!("gd::get_shader_parameter({receiver}, {one})"),
         // `Image.load(path)`; the global `load` is a preload by another name.
+        // An `Image` or a `ConfigFile`: the shim tells which it holds.
         "load" if receiver != TREE && args.len() == 1 => {
-            format!("(gd.image_load)({receiver}, {one})")
+            format!("gd::image_load({receiver}, {one})")
         }
         _ => return None,
     })
 }
 
 /// A `Control` verb called bare, on the class's own node.
-pub(super) fn own_control(name: &str, all: &str) -> Option<String> {
+pub(super) fn own_control(name: &str, args: &[String]) -> Option<String> {
+    let all = args.join(", ");
+    // A theme item's name; the theme type Godot also took has no part here.
+    let one = args.first().cloned().unwrap_or_default();
     Some(match name {
-        "add_theme_color_override" => format!("(gd.theme_override)(this.node, \"colors\", {all})"),
+        "add_theme_color_override" => format!("gd::theme_override(self.node, \"colors\", {all})"),
         "add_theme_constant_override" => {
-            format!("(gd.theme_override)(this.node, \"constants\", {all})")
+            format!("gd::theme_override(self.node, \"constants\", {all})")
         }
         "add_theme_font_size_override" => {
-            format!("(gd.theme_override)(this.node, \"font_sizes\", {all})")
+            format!("gd::theme_override(self.node, \"font_sizes\", {all})")
         }
         "remove_theme_color_override"
         | "remove_theme_constant_override"
         | "remove_theme_font_size_override"
         | "remove_theme_stylebox_override"
         | "add_theme_stylebox_override"
-        | "add_theme_font_override" => "()".into(),
-        "get_popup" => "this.node".into(),
-        "get_theme_constant" => format!("(gd.theme_constant)(this.node, {all})"),
+        | "add_theme_font_override" => "nil".into(),
+        "get_popup" => "self.node".into(),
+        "get_theme_constant" => format!("gd::theme_constant(self.node, {one})"),
         "get_combined_minimum_size" | "get_minimum_size" => {
-            "(gd.combined_min_size)(this.node)".into()
+            "gd::combined_min_size(self.node)".into()
         }
-        "get_theme_color" => format!("(gd.theme_color)(this.node, {all})"),
-        "get_theme_font_size" => format!("(gd.theme_font_size)(this.node, {all})"),
+        "get_theme_color" => format!("gd::theme_color(self.node, {one})"),
+        "get_theme_font_size" => format!("gd::theme_font_size(self.node, {one})"),
         _ => return None,
     })
 }

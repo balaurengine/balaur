@@ -61,10 +61,14 @@ fn a_code_only_autoload_is_a_module_and_a_node_autoload_is_read_by_its_id() {
         main.contains("name = \"Board\""),
         "a node for the rest: {main}"
     );
-    let game = std::fs::read_to_string(out.path().join("scripts/game.rn")).unwrap();
+    let game = std::fs::read_to_string(out.path().join("scripts/game.bs")).unwrap();
     assert!(
-        game.contains("script::require(\"scripts/rules.rn\")"),
+        game.contains("\nuse scripts::rules;\n"),
         "the module: {game}"
+    );
+    assert!(
+        game.contains("rules::allowed(2)"),
+        "the module's function: {game}"
     );
     assert!(
         game.contains("scene::node_by_id(\"autoload_Board\")"),
@@ -108,7 +112,7 @@ fn an_autoload_is_the_first_node_under_the_main_scenes_root() {
     let mast = main.find("name = \"Mast\"").expect("the scene's own child");
     assert!(board < mast, "the autoload comes first: {main}");
     assert!(
-        main.contains("source = \"scripts/board.rn\""),
+        main.contains("source = \"scripts/board.bs\""),
         "the autoload's script: {main}"
     );
     // The row the connection wrote stays on Mast: the autoload went in
@@ -197,7 +201,7 @@ fn an_instance_s_new_script_keeps_the_prefab_s_values_only_when_it_extends_its_s
             .get("script")
             .and_then(|s| s.get("source"))
             .and_then(toml::Value::as_str),
-        Some("scripts/intro.rn"),
+        Some("scripts/intro.bs"),
         "the node's own script, which replaces the prefab's: {main}"
     );
     let root_override = |node: &toml::Value| {
@@ -214,7 +218,7 @@ fn an_instance_s_new_script_keeps_the_prefab_s_values_only_when_it_extends_its_s
             .as_ref()
             .and_then(|s| s.get("source"))
             .and_then(toml::Value::as_str),
-        Some("scripts/picker.rn"),
+        Some("scripts/picker.bs"),
         "an override, which keeps the prefab's close_button: {main}"
     );
 }

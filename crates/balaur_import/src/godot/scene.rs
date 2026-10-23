@@ -46,12 +46,89 @@ pub(crate) fn scene_path(godot: &str) -> String {
     }
 }
 
-/// A script's path in the converted project: the same tree, `.rn`.
+/// A script's path in the converted project: the same tree, `.bs`.
 pub(crate) fn script_path(godot: &str) -> String {
     match godot.strip_suffix(".gd") {
-        Some(stem) => format!("{stem}.rn"),
+        Some(stem) => module_file(stem),
         None => godot.to_string(),
     }
+}
+
+/// The modules a project file must not be named as: the engine's own, and
+/// the two the importer writes.
+const TAKEN: &[&str] = &[
+    "animation",
+    "apple",
+    "assets",
+    "audio",
+    "browser",
+    "debugger",
+    "encoding",
+    "engine",
+    "events",
+    "export",
+    "fs",
+    "gamend",
+    "geometry2d",
+    "geometry3d",
+    "hash",
+    "http",
+    "import",
+    "input",
+    "json",
+    "log",
+    "math",
+    "multiplayer",
+    "node",
+    "physics",
+    "physics2d",
+    "physics3d",
+    "platform",
+    "project",
+    "random",
+    "regex",
+    "release",
+    "render",
+    "replay",
+    "rollback",
+    "save",
+    "scene",
+    "script",
+    "settings",
+    "skeleton",
+    "strings",
+    "task",
+    "toml",
+    "ui",
+    "websocket",
+    "window",
+    "gd",
+    "classes",
+];
+
+/// `stem` as a `.bs` file `use` can name: each part of its path a name, and
+/// the file's own no engine module's or keyword's.
+pub(crate) fn module_file(stem: &str) -> String {
+    let mut parts: Vec<String> = stem
+        .split('/')
+        .map(|part| {
+            let mut name: String = part
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+                name.insert(0, '_');
+            }
+            name
+        })
+        .collect();
+    if let Some(last) = parts.last_mut()
+        && (TAKEN.contains(&last.as_str())
+            || crate::godot::gdscript::RESERVED.contains(&last.as_str()))
+    {
+        last.push_str("_gd");
+    }
+    format!("{}.bs", parts.join("/"))
 }
 
 /// Where a node's keys are written: its own table, or an override table on
@@ -425,7 +502,7 @@ impl Walk<'_> {
         }
     }
 
-    /// The node's script, renamed to the `.rn` the script phase writes, and
+    /// The node's script, renamed to the `.bs` the script phase writes, and
     /// the values its `@export`s were given here.
     fn script(&mut self, section: &Section, path: &str, prefab_script: Option<&str>) {
         let Some(reference) = section.field("script") else {
@@ -502,8 +579,10 @@ impl Walk<'_> {
             let Some(export) = exports.iter().find(|e| &e.name == key) else {
                 continue;
             };
+            // A type no prop holds is filed as Godot's value, which the
+            // script reads back in `init`.
             let Some(kind) = export.kind else {
-                match crate::godot::exports::tagged(value).filter(|_| export.data) {
+                match crate::godot::exports::tagged(value) {
                     Some(value) => {
                         data.insert(key.clone(), value);
                     }
@@ -514,9 +593,29 @@ impl Walk<'_> {
                 }
                 continue;
             };
-            match crate::godot::exports::scene_value(kind, value, &path_of) {
-                Some(value) => {
+            // A number or a flag is a prop the struct holds; anything else is
+            // filed in `meta`, which `init` reads back: a struct holding a
+            // string or a list could not be lent to a call back into it.
+            let prop = crate::godot::script::is_prop(export);
+            let read = if prop
+                || matches!(
+                    kind,
+                    crate::godot::exports::Kind::Node
+                        | crate::godot::exports::Kind::Nodes
+                        | crate::godot::exports::Kind::Path
+                        | crate::godot::exports::Kind::Str
+                        | crate::godot::exports::Kind::Strings
+                ) {
+                crate::godot::exports::scene_value(kind, value, &path_of)
+            } else {
+                crate::godot::exports::tagged(value)
+            };
+            match read {
+                Some(value) if prop => {
                     props.insert(key.clone(), value);
+                }
+                Some(value) => {
+                    data.insert(key.clone(), value);
                 }
                 None => self.notes.push(format!(
                     "`{path}`: export `{key}`'s value did not read as a {}",

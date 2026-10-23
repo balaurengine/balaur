@@ -1,0 +1,16 @@
+// A converted tween's callback step, written by the importer: edit the
+// importer, not this file. `gd::tween_callback` and `gd::when_finished` hang
+// a hidden node running this under the tween's node; the tween calls `fire`.
+
+use gd;
+
+pub struct GdCallback {
+    node: Node,
+}
+
+impl GdCallback {
+    /// The callable stored for this node, called as the tween reaches it.
+    pub fn fire() {
+        gd::tween_fired(self.node);
+    }
+}

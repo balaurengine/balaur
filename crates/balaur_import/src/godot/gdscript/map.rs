@@ -14,14 +14,18 @@ pub(crate) use events::{engine_event, is_collision_event};
 pub(crate) use globals::{global_constant, singleton_write};
 pub(crate) use widgets::{ON_CHANGE, ON_CLICK, ON_SUBMIT, widget_signal};
 
-use super::emit::{quoted, safe};
+use super::emit::quoted;
 
 /// What `get_tree()` becomes. Its verbs are the scene module's, so the
 /// receiver is a marker the method table recognises rather than a value.
 pub(crate) const TREE: &str = "scene::root()";
 
-/// The local the importer binds `gd.rn` to at the top of a body that needs it.
-pub(crate) const SHIM_MARK: &str = "(gd.";
+/// What a call into the shim starts with, so a file that holds one uses it.
+pub(crate) const SHIM_MARK: &str = "gd::";
+
+/// The shim call a `.tres` loads through: its path, then its module's
+/// `resource` function, which the shim calls once.
+pub(crate) const RESOURCE_CALL: &str = "gd::resource_of(";
 
 /// A bare call Godot resolved on `self`: `hide()` is `self.hide()`. The node
 /// is the receiver, and only names the node table knows are rewritten, so a
@@ -101,7 +105,7 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
     ];
     // A method the shim maps is its verb; any other goes to the node's own.
     NODE.contains(&name)
-        .then(|| method("this.node", name, args).unwrap_or_else(|| invoke("this.node", name, args)))
+        .then(|| method("self.node", name, args).unwrap_or_else(|| invoke("self.node", name, args)))
 }
 
 /// Godot's numeric globals: the `i` forms answer an int, and the plain ones
@@ -111,18 +115,18 @@ fn numeric(name: &str, args: &[String]) -> Option<String> {
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
         // The `i` forms answer an int whatever they were given, as Godot's do.
-        "mini" => format!("(gd.int)(math::min({all}))"),
-        "maxi" => format!("(gd.int)(math::max({all}))"),
-        "clampi" => format!("(gd.int)(math::clamp({all}))"),
-        "absi" => format!("(gd.int)(math::abs({one}))"),
-        "floori" => format!("(gd.int)(math::floor({one}))"),
-        "ceili" => format!("(gd.int)(math::ceil({one}))"),
-        "roundi" => format!("(gd.int)(math::round({one}))"),
+        "mini" => format!("gd::int(math::min({all}))"),
+        "maxi" => format!("gd::int(math::max({all}))"),
+        "clampi" => format!("gd::int(math::clamp({all}))"),
+        "absi" => format!("gd::int(math::abs({one}))"),
+        "floori" => format!("gd::int(math::floor({one}))"),
+        "ceili" => format!("gd::int(math::ceil({one}))"),
+        "roundi" => format!("gd::int(math::round({one}))"),
         // Godot's keep an int an int; the engine's answer a float.
-        "min" if args.len() == 2 => format!("(gd.min)({all})"),
-        "max" if args.len() == 2 => format!("(gd.max)({all})"),
-        "clamp" => format!("(gd.clamp)({all})"),
-        "abs" => format!("(gd.abs)({one})"),
+        "min" if args.len() == 2 => format!("gd::min({all})"),
+        "max" if args.len() == 2 => format!("gd::max({all})"),
+        "clamp" => format!("gd::clamp({all})"),
+        "abs" => format!("gd::abs({one})"),
         "min" | "minf" => format!("math::min({all})"),
         "max" | "maxf" => format!("math::max({all})"),
         "clampf" => format!("math::clamp({all})"),
@@ -135,7 +139,7 @@ fn numeric(name: &str, args: &[String]) -> Option<String> {
 }
 
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
-pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
+pub(crate) fn global(name: &str, args: &[String], me: &str) -> Option<String> {
     if let Some(text) = numeric(name, args) {
         return Some(text);
     }
@@ -144,32 +148,32 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     if let Some(text) = globals::arithmetic(name, &all, &one) {
         return Some(text);
     }
-    if let Some(text) = controls::own_control(name, &all) {
+    if let Some(text) = controls::own_control(name, args) {
         return Some(text);
     }
     Some(match name {
         // Variant conversions and queries live in the shim, which dispatches
         // on the value the way Godot's Variant did.
-        "str" | "int" | "float" | "bool" => format!("(gd.{name})({all})"),
-        "String" if args.len() == 1 => format!("(gd.str)({one})"),
-        "char" => format!("(gd.chr)({one})"),
+        "str" | "int" | "float" | "bool" => format!("gd::{name}({all})"),
+        "String" if args.len() == 1 => format!("gd::str({one})"),
+        "char" => format!("gd::chr({one})"),
         // A `SceneTree` script's own `quit`, which a tool run calls bare.
         "quit" => format!(
             "engine::quit({})",
             args.first().cloned().unwrap_or_else(|| "0".into())
         ),
-        "len" => format!("(gd.size)({one})"),
+        "len" => format!("gd::size({one})"),
         // Object's own `get` and `set`, called bare: a member by its name.
-        "get" if args.len() == 1 => format!("(gd.field)(this, {one})"),
-        "set" if args.len() == 2 => format!("(gd.set_field)(this, {all})"),
-        "is_instance_valid" => format!("(gd.valid)({one})"),
-        "typeof" => format!("(gd.type_of)({one})"),
-        "is_zero_approx" => format!("(gd.is_zero_approx)({one})"),
-        "hash" => format!("(gd.hash)({one})"),
-        "is_equal_approx" => format!("(gd.is_equal_approx)({all})"),
+        "get" if args.len() == 1 => format!("gd::field({me}, {one})"),
+        "set" if args.len() == 2 => format!("gd::set_field({me}, {all})"),
+        "is_instance_valid" => format!("gd::valid({one})"),
+        "typeof" => format!("gd::type_of({one})"),
+        "is_zero_approx" => format!("gd::is_zero_approx({one})"),
+        "hash" => format!("gd::hash({one})"),
+        "is_equal_approx" => format!("gd::is_equal_approx({all})"),
         "weakref" => one,
         // A debugging aid with no stack to show: an empty list of frames.
-        "get_stack" => "[]".into(),
+        "get_stack" => "gd::list()".into(),
         // A literal bound is an int already; anything else may be a float,
         // which Godot truncates and a Rune range refuses.
         "range" => {
@@ -177,26 +181,28 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
             match args.len() {
                 1 if int(&args[0]) => format!("(0..{one})"),
                 2 if int(&args[0]) && int(&args[1]) => format!("({}..{})", args[0], args[1]),
-                1 => format!("(gd.range)(0, {one}, 1)"),
-                2 => format!("(gd.range)({all}, 1)"),
-                _ => format!("(gd.range)({all})"),
+                1 => format!("gd::range(0, {one}, 1)"),
+                2 => format!("gd::range({all}, 1)"),
+                _ => format!("gd::range({all})"),
             }
         }
-        "print" | "prints" | "printt" | "print_rich" => format!("log::info((gd.str_all)([{all}]))"),
-        "push_error" | "printerr" => format!("log::error((gd.str_all)([{all}]))"),
-        "push_warning" => format!("log::warn((gd.str_all)([{all}]))"),
+        "print" | "prints" | "printt" | "print_rich" => {
+            format!("log::print(gd::str_all({}))", any_list(args))
+        }
+        "push_error" | "printerr" => format!("log::error(gd::str_all({}))", any_list(args)),
+        "push_warning" => format!("log::warn(gd::str_all({}))", any_list(args)),
         "tr" => format!("strings::tr({all})"),
-        "Vector2" | "Vector2i" if args.is_empty() => "(gd.vec2)(0.0, 0.0)".into(),
-        "Vector2" | "Vector2i" if args.len() == 1 => format!("(gd.vec_of)({one})"),
-        "Vector2" | "Vector2i" => format!("(gd.vec2)({all})"),
-        "Vector3" | "Vector3i" if args.is_empty() => "(gd.vec3)(0.0, 0.0, 0.0)".into(),
+        "Vector2" | "Vector2i" if args.is_empty() => "gd::vec2(0.0, 0.0)".into(),
+        "Vector2" | "Vector2i" if args.len() == 1 => format!("gd::vec_of({one})"),
+        "Vector2" | "Vector2i" => format!("gd::vec2({all})"),
+        "Vector3" | "Vector3i" if args.is_empty() => "gd::vec3(0.0, 0.0, 0.0)".into(),
         "Rect2" | "Rect2i" => match args.len() {
-            0 => "(gd.rect)(0.0, 0.0, 0.0, 0.0)".into(),
-            2 => format!("(gd.rect_of)({all})"),
-            _ => format!("(gd.rect)({all})"),
+            0 => "gd::rect(0.0, 0.0, 0.0, 0.0)".into(),
+            2 => format!("gd::rect_of({all})"),
+            _ => format!("gd::rect({all})"),
         },
-        "Vector3" => format!("(gd.vec3)({all})"),
-        "Transform2D" => format!("(gd.transform2d)([{all}])"),
+        "Vector3" => format!("gd::vec3({all})"),
+        "Transform2D" => format!("gd::transform2d({})", any_list(args)),
         "NodePath" | "StringName" => {
             if args.is_empty() {
                 "\"\"".into()
@@ -206,7 +212,7 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         }
         packed if packed.starts_with("Packed") && packed.ends_with("Array") => {
             if args.is_empty() {
-                "[]".into()
+                "gd::list()".into()
             } else {
                 one
             }
@@ -214,28 +220,25 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         // Godot's `Color` takes a hex string or a colour, a colour and an
         // alpha, three channels, or four.
         "Color" => match args.len() {
-            0 => "(gd.color)(0.0, 0.0, 0.0, 1.0)".into(),
-            1 => format!("(gd.color_of)({one})"),
-            2 => format!("(gd.color_alpha)({all})"),
-            3 => format!("(gd.color)({all}, 1.0)"),
-            _ => format!("(gd.color)({all})"),
+            0 => "gd::color(0.0, 0.0, 0.0, 1.0)".into(),
+            1 => format!("gd::color_of({one})"),
+            2 => format!("gd::color_with_alpha({all})"),
+            3 => format!("gd::color({all}, 1.0)"),
+            _ => format!("gd::color({all})"),
         },
-        "Callable" if args.is_empty() => "()".into(),
-        "Callable" => format!("(gd.callable)({all})"),
+        "Callable" if args.is_empty() => "nil".into(),
+        "Callable" => format!("gd::callable({all})"),
         "preload" | "load" => loaded(&args[0]),
-        "instance_from_id" => format!("(gd.instance_from_id)({one})"),
+        "instance_from_id" => format!("gd::instance_from_id({one})"),
         "get_tree" | "get_viewport" => TREE.into(),
-        "get_window" => "(gd.window)()".into(),
-        "get_viewport_rect" => "(gd.viewport_rect)()".into(),
-        "inverse_lerp" => format!("(gd.inverse_lerp)({all})"),
-        "linear_to_db" => format!("(gd.linear_to_db)({one})"),
-        "db_to_linear" => format!("(gd.db_to_linear)({one})"),
-        "emit_signal" => match args.len() {
-            0 => return None,
-            1 => format!("this.node.emit({one}, ())"),
-            2 => format!("this.node.emit({one}, {})", args[1]),
-            _ => format!("this.node.emit({one}, [{}])", args[1..].join(", ")),
-        },
+        "get_window" => "gd::window()".into(),
+        "get_viewport_rect" => "gd::viewport_rect()".into(),
+        "inverse_lerp" => format!("gd::inverse_lerp({all})"),
+        "linear_to_db" => format!("gd::linear_to_db({one})"),
+        "db_to_linear" => format!("gd::db_to_linear({one})"),
+        "emit_signal" if !args.is_empty() => {
+            format!("gd::emit_now(self.node, {one}, {})", any_list(&args[1..]))
+        }
         _ => return None,
     })
 }
@@ -251,62 +254,62 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
     let one = args.first().cloned().unwrap_or_default();
     Some(match (class, name) {
         ("Time", "get_unix_time_from_system") => "engine::unix_time()".into(),
-        ("Time", "get_ticks_msec") => "(engine::time() * 1000.0)".into(),
-        ("Time", "get_ticks_usec") => "(engine::time() * 1000000.0)".into(),
-        ("Time", _) => format!("engine::unix_time() /* Time.{name} */"),
+        ("Time", "get_ticks_msec") => "((engine::time() * 1000.0) as int)".into(),
+        ("Time", "get_ticks_usec") => "((engine::time() * 1000000.0) as int)".into(),
+        ("Time", _) => format!("gd::todo(\"Time.{name}\")"),
         ("Engine", "get_frames_per_second" | "get_process_frames" | "get_physics_frames") => {
             "engine::tick()".into()
         }
-        ("Engine", "is_editor_hint") => "(gd.has_feature)(\"editor\")".into(),
+        ("Engine", "is_editor_hint") => "gd::has_feature(\"editor\")".into(),
         ("Engine", "is_debug_build") => "false".into(),
         ("Engine", "has_singleton") => "engine::has_plugin({one})".replace("{one}", &one),
         ("OS", "get_unique_id") => "engine::device_id()".into(),
         ("OS", "is_debug_build") => "engine::target().dev".into(),
         // A button group is the widget's `group` name here.
-        ("ButtonGroup" | "FoldableGroup", "new") => "(gd.button_group)()".into(),
-        ("RandomNumberGenerator", "new") => "(gd.random_numbers)()".into(),
+        ("ButtonGroup" | "FoldableGroup", "new") => "gd::button_group()".into(),
+        ("RandomNumberGenerator", "new") => "gd::random_numbers()".into(),
         ("ProjectSettings", "get" | "get_setting") => {
-            let fallback = args.get(1).map_or("()", String::as_str);
-            format!("(gd.project_setting)({one}, {fallback})")
+            let fallback = args.get(1).map_or("nil", String::as_str);
+            format!("gd::project_setting({one}, {fallback})")
         }
         ("ProjectSettings", "has_setting") => {
-            format!("!(gd.is_nil)((gd.project_setting)({one}, ()))")
+            format!("!gd::is_nil(gd::project_setting({one}, nil))")
         }
         // A project path is the path here: `fs` resolves it against the project.
         ("ProjectSettings", "globalize_path" | "localize_path") => {
-            format!("(gd.project_path)({one})")
+            format!("gd::project_path({one})")
         }
-        ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
-        ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
-        ("DisplayServer", "window_get_size" | "screen_get_size") => "(gd.screen_size)()".into(),
+        ("OS", "has_feature") => format!("gd::has_feature({one})"),
+        ("OS" | "DisplayServer", "get_name") => "gd::os_name()".into(),
+        ("DisplayServer", "window_get_size" | "screen_get_size") => "gd::screen_size()".into(),
         ("OS", "get_user_data_dir") => "engine::user_data_directory()".into(),
-        ("OS", "shell_open") => format!("engine::open_url({one})"),
+        ("OS", "shell_open") => format!("gd::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
-        ("ConfigFile", "new") => "(gd.config)()".into(),
+        ("ConfigFile", "new") => "gd::config()".into(),
         ("OS", "get_cmdline_args" | "get_cmdline_user_args") => "engine::args()".into(),
-        ("OS", "get_environment") => format!("(gd.environment)({one})"),
-        ("OS", "has_environment") => format!("(gd.has_environment)({one})"),
+        ("OS", "get_environment") => format!("gd::environment({one})"),
+        ("OS", "has_environment") => format!("gd::has_environment({one})"),
         ("JSON", "stringify") => format!("json::encode({one})"),
         ("JSON", "parse_string") => format!("json::parse({one})"),
-        ("JSON", "new") => "(gd.json_object)()".into(),
-        ("Shader", "new") => "(gd.shader)()".into(),
-        ("ArrayMesh", "new") => "(gd.array_mesh)()".into(),
-        ("MultiMesh", "new") => "(gd.multimesh)()".into(),
-        ("RegEx", "new") => "(gd.regexp)()".into(),
-        ("RegEx", "create_from_string") => format!("(gd.regexp_of)({one})"),
+        ("JSON", "new") => "gd::json_object()".into(),
+        ("Shader", "new") => "gd::shader()".into(),
+        ("ArrayMesh", "new") => "gd::array_mesh()".into(),
+        ("MultiMesh", "new") => "gd::multimesh()".into(),
+        ("RegEx", "new") => "gd::regexp()".into(),
+        ("RegEx", "create_from_string") => format!("gd::regexp_of({one})"),
         // A texture is a path here, so an image loaded from one is that path.
-        ("Image", "new") => "(gd.image)()".into(),
-        ("ImageTexture", "create_from_image") => format!("(gd.image_texture)({one})"),
-        ("ShaderMaterial", "new") => "(gd.shader_material)()".into(),
-        ("CircleShape2D", "new") => "(gd.circle_shape)()".into(),
-        ("RectangleShape2D", "new") => "(gd.rect_shape)()".into(),
-        ("FileAccess", "open") => format!("(gd.file_open)({all})"),
-        ("FileAccess", "get_open_error") => "(gd.file_error)()".into(),
+        ("Image", "new") => "gd::image()".into(),
+        ("ImageTexture", "create_from_image") => format!("gd::image_texture({one})"),
+        ("ShaderMaterial", "new") => "gd::shader_material()".into(),
+        ("CircleShape2D", "new") => "gd::circle_shape()".into(),
+        ("RectangleShape2D", "new") => "gd::rect_shape()".into(),
+        ("FileAccess", "open") => format!("gd::file_open({all})"),
+        ("FileAccess", "get_open_error") => "gd::file_error()".into(),
         ("FileAccess", "get_modified_time") => {
-            format!("fs::modified_time((gd.project_path)({one}))")
+            format!("fs::modified_time(gd::project_path({one}))")
         }
         ("FileAccess", "get_file_as_string") => {
-            format!("(gd.or_text)(fs::read((gd.project_path)({one})))")
+            format!("gd::or_text(fs::read(gd::project_path({one})), \"\")")
         }
         ("Engine", "get_main_loop") => TREE.into(),
         // Every bus is the master bus here; `-1` is Godot's "no such bus".
@@ -322,8 +325,8 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         }
         ("TranslationServer", "translate") => format!("strings::tr({one})"),
         ("TranslationServer", "get_locale") => "strings::locale()".into(),
-        ("Vector2", "ZERO") => "(gd.vec2)(0.0, 0.0)".into(),
-        ("Vector2", "ONE") => "(gd.vec2)(1.0, 1.0)".into(),
+        ("Vector2", "ZERO") => "gd::vec2(0.0, 0.0)".into(),
+        ("Vector2", "ONE") => "gd::vec2(1.0, 1.0)".into(),
         ("TranslationServer", "set_locale") => format!("strings::set_locale({one})"),
         ("TranslationServer", "get_loaded_locales") => "strings::locales()".into(),
         ("ProjectSettings", "set_setting") => format!("settings::set({all})"),
@@ -347,17 +350,17 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
     Some(match (class, name) {
         // Godot's buttons count from one; the engine's from zero.
         ("Input", "is_mouse_button_pressed") => format!("input::mouse_down({one} - 1)"),
-        ("Performance", "get_monitor") => format!("(gd.monitor)({one})"),
-        ("ResourceLoader", "exists") => format!("(gd.resource_exists)({one})"),
+        ("Performance", "get_monitor") => format!("gd::monitor({one})"),
+        ("ResourceLoader", "exists") => format!("gd::resource_exists({one})"),
         ("ResourceLoader", "load") if !args.is_empty() => loaded(&args[0]),
         ("Marshalls", "base64_to_raw" | "base64_to_utf8") => {
             format!("encoding::from_base64({one})")
         }
         ("Marshalls", "raw_to_base64" | "utf8_to_base64") => format!("encoding::base64({one})"),
-        ("FileAccess", "get_sha256") => format!("hash::sha256((gd.project_path)({one}))"),
-        ("DirAccess", "rename_absolute") => format!("fs::rename({all})"),
+        ("FileAccess", "get_sha256") => format!("hash::sha256(gd::project_path({one}))"),
+        ("DirAccess", "rename_absolute") => format!("gd::rename({all})"),
         ("DirAccess", "remove_absolute") => format!("fs::remove({one})"),
-        ("DirAccess", "open") => format!("(gd.dir_open)({one})"),
+        ("DirAccess", "open") => format!("gd::dir_open({one})"),
         ("DisplayServer", "screen_set_keep_on") => format!("window::set_keep_awake({one})"),
         // A platform has the display verbs this table carries, and no other.
         ("DisplayServer", "has_method") => {
@@ -379,19 +382,19 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         ("JavaScriptBridge", "eval") if one.contains("document.hidden") => {
             "!browser::visible()".into()
         }
-        ("JavaScriptBridge", "eval") if one.contains("reload") => "()".into(),
+        ("JavaScriptBridge", "eval") if one.contains("reload") => "nil".into(),
         ("JavaScriptBridge", "eval") => "-1".into(),
-        ("JavaScriptBridge", "get_interface") => "()".into(),
-        ("Vector2", "from_angle") => format!("(gd.vec_from_angle)({one})"),
+        ("JavaScriptBridge", "get_interface") => "nil".into(),
+        ("Vector2", "from_angle") => format!("gd::vec_from_angle({one})"),
         // Every bus is the master bus here, as `get_bus_index` says.
         ("AudioServer", "set_bus_volume_db") if args.len() == 2 => {
             format!(
-                "audio::set_bus_volume_linear(\"master\", (gd.db_to_linear)({}))",
+                "audio::set_bus_volume_linear(\"master\", gd::db_to_linear({}))",
                 args[1]
             )
         }
         ("AudioServer", "get_bus_volume_db") => {
-            "(gd.linear_to_db)(audio::bus_volume_linear(\"master\"))".into()
+            "gd::linear_to_db(audio::bus_volume_linear(\"master\"))".into()
         }
         ("AudioServer", "set_bus_mute") if args.len() == 2 => format!(
             "audio::set_bus_volume_linear(\"master\", if {} {{ 0.0 }} else {{ 1.0 }})",
@@ -403,11 +406,11 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         }
         // Godot's y runs down and the engine's up, so the winding flips.
         ("Geometry2D", "is_polygon_clockwise") => format!("!geometry2d::is_clockwise({one})"),
-        ("Geometry2D", "merge_polygons") => format!("(gd.merge_polygons)({all})"),
+        ("Geometry2D", "merge_polygons") => format!("gd::merge_polygons({all})"),
         ("Geometry2D", "segment_intersects_segment") => {
             format!("geometry2d::segments_intersect({all})")
         }
-        ("Geometry2D", "triangulate_polygon") => format!("(gd.triangulate)({one})"),
+        ("Geometry2D", "triangulate_polygon") => format!("gd::triangulate({one})"),
         _ => return None,
     })
 }
@@ -416,29 +419,29 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
 /// called.
 pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
     Some(match (class, name) {
-        ("Vector2" | "Vector2i", "ZERO") => "(gd.vec2)(0.0, 0.0)".into(),
-        ("Vector2" | "Vector2i", "ONE") => "(gd.vec2)(1.0, 1.0)".into(),
-        ("Vector2" | "Vector2i", "UP") => "(gd.vec2)(0.0, -1.0)".into(),
-        ("Vector2" | "Vector2i", "DOWN") => "(gd.vec2)(0.0, 1.0)".into(),
-        ("Vector2" | "Vector2i", "LEFT") => "(gd.vec2)(-1.0, 0.0)".into(),
-        ("Vector2" | "Vector2i", "RIGHT") => "(gd.vec2)(1.0, 0.0)".into(),
+        ("Vector2" | "Vector2i", "ZERO") => "gd::vec2(0.0, 0.0)".into(),
+        ("Vector2" | "Vector2i", "ONE") => "gd::vec2(1.0, 1.0)".into(),
+        ("Vector2" | "Vector2i", "UP") => "gd::vec2(0.0, -1.0)".into(),
+        ("Vector2" | "Vector2i", "DOWN") => "gd::vec2(0.0, 1.0)".into(),
+        ("Vector2" | "Vector2i", "LEFT") => "gd::vec2(-1.0, 0.0)".into(),
+        ("Vector2" | "Vector2i", "RIGHT") => "gd::vec2(1.0, 0.0)".into(),
         ("Tween", trans) if trans.starts_with("TRANS_") => {
             quoted(&trans["TRANS_".len()..].to_lowercase())
         }
         ("Tween", mode) if mode.starts_with("EASE_") => {
             quoted(&mode["EASE_".len()..].to_lowercase())
         }
-        ("Color", "WHITE") => "(gd.color)(1.0, 1.0, 1.0, 1.0)".into(),
-        ("Color", "BLACK") => "(gd.color)(0.0, 0.0, 0.0, 1.0)".into(),
-        ("Color", "TRANSPARENT") => "(gd.color)(0.0, 0.0, 0.0, 0.0)".into(),
-        ("Color", "RED") => "(gd.color)(1.0, 0.0, 0.0, 1.0)".into(),
-        ("Color", "GREEN") => "(gd.color)(0.0, 1.0, 0.0, 1.0)".into(),
-        ("Color", "BLUE") => "(gd.color)(0.0, 0.0, 1.0, 1.0)".into(),
-        ("Color", "YELLOW") => "(gd.color)(1.0, 1.0, 0.0, 1.0)".into(),
-        ("Color", "ORANGE") => "(gd.color)(1.0, 0.647, 0.0, 1.0)".into(),
-        ("Color", "GRAY") => "(gd.color)(0.75, 0.75, 0.75, 1.0)".into(),
-        ("Vector2", "INF") => "(gd.vec2)(1.0 / 0.0, 1.0 / 0.0)".into(),
-        ("Transform2D", "IDENTITY") => "balaur::Transform2d::IDENTITY".into(),
+        ("Color", "WHITE") => "gd::color(1.0, 1.0, 1.0, 1.0)".into(),
+        ("Color", "BLACK") => "gd::color(0.0, 0.0, 0.0, 1.0)".into(),
+        ("Color", "TRANSPARENT") => "gd::color(0.0, 0.0, 0.0, 0.0)".into(),
+        ("Color", "RED") => "gd::color(1.0, 0.0, 0.0, 1.0)".into(),
+        ("Color", "GREEN") => "gd::color(0.0, 1.0, 0.0, 1.0)".into(),
+        ("Color", "BLUE") => "gd::color(0.0, 0.0, 1.0, 1.0)".into(),
+        ("Color", "YELLOW") => "gd::color(1.0, 1.0, 0.0, 1.0)".into(),
+        ("Color", "ORANGE") => "gd::color(1.0, 0.647, 0.0, 1.0)".into(),
+        ("Color", "GRAY") => "gd::color(0.75, 0.75, 0.75, 1.0)".into(),
+        ("Vector2", "INF") => "gd::vec2(1.0 / 0.0, 1.0 / 0.0)".into(),
+        ("Transform2D", "IDENTITY") => "gd::transform2d([])".into(),
         (class, name) => class_constant(class, name)?.to_string(),
     })
 }
@@ -549,12 +552,25 @@ fn class_constant(class: &str, name: &str) -> Option<i64> {
     })
 }
 
-/// A bare constructor for one of Godot's value types.
-pub(crate) fn value_type(name: &str) -> Option<&'static str> {
+/// A bare constructor for one of Godot's value types: empty, or a copy of
+/// the one it is given.
+pub(crate) fn value_type(name: &str, parts: &[String]) -> Option<String> {
+    let copy = || format!("gd::duplicate({})", parts[0]);
     Some(match name {
-        "Rect2" | "Rect2i" => "(gd.rect)",
+        "Rect2" | "Rect2i" => match parts.len() {
+            2 => format!("gd::rect_of({}, {})", parts[0], parts[1]),
+            4 => format!("gd::rect({})", parts.join(", ")),
+            _ => "gd::rect(0.0, 0.0, 0.0, 0.0)".into(),
+        },
+        "Dictionary" if parts.is_empty() => "map()".into(),
         "PackedStringArray" | "PackedFloat32Array" | "PackedInt32Array" | "PackedVector2Array"
-        | "PackedByteArray" | "Array" | "Dictionary" => "(gd.empty_of)",
+        | "PackedByteArray" | "Array"
+            if parts.is_empty() =>
+        {
+            "gd::list()".into()
+        }
+        "PackedStringArray" | "PackedFloat32Array" | "PackedInt32Array" | "PackedVector2Array"
+        | "PackedByteArray" | "Array" | "Dictionary" => copy(),
         _ => return None,
     })
 }
@@ -574,7 +590,7 @@ pub(crate) fn constant(name: &str) -> Option<String> {
         "PI" => "math::PI".into(),
         "TAU" => "math::TAU".into(),
         "INF" => "math::INFINITY".into(),
-        "NAN" => "(gd.nan)()".into(),
+        "NAN" => "gd::nan()".into(),
         _ => return None,
     })
 }
@@ -582,33 +598,26 @@ pub(crate) fn constant(name: &str) -> Option<String> {
 /// `x is Ship`. A project class is a script, which the engine tests by name;
 /// the built-in types test by Rune's own kinds.
 pub(crate) fn type_test(value: &str, name: &str) -> String {
-    let simple = value
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
-    let value = if simple {
-        value.to_string()
-    } else {
-        format!("({value})")
+    let kind = match name {
+        "int" => "int",
+        "float" => "float",
+        "bool" => "bool",
+        "String" | "StringName" => "str",
+        "Array" => "list",
+        "Dictionary" => return format!("gd::is_dict({value})"),
+        _ => return format!("gd::is_a({value}, {})", quoted(name)),
     };
-    match name {
-        "int" => format!("{value} is i64"),
-        "float" => format!("{value} is f64"),
-        "bool" => format!("{value} is bool"),
-        "String" | "StringName" => format!("{value} is String"),
-        "Array" => format!("{value} is Vec"),
-        "Dictionary" => format!("(gd.is_dict)({value})"),
-        _ => format!("(gd.is_a)({value}, {})", quoted(name)),
-    }
+    format!("gd::is_kind({value}, \"{kind}\")")
 }
 
 /// `x as float`: a numeric cast is real work here, where it was an assertion
 /// in GDScript.
 pub(crate) fn cast(value: &str, name: &str) -> String {
     match name {
-        "float" => format!("(gd.float)({value})"),
-        "int" => format!("(gd.int)({value})"),
-        "bool" => format!("(gd.bool)({value})"),
-        "String" | "StringName" => format!("(gd.str)({value})"),
+        "float" => format!("gd::float({value})"),
+        "int" => format!("gd::int({value})"),
+        "bool" => format!("gd::bool({value})"),
+        "String" | "StringName" => format!("gd::str({value})"),
         _ => value.to_string(),
     }
 }
@@ -651,45 +660,59 @@ const NODE_PROPERTIES: &[&str] = &[
 ];
 
 pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
+    let node = node_text(receiver);
     // `this.<export>` and every other script field stay fields.
     if receiver == "this" {
         return None;
     }
     // A receiver only known at run time may be a rect or a table as well as
     // a node: the shim's `field` asks which.
-    let node = receiver == "this.node";
-    if !node && NODE_PROPERTIES.contains(&field) {
+    if receiver != "self.node" && NODE_PROPERTIES.contains(&field) {
         return None;
     }
     Some(match field {
-        "visible" => format!("{receiver}.visible()"),
+        "visible" => format!("{node}.visible()"),
         // Kept beside the node by the shim: the engine has no fold groups.
-        "foldable_group" => format!("(gd.field)({receiver}, \"foldable_group\")"),
-        "global_position" => format!("(gd.global_position_of)({receiver})"),
-        "position" => format!("(gd.position_of)({receiver})"),
-        "scale" => format!("(gd.vec_of)({receiver}.transform.scale)"),
-        "modulate" | "self_modulate" => format!("{receiver}.tint()"),
-        "z_index" => format!("{receiver}.z_index()"),
-        "name" => format!("{receiver}.name()"),
-        "rotation_degrees" => format!("math::to_degrees((gd.rotation_of)({receiver}))"),
-        "custom_minimum_size" => format!("(gd.min_size)({receiver})"),
-        "size" => format!("(gd.size_of)({receiver})"),
-        "theme" => format!("(gd.theme_of)({receiver})"),
-        "rotation" => format!("(gd.rotation_of)({receiver})"),
+        "foldable_group" => format!("gd::field({receiver}, \"foldable_group\")"),
+        "global_position" => format!("gd::global_position_of({receiver})"),
+        "position" => format!("gd::position_of({receiver})"),
+        "scale" => format!("gd::vec_of({node}.transform.scale)"),
+        "modulate" | "self_modulate" => format!("gd::node_property({node}, \"modulate\")"),
+        "z_index" => format!("{node}.z_index()"),
+        "name" => format!("{node}.name()"),
+        "rotation_degrees" => format!("math::to_degrees(gd::rotation_of({receiver}))"),
+        "custom_minimum_size" => format!("gd::min_size({receiver})"),
+        "size" => format!("gd::size_of({receiver})"),
+        "theme" => format!("gd::theme_of({receiver})"),
+        "rotation" => format!("gd::rotation_of({receiver})"),
         "current_scene" | "root" => "scene::root()".into(),
-        "selected" => format!("(gd.option_index)({receiver})"),
-        "item_count" => format!("(gd.option_count)({receiver})"),
-        "disabled" => format!("!(gd.get)({receiver}.get_component(\"widget\"), \"enabled\", true)"),
-        "text" => format!("(gd.text_of)({receiver})"),
-        "icon" => format!("(gd.icon_of)({receiver})"),
-        "folded" => format!("(gd.folded)({receiver})"),
+        "selected" => format!("gd::option_index({receiver})"),
+        "item_count" => format!("gd::option_count({receiver})"),
+        "disabled" => format!("!gd::get({node}.get_component(\"widget\"), \"enabled\", true)"),
+        "text" => format!("gd::text_of({receiver})"),
+        "icon" => format!("gd::icon_of({receiver})"),
+        "folded" => format!("gd::folded({receiver})"),
         "pressed" | "button_pressed" | "editable" | "placeholder_text" | "tooltip_text"
         | "value" | "max_value" | "min_value" => {
             let key = widget_key(field);
-            format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
+            format!("gd::get({node}.get_component(\"widget\"), \"{key}\", nil)")
         }
         _ => return None,
     })
+}
+
+/// A receiver as a node: itself where it is one, else the `any` it is read
+/// as one, which is an invalid node when it holds something else.
+pub(crate) fn node_text(receiver: &str) -> String {
+    let typed = receiver == "self.node"
+        || receiver.ends_with(".as_node()")
+        || receiver.ends_with(".parent()")
+        || receiver.starts_with("scene::");
+    if typed {
+        receiver.to_string()
+    } else {
+        format!("gd::node_of({receiver})")
+    }
 }
 
 /// The widget component's key for a Godot button, field or range property: a
@@ -707,7 +730,7 @@ fn widget_key(field: &str) -> &str {
 
 /// An argument Godot lets a call leave out, as nil when it did.
 fn or_nil(arg: &str) -> &str {
-    if arg.is_empty() { "()" } else { arg }
+    if arg.is_empty() { "nil" } else { arg }
 }
 
 /// Godot's `Tween`, whose builder the shim runs over `animation::tween`.
@@ -715,21 +738,21 @@ fn tween_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
-        "create_tween" => format!("(gd.create_tween)({receiver})"),
-        "set_trans" => format!("(gd.set_trans)({receiver}, {one})"),
-        "set_ease" => format!("(gd.set_ease)({receiver}, {one})"),
-        "tween_property" if args.len() == 4 => format!("(gd.tween_property)({receiver}, {all})"),
-        "tween_interval" => format!("(gd.tween_interval)({receiver}, {one})"),
-        "tween_callback" => format!("(gd.tween_callback)({receiver}, {one})"),
-        "kill" => format!("(gd.kill_tween)({receiver})"),
-        "is_running" => format!("(gd.tween_running)({receiver})"),
-        "parallel" => format!("(gd.tween_parallel)({receiver})"),
-        "chain" => format!("(gd.tween_chain)({receiver})"),
-        "set_parallel" => format!("(gd.tween_set_parallel)({receiver}, {})", or_nil(&one)),
-        "set_loops" => format!("(gd.tween_loops)({receiver}, {})", or_nil(&one)),
+        "create_tween" => format!("gd::create_tween({receiver})"),
+        "set_trans" => format!("gd::set_trans({receiver}, {one})"),
+        "set_ease" => format!("gd::set_ease({receiver}, {one})"),
+        "tween_property" if args.len() == 4 => format!("gd::tween_property({receiver}, {all})"),
+        "tween_interval" => format!("gd::tween_interval({receiver}, {one})"),
+        "tween_callback" => format!("gd::tween_callback({receiver}, {one})"),
+        "kill" => format!("gd::kill_tween({receiver})"),
+        "is_running" => format!("gd::tween_running({receiver})"),
+        "parallel" => format!("gd::tween_parallel({receiver})"),
+        "chain" => format!("gd::tween_chain({receiver})"),
+        "set_parallel" => format!("gd::tween_set_parallel({receiver}, {})", or_nil(&one)),
+        "set_loops" => format!("gd::tween_loops({receiver}, {})", or_nil(&one)),
         // A step here starts as it is declared, and runs at the node's speed.
         "set_speed_scale" | "bind_node" | "set_process_mode" => {
-            format!("(gd.tween_same)({receiver}, \"{name}\", [{all}])")
+            format!("gd::tween_same({receiver}, \"{name}\", {})", any_list(args))
         }
         _ => return None,
     })
@@ -741,14 +764,16 @@ fn tween_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
 /// shim, which does the same rewrite then.
 fn loaded(arg: &str) -> String {
     let Some(literal) = arg.strip_prefix('"').and_then(|a| a.strip_suffix('"')) else {
-        return format!("(gd.load)({arg})");
+        return format!("gd::load({arg})");
     };
     let path = crate::godot::relative_path(literal);
     if crate::godot::files::has_extension(path, "tres") {
-        return format!("(gd.resource)({})", quoted(&format!("{path}.rn")));
+        let module = crate::godot::resource::module_path(path);
+        let name = super::module_name(&module);
+        return format!("{RESOURCE_CALL}{}, {name}::resource)", quoted(path));
     }
     if crate::godot::files::has_extension(path, "csv") {
-        return format!("(gd.csv_resource)({})", quoted(path));
+        return format!("gd::csv_resource({})", quoted(path));
     }
     match path.strip_suffix(".tscn") {
         Some(stem) => quoted(&format!("{stem}.toml")),
@@ -760,13 +785,14 @@ fn loaded(arg: &str) -> String {
 /// so at run time. A file that does not compile stops the whole project, and
 /// the port needs one that boots.
 pub(crate) fn todo(what: &str) -> String {
-    format!("(gd.todo)({})", quoted(what))
+    format!("gd::todo({})", quoted(what))
 }
 
 /// Writing a Godot property: `node.visible = false` is a call here. The
 /// vector and colour setters take their components apart, so the value goes
 /// through the shim and is evaluated once.
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
+    let node = node_text(receiver);
     const WIDGET: &[&str] = &[
         "pressed",
         "button_pressed",
@@ -778,17 +804,17 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "tooltip_text",
     ];
     if field == "selected" {
-        return Some(format!("(gd.option_select)({receiver}, {value})"));
+        return Some(format!("gd::option_select({receiver}, {value})"));
     }
     if field == "text" {
-        return Some(format!("(gd.set_text)({receiver}, {value})"));
+        return Some(format!("gd::set_text({receiver}, {value})"));
     }
     if field == "icon" {
-        return Some(format!("(gd.set_icon)({receiver}, {value})"));
+        return Some(format!("gd::set_icon({receiver}, {value})"));
     }
     if field == "disabled" {
         return Some(format!(
-            "(gd.patch_widget)({receiver}, #{{ \"enabled\": !({value}) }})"
+            "gd::patch_widget({receiver}, map().with(\"enabled\", !({value})))"
         ));
     }
     // The window's content scale is the UI's global scale here.
@@ -798,35 +824,39 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     if WIDGET.contains(&field) {
         let key = widget_key(field);
         return Some(format!(
-            "(gd.patch_widget)({receiver}, #{{ \"{key}\": {value} }})"
+            "gd::patch_widget({receiver}, map().with(\"{key}\", {value}))"
         ));
     }
-    if receiver != "this.node" && NODE_PROPERTIES.contains(&field) {
-        return Some(format!("(gd.set_field)({receiver}, \"{field}\", {value})"));
+    if receiver != "self.node" && NODE_PROPERTIES.contains(&field) {
+        return Some(format!("gd::set_field({receiver}, \"{field}\", {value})"));
     }
     Some(match field {
-        "visible" => format!("{receiver}.set_visible({value})"),
+        "visible" => format!("{node}.set_visible({value})"),
         // Godot numbers its cursor shapes; the widget names its `cursor`.
         "mouse_default_cursor_shape" => {
-            format!("(gd.patch_widget)({receiver}, #{{ \"cursor\": (gd.cursor_word)({value}) }})")
+            format!(
+                "gd::patch_widget({receiver}, map().with(\"cursor\", gd::cursor_word({value})))"
+            )
         }
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
         "mouse_filter" => {
-            format!("(gd.patch_widget)({receiver}, #{{ \"interactive\": {value} != 2 }})")
+            format!("gd::patch_widget({receiver}, map().with(\"interactive\", {value} != 2))")
         }
-        "position" => format!("(gd.set_position)({receiver}, {value})"),
-        "global_position" => format!("(gd.set_global_position)({receiver}, {value})"),
-        "scale" => format!("(gd.set_scale)({receiver}, {value})"),
-        "modulate" | "self_modulate" => format!("(gd.set_tint)({receiver}, {value})"),
-        "z_index" => format!("{receiver}.set_z_index({value})"),
-        "name" => format!("{receiver}.set_name({value})"),
-        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::to_radians({value}))"),
-        "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
-        "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
+        "position" => format!("gd::set_position({receiver}, {value})"),
+        "global_position" => format!("gd::set_global_position({receiver}, {value})"),
+        "scale" => format!("gd::set_scale({receiver}, {value})"),
+        "modulate" | "self_modulate" => format!("gd::set_tint({receiver}, {value})"),
+        "z_index" => format!("{node}.set_z_index({value})"),
+        "name" => format!("{node}.set_name({value})"),
+        "rotation_degrees" => format!("gd::set_rotation({receiver}, math::to_radians({value}))"),
+        "rotation" => format!("gd::set_rotation({receiver}, {value})"),
+        "custom_minimum_size" => format!("gd::set_min_size({receiver}, {value})"),
         // A control's own size is the widget panel's width and height here.
-        "size" => format!("(gd.set_size)({receiver}, {value})"),
+        "size" => format!("gd::set_size({receiver}, {value})"),
         "button_group" => {
-            format!("(gd.patch_widget)({receiver}, #{{ \"group\": {value}, \"toggle\": true }})")
+            format!(
+                "gd::patch_widget({receiver}, map().with(\"group\", {value}).with(\"toggle\", true))"
+            )
         }
         _ => return None,
     })
@@ -844,7 +874,7 @@ fn string_verb(name: &str) -> Option<&'static str> {
         "split" => "split",
         "join" => "join",
         "substr" => "substr",
-        "length" => "size",
+        "length" => "length",
         "format" => "format_map",
         "to_int" => "int",
         "to_float" => "float",
@@ -894,37 +924,41 @@ fn draw_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         ("draw_string", 7),
     ];
     if name == "queue_redraw" {
-        return Some(format!("(gd.queue_redraw)({receiver})"));
+        return Some(format!("gd::queue_redraw({receiver})"));
     }
     let (_, takes) = VERBS.iter().find(|(verb, _)| *verb == name)?;
     let mut parts: Vec<String> = args.iter().take(*takes).cloned().collect();
-    parts.resize(*takes, "()".to_string());
-    Some(format!("(gd.{name})({receiver}, {})", parts.join(", ")))
+    parts.resize(*takes, "nil".to_string());
+    Some(format!("gd::{name}({receiver}, {})", parts.join(", ")))
 }
 
 /// What a node answers about itself: its hash, its children, its focus and
 /// where the canvas put it.
 fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
+    let node = node_text(receiver);
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
         // `name.hash()`: the global `hash` on any value, as Godot answers it.
-        "hash" if args.is_empty() => format!("(gd.hash)({receiver})"),
+        "hash" if args.is_empty() => format!("gd::hash({receiver})"),
         "get_canvas_transform" | "get_viewport_transform" => {
-            format!("(gd.canvas_transform)({receiver})")
+            format!("gd::canvas_transform({receiver})")
         }
-        "get_child_count" => format!("{receiver}.children().len()"),
-        "has_focus" => format!("(gd.same)(ui::focused_widget(), {receiver})"),
+        "get_child_count" => format!("{node}.children().len()"),
+        "has_focus" => format!("gd::same(ui::focused_widget(), {receiver})"),
         // Focus is the widget layer's to give.
-        "release_focus" => "()".into(),
-        "add_title_bar_control" => format!("(gd.add_title_bar_control)({receiver}, {one})"),
+        "release_focus" => "nil".into(),
+        "add_title_bar_control" => format!("gd::add_title_bar_control({receiver}, {one})"),
         // The hook that handed the event over answers `true` for it.
-        "accept_event" | "set_input_as_handled" => "(gd.set_input_handled)()".into(),
+        "accept_event" | "set_input_as_handled" => "gd::set_input_handled()".into(),
         // A per-node switch the hooks the translator writes read first.
         "set_process_input" | "set_process_unhandled_input" | "set_process_unhandled_key_input" => {
-            if receiver == "this.node" {
-                format!("this.input_enabled = {one}")
+            if receiver == "self.node" {
+                format!("self.{}.{} = {one}", super::MY, super::INPUT_FLAG)
             } else {
-                format!("(gd.set_field)({receiver}, \"input_enabled\", {one})")
+                format!(
+                    "gd::set_field({receiver}, \"{}\", {one})",
+                    super::INPUT_FLAG
+                )
             }
         }
         _ => return None,
@@ -937,15 +971,18 @@ fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
         "get_nodes_in_group" => format!("scene::tagged({one})"),
-        "create_timer" => format!("(gd.timer)({one})"),
-        "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
-        "reload_current_scene" => "scene::switch(scene::source())".into(),
+        "create_timer" => format!("gd::timer({one})"),
+        // A path known only as it runs: `load` makes it the converted scene's.
+        "change_scene_to_file" | "change_scene_to_packed" => {
+            format!("scene::switch(gd::text(gd::load({one})))")
+        }
+        "reload_current_scene" => "gd::todo(\"reload_current_scene\")".into(),
         "quit" if receiver == TREE => format!(
             "engine::quit({})",
             args.first().cloned().unwrap_or("0".into())
         ),
         "get_root" => "scene::root()".into(),
-        "get_first_node_in_group" => format!("(gd.front)(scene::tagged({one}))"),
+        "get_first_node_in_group" => format!("gd::front(scene::tagged({one}))"),
         _ => return None,
     })
 }
@@ -954,7 +991,7 @@ fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
 /// where the engine call wants it.
 #[allow(clippy::match_same_arms)]
 pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<String> {
-    let all = args.join(", ");
+    let node = node_text(receiver);
     let one = args.first().cloned().unwrap_or_default();
     if let Some(text) = tween_verb(receiver, name, args) {
         return Some(text);
@@ -972,28 +1009,29 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         return Some(text);
     }
     // A shim verb takes the value Godot called it on as its first argument.
+    // A shim verb takes every argument it declares: what Godot let the call
+    // leave out is nil.
     let with_receiver = |verb: &str| {
-        if args.is_empty() {
-            format!("(gd.{verb})({receiver})")
-        } else {
-            format!("(gd.{verb})({receiver}, {all})")
-        }
+        let mut all = vec![receiver.to_string()];
+        all.extend(args.iter().cloned());
+        super::shim::padded(verb, &mut all);
+        format!("gd::{verb}({})", all.join(", "))
     };
     Some(match name {
         // Collections and strings, through the shim: Godot answered all of
         // these on every Variant and Rune's types do not.
         "duplicate" if args.first().is_some_and(|deep| deep == "true") => {
-            format!("(gd.duplicate_deep)({receiver})")
+            format!("gd::duplicate_deep({receiver})")
         }
-        "duplicate" => format!("(gd.duplicate)({receiver})"),
+        "duplicate" => format!("gd::duplicate({receiver})"),
         "size" | "is_empty" | "keys" | "values" | "clear" | "front" | "back" | "pop_front"
         | "pop_back" | "sort" | "reverse" => with_receiver(name),
         // The shim's `get` always takes a fallback; Godot's defaults to null.
-        "get" if args.len() == 1 => format!("(gd.get)({receiver}, {one}, ())"),
+        "get" if args.len() == 1 => format!("gd::get({receiver}, {one}, nil)"),
         "get" => with_receiver("get"),
         "set" if args.len() == 2 => with_receiver("set"),
         "has" | "has_key" => with_receiver("has"),
-        "is_valid" if args.is_empty() => format!("(gd.valid)({receiver})"),
+        "is_valid" if args.is_empty() => format!("gd::valid({receiver})"),
         "append" | "push_back" => with_receiver("append"),
         "append_array" => with_receiver("append_array"),
         "erase" => with_receiver("erase"),
@@ -1002,63 +1040,63 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "slice" => with_receiver("slice"),
         _ if string_verb(name).is_some() => with_receiver(string_verb(name)?),
         // Nodes.
-        "queue_free" => format!("{receiver}.queue_free()"),
-        "add_child" => format!("(gd.add_child)({receiver}, {one})"),
-        "get_parent" => format!("{receiver}.parent()"),
-        "get_children" => format!("{receiver}.children()"),
+        "queue_free" => format!("{node}.queue_free()"),
+        "add_child" => format!("gd::add_child({receiver}, {one})"),
+        "get_parent" => format!("{node}.parent()"),
+        "get_children" => format!("{node}.children()"),
         // An unset `NodePath` export is nothing, and Godot answered null.
-        "get_node" | "get_node_or_null" => format!("(gd.node_at)({receiver}, {one})"),
-        "instantiate" => format!("(gd.instantiate)({receiver})"),
+        "get_node" | "get_node_or_null" => format!("gd::node_at({receiver}, {one})"),
+        "instantiate" => format!("gd::instantiate({receiver})"),
         "find_child" => format!(
-            "(gd.front)((gd.find_children)({receiver}, {one}, \"\", {}))",
+            "gd::front(gd::find_children({receiver}, {one}, \"\", {}))",
             args.get(1).map_or("true", String::as_str)
         ),
         "find_children" => format!(
-            "(gd.find_children)({receiver}, {one}, {}, {})",
+            "gd::find_children({receiver}, {one}, {}, {})",
             args.get(1).map_or("\"\"", String::as_str),
             args.get(2).map_or("true", String::as_str)
         ),
-        "hide" | "show" => format!("{receiver}.set_visible({})", name == "show"),
-        "set_visible" => format!("{receiver}.set_visible({one})"),
-        "is_visible" => format!("{receiver}.visible()"),
-        "is_visible_in_tree" => format!("{receiver}.visible_in_tree()"),
-        "get_instance_id" => format!("{receiver}.stable_id()"),
-        "is_in_group" => format!("{receiver}.has_tag({one})"),
-        "add_to_group" => format!("{receiver}.add_tag({one})"),
-        "remove_from_group" => format!("{receiver}.remove_tag({one})"),
-        "has_method" => format!("{receiver}.has_method({one})"),
+        "hide" | "show" => format!("{node}.set_visible({})", name == "show"),
+        "set_visible" => format!("{node}.set_visible({one})"),
+        "is_visible" => format!("{node}.visible()"),
+        "is_visible_in_tree" => format!("{node}.visible_in_tree()"),
+        "get_instance_id" => format!("gd::instance_id({receiver})"),
+        "is_in_group" => format!("{node}.has_tag({one})"),
+        "add_to_group" => format!("{node}.add_tag({one})"),
+        "remove_from_group" => format!("{node}.remove_tag({one})"),
+        "has_method" => format!("{node}.has_method({one})"),
         "get_meta" => format!(
-            "(gd.get_meta)({receiver}, {one}, {})",
-            args.get(1).map_or("()", String::as_str)
+            "gd::get_meta({receiver}, {one}, {})",
+            args.get(1).map_or("nil", String::as_str)
         ),
         "set_meta" => format!(
-            "(gd.set_meta)({receiver}, {}, {})",
+            "gd::set_meta({receiver}, {}, {})",
             args.first()?,
             args.get(1)?
         ),
-        "has_meta" => format!("(gd.has_meta)({receiver}, {one})"),
-        "remove_meta" => format!("(gd.remove_meta)({receiver}, {one})"),
+        "has_meta" => format!("gd::has_meta({receiver}, {one})"),
+        "remove_meta" => format!("gd::remove_meta({receiver}, {one})"),
         _ if config_verb(name).is_some() => with_receiver(config_verb(name)?),
         // `call` on a node is the engine's own verb already.
-        "call" | "call_deferred" => format!("(gd.call_value)({receiver}, [{all}])"),
+        "call" | "call_deferred" => format!("gd::call_value({receiver}, {})", any_list(args)),
         // Frame ordering and drawing, which the engine states differently.
-        "is_node_ready" => format!("{receiver}.is_valid()"),
-        "is_inside_tree" => format!("(gd.inside_tree)({receiver})"),
+        "is_node_ready" => format!("{node}.is_valid()"),
+        "is_inside_tree" => format!("gd::inside_tree({receiver})"),
         // The viewport, which Godot reached through the node and the engine
         // reports as the screen.
-        "get_visible_rect" | "get_viewport_rect" => "(gd.viewport_rect)()".into(),
+        "get_visible_rect" | "get_viewport_rect" => "gd::viewport_rect()".into(),
         "get_global_transform" | "get_global_transform_with_canvas" => {
-            format!("(gd.global_transform)({receiver})")
+            format!("gd::global_transform({receiver})")
         }
-        "get_size" if receiver != TREE => format!("(gd.size_of)({receiver})"),
-        "get_size" | "get_screen_size" => "(gd.screen_size)()".into(),
-        "set_notify_transform" | "set_notify_local_transform" => "()".into(),
-        "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
-        "get_index" => format!("{receiver}.sibling_index()"),
-        "remove_child" => format!("(gd.remove_child)({one})"),
+        "get_size" if receiver != TREE => format!("gd::size_of({receiver})"),
+        "get_size" | "get_screen_size" => "gd::screen_size()".into(),
+        "set_notify_transform" | "set_notify_local_transform" => "nil".into(),
+        "move_to_front" => format!("{node}.set_sibling_index(-1)"),
+        "get_index" => format!("{node}.sibling_index()"),
+        "remove_child" => format!("gd::remove_child({one})"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
-            format!("(gd.patch_widget)({receiver}, #{{ \"checked\": {one} }})")
+            format!("gd::patch_widget({receiver}, map().with(\"checked\", {one}))")
         }
         _ => return None,
     })
@@ -1069,10 +1107,11 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 /// The keys of the records the shim's `call_value` calls: another object's
 /// method, with what `bind` fixed, and a handler with how many it takes. The
 /// shim spells them too, and a test holds the two together.
-pub(crate) const BOUND_OWNER: &str = "__bound";
+#[cfg(test)]
+pub(crate) const BOUND_OWNER: &str = "__target";
+#[cfg(test)]
 pub(crate) const BOUND_METHOD: &str = "__method";
 pub(crate) const BOUND_ARGS: &str = "__args";
-pub(crate) const CALL_KEY: &str = "__call";
 pub(crate) const CALL_TAKES: &str = "__takes";
 
 /// Godot's `Callable.bind`.
@@ -1087,55 +1126,52 @@ pub(crate) fn engine_signal(signal: &str) -> bool {
 /// takes it off again.
 pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -> String {
     let name = quoted(handler.unwrap_or(""));
-    format!("(gd.patch_widget)({receiver}, #{{ \"{key}\": {name} }})")
+    format!("gd::patch_widget({receiver}, map().with(\"{key}\", {name}))")
 }
 
 /// Hearing another node's signal. The engine calls the subscriber's
 /// `on_<name>`, which §Signals emits as a forwarder to Godot's handler.
 /// One script calling another's method. Godot reached it off the node; here
-/// the node is asked for it, and an object answers its own field. A shim per
-/// arity, because a Rune function takes the arguments it declares.
+/// the node is asked for it, and an object's class answers for it.
 pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> String {
-    if args.len() > MOST_ARGS {
-        return format!(
-            "(gd.invoke_many)({receiver}, {}, [{}])",
-            quoted(method),
-            args.join(", ")
-        );
-    }
-    let name = if args.is_empty() {
-        "invoke".to_string()
-    } else {
-        format!("invoke{}", args.len())
-    };
-    let list = if args.is_empty() {
-        String::new()
-    } else {
-        format!(", {}", args.join(", "))
-    };
-    format!("(gd.{name})({receiver}, {}{list})", quoted(method))
+    format!(
+        "{INVOKE}{receiver}, {}, {})",
+        quoted(method),
+        any_list(args)
+    )
 }
 
-/// How many arguments the `invoke` shims spell out; past this, `invoke_many`.
-pub(crate) const MOST_ARGS: usize = 3;
+/// The shim call a method of a value known only at run time goes through.
+pub(crate) const INVOKE: &str = "gd::call(";
+
+/// Values of any kinds as one `any` list.
+pub(crate) fn any_list(items: &[String]) -> String {
+    if items.is_empty() {
+        return "gd::list()".into();
+    }
+    format!("gd::list_of([{}])", items.join(", "))
+}
 
 /// A node emitter is heard as an event, through the module's forwarder; a
 /// class table keeps the handler and calls it itself.
-pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
-    if engine_signal(signal) {
+/// `engine` says whether the signal is the engine's, which a node hears
+/// from another; `event` is the name the engine sends it under.
+pub(crate) fn signal_subscribe(receiver: &str, engine: bool, event: &str, handler: &str) -> String {
+    let signal = event;
+    if engine {
         return format!(
-            "(gd.listen)(this.node, {}, {receiver}, {handler})",
+            "gd::listen(self.node, {}, {receiver}, {handler})",
             quoted(signal)
         );
     }
-    format!("(gd.connect)({receiver}, {}, {handler})", quoted(signal))
+    format!("gd::connect({receiver}, {}, {handler})", quoted(signal))
 }
 
 pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
     if engine_signal(signal) {
-        return format!("(gd.unlisten)(this.node, {}, {receiver})", quoted(signal));
+        return format!("gd::unlisten(self.node, {}, {receiver})", quoted(signal));
     }
-    format!("(gd.disconnect)({receiver}, {})", quoted(signal))
+    format!("gd::disconnect({receiver}, {})", quoted(signal))
 }
 
 pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<String> {
@@ -1143,12 +1179,12 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
     Some(match verb {
         // Godot calls a signal's handlers as it is emitted; the engine's
         // event goes out too, for a scene's rows and the engine's listeners.
-        "emit" => format!("(gd.emit_now)(this.node, {name}, [{}])", args.join(", ")),
-        "connect" if !args.is_empty() => format!("(gd.connect)(this.node, {name}, {})", args[0]),
-        "connect" => format!("events::listen(this.node, {name}, this.node)"),
-        "disconnect" => format!("(gd.disconnect)(this.node, {name})"),
-        "is_connected" => format!("(gd.is_connected)(this.node, {name})"),
-        "get_connections" => format!("/* connections of {} */ []", safe(signal)),
+        "emit" => format!("gd::emit_now(self.node, {name}, {})", any_list(args)),
+        "connect" if !args.is_empty() => format!("gd::connect(self.node, {name}, {})", args[0]),
+        "connect" => format!("events::listen(self.node, {name}, self.node)"),
+        "disconnect" => format!("gd::disconnect(self.node, {name})"),
+        "is_connected" => format!("gd::is_connected(self.node, {name})"),
+        "get_connections" => "gd::list()".into(),
         _ => return None,
     })
 }

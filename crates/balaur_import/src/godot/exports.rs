@@ -74,38 +74,9 @@ pub(crate) struct Export {
     pub hint: String,
     pub kind: Option<Kind>,
     pub default: String,
-    /// The GDScript text of its value, for a kind `exports()` cannot hold.
-    pub value: Option<String>,
     /// A value type no prop holds, a `Rect2`, a `Dictionary` or an `Array` of
     /// them: the scene files it in the node's `meta` for `init` to read.
     pub data: bool,
-}
-
-impl Export {
-    /// The `exports()` entry, or `None` for a type this does not carry.
-    pub(crate) fn entry(&self) -> Option<String> {
-        let kind = self.kind?;
-        // Quoted keys: `default` is a Rune keyword and cannot stand bare.
-        let typed = |ty: &str| format!("#{{ \"type\": \"{ty}\", \"default\": {} }}", self.default);
-        // A list says what it holds, the way every composite spec does.
-        let listed = |ty: &str| {
-            format!(
-                "#{{ \"type\": \"list\", \"of\": #{{ \"type\": \"{ty}\" }}, \"default\": {} }}",
-                self.default
-            )
-        };
-        Some(match kind {
-            // A bare default already says what these are.
-            Kind::Int | Kind::Float | Kind::Bool | Kind::Str => self.default.clone(),
-            Kind::Node => typed("node"),
-            Kind::Path => typed("string"),
-            Kind::Vec2 => typed("vec2"),
-            Kind::Vec3 => typed("vec3"),
-            Kind::Color => typed("color"),
-            Kind::Strings => listed("string"),
-            Kind::Nodes => listed("node"),
-        })
-    }
 }
 
 /// Every `@export` a GDScript file has: its base's first, then its own, a
@@ -242,7 +213,6 @@ fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> O
         hint,
         kind,
         default,
-        value: value.map(str::to_string),
         data,
     })
 }
@@ -595,33 +565,97 @@ pub(crate) fn scene_value(
     })
 }
 
-/// Where the class table `is` tests read is written.
-pub(crate) const CLASS_TABLE: &str = "godot_classes.rn";
-
-/// Each project class, to the scripts that are it or extend it: what a type
-/// test `x is Class` asks of a node's script at run time.
-pub(crate) fn class_table(classes: &Classes) -> String {
-    let mut entries = Vec::new();
+/// The project's `classes.bs`: each class with the scripts that are it or
+/// extend it, for Godot's `is`, and each object class by its module, for
+/// what makes one, calls its functions and reads its properties by name.
+pub(crate) fn classes_module(
+    classes: &Classes,
+    objects: &[crate::godot::script::ObjectClass],
+) -> String {
+    use crate::godot::gdscript::{module_name, module_use, quoted};
+    use crate::godot::scene::script_path;
+    use crate::godot::script::CLASS_KEY;
+    let class_read = format!("    let module: str = obj.get(\"{CLASS_KEY}\").text();\n");
+    let mut out = String::from(
+        "// Written by `balaur import`: the project's classes, for what asks for one by name.\n\n",
+    );
+    let mut names = std::collections::BTreeSet::new();
+    let mut uses = std::collections::BTreeSet::new();
+    for object in objects {
+        // Two modules of one name cannot both be linked: the second is left
+        // out, and a call on its objects answers nil.
+        if names.insert(module_name(&object.module)) {
+            uses.insert(module_use(&object.module));
+        }
+    }
+    for module in &uses {
+        out.push_str(&format!("use {module};\n"));
+    }
+    out.push_str("\n/// The scripts that are `class` or extend it, for Godot's `is`.\npub fn scripts(class: str) -> [str] {\n");
     for (name, file) in &classes.files {
-        let mut files = vec![file.replace(".gd", ".rn")];
+        let mut files = vec![script_path(file)];
         for (other, other_file) in &classes.files {
             let mut base = classes.bases.get(other);
             for _ in 0..16 {
                 let Some(step) = base else { break };
                 if step == name {
-                    files.push(other_file.replace(".gd", ".rn"));
+                    files.push(script_path(other_file));
                     break;
                 }
                 base = classes.bases.get(step);
             }
         }
-        let list: Vec<String> = files.iter().map(|f| format!("\"{f}\"")).collect();
-        entries.push(format!("\"{name}\": [{}]", list.join(", ")));
+        let list: Vec<String> = files.iter().map(|f| quoted(f)).collect();
+        out.push_str(&format!(
+            "    if class == {} {{\n        return [{}];\n    }}\n",
+            quoted(name),
+            list.join(", ")
+        ));
     }
-    format!(
-        "// Written by `balaur import`: each class, and the scripts that are it.\n\npub fn classes() {{\n    #{{ {} }}\n}}\n",
-        entries.join(", ")
-    )
+    out.push_str("    return [];\n}\n");
+    let linked =
+        |object: &&crate::godot::script::ObjectClass| uses.contains(&module_use(&object.module));
+    out.push_str("\n/// A new object of the class whose module is `module`, every argument at\n/// its default.\npub fn make(module: str) -> any {\n");
+    for object in objects.iter().filter(linked) {
+        let args = vec!["nil"; object.takes].join(", ");
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::new({args});\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    nil\n}\n");
+    out.push_str("\n/// One of an object's class's functions, by name.\npub fn call(obj: any, method: str, args: any) -> any {\n");
+    out.push_str(&class_read);
+    for object in objects.iter().filter(linked) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::__call(obj, method, args);\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    nil\n}\n");
+    out.push_str("\n/// An object's property, through its getter where its class declares one.\npub fn get(obj: any, name: str) -> any {\n");
+    out.push_str(&class_read);
+    for object in objects.iter().filter(linked).filter(|o| o.accessors) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::__get(obj, name);\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    obj.get(name)\n}\n");
+    out.push_str("\n/// An object's property written, through its setter where its class declares one.\npub fn set(obj: any, name: str, value: any) {\n");
+    out.push_str(&class_read);
+    for object in objects.iter().filter(linked).filter(|o| o.accessors) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        {}::__set(obj, name, value);\n        return;\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    obj.set(name, value);\n}\n");
+    out
 }
 
 /// Every `class_name` in the project's scripts, to the class it extends and
@@ -651,6 +685,14 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         };
         let inners = crate::godot::script::inner_classes(&source);
         index_inner_classes(&mut classes, file, &inners);
+        // Every module's defaulted functions, a class's or not: a call that
+        // leaves arguments out passes nil for them.
+        let defaulted = crate::godot::script::defaulted(&source);
+        if !defaulted.is_empty() {
+            classes
+                .defaulted
+                .insert(crate::godot::scene::script_path(file), defaulted);
+        }
         if let Some(name) = word("class_name ") {
             if let Some(base) = extends_target(&source) {
                 classes.bases.insert(name.clone(), base);
@@ -675,15 +717,10 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
                     crate::godot::script::inner_file(file, inner),
                 );
             }
-            let defaulted = crate::godot::script::defaulted(&source);
-            if !defaulted.is_empty() {
-                classes
-                    .defaulted
-                    .insert(file.replace(".gd", ".rn"), defaulted);
-            }
             classes.files.insert(name, file.clone());
         }
     }
+    inherit_defaulted(&mut classes);
     for file in files
         .iter()
         .filter(|f| crate::godot::files::has_extension(f, "tscn"))
@@ -696,6 +733,34 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             .extend(collision_handlers(&source));
     }
     classes
+}
+
+/// A class's defaulted functions include those it inherits: `GroupsApi.new()`
+/// takes what its base's `_init` takes.
+fn inherit_defaulted(classes: &mut Classes) {
+    use crate::godot::scene::script_path;
+    let names: Vec<String> = classes.files.keys().cloned().collect();
+    for name in names {
+        let Some(own) = classes.files.get(&name).map(|f| script_path(f)) else {
+            continue;
+        };
+        let mut merged = classes.defaulted.get(&own).cloned().unwrap_or_default();
+        let mut base = classes.bases.get(&name).cloned();
+        for _ in 0..16 {
+            let Some(step) = base else { break };
+            if let Some(file) = classes.files.get(&step).map(|f| script_path(f))
+                && let Some(theirs) = classes.defaulted.get(&file)
+            {
+                for (function, takes) in theirs {
+                    merged.entry(function.clone()).or_insert(*takes);
+                }
+            }
+            base = classes.bases.get(&step).cloned();
+        }
+        if !merged.is_empty() {
+            classes.defaulted.insert(own, merged);
+        }
+    }
 }
 
 /// The methods a scene's `[connection]` lines aim a collision signal at.
@@ -725,21 +790,28 @@ fn index_inner_classes(classes: &mut Classes, file: &str, inners: &[(String, Str
     for (inner, text) in inners {
         let path = crate::godot::script::inner_file(file, inner);
         classes.inner.insert(
-            format!("{}.{inner}", file.replace(".gd", ".rn")),
+            format!("{}.{inner}", crate::godot::scene::script_path(file)),
             path.clone(),
         );
+        let defaulted = crate::godot::script::defaulted(text);
+        if !defaulted.is_empty() {
+            classes
+                .defaulted
+                .insert(crate::godot::scene::script_path(&path), defaulted);
+        }
         index_inner_classes(classes, &path, &crate::godot::script::inner_classes(text));
     }
 }
 
-/// A GDScript literal as Rune, or `None` for an expression this cannot read.
+/// A GDScript literal as Balaur Script, or `None` for an expression this
+/// cannot read.
 pub(crate) fn literal(text: &str) -> Option<String> {
     let text = text.trim();
     if text == "true" || text == "false" {
         return Some(text.to_string());
     }
     if text == "null" {
-        return Some("()".to_string());
+        return Some("nil".to_string());
     }
     if let Some(inner) = text
         .strip_prefix('"')
@@ -750,7 +822,11 @@ pub(crate) fn literal(text: &str) -> Option<String> {
     {
         return Some(format!(
             "\"{}\"",
-            inner.replace('\\', "\\\\").replace('"', "\\\"")
+            inner
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('{', "{{")
+                .replace('}', "}}")
         ));
     }
     let numeric = text.trim_start_matches('-');
@@ -823,9 +899,9 @@ pub(crate) fn split_top(text: &str) -> Vec<String> {
 mod tests {
     use super::{Classes, Kind, exports, literal};
 
-    fn one(line: &str, classes: &Classes) -> (Option<Kind>, Option<String>) {
+    fn one(line: &str, classes: &Classes) -> (Option<Kind>, String) {
         let export = exports(line, classes).pop().expect("an export");
-        (export.kind, export.entry())
+        (export.kind, export.default)
     }
 
     #[test]
@@ -859,58 +935,48 @@ mod tests {
     }
 
     #[test]
-    fn each_godot_type_is_the_spec_this_engine_checks() {
+    fn each_godot_type_is_a_kind_with_a_balaur_script_default() {
         let none = Classes::default();
-        assert_eq!(
-            one("@export var speed := 2.0", &none),
-            (Some(Kind::Float), Some("2.0".into()))
-        );
-        assert_eq!(
-            one("@export var hp: float = 3", &none).1.as_deref(),
-            Some("3.0")
-        );
-        assert_eq!(
-            one("@export var go: Button", &none).1.as_deref(),
-            Some("#{ \"type\": \"node\", \"default\": \"\" }")
-        );
-        assert_eq!(
-            one("@export var art: Texture2D", &none).1.as_deref(),
-            Some("#{ \"type\": \"string\", \"default\": \"\" }")
-        );
-        assert_eq!(
-            one("@export var hearts: Array[CanvasItem]", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"node\" }, \"default\": [] }")
-        );
-        assert_eq!(
-            one("@export var names: Array[String]", &none).1.as_deref(),
-            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"string\" }, \"default\": [] }")
-        );
-        assert_eq!(
-            one("@export var at: Vector2 = Vector2(1, 2)", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"vec2\", \"default\": [1.0, 2.0] }")
-        );
-        // `:=` names no type, and a setter block leaves a trailing colon.
-        assert_eq!(
-            one("@export var tint := Color(0.5, 0.25, 0.125, 1.0):", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"color\", \"default\": [0.5, 0.25, 0.125, 1.0] }")
-        );
-        assert_eq!(
-            one("@export var span := Vector2(-4000.0, 50000.0)", &none)
-                .1
-                .as_deref(),
-            Some("#{ \"type\": \"vec2\", \"default\": [-4000.0, 50000.0] }")
-        );
-        assert_eq!(one("@export var table: Dictionary", &none), (None, None));
-        assert_eq!(
-            one("@export var weights: Array[float]", &none),
-            (None, None)
-        );
+        let cases = [
+            ("@export var speed := 2.0", Kind::Float, "2.0"),
+            ("@export var hp: float = 3", Kind::Float, "3.0"),
+            ("@export var go: Button", Kind::Node, "\"\""),
+            ("@export var art: Texture2D", Kind::Path, "\"\""),
+            ("@export var hearts: Array[CanvasItem]", Kind::Nodes, "[]"),
+            ("@export var names: Array[String]", Kind::Strings, "[]"),
+            (
+                "@export var at: Vector2 = Vector2(1, 2)",
+                Kind::Vec2,
+                "[1.0, 2.0]",
+            ),
+            // `:=` names no type, and a setter block leaves a trailing colon.
+            (
+                "@export var tint := Color(0.5, 0.25, 0.125, 1.0):",
+                Kind::Color,
+                "[0.5, 0.25, 0.125, 1.0]",
+            ),
+            (
+                "@export var span := Vector2(-4000.0, 50000.0)",
+                Kind::Vec2,
+                "[-4000.0, 50000.0]",
+            ),
+        ];
+        for (line, kind, default) in cases {
+            assert_eq!(
+                one(line, &none),
+                (Some(kind), default.to_string()),
+                "{line}"
+            );
+        }
+        // No prop holds these: the scene files them in the node's `meta`.
+        for line in [
+            "@export var table: Dictionary",
+            "@export var weights: Array[float]",
+        ] {
+            let export = exports(line, &none).pop().expect("an export");
+            assert_eq!(export.kind, None, "{line}");
+            assert!(export.data, "{line}");
+        }
     }
 
     /// `PirateShipAnimation extends Node2D`: a project class is what it
@@ -1000,7 +1066,7 @@ mod tests {
     }
 
     #[test]
-    fn a_literal_reads_as_rune_and_an_expression_does_not() {
+    fn a_literal_reads_as_balaur_script_and_an_expression_does_not() {
         assert_eq!(literal("Vector2(1, 2.5)").as_deref(), Some("[1.0, 2.5]"));
         assert_eq!(literal(".5").as_deref(), Some("0.5"));
         assert_eq!(literal("&\"boats\"").as_deref(), Some("\"boats\""));

@@ -24,9 +24,9 @@ impl Emitter<'_> {
         let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
         self.uses_shim = true;
         Some(format!(
-            "(gd.emit_engine)({emitter}, {}, [{}])",
+            "gd::emit_engine({emitter}, {}, {})",
             quoted(signal),
-            parts.join(", ")
+            map::any_list(&parts)
         ))
     }
 
@@ -53,12 +53,12 @@ impl Emitter<'_> {
         if let Some(key) = widget {
             self.widget_forwarders.insert(key.to_string());
             return Some(format!(
-                "(gd.widget_bind)({receiver}, {}, {handler})",
+                "gd::widget_bind({receiver}, {}, {handler})",
                 quoted(key)
             ));
         }
         Some(format!(
-            "(gd.connect)({receiver}, {}, {handler})",
+            "gd::connect({receiver}, {}, {handler})",
             quoted(signal)
         ))
     }
@@ -95,7 +95,7 @@ impl Emitter<'_> {
             if receiver.to_lowercase().contains("tween") {
                 let call = self.callable(args.first()?)?;
                 self.uses_shim = true;
-                return Some(format!("(gd.when_finished)({receiver}, {call})"));
+                return Some(format!("gd::when_finished({receiver}, {call})"));
             }
         }
         // Godot's handler is always a method of this class. A lambda or a
@@ -125,11 +125,11 @@ impl Emitter<'_> {
             self.uses_shim = true;
             return Some(match map::widget_signal(&signal) {
                 Some(key) => format!(
-                    "(gd.widget_connected)({receiver}, {}, {})",
+                    "gd::widget_connected({receiver}, {}, {})",
                     quoted(key),
                     quoted(handler.as_deref().unwrap_or(""))
                 ),
-                None => format!("(gd.is_connected)({receiver}, {})", quoted(&signal)),
+                None => format!("gd::is_connected({receiver}, {})", quoted(&signal)),
             });
         }
         // A widget's own signal is a key on the widget: the engine calls it on
@@ -165,8 +165,13 @@ impl Emitter<'_> {
         } else {
             map::engine_event(&signal).to_string()
         };
-        self.forwarders.insert(event.clone(), (handler, hid));
-        Some(map::signal_subscribe(&receiver, &event, &closure))
+        // Only an engine event reaches `on_<name>`; a script's signal calls
+        // the handlers `connect` kept.
+        let engine = map::engine_signal(&signal) || map::engine_signal(&event);
+        if engine {
+            self.forwarders.insert(event.clone(), (handler, hid));
+        }
+        Some(map::signal_subscribe(&receiver, engine, &event, &closure))
     }
 
     /// A Godot `Callable` as a Rune closure: a lambda as itself, a method of
@@ -181,11 +186,7 @@ impl Emitter<'_> {
     pub(super) fn connect_handler(&mut self, handler: &Expr) -> Option<String> {
         let (text, takes) = self.callable_parts(handler)?;
         Some(match takes {
-            Some(takes) => format!(
-                "#{{ {}: {text}, {}: {takes} }}",
-                quoted(map::CALL_KEY),
-                quoted(map::CALL_TAKES)
-            ),
+            Some(takes) => format!("{text}.with({}, {takes})", quoted(map::CALL_TAKES)),
             None => text,
         })
     }
@@ -196,6 +197,7 @@ impl Emitter<'_> {
         if matches!(handler, Expr::Lambda { .. }) {
             return Some((self.expression(handler), None));
         }
+        self.uses_shim = true;
         let (target, bound) = match handler {
             Expr::Call(callee, bound) => match &**callee {
                 Expr::Field(target, verb) if verb == map::BIND => (&**target, bound.as_slice()),
@@ -220,65 +222,34 @@ impl Emitter<'_> {
             && bound.is_empty()
             && let Some(text) = map::implicit_self(verb, &[])
         {
-            let text = self.shimmed(text);
-            return Some((format!("|| {{ {text}; }}"), Some(0)));
+            let _ = text;
+            return Some((
+                format!("gd::callable({}, {})", self.own_node(), quoted(verb)),
+                Some(0),
+            ));
         }
         let name = self.own_method(target)?;
-        let mut names = vec!["this".to_string()];
-        let mut lets = String::new();
-        for value in bound {
-            let local = self.temp();
-            let text = self.expression(value);
-            let _ = write!(lets, "let {local} = {text}; ");
-            names.push(local);
-        }
-        // The caller passes what the method requires past what `bind` fixed:
-        // a defaulted parameter is one the signal need not carry, and the
-        // shorter call is the `__N` forwarder.
+        let values: Vec<String> = bound.iter().map(|value| self.expression(value)).collect();
         let method = self.method_name(&name);
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
-        // A defaulted parameter is one the caller may leave out, and the
-        // shorter call is the `__N` forwarder.
-        let declared = self
-            .context
-            .param_defaults
-            .get(&name)
-            .and_then(|defaults| defaults.iter().position(Option::is_some))
-            .unwrap_or(takes);
-        // A handler takes what the signal carries; what it passes on is what
-        // the method has a form for.
-        let carried = self.wanted_args.unwrap_or(declared);
-        let passes = carried.clamp(declared, takes);
-        let open: Vec<String> = (0..carried.saturating_sub(bound.len()))
-            .map(|i| format!("arg{i}"))
-            .collect();
-        names.extend(
-            open.iter()
-                .take(passes.saturating_sub(bound.len()))
-                .cloned(),
-        );
-        // A signal carrying fewer than the method needs fills the rest with
-        // nothing, which is what Godot's own call would have passed.
-        for _ in names.len()..=passes {
-            names.push("()".to_string());
-        }
-        let method = if passes < takes {
-            format!("{method}__{passes}")
+        // What a signal hands the handler past what `bind` fixed: the rest of
+        // what the method takes. The shim passes no more than that.
+        let open = takes.saturating_sub(bound.len());
+        let target = if self.context.object_class {
+            "this"
         } else {
-            method
+            self.own_node()
         };
-        // A coroutine called and not awaited still runs in Godot; here the
-        // node's host runs it as a task of its own.
-        if self.context.asyncs.contains(&name) && !self.context.object_class {
-            let mut args = vec![quoted(&method)];
-            args.extend(names.iter().skip(1).cloned());
-            let call = format!("this.node.call_async({})", args.join(", "));
-            let text = format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", "));
-            return Some((text, Some(open.len())));
+        let mut text = format!("gd::callable({target}, {})", quoted(&method));
+        if !values.is_empty() {
+            let _ = write!(
+                text,
+                ".with({}, {})",
+                quoted(map::BOUND_ARGS),
+                map::any_list(&values)
+            );
         }
-        let call = format!("{method}({})", names.join(", "));
-        let text = format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", "));
-        Some((text, Some(open.len())))
+        Some((text, Some(open)))
     }
 
     /// `await sig`, `await node.sig` and `await get_tree().create_timer(t).timeout`:
@@ -292,12 +263,13 @@ impl Emitter<'_> {
             && matches!(name.as_str(), "process_frame" | "physics_frame")
             && !self.is_local(name)
         {
-            return Some("task::frames(1).await".into());
+            return Some("await task::frames(1)".into());
         }
         if let Some(signal) = self.signal_of(inner) {
             return Some(format!(
-                "task::wait(events::next({}, this.node)).await",
-                quoted(&signal)
+                "await task::wait(events::next({}, {}))",
+                quoted(&signal),
+                self.own_node()
             ));
         }
         let Expr::Field(object, signal) = inner else {
@@ -309,7 +281,7 @@ impl Emitter<'_> {
         let object = self.expression(object);
         self.uses_shim = true;
         Some(format!(
-            "(gd.wait_signal)({object}, {}).await",
+            "await gd::wait_signal({object}, {})",
             quoted(signal)
         ))
     }
@@ -320,9 +292,20 @@ impl Emitter<'_> {
     fn static_callable(&self, name: &str) -> (String, Option<usize>) {
         let method = self.method_name(name);
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
-        let params: Vec<String> = (0..takes).map(|i| format!("a{i}")).collect();
-        let list = params.join(", ");
-        (format!("|{list}| {method}({list})"), Some(takes))
+        // A static function is reached as a method of the class's node, which
+        // forwards to it; an object class's, through its dispatcher.
+        // A static function has no instance to reach one through.
+        let target = if self.in_static {
+            "nil"
+        } else if self.context.object_class {
+            "this"
+        } else {
+            self.own_node()
+        };
+        (
+            format!("gd::callable({target}, {})", quoted(&method)),
+            Some(takes),
+        )
     }
 
     pub(super) fn own_method(&self, target: &Expr) -> Option<String> {
@@ -358,12 +341,12 @@ impl Emitter<'_> {
 
     pub(super) fn default_arg(&mut self, text: &str) -> String {
         let Ok(tokens) = crate::godot::gdscript::lex::lex(text) else {
-            return "()".to_string();
+            return "nil".to_string();
         };
         let lines = [text];
         match crate::godot::gdscript::parse::Parser::new(&tokens, &lines).expression(0) {
             Some(expr) => self.expression(&expr),
-            None => "()".to_string(),
+            None => "nil".to_string(),
         }
     }
 
@@ -388,8 +371,11 @@ impl Emitter<'_> {
         self.declare(&name);
         // The store holds the value itself, so a call that changes it in
         // place changes the static; only a first use has to put it there.
-        self.before
-            .push(format!("let {name} = (gd.static_ref)({key}, {fallback});"));
+        self.before.push(format!(
+            "let {name}: any = gd::static_ref({key}, {fallback});"
+        ));
+        // The store hands out a copy, which goes back once the call changed it.
+        self.after.push(format!("gd::static_set({key}, {name});"));
         self.uses_shim = true;
         if let Some(text) = map::method(&name, method, parts) {
             return Some(self.shimmed(text));

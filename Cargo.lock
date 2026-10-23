@@ -758,6 +758,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_bs",
  "balaur_core",
  "balaur_plugin",
  "balaur_render",

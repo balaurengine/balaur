@@ -1,15 +1,57 @@
-//! A class's enums and constants, as module items: a value that stands on
-//! its own is a `const`, anything else a function computing it.
+//! A class's enums and constants, as module items: a scalar literal is a
+//! `const`, anything else a function computing it.
 
-use std::collections::BTreeSet;
-use std::fmt::Write as _;
+use std::collections::{BTreeMap, BTreeSet};
 
-use super::{Context, assigned, gdscript, name_of, shim_binding, top_level};
+use super::render::Shape;
+use super::{Context, assigned, expression, name_of, top_level};
+use crate::godot::gdscript::{Bt, enum_member};
 
-/// A GDScript `enum` as a module constant: named, an object whose fields are
-/// its members, so `StageState.IDLE` reads unchanged; unnamed, one constant
-/// per member.
-pub(super) fn write_enums(out: &mut String, source: &str, emitted: &mut BTreeSet<String>) {
+/// A GDScript `enum`. Named, each member is a constant `Name__MEMBER`, and
+/// the name alone a function answering the members as a map, so
+/// `StageState.IDLE` is a constant and `StageState.keys()` still reads;
+/// unnamed, one constant per member.
+pub(super) fn write_enums(items: &mut Vec<String>, source: &str, emitted: &mut BTreeSet<String>) {
+    for (name, members) in enum_blocks(source) {
+        if members.is_empty() || !emitted.insert(name.clone()) {
+            continue;
+        }
+        if name.is_empty() {
+            for (member, value) in &members {
+                if emitted.insert(member.clone()) {
+                    items.push(format!("pub const {member}: int = {value};"));
+                }
+            }
+            continue;
+        }
+        let mut text = String::new();
+        let mut table = String::from("map()");
+        for (member, value) in &members {
+            text.push_str(&format!(
+                "pub const {}: int = {value};\n",
+                enum_member(&name, member)
+            ));
+            table.push_str(&format!(".with(\"{member}\", {value})"));
+        }
+        text.push_str(&format!(
+            "\n/// `{name}` as Godot's dictionary of its members.\npub fn {name}() -> any {{\n    {table}\n}}\n"
+        ));
+        items.push(text);
+    }
+}
+
+/// Each named enum a file declares, with its members.
+pub(super) fn enums(source: &str) -> BTreeMap<String, BTreeSet<String>> {
+    enum_blocks(source)
+        .into_iter()
+        .filter(|(name, _)| !name.is_empty())
+        .map(|(name, members)| (name, members.into_iter().map(|(m, _)| m).collect()))
+        .collect()
+}
+
+// A file's `enum` blocks at column 0: each name, empty for an unnamed one,
+// and its members' values.
+fn enum_blocks(source: &str) -> Vec<(String, Vec<(String, i64)>)> {
     // A member's `## doc` may hold commas and braces, so comments go first.
     let text: String = source
         .replace('\t', " ")
@@ -17,6 +59,7 @@ pub(super) fn write_enums(out: &mut String, source: &str, emitted: &mut BTreeSet
         .map(|line| line.split('#').next().unwrap_or_default())
         .collect::<Vec<_>>()
         .join("\n");
+    let mut out = Vec::new();
     let mut rest = text.as_str();
     while let Some(at) = rest.find("enum ") {
         // Only a declaration at column 0 is the class's own.
@@ -32,24 +75,9 @@ pub(super) fn write_enums(out: &mut String, source: &str, emitted: &mut BTreeSet
         };
         let members = enum_members(&rest[open + 1..close]);
         rest = &rest[close + 1..];
-        if members.is_empty() || !emitted.insert(name.clone()) {
-            continue;
-        }
-        let entries: Vec<String> = members
-            .iter()
-            .map(|(name, value)| format!("\"{name}\": {value}"))
-            .collect();
-        out.push('\n');
-        if name.is_empty() {
-            for (member, value) in &members {
-                if emitted.insert(member.clone()) {
-                    let _ = writeln!(out, "pub const {member} = {value};");
-                }
-            }
-            continue;
-        }
-        let _ = writeln!(out, "pub const {name} = #{{ {} }};", entries.join(", "));
+        out.push((name, members));
     }
+    out
 }
 
 /// An enum's members and their values, numbered from zero where Godot left
@@ -89,14 +117,15 @@ fn enum_value(text: &str) -> Option<i64> {
     left.checked_shl(right)
 }
 
-/// A class constant is a module constant here, so a body reads it bare.
+/// A class constant is a module constant here, so a body reads it bare; one
+/// that is not a scalar literal is a function, read by calling it.
 pub(super) fn write_constants(
-    out: &mut String,
+    shape: &mut Shape,
     source: &str,
     context: &Context,
     emitted: &mut BTreeSet<String>,
+    notes: &mut Vec<String>,
 ) {
-    let mut wrote = false;
     for line in top_level(source) {
         let Some(rest) = line.strip_prefix("const ") else {
             continue;
@@ -108,85 +137,62 @@ pub(super) fn write_constants(
         if !emitted.insert(name.clone()) {
             continue;
         }
-        let body = gdscript::body(
-            &[format!("var _x = {value}")],
-            context,
-            0,
-            &[],
-            true,
-            true,
-            "",
-        );
-        let Some(text) = body
-            .rune
-            .trim()
-            .strip_prefix("let _x = ")
-            .and_then(|t| t.strip_suffix(';'))
-        else {
-            continue;
-        };
-        if !wrote {
-            out.push('\n');
-            wrote = true;
-        }
-        // A value that stands alone at load is a constant; one that needs the
-        // shim or a name is a function, read by calling it. The declaration
-        // scan judged the same text, so the two agree.
-        if self_contained(value) {
-            let _ = writeln!(out, "pub const {name} = {text};");
+        // A script preloaded under a name is that class's module, not a value.
+        if super::preloaded_script_file(&line).is_some() {
             continue;
         }
-        let binding = if body.uses_shim {
-            shim_binding(1)
-        } else {
-            String::new()
+        if let Some((kind, text)) = scalar_literal(value) {
+            shape
+                .items
+                .push(format!("pub const {name}: {} = {text};", kind.text()));
+            continue;
+        }
+        let Some((text, _)) = expression(value, context, true) else {
+            notes.push(format!("constant `{name}` did not translate"));
+            continue;
         };
-        let _ = writeln!(out, "pub fn {name}() {{\n{binding}    {text}\n}}");
+        shape
+            .items
+            .push(format!("pub fn {name}() -> any {{\n    {text}\n}}"));
     }
 }
 
-/// Whether an expression stands on its own at load: no shim, which is bound
-/// per body, and no name, which needs a node the engine does not have yet.
-pub(super) fn self_contained(text: &str) -> bool {
-    let mut chars = text.chars().peekable();
-    let mut quoted = false;
-    while let Some(c) = chars.next() {
-        if quoted {
-            if c == '\\' {
-                chars.next();
-            } else if c == '"' {
-                quoted = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => quoted = true,
-            // A dictionary keyed by anything but strings, or empty, is the
-            // shim's hash map, which a constant cannot build.
-            '{' => {
-                while chars.peek().is_some_and(|c| c.is_whitespace()) {
-                    chars.next();
-                }
-                if chars.peek() != Some(&'"') {
-                    return false;
-                }
-            }
-            c if c.is_alphabetic() || c == '_' => {
-                let mut word = String::from(c);
-                while chars
-                    .peek()
-                    .is_some_and(|c| c.is_alphanumeric() || *c == '_')
-                {
-                    word.push(chars.next().unwrap_or_default());
-                }
-                // `true`, `false` and a numeric suffix are values; anything
-                // else is a name this cannot resolve at load.
-                if !matches!(word.as_str(), "true" | "false" | "f64" | "i64") {
-                    return false;
-                }
-            }
-            _ => {}
-        }
+/// A scalar literal, as Balaur Script spells it, with its type: what a
+/// `const` or a field's default may be.
+pub(super) fn scalar_literal(text: &str) -> Option<(Bt, String)> {
+    let text = text.trim();
+    if text == "true" || text == "false" {
+        return Some((Bt::Bool, text.to_string()));
     }
-    true
+    if let Some(inner) = text
+        .strip_prefix('"')
+        .and_then(|t| t.strip_suffix('"'))
+        .filter(|t| !t.contains(['"', '\\']))
+    {
+        return Some((Bt::Str, crate::godot::gdscript::quoted(inner)));
+    }
+    let digits = text.strip_prefix('-').unwrap_or(text);
+    if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit() || c == '_') {
+        let clean = text.replace('_', "");
+        clean.parse::<i64>().ok()?;
+        return Some((Bt::Int, clean));
+    }
+    let float = !digits.is_empty()
+        && digits.contains('.')
+        && digits
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '_');
+    if float {
+        let clean = text.replace('_', "");
+        clean.parse::<f64>().ok()?;
+        let clean = if clean.ends_with('.') {
+            format!("{clean}0")
+        } else if clean.starts_with('.') || clean.starts_with("-.") {
+            clean.replacen('.', "0.", 1)
+        } else {
+            clean
+        };
+        return Some((Bt::Float, clean));
+    }
+    None
 }

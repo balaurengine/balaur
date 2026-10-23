@@ -869,7 +869,7 @@ func _process(_delta):
         );
 
         let world = node(&scene, "World");
-        assert_eq!(world["script"]["source"].as_str(), Some("scripts/root.rn"));
+        assert_eq!(world["script"]["source"].as_str(), Some("scripts/root.bs"));
         assert_eq!(world["script"]["props"]["speed"].as_float(), Some(4.5));
 
         let player = node(&scene, "Player");
@@ -1145,7 +1145,7 @@ func _process(_delta):
         let out = tempfile::tempdir().unwrap();
         import_project(&godot.path().join("project.godot"), out.path()).unwrap();
         assert!(
-            out.path().join("scripts/root.rn").is_file(),
+            out.path().join("scripts/root.bs").is_file(),
             "the script's skeleton is written beside the scene that names it"
         );
 

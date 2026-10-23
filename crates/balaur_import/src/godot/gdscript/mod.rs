@@ -1,12 +1,14 @@
-//! A GDScript body as Rune.
+//! A GDScript body as Balaur Script.
 //!
-//! `script.rs` owns the file's shape — its functions, their names, its
-//! exports — and calls in here for what goes inside each one. The two agree on
-//! `Context`, which carries everything a bare name needs to resolve: a member
-//! is `this.x`, an own method takes `this`, a class constant is a module
-//! constant.
+//! `script.rs` owns the file's shape — its struct, its functions, their
+//! names, its exports — and calls in here for what goes inside each one. The
+//! two agree on `Context`, which carries everything a bare name needs to
+//! resolve: a member is `self.x`, an own method is `self.m()`, a class
+//! constant is a module constant.
 
 mod ast;
+#[cfg(test)]
+pub(crate) mod check;
 mod emit;
 pub(crate) mod lex;
 mod map;
@@ -16,12 +18,30 @@ mod shim;
 use std::collections::BTreeSet;
 
 pub(crate) use emit::{
-    BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, quoted, safe, typed_zero,
+    BASE_SUFFIX, Bt, Context, INPUT_FLAG, MY, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED,
+    enum_member, quoted, safe, typed_zero,
 };
 
-/// Where the shim lands in a converted project, and the local a body binds it
-/// to.
-pub(crate) const SHIM_PATH: &str = "gd.rn";
+/// Where the shim lands in a converted project: at its root, which every
+/// script's `use gd;` finds by looking up from its own folder.
+pub(crate) const SHIM_PATH: &str = "gd.bs";
+
+/// Where the project's class dispatcher lands, beside the shim.
+pub(crate) const CLASSES_PATH: &str = "classes.bs";
+
+/// Where what `project.godot` set lands, for `ProjectSettings`.
+pub(crate) const SETTINGS_PATH: &str = "godot_settings.bs";
+
+/// `a/b/c.bs` as `use` spells it: `a::b::c`.
+pub(crate) fn module_use(path: &str) -> String {
+    path.trim_end_matches(".bs").replace('/', "::")
+}
+
+/// The name a module's items are reached by: its file's stem.
+pub(crate) fn module_name(path: &str) -> String {
+    let stem = path.trim_end_matches(".bs");
+    stem.rsplit('/').next().unwrap_or(stem).to_string()
+}
 
 /// The functions a property's `get` and `set` become: `__get_<name>` and
 /// `__set_<name>`.
@@ -31,14 +51,24 @@ pub(crate) use map::{
     BUILTIN_SIGNALS, ON_CHANGE, ON_CLICK, ON_SUBMIT, engine_event, global_constant,
     is_collision_event, widget_signal,
 };
-pub(crate) use shim::SHIM;
+pub(crate) use shim::{CALLBACK, SHIM};
+
+/// Where the tween callback script lands, beside the shim, which attaches
+/// it by this path.
+pub(crate) const CALLBACK_PATH: &str = "gd_callback.bs";
 
 /// One function's body, translated.
 pub(crate) struct Body {
-    pub rune: String,
+    pub text: String,
     pub notes: Vec<String>,
-    /// True when the body calls the shim, so the caller binds `gd` first.
+    /// True when the body calls the shim, so the file uses `gd`.
     pub uses_shim: bool,
+    /// The modules the body reaches, as `use` spells them.
+    pub uses: BTreeSet<String>,
+    /// The methods the body's lambdas were lifted into, whole.
+    pub lifted: Vec<String>,
+    /// Whether the body awaits, so its function is `async`.
+    pub awaits: bool,
     /// Signal name to handler, for every cross-script `connect` the body
     /// made: the engine calls `on_<name>`, so the module needs one that
     /// forwards to the handler Godot named.
@@ -53,7 +83,7 @@ pub(crate) fn body(
     lines: &[String],
     context: &Context,
     depth: usize,
-    params: &[String],
+    params: &[(String, Bt)],
     allow_await: bool,
     in_static: bool,
     enclosing: &str,
@@ -64,9 +94,12 @@ pub(crate) fn body(
         Ok(tokens) => tokens,
         Err(reason) => {
             return Body {
-                rune: commented(&borrowed, depth),
+                text: commented(&borrowed, depth),
                 notes: vec![format!("{reason}; the body is kept as a comment")],
                 uses_shim: false,
+                uses: BTreeSet::new(),
+                lifted: Vec::new(),
+                awaits: false,
                 forwarders: std::collections::BTreeMap::new(),
                 widget_forwarders: std::collections::BTreeSet::new(),
             };
@@ -77,17 +110,21 @@ pub(crate) fn body(
     emitter.allow_await = allow_await;
     emitter.in_static = in_static;
     emitter.enclosing = enclosing.to_string();
-    for param in params {
+    for (param, kind) in params {
         emitter.declare(param);
+        emitter.local_types.insert(param.clone(), *kind);
     }
     if let Some(strings) = context.string_params.get(enclosing) {
         emitter.string_locals.extend(strings.iter().cloned());
     }
-    let rune = emitter.block(&statements, depth);
+    let text = emitter.block(&statements, depth);
     Body {
-        rune,
+        text,
         notes: emitter.notes,
         uses_shim: emitter.uses_shim,
+        uses: emitter.uses,
+        lifted: emitter.lifted,
+        awaits: emitter.awaits,
         forwarders: emitter.forwarders,
         widget_forwarders: emitter.widget_forwarders,
     }
@@ -143,7 +180,11 @@ fn dedented(lines: &[String]) -> String {
     // dedented and every statement reads as an opened block.
     let least = lines
         .iter()
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+        .filter(|line| {
+            let code = line.trim_start();
+            // A closing bracket may sit at column 0 inside a body.
+            !code.is_empty() && !code.starts_with(['#', ']', ')', '}'])
+        })
         .map(|line| line.len() - line.trim_start().len())
         .min()
         .unwrap_or(0);
@@ -185,7 +226,7 @@ mod tests {
             .lines()
             .map(std::string::ToString::to_string)
             .collect();
-        body(&lines, context, 1, &[], true, false, "").rune
+        body(&lines, context, 1, &[], true, false, "").text
     }
 
     fn ship() -> Context {
@@ -211,17 +252,17 @@ mod tests {
     }
 
     #[test]
-    fn a_member_reads_through_this_and_a_local_does_not() {
+    fn a_member_reads_through_the_node_s_state_and_a_local_does_not() {
         let out = translate("var found = speed\nfound = hull + 1\n", &ship());
-        assert!(out.contains("let found = this.speed;"), "{out}");
-        assert!(out.contains("found = this.hull + 1;"), "{out}");
+        assert!(out.contains("let found: any = self.my.speed;"), "{out}");
+        assert!(out.contains("found = gd::add(self.my.hull, 1);"), "{out}");
     }
 
     #[test]
-    fn an_own_method_call_takes_this() {
+    fn an_own_method_call_goes_through_self() {
         let out = translate("sink(2)\nself.repair()\n", &ship());
-        assert!(out.contains("sink(this, 2);"), "{out}");
-        assert!(out.contains("repair(this);"), "{out}");
+        assert!(out.contains("self.sink(2);"), "{out}");
+        assert!(out.contains("self.repair();"), "{out}");
     }
 
     #[test]
@@ -239,12 +280,12 @@ mod tests {
         .join("\n");
         let out = translate(&source, &ship());
         for line in [
-            "let fps = (gd.monitor)(0);",
-            "let inside = geometry2d::contains(this.hull, this.speed);",
-            "let text = (gd.str)(this.speed);",
-            "let letter = (gd.chr)(65);",
-            "\"Dictionary\"",
-            "let kids = this.node.children().len();",
+            "let fps: any = gd::monitor(0);",
+            "let inside: any = geometry2d::contains(self.my.hull, self.my.speed);",
+            "let text: any = gd::str(self.my.speed);",
+            "let letter: str = gd::chr(65);",
+            "let table: bool = gd::same(gd::type_of(self.my.hull), \"Dictionary\");",
+            "let kids: any = self.node.children().len();",
             "window::set_keep_awake(true);",
         ] {
             assert!(out.contains(line), "{line}\n{out}");
@@ -260,11 +301,11 @@ mod tests {
                       var gait = hull[\"parameters/playback\"]\n";
         let out = translate(source, &ship());
         for line in [
-            r#"let playback = (gd.get)(this.hull, "parameters/playback", ());"#,
-            r#"(gd.invoke1)(playback, "travel", "run")"#,
-            r#"(gd.set)(this.hull, "parameters/conditions/moving", true);"#,
-            r#"(gd.set)(this.hull, "parameters/conditions/hurt", false)"#,
-            r#"let gait = (gd.get)(this.hull, "parameters/playback", ());"#,
+            r#"let playback: any = gd::get(self.my.hull, "parameters/playback", nil);"#,
+            r#"gd::call(playback, "travel", gd::list_of(["run"]));"#,
+            r#"gd::set(self.my.hull, "parameters/conditions/moving", true);"#,
+            r#"gd::set(self.my.hull, "parameters/conditions/hurt", false);"#,
+            r#"let gait: any = gd::get(self.my.hull, "parameters/playback", nil);"#,
         ] {
             assert!(out.contains(line), "{line}\n{out}");
         }
@@ -274,36 +315,44 @@ mod tests {
     fn a_signal_calls_its_handlers_and_emits_by_name() {
         let out = translate("sunk.emit(3)\n", &ship());
         assert!(
-            out.contains(r#"(gd.emit_now)(this.node, "sunk", [3]);"#),
+            out.contains(r#"gd::emit_now(self.node, "sunk", gd::list_of([3]));"#),
             "{out}"
         );
     }
 
     #[test]
-    fn a_match_becomes_an_if_chain_because_rune_has_no_or_patterns() {
+    fn a_match_becomes_an_if_chain_because_balaur_script_has_no_match() {
         let out = translate(
-            "match kind:\n\t\"a\", \"b\":\n\t\tsink(1)\n\t_:\n\t\tsink(2)\n",
+            "var kind = \"a\"\nmatch kind:\n\t\"a\", \"b\":\n\t\tsink(1)\n\t_:\n\t\tsink(2)\n",
             &ship(),
         );
-        assert!(out.contains(r#"== "a" || "#), "{out}");
-        assert!(out.contains("} else {"), "{out}");
-        assert!(!out.contains("match "), "no Rune match is emitted: {out}");
+        let flat = out.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            flat.contains(
+                r#"if gd::same(tmp1, "a") || gd::same(tmp1, "b") { self.sink(1); } else { self.sink(2); }"#
+            ),
+            "{out}"
+        );
+        assert!(!out.contains("match "), "no match is emitted: {out}");
     }
 
     #[test]
     fn an_indexed_compound_assignment_is_expanded() {
         let out = translate("var a = [1]\na[0] += 2\n", &ship());
-        assert!(out.contains("a[0] = a[0] + 2;"), "{out}");
+        assert!(
+            out.contains("gd::set(a, 0, gd::add(gd::at(a, 0), 2));"),
+            "{out}"
+        );
     }
 
     #[test]
     fn a_short_circuit_into_a_field_goes_through_a_temporary() {
         let out = translate("var live = true\nhull = live || speed\n", &ship());
         assert!(
-            out.contains("let tmp1 = live || (gd.truthy)(this.speed);"),
+            out.contains("let tmp1 = live || gd::truthy(self.my.speed);"),
             "{out}"
         );
-        assert!(out.contains("this.hull = tmp1;"), "{out}");
+        assert!(out.contains("self.my.hull = tmp1;"), "{out}");
     }
 
     #[test]
@@ -313,7 +362,7 @@ mod tests {
             &ship(),
         );
         assert!(
-            out.contains(r#"(gd.format)("%s of %d", [port, 2])"#),
+            out.contains(r#"gd::format("%s of %d", [port, 2])"#),
             "{out}"
         );
         assert!(out.contains("7 % 2"), "{out}");
@@ -322,8 +371,16 @@ mod tests {
     #[test]
     fn writing_a_godot_property_is_a_setter_call() {
         let out = translate("visible = false\nmodulate.a = 0.5\n", &ship());
-        assert!(out.contains("this.node.set_visible(false);"), "{out}");
-        assert!(out.contains("(gd.set_tint)(this.node, tmp1);"), "{out}");
+        assert!(out.contains("self.node.set_visible(false);"), "{out}");
+        assert!(
+            out.contains(r#"let tmp1: any = gd::node_property(self.node, "modulate");"#),
+            "{out}"
+        );
+        assert!(
+            out.contains(r#"tmp1 = gd::with_field(tmp1, "a", gd::float(0.5));"#),
+            "{out}"
+        );
+        assert!(out.contains("gd::set_tint(self.node, tmp1);"), "{out}");
     }
 
     #[test]
@@ -336,7 +393,7 @@ mod tests {
     fn an_unreadable_line_is_marked_and_the_rest_survives() {
         let out = translate("var a = 1\nassert(a == 1)\nvar b = 2\n", &ship());
         assert!(out.contains("PORT(gdscript): assert(a == 1)"), "{out}");
-        assert!(out.contains("let b = 2;"), "{out}");
+        assert!(out.contains("let b: int = 2;"), "{out}");
     }
 
     #[test]
@@ -354,7 +411,7 @@ mod tests {
         for case in cases {
             let lines: Vec<String> = case.lines().map(std::string::ToString::to_string).collect();
             let out = body(&lines, &Context::default(), 0, &[], true, false, "");
-            println!("--- {case:?}\n{}", out.rune);
+            println!("--- {case:?}\n{}", out.text);
         }
     }
 
@@ -365,7 +422,7 @@ mod tests {
             .map(std::string::ToString::to_string)
             .collect();
         let out = body(&lines, &Context::default(), 0, &[], true, false, "");
-        assert!(out.rune.contains("let a = 1;"), "{}", out.rune);
+        assert!(out.text.contains("let a: int = 1;"), "{}", out.text);
         assert!(out.notes.is_empty(), "{:?}", out.notes);
     }
 
