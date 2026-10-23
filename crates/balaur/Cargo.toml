@@ -61,6 +61,9 @@ compile = ["balaur_render/compile", "balaur_script_bs?/c"]
 # or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi,
 # about 11 MB; not on the web or iOS), `bs-web` on the page's own engine.
 bs = ["bs-backend", "balaur_script_bs?/wasmi", "balaur_script_bs?/native"]
+# The interpreter alone: what a web build adds beside `bs-web` so a debugger
+# can park a call, where `native` has no libloading to build.
+bs-wasmi = ["bs-backend", "balaur_script_bs?/wasmi"]
 bs-jit = ["bs-backend", "balaur_script_bs?/wasmtime"]
 bs-web = ["bs-backend", "balaur_script_bs?/web"]
 # What those three share; on its own it has no engine to run a script on.

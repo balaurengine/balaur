@@ -176,6 +176,38 @@ pub fn download_project() -> Result<js_sys::Array, JsValue> {
     ))
 }
 
+/// One file of the open project, project-relative, or nothing for a path
+/// that is not there. What a page reads after `balaur-project-kept` names it.
+#[wasm_bindgen]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub fn project_file(path: String) -> Option<js_sys::Uint8Array> {
+    let fs = crate::web_store::ProjectFs::live()?;
+    fs.file(&path)
+        .map(|bytes| js_sys::Uint8Array::from(bytes.as_slice()))
+}
+
+/// Every file of the open project as `[path, bytes]` pairs, project-relative.
+#[wasm_bindgen]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub fn project_files() -> Result<js_sys::Array, JsValue> {
+    let fs = crate::web_store::ProjectFs::live()
+        .ok_or_else(|| JsValue::from_str("no project is open"))?;
+    let out = js_sys::Array::new();
+    for (path, bytes) in fs.files() {
+        out.push(&js_sys::Array::of2(
+            &JsValue::from_str(&path),
+            &js_sys::Uint8Array::from(bytes.as_slice()).into(),
+        ));
+    }
+    Ok(out)
+}
+
 /// What the last export produced, as `[name, bytes]`, or nothing when there
 /// is none waiting. Taken: the page downloads it once.
 #[wasm_bindgen]

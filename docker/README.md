@@ -33,6 +33,7 @@ export has to agree with the runtime template it is fused onto.
 ## Use it
 
 ```sh
+mkdir -p out && chmod 0777 out
 docker run --rm \
   -v "$PWD:/src:ro" -v "$PWD/out:/out" \
   -e BALAUR_TARGET=linux-x64 \
@@ -112,6 +113,20 @@ out world-writable — the same flag arrived as `1777` on one host here and
 `export.sh` checks this first and says so, rather than failing three steps
 later inside a copy.
 
+## Make `/out` writable by uid 10001
+
+```sh
+mkdir -p out && chmod 0777 out
+```
+
+A bind mount keeps its host owner and mode, and the export runs as uid 10001,
+whoever made the directory. A `0755` directory owned by you, or by root when
+docker made it, mounts fine and refuses the artifact: under rootless podman
+10001 is a subordinate uid that owns nothing on the host. `export.sh` and
+`sign.sh` check `/out` before starting, so this fails in a second with a line
+that says so, not after a whole export with `Permission denied` writing
+`/out/game`.
+
 ## Signing and publishing: `ghcr.io/balaurengine/balaur-signer`
 
 A second image, built from `Dockerfile.signer`, holding `rcodesign`,
@@ -144,7 +159,7 @@ docker run --rm \
 |---|---|
 | `/in` | the unsigned artifact, read-only |
 | `/out` | where the signed artifact is written |
-| `/creds` | one file per credential, read-only, named for the field |
+| `/creds` | one file per credential, read-only, named for the field, readable by uid 10001 — see below |
 | `/work` | scratch |
 
 `SIGN_TARGET` and `SIGN_ARTIFACT` are required; `SIGN_NOTARIZE=1` is below.
@@ -184,6 +199,37 @@ waits. A bare executable cannot be *stapled* — a ticket attaches to a bundle, 
 `.dmg` or a `.pkg` — so the approval is recorded on Apple's side and Gatekeeper
 finds it online. Ship a `.app` bundle if you want it stapled.
 
+### `/creds`: readable by uid 10001, and by nobody else
+
+`sign.sh` and `balaur-publish` read `/creds/<field>` and nothing else. Any
+mount works if uid 10001 can read it; `sign.sh` checks first and stops with
+`/creds is not readable by uid 10001` rather than failing inside a tool.
+
+The fix is not `/out`'s `chmod`. Under rootless podman 10001 owns nothing on
+the host, so a directory it can read is one every user on the host can read.
+Hand each file over as a podman secret instead. This is what Forge does:
+
+```sh
+podman secret create forge-creds.android_keystore creds/android_keystore
+podman run --rm \
+  --secret forge-creds.android_keystore,type=mount,target=/creds/android_keystore,uid=10001,gid=10001,mode=0400 \
+  ...
+podman secret rm forge-creds.android_keystore
+```
+
+- one `--secret` per file, at `/creds/<field>`; podman makes `/creds`
+- each file arrives byte for byte, read-only, owned by 10001, mode `0400`
+- `podman secret create` reads the file client-side, so through
+  `podman --remote` it can be a file only the caller can read
+- the secret stays in podman's store (`0600`, the podman user's) until
+  `podman secret rm`, whatever happened to the run
+- a run with no credentials still needs the directory:
+  `--tmpfs /creds:ro,mode=0755`
+
+`docker run` has no secrets outside swarm. On your own machine,
+`-v "$PWD/creds:/creds:ro"` works once 10001 can read the files:
+`sudo chown -R 10001:10001 creds` keeps them `0600`.
+
 ### Publishing
 
 The same image uploads to a store, through `balaur-publish`:
@@ -196,6 +242,8 @@ docker run --rm \
   -e PUBLISH_TARGET=user/game:android \
   ghcr.io/balaurengine/balaur-signer:nightly balaur-publish
 ```
+
+`/creds` is mounted the way signing mounts it.
 
 | `PUBLISH_STORE` | Credential file under `/creds` | Tool |
 |---|---|---|

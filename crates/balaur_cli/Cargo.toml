@@ -54,6 +54,7 @@ compile = ["balaur/compile"]
 # Balaur Script (`.bs`), on wasmi; `bs-jit` runs it on wasmtime where a JIT
 # may run, `bs-web` on the browser's own engine.
 bs = ["balaur/bs"]
+bs-wasmi = ["balaur/bs-wasmi"]
 bs-jit = ["balaur/bs-jit"]
 bs-web = ["balaur/bs-web"]
 # `http.*` for scripts. Off, the build drops ureq and its TLS stack.
@@ -139,6 +140,10 @@ web-sys = { version = "0.3.106", features = [
     "DomStringList",
     "Event",
     "EventTarget",
+    # `balaur-project-kept`, the page's word that files are kept, with the
+    # paths that changed (src/web_store.rs).
+    "CustomEvent",
+    "CustomEventInit",
     "IdbDatabase",
     "IdbFactory",
     "IdbKeyRange",

@@ -160,8 +160,13 @@ pub fn capture(max_level: LevelFilter) {
         // AboutToWait anyway, and warns about its own order: a line a frame,
         // forty a second, into the run's log file.
         .add_directive(QUIET_IOS_REDRAW.parse().expect("a fixed directive"));
+    // Colour only for a person at a terminal. A pipe is a CI log or a build
+    // service's viewer, where the escape codes arrive as `[2m…[0m` around
+    // every timestamp.
     #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
-    let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
+    let fmt = tracing_subscriber::fmt::layer()
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
+        .with_writer(std::io::stderr);
     // android-activity forwards stderr to logcat as one Info stream, colour codes
     // and all; lines go there directly instead, at their own level.
     #[cfg(target_os = "android")]

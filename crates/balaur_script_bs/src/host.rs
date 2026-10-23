@@ -246,13 +246,17 @@ impl BsHost {
 
     // A pack holds each script's source: `Compiled` carries a `Meta` with no
     // encoding yet, and compiling at load is a millisecond a thousand lines.
+    // A key the pack lacks is read through `fs`: the editor in a browser runs
+    // from its own pack and plays a project's scripts by their path under the
+    // game root, as it does from a directory on a desktop.
     fn source(&self, key: &str) -> Result<String> {
-        let bytes = match &self.inner.pack {
-            Some(pack) => pack
-                .scripts
-                .get(key)
-                .cloned()
-                .ok_or_else(|| anyhow!("{key} is not in the pack"))?,
+        let packed = self
+            .inner
+            .pack
+            .as_ref()
+            .and_then(|pack| pack.scripts.get(key).cloned());
+        let bytes = match packed {
+            Some(bytes) => bytes,
             None => balaur_core::files::backend(&self.inner.engine)
                 .read(&self.inner.root.join(key))
                 .with_context(|| format!("reading {key}"))?,

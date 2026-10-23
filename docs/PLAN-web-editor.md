@@ -147,7 +147,7 @@ the web.
 | Audio | Step 6, and it is `balaur_audio`'s wasm stub plus the browser's autoplay rule: no sound until the player clicks something. A gesture the editor already has |
 | `save`, and the user data directory | Step 2, onto the same backend. A save in a tab is OPFS |
 | Screenshots and `--offscreen` | Step 6. Reading the canvas back is cheap; where the file goes is the question `fs` already answers |
-| The debugger (DAP) | Step 9. `main.rs` already refuses `--debug` on wasm because there is no TCP listener; the adapter moves onto a `MessagePort` or a Gamend socket, and the protocol does not change |
+| The debugger (DAP) | Step 9. The Debugger dock works in the tab since 2026-10-23: the editor module carries wasmi (`bs-wasmi` beside `bs-web`), the one engine that parks a call at a stop. What is left is an adapter for an editor outside the tab: `main.rs` refuses `--debug` on wasm because there is no TCP listener, so it moves onto a `MessagePort` or a Gamend socket, and the protocol does not change |
 | `balaur check` | Have, once files work. It is the Rune compiler, which is Rust, which compiles |
 | `balaur export` to a pack | Step 7, and it already works — file work with no linker in it |
 | `balaur export --target` to a native binary | Step 7, as a build service. A browser cannot link and never will |
@@ -190,8 +190,16 @@ the web.
    in through a directory picker and written back out as a zip, which every
    browser does. The File System Access API as a fourth backend, editing a
    checked-out repo in place, is still Chromium-only and still worth having.
-9. **The debugger.** *Not built.* DAP over a port instead of a socket;
-   breakpoints, step and locals in the browser, the same adapter as desktop.
+9. **The debugger.** *Half built.* Breakpoints, stepping, locals and break
+   on error work in the tab's own Debugger dock (2026-10-23): a debugged
+   file moves to wasmi, which the editor module now carries (`bs-wasmi`
+   beside `bs-web`, about 0.9 MB raw, 0.25 MB gzipped); the browser's own
+   engine cannot park a call. Two fixes came with it: the host reads a
+   project's script through `fs` when the editor's pack lacks it, which
+   play in the tab needed too, and a parked call in a direct module is
+   resumed with the i64 its entry point owes. What is left is DAP for an
+   editor outside the tab, over a port instead of a socket, the same
+   adapter as desktop.
 
 ## 4. What CI can prove, and what it cannot
 
