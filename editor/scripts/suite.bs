@@ -149,7 +149,6 @@ fn busy(S: editor::State) -> bool {
         || S.layout_demo >= 0
         || S.rows_demo >= 0
         || S.import_demo >= 0
-        || S.convert_demo.is_some()
         || S.import_queue.len() > 0
         || S.gesture_demo >= 0
         || S.phys_click.is_some()

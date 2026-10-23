@@ -122,8 +122,6 @@ pub fn start(S: &mut editor::State, name: str) {
         focusing(S, q);
     } else if name == "manager" {
         manager_pages(S, q);
-    } else if name == "godot" {
-        godot(S, q);
     } else if name == "importing" {
         importing(S, q);
     } else if name == "theme_editor" {
@@ -610,16 +608,6 @@ fn verb(S: &mut editor::State, data: any) {
         S.manager.tab = data.id.as_str();
     } else if name == "manager_new" {
         manager::open_new(S);
-    } else if name == "convert" {
-        // Nothing to convert without a `convert:` beside this state, which is
-        // what `scripts/showcase.sh` gives it.
-        if S.manager.convert_from != "" {
-            S.manager.converted = manager::convert(S, S.manager.convert_from, "keep");
-        }
-    } else if name == "forget_converted" {
-        if S.manager.converted != "" {
-            project::forget(S.manager.converted);
-        }
     } else if name == "drip_off" {
         // The queue's own drip is off; the pointer takes one file per beat.
         S.import_drip = false;
@@ -697,19 +685,6 @@ fn manager_pages(S: &mut editor::State, q: Q) {
     click(q, 50, at_place("manager", "examples"), "manager_tab", map().with("id", "examples"));
     click(q, 210, at_place("manager", "projects"), "manager_tab", map().with("id", "projects"));
     click(q, 330, at_place("manager", "new"), "manager_new", map());
-}
-
-// A Godot project converted from the start screen: the pointer on Import
-// project, then the count climbing where a folder picker would have been.
-fn godot(S: &mut editor::State, q: Q) {
-    act_verb(q, 1, "manager", map());
-    click(q, 60, at_place("manager", "import"), "convert", map());
-    // Forgotten past the last frame the clip takes: the row the conversion
-    // leaves in the list is what it ends on.
-    act_verb(q, 839, "forget_converted", map());
-    // The note and the bar the import puts up push the toolbar down, so the
-    // pointer rides the button rather than staying where it was pressed.
-    over(q, 72, 400, follow, following(at_place("manager", "import"), 0.0));
 }
 
 // Files arriving one at a time, each let go where the pointer is: the editor

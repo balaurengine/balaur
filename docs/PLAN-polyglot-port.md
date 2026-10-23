@@ -1,3 +1,6 @@
+> **Removed:** the port and the Godot importer it ran on were removed on
+> 2026-10-23. What it found the engine missing stands; the rest is history.
+>
 > **Status:** written 2026-09-24 from the port at `ca47fb3` and the game at
 > `483b898c1`, three commits past the last reimport. Steps 1 and 2 landed
 > the same day, and step 3 in part; §0 carries the counts before and after.

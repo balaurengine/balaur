@@ -2,6 +2,7 @@
 > the screen, a double-clicked bundle lands there too, `project.*` and
 > `release.*` are the modules behind it, the palette reaches it from inside a
 > project, and `--state test:manager` checks all of it. What is left is §8.
+> The Godot import it describes was removed with the importer on 2026-10-23.
 
 # Plan: project manager
 

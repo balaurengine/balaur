@@ -787,16 +787,6 @@ grow = 1
 min_width = 240
 
 [[nodes]]
-id = "manager_import"
-name = "Import"
-parent = "manager_tools"
-[nodes.widget]
-kind = "button"
-role = "action_manager"
-text = "Import project"
-tooltip = "Pick a project folder to convert; Godot is the one read today"
-
-[[nodes]]
 id = "manager_open"
 name = "Open"
 parent = "manager_tools"

@@ -37,9 +37,7 @@ use crate::jobs::{Reported, Reporting, install_listen, pump};
 ///
 /// Files are wildly uneven -- a sidecar is a line and a texture is megabytes
 /// -- so this is a count rather than a budget and is deliberately generous:
-/// Sponza's 143 files are five slices, and a project's ten thousand are three
-/// hundred, which is five seconds of a responsive editor rather than one long
-/// stop.
+/// Sponza's 143 files are five slices.
 const FILES_PER_SLICE: usize = 32;
 
 /// One step of an import, crossing from the work back into a tick.
@@ -51,8 +49,7 @@ pub(crate) enum ImportEvent {
         source: String,
         files: usize,
     },
-    /// One file got through: written, for an import that planned its outputs,
-    /// and read, for a project walk, which counts the files it reads.
+    /// One file got through: written.
     Wrote {
         source: String,
         path: String,
@@ -217,7 +214,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "start",
             &[],
             "(path: string, project: string?) -> bool",
-            "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
+            "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
             "running_count",
@@ -377,13 +374,6 @@ enum JobState {
         done: usize,
         files: usize,
     },
-    /// A project, which has no plan: walking it, a few files a slice. Boxed
-    /// because a walk is twice the size of the whole of the other variants.
-    Walking {
-        walk: Box<balaur_import::ProjectWalk>,
-        done: usize,
-        files: usize,
-    },
     /// Planning on a worker, in a tab built with shared memory. What comes
     /// back is the plan and the picked files, which the writes still read.
     #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
@@ -494,7 +484,7 @@ impl ImportJob {
     /// How many files this job has written, for a report.
     fn written(&self) -> usize {
         match &self.state {
-            JobState::Writing { done, .. } | JobState::Walking { done, .. } => *done,
+            JobState::Writing { done, .. } => *done,
             JobState::Reading | JobState::Over => 0,
             #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
             JobState::Planning(_) => 0,
@@ -525,39 +515,9 @@ impl ImportJob {
                 message: "that file has no name".to_string(),
             });
         };
-        if balaur_import::walks(&name) {
-            let Source::Beside(file) = &self.source else {
-                return self.over(ImportEvent::Failed {
-                    source,
-                    message: format!(
-                        "{name} is a whole project, so it is imported from the folder it sits in \
-                         rather than from what was picked"
-                    ),
-                });
-            };
-            return match balaur_import::ProjectWalk::begin(file, &self.project) {
-                Ok(walk) => {
-                    let files = walk.files();
-                    balaur_core::replay::report(
-                        &self.report,
-                        ImportEvent::Started { source, files },
-                    );
-                    self.state = JobState::Walking {
-                        walk: Box::new(walk),
-                        done: 0,
-                        files,
-                    };
-                    Progress::More
-                }
-                Err(why) => self.over(ImportEvent::Failed {
-                    source,
-                    message: format!("{why:#}"),
-                }),
-            };
-        }
         if !balaur_import::slices(&name) {
-            // A level and a Godot project walk their own folder, so there is
-            // nothing to plan and this is the one long slice.
+            // A level walks its own folder, so there is nothing to plan and
+            // this is the one long slice.
             balaur_core::replay::report(
                 &self.report,
                 ImportEvent::Started {
@@ -649,7 +609,6 @@ impl Stepped for ImportJob {
             JobState::Reading => self.begin(),
             JobState::Over => Progress::Done,
             JobState::Writing { .. } => self.write_slice(),
-            JobState::Walking { .. } => self.read_slice(),
             #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
             JobState::Planning(_) => self.await_plan(),
         }
@@ -722,66 +681,6 @@ impl ImportJob {
             scene,
             note,
         })
-    }
-}
-
-#[cfg(feature = "import")]
-impl ImportJob {
-    /// Read up to [`FILES_PER_SLICE`] of a project's files, reporting each.
-    ///
-    /// A project has no plan to write from, so what is counted off is what it
-    /// reads; the files it writes are its own business and are answered for
-    /// when the walk ends.
-    fn read_slice(&mut self) -> Progress {
-        let source = self.source();
-        let JobState::Walking {
-            mut walk,
-            mut done,
-            files,
-        } = std::mem::replace(&mut self.state, JobState::Over)
-        else {
-            return Progress::Done;
-        };
-        for _ in 0..FILES_PER_SLICE {
-            let Some(path) = walk.peek().map(str::to_string) else {
-                break;
-            };
-            match walk.read_next() {
-                Ok(_) => {
-                    done += 1;
-                    balaur_core::replay::report(
-                        &self.report,
-                        ImportEvent::Wrote {
-                            source: source.clone(),
-                            path,
-                            done,
-                            files,
-                        },
-                    );
-                }
-                Err(why) => {
-                    return self.over(ImportEvent::Failed {
-                        source,
-                        message: format!("{why:#}"),
-                    });
-                }
-            }
-        }
-        if walk.peek().is_some() {
-            self.state = JobState::Walking { walk, done, files };
-            return Progress::More;
-        }
-        match walk.finish() {
-            Ok(imported) => self.over(ImportEvent::Done {
-                source,
-                scene: imported.scene,
-                note: imported.note,
-            }),
-            Err(why) => self.over(ImportEvent::Failed {
-                source,
-                message: format!("{why:#}"),
-            }),
-        }
     }
 }
 
@@ -1056,52 +955,6 @@ mod tests {
             panic!("it did not finish: {}", last.kind());
         };
         assert!(note.contains("frames"), "unhelpful note: {note}");
-    }
-
-    /// A project is counted off by the files it reads, over as many slices as
-    /// that takes. This is the import that used to be one long stop.
-    #[test]
-    fn a_project_is_walked_a_slice_at_a_time() {
-        let source = tempfile::tempdir().unwrap();
-        std::fs::write(
-            source.path().join("project.godot"),
-            "config_version=5\n\n[application]\n\nconfig/name=\"Harbour\"\n",
-        )
-        .unwrap();
-        // More files than one slice takes, so the walk has to come back for a
-        // second: a real project is thousands of these.
-        for n in 0..40 {
-            std::fs::write(source.path().join(format!("note{n}.txt")), "a\n").unwrap();
-        }
-        let project = tempfile::tempdir().unwrap();
-        let (events, slices, running) = run(
-            Source::Beside(source.path().join("project.godot")),
-            project.path(),
-        );
-
-        assert!(slices > 2, "41 files went in {slices} slices");
-        assert_eq!(running, 0, "the job let go of its place");
-        let ImportEvent::Started { files, .. } = &events[0] else {
-            panic!("it did not start: {}", events[0].kind());
-        };
-        assert_eq!(*files, 41, "project.godot and the forty beside it");
-
-        let counted: Vec<usize> = events
-            .iter()
-            .filter_map(|e| match e {
-                ImportEvent::Wrote { done, .. } => Some(*done),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            counted,
-            (1..=41).collect::<Vec<_>>(),
-            "counted up as they were read"
-        );
-        let last = events.last().unwrap();
-        let ImportEvent::Done { .. } = last else {
-            panic!("it did not finish: {}", last.kind());
-        };
     }
 
     /// A failure is reported, not logged and dropped, and the job still lets

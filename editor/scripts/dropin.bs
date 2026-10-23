@@ -42,8 +42,8 @@ pub fn kind_of(path: str) -> str {
         }
     }
     // Asked, not listed: a second copy of what the importer reads drifts from
-    // it. A whole `project.godot` makes a project, so it is the manager's.
-    if !lower.ends_with("project.godot") && import::handles(path) {
+    // it.
+    if import::handles(path) {
         return "import";
     }
     if lower.ends_with(".wesl") {

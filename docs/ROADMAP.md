@@ -66,7 +66,7 @@ being built, marked `done`, never back in the shipped one.
 | **Script completion and hover** — completion, hover, go-to-definition, rename and formatting. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
 | **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
-| **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder, Godot import. | 0.2 done | [PLAN-project-manager.md](PLAN-project-manager.md) |
+| **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder. | 0.2 done | [PLAN-project-manager.md](PLAN-project-manager.md) |
 | **Editor themes** — seven source colours and four sizes derive every token; a person's copy states only what changes, and a window edits every role. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md) |
 | **Theme pairs that follow the system** — Solarized, Gruvbox, Catppuccin and seven more bundled, each a dark and a light half, worn as the system says by default. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **An import that does not stop the editor** — a job that writes a few files a frame, a list of what is importing, and an Import button. | 0.2 done | [PLAN-import-jobs.md](PLAN-import-jobs.md) |
@@ -96,7 +96,6 @@ being built, marked `done`, never back in the shipped one.
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path. | 0.2 done | no plan |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
-| **Godot import** — `balaur import` over `project.godot`, `.tscn`, `.tres` and `.gdshader`, writing scenes, assets, script bodies and a report naming what did not convert. | 0.2 done | [PLAN-godot-import.md](PLAN-godot-import.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
@@ -104,7 +103,7 @@ being built, marked `done`, never back in the shipped one.
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
-| **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to a `.wasm` module and run over the same host calls; the editor, the examples and the GDScript importer use it, and Rune is gone. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
+| **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to a `.wasm` module and run over the same host calls; the editor and the examples use it, each module compiled once, and Rune is gone. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 | **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |

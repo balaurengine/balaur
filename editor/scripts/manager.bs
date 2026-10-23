@@ -23,10 +23,7 @@ pub class ManagerState {
     parent: str,
     note: str,
     failed: str,
-    importing: Importing,
     spots: any,
-    convert_from: str,
-    converted: str,
     releases: [any],
     asked: bool,
     reading: bool,
@@ -34,17 +31,6 @@ pub class ManagerState {
     tag: str,
     installing: Installing,
     back: bool,
-}
-
-/// A project being converted: the manifest it reads, where it lands, how far
-/// along, and what is done with it once it has: "open" it, or "forget" it off
-/// the recent list. No `source` when none is.
-pub struct Importing {
-    files: int,
-    done: int,
-    source: str,
-    path: str,
-    after: str,
 }
 
 /// An install in flight: the tag, bytes so far and of how many, and whether
@@ -79,16 +65,9 @@ pub fn state() -> ManagerState {
         parent: "",
         note: "",
         failed: "",
-        // A project being converted: the manifest it reads, where it lands,
-        // how far along, and what to do once it is done. Empty when none is.
-        importing: no_import(),
         // Where each control this screen draws last landed, keyed by the name
         // the showcase points at: an immediate pill has no node to ask.
         spots: map(),
-        // A folder a showcase will convert once its pointer reaches the
-        // button, and where it landed; empty for every other run.
-        convert_from: "",
-        converted: "",
         // The release feed, asked for once when the Engine tab or About opens,
         // and whether a read is out.
         releases: [],
@@ -199,9 +178,7 @@ pub fn close(S: &mut editor::State) {
 /// knows it as: a tab by its id, or one of the Projects tab's verbs; `None`
 /// before it has drawn.
 pub fn spot(S: editor::State, name: str) -> Spot? {
-    let node = if name == "import" {
-        scene::get_node(TOOLS() + "/Import")
-    } else if name == "new" {
+    let node = if name == "new" {
         scene::get_node(TOOLS() + "/New")
     } else {
         tab_node(name)
@@ -355,12 +332,7 @@ pub fn verb(S: &mut editor::State, name: str) {
     if picked.is_none() {
         return;
     }
-    let picked = picked.unwrap();
-    if name == "Import" {
-        import_project(S, picked);
-    } else {
-        go(S, picked);
-    }
+    go(S, picked.unwrap());
     told(S);
 }
 
@@ -371,33 +343,13 @@ fn head_note(S: editor::State, k: any) {
         .with("visible", said != "")
         .with("text", said)
         .with("text_color", if S.manager.failed != "" { k.get("warning_text") } else { k.get("text_subtle") }));
-    let controls = if converting(S) {
-        let job = S.manager.importing;
-        let counted = if job.files > 0 { "{job.done} of {job.files} files" } else { "reading" };
-        let part = if job.files > 0 { (job.done as float) / (job.files as float) } else { 0.0 };
-        [
-            map().with("kind", "label").with("role", "text_code_quiet").with("font_size", 11).with("text", counted),
-            map().with("kind", "progress_bar").with("width", 360).with("height", 4).with("value", part),
-            map().with("kind", "row").with("grow", 1),
-            map()
-                .with("kind", "button")
-                .with("role", "action_form")
-                .with("text", "stop")
-                .with("tooltip", "Stop after the file it is on; what it wrote stays")
-                .with("on", "handle")
-                .with("data", map().with("fn", head_note_on_0)),
-        ]
-    } else if installing(S) {
+    let controls = if installing(S) {
         progress_controls(S)
     } else {
         []
     };
     util::fill(PROGRESS(), map().with("visible", controls.len() > 0));
     pool::strip(S, PROGRESS(), controls);
-}
-
-fn head_note_on_0(S: &mut editor::State, data: any, _0: any) {
-    import::cancel();
 }
 
 // The filter and the three verbs, up on the Projects tab. A tab has no folder
@@ -408,11 +360,9 @@ fn tools(S: editor::State) {
     let acting = !in_tab();
     util::fill(TOOLS(), map().with("visible", up));
     util::fill(TOOLS() + "/Filter", map().with("text", S.manager.filter));
-    for name in ["Import", "Open"] {
-        util::fill(TOOLS() + "/" + name, map().with("visible", acting && !S.touchscreen));
-    }
-    util::fill(TOOLS() + "/Import", map().with("icon", icons::panel("import")));
-    util::fill(TOOLS() + "/Open", map().with("icon", icons::panel("assets")));
+    util::fill(TOOLS() + "/Open", map()
+        .with("visible", acting && !S.touchscreen)
+        .with("icon", icons::panel("assets")));
     util::fill(TOOLS() + "/New", map().with("visible", acting).with("icon", icons::ui("add")));
 }
 
@@ -904,10 +854,6 @@ fn no_install() -> Installing {
     Installing { tag: "", done: 0, total: 0, unpacking: false }
 }
 
-fn no_import() -> Importing {
-    Importing { files: 0, done: 0, source: "", path: "", after: "" }
-}
-
 /// A report on a check or an install. The start screen and the About sheet
 /// both read what this keeps.
 pub fn heard(S: &mut editor::State, e: any) {
@@ -1162,95 +1108,6 @@ fn create(S: &mut editor::State) {
     go(S, path);
 }
 
-// The manifests this screen reads, in the order it looks. A second engine is
-// a line here and a route in `balaur_import`.
-fn MANIFESTS() -> [str] {
-    ["project.godot"]
-}
-
-// Another engine's project becomes a balaur one beside it, opened once the
-// import says it is done: opening quits this process.
-fn import_project(S: &mut editor::State, folder: str) {
-    convert(S, folder, "open");
-}
-
-/// Start converting `folder` into a balaur project beside it, a few files a
-/// frame. Answers where it will land, or "" with the reason in
-/// `S.manager.failed`. Once every file is written, `after` "open" opens it,
-/// "forget" drops it from the list, and anything else leaves it listed.
-pub fn convert(S: &mut editor::State, folder: str, after: str) -> str {
-    if converting(S) {
-        S.manager.failed = "a project is already being imported";
-        return "";
-    }
-    let manifest = "";
-    for name in MANIFESTS() {
-        if manifest == "" && fs::exists(folder + "/" + name) {
-            manifest = folder + "/" + name;
-        }
-    }
-    if manifest == "" {
-        S.manager.failed = "no project to import in " + folder + ": looked for project.godot";
-        return "";
-    }
-    let name = util::last_segment(folder);
-    let path = S.manager.parent + "/" + name + "-balaur";
-    let made = util::obj(project::create(path, "empty"));
-    let why = made.get("error");
-    if !why.is_nil() {
-        S.manager.failed = why.as_str();
-        return "";
-    }
-    if !import::start(manifest, path) {
-        S.manager.failed = "importing " + manifest + " did not start";
-        return "";
-    }
-    S.manager.failed = "";
-    S.manager.note = "importing " + name;
-    S.manager.importing = Importing { files: 0, done: 0, source: manifest, path: path, after: after };
-    path
-}
-
-/// Whether a project is being converted.
-pub fn converting(S: editor::State) -> bool {
-    S.manager.importing.source != ""
-}
-
-/// Whether an import report is about the conversion this screen started.
-pub fn owns(S: editor::State, e: any) -> bool {
-    converting(S) && util::obj(e).get("source").as_str() == S.manager.importing.source
-}
-
-/// A report on the conversion: the count as it climbs, then how it ended.
-pub fn report(S: &mut editor::State, e: any) {
-    let ev = util::obj(e);
-    let kind = ev.get("kind").as_str();
-    let job = S.manager.importing;
-    if kind == "started" || kind == "wrote" {
-        S.manager.importing.done = ev.done.as_int();
-        S.manager.importing.files = ev.files.as_int();
-        told(S);
-        return;
-    }
-    S.manager.importing = no_import();
-    if kind == "done" {
-        S.manager.note = ev.note.as_str();
-        log::info("imported {job.source} into {job.path}: {S.manager.note}");
-        // The list was read before the project existed, so it is read again.
-        S.manager.read = false;
-        if job.after == "open" {
-            go(S, job.path);
-        } else if job.after == "forget" {
-            project::forget(job.path);
-        }
-    } else if kind == "failed" {
-        S.manager.failed = "importing " + job.source + ": " + ev.get("message").as_str();
-    } else if kind == "cancelled" {
-        S.manager.failed = "stopped importing after {ev.get("done").as_int()} files; {job.path} holds what was written";
-    }
-    told(S);
-}
-
 // Replace this install, on a thread; `heard` follows it. The reader pressed
 // it, so a downgrade is allowed: the press said Downgrade where it is one.
 pub fn put(S: &mut editor::State, channel: str, tag: str) {
@@ -1271,13 +1128,7 @@ pub fn put(S: &mut editor::State, channel: str, tag: str) {
 /// Open a project: the module remembers it, starts the editor on it and asks
 /// this process to quit.
 pub fn go(S: &mut editor::State, path: str) {
-    // Opening quits this process, which would leave a conversion half written.
-    if converting(S) {
-        S.manager.failed = "wait for the import to finish, or stop it";
-        told(S);
-        return;
-    }
-    // Or an install half swapped in.
+    // Opening quits this process, which would leave an install half swapped in.
     if installing(S) {
         S.manager.failed = "wait for the install to finish";
         told(S);

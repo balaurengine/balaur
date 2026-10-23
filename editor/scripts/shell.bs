@@ -918,7 +918,6 @@ fn prefixed_states() -> [Prefixed] {
         Prefixed { prefix: "asset:", run: state_asset },
         Prefixed { prefix: "import:", run: state_import },
         Prefixed { prefix: "imports:", run: state_imports },
-        Prefixed { prefix: "convert:", run: state_convert },
         Prefixed { prefix: "tab:", run: state_tab },
         Prefixed { prefix: "shut:", run: state_shut },
         Prefixed { prefix: "scale:", run: state_scale },
@@ -1144,19 +1143,6 @@ fn state_imports(S: &mut editor::State, list: str) {
     docks::show(S, "assets");
     S.import_queue = list.split(";");
     S.import_drip = true;
-}
-
-// `convert:<folder>`: the start screen converting a project as Import project
-// does, into the editor's own data folder and left off the recent list.
-fn state_convert(S: &mut editor::State, folder: str) {
-    S.manager.parent = engine::user_data_directory();
-    // A showcase presses Import project itself, so the folder waits for the
-    // frame its pointer reaches the button.
-    if showcase::driving(S) {
-        S.manager.convert_from = folder;
-        return;
-    }
-    manager::convert(S, folder, "forget");
 }
 
 fn state_mode(S: &mut editor::State, mode: str) {

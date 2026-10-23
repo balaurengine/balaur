@@ -157,12 +157,6 @@ pub struct InstancedFloat {
     float: WritableFloat,
 }
 
-pub class ConvertDemo {
-    waited: int,
-    source: str,
-    target: str,
-}
-
 pub struct Script {
     name: str,
     sample: str,
@@ -2244,7 +2238,6 @@ pub fn manager_screen(S: &mut editor::State) {
     // are hidden there. This run is a process, so it says so.
     check(!project::in_tab(), "a process, not a tab, so the screen may open one");
     example_projects(S);
-    converting_a_project(S);
     versions_half(S);
 }
 
@@ -2256,63 +2249,6 @@ fn lists_path(rows: any, home: str) -> bool {
         }
     }
     false
-}
-
-// The smallest Godot project the importer will read: a name, a main scene,
-// and that scene.
-const GODOT_PROJECT: str = "config_version=5\n\n[application]\n\nconfig/name=\"Selftest\"\nrun/main_scene=\"res://main.tscn\"\n";
-
-const GODOT_SCENE: str = "[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\"]\n";
-
-// Import project: the button's own half, with a hand-off in place of the open
-// that would quit this process. The files land over the frames that follow.
-fn converting_a_project(S: &mut editor::State) {
-    let home = engine::user_data_directory();
-    // Where new projects land. The screen sets this from the preferences; a
-    // run editing a project never opened the screen, so it is empty here.
-    S.manager.parent = home;
-    // A folder with no manifest is refused by name, before anything starts.
-    let empty = home + "/selftest-not-a-project";
-    fs::write(empty + "/notes.txt", "nothing to import here");
-    let refused = manager::convert(S, empty, "keep");
-    check(refused == "", "a folder with no project is refused");
-    check(S.manager.failed.contains("project.godot"), "saying what it looked for ({S.manager.failed})");
-    fs::remove(empty);
-    let source = home + "/selftest-godot";
-    fs::write(source + "/project.godot", GODOT_PROJECT);
-    fs::write(source + "/main.tscn", GODOT_SCENE);
-    let target = home + "/selftest-godot-balaur";
-    fs::remove(target);
-    let landed = manager::convert(S, source, "keep");
-    check(landed == target, "a project folder converts beside itself ({landed})");
-    check(manager::converting(S), "as a job, not inside this frame");
-    S.convert_demo = ConvertDemo { waited: 0, source: source, target: target };
-    stepping(S, "convert");
-}
-
-/// The conversion's end, once the job has walked every file.
-pub fn convert_step(S: &mut editor::State) {
-    if S.convert_demo.is_none() {
-        return;
-    }
-    let demo = S.convert_demo.unwrap();
-    if manager::converting(S) {
-        demo.waited += 1;
-        if demo.waited > 300 {
-            S.convert_demo = nil;
-            check(false, "the conversion finished within 300 frames");
-        }
-        return;
-    }
-    S.convert_demo = nil;
-    let target = demo.target;
-    check(S.manager.failed == "", "once done it reports nothing failed ({S.manager.failed})");
-    check(fs::exists(target + "/project.toml"), "with settings of its own");
-    check(fs::exists(target + "/scenes/main.toml"), "and every scene it read");
-    check(S.manager.note.contains("scene"), "saying what carried ({S.manager.note})");
-    project::forget(target);
-    fs::remove(target);
-    fs::remove(demo.source);
 }
 
 // The screen's other half: which build this is and what lines it may follow.
@@ -4571,8 +4507,6 @@ fn step_one(S: &mut editor::State, name: str) -> bool {
         physics_click_step(S);
     } else if name == "pick_check" {
         pick_check_step(S);
-    } else if name == "convert" {
-        convert_step(S);
     } else if name == "gesture" {
         gesture_step(S);
     } else if name == "layout" {
@@ -4621,8 +4555,6 @@ fn under_way(S: editor::State, name: str) -> bool {
         S.phys_click.is_some()
     } else if name == "pick_check" {
         S.pick_check.is_some()
-    } else if name == "convert" {
-        S.convert_demo.is_some()
     } else if name == "gesture" {
         S.gesture_demo >= 0
     } else if name == "layout" {

@@ -148,7 +148,6 @@ pub class State {
     palette_demo: int,
     import_demo: int,
     import_waited: int,
-    convert_demo: selftest::ConvertDemo?,
     rows_want: int,
     rows_waited: int,
     gesture_demo: int,
@@ -412,9 +411,6 @@ pub fn fresh_state() -> State {
         palette_demo: -1,
         import_demo: -1,
         import_waited: 0,
-        // The start screen's conversion under test: frames waited, and where
-        // it said it landed. Nil when no test is running.
-        convert_demo: nil,
         rows_want: 0,
         rows_waited: 0,
         gesture_demo: -1,
@@ -614,12 +610,7 @@ impl Editor {
 
     // Every import reports here: what is coming, each file, then the end.
     pub fn on_import_event(e: any) {
-        // The start screen's conversion is its own; every other import is a drop's.
-        if manager::owns(self.S, e) {
-            manager::report(self.S, e);
-        } else {
-            dropin::report(self.S, e);
-        }
+        dropin::report(self.S, e);
     }
 
     /// The window changed size.

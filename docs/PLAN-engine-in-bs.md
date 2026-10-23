@@ -318,9 +318,8 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    parser to translate a `.rn` file. Left: the Gamend SDK addon under
    `editor/library/addons/gamend` is still Rune, and its player-flow tests
    wait on its port.
-   In progress. The engine boots `.bs` alone: `script_language` defaults to
-   `bs`, and a scene attaching a `.rn` is a `balaur check` error. `balaur
-   lsp`, `fmt`, `test` and `check` answer for `.bs` only, and `balaur api`
-   reads its modules off the `.bs` host. The Rune editor is deleted. `balaur
-   port` stays, for a game still written in Rune. Left: the engine crates'
-   tests, the GDScript importer, the Gamend SDK, then `balaur_script_rune`.
+9. **Godot importer removed** (2026-10-23). `balaur import` reads models,
+   sprites and levels; `crates/balaur_import/src/godot`, the project
+   manager's Import project and their plans are gone. Step 7's notes on it
+   are what it was.
+10. **Each module compiled once** (2026-10-23): `docs/PLAN-bs-linking.md`.
