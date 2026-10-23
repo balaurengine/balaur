@@ -393,11 +393,8 @@ fn scripted(
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
-    let mut app = balaur::standard_app(balaur::AppConfig::dev(
-        dir.path().to_string_lossy().as_ref(),
-    ))
-    .unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     (app, dir, guard)
 }
@@ -408,14 +405,17 @@ fn a_swept_box_reaches_where_the_body_is_going() {
         r#"[[nodes]]
 id = "n_ball"
 name = "Ball"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 collider3d = { kind = "sphere", radius = 0.5 }
 "#,
-        r"pub fn boxes(this) {
-    let (ax, ay, az, bx, by, bz) = this.node.collider3d.aabb();
-    let (sx, sy, sz, tx, ty, tz) = this.node.collider3d.swept_aabb();
-    [ax, bx, sx, tx]
+        r"pub struct S { node: Node }
+impl S {
+    pub fn boxes() -> [float] {
+        let shape = self.node.collider3d.aabb();
+        let swept = self.node.collider3d.swept_aabb();
+        [shape[0], shape[3], swept[0], swept[3]]
+    }
 }
 ",
     );
@@ -465,7 +465,7 @@ collider2d = { kind = "rectangle", size = [20.0, 1.0] }
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body2d = { kind = "dynamic" }
 
 [nodes.transform]
@@ -477,8 +477,11 @@ name = "Shape"
 parent = "n_crate"
 collider2d = { kind = "rectangle", size = [1.0, 1.0] }
 "#,
-        r"pub fn hardest(this) {
-    [this.node.body2d.max_contact_impulse()]
+        r"pub struct S { node: Node }
+impl S {
+    pub fn hardest() -> [float] {
+        [self.node.body2d.max_contact_impulse()]
+    }
 }
 ",
     );

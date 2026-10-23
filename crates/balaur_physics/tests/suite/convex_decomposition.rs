@@ -1,7 +1,7 @@
 //! The 2D `convex_decomposition` collider: exact convex pieces that overlap
 //! across their seams, so a thin body cannot wedge into one.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::App;
 use balaur_core::scene::{Transform, find_node};
 use balaur_physics::PhysicsState2d;
@@ -46,7 +46,7 @@ mesh = "#table"
         ),
     )
     .unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     app
 }
@@ -177,30 +177,33 @@ fn a_script_can_ask_for_the_pieces() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.rn"),
-        r#"pub fn init(this) {
-    let l = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
-    let plain = geometry2d::convex_decomposition(l, #{ overlap: 0.0 });
-    assert!(plain.len() == 2, "an L should cut into two pieces");
-    let grown = geometry2d::convex_decomposition(l);
-    assert!(grown.len() == 2, "the overlap changed the piece count");
-    assert!(geometry2d::area(grown[0]) > geometry2d::area(plain[0]), "no piece grew");
-    let hull = geometry2d::convex_hull(l);
-    assert!(hull.len() == 5, "core's own geometry2d verbs are still there");
+        dir.path().join("scripts/s.bs"),
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        let l = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
+        let plain = geometry2d::convex_decomposition(l, map().with("overlap", 0.0));
+        if plain.len() != 2 { log::error("an L should cut into two pieces"); }
+        let grown = geometry2d::convex_decomposition(l);
+        if grown.len() != 2 { log::error("the overlap changed the piece count"); }
+        if geometry2d::area(grown.at(0)) <= geometry2d::area(plain.at(0)) { log::error("no piece grew"); }
+        let hull = geometry2d::convex_hull(l);
+        if hull.len() != 5 { log::error("core's own geometry2d verbs are still there"); }
+    }
 }
 "#,
     )
     .unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors: Vec<String> = balaur_core::logbuf::recent(80)
+    let errors: Vec<String> = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -260,7 +263,7 @@ size = [1.2, 0.04]
         ),
     )
     .unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..180 {
         app.tick(1.0 / 60.0);

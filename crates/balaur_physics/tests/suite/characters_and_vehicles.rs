@@ -35,7 +35,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 
 [nodes.collider3d]
 kind = "capsule"
@@ -49,14 +49,15 @@ floor_snap_length = 0.0
 "#
         ),
         &format!(
-            "pub fn init(this) {{ this.ticks = 0; }}
-
-pub fn fixed_update(this, dt) {{
-    this.ticks = this.ticks + 1;
-    this.node.character3d.move_character(0.1, 0.0, 0.0);
-    if this.ticks == 110 {{
-        let x = this.node.transform.position.x;
-        {expect}
+            "pub struct S {{ node: Node, ticks: int }}
+impl S {{
+    fn fixed_update(dt: float) {{
+        self.ticks += 1;
+        self.node.character3d.move_character(0.1, 0.0, 0.0);
+        if self.ticks == 110 {{
+            let x = self.node.transform.position.x;
+            {expect}
+        }}
     }}
 }}
 "
@@ -64,8 +65,10 @@ pub fn fixed_update(this, dt) {{
     );
 }
 
-const THROUGH: &str = r#"assert!(x > 3.0, "the character stopped at the wall: x is {}", x);"#;
-const STOPPED: &str = r#"assert!(x < 1.2, "the character walked into the wall: x is {}", x);"#;
+const THROUGH: &str =
+    r#"if x <= 3.0 { log::error("the character stopped at the wall: x is {x}"); }"#;
+const STOPPED: &str =
+    r#"if x >= 1.2 { log::error("the character walked into the wall: x is {x}"); }"#;
 
 #[test]
 fn a_character_walks_through_a_sensor_unless_told_not_to() {
@@ -98,7 +101,7 @@ fn a_character_never_meets_its_own_body() {
 id = "n_player"
 name = "Player"
 body3d = { kind = "kinematic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider3d]
 kind = "capsule"
@@ -120,14 +123,15 @@ position = [0.6, 0.0, 0.0]
 kind = "sphere"
 radius = 0.15
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    this.node.character3d.move_character(0.1, 0.0, 0.0);
-    if this.ticks == 60 {
-        let x = this.node.transform.position.x;
-        assert!(x > 3.0, "the character's own collider stopped it: x is {}", x);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        self.node.character3d.move_character(0.1, 0.0, 0.0);
+        if self.ticks == 60 {
+            let x = self.node.transform.position.x;
+            if x <= 3.0 { log::error("the character's own collider stopped it: x is {x}"); }
+        }
     }
 }
 "#,
@@ -158,7 +162,7 @@ sensor = true
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider2d]
 kind = "circle"
@@ -167,14 +171,15 @@ radius = 0.4
 [nodes.character2d]
 floor_snap_length = 0.0
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    this.node.character2d.move_character(0.1, 0.0);
-    if this.ticks == 110 {
-        let x = this.node.transform.position.x;
-        assert!(x > 3.0, "the 2D character stopped at a sensor: x is {}", x);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        self.node.character2d.move_character(0.1, 0.0);
+        if self.ticks == 110 {
+            let x = self.node.transform.position.x;
+            if x <= 3.0 { log::error("the 2D character stopped at a sensor: x is {x}"); }
+        }
     }
 }
 "#,
@@ -409,18 +414,15 @@ fn boot(scene: &str, script: &str, ticks: u32) -> (tempfile::TempDir, App, Vec<S
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = balaur::standard_app(balaur::AppConfig::dev(
-        dir.path().to_string_lossy().as_ref(),
-    ))
-    .unwrap();
+    let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..ticks {
         app.tick(1.0 / 60.0);
     }
-    let errors = balaur_core::logbuf::recent(80)
+    let errors = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -459,7 +461,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 {player}
 
 [nodes.character3d]
@@ -469,8 +471,11 @@ floor_snap_length = 0.0
     )
 }
 
-const WALK: &str =
-    "pub fn fixed_update(this, dt) { this.node.character3d.move_character(0.05, 0.0, 0.0); }\n";
+const WALK: &str = "pub struct S { node: Node }
+impl S {
+    fn fixed_update(dt: float) { self.node.character3d.move_character(0.05, 0.0, 0.0); }
+}
+";
 
 const CAPSULE: &str = "\n[nodes.collider3d]\nkind = \"capsule\"\nradius = 0.4\nheight = 2.0\n";
 
@@ -522,7 +527,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 body3d = {{ kind = "kinematic" }}
 character3d = {{ floor_snap_length = 0.0 }}
 {CAPSULE}
@@ -553,22 +558,36 @@ radius = 0.3
 fn a_collision_reports_where_the_sweep_met_the_obstacle() {
     let (_dir, _app, errors) = boot(
         &wall_and_player(CAPSULE, ""),
-        r#"pub fn init(this) { this.done = false; }
+        r#"fn x(v: any) -> float { v.at(0).as_float() }
 
-pub fn fixed_update(this, dt) {
-    let moved = this.node.character3d.move_character(0.2, 0.0, 0.0);
-    if !this.done && moved.collisions.len() > 0 {
-        let hit = moved.collisions[0];
-        assert!(hit.point.x > 1.4 && hit.point.x < 1.6, "the wall was met at {}", hit.point.x);
-        assert!(hit.own_point.x > 1.3 && hit.own_point.x < 1.6, "the capsule was met at {}", hit.own_point.x);
-        assert!(hit.own_normal.x > 0.9, "the capsule's normal points {}", hit.own_normal.x);
-        assert!(hit.distance >= 0.0 && hit.distance <= 0.2, "it swept {}", hit.distance);
-        assert!(hit.position.x + 0.4 < 1.6, "the character stood at {}", hit.position.x);
-        assert!(hit.applied.x >= 0.0, "applied {}", hit.applied.x);
-        assert!(hit.status == physics3d::SWEEP_CONVERGED || hit.status == physics3d::SWEEP_OUT_OF_ITERATIONS, "status {}", hit.status);
-        assert!(hit.subshape == 0, "a box has no parts: {}", hit.subshape);
-        this.done = true;
-        log::error("checked: collision record");
+pub struct S { node: Node, done: bool }
+impl S {
+    fn fixed_update(dt: float) {
+        // Every engine call logs wasmtime's trace lines, which would push the
+        // check's own line out of the log a test reads.
+        if self.done { return; }
+        let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
+        if moved.get("collisions").len() > 0 {
+            let hit = moved.get("collisions").at(0);
+            let point = x(hit.get("point"));
+            if point <= 1.4 || point >= 1.6 { log::error("the wall was met at {point}"); }
+            let own = x(hit.get("own_point"));
+            if own <= 1.3 || own >= 1.6 { log::error("the capsule was met at {own}"); }
+            let normal = x(hit.get("own_normal"));
+            if normal <= 0.9 { log::error("the capsule's normal points {normal}"); }
+            let distance = hit.get("distance").as_float();
+            if distance < 0.0 || distance > 0.2 { log::error("it swept {distance}"); }
+            let stood = x(hit.get("position"));
+            if stood + 0.4 >= 1.6 { log::error("the character stood at {stood}"); }
+            let applied = x(hit.get("applied"));
+            if applied < 0.0 { log::error("applied {applied}"); }
+            let status = hit.get("status").as_str();
+            if status != physics3d::SWEEP_CONVERGED && status != physics3d::SWEEP_OUT_OF_ITERATIONS { log::error("status {status}"); }
+            let subshape = hit.get("subshape").as_int();
+            if subshape != 0 { log::error("a box has no parts: {subshape}"); }
+            self.done = true;
+            log::error("checked: collision record");
+        }
     }
 }
 "#,
@@ -619,7 +638,7 @@ friction = 0.0
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 body3d = {{ kind = "kinematic" }}
 
 [nodes.transform]
@@ -695,7 +714,7 @@ size = [8.0, 1.0, 40.0]
 id = "n_car"
 name = "Car"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0, lock_translation = ["y"], lock_rotation = ["x", "y", "z"] }
 vehicle3d = { forward_axis = "-z" }
 
@@ -717,33 +736,47 @@ wheel3d = { radius = 0.4 }
 fn speed_and_wheel_state_read_the_kept_controller() {
     let (_dir, _app, errors) = boot(
         DRIVEWAY,
-        r#"pub fn init(this) {
-    this.ticks = 0;
-    this.node.body3d.set_linear_velocity(0.0, 0.0, 4.0);
-}
+        r#"fn x(v: any) -> float { v.at(0).as_float() }
+fn y(v: any) -> float { v.at(1).as_float() }
 
-pub fn fixed_update(this, dt) {
-    this.ticks += 1;
-    let wheel = this.node.get_node("Wheel");
-    if this.ticks == 3 {
-        wheel.wheel3d.set_wheel_rotation(1.5);
-        assert!((wheel.wheel3d.wheel_state().rotation - 1.5).abs() < 0.0001, "the rotation was not set");
+pub struct S { node: Node, ticks: int }
+impl S {
+    fn init() {
+        self.node.body3d.set_linear_velocity(0.0, 0.0, 4.0);
     }
-    if this.ticks == 10 {
-        let speed = this.node.vehicle3d.speed();
-        assert!((speed + 4.0).abs() < 0.5, "a car rolling backwards read {}", speed);
-        let state = wheel.wheel3d.wheel_state();
-        assert!(state.in_contact, "the wheel is off the ground");
-        assert!(state.ground == scene::get_node("World/Ground"), "the ray hit {:?}", state.ground);
-        assert!(state.contact_point.y.abs() < 0.05, "the ray met the ground at {}", state.contact_point.y);
-        assert!(state.contact_normal.y > 0.9, "the ground's normal points {}", state.contact_normal.y);
-        assert!((state.ray_origin.y - 0.6).abs() < 0.05, "the ray started at {}", state.ray_origin.y);
-        assert!(state.suspension_length > 0.0 && state.suspension_length < 0.31, "suspension {}", state.suspension_length);
-        assert!(state.suspension.y < -0.9, "the suspension points {}", state.suspension.y);
-        assert!(state.axle.x.abs() > 0.9, "the axle points {}", state.axle.x);
-        assert!(state.center.y < 0.6, "the wheel's centre is at {}", state.center.y);
-        assert!(state.rotation.abs() > 1.6, "the wheel stopped turning after the set: {}", state.rotation);
-        log::error("checked: wheel state");
+
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        let wheel = self.node.get_node("Wheel");
+        if self.ticks == 3 {
+            wheel.wheel3d.set_wheel_rotation(1.5);
+            if math::abs(wheel.wheel3d.wheel_state().get("rotation").as_float() - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
+        }
+        if self.ticks == 10 {
+            let speed = self.node.vehicle3d.speed();
+            if math::abs(speed + 4.0) >= 0.5 { log::error("a car rolling backwards read {speed}"); }
+            let state = wheel.wheel3d.wheel_state();
+            if !state.get("in_contact").as_bool() { log::error("the wheel is off the ground"); }
+            let ground = state.get("ground");
+            if ground.as_node() != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }
+            let contact = y(state.get("contact_point"));
+            if math::abs(contact) >= 0.05 { log::error("the ray met the ground at {contact}"); }
+            let normal = y(state.get("contact_normal"));
+            if normal <= 0.9 { log::error("the ground's normal points {normal}"); }
+            let origin = y(state.get("ray_origin"));
+            if math::abs(origin - 0.6) >= 0.05 { log::error("the ray started at {origin}"); }
+            let length = state.get("suspension_length").as_float();
+            if length <= 0.0 || length >= 0.31 { log::error("suspension {length}"); }
+            let suspension = y(state.get("suspension"));
+            if suspension >= -0.9 { log::error("the suspension points {suspension}"); }
+            let axle = x(state.get("axle"));
+            if math::abs(axle) <= 0.9 { log::error("the axle points {axle}"); }
+            let center = y(state.get("center"));
+            if center >= 0.6 { log::error("the wheel's centre is at {center}"); }
+            let rotation = state.get("rotation").as_float();
+            if math::abs(rotation) <= 1.6 { log::error("the wheel stopped turning after the set: {rotation}"); }
+            log::error("checked: wheel state");
+        }
     }
 }
 "#,

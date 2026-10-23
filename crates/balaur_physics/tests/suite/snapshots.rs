@@ -20,16 +20,13 @@ fn boot(scene: &str) -> (App, tempfile::TempDir, std::sync::MutexGuard<'static, 
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = balaur::standard_app(balaur::AppConfig::dev(
-        dir.path().to_string_lossy().as_ref(),
-    ))
-    .unwrap();
+    let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     (app, dir, guard)
 }
 
 fn errors() -> Vec<String> {
-    balaur_core::logbuf::recent(50)
+    balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))

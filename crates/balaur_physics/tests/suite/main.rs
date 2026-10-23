@@ -8,6 +8,14 @@
 /// lock: a mutex per module cannot exclude the other modules.
 pub(crate) static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// A dev run with the file watcher off: it reports the script a test wrote a
+/// moment before booting, and the reload that starts logs over a test's lines.
+pub(crate) fn dev_config(dir: &std::path::Path) -> balaur::AppConfig {
+    let mut config = balaur::AppConfig::dev(dir.to_string_lossy().as_ref());
+    config.watch = false;
+    config
+}
+
 mod api;
 mod bodies;
 mod body_events;
@@ -37,6 +45,7 @@ mod shapes_and_geometry;
 mod snapshots;
 mod soft_bodies;
 mod soft_body_layouts;
+mod soft_body_particles;
 mod soft_body_parts;
 mod surfaces;
 mod warnings;

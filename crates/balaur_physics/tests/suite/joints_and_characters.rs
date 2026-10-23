@@ -1,7 +1,7 @@
 //! Collision events, joints and the character controller, driven from scripts
 //! because their whole surface is the script seam.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 
 use crate::LOG;
 
@@ -19,16 +19,16 @@ pub(crate) fn run(scene: &str, script: &str) -> Vec<String> {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..120 {
         app.tick(1.0 / 60.0);
     }
-    balaur_core::logbuf::recent(80)
+    balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -52,7 +52,7 @@ name = "World"
 id = "n_trigger"
 name = "Trigger"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider3d]
 kind = "box"
@@ -73,16 +73,17 @@ position = [0.0, 6.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub fn init(this) { this.seen = 0; this.left = 0; this.ticks = 0; }
+        r#"pub struct S { node: Node, seen: int, left: int, ticks: int }
+impl S {
+    pub fn on_collision_enter(collision: any) { self.seen += 1; }
+    pub fn on_collision_exit(collision: any) { self.left += 1; }
 
-pub fn on_collision_enter(this, collision) { this.seen += 1; }
-pub fn on_collision_exit(this, collision) { this.left += 1; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        assert!(this.seen >= 1, "nothing ever entered the trigger");
-        assert!(this.left >= 1, "nothing ever left it");
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            if self.seen < 1 { log::error("nothing ever entered the trigger"); }
+            if self.left < 1 { log::error("nothing ever left it"); }
+        }
     }
 }
 "#,
@@ -111,7 +112,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -126,15 +127,16 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        let position = this.node.transform.position;
-        let far = math::sqrt(position.x * position.x + position.y * position.y);
-        assert!(far < 1.2, "the joint let go: the body is {} from the anchor", far);
-        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            let position = self.node.transform.position;
+            let far = math::sqrt(position.x * position.x + position.y * position.y);
+            if far >= 1.2 { log::error("the joint let go: the body is {far} from the anchor"); }
+            if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+        }
     }
 }
 "#,
@@ -154,7 +156,7 @@ id = "n_floor"
 name = "Floor"
 parent = "n_world"
 body3d = { kind = "static" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider3d]
 kind = "box"
@@ -174,18 +176,19 @@ position = [0.0, 3.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub fn init(this) { this.hits = 0; this.ticks = 0; }
-
-pub fn on_contact_force(this, contact) {
-    if contact["force"] > 0.0 && contact["other"].name() == "Crate" {
-        this.hits += 1;
+        r#"pub struct S { node: Node, hits: int, ticks: int }
+impl S {
+    pub fn on_contact_force(contact: any) {
+        if contact.get("force").as_float() > 0.0 && contact.get("other").as_node().name() == "Crate" {
+            self.hits += 1;
+        }
     }
-}
 
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        assert!(this.hits > 0, "the landing never reported a force from the crate");
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 && self.hits <= 0 {
+            log::error("the landing never reported a force from the crate");
+        }
     }
 }
 "#,
@@ -215,7 +218,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -231,19 +234,21 @@ axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 break_force = 0.001
 "#,
-        r#"pub fn init(this) { this.broke = 0; this.ticks = 0; }
-
-pub fn on_joint_break(this, broke) {
-    let ends = [broke["a"].name(), broke["b"].name()];
-    if broke["force"] > 0.001 && ends.iter().any(|n| n == "Anchor") {
-        this.broke += 1;
+        r#"pub struct S { node: Node, broke: int, ticks: int }
+impl S {
+    pub fn on_joint_break(broke: any) {
+        let a = broke.get("a").as_node().name();
+        let b = broke.get("b").as_node().name();
+        if broke.get("force").as_float() > 0.001 && (a == "Anchor" || b == "Anchor") {
+            self.broke += 1;
+        }
     }
-}
 
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 60 {
-        assert!(this.broke == 1, "the joint broke {} times with its payload", this.broke);
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 60 && self.broke != 1 {
+            log::error("the joint broke {self.broke} times with its payload");
+        }
     }
 }
 "#,
@@ -274,7 +279,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -294,15 +299,16 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        let position = this.node.transform.position;
-        let far = math::sqrt(position.x * position.x + position.y * position.y);
-        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
-        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            let position = self.node.transform.position;
+            let far = math::sqrt(position.x * position.x + position.y * position.y);
+            if far >= 1.2 { log::error("the child's joint did not hold: the body is {far} from the anchor"); }
+            if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+        }
     }
 }
 "#,
@@ -331,7 +337,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -350,15 +356,16 @@ kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0]
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        let position = this.node.transform.position;
-        let far = math::sqrt(position.x * position.x + position.y * position.y);
-        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
-        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            let position = self.node.transform.position;
+            let far = math::sqrt(position.x * position.x + position.y * position.y);
+            if far >= 1.2 { log::error("the child's joint did not hold: the body is {far} from the anchor"); }
+            if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+        }
     }
 }
 "#,
@@ -379,7 +386,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -403,14 +410,15 @@ body3d = { kind = "static" }
 kind = "sphere"
 radius = 0.2
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        let position = this.node.transform.position;
-        let far = math::sqrt(position.x * position.x + position.y * position.y);
-        assert!(far < 1.2, "the forward reference never connected: {} away", far);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            let position = self.node.transform.position;
+            let far = math::sqrt(position.x * position.x + position.y * position.y);
+            if far >= 1.2 { log::error("the forward reference never connected: {far} away"); }
+        }
     }
 }
 "#,
@@ -442,7 +450,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.collider3d]
 kind = "capsule"
@@ -452,15 +460,16 @@ height = 1.0
 [nodes.character3d]
 floor_snap_length = 0.0
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    let moved = this.node.character3d.move_character(0.1, 0.0, 0.05);
-    if this.ticks == 110 {
-        let position = this.node.transform.position;
-        assert!(position.x < 1.2, "the character walked into the wall: x is {}", position.x);
-        assert!(position.z > 0.5, "the character did not slide along it: z is {}", position.z);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        self.node.character3d.move_character(0.1, 0.0, 0.05);
+        if self.ticks == 110 {
+            let position = self.node.transform.position;
+            if position.x >= 1.2 { log::error("the character walked into the wall: x is {position.x}"); }
+            if position.z <= 0.5 { log::error("the character did not slide along it: z is {position.z}"); }
+        }
     }
 }
 "#,
@@ -580,7 +589,7 @@ size = [16.0, 1.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [0.0, 1.0, 0.0]
@@ -592,27 +601,28 @@ height = 1.0
 
 [nodes.character3d]
 "#,
-        r#"pub fn init(this) { this.ticks = 0; this.parked = 0.0; this.grounded = false; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks < 40 {
-        this.node.character3d.move_character(0.0, -0.2, 0.0);
-        return;
-    }
-    if this.ticks == 40 {
-        this.parked = this.node.transform.position.y;
-        this.grounded = this.node.character3d.is_on_floor();
-    }
-    let i = 0;
-    while i < 8 {
-        this.node.character3d.is_on_floor();
-        i += 1;
-    }
-    if this.ticks == 100 {
-        assert!(this.grounded, "the character never landed, so the test proves nothing");
-        let drift = this.node.transform.position.y - this.parked;
-        assert!(drift < 0.0001 && drift > -0.0001, "asking moved it by {}", drift);
+        r#"pub struct S { node: Node, ticks: int, parked: float, grounded: bool }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks < 40 {
+            self.node.character3d.move_character(0.0, -0.2, 0.0);
+            return;
+        }
+        if self.ticks == 40 {
+            self.parked = self.node.transform.position.y;
+            self.grounded = self.node.character3d.is_on_floor();
+        }
+        let i = 0;
+        while i < 8 {
+            self.node.character3d.is_on_floor();
+            i += 1;
+        }
+        if self.ticks == 100 {
+            if !self.grounded { log::error("the character never landed, so the test proves nothing"); }
+            let drift = self.node.transform.position.y - self.parked;
+            if drift >= 0.0001 || drift <= -0.0001 { log::error("asking moved it by {drift}"); }
+        }
     }
 }
 "#,
@@ -628,7 +638,7 @@ fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 rotation_euler = [0.0, 0.0, 1.5707963]
@@ -641,16 +651,17 @@ size = [2.0, 0.1]
 floor_snap_length = 0.0
 step_height = 0.0
 "#,
-        r#"pub fn init(this) { this.ticks = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    this.node.character2d.move_character(0.0, 0.0);
-    if this.ticks == 30 {
-        let flat = physics2d::raycast(#{ origin: [0.5, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
-        assert!(flat is Tuple, "the character lay back down: a ray beside it still hits");
-        let upright = physics2d::raycast(#{ origin: [0.0, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
-        assert!(!(upright is Tuple), "the character is not where the test thinks it is");
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        self.node.character2d.move_character(0.0, 0.0);
+        if self.ticks == 30 {
+            let flat = physics2d::raycast(map().with("origin", [0.5, 3.0]).with("direction", [0.0, -1.0]).with("max_distance", 100.0));
+            if !flat.is_nil() { log::error("the character lay back down: a ray beside it still hits"); }
+            let upright = physics2d::raycast(map().with("origin", [0.0, 3.0]).with("direction", [0.0, -1.0]).with("max_distance", 100.0));
+            if upright.is_nil() { log::error("the character is not where the test thinks it is"); }
+        }
     }
 }
 "#,
@@ -684,7 +695,7 @@ id = "n_faller"
 name = "Faller"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [0.0, -8.0, 0.0]
@@ -693,17 +704,18 @@ position = [0.0, -8.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub fn init(this) { this.ticks = 0; this.seen = 0; }
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        for contact in this.node.collider3d.contacts() {
-            this.seen = this.seen + 1;
-            let y = contact.point.y;
-            assert!(y < -8.0, "the contact point is in local space: y is {}", y);
+        r#"pub struct S { node: Node, ticks: int, seen: int }
+impl S {
+    fn fixed_update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 110 {
+            for contact in self.node.collider3d.contacts() {
+                self.seen += 1;
+                let y = contact.get("point").at(1).as_float();
+                if y >= -8.0 { log::error("the contact point is in local space: y is {y}"); }
+            }
+            if self.seen <= 0 { log::error("the body never landed, so nothing was checked"); }
         }
-        assert!(this.seen > 0, "the body never landed, so nothing was checked");
     }
 }
 "#,

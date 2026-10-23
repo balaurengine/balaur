@@ -12,7 +12,7 @@ pub(crate) struct Booted {
     _log: std::sync::MutexGuard<'static, ()>,
 }
 
-/// The project whose `main.toml` is `scene` and whose `scripts/s.rn` is
+/// The project whose `main.toml` is `scene` and whose `scripts/s.bs` is
 /// `script`, loaded and not yet ticked.
 pub(crate) fn project(scene: &str, script: &str) -> Booted {
     let log = crate::LOG
@@ -26,13 +26,10 @@ pub(crate) fn project(scene: &str, script: &str) -> Booted {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = balaur::standard_app(balaur::AppConfig::dev(
-        dir.path().to_string_lossy().as_ref(),
-    ))
-    .unwrap();
+    let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     Booted {
         app,
@@ -43,7 +40,7 @@ pub(crate) fn project(scene: &str, script: &str) -> Booted {
 
 /// Every error logged since the project booted, with its fields.
 pub(crate) fn errors() -> Vec<String> {
-    balaur_core::logbuf::recent(80)
+    balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))
@@ -98,6 +95,17 @@ pub(crate) fn number(value: &balaur_script::Value) -> f64 {
         balaur_script::Value::Num(n) => *n,
         balaur_script::Value::Int(n) => *n as f64,
         other => panic!("not a number: {other:?}"),
+    }
+}
+
+/// A vector's numbers: an `any` in a script holds a vector as the list of
+/// them.
+pub(crate) fn vector(value: &balaur_script::Value) -> Vec<f64> {
+    match value {
+        balaur_script::Value::Vec2(v) => v.iter().map(|x| f64::from(*x)).collect(),
+        balaur_script::Value::Vec3(v) => v.iter().map(|x| f64::from(*x)).collect(),
+        balaur_script::Value::List(xs) => xs.iter().map(number).collect(),
+        other => panic!("not a vector: {other:?}"),
     }
 }
 

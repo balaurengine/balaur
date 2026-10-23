@@ -29,7 +29,7 @@ fn a_pinned_region_holds_its_particles_and_restores_with_the_world() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let fall = |pinned: bool| {
         let script = format!(
-            "pub fn init(this) {{\n    this.node.softbody3d.set_softbody(#{{ kind: physics3d::SOFT_ROPE, particle_count: 8, regions: [#{{ particles: [0, 1], pinned: {pinned}, stiffness_scale: 2.0 }}] }});\n}}\n"
+            "pub struct S {{ node: Node }}\nimpl S {{\n    fn init() {{\n        self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_ROPE).with(\"particle_count\", 8).with(\"regions\", [map().with(\"particles\", [0, 1]).with(\"pinned\", {pinned}).with(\"stiffness_scale\", 2.0)]));\n    }}\n}}\n"
         );
         let (dir, mut app) = boot(&script, 1);
         let (clusters, before, _) = clusters_and_heights(&app, 0, 7);
@@ -56,10 +56,13 @@ fn a_pinned_region_holds_its_particles_and_restores_with_the_world() {
 
 #[test]
 fn a_region_naming_a_particle_the_body_lacks_is_refused() {
-    let errors = run(r"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particle_count: 4, regions: [#{ particles: [9] }] });
+    let errors = run(r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("regions", [map().with("particles", [9])]));
+    }
 }
-");
+"#);
     assert!(errors.iter().any(|e| e.contains("regions")), "{errors:#?}");
 }
 
@@ -70,7 +73,7 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let colliders = |extra: &str| {
         let script = format!(
-            "pub fn init(this) {{\n    this.node.softbody3d.set_softbody(#{{ kind: \"box\", cells: [2.0, 2.0, 2.0]{extra} }});\n}}\n"
+            "pub struct S {{ node: Node }}\nimpl S {{\n    fn init() {{\n        self.node.softbody3d.set_softbody(map().with(\"kind\", \"box\").with(\"cells\", [2.0, 2.0, 2.0]){extra});\n    }}\n}}\n"
         );
         let (dir, app) = boot(&script, 2);
         let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
@@ -80,15 +83,18 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
     };
     let plain = colliders("");
     let meshed = colliders(
-        ", collision_mesh: \"#wedge\", collision_binding: \"nearest\", collision_binding_distance: 2.0",
+        ".with(\"collision_mesh\", \"#wedge\").with(\"collision_binding\", \"nearest\").with(\"collision_binding_distance\", 2.0)",
     );
     assert_eq!(meshed, plain + 1, "the mesh is one deformable collider");
 }
 
 #[test]
 fn a_collision_mesh_bound_to_particles_it_lacks_is_refused() {
-    let errors = run(r##"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particle_count: 2, collision_mesh: "#wedge", collision_binding: "particles" });
+    let errors = run(r##"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 2).with("collision_mesh", "#wedge").with("collision_binding", "particles"));
+    }
 }
 "##);
     assert!(
