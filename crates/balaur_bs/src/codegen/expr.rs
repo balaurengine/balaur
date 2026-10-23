@@ -21,8 +21,8 @@ impl FnGen<'_> {
                 Ty::Bool
             }
             ExprKind::Str(s) => {
-                let p = self.g.string(s);
-                self.e(I::I32Const(p as i32));
+                let at = self.g.str_addr(s);
+                self.emit(at);
                 Ty::Str
             }
             ExprKind::Nil => {
@@ -363,14 +363,14 @@ impl FnGen<'_> {
 
     fn interp(&mut self, parts: &[Part]) -> R<()> {
         if parts.is_empty() {
-            let p = self.g.string("");
-            self.e(I::I32Const(p as i32));
+            let at = self.g.str_addr("");
+            self.emit(at);
         }
         for (k, part) in parts.iter().enumerate() {
             match part {
                 Part::Text(s) => {
-                    let p = self.g.string(s);
-                    self.e(I::I32Const(p as i32));
+                    let at = self.g.str_addr(s);
+                    self.emit(at);
                 }
                 Part::Value(v) => {
                     let t = self.expr(v)?;
@@ -390,14 +390,12 @@ impl FnGen<'_> {
             Ty::Int | Ty::Node => self.e(I::Call(self.g.h.str_of_i64)),
             Ty::Float => self.e(I::Call(self.g.h.str_of_f64)),
             Ty::Bool => {
-                let (yes, no) = (self.g.string("true"), self.g.string("false"));
-                self.emit([
-                    I::If(BlockType::Result(ValType::I32)),
-                    I::I32Const(yes as i32),
-                    I::Else,
-                    I::I32Const(no as i32),
-                    I::End,
-                ]);
+                let (yes, no) = (self.g.str_addr("true"), self.g.str_addr("false"));
+                self.e(I::If(BlockType::Result(ValType::I32)));
+                self.emit(yes);
+                self.e(I::Else);
+                self.emit(no);
+                self.e(I::End);
             }
             // A list, struct or `T?`: what its `any` says of it.
             Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_) => {

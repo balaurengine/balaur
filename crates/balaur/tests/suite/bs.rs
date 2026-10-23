@@ -185,6 +185,36 @@ fn a_script_uses_a_library_file_and_reloads_with_it() {
     assert!(reached, "the library's edit never reached its user");
 }
 
+// A library's struct gaining a field moves the one its user reads: the
+// user's own unit, built against the old layout, is built again.
+#[test]
+fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
+    use balaur_script::Value::Int;
+    let dir = one_script(
+        "Counter",
+        "use steps;\npub struct C { count: int }\nimpl C {\n    fn update(dt: float) {\n        self.count += steps::step().by;\n    }\n}\n",
+    );
+    let lib = dir.path().join("scripts/steps.bs");
+    std::fs::write(
+        &lib,
+        "pub struct Step { by: int }\npub fn step() -> Step { Step { by: 1 } }\n",
+    )
+    .unwrap();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 2);
+    assert_eq!(field(&app, "Counter", "count"), Some(Int(2)));
+    std::fs::write(
+        &lib,
+        "pub struct Step { first: int, by: int }\npub fn step() -> Step { Step { first: 0, by: 100 } }\n",
+    )
+    .unwrap();
+    let reached = ticked_until(
+        &mut app,
+        |app| matches!(field(app, "Counter", "count"), Some(Int(n)) if n > 100),
+    );
+    assert!(reached, "the user still reads the struct as it was");
+}
+
 #[test]
 fn an_exported_bs_spinner_runs_from_the_pack_alone() {
     let dir = project("spinner.bs");

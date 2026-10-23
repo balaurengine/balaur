@@ -20,7 +20,7 @@ libloading = { version = "0.9", optional = true }
 
 # A JIT runs everywhere but a browser and iOS; elsewhere `wasmtime` is inert.
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
-wasmtime = { version = "48", optional = true, default-features = false, features = ["cranelift", "runtime", "std"] }
+wasmtime = { version = "48", optional = true, default-features = false, features = ["cranelift", "runtime", "std", "parallel-compilation"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = { version = "0.3.106", optional = true }

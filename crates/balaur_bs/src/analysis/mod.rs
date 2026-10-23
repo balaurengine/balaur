@@ -97,7 +97,7 @@ impl Analysis {
 
     // The file with what its `use`s bring in, as far as they can be found.
     fn linked(&self, mut prog: Program) -> Program {
-        let _ = crate::modules::link(&mut prog, &self.path, self.modules.as_ref());
+        let _ = crate::modules::link(&mut prog, &self.path, self.modules.as_ref(), true, None);
         prog
     }
 

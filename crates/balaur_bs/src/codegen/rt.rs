@@ -19,6 +19,11 @@ pub(crate) const G_DBG_BREAKS: u32 = 5;
 pub(crate) const GLOBALS: usize = 6;
 /// Only in a metered module, after the rest.
 pub(crate) const G_FUEL: u32 = 6;
+/// Only in a unit, imported after the rest: where its static data, its own
+/// `fn` table slots and its link slots start.
+pub(crate) const G_MEMORY_BASE: u32 = 6;
+pub(crate) const G_TABLE_BASE: u32 = 7;
+pub(crate) const G_LINK_BASE: u32 = 8;
 pub(crate) const FRAME_HEADER: u32 = 16;
 
 pub(crate) fn mem(offset: u64, align: u32) -> MemArg {

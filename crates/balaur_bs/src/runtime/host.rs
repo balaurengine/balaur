@@ -106,6 +106,14 @@ enum Kind {
 pub(crate) struct HostState {
     pub meta: Arc<Meta>,
     kinds: Vec<Kind>,
+    /// A linked script's other units, numbered from 1 in the order they were
+    /// made: each one's own types, and what its imports run.
+    units: Vec<(Arc<crate::Compiled>, Vec<Kind>)>,
+    /// What a unit made later binds its imports from.
+    fns: HostFns,
+    /// Each `extern fn` taken out of `fns` so far, by name, and where it went
+    /// in `sync` or `asynch`: two units calling one share it.
+    bound: HashMap<String, usize>,
     sync: Vec<SyncFn>,
     asynch: Vec<AsyncFn>,
 
@@ -160,21 +168,84 @@ fn math(name: &str) -> Option<Kind> {
 }
 
 impl HostState {
-    pub(crate) fn new(meta: Arc<Meta>, mut fns: HostFns) -> Result<Self, String> {
-        let (mut sync, mut asynch, mut kinds) = (vec![], vec![], vec![]);
+    pub(crate) fn new(meta: Arc<Meta>, fns: HostFns) -> Result<Self, String> {
+        let debugger = Debugger::new(meta.clone());
+        let mut state = HostState {
+            meta,
+            kinds: vec![],
+            units: vec![],
+            fns,
+            bound: HashMap::new(),
+            sync: vec![],
+            asynch: vec![],
+            timers: HashMap::new(),
+            resolved: HashMap::new(),
+            tokens: HashMap::new(),
+            heap_awaits: HashMap::new(),
+            next_handle: 0,
+            inside: None,
+            extra: Raws::new(),
+            shares: rustc_hash::FxHashMap::default(),
+            releases: rustc_hash::FxHashMap::default(),
+            now: 0.0,
+            debugger,
+        };
+        let own = state.meta.clone();
+        state.kinds = state.kinds_of(&own)?;
+        Ok(state)
+    }
+
+    // The types unit `unit` reads and answers calls by: 0 is the script's.
+    fn types(&self, unit: usize) -> Types {
+        match unit {
+            0 => Types::Own(self.meta.clone()),
+            u => Types::Unit(self.units[u - 1].0.clone()),
+        }
+    }
+
+    fn kinds(&self, unit: usize) -> &[Kind] {
+        match unit {
+            0 => &self.kinds,
+            u => &self.units[u - 1].1,
+        }
+    }
+
+    /// Another unit of a linked script, its imports bound: the number its
+    /// calls are dispatched by.
+    pub(crate) fn bind_unit(&mut self, unit: Arc<crate::Compiled>) -> Result<usize, String> {
+        let kinds = self.kinds_of(&unit.meta)?;
+        self.units.push((unit, kinds));
+        Ok(self.units.len())
+    }
+
+    // What each of `meta`'s imports runs.
+    fn kinds_of(&mut self, meta: &Meta) -> Result<Vec<Kind>, String> {
+        let mut kinds = vec![];
         for imp in &meta.imports {
             let name = imp.name.as_str();
             let missing = || format!("the script needs host function `{name}`");
             let kind = if let Some(x) = meta.externs.iter().find(|x| x.name == name) {
+                let at = match self.bound.get(name) {
+                    Some(at) => *at,
+                    None if x.is_async => {
+                        let f = self.fns.asynch.remove(name).ok_or_else(missing)?;
+                        self.asynch.push(f);
+                        self.asynch.len() - 1
+                    }
+                    None => {
+                        let f = self.fns.sync.remove(name).ok_or_else(missing)?;
+                        self.sync.push(f);
+                        self.sync.len() - 1
+                    }
+                };
+                self.bound.insert(name.to_string(), at);
                 if x.is_async {
-                    asynch.push(fns.asynch.remove(name).ok_or_else(missing)?);
-                    Kind::Async(asynch.len() - 1, sig(name, &x.params, &x.ret))
+                    Kind::Async(at, sig(name, &x.params, &x.ret))
                 } else {
-                    sync.push(fns.sync.remove(name).ok_or_else(missing)?);
-                    Kind::Sync(sync.len() - 1, sig(name, &x.params, &x.ret))
+                    Kind::Sync(at, sig(name, &x.params, &x.ret))
                 }
             } else if let Some(f) = meta.host_calls.iter().find(|f| f.key == name) {
-                let Some(bind) = &fns.binder else {
+                let Some(bind) = &self.fns.binder else {
                     return Err(format!(
                         "the script calls the engine's `{name}`, and this host has no engine"
                     ));
@@ -215,24 +286,7 @@ impl HostState {
             };
             kinds.push(kind);
         }
-        let debugger = Debugger::new(meta.clone());
-        Ok(HostState {
-            meta,
-            kinds,
-            sync,
-            asynch,
-            timers: HashMap::new(),
-            resolved: HashMap::new(),
-            tokens: HashMap::new(),
-            heap_awaits: HashMap::new(),
-            next_handle: 0,
-            inside: None,
-            extra: Raws::new(),
-            shares: rustc_hash::FxHashMap::default(),
-            releases: rustc_hash::FxHashMap::default(),
-            now: 0.0,
-            debugger,
-        })
+        Ok(kinds)
     }
 }
 
@@ -447,10 +501,28 @@ fn write_text(ctx: &mut dyn ImportCtx, out: i32, text: &str) -> Raws {
     smallvec::smallvec![Raw::I32(text.len() as i32)]
 }
 
-/// Runs import `index` of the module with `args`, returning its results.
+/// The types a call is read and answered by: the script's own, or a unit's.
+enum Types {
+    Own(Arc<Meta>),
+    Unit(Arc<crate::Compiled>),
+}
+
+impl std::ops::Deref for Types {
+    type Target = Meta;
+    fn deref(&self) -> &Meta {
+        match self {
+            Types::Own(m) => m,
+            Types::Unit(c) => &c.meta,
+        }
+    }
+}
+
+/// Runs import `index` of the module with `args`, returning its results;
+/// `unit` is a linked script's unit making the call, 0 for its own file.
 pub(crate) fn dispatch(
     state: &Shared,
     ctx: &mut dyn ImportCtx,
+    unit: usize,
     index: usize,
     args: &[Raw],
 ) -> Result<Raws, String> {
@@ -463,9 +535,10 @@ pub(crate) fn dispatch(
         r => i64::from(r.i32()),
     };
     let mut h = state.borrow_mut();
-    let meta = h.meta.clone();
+    let meta = h.types(unit);
     let resolved = |h: &HostState| h.resolved.get(&i64_at(0)).cloned().unwrap_or(Value::Void);
-    match &h.kinds[index] {
+    let kind = &h.kinds(unit)[index];
+    match kind {
         // `{:?}` keeps the `.0` on whole floats, and is the shortest form that reads back exactly.
         Kind::FmtF64 => Ok(write_text(ctx, args[1].i32(), &format!("{:?}", f64_at(0)))),
         Kind::AwaitI64 => Ok(smallvec::smallvec![Raw::I64(match resolved(&h) {
@@ -481,7 +554,7 @@ pub(crate) fn dispatch(
             resolved(&h) == Value::Bool(true)
         ))]),
         Kind::Box | Kind::Unbox => {
-            let into = matches!(h.kinds[index], Kind::Box);
+            let into = matches!(kind, Kind::Box);
             drop(h);
             convert(ctx, &meta, args, into)
         }
@@ -624,7 +697,7 @@ pub(crate) fn direct_call(
         .zip(bits)
         .map(|(s, b)| from_bits(*s, *b))
         .collect();
-    let mut out = dispatch(state, ctx, index, &args)?;
+    let mut out = dispatch(state, ctx, 0, index, &args)?;
     let first = out.first().copied().map_or(0, to_bits);
     if out.len() > 1 {
         out.remove(0);

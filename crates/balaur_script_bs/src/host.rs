@@ -13,8 +13,10 @@ use balaur_script::{
 use debug::Held;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 use tasks::Pending;
 
 mod debug;
@@ -134,6 +136,16 @@ struct Inner {
     /// Files to rebuild between frames for another reason than an edit: a
     /// profiler switched on or off.
     rebuild: RefCell<Vec<String>>,
+    /// Each file built as a unit, by key: a script links the units of the
+    /// modules it uses, each built once for every script ([`BsHost::unit`]).
+    units: RefCell<HashMap<String, Arc<Compiled>>>,
+    /// The module files read for their declarations.
+    parsed: balaur_bs::Parsed,
+    /// Each file's source as last read, or `None` for no such file: a unit
+    /// resolves every `use` of every module it reads. An edit drops it.
+    sources: RefCell<HashMap<String, Option<Rc<str>>>>,
+    /// The engine's API, by hash: a unit kept on disk was built against one.
+    api_hash: Cell<Option<String>>,
 }
 
 /// The `.bs` backend. Cheap to clone; clones share the one host.
@@ -194,6 +206,10 @@ impl BsHost {
                 profiling: Cell::new(false),
                 tally: RefCell::default(),
                 rebuild: RefCell::default(),
+                units: RefCell::default(),
+                parsed: balaur_bs::Parsed::default(),
+                sources: RefCell::default(),
+                api_hash: Cell::new(None),
             }),
         }
     }
@@ -249,9 +265,175 @@ impl BsHost {
         HostFns::default().bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
     }
 
-    // What runs here: with counters while a profiler wants them.
+    // `source`, kept until an edit: a unit's build reads every module it
+    // uses, and every script uses the same ones.
+    fn kept_source(&self, key: &str) -> Option<Rc<str>> {
+        if let Some(kept) = self.inner.sources.borrow().get(key) {
+            return kept.clone();
+        }
+        let read: Option<Rc<str>> = self.source(key).ok().map(Into::into);
+        self.inner
+            .sources
+            .borrow_mut()
+            .insert(key.to_string(), read.clone());
+        read
+    }
+
+    // What runs here: with counters while a profiler wants them, and as
+    // units unless something wants the whole file in one module.
     fn compile_module(&self, key: &str) -> Result<(Compiled, String)> {
+        if self.as_units(key) {
+            return self.compile_units(key);
+        }
         self.compile_with(key, &self.source(key)?, self.inner.profiling.get())
+    }
+
+    /// Built as units: every file compiled alone once, a script linked with
+    /// the units of the modules it uses when it loads. A debugger's probes,
+    /// a profiler's counters, a browser's metering and a native build each
+    /// want the whole file in one module, as does `BALAUR_BS_UNITS=0`.
+    fn as_units(&self, key: &str) -> bool {
+        !METER
+            && !crate::native::any_native()
+            && !self.probed(key)
+            && !self.inner.profiling.get()
+            && std::env::var("BALAUR_BS_UNITS").map_or(true, |v| v != "0")
+    }
+
+    /// The file at `key` built as a unit, once until an edit, and kept on
+    /// disk between runs.
+    fn unit(&self, key: &str) -> Result<Arc<Compiled>> {
+        if let Some(u) = self.inner.units.borrow().get(key) {
+            return Ok(u.clone());
+        }
+        let source = self
+            .kept_source(key)
+            .ok_or_else(|| anyhow!("{key}: no such file"))?;
+        let u = if let Some(u) = self.kept_unit(key, &source) {
+            u
+        } else {
+            let u = self.unit_of(key, &source)?;
+            self.keep_unit(key, &source, &u);
+            u
+        };
+        let u = Arc::new(u);
+        self.inner
+            .units
+            .borrow_mut()
+            .insert(key.to_string(), u.clone());
+        Ok(u)
+    }
+
+    // Where the unit built from `source`, the file at `key`, is kept: named
+    // by them and the engine's API. `None` for a pack, which keeps nothing.
+    fn unit_path(&self, key: &str, source: &str) -> Option<PathBuf> {
+        if self.inner.pack.is_some() {
+            return None;
+        }
+        let api = match self.inner.api_hash.take() {
+            Some(h) => h,
+            None => balaur_bs::module_hash(api::lines(&self.api()).join("\n").as_bytes()),
+        };
+        self.inner.api_hash.set(Some(api.clone()));
+        let name = balaur_bs::module_hash(format!("{api}\n{key}\n{source}").as_bytes());
+        let dir = balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR);
+        Some(dir.join(format!("{name}.unit")))
+    }
+
+    // The unit kept for `source`, while every module it read declares what it
+    // did then: each one's key and declarations' hash, then the build.
+    fn kept_unit(&self, key: &str, source: &str) -> Option<Compiled> {
+        let bytes = std::fs::read(self.unit_path(key, source)?).ok()?;
+        let text = std::str::from_utf8(bytes.split(|b| *b == 0).next()?).ok()?;
+        for line in text.lines() {
+            let (dep, hash) = line.rsplit_once(' ')?;
+            let dep_source = self.kept_source(dep)?;
+            let now = self.inner.parsed.declarations(dep, &dep_source).ok()?;
+            if format!("{now:016x}") != hash {
+                return None;
+            }
+        }
+        Compiled::from_bytes(&bytes[text.len() + 1..])
+    }
+
+    fn keep_unit(&self, key: &str, source: &str, unit: &Compiled) {
+        let Some(path) = self.unit_path(key, source) else {
+            return;
+        };
+        let mut text = String::new();
+        for dep in &unit.meta.uses {
+            let Some(hash) = self.inner.parsed.known(dep) else {
+                return;
+            };
+            let _ = writeln!(text, "{dep} {hash:016x}");
+        }
+        let mut bytes = text.into_bytes();
+        bytes.push(0);
+        bytes.extend(unit.to_bytes());
+        let partial = path.with_extension("partial");
+        let kept = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&partial, &bytes))
+            .and_then(|()| std::fs::rename(&partial, &path));
+        if let Err(e) = kept {
+            tracing::debug!("{key}: keeping its unit: {e}");
+        }
+    }
+
+    fn unit_of(&self, key: &str, source: &str) -> Result<Compiled> {
+        balaur_bs::compile(source, &self.unit_options(key)).map_err(|e| anyhow!("{key}:{e}"))
+    }
+
+    fn unit_options(&self, key: &str) -> Options {
+        Options {
+            host: self.api(),
+            modules: Some(self.modules()),
+            path: key.to_string(),
+            unit: true,
+            parsed: Some(self.inner.parsed.clone()),
+            ..Options::default()
+        }
+    }
+
+    // The script's unit with the units of every module it uses, near or far.
+    fn compile_units(&self, key: &str) -> Result<(Compiled, String)> {
+        let root = self.unit(key)?;
+        let mut linked: BTreeMap<String, Arc<Compiled>> = BTreeMap::new();
+        let mut queue: Vec<String> = root.meta.uses.clone();
+        while let Some(k) = queue.pop() {
+            if k == key || linked.contains_key(&k) {
+                continue;
+            }
+            let u = self.unit(&k)?;
+            queue.extend(u.meta.uses.iter().cloned());
+            linked.insert(k, u);
+        }
+        let mut compiled = (*root).clone();
+        compiled.linked = linked.into_iter().collect();
+        let ty = script_type(&compiled.meta);
+        Ok((compiled, ty))
+    }
+
+    /// What an edit of `key` makes stale: its source and unit, and when what
+    /// it declares changed, every unit built against that.
+    fn invalidate(&self, key: &str) {
+        let before = self.inner.parsed.known(key);
+        self.inner.parsed.forget(key);
+        self.inner
+            .sources
+            .borrow_mut()
+            .retain(|k, v| k != key && v.is_some());
+        self.inner.units.borrow_mut().remove(key);
+        let after = self
+            .kept_source(key)
+            .and_then(|s| self.inner.parsed.declarations(key, &s).ok());
+        if before.is_some() && before != after {
+            self.inner
+                .units
+                .borrow_mut()
+                .retain(|_, u| !u.meta.uses.iter().any(|k| k == key));
+        }
     }
 
     /// Where `use name;` in a file finds `name.bs`: beside it, then in each
@@ -266,8 +448,8 @@ impl BsHost {
             let mut dir = std::path::Path::new(from).parent();
             while let Some(d) = dir {
                 let key = key_of(&d.join(&file).to_string_lossy());
-                if let Ok(source) = me.source(&key) {
-                    return Some((key, source));
+                if let Some(source) = me.kept_source(&key) {
+                    return Some((key, source.to_string()));
                 }
                 dir = d.parent();
             }
@@ -333,25 +515,62 @@ impl BsHost {
     /// Every error in the file, one per function that does not compile;
     /// empty when it runs.
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
+        let key = key_of(rel);
+        // As units, a file's own functions: each module answers for its own.
+        let units = self.as_units(&key);
         let options = Options {
             debug: false,
             host: self.api(),
             modules: Some(self.modules()),
-            path: key_of(rel),
+            path: key.clone(),
+            unit: units,
+            parsed: units.then(|| self.inner.parsed.clone()),
             ..Options::default()
         };
         let found = balaur_bs::errors(source, &options);
         if !found.is_empty() {
             return found;
         }
-        self.compile_source(&key_of(rel), source)
-            .err()
-            .map(|e| balaur_bs::Error {
+        let built = if units {
+            self.unit_of(&key, source)
+                .map(|unit| self.module_errors(&key, &unit))
+        } else {
+            self.compile_source(&key, source).map(|_| vec![])
+        };
+        built.unwrap_or_else(|e| {
+            vec![balaur_bs::Error {
                 pos: balaur_bs::Pos { line: 1, col: 1 },
                 msg: format!("{e:#}"),
-            })
-            .into_iter()
-            .collect()
+            }]
+        })
+    }
+
+    // As the whole file would: every error of every module `unit` uses, near
+    // or far, each named by its file. Each module is built once a run.
+    fn module_errors(&self, key: &str, unit: &Compiled) -> Vec<balaur_bs::Error> {
+        let mut found = vec![];
+        let mut seen: HashSet<String> = HashSet::from([key.to_string()]);
+        let mut queue: Vec<String> = unit.meta.uses.clone();
+        while let Some(k) = queue.pop() {
+            if !seen.insert(k.clone()) {
+                continue;
+            }
+            if let Ok(u) = self.unit(&k) {
+                queue.extend(u.meta.uses.iter().cloned());
+                continue;
+            }
+            let Some(source) = self.kept_source(&k) else {
+                continue;
+            };
+            let options = self.unit_options(&k);
+            found.extend(balaur_bs::errors(&source, &options).into_iter().map(|e| {
+                balaur_bs::Error {
+                    pos: e.pos,
+                    msg: format!("in {k}: {}", e.msg),
+                }
+            }));
+        }
+        found
     }
 
     /// `source` as the file at `key` ships: an export's check and its native
@@ -373,24 +592,11 @@ impl BsHost {
                 direct_imports: METER,
                 modules: Some(self.modules()),
                 path: key.to_string(),
+                ..Options::default()
             },
         )
         .map_err(|e| anyhow!("{key}:{e}"))?;
-        let meta = &compiled.meta;
-        let owners: Vec<&str> = meta.fns.iter().filter_map(|f| f.owner.as_deref()).collect();
-        // A struct a module brings in is that module's, never the script's.
-        let user: Vec<&str> = meta
-            .structs
-            .iter()
-            .map(|(n, _)| n.as_str())
-            .filter(|n| !BUILT_IN.contains(n) && !n.contains("::"))
-            .collect();
-        // A file with no struct of its own is a module others `use`.
-        let ty = user
-            .iter()
-            .find(|n| owners.contains(n))
-            .or(user.first())
-            .map_or_else(String::new, |t| (*t).to_string());
+        let ty = script_type(&compiled.meta);
         Ok((compiled, ty))
     }
 
@@ -628,6 +834,23 @@ impl BsHost {
     }
 }
 
+/// The struct a script's nodes are: its own first struct with methods, or
+/// its first; "" for a file of none, a module others `use`.
+fn script_type(meta: &balaur_bs::Meta) -> String {
+    let owners: Vec<&str> = meta.fns.iter().filter_map(|f| f.owner.as_deref()).collect();
+    // A struct a module brings in is that module's, never the script's.
+    let user: Vec<&str> = meta
+        .structs
+        .iter()
+        .map(|(n, _)| n.as_str())
+        .filter(|n| !BUILT_IN.contains(n) && !n.contains("::"))
+        .collect();
+    user.iter()
+        .find(|n| owners.contains(n))
+        .or(user.first())
+        .map_or_else(String::new, |t| (*t).to_string())
+}
+
 fn report(r: Result<Option<Value>>) -> Option<Value> {
     r.unwrap_or_else(|e| {
         tracing::error!("{e:#}");
@@ -823,13 +1046,18 @@ impl ScriptHost<Engine> for BsHost {
     fn pump_reloads(&self) {
         let mut todo: Vec<String> = self.inner.rebuild.take();
         for key in self.edited() {
+            self.invalidate(&key);
             // A module is no script of its own: what uses it reloads.
             let users: Vec<String> = self
                 .inner
                 .files
                 .borrow()
                 .iter()
-                .filter(|(k, f)| **k == key || f.compiled.meta.uses.contains(&key))
+                .filter(|(k, f)| {
+                    **k == key
+                        || f.compiled.meta.uses.contains(&key)
+                        || f.compiled.linked.iter().any(|(l, _)| *l == key)
+                })
                 .map(|(k, _)| k.clone())
                 .collect();
             for k in users {
@@ -854,6 +1082,8 @@ impl ScriptHost<Engine> for BsHost {
                 "{key} is stopped at a breakpoint; it reloads once it goes on"
             ));
         }
+        // Asked for by name, a reload reads the file again.
+        self.invalidate(&key);
         let (compiled, ty) = self.compile_module(&key)?;
         self.forget(&key);
         let old = self

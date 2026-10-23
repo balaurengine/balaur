@@ -129,6 +129,10 @@ one backend; the Rune backend before it was one crate and went as one.
 - `use name;` links `name.bs`, found beside the file or in a folder above it,
   and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
   struct is a module others use. Disk in a dev run, pack when shipped.
+- Each file compiles once, alone, as a unit; a script runs its own unit with
+  the units of every module it uses, in one memory, each made on its first
+  call (`docs/PLAN-bs-linking.md`). A debugger's probes, a profiler, the
+  browser and a native build compile the whole file with its modules in.
 
 ### Exported properties
 
@@ -149,8 +153,9 @@ scene may tune; `script.props` overrides only what it names.
   it, the way an `asset` property names its asset type.
 - A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
   resolved the way one is, and a path naming nothing is nil in its place.
-- A module is linked into each script that uses it, so its constants are read
-  where they are declared and a save of it recompiles every script using it.
+- A module's constants are read where they are declared, and a save of it
+  rebuilds its unit, the units built against what it declares when that
+  changed, and reloads every script using it.
 
 ### Prefabs
 

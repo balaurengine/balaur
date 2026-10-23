@@ -10,6 +10,9 @@ pub const DBG_RESET: &str = "__dbg_reset";
 pub const DEC: &str = "__dec$";
 
 pub const START: &str = "$start";
+/// A unit's async fn: the size of the frame its `$start` fills, which a
+/// caller in another unit allocates.
+pub const FRAME: &str = "$frame";
 pub const POLL: &str = "$poll";
 pub const BATCH: &str = "$batch";
 
@@ -45,3 +48,16 @@ pub const DBG_BASE: &str = "__dbg_base";
 pub const DBG_SP: &str = "__dbg_sp";
 pub const DBG_FLAGS: &str = "__dbg_flags";
 pub const DBG_BREAKS: &str = "__dbg_breaks";
+
+/// A unit ([`crate::Options::unit`]) exports each function another unit may
+/// call under this prefix and its key: `~util::lerp` is `~lerp` in `util`'s.
+pub const LINK: &str = "~";
+/// What a unit imports besides the engine's functions, so the units of one
+/// script share its memory, its `fn` table and its allocator: the table...
+pub const TABLE: &str = "__table";
+/// ...the allocator's and the debugger's globals, in their module order...
+pub const UNIT_GLOBALS: [&str; 6] = ["__bump", LIVE, DBG_SP, DBG_BASE, DBG_FLAGS, DBG_BREAKS];
+/// ...and where its own static data, `fn` values and links start.
+pub const MEMORY_BASE: &str = "__memory_base";
+pub const TABLE_BASE: &str = "__table_base";
+pub const LINK_BASE: &str = "__link_base";

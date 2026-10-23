@@ -19,6 +19,10 @@ impl FnGen<'_> {
         }
         let slot = self.g.fn_ref(sig.idx);
         self.e(I::I32Const(slot as i32));
+        // A unit's slots start at its table base.
+        if self.g.unit {
+            self.emit([I::GlobalGet(super::rt::G_TABLE_BASE), I::I32Add]);
+        }
         Ok(Ty::Fn(sig.params, Box::new(sig.ret), sig.refs))
     }
 

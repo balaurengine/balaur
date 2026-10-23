@@ -18,11 +18,12 @@ pub mod fmt;
 mod modules;
 mod parse;
 pub mod runtime;
+mod stored;
 mod strings;
 pub mod words;
 
 pub use ast::{Pos, Ty};
-pub use modules::{Find, Modules};
+pub use modules::{Find, Modules, Parsed};
 use rustc_hash::FxHashMap;
 
 /// What a module is known by outside the runtime: a compiled-module cache's
@@ -85,6 +86,14 @@ pub struct Options {
     pub modules: Option<Modules>,
     /// This file's own key, which `modules` resolves a `use` from.
     pub path: String,
+    /// Compile this file alone, as a unit: the modules it uses are read for
+    /// their declarations only, and a call into one goes through a link the
+    /// runtime fills with that module's own unit, compiled once for every
+    /// script that uses it ([`Compiled::linked`]). Not with `debug`,
+    /// `profile`, `meter` or `direct_imports`, which build the whole file.
+    pub unit: bool,
+    /// The module files read so far, kept across compiles by the caller.
+    pub parsed: Option<Parsed>,
 }
 
 /// The engine's side, as the compiler types it: functions a script calls as
@@ -197,6 +206,11 @@ pub enum Literal {
 pub struct Compiled {
     pub wasm: Vec<u8>,
     pub meta: Meta,
+    /// A unit's file key, which links from the units it uses name it by.
+    pub key: String,
+    /// A unit's: the units of every module it uses, by file key, which the
+    /// runtime instantiates beside it on their first call.
+    pub linked: Vec<(String, std::sync::Arc<Compiled>)>,
 }
 
 /// A struct's declared defaults: field, whether it is `pub`, the literal.
@@ -238,6 +252,29 @@ pub struct Meta {
     pub host_calls: Vec<HostSignature>,
     /// Per struct, each field that has a default: name, whether it is `pub`, value.
     pub defaults: Vec<(String, FieldDefaults)>,
+    /// A unit's: what the runtime lays out and fills to link it.
+    pub unit: Option<Unit>,
+}
+
+/// What a unit needs from the runtime that runs it.
+#[derive(Clone, Debug, Default)]
+pub struct Unit {
+    /// The bytes of static data it places at its memory base.
+    pub data_len: u32,
+    /// The `fn` table slots its own functions fill, from its table base.
+    pub refs: u32,
+    /// Each function of another unit it calls, in link slot order.
+    pub links: Vec<Link>,
+}
+
+/// One function a unit calls in another: the file whose unit has it, the
+/// export there, and its wasm signature.
+#[derive(Clone, Debug)]
+pub struct Link {
+    pub file: String,
+    pub export: String,
+    pub params: Vec<Slot>,
+    pub results: Vec<Slot>,
 }
 
 impl Meta {
@@ -354,7 +391,13 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
     let uses = if prog.uses.is_empty() {
         vec![]
     } else {
-        modules::link(&mut prog, &options.path, options.modules.as_ref())?
+        modules::link(
+            &mut prog,
+            &options.path,
+            options.modules.as_ref(),
+            !options.unit,
+            options.parsed.as_ref(),
+        )?
     };
     let prelude = parse::parse(PRELUDE).map_err(|e| Error {
         pos: e.pos,

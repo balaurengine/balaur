@@ -120,9 +120,47 @@ pub(crate) struct Setup<'a> {
     pub host: Shared,
     pub fuel: Option<u64>,
     pub memory_bytes: Option<usize>,
+    /// A unit's file key and the units of the modules it uses.
+    pub key: &'a str,
+    pub linked: &'a [(String, std::sync::Arc<crate::Compiled>)],
+}
+
+/// Where each unit of a linked script puts its static data, its own first,
+/// then `linked`'s in order; and where its heap starts after them all.
+pub(crate) fn unit_layout(
+    meta: &Meta,
+    linked: &[(String, std::sync::Arc<crate::Compiled>)],
+) -> (Vec<u32>, u32) {
+    let lens = std::iter::once(meta)
+        .chain(linked.iter().map(|(_, c)| &c.meta))
+        .map(|m| m.unit.as_ref().map_or(0, |u| u.data_len));
+    let mut at = crate::codegen::DATA_START;
+    let mut bases = vec![];
+    for len in lens {
+        bases.push(at);
+        at = (at + len).next_multiple_of(16);
+    }
+    (bases, at)
 }
 
 pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
+    // A unit links with the units it uses, which wasmtime and wasmi do.
+    if setup.meta.unit.is_some() {
+        return match kind {
+            #[cfg(jit)]
+            EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(&setup),
+            #[cfg(feature = "wasmi")]
+            EngineKind::Wasmi => super::wasmi_engine::instantiate(&setup),
+            #[allow(
+                unreachable_patterns,
+                reason = "Auto lands here only when no faster engine is compiled in"
+            )]
+            #[cfg(feature = "wasmi")]
+            EngineKind::Auto => super::wasmi_engine::instantiate(&setup),
+            #[allow(unreachable_patterns, reason = "every engine but these two")]
+            _ => Err("a script built as units runs on wasmtime or wasmi".into()),
+        };
+    }
     // A native build beats every engine, when one has this module.
     #[cfg(feature = "native")]
     if matches!(kind, EngineKind::Auto | EngineKind::Native) {
@@ -135,19 +173,19 @@ pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn 
     }
     match kind {
         #[cfg(jit)]
-        EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(setup),
+        EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(&setup),
         #[cfg(all(target_arch = "wasm32", feature = "web"))]
         EngineKind::Browser => super::web_engine::instantiate(setup),
         #[cfg(all(target_arch = "wasm32", feature = "web", not(jit)))]
         EngineKind::Auto => super::web_engine::instantiate(setup),
         #[cfg(feature = "wasmi")]
-        EngineKind::Wasmi => super::wasmi_engine::instantiate(setup),
+        EngineKind::Wasmi => super::wasmi_engine::instantiate(&setup),
         #[allow(
             unreachable_patterns,
             reason = "Auto lands here only when no faster engine is compiled in"
         )]
         #[cfg(feature = "wasmi")]
-        EngineKind::Auto => super::wasmi_engine::instantiate(setup),
+        EngineKind::Auto => super::wasmi_engine::instantiate(&setup),
         #[allow(
             unreachable_patterns,
             reason = "only a build without any engine reaches this"

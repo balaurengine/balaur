@@ -47,6 +47,15 @@ pub fn load_native(path: &std::path::Path) -> anyhow::Result<usize> {
     balaur_bs::runtime::load_native(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))
 }
 
+/// Whether a native build runs this game's scripts: one beside the
+/// executable, or one loaded by hand.
+pub(crate) fn any_native() -> bool {
+    #[cfg(feature = "native")]
+    return load_beside_executable() || balaur_bs::runtime::native_loaded();
+    #[cfg(not(feature = "native"))]
+    false
+}
+
 pub(crate) fn has_native(wasm: &[u8]) -> bool {
     #[cfg(feature = "native")]
     return balaur_bs::runtime::has_native(wasm);

@@ -165,7 +165,7 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
                 .as_ref()
                 .ok_or_else(|| JsValue::from_str("the module is not ready"))?;
             let out =
-                dispatch(&host, &mut Ctx(l), index, &args).map_err(|e| JsValue::from_str(&e))?;
+                dispatch(&host, &mut Ctx(l), 0, index, &args).map_err(|e| JsValue::from_str(&e))?;
             Ok(match out.len() {
                 0 => JsValue::UNDEFINED,
                 1 => to_js(out[0]),

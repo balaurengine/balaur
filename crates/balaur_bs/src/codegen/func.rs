@@ -626,8 +626,8 @@ impl<'a> FnGen<'a> {
                 I::Call(self.g.h.alloc),
                 I::LocalSet(addr),
             ]);
-            let text = self.g.string(&show(want));
-            self.e(I::I32Const(text as i32));
+            let text = self.g.str_addr(&show(want));
+            self.emit(text);
             self.get_raw(&v);
             self.emit([I::LocalGet(addr), I::Call(self.g.imp.unboxing)]);
             for (j, (vt, _)) in slots.into_iter().enumerate() {
@@ -659,9 +659,9 @@ impl<'a> FnGen<'a> {
                 super::rt::store(vt, 8 * j as u64),
             ]);
         }
-        let text = self.g.string(&show(got));
+        let text = self.g.str_addr(&show(got));
+        self.emit(text);
         self.emit([
-            I::I32Const(text as i32),
             I::LocalGet(addr),
             I::Call(self.g.imp.boxing),
             I::LocalGet(addr),

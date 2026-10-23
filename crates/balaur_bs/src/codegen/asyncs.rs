@@ -89,27 +89,38 @@ pub(super) fn emit(
             store(fg.locals[at as usize], base + 8 * u64::from(at)),
         ]);
     }
-    let mut sp = vec![ValType::I32];
-    sp.extend(sig.params.iter().flat_map(|t| g.vts(t)));
+    let ((sp, sr), (pp, pr)) = signatures(g, sig);
     out.bodies.push((
-        g.type_idx(sp, vec![]),
+        g.type_idx(sp, sr),
         FuncBody {
             locals: vec![],
             code: start,
         },
     ));
+    out.bodies.push((g.type_idx(pp, pr), poll));
+    if f.public || f.owner.is_some() {
+        // A unit's again for the units that call it.
+        let prefixes: &[&str] = if g.unit { &["", words::LINK] } else { &[""] };
+        for pre in prefixes {
+            out.exports
+                .push((format!("{pre}{}{}", f.key(), words::START), sig.idx));
+            out.exports
+                .push((format!("{pre}{}{}", f.key(), words::POLL), sig.idx + 1));
+        }
+    }
+    Ok((frame_size, patches))
+}
+
+/// `$start`'s parameters and results, then `$poll`'s.
+pub(super) fn signatures(g: &Gen, sig: &Sig) -> (super::Signature, super::Signature) {
+    let selfv = g.self_vts(sig.owner.as_ref());
+    let mut sp = vec![ValType::I32];
+    sp.extend(sig.params.iter().flat_map(|t| g.vts(t)));
     let mut pp = vec![ValType::I32];
     pp.extend(selfv.clone());
     let mut pr = vec![ValType::I64];
     pr.extend(selfv);
-    out.bodies.push((g.type_idx(pp, pr), poll));
-    if f.public || f.owner.is_some() {
-        out.exports
-            .push((format!("{}{}", f.key(), words::START), sig.idx));
-        out.exports
-            .push((format!("{}{}", f.key(), words::POLL), sig.idx + 1));
-    }
-    Ok((frame_size, patches))
+    ((sp, vec![]), (pp, pr))
 }
 
 // Suspending writes the state and every local to the frame; resuming reads them back.

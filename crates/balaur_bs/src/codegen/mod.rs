@@ -20,10 +20,13 @@ mod checks;
 pub(crate) use checks::unknown_type;
 use checks::{check_structs, check_types, defaults};
 pub(crate) use func::show;
+/// Where a module's static data starts: past the scratch space and the
+/// allocator's free lists. A linked script's units put theirs from here.
+pub(crate) const DATA_START: u32 = DATA_BASE;
 use func::{FnGen, LVal, Mode, R, err};
 use rt::{
-    DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LIVE,
-    GLOBALS, HELPER_COUNT, Helpers, mem,
+    DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LINK_BASE,
+    G_LIVE, G_MEMORY_BASE, G_TABLE_BASE, GLOBALS, HELPER_COUNT, Helpers, mem,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
@@ -33,6 +36,13 @@ use wasm_encoder::{
     Instruction as I, MemorySection, MemoryType, Module, RefType, TableSection, TableType,
     TypeSection, ValType,
 };
+
+/// A function of another unit, called through the link slots from `slot`:
+/// one for a plain function; `$start`, `$poll` and `$frame` for an async one.
+pub(crate) struct Linked {
+    pub slot: u32,
+    pub file: String,
+}
 
 type Signature = (Vec<ValType>, Vec<ValType>);
 type Structs = HashMap<String, Vec<(String, Ty)>>;
@@ -146,6 +156,12 @@ pub(crate) struct Gen {
     /// A call goes through a `fn` value: the module needs a table, even with
     /// no function of its own named as one (the value came out of an `any`).
     pub(crate) calls_indirect: std::cell::Cell<bool>,
+    /// Compiled as a unit ([`crate::Options::unit`]).
+    pub unit: bool,
+    /// A unit's calls into other units, by function key.
+    pub links: HashMap<String, Linked>,
+    /// A unit's module functions none of its own names: no index, no link.
+    pub unused: std::collections::HashSet<String>,
 }
 
 impl Gen {
@@ -191,14 +207,15 @@ impl Gen {
         None
     }
     /// Where function `idx` sits in the table a `fn` value indexes; slot 0
-    /// is empty, so a `fn` never set traps when called.
+    /// is empty, so a `fn` never set traps when called. A unit's are from
+    /// its table base, which the runtime keeps off slot 0.
     pub(crate) fn fn_ref(&self, idx: u32) -> u32 {
         let mut refs = self.fn_refs.borrow_mut();
         let at = refs.iter().position(|i| *i == idx).unwrap_or_else(|| {
             refs.push(idx);
             refs.len() - 1
         });
-        at as u32 + 1
+        at as u32 + u32::from(!self.unit)
     }
     pub(crate) fn elem_size(&self, ty: &Ty) -> u32 {
         8 * self.slots(ty).len() as u32
@@ -226,12 +243,22 @@ impl Gen {
         while !d.0.len().is_multiple_of(8) {
             d.0.push(0);
         }
-        let p = DATA_BASE + d.0.len() as u32;
+        // A unit's data is wherever the runtime puts it: this is from there.
+        let p = if self.unit { 0 } else { DATA_BASE } + d.0.len() as u32;
         d.0.extend_from_slice(&(-1i32).to_le_bytes());
         d.0.extend_from_slice(&(s.len() as u32).to_le_bytes());
         d.0.extend_from_slice(s.as_bytes());
         d.1.insert(s.to_string(), p);
         p
+    }
+    /// The code that leaves the address of static string `s`.
+    pub(crate) fn str_addr(&self, s: &str) -> Vec<I<'static>> {
+        let p = self.string(s) as i32;
+        if self.unit {
+            vec![I::I32Const(p), I::GlobalGet(G_MEMORY_BASE), I::I32Add]
+        } else {
+            vec![I::I32Const(p)]
+        }
     }
     pub(crate) fn dec_fn(&self, ty: &Ty) -> u32 {
         if *ty == Ty::Str {
@@ -471,6 +498,12 @@ fn import_sigs(
 // functions, then the release functions generated for each array type.
 fn layout(prog: &Program, options: &Options) -> R<Gen> {
     let debug = options.debug;
+    if options.unit && (debug || options.profile || options.meter || options.direct_imports) {
+        return err(
+            Pos::default(),
+            "internal: a unit is built without probes, counters or direct imports",
+        );
+    }
     check_structs(prog)?;
     check_types(prog)?;
     let structs: Structs = prog
@@ -521,34 +554,8 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
     let mut idx = dbg + u32::from(debug);
     let h = Helpers::at(idx);
     idx += HELPER_COUNT;
-    for f in &prog.fns {
-        let key = f.key();
-        let kind = if f.is_async {
-            Kind::Async
-        } else {
-            Kind::Script
-        };
-        let sig = Sig {
-            idx,
-            params: f.params.iter().map(|p| p.ty.clone()).collect(),
-            refs: f.params.iter().map(|p| p.by_ref).collect(),
-            ret: f.ret.clone(),
-            owner: f.owner.clone(),
-            kind,
-        };
-        idx += if f.is_async || batch::batchable(f, &structs, &classes) {
-            2
-        } else {
-            1
-        };
-        // A root function is also what a module that uses the root calls.
-        if f.owner.is_none() && !key.contains("::") {
-            sigs.insert(format!("{}::{key}", crate::modules::ROOT), sig.clone());
-        }
-        if sigs.insert(key.clone(), sig).is_some() {
-            return err(f.pos, format!("`{key}` is defined twice"));
-        }
-    }
+    let mut plan = UnitPlan::of(prog, options.unit);
+    let idx = script_sigs(prog, &mut plan, idx, (&structs, &classes), &mut sigs)?;
     Ok(Gen {
         structs,
         classes,
@@ -571,7 +578,211 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         probes: RefCell::new(vec![]),
         fn_refs: RefCell::new(vec![]),
         calls_indirect: std::cell::Cell::new(false),
+        unit: options.unit,
+        links: plan.links,
+        unused: plan.unused,
     })
+}
+
+// Each function's signature and index from `idx`, and where the release
+// functions start after them all.
+fn script_sigs(
+    prog: &Program,
+    plan: &mut UnitPlan,
+    mut idx: u32,
+    (structs, classes): (&Structs, &BTreeSet<String>),
+    sigs: &mut HashMap<String, Sig>,
+) -> R<u32> {
+    for f in &prog.fns {
+        let key = f.key();
+        let kind = if f.is_async {
+            Kind::Async
+        } else {
+            Kind::Script
+        };
+        let mut sig = Sig {
+            idx,
+            params: f.params.iter().map(|p| p.ty.clone()).collect(),
+            refs: f.params.iter().map(|p| p.by_ref).collect(),
+            ret: f.ret.clone(),
+            owner: f.owner.clone(),
+            kind,
+        };
+        // An async fn is `$start` and `$poll`, and in a unit `$frame`.
+        idx += match plan.module_fn(f, &key) {
+            Some(n) => n,
+            None if f.is_async => 2 + u32::from(plan.unit),
+            None if batch::batchable(f, structs, classes) => 2,
+            None => 1,
+        };
+        // One with no index has no call to make: a stray one fails to load.
+        if plan.unused.contains(&key) {
+            sig.idx = u32::MAX;
+        }
+        // A root function is also what a module that uses the root calls.
+        if f.owner.is_none() && !key.contains("::") {
+            sigs.insert(format!("{}::{key}", crate::modules::ROOT), sig.clone());
+        }
+        if sigs.insert(key.clone(), sig).is_some() {
+            return err(f.pos, format!("`{key}` is defined twice"));
+        }
+    }
+    Ok(idx)
+}
+
+/// A unit's module functions: each one its own functions name is a link,
+/// each one they do not is left out.
+#[derive(Default)]
+struct UnitPlan {
+    unit: bool,
+    /// Each module function's file.
+    origins: HashMap<String, String>,
+    called: std::collections::HashSet<String>,
+    methods: std::collections::HashSet<String>,
+    links: HashMap<String, Linked>,
+    slots: u32,
+    unused: std::collections::HashSet<String>,
+}
+
+impl UnitPlan {
+    fn of(prog: &Program, unit: bool) -> Self {
+        if !unit {
+            return UnitPlan::default();
+        }
+        let origins: HashMap<String, String> = prog.origin.iter().cloned().collect();
+        let (called, methods) = named(prog, &origins);
+        UnitPlan {
+            unit,
+            origins,
+            called,
+            methods,
+            ..UnitPlan::default()
+        }
+    }
+
+    // How many function indices module function `f` takes: its stubs, or
+    // none when nothing calls it; `None` for one of the file's own.
+    fn module_fn(&mut self, f: &FnDecl, key: &str) -> Option<u32> {
+        let file = self.origins.get(key)?;
+        let used = match &f.owner {
+            Some(_) => self.methods.contains(&f.name),
+            None => self.called.contains(key),
+        };
+        if !used {
+            self.unused.insert(key.to_string());
+            return Some(0);
+        }
+        let n = if f.is_async { 3 } else { 1 };
+        self.links.insert(
+            key.to_string(),
+            Linked {
+                slot: self.slots,
+                file: file.clone(),
+            },
+        );
+        self.slots += n;
+        Some(n)
+    }
+}
+
+// The functions a unit's own functions call or take as values, and the
+// methods they call by name: the module functions it needs links for, or a
+// few more.
+fn named(
+    prog: &Program,
+    origins: &HashMap<String, String>,
+) -> (
+    std::collections::HashSet<String>,
+    std::collections::HashSet<String>,
+) {
+    use crate::ast::{Block, Part};
+    type Names = std::collections::HashSet<String>;
+    fn block(b: &Block, out: &mut (Names, Names)) {
+        for s in &b.stmts {
+            match &s.kind {
+                StmtKind::Let { init, .. } => expr(init, out),
+                StmtKind::Assign { target, value, .. } => {
+                    expr(target, out);
+                    expr(value, out);
+                }
+                StmtKind::Expr(e) | StmtKind::Return(Some(e)) => expr(e, out),
+                StmtKind::While { cond, body } => {
+                    expr(cond, out);
+                    block(body, out);
+                }
+                StmtKind::Loop(body) => block(body, out),
+                StmtKind::ForRange { from, to, body, .. } => {
+                    expr(from, out);
+                    expr(to, out);
+                    block(body, out);
+                }
+                StmtKind::ForEach { items, body, .. } => {
+                    expr(items, out);
+                    block(body, out);
+                }
+                StmtKind::Return(None) | StmtKind::Break | StmtKind::Continue => {}
+            }
+        }
+        if let Some(t) = &b.tail {
+            expr(t, out);
+        }
+    }
+    fn expr(e: &Expr, out: &mut (Names, Names)) {
+        match &e.kind {
+            ExprKind::Call(name, args) => {
+                out.0.insert(name.clone());
+                for a in args {
+                    expr(a, out);
+                }
+            }
+            ExprKind::Var(v) => {
+                out.0.insert(v.clone());
+            }
+            ExprKind::Method(base, name, args) => {
+                out.1.insert(name.clone());
+                expr(base, out);
+                for a in args {
+                    expr(a, out);
+                }
+            }
+            ExprKind::Interp(parts) => {
+                for p in parts {
+                    if let Part::Value(v) = p {
+                        expr(v, out);
+                    }
+                }
+            }
+            ExprKind::Bin(_, a, b) | ExprKind::Index(a, b) | ExprKind::ArrayRepeat(a, b) => {
+                expr(a, out);
+                expr(b, out);
+            }
+            ExprKind::Unary(_, a)
+            | ExprKind::Field(a, _)
+            | ExprKind::Await(a)
+            | ExprKind::Cast(a, _) => expr(a, out),
+            ExprKind::StructLit(_, fields) => fields.iter().for_each(|(_, f)| expr(f, out)),
+            ExprKind::ArrayLit(items) => items.iter().for_each(|i| expr(i, out)),
+            ExprKind::If(c, then, els) => {
+                expr(c, out);
+                block(then, out);
+                if let Some(b) = els {
+                    block(b, out);
+                }
+            }
+            ExprKind::Int(_)
+            | ExprKind::Float(_)
+            | ExprKind::Bool(_)
+            | ExprKind::Str(_)
+            | ExprKind::Nil
+            | ExprKind::SelfRef
+            | ExprKind::Resumed(..) => {}
+        }
+    }
+    let mut out = (Names::new(), Names::new());
+    for f in prog.fns.iter().filter(|f| !origins.contains_key(&f.key())) {
+        block(&f.body, &mut out);
+    }
+    out
 }
 
 // A scalar a built-in import passes: a heap value goes as its pointer.
@@ -667,7 +878,45 @@ fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternIn
     for (name, p, r) in builtins {
         add(&mut sec, &name, p, r);
     }
+    if g.unit {
+        unit_imports(&mut sec);
+    }
     (sec, externs, list)
+}
+
+// What a unit shares with the rest of its script: the memory, the `fn`
+// table, the allocator's globals, and where its own parts start.
+fn unit_imports(sec: &mut ImportSection) {
+    let host = words::HOST_MODULE;
+    let memory = MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    };
+    sec.import(host, words::MEMORY, EntityType::Memory(memory));
+    let table = TableType {
+        element_type: RefType::FUNCREF,
+        table64: false,
+        minimum: 1,
+        maximum: None,
+        shared: false,
+    };
+    sec.import(host, words::TABLE, EntityType::Table(table));
+    let global = |mutable| {
+        EntityType::Global(GlobalType {
+            val_type: ValType::I32,
+            mutable,
+            shared: false,
+        })
+    };
+    for name in words::UNIT_GLOBALS {
+        sec.import(host, name, global(true));
+    }
+    for name in [words::MEMORY_BASE, words::TABLE_BASE, words::LINK_BASE] {
+        sec.import(host, name, global(false));
+    }
 }
 
 #[derive(Default)]
@@ -710,6 +959,13 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
     for f in &prog.fns {
         let key = f.key();
         let sig = g.sigs[&key].clone();
+        if let Some(link) = g.links.get(&key) {
+            link_stubs(g, &sig, link.slot, &mut out);
+            continue;
+        }
+        if g.unused.contains(&key) {
+            continue;
+        }
         let pid = out.func_names.len() as u32;
         let fid = debug.then_some(pid);
         out.func_names.push(key.clone());
@@ -739,6 +995,21 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
         if f.is_async {
             frame_sizes.insert(key.clone(), frame);
         }
+        // A unit's async fn says how big its frame is, for a caller in
+        // another unit.
+        if f.is_async && g.unit {
+            patches.push((out.bodies.len(), 0, key.clone()));
+            let body = FuncBody {
+                locals: vec![],
+                code: vec![I::I32Const(0)],
+            };
+            out.bodies
+                .push((g.type_idx(vec![], vec![ValType::I32]), body));
+            if f.public || f.owner.is_some() {
+                out.exports
+                    .push((format!("{}{key}{}", words::LINK, words::FRAME), sig.idx + 2));
+            }
+        }
         let info = FnInfo {
             key,
             owner: sig.owner,
@@ -754,6 +1025,11 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
         return Ok(out);
     }
     for (at, pos, key) in patches {
+        // Another unit's callee: its `$frame` says.
+        if g.links.contains_key(&key) {
+            out.bodies[at].1.code[pos] = I::Call(g.sigs[&key].idx + 2);
+            continue;
+        }
         let size = *frame_sizes.get(&key).ok_or(Error {
             pos: crate::ast::Pos::default(),
             msg: format!("internal: no frame size for `{key}`"),
@@ -761,6 +1037,81 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
         out.bodies[at].1.code[pos] = I::I32Const(size as i32);
     }
     Ok(out)
+}
+
+// A function of another unit: a stub that calls through its link slot, or
+// three for an async one. A call and a `fn` value of it go to the stub.
+fn link_stubs(g: &Gen, sig: &Sig, slot: u32, out: &mut Emitted) {
+    let stub = |p: Vec<ValType>, r: Vec<ValType>, at: u32| {
+        let ty = g.type_idx(p.clone(), r);
+        let mut code: Vec<I<'static>> = (0..p.len() as u32).map(I::LocalGet).collect();
+        code.extend([
+            I::I32Const(at as i32),
+            I::GlobalGet(G_LINK_BASE),
+            I::I32Add,
+            I::CallIndirect {
+                type_index: ty,
+                table_index: 0,
+            },
+        ]);
+        (
+            ty,
+            FuncBody {
+                locals: vec![],
+                code,
+            },
+        )
+    };
+    g.calls_indirect.set(true);
+    if sig.kind == Kind::Async {
+        let ((sp, sr), (pp, pr)) = asyncs::signatures(g, sig);
+        out.bodies.push(stub(sp, sr, slot));
+        out.bodies.push(stub(pp, pr, slot + 1));
+        out.bodies.push(stub(vec![], vec![ValType::I32], slot + 2));
+    } else {
+        let (p, r) = g.wasm_sig(sig);
+        out.bodies.push(stub(p, r, slot));
+    }
+}
+
+// Each link slot's target, in slot order: the file, its export, its types.
+fn link_list(g: &Gen, prog: &Program) -> Vec<crate::Link> {
+    let slots = |v: &[ValType]| -> Vec<Slot> {
+        v.iter()
+            .map(|t| match t {
+                ValType::I64 => Slot::I64,
+                ValType::F64 => Slot::F64,
+                _ => Slot::I32,
+            })
+            .collect()
+    };
+    let mut out = vec![];
+    for f in &prog.fns {
+        let key = f.key();
+        let Some(link) = g.links.get(&key) else {
+            continue;
+        };
+        let sig = &g.sigs[&key];
+        // Its name in its own unit: `util::Thing.m` is `Thing.m` there.
+        let own = key.split_once("::").map_or(key.as_str(), |(_, k)| k);
+        let mut add = |suffix: &str, (p, r): Signature| {
+            out.push(crate::Link {
+                file: link.file.clone(),
+                export: format!("{}{own}{suffix}", words::LINK),
+                params: slots(&p),
+                results: slots(&r),
+            });
+        };
+        if sig.kind == Kind::Async {
+            let (start, poll) = asyncs::signatures(g, sig);
+            add(words::START, start);
+            add(words::POLL, poll);
+            add(words::FRAME, (vec![], vec![ValType::I32]));
+        } else {
+            add("", g.wasm_sig(sig));
+        }
+    }
+    out
 }
 
 // `ids`: the debugger's id for the function, in a debug build, and its row
@@ -779,6 +1130,10 @@ fn emit_sync(
     // Every method is exported: the host calls `init` and `update` by name.
     // One with a `&mut` parameter has no caller outside the module to hand
     // its value back to.
+    // A unit's for the units that call it, `&mut` or not.
+    if g.unit && (f.public || f.owner.is_some()) {
+        out.exports.push((format!("{}{key}", words::LINK), sig.idx));
+    }
     if (f.public || f.owner.is_some()) && !sig.has_refs() {
         out.exports.push((key.clone(), sig.idx));
         if batch::batchable(f, &g.structs, &g.classes) {
@@ -867,6 +1222,19 @@ fn export_section(
 // each function a `fn` value names, moved as far as a direct module moved them.
 fn table_sections(g: &Gen, shift: u32) -> (Option<TableSection>, Option<ElementSection>) {
     let refs = g.fn_refs.borrow();
+    // A unit fills the script's table from its own base.
+    if g.unit {
+        if refs.is_empty() {
+            return (None, None);
+        }
+        let mut elements = ElementSection::new();
+        elements.active(
+            Some(0),
+            &ConstExpr::global_get(G_TABLE_BASE),
+            Elements::Functions(std::borrow::Cow::Owned(refs.clone())),
+        );
+        return (None, Some(elements));
+    }
     if refs.is_empty() && !g.calls_indirect.get() {
         return (None, None);
     }
@@ -1013,47 +1381,40 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         };
         globals.global(mutable, &ConstExpr::i32_const(0));
     }
+    let data_len = data.len() as u32;
     let mut ds = DataSection::new();
-    ds.active(0, &ConstExpr::i32_const(DATA_BASE as i32), data);
+    let at = if g.unit {
+        ConstExpr::global_get(G_MEMORY_BASE)
+    } else {
+        ConstExpr::i32_const(DATA_BASE as i32)
+    };
+    ds.active(0, &at, data);
     let mut m = Module::new();
     m.section(&types).section(&imports).section(&funcs);
     if let Some(t) = &table {
         m.section(t);
     }
-    m.section(&memory).section(&globals).section(&exports);
+    // A unit's memory and globals are the script's, imported.
+    if !g.unit {
+        m.section(&memory).section(&globals);
+    }
+    m.section(&exports);
     if let Some(e) = &elements {
         m.section(e);
     }
     m.section(&code).section(&ds);
-    let structs = prog
-        .structs
-        .iter()
-        .map(|(n, fs)| {
-            (
-                n.clone(),
-                fs.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
-            )
-        })
-        .collect();
-    let by_key = out
-        .infos
-        .iter()
-        .enumerate()
-        .map(|(i, f)| (f.key.clone(), i))
-        .collect();
-    let mut by_owner: rustc_hash::FxHashMap<String, rustc_hash::FxHashMap<String, usize>> =
-        rustc_hash::FxHashMap::default();
-    for (i, f) in out.infos.iter().enumerate() {
-        if let Some(owner) = &f.owner {
-            let name = f.key.rsplit('.').next().unwrap_or(&f.key);
-            by_owner
-                .entry(owner.clone())
-                .or_default()
-                .insert(name.to_string(), i);
-        }
-    }
+    let (by_key, by_owner) = lookups(&out.infos);
     let meta = Meta {
-        structs,
+        structs: prog
+            .structs
+            .iter()
+            .map(|(n, fs)| {
+                (
+                    n.clone(),
+                    fs.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
+                )
+            })
+            .collect(),
         classes: prog.classes.clone(),
         fns: out.infos,
         by_key,
@@ -1069,11 +1430,40 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         imports: import_list,
         host_calls: g.host_calls.clone(),
         defaults,
+        unit: g.unit.then(|| crate::Unit {
+            data_len,
+            refs: g.fn_refs.borrow().len() as u32,
+            links: link_list(&g, prog),
+        }),
     };
     Ok(Compiled {
         wasm: m.finish(),
         meta,
+        key: options.path.clone(),
+        linked: vec![],
     })
+}
+
+pub(crate) type ByOwner = rustc_hash::FxHashMap<String, rustc_hash::FxHashMap<String, usize>>;
+
+// Where each function sits by key, and each method by its type and name.
+pub(crate) fn lookups(infos: &[FnInfo]) -> (rustc_hash::FxHashMap<String, usize>, ByOwner) {
+    let by_key = infos
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.key.clone(), i))
+        .collect();
+    let mut by_owner = ByOwner::default();
+    for (i, f) in infos.iter().enumerate() {
+        if let Some(owner) = &f.owner {
+            let name = f.key.rsplit('.').next().unwrap_or(&f.key);
+            by_owner
+                .entry(owner.clone())
+                .or_default()
+                .insert(name.to_string(), i);
+        }
+    }
+    (by_key, by_owner)
 }
 
 fn sync_fn(

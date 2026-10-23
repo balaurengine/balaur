@@ -57,6 +57,14 @@ pub fn load_native(path: &std::path::Path) -> Result<usize, String> {
     native_engine::load(path)
 }
 
+/// Whether any native build is loaded: its modules are whole files, so a
+/// host builds its scripts whole to run them from it.
+#[cfg(feature = "native")]
+#[must_use]
+pub fn native_loaded() -> bool {
+    native_engine::any()
+}
+
 /// Whether a loaded native build has `wasm`.
 #[cfg(feature = "native")]
 #[must_use]
@@ -157,6 +165,8 @@ impl Runtime {
             host: state.clone(),
             fuel: limits.fuel,
             memory_bytes: limits.memory_bytes,
+            key: &compiled.key,
+            linked: &compiled.linked,
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;

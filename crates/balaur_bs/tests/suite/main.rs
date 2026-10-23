@@ -24,6 +24,7 @@ mod returns;
 mod sandbox;
 mod syntax;
 mod tools;
+mod units;
 
 use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};

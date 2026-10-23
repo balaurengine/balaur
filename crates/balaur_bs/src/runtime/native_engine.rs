@@ -91,6 +91,11 @@ pub(crate) fn load(path: &Path) -> Result<usize, String> {
 }
 
 /// The native build of `wasm`, when a loaded one has it.
+/// Whether any native build is loaded.
+pub(crate) fn any() -> bool {
+    LOADED.lock().is_ok_and(|l| !l.0.is_empty())
+}
+
 pub(crate) fn find(wasm: &[u8]) -> Option<&'static Module> {
     let hash = crate::module_hash(wasm);
     let loaded = LOADED.lock().ok()?;
@@ -346,7 +351,7 @@ unsafe extern "C" fn import(
         // SAFETY: the module passes one argument per parameter.
         .map(|(i, k)| raw(*k, unsafe { *args.add(i) }))
         .collect();
-    match dispatch(&host, &mut view(ctx), index as usize, &a) {
+    match dispatch(&host, &mut view(ctx), 0, index as usize, &a) {
         Ok(out) => {
             for (i, r) in out.iter().take(rets.len()).enumerate() {
                 // SAFETY: the module has room for one result per result type.
