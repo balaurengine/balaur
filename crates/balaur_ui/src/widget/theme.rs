@@ -446,6 +446,19 @@ pub(crate) fn pass_is_touch() -> bool {
     })
 }
 
+/// The wash a control takes under the pointer when its theme dresses no state
+/// of its own: painted over whatever is already there, so a fill the caller
+/// chose still reads as the fill it chose. Light on a dark theme, dark on a
+/// light one.
+pub(crate) fn wash(ui: &egui::Ui, held: bool) -> Color32 {
+    let alpha = if held { 30 } else { 18 };
+    if ui.visuals().dark_mode {
+        Color32::from_white_alpha(alpha)
+    } else {
+        Color32::from_black_alpha(alpha)
+    }
+}
+
 /// A tooltip a cursor gets by resting and a finger gets by holding.
 ///
 /// Touch has no hover: a finger that lands is a click, and egui hides a
@@ -805,7 +818,7 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     }
     // The frame a focused `text_field` wears: egui draws it in the selection
     // stroke, so a role's `focus` table reaches it there.
-    if let Some(stroke) = style.focus.as_deref().and_then(|focus| edge(focus)) {
+    if let Some(stroke) = style.focus.as_deref().and_then(edge) {
         visuals.selection.stroke = stroke;
     }
     visuals.override_text_color = Some(ink);

@@ -14,9 +14,8 @@ use smol_str::SmolStr;
 use std::cell::RefCell;
 
 thread_local! {
-    /// What each widget drew last frame. Only a `draw` node needs it now —
-    /// everything else the layer draws it can also measure, and a rect a
-    /// script fills is the one thing it can only remember.
+    /// What each widget drew last frame, so a subtree off the clip carries
+    /// its size over without drawing.
     static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// Where each widget was drawn, for a script that has to place something
@@ -97,9 +96,7 @@ pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     });
 }
 
-/// What a widget drew last frame. Only a `draw` node needs it: everything
-/// else the layer draws it can also measure ahead, and a rect a script fills
-/// is the one thing that can only be remembered.
+/// What a widget drew last frame, or zero for one that did not draw.
 pub(crate) fn measured_of(entity: Entity) -> egui::Vec2 {
     MEASURED.with(|m| {
         m.borrow()
@@ -113,11 +110,6 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
-    // A `draw` node's size comes from the script that filled it, not from any
-    // property, so this is the one layout input no component write announces.
-    if measured_of(entity) != size {
-        crate::widget::arena::widget_changed(entity);
-    }
 }
 
 /// Last frame's measurements become this frame's; a widget that stopped
@@ -615,11 +607,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         at.assigned = rect.size();
         draw_one(&mut child_ui, at, *child);
         at.assigned = restore;
-        // A `draw` node records what its script painted, from inside the
-        // draw; everything else is measured ahead and needs no record.
-        if at.arena[*child].widget.kind != w::DRAW {
-            record_measure(entity, child_ui.min_rect().size());
-        }
+        record_measure(entity, child_ui.min_rect().size());
         ui.advance_cursor_after_rect(rect);
         if grab > 0.0 && slot + 1 < children.len() {
             // Centred on the seam between this child and the next, so a grab

@@ -144,10 +144,8 @@ impl<'a> Measure<'a> {
         let widget = &self.arena[index].widget;
         match widget.kind.as_str() {
             // A scroll is meant to clip, so it answers with its stated size
-            // or with nothing. A script's rect can only be remembered: what
-            // it drew last frame is the one thing anything knows about it.
+            // or with nothing.
             w::SCROLL => egui::Vec2::ZERO,
-            w::DRAW => crate::widget::arrange::measured_of(self.arena[index].entity),
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
             w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height),

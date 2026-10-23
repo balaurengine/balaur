@@ -104,7 +104,7 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
             if widget.disabled {
                 return None;
             }
-            let (modifiers, key) = crate::immediate::chord(&widget.shortcut)?;
+            let (modifiers, key) = crate::chord::chord(&widget.shortcut)?;
             if typing && !fires_while_typing(widget, modifiers, key) {
                 return None;
             }

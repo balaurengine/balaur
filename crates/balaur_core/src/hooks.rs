@@ -50,7 +50,6 @@ pub const ON_LOCALE_CHANGED: &str = "on_locale_changed";
 pub const INIT: &str = "init";
 pub const UPDATE: &str = "update";
 pub const FIXED_UPDATE: &str = "fixed_update";
-pub const DRAW_UI: &str = "draw_ui";
 pub const ON_FREE: &str = "on_free";
 pub const ON_HOT_RELOAD: &str = "on_hot_reload";
 pub const DEFAULTS: &str = "defaults";
@@ -130,7 +129,6 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (INIT, "()", "Once, when the script is attached and its scene has loaded."),
     (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while paused."),
     (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while paused."),
-    (DRAW_UI, "()", "Every UI pass, for immediate `ui::*` calls."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
     (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),

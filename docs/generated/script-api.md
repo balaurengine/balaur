@@ -51,7 +51,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 6 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 54 | 69 |
+| [`ui`](#ui) | 33 | 68 |
 | [`websocket`](#websocket) | 4 | 9 |
 | [`window`](#window) | 8 | 0 |
 
@@ -1466,24 +1466,15 @@ TOML text to and from script tables, the format of scene files, asset definition
 
 ## `ui`
 
-Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout containers and widgets. HUD elements in the scene tree are the `widget` component.
+What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.
 
 | Function | Signature |
 | --- | --- |
 | `activate_focused` | `()` |
-| `add_space` | `(float)` |
-| `available_height` | `() -> float` |
-| `available_width` | `() -> float` |
-| `button` | `(str, any) -> bool` |
-| `button_rect` | `() -> ui::Rect?` |
-| `central_rect` | `() -> [float]` |
-| `circle_button` | `(str, any) -> bool` |
 | `click` | `(Node, any) -> bool` |
-| `code_line` | `(str, any, any)` |
 | `complete_theme` | `(any) -> any` |
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
-| `dot` | `(str, float)` |
 | `edit` | `(Node, any) -> bool` |
 | `fill_rows` | `(str, any, any, bool) -> bool` |
 | `fill_strip` | `(str, any) -> bool` |
@@ -1492,20 +1483,11 @@ Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout 
 | `focus_previous` | `()` |
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
-| `image` | `(str, any)` |
-| `image_button` | `(str, any) -> bool` |
-| `label` | `(str, any)` |
-| `layout_y` | `() -> float` |
-| `menu_item` | `(str, any) -> bool` |
 | `pasted_text` | `() -> str` |
-| `progress_bar` | `(float, any)` |
-| `rect_stroke` | `(float, float, float, float, any)` |
 | `request_repaint` | `(any)` |
 | `reread` | `(Node) -> bool` |
 | `scale` | `() -> float` |
-| `separator` | `(str?)` |
 | `set_clipboard` | `(str)` |
-| `set_field_text` | `(str, str)` |
 | `set_focus` | `(Node)` |
 | `set_keyboard_navigation` | `(bool)` |
 | `set_lazy` | `(bool)` |
@@ -1514,9 +1496,6 @@ Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout 
 | `set_theme` | `(any)` |
 | `set_widget_layer` | `(bool, float?, float?, float?, float?)` |
 | `set_widget_surface` | `(str, bool, float?, float?, float?, float?)` |
-| `shortcut` | `(str) -> bool` |
-| `spacing` | `(float, float)` |
-| `switch` | `(bool, any) -> [bool]` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(float, float) -> bool` |
 | `wants_keyboard` | `() -> bool` |
@@ -1525,7 +1504,7 @@ Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout 
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (69):
+**Constants** (68):
 
 | Name | Value |
 | --- | --- |
@@ -1554,7 +1533,7 @@ Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout 
 | `FONT_MONO` | `"mono"` |
 | `FONT_STYLE_ITALIC` | `"italic"` |
 
-…and 45 more.
+…and 44 more.
 
 ## `websocket`
 

@@ -662,7 +662,7 @@ fn edit(
 
 /// The chord a `submit_key` names, or `None` for egui's own Enter.
 fn chord_of(text: &str) -> Option<egui::KeyboardShortcut> {
-    let (modifiers, key) = crate::immediate::chord(text)?;
+    let (modifiers, key) = crate::chord::chord(text)?;
     Some(egui::KeyboardShortcut::new(modifiers, key))
 }
 

@@ -82,7 +82,6 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::BASIS, r#"{ type = "float", default = -1.0, description = "The size this child starts from along its container's direction, before `grow` and `shrink`, in design pixels; below zero is 0 for one that grows and its own size otherwise", group = "placement" }"#),
                     (k::SHRINK, r#"{ type = "float", default = -1.0, description = "Share of the shortfall this child gives up when its container is too small along its direction; below zero is 1 for one that grows and 0 otherwise", group = "placement" }"#),
                     (k::ALIGN_SELF, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where this child sits across its container's direction; `auto` takes the container's `align_items`", group = "placement" }}"#, w::AUTO, v::options(w::SELF_ALIGNS))),
-                    (k::DRAW, r#"{ type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function", group = "paint" }"#),
                     (k::SPLITTER_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing", group = "value" }"#),
                     (k::CURRENT_PAGE, r#"{ type = "string", default = "", description = "Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
@@ -143,7 +142,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::LABEL_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead", group = "layout" }"#),
                     (k::RELATIVE_TO, r#"{ type = "string", default = "", description = "The folder an `inspector` shows a file's path from: a value under it loses that much of its front", group = "value" }"#),
                     (k::ALIASES, r#"{ type = "list", of = { type = "string" }, default = [], description = "What an `inspector` shows in place of a value it holds, each the value, U+001F, and what to show", group = "value" }"#),
-                    (k::HEADER, r#"{ type = "bool", default = true, description = "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row; `ui.window` takes it too", group = "layout" }"#),
+                    (k::HEADER, r#"{ type = "bool", default = true, description = "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row", group = "layout" }"#),
                     (k::SORT, r#"{ type = "string", default = "", description = "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`", group = "value" }"#),
                     (k::SORTABLE, r#"{ type = "bool", default = false, description = "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret", group = "events" }"#),
                     (k::REVERSE, r#"{ type = "bool", default = false, description = "Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named. A `row`, `column` or `flow` lays its children out from its far end", group = "value" }"#),
@@ -227,12 +226,12 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ALT_TEXT, r#"{ type = "string", default = "", description = "Text an `image` draws in place of a picture that will not load", group = "type" }"#),
                     (k::BACKDROP_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.549], description = "What a `dialog` dims the screen behind it with", group = "paint" }"#),
                     (k::DISMISSABLE, r#"{ type = "bool", default = true, description = "Let Escape or a click on the dim shut a `dialog`; off, only the scene does", group = "events" }"#),
-                    (k::RESIZABLE, r#"{ type = "bool", default = false, description = "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`; `ui.window` takes it too, on by default there", group = "events" }"#),
-                    (k::COLLAPSIBLE, r#"{ type = "bool", default = false, description = "Give a `window`'s title bar an arrow that folds the window to its bar and back; `ui.window` takes it too", group = "events" }"#),
-                    (k::CLOSABLE, r#"{ type = "bool", default = true, description = "Draw a `window`'s cross; `ui.window` takes it too", group = "events" }"#),
-                    (k::DEFAULT_OPEN, r#"{ type = "bool", default = true, description = "Whether a `collapsible` window starts unfolded; `ui.window` takes it too", group = "events" }"#),
-                    (k::MOVABLE, r#"{ type = "bool", default = false, description = "Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press; `ui.window` takes it too, on by default there", group = "placement" }"#),
-                    (k::CONSTRAIN, r#"{ type = "bool", default = false, description = "Keep a `movable` root inside its surface while it is dragged; `ui.window` takes it too", group = "placement" }"#),
+                    (k::RESIZABLE, r#"{ type = "bool", default = false, description = "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`", group = "events" }"#),
+                    (k::COLLAPSIBLE, r#"{ type = "bool", default = false, description = "Give a `window`'s title bar an arrow that folds the window to its bar and back", group = "events" }"#),
+                    (k::CLOSABLE, r#"{ type = "bool", default = true, description = "Draw a `window`'s cross", group = "events" }"#),
+                    (k::DEFAULT_OPEN, r#"{ type = "bool", default = true, description = "Whether a `collapsible` window starts unfolded", group = "events" }"#),
+                    (k::MOVABLE, r#"{ type = "bool", default = false, description = "Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press", group = "placement" }"#),
+                    (k::CONSTRAIN, r#"{ type = "bool", default = false, description = "Keep a `movable` root inside its surface while it is dragged", group = "placement" }"#),
                     (k::FADE_IN, r#"{ type = "bool", default = false, description = "Fade a root in as it appears, over egui's fade time", group = "paint" }"#),
                 ]) + "\n" + &text_look_schema()),
             ),
@@ -300,7 +299,7 @@ fn apply_widget(
     let widget = widget_from(params);
     crate::widget::grid::check(&widget.layout)?;
     let chord = &widget.egui.submit_key;
-    if !chord.is_empty() && crate::immediate::chord(chord).is_none() {
+    if !chord.is_empty() && crate::chord::chord(chord).is_none() {
         anyhow::bail!("widget: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`");
     }
     crate::widget::arena::widget_changed(entity);
@@ -465,7 +464,6 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     );
     map.insert(k::GROW.into(), toml::Value::Float(f64::from(widget.grow)));
     write_room(&mut map, widget);
-    map.insert(k::DRAW.into(), toml::Value::String(widget.draw.to_string()));
     map.insert(
         k::SPLITTER_WIDTH.into(),
         toml::Value::Float(f64::from(widget.handle)),
@@ -809,7 +807,6 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             w::TABS,
             "One child showing, the rest named on a strip above it",
         ),
-        (w::DRAW, "A rect a script fills, named by `draw`"),
         (
             w::IMAGE,
             "A picture from the project, sized by itself or by what it states",
@@ -906,7 +903,6 @@ fn widget_from(params: &toml::Value) -> Widget {
         grow: f(k::GROW),
         min_width: f(k::MIN_WIDTH),
         min_height: f(k::MIN_HEIGHT),
-        draw: s(k::DRAW),
         handle: f(k::SPLITTER_WIDTH),
         active: s(k::CURRENT_PAGE),
         layer: s(k::LAYER),

@@ -1,15 +1,43 @@
-//! The code editor widget: syntax tables for Rune and WESL, the highlighter,
-//! the gutter with its diagnostics, and the caret a script reads back.
+//! The `code` kind's editor: syntax tables for Rune, Balaur Script and WESL,
+//! the highlighter, the gutter with its diagnostics, and the caret the node
+//! says it moved.
 
 use balaur_core::Engine;
-use balaur_script::Value;
 use egui::{Align2, Color32, CornerRadius, FontId, Sense, pos2, vec2};
 
 use crate::UiState;
-use crate::bridge::with_ui;
-use crate::immediate::Opts;
 use crate::theme;
 use crate::vocabulary::{keys as k, tokens as t, words as w};
+use crate::widget::node::Widget;
+use crate::widget::theme::WidgetTheme;
+
+/// A `code` node and the theme it is drawn under: what the editor reads.
+pub(crate) struct CodeLook<'a> {
+    pub(crate) widget: &'a Widget,
+    pub(crate) theme: &'a WidgetTheme,
+}
+
+impl CodeLook<'_> {
+    /// A colour the theme's `[colors]` names under `key`, or the built-in one.
+    fn color(&self, key: &str, fallback: Color32) -> Color32 {
+        self.theme.token(key).unwrap_or(fallback)
+    }
+
+    fn size(&self) -> f32 {
+        if self.widget.font_size > 0.0 {
+            self.widget.font_size
+        } else {
+            12.5
+        }
+    }
+}
+
+fn line_numbers(lines: &[u32]) -> Vec<usize> {
+    lines
+        .iter()
+        .filter_map(|line| usize::try_from(*line).ok())
+        .collect()
+}
 
 pub(crate) struct SyntaxColors {
     key: Color32,
@@ -22,15 +50,15 @@ pub(crate) struct SyntaxColors {
 }
 
 impl SyntaxColors {
-    pub(crate) fn from_opts(opts: &Opts) -> Self {
+    fn of(look: &CodeLook<'_>) -> Self {
         Self {
-            key: opts.color(k::SYNTAX_KEYWORD, theme::color(t::SYNTAX_KEYWORD)),
-            string: opts.color(k::SYNTAX_STRING, theme::color(t::SYNTAX_STRING)),
-            number: opts.color(k::SYNTAX_NUMBER, theme::color(t::SYNTAX_NUMBER)),
-            comment: opts.color(k::SYNTAX_COMMENT, theme::color(t::SYNTAX_COMMENT)),
-            ident: opts.color(k::SYNTAX_IDENTIFIER, theme::color(t::SYNTAX_IDENTIFIER)),
-            builtin: opts.color(k::SYNTAX_TYPE, theme::color(t::SYNTAX_TYPE)),
-            punct: opts.color(k::SYNTAX_PUNCTUATION, theme::color(t::SYNTAX_PUNCTUATION)),
+            key: look.color(k::SYNTAX_KEYWORD, theme::color(t::SYNTAX_KEYWORD)),
+            string: look.color(k::SYNTAX_STRING, theme::color(t::SYNTAX_STRING)),
+            number: look.color(k::SYNTAX_NUMBER, theme::color(t::SYNTAX_NUMBER)),
+            comment: look.color(k::SYNTAX_COMMENT, theme::color(t::SYNTAX_COMMENT)),
+            ident: look.color(k::SYNTAX_IDENTIFIER, theme::color(t::SYNTAX_IDENTIFIER)),
+            builtin: look.color(k::SYNTAX_TYPE, theme::color(t::SYNTAX_TYPE)),
+            punct: look.color(k::SYNTAX_PUNCTUATION, theme::color(t::SYNTAX_PUNCTUATION)),
         }
     }
 }
@@ -220,12 +248,12 @@ pub(crate) struct Marks {
 }
 
 impl Marks {
-    fn from_opts(opts: &Opts) -> Self {
+    fn of(look: &CodeLook<'_>) -> Self {
         Self {
-            errors: opts.lines(k::PROBLEMS),
-            warnings: opts.lines(k::WARNINGS),
-            error_color: opts.color(k::PROBLEM_COLOR, theme::color(t::DANGER_TEXT)),
-            warning_color: opts.color(k::WARNING_COLOR, theme::color(t::WARNING_TEXT)),
+            errors: line_numbers(&look.widget.problems),
+            warnings: line_numbers(&look.widget.warnings),
+            error_color: look.color(k::PROBLEM_COLOR, theme::color(t::DANGER_TEXT)),
+            warning_color: look.color(k::WARNING_COLOR, theme::color(t::WARNING_TEXT)),
         }
     }
 
@@ -341,19 +369,24 @@ struct Gutter {
 }
 
 impl Gutter {
-    fn from_opts(opts: &Opts, size: f32) -> Self {
+    fn of(look: &CodeLook<'_>, size: f32) -> Self {
+        let widget = look.widget;
         Self {
-            width: opts.px(k::GUTTER_WIDTH, 34.0),
-            color: opts.color(k::GUTTER_COLOR, theme::color(t::TEXT_SUBTLE)),
+            width: if widget.gutter_width > 0.0 {
+                widget.gutter_width
+            } else {
+                34.0
+            },
+            color: look.color(k::GUTTER_COLOR, theme::color(t::TEXT_SUBTLE)),
             size,
-            breakpoints: opts.lines(k::BREAKPOINTS),
-            current_line: opts.f32(k::CURRENT_LINE, 0.0).max(0.0) as usize,
-            breakpoint_color: opts.color(k::BREAKPOINT_COLOR, theme::color(t::DANGER_TEXT)),
-            current_fill: opts.color(
+            breakpoints: line_numbers(&widget.breakpoints),
+            current_line: usize::try_from(widget.current_line).unwrap_or(0),
+            breakpoint_color: look.color(k::BREAKPOINT_COLOR, theme::color(t::DANGER_TEXT)),
+            current_fill: look.color(
                 k::CURRENT_FILL,
                 theme::color(t::WARNING_TEXT).gamma_multiply(0.25),
             ),
-            marks: Marks::from_opts(opts),
+            marks: Marks::of(look),
         }
     }
 
@@ -418,91 +451,6 @@ pub(crate) struct Caret {
     pub(crate) index: usize,
 }
 
-/// Every colour a `code` node takes from its theme's `[colors]`, under the
-/// names the options table already spells them with: a `widget_theme` that
-/// names one dresses the editor a scene holds, and one that names none leaves
-/// the built-in look.
-const THEME_COLORS: [&str; 12] = [
-    k::GUTTER_COLOR,
-    k::BREAKPOINT_COLOR,
-    k::CURRENT_FILL,
-    k::PROBLEM_COLOR,
-    k::WARNING_COLOR,
-    k::SYNTAX_KEYWORD,
-    k::SYNTAX_STRING,
-    k::SYNTAX_NUMBER,
-    k::SYNTAX_COMMENT,
-    k::SYNTAX_IDENTIFIER,
-    k::SYNTAX_TYPE,
-    k::SYNTAX_PUNCTUATION,
-];
-
-/// A `code` widget's values as the options `code_editor` reads, so the node
-/// and the script call reach the same editor.
-pub(crate) fn code_opts(
-    widget: &crate::widget::node::Widget,
-    theme: &crate::widget::theme::WidgetTheme,
-) -> Opts {
-    let size = if widget.font_size > 0.0 {
-        widget.font_size
-    } else {
-        12.5
-    };
-    let mut given = vec![
-        (k::FONT_SIZE.into(), Value::Num(f64::from(size))),
-        (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
-        (
-            k::CURRENT_LINE.into(),
-            Value::Int(i64::from(widget.current_line)),
-        ),
-    ];
-    for (key, lines) in [
-        (k::BREAKPOINTS, &widget.breakpoints),
-        (k::PROBLEMS, &widget.problems),
-        (k::WARNINGS, &widget.warnings),
-    ] {
-        let rows = lines
-            .iter()
-            .map(|line| Value::Int(i64::from(*line)))
-            .collect();
-        given.push((key.into(), Value::List(rows)));
-    }
-    if widget.gutter_width > 0.0 {
-        given.push((
-            k::GUTTER_WIDTH.into(),
-            Value::Num(f64::from(widget.gutter_width)),
-        ));
-    }
-    for (key, on) in [
-        (k::EDITABLE, widget.egui.editable),
-        (k::TAB_INSERTS, widget.egui.tab_inserts),
-        (k::CARET_AT_END, widget.egui.caret_at_end),
-    ] {
-        given.push((key.into(), Value::Bool(on)));
-    }
-    if widget.padding.iter().any(|side| *side >= 0.0) {
-        let sides = widget
-            .padding
-            .iter()
-            .map(|side| Value::Num(f64::from(side.max(0.0))))
-            .collect();
-        given.push((k::PADDING.into(), Value::List(sides)));
-    }
-    for name in THEME_COLORS {
-        if let Some(color) = theme.token(name) {
-            given.push((name.into(), Value::Str(hex(color))));
-        }
-    }
-    Opts::plain(Some(Value::Map(given)))
-}
-
-/// A theme's colour as the `#rrggbbaa` an options table carries, since that is
-/// the one spelling a call site and a theme both write.
-fn hex(color: Color32) -> String {
-    let [r, g, b, a] = color.to_srgba_unmultiplied();
-    format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
-}
-
 /// An editable, syntax-highlighted code editor with a line-number gutter. The
 /// buffer persists per `id` in `UiState`.
 ///
@@ -511,17 +459,13 @@ fn hex(color: Color32) -> String {
 /// one.
 pub(crate) fn code_editor(
     eng: &Engine,
+    ui: &mut egui::Ui,
     id: &str,
-    source: &str,
-    opts: &Opts,
-) -> anyhow::Result<(String, bool, Option<i64>, Option<Caret>)> {
-    // `language` overrides; otherwise highlight whatever the project is
-    // written in, so an editor shows Rune as Rune.
-    let language = opts.string(k::LANGUAGE).unwrap_or_else(|| {
-        eng.try_resource::<balaur_core::project::ProjectManifest>()
-            .map_or_else(|| "rune".to_string(), |m| m.borrow().language.clone())
-    });
-    let syntax = syntax_for(&language);
+    look: &CodeLook<'_>,
+) -> (String, bool, Option<i64>, Option<Caret>) {
+    let widget = look.widget;
+    let language = widget.source.as_str();
+    let syntax = syntax_for(language);
     let state = eng.resource::<UiState>();
     // Taken rather than copied: the buffer holds the whole open file, and it
     // goes back below whether or not the pass drew.
@@ -529,14 +473,14 @@ pub(crate) fn code_editor(
         .borrow_mut()
         .text_buffers
         .remove(id)
-        .unwrap_or_else(|| source.to_string());
-    let size = opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE));
-    let gutter = Gutter::from_opts(opts, size);
-    let colors = SyntaxColors::from_opts(opts);
-    let marks = Marks::from_opts(opts);
+        .unwrap_or_else(|| widget.text.to_string());
+    let size = look.size();
+    let gutter = Gutter::of(look, size);
+    let colors = SyntaxColors::of(look);
+    let marks = Marks::of(look);
     let font = FontId::new(size, theme::family(w::MONO));
-    let margin = code_margin(opts);
-    let (changed, clicked, caret) = with_ui(|ui| {
+    let margin = code_margin(widget.padding);
+    let (changed, clicked, caret) = {
         let font = font.clone();
         let row_h = ui
             .painter()
@@ -555,7 +499,7 @@ pub(crate) fn code_editor(
             // section of it, once a frame, was the dearest thing the editor
             // did; the galley only changes when the text or the look does.
             let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
-                let want = look_key(buf.as_str(), &font, &colors, &marks, &language);
+                let want = look_key(buf.as_str(), &font, &colors, &marks, language);
                 if let Some(hit) = state
                     .borrow()
                     .code_galleys
@@ -579,9 +523,9 @@ pub(crate) fn code_editor(
                 .id(egui::Id::new(id.to_string()))
                 .frame(egui::Frame::NONE)
                 .desired_width(ui.available_width())
-                .interactive(opts.boolean(k::EDITABLE, true))
-                .lock_focus(opts.boolean(k::TAB_INSERTS, false))
-                .cursor_at_end(opts.boolean(k::CARET_AT_END, true))
+                .interactive(widget.egui.editable)
+                .lock_focus(widget.egui.tab_inserts)
+                .cursor_at_end(widget.egui.caret_at_end)
                 .layouter(&mut layouter);
             if let Some(margin) = margin {
                 edit = edit.margin(margin);
@@ -598,29 +542,29 @@ pub(crate) fn code_editor(
                 });
             }
         });
-        Ok((changed, clicked, caret))
-    })?;
+        (changed, clicked, caret)
+    };
     state
         .borrow_mut()
         .text_buffers
         .insert(id.to_string(), buffer.clone());
-    Ok((buffer, changed, clicked, caret))
+    (buffer, changed, clicked, caret)
 }
 
-/// The margin round the code, from `padding`: one number for every side, or
-/// left, top, right and bottom; `None` leaves egui's.
-fn code_margin(opts: &Opts) -> Option<egui::Margin> {
-    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
-    if let Some([left, top, right, bottom]) = opts.rect(k::PADDING) {
-        return Some(egui::Margin {
-            left: side(left),
-            right: side(right),
-            top: side(top),
-            bottom: side(bottom),
-        });
+/// The margin round the code, from `padding`: left, top, right and bottom,
+/// where a side under zero is unset; `None` when none is set leaves egui's.
+fn code_margin(padding: [f32; 4]) -> Option<egui::Margin> {
+    if padding.iter().all(|side| *side < 0.0) {
+        return None;
     }
-    let all = opts.px(k::PADDING, -1.0);
-    (all >= 0.0).then(|| egui::Margin::same(side(all)))
+    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
+    let [left, top, right, bottom] = padding;
+    Some(egui::Margin {
+        left: side(left),
+        right: side(right),
+        top: side(top),
+        bottom: side(bottom),
+    })
 }
 
 /// What the code editor's galley was laid out from: the text and everything

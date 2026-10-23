@@ -195,7 +195,6 @@ struct Shape {
     /// What a container keeps clear above its children for what it draws
     /// there itself: a panel's caption, a window's title bar.
     band: f32,
-    drawn: bool,
     shown: bool,
     is_root: bool,
     /// A window folded to its bar, which drops its stated height.
@@ -216,7 +215,6 @@ fn style_key(
         pad,
         gap,
         band,
-        drawn,
         shown,
         is_root,
         folded,
@@ -242,7 +240,6 @@ fn style_key(
     for side in [pad.left, pad.top, pad.right, pad.bottom, gap.x, gap.y, band] {
         side.to_bits().hash(&mut hasher);
     }
-    drawn.hash(&mut hasher);
     is_root.hash(&mut hasher);
     folded.hash(&mut hasher);
     for side in fills {
@@ -361,7 +358,7 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
         ..Style::default()
     };
     box_into(&mut out, widget, shape.is_root);
-    flex_into(&mut out, widget, shape.drawn);
+    flex_into(&mut out, widget);
     grid_into(&mut out, widget);
     out
 }
@@ -406,15 +403,9 @@ fn box_into(out: &mut Style, widget: &Widget, is_root: bool) {
 
 /// The flex fields: the direction from the kind, the wrap, and the share of
 /// the line a child grows, shrinks and starts from.
-fn flex_into(out: &mut Style, widget: &Widget, drawn: bool) {
+fn flex_into(out: &mut Style, widget: &Widget) {
     let layout = &widget.layout;
-    let grow = if widget.grow > 0.0 {
-        widget.grow
-    } else if widget.kind == w::DRAW && !drawn && widget.width <= 0.0 && widget.height <= 0.0 {
-        1.0
-    } else {
-        0.0
-    };
+    let grow = widget.grow.max(0.0);
     out.flex_direction = direction(&widget.kind, widget.reverse);
     out.flex_wrap = wrap_of(&widget.kind, &layout.wrap_children);
     out.flex_line_count = layout.min_lines.max(1);
@@ -717,7 +708,6 @@ fn sync(
         } else {
             measure.band(index, &theme)
         },
-        drawn: crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO,
         // A solve's root is laid out whatever its `visible` says, on a node
         // of its own: a hidden menu still opens its rows from a `context`.
         shown: widget.visible || is_root,

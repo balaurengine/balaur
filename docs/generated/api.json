@@ -726,7 +726,6 @@
       "ui::WIDGET_COLOR_PICKER": "color_picker",
       "ui::WIDGET_COLUMN": "column",
       "ui::WIDGET_DIALOG": "dialog",
-      "ui::WIDGET_DRAW": "draw",
       "ui::WIDGET_DROPDOWN": "dropdown",
       "ui::WIDGET_FLOW": "flow",
       "ui::WIDGET_FOLD": "fold",
@@ -5270,41 +5269,9 @@
         "least": 0,
         "signature": "()"
       },
-      "ui::add_space": {
-        "least": 1,
-        "signature": "(float)"
-      },
-      "ui::available_height": {
-        "least": 0,
-        "signature": "() -> float"
-      },
-      "ui::available_width": {
-        "least": 0,
-        "signature": "() -> float"
-      },
-      "ui::button": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
-      },
-      "ui::button_rect": {
-        "least": 0,
-        "signature": "() -> ui::Rect?"
-      },
-      "ui::central_rect": {
-        "least": 0,
-        "signature": "() -> [float]"
-      },
-      "ui::circle_button": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
-      },
       "ui::click": {
         "least": 1,
         "signature": "(Node, any) -> bool"
-      },
-      "ui::code_line": {
-        "least": 1,
-        "signature": "(str, any, any)"
       },
       "ui::complete_theme": {
         "least": 0,
@@ -5317,10 +5284,6 @@
       "ui::contrast_pairs": {
         "least": 2,
         "signature": "(any, str) -> [ui::ContrastPair]"
-      },
-      "ui::dot": {
-        "least": 2,
-        "signature": "(str, float)"
       },
       "ui::edit": {
         "least": 1,
@@ -5354,37 +5317,9 @@
         "least": 0,
         "signature": "() -> str"
       },
-      "ui::image": {
-        "least": 1,
-        "signature": "(str, any)"
-      },
-      "ui::image_button": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
-      },
-      "ui::label": {
-        "least": 1,
-        "signature": "(str, any)"
-      },
-      "ui::layout_y": {
-        "least": 0,
-        "signature": "() -> float"
-      },
-      "ui::menu_item": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
-      },
       "ui::pasted_text": {
         "least": 0,
         "signature": "() -> str"
-      },
-      "ui::progress_bar": {
-        "least": 1,
-        "signature": "(float, any)"
-      },
-      "ui::rect_stroke": {
-        "least": 4,
-        "signature": "(float, float, float, float, any)"
       },
       "ui::request_repaint": {
         "least": 0,
@@ -5398,17 +5333,9 @@
         "least": 0,
         "signature": "() -> float"
       },
-      "ui::separator": {
-        "least": 0,
-        "signature": "(str?)"
-      },
       "ui::set_clipboard": {
         "least": 1,
         "signature": "(str)"
-      },
-      "ui::set_field_text": {
-        "least": 2,
-        "signature": "(str, str)"
       },
       "ui::set_focus": {
         "least": 1,
@@ -5441,18 +5368,6 @@
       "ui::set_widget_surface": {
         "least": 2,
         "signature": "(str, bool, float?, float?, float?, float?)"
-      },
-      "ui::shortcut": {
-        "least": 1,
-        "signature": "(str) -> bool"
-      },
-      "ui::spacing": {
-        "least": 2,
-        "signature": "(float, float)"
-      },
-      "ui::switch": {
-        "least": 1,
-        "signature": "(bool, any) -> [bool]"
       },
       "ui::tab_rect": {
         "least": 1,
@@ -16927,7 +16842,7 @@
       },
       "closable": {
         "default": true,
-        "description": "Draw a `window`'s cross; `ui.window` takes it too",
+        "description": "Draw a `window`'s cross",
         "group": "events",
         "type": "bool"
       },
@@ -16944,7 +16859,7 @@
       },
       "collapsible": {
         "default": false,
-        "description": "Give a `window`'s title bar an arrow that folds the window to its bar and back; `ui.window` takes it too",
+        "description": "Give a `window`'s title bar an arrow that folds the window to its bar and back",
         "group": "events",
         "type": "bool"
       },
@@ -16962,7 +16877,7 @@
       },
       "constrain": {
         "default": false,
-        "description": "Keep a `movable` root inside its surface while it is dragged; `ui.window` takes it too",
+        "description": "Keep a `movable` root inside its surface while it is dragged",
         "group": "placement",
         "type": "bool"
       },
@@ -17058,7 +16973,7 @@
       },
       "default_open": {
         "default": true,
-        "description": "Whether a `collapsible` window starts unfolded; `ui.window` takes it too",
+        "description": "Whether a `collapsible` window starts unfolded",
         "group": "events",
         "type": "bool"
       },
@@ -17144,12 +17059,6 @@
         "description": "Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go",
         "group": "events",
         "type": "bool"
-      },
-      "draw": {
-        "default": "",
-        "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
-        "group": "paint",
-        "type": "string"
       },
       "duration": {
         "default": 3.0,
@@ -17331,7 +17240,7 @@
       },
       "header": {
         "default": true,
-        "description": "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row; `ui.window` takes it too",
+        "description": "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row",
         "group": "layout",
         "type": "bool"
       },
@@ -17478,7 +17387,6 @@
           "column",
           "scroll",
           "tabs",
-          "draw",
           "image",
           "text_field",
           "text_area",
@@ -17669,7 +17577,7 @@
       },
       "movable": {
         "default": false,
-        "description": "Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press; `ui.window` takes it too, on by default there",
+        "description": "Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press",
         "group": "placement",
         "type": "bool"
       },
@@ -17960,7 +17868,7 @@
       },
       "resizable": {
         "default": false,
-        "description": "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`; `ui.window` takes it too, on by default there",
+        "description": "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`",
         "group": "events",
         "type": "bool"
       },
@@ -18545,11 +18453,6 @@
       "fixed_update",
       "(dt)",
       "Every fixed step, with the step's length; not while paused."
-    ],
-    [
-      "draw_ui",
-      "()",
-      "Every UI pass, for immediate `ui::*` calls."
     ],
     [
       "on_free",
@@ -20055,7 +19958,7 @@
         "handles": "Whether an importer claims this file, by extension.",
         "listen": "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.",
         "running_count": "How many imports are in flight.",
-        "start": "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`."
+        "start": "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`."
       },
       "functions": [
         "cancel",
@@ -25390,10 +25293,6 @@
           "value": "\"dialog\""
         },
         {
-          "name": "WIDGET_DRAW",
-          "value": "\"draw\""
-        },
-        {
           "name": "WIDGET_DROPDOWN",
           "value": "\"dropdown\""
         },
@@ -25506,78 +25405,48 @@
           "value": "\"wide\""
         }
       ],
-      "doc": "Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout containers and widgets. HUD elements in the scene tree are the `widget` component.",
+      "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
       "docs": {
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
-        "add_space": "Insert blank space along the current layout, in design pixels.",
-        "available_height": "The height left in the current container, in design pixels.",
-        "available_width": "The width left in the current container, in design pixels.",
-        "button": "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `enabled = false` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
-        "button_rect": "Where the last `button` was drawn, as `#{ x, y, width, height }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
-        "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
-        "circle_button": "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `enabled = false` greys it out and swallows the click.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
-        "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
-        "dot": "Draw a filled circle in a `#rrggbb` colour, `diameter` design pixels across.",
         "edit": "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
-        "fill_rows": "`fill_strip` for a form: each row table is a `label`, its `controls` and an optional `draw` hatch, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+        "fill_rows": "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
         "focused_widget": "The widget node focus is on, or nil.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
-        "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time.",
-        "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
-        "label": "Draw a line of text; `font_size`, `font_family`, `text_color`, `font_weight`, `wrap` and `truncate` style it.",
-        "layout_y": "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from.",
-        "menu_item": "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu unless `keep_open` says otherwise.",
-        "pasted_text": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
-        "progress_bar": "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `corner_radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
-        "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
+        "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
         "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead.",
         "reread": "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
-        "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
-        "set_clipboard": "Copy text to the system clipboard.",
-        "set_field_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
+        "set_clipboard": "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_keyboard_navigation": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
         "set_lazy": "Run the UI pass only when something asks for it (input, a widget node written, `request_repaint`, a log line, an asset reload or an egui animation) and re-present the last pass in between: nothing is polled, so state that moves without any of those has to write a widget or ask. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
         "set_load_progress": "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
-        "set_theme": "Dress every `ui::*` call from a theme document, the shape a `widget_theme` file holds: source colours under `colors`, sizes under `sizes`, and a `roles` table of named looks a call takes with `role`. What the document leaves out is derived from its sources.",
+        "set_theme": "Set the theme the UI falls back on where a node's `widget_theme` says nothing, from a theme document: source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
         "set_widget_surface": "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
-        "shortcut": "Whether this chord was pressed this frame, consuming it: modifiers and a key joined by `+`, as in `\"cmd+shift+s\"` or `\"f5\"`. `cmd` is the platform's command key, Command on a Mac and Control everywhere else.",
-        "spacing": "Set the gap between the current container's widgets, in design pixels.",
-        "switch": "Draw an on/off switch; returns the state after this frame and whether it was clicked.",
         "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         "takes_pointer_at": "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on.",
-        "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
-        "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. Answers outside `draw_ui` too; false without a window.",
+        "wants_keyboard": "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone.",
+        "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
         "window_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."
       },
       "functions": [
         "activate_focused",
-        "add_space",
-        "available_height",
-        "available_width",
-        "button",
-        "button_rect",
-        "central_rect",
-        "circle_button",
         "click",
-        "code_line",
         "complete_theme",
         "contrast",
         "contrast_pairs",
-        "dot",
         "edit",
         "fill_rows",
         "fill_strip",
@@ -25586,20 +25455,11 @@
         "focus_previous",
         "focused_widget",
         "height_class",
-        "image",
-        "image_button",
-        "label",
-        "layout_y",
-        "menu_item",
         "pasted_text",
-        "progress_bar",
-        "rect_stroke",
         "request_repaint",
         "reread",
         "scale",
-        "separator",
         "set_clipboard",
-        "set_field_text",
         "set_focus",
         "set_keyboard_navigation",
         "set_lazy",
@@ -25608,9 +25468,6 @@
         "set_theme",
         "set_widget_layer",
         "set_widget_surface",
-        "shortcut",
-        "spacing",
-        "switch",
         "tab_rect",
         "takes_pointer_at",
         "wants_keyboard",
@@ -25622,19 +25479,10 @@
       "name": "ui",
       "signatures": {
         "activate_focused": "()",
-        "add_space": "(float)",
-        "available_height": "() -> float",
-        "available_width": "() -> float",
-        "button": "(str, any) -> bool",
-        "button_rect": "() -> ui::Rect?",
-        "central_rect": "() -> [float]",
-        "circle_button": "(str, any) -> bool",
         "click": "(Node, any) -> bool",
-        "code_line": "(str, any, any)",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
-        "dot": "(str, float)",
         "edit": "(Node, any) -> bool",
         "fill_rows": "(str, any, any, bool) -> bool",
         "fill_strip": "(str, any) -> bool",
@@ -25643,20 +25491,11 @@
         "focus_previous": "()",
         "focused_widget": "() -> Node",
         "height_class": "() -> str",
-        "image": "(str, any)",
-        "image_button": "(str, any) -> bool",
-        "label": "(str, any)",
-        "layout_y": "() -> float",
-        "menu_item": "(str, any) -> bool",
         "pasted_text": "() -> str",
-        "progress_bar": "(float, any)",
-        "rect_stroke": "(float, float, float, float, any)",
         "request_repaint": "(any)",
         "reread": "(Node) -> bool",
         "scale": "() -> float",
-        "separator": "(str?)",
         "set_clipboard": "(str)",
-        "set_field_text": "(str, str)",
         "set_focus": "(Node)",
         "set_keyboard_navigation": "(bool)",
         "set_lazy": "(bool)",
@@ -25665,9 +25504,6 @@
         "set_theme": "(any)",
         "set_widget_layer": "(bool, float?, float?, float?, float?)",
         "set_widget_surface": "(str, bool, float?, float?, float?, float?)",
-        "shortcut": "(str) -> bool",
-        "spacing": "(float, float)",
-        "switch": "(bool, any) -> [bool]",
         "tab_rect": "(Node) -> ui::Rect?",
         "takes_pointer_at": "(float, float) -> bool",
         "wants_keyboard": "() -> bool",

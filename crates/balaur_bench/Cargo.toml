@@ -49,9 +49,5 @@ harness = false
 name = "multimesh"
 harness = false
 
-[[bench]]
-name = "seam"
-harness = false
-
 [lints]
 workspace = true

@@ -13,7 +13,6 @@ in [components.md](./components.md).
 <tr><td><code>init()</code></td><td>Once, when the script is attached and its scene has loaded.</td></tr>
 <tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while paused.</td></tr>
 <tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while paused.</td></tr>
-<tr><td><code>draw_ui()</code></td><td>Every UI pass, for immediate <code>ui::*</code> calls.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
 <tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>

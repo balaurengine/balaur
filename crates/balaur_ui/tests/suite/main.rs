@@ -14,7 +14,6 @@ mod pass;
 mod splash;
 mod widget_anchor;
 mod widget_code;
-mod widget_draw;
 mod widget_events;
 mod widget_focus;
 mod widget_inspector;

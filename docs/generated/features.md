@@ -42,7 +42,7 @@ atomics only that build has.
 | `wav` | on | on |  | `extended`, `symphonia-codec-pcm`, `symphonia-format-riff` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |
 | `webtransport` | on | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `wgpu`, `winit`, `cursor-icon`, … (22 crates) |
+| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `naga`, `wgpu`, `winit`, … (27 crates) |
 
 ## What the web runtime resolves
 

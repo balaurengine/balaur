@@ -31,8 +31,8 @@ not.
 
 Fixed: nothing floats. A workspace re-fills four regions and states which panels
 are open in each dock; a tab's close mark takes one away and the mark menu at
-the head of the bar puts it back. Drawn by `editor.bs:draw_ui` in this order:
-workspace bar, status bar, tree, inspector, dock, centre.
+the head of the bar puts it back. The regions, as `editor/scenes/main.toml`
+holds them: workspace bar, status bar, tree, inspector, dock, centre.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -131,7 +131,7 @@ where it has one, and a selected row that is not the active one reads bold.
 
 Secondary panel height is `clamp(50 + rows × 33, 83, 280)`; the tree takes the
 rest. Its contents per workspace: scene files, `.rn` files with line counts, clips
-with their library, bodies and colliders, widgets and `draw_ui` scripts.
+with their library, bodies and colliders, widget nodes.
 
 ---
 

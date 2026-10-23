@@ -39,8 +39,8 @@ impl Ink {
         Self {
             on: named(k::ROW_SELECTED, ui.visuals().selection.bg_fill),
             on_color: named(k::ROW_SELECTED_TEXT, ui.visuals().selection.stroke.color),
-            hover: named(k::ROW_HOVER, crate::immediate::wash(ui, false)),
-            active: named(k::ROW_ACTIVE, crate::immediate::wash(ui, true)),
+            hover: named(k::ROW_HOVER, crate::widget::theme::wash(ui, false)),
+            active: named(k::ROW_ACTIVE, crate::widget::theme::wash(ui, true)),
             stripe: named(k::ROW_STRIPE, ui.visuals().faint_bg_color),
             head: named(k::TABLE_HEADER, ui.visuals().faint_bg_color),
             rule: named(k::TABLE_RULE, weak.gamma_multiply(0.5)),

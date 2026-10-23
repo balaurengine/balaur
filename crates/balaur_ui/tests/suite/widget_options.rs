@@ -401,44 +401,6 @@ fn a_scroll_that_sticks_to_its_end_shows_its_last_line() {
 }
 
 #[test]
-#[ignore = "needs engine: ui::scroll takes a closure, which a .bs script cannot pass"]
-fn ui_scroll_takes_the_scroll_offset_the_widget_does() {
-    // A mark 30 px down the scrolled content, in view either way.
-    let mark_at = |offset: f64| {
-        let body = format!(
-            "ui::scroll(\"s\", map().with(\"scroll_offset\", {offset:.1}).with(\"max_height\", 60.0), \"marked\");"
-        );
-        let (_dir, app, ctx, errors) = crate::pass::run(&crate::pass::Script {
-            draw_ui: &body,
-            methods: r##"pub fn marked() {
-                ui::add_space(200.0);
-                ui::rect_stroke(0.0, 30.0, 10.0, 4.0, map().with("stroke", "#ff0000"));
-            }"##,
-            ..crate::pass::Script::default()
-        });
-        assert!(errors.is_empty(), "{errors:?}");
-        ctx.begin_pass(egui::RawInput::default());
-        balaur_ui::run_pass(&app.engine, &ctx);
-        let mut out = ctx.end_pass();
-        out.textures_delta.clear();
-        out.shapes
-            .iter()
-            .find_map(|shape| match &shape.shape {
-                egui::epaint::Shape::Rect(rect) if rect.stroke.color == egui::Color32::RED => {
-                    Some(rect.rect.min.y)
-                }
-                _ => None,
-            })
-            .expect("the mark is in view")
-    };
-    let moved = mark_at(0.0) - mark_at(20.0);
-    assert!(
-        (moved - 20.0).abs() < 1.0,
-        "20 px along moves it 20 up: {moved}"
-    );
-}
-
-#[test]
 fn an_image_is_tinted_and_cut_to_its_region() {
     let (dir, app) = app();
     picture(dir.path());

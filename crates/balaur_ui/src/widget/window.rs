@@ -1,7 +1,7 @@
 //! The `window` kind: a panel with a title bar, moved by dragging the bar and
 //! shut by its cross. What Godot's `Window` is when the project embeds its
-//! subwindows, which it does unless told otherwise. Its switches are the ones
-//! `ui.window` takes, drawn by Balaur rather than by `egui::Window`.
+//! subwindows, which it does unless told otherwise. Drawn by Balaur rather
+//! than by `egui::Window`.
 
 use std::cell::RefCell;
 

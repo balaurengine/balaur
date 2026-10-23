@@ -420,7 +420,7 @@ impl Pool<'_> {
     }
 
     /// A row: a label of a fixed width, then the control column taking what
-    /// is left, with a `draw` hatch beside the controls for a bespoke row.
+    /// is left.
     fn make_row(&self, host: &Value, index: usize) -> Result<()> {
         let row = self.make(
             host,
@@ -455,15 +455,6 @@ impl Pool<'_> {
             "C",
             &[(k::KIND, Value::text(w::ROW)), (k::GROW, Value::Int(1))],
         )?;
-        self.make(
-            &column,
-            "D",
-            &[
-                (k::KIND, Value::text(w::DRAW)),
-                (k::VISIBLE, Value::Bool(false)),
-                (k::GROW, Value::Int(1)),
-            ],
-        )?;
         Ok(())
     }
 
@@ -478,7 +469,7 @@ impl Pool<'_> {
         self.make(slot, &name, &[(k::KIND, Value::text(w::LABEL))])
     }
 
-    /// One row of a form: its box, its label, its hatch and its controls.
+    /// One row of a form: its box, its label and its controls.
     fn row(
         &self,
         i: usize,
@@ -548,16 +539,6 @@ impl Pool<'_> {
         if column == Value::Nil {
             return Ok(());
         }
-        // A row the caller draws itself: a node still, in the column.
-        let drawn = spec.get(k::DRAW).cloned();
-        let hatch = self.child(&column, "D");
-        if hatch != Value::Nil {
-            let want = match &drawn {
-                Some(name) => table(&[(k::VISIBLE, Value::Bool(true)), (k::DRAW, name.clone())]),
-                None => table(&[(k::VISIBLE, Value::Bool(false))]),
-            };
-            self.patched(&format!("{prefix}:D"), &hatch, &want)?;
-        }
         let slot = self.child(&column, "C");
         if slot == Value::Nil {
             return Ok(());
@@ -569,11 +550,8 @@ impl Pool<'_> {
         self.patched(
             &format!("{prefix}:C"),
             &slot,
-            &table(&[(k::VISIBLE, Value::Bool(drawn.is_none())), (k::ROLE, role)]),
+            &table(&[(k::VISIBLE, Value::Bool(true)), (k::ROLE, role)]),
         )?;
-        if drawn.is_some() {
-            return Ok(());
-        }
         let controls = list(spec.get(p::CONTROLS));
         if self.children(&slot).len() < controls.len() {
             self.forget();
@@ -858,7 +836,7 @@ pub(crate) fn install_pool(m: &mut dyn Bindings<Engine>) {
             "fill_rows",
             &[],
             "(host: string, rows: list, label_width: number, stacked: bool) -> bool",
-            "`fill_strip` for a form: each row table is a `label`, its `controls` and an optional `draw` hatch, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+            "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

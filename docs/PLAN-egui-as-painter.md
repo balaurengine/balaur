@@ -1,12 +1,13 @@
 # Plan: egui as the painter
 
-> **Status:** proposed 2026-10-23, nothing built. The question was "is egui,
+> **Status:** phases 0 and 1 built 2026-10-23. The question was "is egui,
 > an immediate-mode library, the right UI for the engine?". §0 is where egui
 > stands after [PLAN-editor-as-scene.md](PLAN-editor-as-scene.md) §9: the
 > engine's UI is a retained tree of its own, and egui is what paints it and
 > hears the pointer. The answer is to keep it and make that the whole of its
 > job, so that what it still does is small enough to name and, one day, to
-> swap. Phase 0 measures the two numbers §0 lacks.
+> swap. §0.1 holds phase 0's numbers. They moved phase 4: a still shell
+> reruns no pass.
 
 ## 0. Where egui stands
 
@@ -63,9 +64,46 @@ What it costs, from the plans that measured it:
 | 2000 nodes, docks open, after the row cache | 1.7 to 2.9 ms over 1.06 ms shut | 17.1 to 23.1 ms | §0 there |
 
 An idle editor draws no frame, so none of this is paid while nobody touches
-it. Two numbers are not measured, and phase 0 takes them: egui's bytes in
-the web module by crate, and how many passes a frame of the shell runs
-(the `ui rerun` row of the profiler).
+it.
+
+## 0.1 What phase 0 measured
+
+Built from `7b87b215` on an Apple M1, 2026-10-23.
+
+**egui's bytes in the web template.** `scripts/package_runtime.sh web`'s
+features, built with the name section kept and charged to crates by
+`scripts/wasm_crates.py`. Code bytes:
+
+| Crate | Code |
+| --- | ---: |
+| `egui` | 0.244 MiB |
+| `epaint` | 0.095 MiB |
+| `emath`, `ecolor`, `egui_wgpu` | 0.012 MiB |
+| `core` and `alloc` code over egui's types | 0.063 MiB |
+| **egui in all** | **0.414 MiB** |
+| the module's code | 13.39 MiB |
+
+egui is 3.1% of the template's code. The shipped module is 16.54 MiB raw and
+4.70 MiB brotli. The web editor's module is not measured: the disk filled
+while it built. Phase 5 takes it.
+
+**Passes a frame.** Release, `balaur edit <project> --offscreen --size
+1600x1000 --frames 1000 --timings`, two rounds each. Instructions are
+retired per frame by `/usr/bin/time -l`, less a one-frame run. The load
+average ran from 9 to 135, so the times are ranges and the instructions are
+the comparison.
+
+| Project, docks open | Instructions a frame | `ui` | `ui rerun` a frame | `render cpu` | wall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `examples/angrynerds` | 15.9 to 16.4 M | 1.89 to 2.10 ms | 0.00 | 2.70 to 2.80 ms | 6.2 to 6.5 ms |
+| generated, 2001 nodes | 78.0 to 78.1 M | 6.9 to 15.8 ms | 0.00 | 4.7 to 10.0 ms | 26 to 60 ms |
+
+- A run reruns one or two passes in 1000 frames: the pass after the fonts
+  are bound asks egui to discard it. A still shell reruns none.
+- With the docks shut through `--state`, the 2001-node project's
+  `scripts/update` is 193 ms a frame. Any `--state` describes the form every
+  frame for its self-test, so those runs measure the editor's scripts and are
+  left out here.
 
 ## 1. The question, answered
 
@@ -139,6 +177,9 @@ Each phase is one shipping unit with its own proof.
 
 ### Phase 0. Measure
 
+**Built 2026-10-23.** §0.1 holds the numbers. `--timings` prints how many
+times a frame each span ran, so the `ui rerun` row is a count.
+
 - egui's bytes in the web module. `scripts/wasm_crates.py` charges every
   function body to its crate. Build the template with the name section kept,
   as the script's header says, and record `egui`, `epaint`, `emath`,
@@ -151,6 +192,22 @@ Each phase is one shipping unit with its own proof.
 
 ### Phase 1. The immediate draw path goes
 
+**Built 2026-10-23.** What it differs from below by:
+
+- `ui::shortcut` went too. It consumed a key inside the pass, and no script
+  runs in one now; an input action or a widget's `shortcut` takes a chord.
+- `ui::set_clipboard`, `ui::pasted_text` and `ui::wants_keyboard` answer
+  between passes. The pass hands the clipboard over and records the paste
+  and the keyboard. Before, they answered only inside `draw_ui`, so the
+  editor's copy commands, which run from widget events, copied nothing.
+- The `code` kind's editor is `widget/code.rs` and reads the node and its
+  theme. `api.rs` is the module, `chord.rs` the chord reader.
+- `fill_rows` lost the hidden `draw` node every row carried.
+- A size a widget drew no longer marks it changed. Only a `draw` node's
+  layout read it.
+- `balaur_bench`'s `seam` bench and its `widget_hatch` group went; both
+  timed immediate calls.
+
 The `ui` module keeps what a script asks or tells the UI, and loses what it
 draws.
 
@@ -159,13 +216,14 @@ draws.
   `width_class`, `height_class`, `scale`, `set_scale`, `set_theme`,
   `complete_theme`, `contrast`, `contrast_pairs`, `set_focus`,
   `focus_next`, `focus_previous`, `activate_focused`, `focused_widget`,
-  `set_keyboard_navigation`, `shortcut`, `edit`, `set_field_text`,
-  `set_clipboard`, `pasted_text`, `reread`, `fill_rows`, `fill_strip`,
+  `set_keyboard_navigation`, `edit`, `set_clipboard`, `pasted_text`,
+  `reread`, `fill_rows`, `fill_strip`,
   `set_widget_layer`, `set_widget_surface`, `wants_pointer`,
   `wants_keyboard`, `takes_pointer_at`, `set_load_progress`,
   `finish_loading`, and `click` for the tests.
 - **Gone**: `top_panel`, `left_panel`, `right_panel`, `bottom_panel`,
-  `central_panel`, `central_rect`, `window`, `dialog`, `overlay`, `hidden`,
+  `central_panel`, `central_rect`, `window`, `dialog`, `overlay`,
+  `button_rect`, `set_field_text`, `shortcut`,
   `label`, `image`, `image_button`, `text_field`, `number_field`, `slider`,
   `switch`, `dropdown`, `color_picker`, `code_editor`, `code_line`,
   `rect_stroke`, `layout_y`, `available_width`, `available_height`, and
@@ -260,13 +318,16 @@ egui reruns the whole pass when a pass only learned a size
 `ui rerun`. The layer has every rect from taffy before it draws, so a
 rerun is a kind asking egui for a size it already knows.
 
-- Phase 0 says how many reruns a still shell runs. For each, the kind
-  that asked: `ScrollArea` sizing its content, a `Popup` placing itself, a
-  `ComboBox` measuring its list.
-- Each gets its size from the arena instead, with `min_scrolled_height`
-  and `list_height` where the kind has them.
-- Target: zero `ui rerun` rows on a still shell; the `ui` row of the
-  2000-node project under phase 0's baseline.
+Phase 0 found none on a still shell: the one rerun in a run is the pass
+that binds the fonts. What is left is the passes input causes.
+
+- Count `ui rerun` over a showcase clip (`--state show:<name>`), which feeds
+  the input a person would: a menu opening, a dropdown, a scroll, a drag.
+- For each kind that asks: `ScrollArea` sizing its content, a `Popup`
+  placing itself, a `ComboBox` measuring its list. Each gets its size from
+  the arena instead, with `min_scrolled_height` and `list_height` where the
+  kind has them.
+- Target: no `ui rerun` past the first frames of a clip.
 
 ### Phase 5. Measure again, and what the site says
 

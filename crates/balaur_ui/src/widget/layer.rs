@@ -11,8 +11,8 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
 use crate::widget::arrange::{
-    Axis, contain, hold_to, lay_out, padding_of, record_measure, record_rect, roll_measurements,
-    scroller, settle_rects, solved_of, tabs,
+    Axis, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, solved_of, tabs,
 };
 use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
@@ -61,8 +61,7 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
     area.intersect(safe)
 }
 
-/// Draw every widget entity. Runs inside the frame's egui pass, after the
-/// scripts' `draw_ui`.
+/// Draw every widget entity. Runs inside the frame's egui pass.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
@@ -178,8 +177,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
 }
 
 /// What the draw leaves for the next one: this frame's rects published, at
-/// the end of the draw rather than the start of the next one so a script's
-/// `draw_ui` reads them; the boxes that moved and a paste no field took said.
+/// the end of the draw rather than the start of the next one, so a script
+/// reads them a frame behind at most; the boxes that moved and a paste no
+/// field took said.
 fn settle(eng: &Engine, ctx: &egui::Context) {
     settle_rects();
     crate::widget::arrange::report_resized(eng);
@@ -821,54 +821,6 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
         w::TABS => tabs(ui, at, index),
-        // The rect a script fills. The node owns the placement, the script
-        // owns everything inside it, and neither has to know the other.
-        w::DRAW => {
-            if widget.draw.is_empty() {
-                return;
-            }
-            let want = solved_of(widget, &at.style_of(widget), at.assigned);
-            let room = ui.max_rect();
-            let size = vec2(
-                if want.x > 0.0 { want.x } else { room.width() },
-                if want.y > 0.0 { want.y } else { room.height() },
-            );
-            let rect = egui::Rect::from_min_size(room.min, size);
-            let entity = placed.entity;
-            let target = widget.draw.clone();
-            // A row's body sits on the row's centre line, where `ui::align_right`
-            // puts its own run: a field and the dropdown after it are one line.
-            let layout = *ui.layout();
-            let layout = if layout.is_horizontal() {
-                layout.with_cross_align(egui::Align::Center)
-            } else {
-                layout
-            };
-            let mut inner = ui.new_child(
-                egui::UiBuilder::new()
-                    .id_salt(("balaur-node", entity))
-                    .max_rect(rect)
-                    .layout(layout),
-            );
-            inner.set_clip_rect(rect.intersect(ui.clip_rect()));
-            crate::bridge::scoped_named(
-                at.eng,
-                &mut inner,
-                balaur_core::node_id_of(entity),
-                &target,
-            );
-            // What the script painted, not the box it was handed: a hatch
-            // given the whole sheet would ask for it ever after.
-            let used = inner.min_rect().size();
-            record_measure(entity, used);
-            ui.advance_cursor_after_rect(egui::Rect::from_min_size(
-                rect.min,
-                vec2(
-                    if want.x > 0.0 { want.x } else { used.x },
-                    if want.y > 0.0 { want.y } else { used.y },
-                ),
-            ));
-        }
         _ => crate::widget::text::label(ui, at, index, (&caption, &font, color), &look.style),
     }
     tip(ui, entity, &tooltip);

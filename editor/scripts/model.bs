@@ -222,17 +222,6 @@ fn same_as_default(S: &mut editor::State, rel: str, prop: str, value: any) -> bo
     false
 }
 
-// Whether the node's script draws its own interface, as opposed to carrying a
-// `widget` component.
-pub fn draws_ui(S: &mut editor::State, node: any) -> bool {
-    let rel = script_rel(node);
-    if !rel.is_nil() {
-        source(S, rel.as_str()).as_str().contains("draw_ui")
-    } else {
-        false
-    }
-}
-
 // A scene file's `parent` is an id or a name path; `normalize` resolves the
 // path form on load, so everything below walks a chain of ids.
 pub fn by_id(doc: [any], id: str) -> any {

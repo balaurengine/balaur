@@ -3,9 +3,8 @@
 //!
 //! An open dialog takes every point. Otherwise a point is the UI's while egui
 //! drags something, or where the last pass drew something that takes the
-//! pointer: a popup or window, an overlay or side panel, a widget that does not
-//! let the pointer through, or a seam between boxes. What is left is the
-//! world's, the immediate-mode central panel included.
+//! pointer: a popup or window, a widget that does not let the pointer
+//! through, or a seam between boxes. What is left is the world's.
 //!
 //! A press is routed once and keeps its answer until every button is up, so a
 //! drag begun in the world stays the world's across a panel, and one begun on
@@ -57,15 +56,6 @@ pub(crate) fn widgets_drew(eng: &Engine, taking: Vec<egui::Rect>, roots: Vec<egu
     with_hits(eng, |hits| {
         hits.taking.extend(taking);
         hits.own.extend(roots);
-    });
-}
-
-/// File a piece of immediate-mode chrome as it is drawn: the layer it is on,
-/// when it has one of its own, and its rect when it takes the pointer.
-pub(crate) fn chrome_drew(eng: &Engine, layer: Option<egui::LayerId>, taking: Option<egui::Rect>) {
-    with_hits(eng, |hits| {
-        hits.own.extend(layer);
-        hits.taking.extend(taking);
     });
 }
 

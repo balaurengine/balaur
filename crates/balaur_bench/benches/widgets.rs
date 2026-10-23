@@ -7,8 +7,6 @@
 //! *Changed* rewrites a label every iteration, dirtying the box that holds it
 //! and re-solving what that reaches, which is what an animating panel pays.
 
-use std::fmt::Write as _;
-
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 use balaur_core::hecs::Entity;
@@ -142,106 +140,5 @@ fn widgets(c: &mut Criterion) {
     group.finish();
 }
 
-/// A project whose scene is `scene` and whose one script is `script`.
-fn app_from(scene: &str, script: &str) -> (tempfile::TempDir, App) {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let mut app = standard_app(config).unwrap();
-    // The scene is read here, not by `standard_app`: without it the world is
-    // empty and both cases below would benchmark a blank pass.
-    app.load_project().unwrap();
-    (dir, app)
-}
-
-/// `count` captioned cells as one widget node each: what a pooled strip or a
-/// synced form leaves in the scene.
-fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
-    let mut scene = String::from(
-        "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\n\
-         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = [2, 2]\n",
-    );
-    for i in 0..count {
-        let _ = write!(
-            scene,
-            "\n[[nodes]]\nid = \"c{i}\"\nname = \"Cell\"\nparent = \"screen\"\n\
-             [nodes.widget]\nkind = \"button\"\ntext = \"cell\"\n"
-        );
-    }
-    app_from(&scene, "pub struct Screen { node: Node }\n")
-}
-
-/// The same `count` cells as one `draw` node, painted by a script: what the
-/// top bar and the status strip do.
-fn as_one_draw(count: usize) -> (tempfile::TempDir, App) {
-    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.bs\" }\n\
-         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = [2, 2]\n\
-         \n[[nodes]]\nid = \"hatch\"\nname = \"Hatch\"\nparent = \"screen\"\n\
-         [nodes.widget]\nkind = \"draw\"\ndraw = \"cells\"\n";
-    let script = format!(
-        "pub struct Screen {{ node: Node }}\n\
-         impl Screen {{\n\
-         \x20   fn cells() {{\n\
-         \x20       for i in 0..{count} {{\n\
-         \x20           ui::button(\"cell\", map());\n\
-         \x20       }}\n\
-         \x20   }}\n\
-         }}\n"
-    );
-    app_from(scene, &script)
-}
-
-/// How many captions a pass painted: a script that failed to compile draws
-/// nothing, and an empty pass would benchmark as a very fast one.
-fn captions(app: &App, ctx: &egui::Context) -> usize {
-    ctx.begin_pass(input());
-    balaur_ui::run_pass(&app.engine, ctx);
-    let out = ctx.end_pass();
-    out.shapes.iter().map(|s| texts_in(&s.shape)).sum()
-}
-
-/// Text shapes at any depth: a layout that groups its children hands back one
-/// `Shape::Vec` holding them, and counting only the top level sees none.
-fn texts_in(shape: &egui::epaint::Shape) -> usize {
-    match shape {
-        egui::epaint::Shape::Text(_) => 1,
-        egui::epaint::Shape::Vec(inner) => inner.iter().map(texts_in).sum(),
-        _ => 0,
-    }
-}
-
-/// The same row of cells, built the two ways the shell builds UI. Not a
-/// controlled comparison of painters — a `button` node and `ui::pill` are
-/// different code — but it is the choice a panel actually faces.
-fn hatch_or_nodes(c: &mut Criterion) {
-    let mut group = c.benchmark_group("widget_hatch");
-    for count in [64usize] {
-        for (way, built) in [("nodes", as_nodes(count)), ("one_draw", as_one_draw(count))] {
-            let (_dir, app) = built;
-            let ctx = egui::Context::default();
-            for _ in 0..3 {
-                one_pass(&app, &ctx);
-            }
-            // Something, not how much: a row clips past about 39 captions.
-            // Zero is the catch, since an empty pass benchmarks as a fast one.
-            let drawn = captions(&app, &ctx);
-            assert!(drawn > 0, "{way}/{count} painted nothing");
-            group.throughput(Throughput::Elements(count as u64));
-            group.bench_function(BenchmarkId::new(way, count), |b| {
-                b.iter(|| one_pass(&app, &ctx));
-            });
-        }
-    }
-    group.finish();
-}
-
-criterion_group!(benches, widgets, hatch_or_nodes);
+criterion_group!(benches, widgets);
 criterion_main!(benches);

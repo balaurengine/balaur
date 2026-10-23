@@ -1116,26 +1116,29 @@ replicates third-party components with no code in the plugin.
   authority = "owner", components = [...], mode = "on_change" }`) and
   signal-shaped in scripts. RPCs address a node by `StableId`, never by path.
 
-## UI: egui for scripts
+## UI: widget nodes, painted with egui
 
-`balaur_ui` exposes an immediate-mode `ui` module drawn with egui inside the
-kiss3d window; scripts implement `draw_ui`, run once per frame in the egui pass.
+A UI is `widget` components on scene nodes. `balaur_ui` lays each subtree out
+with taffy and paints it with egui inside the kiss3d window, once a pass. A
+script fills nodes and answers their events; it never draws. The `ui` module
+is what a script asks of the UI and tells it: where a node drew, focus, the
+scale, the theme, the clipboard, when the next pass runs and pooled rows.
 
-- The bridge keeps a stack of the `Ui` being built, so a script composes layouts
-  like Rust egui code.
-- Widgets take colors per call, so themes live in scripts and hot reload. Fonts
-  load from `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
+- A `widget_theme` asset dresses each kind and role. Fonts load from
+  `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
 - `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
   renderer's world text, so a label and a `text3d` share one font set.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).
-- `ui.code_editor` is an editable syntax-highlighted buffer, persistent per id.
+- The `code` kind is an editable syntax-highlighted buffer with a gutter.
+- [docs/PLAN-egui-as-painter.md](docs/PLAN-egui-as-painter.md) is what egui is
+  still used for, and what it is on its way to.
 
 ## The editor is a game
 
-`editor/` is a regular Balaur project: one node whose scripts draw the shell,
-over a tree of `widget` nodes the engine lays out and the scripts read back —
+`editor/` is a regular Balaur project: a tree of `widget` nodes the engine
+lays out, each panel a scene with one script that fills it —
 five personas, tabbed and resizable docks, the command palette as the single
 overlay, dark and light token sets.
 
@@ -1271,8 +1274,9 @@ of the calls the UI would make plus the input a person would feed, captured by
 step, so a clip is the same clip every time.
 
 - Two phases: input is fed from `update`, before the game reads the snapshot;
-  anything a click on the chrome would do runs from `draw_ui`, after it. Driving
-  the editor from `update` rebuilt the scene under the game's own `update`.
+  anything a click on the chrome would do runs at the end of the Editor's
+  `update`, after it. Driving the editor from the start of `update` rebuilt the
+  scene under the game's own `update`.
 - Input goes through `input.feed_key`/`feed_mouse`/`feed_mouse_button`, which
   call the snapshot's own feeders, so a fed frame is indistinguishable from a
   window's and the recorder records it. The pointer is drawn by `inputview.bs`

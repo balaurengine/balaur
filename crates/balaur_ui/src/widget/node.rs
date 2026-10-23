@@ -115,10 +115,6 @@ pub struct Widget {
     pub hide_taller: f32,
     pub min_width: f32,
     pub min_height: f32,
-    /// What fills a `draw` widget's rect: a method on this node's script or
-    /// the nearest scripted ancestor's, or `file.rn:function` for a free
-    /// function that needs no instance.
-    pub draw: SmolStr,
     /// How wide a grab the seams between this container's children get, in
     /// design pixels; 0 leaves them fixed.
     pub handle: f32,

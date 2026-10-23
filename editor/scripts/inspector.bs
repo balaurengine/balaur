@@ -953,24 +953,11 @@ fn animation_section_on_28(S: &mut editor::State, data: any, v: any) {
     anim::touch(S);
 }
 
-// UI workspace: the real surface is the `ui` scripting module.
+// UI workspace: the guides drawn over the interface being laid out.
 fn interface_section(S: &mut editor::State, k: any) {
-    let node = model::selected_node(S);
     if !section(S, k, "UI") {
         return;
     }
-    let draws = model::draws_ui(S, node);
-    push(S, map()
-        .with("full", false)
-        .with("height", row_h(S))
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("grow", 1)
-                .with("role", if draws { "text_code_success" } else { "text_code_quiet" })
-                .with("text", if draws { "yes · draw_ui()" } else { "no" }),
-        ])
-        .with("label", "Draws UI"));
     if !S.chip_state.has(defs::WORKSPACE_UI) {
         S.chip_state.set(defs::WORKSPACE_UI, map());
     }

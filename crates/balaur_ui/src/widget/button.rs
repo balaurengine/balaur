@@ -61,7 +61,7 @@ fn face_of(
     // A shortcut draws itself the way the platform writes it, so a row that
     // says `cmd+s` needs no second spelling of it beside the caption.
     let shown = if widget.trailing.is_empty() {
-        crate::immediate::chord_shown(ui.ctx(), &widget.shortcut)
+        crate::chord::chord_shown(ui.ctx(), &widget.shortcut)
     } else {
         Some(widget.trailing.to_string())
     };
@@ -322,7 +322,7 @@ pub(crate) fn button(
     let plain = base.hover.is_none() && base.active.is_none() && base.checked.is_none();
     if (response.hovered() || widget.checked) && plain {
         ui.painter()
-            .rect_filled(response.rect, radius, crate::immediate::wash(ui, down));
+            .rect_filled(response.rect, radius, crate::widget::theme::wash(ui, down));
     }
     let ink = if widget.text_color[3] > 0.0 {
         color

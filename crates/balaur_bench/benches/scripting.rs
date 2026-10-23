@@ -68,8 +68,8 @@ fn update_across_nodes(c: &mut Criterion) {
     group.finish();
 }
 
-/// The other per-frame path over every node: `draw_ui` reaches every scripted
-/// node in the editor, and in a real scene most of them never declare it.
+/// A hook called on every scripted node, as `on_hot_reload` is: what
+/// `call_all` costs where the scripts declare it and where most do not.
 fn call_all_across_nodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("call_all");
     let count = 1000usize;
@@ -77,7 +77,7 @@ fn call_all_across_nodes(c: &mut Criterion) {
         group.throughput(Throughput::Elements(count as u64));
         for backend in Backend::ALL {
             let body = match (backend, declared) {
-                (Backend::Bs, true) => script("", "    fn init() {}\n    fn draw_ui() {}"),
+                (Backend::Bs, true) => script("", "    fn init() {}\n    fn on_hot_reload() {}"),
                 (Backend::Bs, false) => script("", "    fn init() {}"),
             };
             let project = Project::new(backend, &body).unwrap();
@@ -85,7 +85,7 @@ fn call_all_across_nodes(c: &mut Criterion) {
             attach_many(&app, backend, count).unwrap();
             let host = app.engine.script_host().unwrap();
             group.bench_function(BenchmarkId::new(backend.name(), name), |b| {
-                b.iter(|| host.call_all("draw_ui"));
+                b.iter(|| host.call_all("on_hot_reload"));
             });
         }
     }

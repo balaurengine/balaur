@@ -1050,8 +1050,8 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if let Some(frames) = *frames {
         add_frame_budget(&mut app, frames, shot.clone());
     }
-    // With no window nothing calls the shell's `draw_ui`: a pass on no screen
-    // does, so a headless editor is the one a window shows.
+    // With no window nothing runs the UI pass: a pass on no screen does, so a
+    // headless editor is the one a window shows.
     #[cfg(not(feature = "window"))]
     if !*offscreen {
         let (wide, tall) = offscreen_size(size.as_deref())?;

@@ -248,18 +248,24 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
                 .map(|(_, v)| v),
             _ => None,
         };
-        let pacing = eng.resource::<Pacing>();
-        let mut pacing = pacing.borrow_mut();
+        let due = || eng.resource::<Pacing>().borrow().due.clone();
         match after {
-            None | Some(Value::Nil) => {
-                pacing.requested = true;
-                pacing.owed = true;
-            }
-            Some(Value::Num(seconds)) => owe(&pacing.due, later(*seconds)),
+            None | Some(Value::Nil) => ask(eng),
+            Some(Value::Num(seconds)) => owe(&due(), later(*seconds)),
             #[allow(clippy::cast_precision_loss, reason = "a count of seconds")]
-            Some(Value::Int(seconds)) => owe(&pacing.due, later(*seconds as f64)),
+            Some(Value::Int(seconds)) => owe(&due(), later(*seconds as f64)),
             Some(other) => anyhow::bail!("`after` is seconds, not {}", other.type_name()),
         }
         Ok(())
     });
+}
+
+/// Owe the loop a pass this frame, lazy or not: what `request_repaint` asks
+/// with no delay, and what a script's write the pass carries out asks too.
+pub(crate) fn ask(eng: &Engine) {
+    if let Some(pacing) = eng.try_resource::<Pacing>() {
+        let mut pacing = pacing.borrow_mut();
+        pacing.requested = true;
+        pacing.owed = true;
+    }
 }

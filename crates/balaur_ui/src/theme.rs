@@ -2,8 +2,7 @@
 //!
 //! Scripts own the palette: `ui::set_theme(doc)` takes the same document a
 //! `widget_theme` file holds, a few source colours and sizes in `[colors]` and
-//! `[sizes]` and the looks under `roles`, and [`apply`] turns what it derives
-//! into egui's visuals. Fonts are loaded from `<project>/fonts/*.ttf` when
+//! `[sizes]`, and [`apply`] turns what it derives into egui's visuals. Fonts are loaded from `<project>/fonts/*.ttf` when
 //! present; the named families `heading`, `ui`, `mono` and `icon` always exist.
 
 use std::cell::RefCell;
@@ -11,7 +10,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::vocabulary::{keys as k, tokens as t, words as w};
-use balaur_script::Value;
 use balaur_text::fonts::{FontFace, system_static_bytes};
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 
@@ -21,10 +19,6 @@ pub struct ThemeTokens {
     /// Every token, the stated ones and the ones derived from the sources.
     pub colors: HashMap<String, Color32>,
     pub sizes: HashMap<String, f32>,
-    /// Named looks, `input` or `tab`, as the option map a widget would
-    /// otherwise have been given at the call site, with every token already
-    /// spelled out. Shared, since every widget naming a role reads it.
-    pub roles: HashMap<String, Rc<Vec<(String, Value)>>>,
 }
 
 impl Default for ThemeTokens {
@@ -34,7 +28,7 @@ impl Default for ThemeTokens {
 }
 
 impl ThemeTokens {
-    /// A theme document, completed from its sources, as tokens and roles.
+    /// A theme document, completed from its sources, as tokens.
     #[must_use]
     pub fn from_doc(doc: &toml::Value) -> Self {
         // An empty `[colors]` is every token derived from the defaults.
@@ -55,25 +49,6 @@ impl ThemeTokens {
                 Some((name.clone(), balaur_core::components::as_f64(v)? as f32))
             })
             .collect();
-        let resolve = Resolve {
-            colors: table(k::COLORS),
-            sizes: &sizes,
-        };
-        let roles = table(k::ROLES)
-            .into_iter()
-            .flatten()
-            .filter_map(|(name, body)| {
-                let entries = body
-                    .as_table()?
-                    .iter()
-                    .filter_map(|(key, v)| {
-                        let value = balaur_core::node_api::from_toml(&resolve.spell(v)).ok()?;
-                        Some((key.clone(), value))
-                    })
-                    .collect();
-                Some((name.clone(), Rc::new(entries)))
-            })
-            .collect();
         Self {
             dark: doc
                 .get(k::DARK)
@@ -81,7 +56,6 @@ impl ThemeTokens {
                 .unwrap_or(true),
             colors,
             sizes,
-            roles,
         }
     }
 
@@ -93,51 +67,12 @@ impl ThemeTokens {
     pub fn size(&self, name: &str) -> f32 {
         self.sizes.get(name).copied().unwrap_or(0.0)
     }
-
-    /// The option map a role stands for, empty when nothing declares it.
-    pub fn role(&self, name: &str) -> &[(String, Value)] {
-        self.roles.get(name).map_or(&[], |role| role.as_slice())
-    }
-}
-
-/// A role's values with their tokens spelled out: a colour's name as its
-/// `#rrggbb`, a size's name as its number, through every state table.
-struct Resolve<'a> {
-    colors: Option<&'a toml::Table>,
-    sizes: &'a HashMap<String, f32>,
-}
-
-impl Resolve<'_> {
-    fn spell(&self, value: &toml::Value) -> toml::Value {
-        match value {
-            toml::Value::String(name) => {
-                if let Some(hex) = self.colors.and_then(|colors| colors.get(name)) {
-                    return hex.clone();
-                }
-                self.sizes
-                    .get(name)
-                    .map_or_else(|| value.clone(), |px| toml::Value::Float(f64::from(*px)))
-            }
-            toml::Value::Table(fields) => toml::Value::Table(
-                fields
-                    .iter()
-                    .map(|(key, v)| (key.clone(), self.spell(v)))
-                    .collect(),
-            ),
-            other => other.clone(),
-        }
-    }
 }
 
 thread_local! {
-    /// The theme in force for `ui::*`: what a call falls back to for a colour
-    /// or a size it was not given.
+    /// The theme `ui::set_theme` put in force: what a kind falls back to for
+    /// a colour its `widget_theme` does not name.
     static IN_FORCE: RefCell<Rc<ThemeTokens>> = RefCell::new(Rc::new(ThemeTokens::default()));
-}
-
-/// A size of the theme in force, by name.
-pub(crate) fn size(name: &str) -> f32 {
-    IN_FORCE.with(|theme| theme.borrow().size(name))
 }
 
 /// A colour of the theme in force, by name.

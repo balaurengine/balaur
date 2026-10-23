@@ -179,9 +179,6 @@ fn secondary_content(S: &mut editor::State) -> Secondary {
         return Secondary { title: "Clips", rows: rows };
     }
     if S.workspace == defs::WORKSPACE_UI {
-        // Two ways a node puts something on screen: a `widget` component in the
-        // scene, or a script with a `draw_ui` hook. Listing only the second
-        // said "no UI scripts" over a viewport full of widgets.
         for i in 0..S.doc.len() {
             let node = S.doc[i];
             let widget = node.widget;
@@ -194,12 +191,10 @@ fn secondary_content(S: &mut editor::State) -> Secondary {
                     widget.kind.as_str()
                 };
                 rows.push(item("▤", node.name.as_str(), kind, node.id.as_str(), "choose", i, ""));
-            } else if node.has("script") && model::draws_ui(S, node) {
-                rows.push(item("‹›", node.name.as_str(), "draw_ui", node.id.as_str(), "choose", i, ""));
             }
         }
         if rows.len() == 0 {
-            rows.push(said("▤", "no widgets or draw_ui scripts"));
+            rows.push(said("▤", "no widgets"));
         }
         return Secondary { title: "Widgets", rows: rows };
     }

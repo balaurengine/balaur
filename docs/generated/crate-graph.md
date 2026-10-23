@@ -91,9 +91,7 @@ graph TD
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
   balaur_import --> balaur
-  balaur_import --> balaur_bs
   balaur_import --> balaur_core
-  balaur_import --> balaur_plugin
   balaur_import --> balaur_render
   balaur_import --> balaur_text
   balaur_input --> balaur_core

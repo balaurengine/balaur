@@ -396,7 +396,7 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Sheet frame, an int | `frame` | Godot |
 | Pixels in one world unit | `pixels_per_unit` | Unity |
 | Text layout | `text_align`, `font_family`, `bitmap_font`, `max_width`, `line_height`, `letter_spacing`, `markup` | CSS, Godot |
-| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y`; `shadow_offset` in the immediate API | Godot |
+| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y` | Godot |
 | Text shaping | `font_style` (`normal`, `italic`, `oblique`), `font_stretch`, `underline` (`single`, `double`), `strikethrough`, `overline`, `line_break`, `truncate`, `truncate_at`, `max_lines`, `hinting`, `tab_width` | CSS, cosmic-text |
 | 3D text | `billboard`, `double_sided`, `depth_test` | Godot |
 | Particles | `particles2d`, `particles3d` with `billboard` | Godot |
