@@ -595,33 +595,90 @@ pub(crate) fn scene_value(
     })
 }
 
-/// Where the class table `is` tests read is written.
-pub(crate) const CLASS_TABLE: &str = "godot_classes.rn";
-
-/// Each project class, to the scripts that are it or extend it: what a type
-/// test `x is Class` asks of a node's script at run time.
-pub(crate) fn class_table(classes: &Classes) -> String {
-    let mut entries = Vec::new();
+/// The project's `classes.bs`: each class with the scripts that are it or
+/// extend it, for Godot's `is`, and each object class by its module, for
+/// what makes one, calls its functions and reads its properties by name.
+pub(crate) fn classes_module(classes: &Classes, objects: &[crate::godot::script::ObjectClass]) -> String {
+    use crate::godot::gdscript::{module_name, module_use, quoted};
+    use crate::godot::scene::script_path;
+    let mut out = String::from(
+        "// Written by `balaur import`: the project's classes, for what asks for one by name.\n\n",
+    );
+    let mut names = std::collections::BTreeSet::new();
+    let mut uses = std::collections::BTreeSet::new();
+    for object in objects {
+        // Two modules of one name cannot both be linked: the second is left
+        // out, and a call on its objects answers nil.
+        if names.insert(module_name(&object.module)) {
+            uses.insert(module_use(&object.module));
+        }
+    }
+    for module in &uses {
+        out.push_str(&format!("use {module};\n"));
+    }
+    out.push_str("\n/// The scripts that are `class` or extend it, for Godot's `is`.\npub fn scripts(class: str) -> [str] {\n");
     for (name, file) in &classes.files {
-        let mut files = vec![file.replace(".gd", ".rn")];
+        let mut files = vec![script_path(file)];
         for (other, other_file) in &classes.files {
             let mut base = classes.bases.get(other);
             for _ in 0..16 {
                 let Some(step) = base else { break };
                 if step == name {
-                    files.push(other_file.replace(".gd", ".rn"));
+                    files.push(script_path(other_file));
                     break;
                 }
                 base = classes.bases.get(step);
             }
         }
-        let list: Vec<String> = files.iter().map(|f| format!("\"{f}\"")).collect();
-        entries.push(format!("\"{name}\": [{}]", list.join(", ")));
+        let list: Vec<String> = files.iter().map(|f| quoted(f)).collect();
+        out.push_str(&format!(
+            "    if class == {} {{\n        return [{}];\n    }}\n",
+            quoted(name),
+            list.join(", ")
+        ));
     }
-    format!(
-        "// Written by `balaur import`: each class, and the scripts that are it.\n\npub fn classes() {{\n    #{{ {} }}\n}}\n",
-        entries.join(", ")
-    )
+    out.push_str("    return [];\n}\n");
+    let linked = |object: &&crate::godot::script::ObjectClass| {
+        uses.contains(&module_use(&object.module))
+    };
+    out.push_str("\n/// A new object of the class whose module is `module`, every argument at\n/// its default.\npub fn make(module: str) -> any {\n");
+    for object in objects.iter().filter(linked) {
+        let args = vec!["nil"; object.takes].join(", ");
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::new({args});\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    nil\n}\n");
+    out.push_str("\n/// One of an object's class's functions, by name.\npub fn call(obj: any, method: str, args: any) -> any {\n    let module: str = obj.get(\"__class\").text();\n");
+    for object in objects.iter().filter(linked) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::__call(obj, method, args);\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    nil\n}\n");
+    out.push_str("\n/// An object's property, through its getter where its class declares one.\npub fn get(obj: any, name: str) -> any {\n    let module: str = obj.get(\"__class\").text();\n");
+    for object in objects.iter().filter(linked).filter(|o| o.accessors) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        return {}::__get(obj, name);\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    obj.get(name)\n}\n");
+    out.push_str("\n/// An object's property written, through its setter where its class declares one.\npub fn set(obj: any, name: str, value: any) {\n    let module: str = obj.get(\"__class\").text();\n");
+    for object in objects.iter().filter(linked).filter(|o| o.accessors) {
+        out.push_str(&format!(
+            "    if module == {} {{\n        {}::__set(obj, name, value);\n        return;\n    }}\n",
+            quoted(&object.module),
+            module_name(&object.module)
+        ));
+    }
+    out.push_str("    obj.set(name, value);\n}\n");
+    out
 }
 
 /// Every `class_name` in the project's scripts, to the class it extends and
@@ -679,7 +736,7 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             if !defaulted.is_empty() {
                 classes
                     .defaulted
-                    .insert(file.replace(".gd", ".rn"), defaulted);
+                    .insert(crate::godot::scene::script_path(file), defaulted);
             }
             classes.files.insert(name, file.clone());
         }
@@ -725,21 +782,22 @@ fn index_inner_classes(classes: &mut Classes, file: &str, inners: &[(String, Str
     for (inner, text) in inners {
         let path = crate::godot::script::inner_file(file, inner);
         classes.inner.insert(
-            format!("{}.{inner}", file.replace(".gd", ".rn")),
+            format!("{}.{inner}", crate::godot::scene::script_path(file)),
             path.clone(),
         );
         index_inner_classes(classes, &path, &crate::godot::script::inner_classes(text));
     }
 }
 
-/// A GDScript literal as Rune, or `None` for an expression this cannot read.
+/// A GDScript literal as Balaur Script, or `None` for an expression this
+/// cannot read.
 pub(crate) fn literal(text: &str) -> Option<String> {
     let text = text.trim();
     if text == "true" || text == "false" {
         return Some(text.to_string());
     }
     if text == "null" {
-        return Some("()".to_string());
+        return Some("nil".to_string());
     }
     if let Some(inner) = text
         .strip_prefix('"')
@@ -750,7 +808,11 @@ pub(crate) fn literal(text: &str) -> Option<String> {
     {
         return Some(format!(
             "\"{}\"",
-            inner.replace('\\', "\\\\").replace('"', "\\\"")
+            inner
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('{', "{{")
+                .replace('}', "}}")
         ));
     }
     let numeric = text.trim_start_matches('-');

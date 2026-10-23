@@ -24,9 +24,9 @@ impl Emitter<'_> {
         let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
         self.uses_shim = true;
         Some(format!(
-            "gd::emit_engine({emitter}, {}, [{}])",
+            "gd::emit_engine({emitter}, {}, {})",
             quoted(signal),
-            parts.join(", ")
+            map::any_list(&parts)
         ))
     }
 
@@ -233,7 +233,12 @@ impl Emitter<'_> {
         let target = if self.context.object_class { "this" } else { self.own_node() };
         let mut text = format!("gd::callable({target}, {})", quoted(&method));
         if !values.is_empty() {
-            let _ = write!(text, ".with({}, [{}])", quoted(map::BOUND_ARGS), values.join(", "));
+            let _ = write!(
+                text,
+                ".with({}, {})",
+                quoted(map::BOUND_ARGS),
+                map::any_list(&values)
+            );
         }
         Some((text, Some(open)))
     }

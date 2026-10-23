@@ -26,6 +26,23 @@ impl Emitter<'_> {
         {
             return text;
         }
+        // An object class keeps its members in its map, written by key.
+        if let Some(name) = member
+            && self.context.object_class
+            && self.context.members.contains(name)
+            && !self.context.static_vars.contains_key(name)
+        {
+            let text = self.expression(value);
+            let text = if op == "=" {
+                text
+            } else {
+                self.uses_shim = true;
+                let verb = shim_verb(op.trim_end_matches('='));
+                format!("gd::{verb}({}, {text})", self.member(name))
+            };
+            let _ = writeln!(out, "{pad}{};", self.member_store(name, &text));
+            return out;
+        }
         if let Expr::Index(object, index) = target
             && op == "="
             && let Some((object, key)) = tree_parameter(object, index)
@@ -77,8 +94,14 @@ impl Emitter<'_> {
         let text = self.expression(value);
         // A target that resolved to nothing, or to another module's own item,
         // is not a place: the whole line becomes a stub.
-        if place.starts_with("gd::todo") || place.starts_with("(script::require(") {
+        if place.starts_with("gd::todo") || self.in_module(&place) {
             let _ = writeln!(out, "{pad}{};", discardable(&place));
+            return out;
+        }
+        // `|=` and its kin: the shim's bitwise verb, written back.
+        if let Some(verb) = super::ops::bit_verb(op.trim_end_matches('=')) {
+            self.uses_shim = true;
+            let _ = writeln!(out, "{pad}{place} = gd::{verb}({place}, {text});");
             return out;
         }
         // `+=` and its kin on a value whose type is not known: Godot's
@@ -96,6 +119,24 @@ impl Emitter<'_> {
                 let _ = writeln!(out, "{pad}{place} = gd::{verb}({place}, {text});");
                 return out;
             }
+        }
+        // A float into an int place truncates, as Godot's typed int does; an
+        // int into a float place widens.
+        let (place_type, value_type) = (self.type_of(target), self.type_of(value));
+        if place_type == super::Bt::Int && value_type == super::Bt::Float {
+            let operator = op.trim_end_matches('=');
+            let value = if operator.is_empty() {
+                text
+            } else {
+                format!("({place} as float) {operator} {text}")
+            };
+            let _ = writeln!(out, "{pad}{place} = ({value}) as int;");
+            return out;
+        }
+        if place_type == super::Bt::Float && value_type == super::Bt::Int {
+            let text = self.float_operand(value);
+            let _ = writeln!(out, "{pad}{place} {op} {text};");
+            return out;
         }
         let _ = writeln!(out, "{pad}{place} {op} {text};");
         out
@@ -147,7 +188,7 @@ impl Emitter<'_> {
                 let read = self.member_read(name);
                 format!("{read} {} ({text})", op.trim_end_matches('='))
             };
-            let _ = writeln!(out, "{pad}{}.{} = {text};", self.me(), safe(name));
+            let _ = writeln!(out, "{pad}{};", self.member_store(name, &text));
             return Some(out);
         }
         None
@@ -182,7 +223,7 @@ impl Emitter<'_> {
     ) -> Option<String> {
         let text = self.expression(value);
         let operator = op.trim_end_matches('=');
-        let plain = object.starts_with("(script::require(") || object == "this";
+        let plain = self.module_path(object).is_some() || object == "this";
         let getter = match map::property(object, field) {
             Some(getter) => getter,
             None if plain => return None,
@@ -389,7 +430,7 @@ impl Emitter<'_> {
         }
         // Another script's property: written through the setter the converted
         // script carries.
-        if object.starts_with("(script::require(") || object == "this" {
+        if self.module_path(&object).is_some() || object == "this" {
             return None;
         }
         self.uses_shim = true;

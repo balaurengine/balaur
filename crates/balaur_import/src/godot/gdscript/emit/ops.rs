@@ -77,7 +77,7 @@ impl Emitter<'_> {
                 Expr::Array(_) => self.expression(right),
                 other => {
                     let one = self.expression(other);
-                    format!("[{one}]")
+                    super::map::any_list(&[one])
                 }
             };
             self.uses_shim = true;
@@ -115,9 +115,22 @@ impl Emitter<'_> {
             return if op == "==" { nil } else { format!("!{nil}") };
         }
         if op == "**" {
+            let left = self.float_operand(left);
+            let right = self.float_operand(right);
+            return format!("math::pow({left}, {right})");
+        }
+        // Balaur Script has no bitwise operators: the shim does them on ints.
+        if let Some(verb) = bit_verb(op) {
             let left = self.expression(left);
             let right = self.expression(right);
-            return format!("math::pow({left}, {right})");
+            self.uses_shim = true;
+            return format!("gd::{verb}({left}, {right})");
+        }
+        // Two literal strings are one.
+        if op == "+"
+            && let (Expr::Str(a), Expr::Str(b)) = (left, right)
+        {
+            return super::quoted(&format!("{a}{b}"));
         }
         // Two strings joined, which `+` does not do here.
         if op == "+" && lt == Bt::Str && rt == Bt::Str {
@@ -162,11 +175,37 @@ impl Emitter<'_> {
             }
             text
         };
-        let left_text = self.expression(left);
-        let left_text = group(left, left_text, false);
-        let right_text = self.expression(right);
-        let right_text = group(right, right_text, true);
+        // An int beside a float is widened, as Godot widens it.
+        let mixed = lt.numeric() && rt.numeric() && lt != rt;
+        let left_text = if mixed && lt == Bt::Int {
+            self.float_operand(left)
+        } else {
+            let text = self.expression(left);
+            group(left, text, false)
+        };
+        let right_text = if mixed && rt == Bt::Int {
+            self.float_operand(right)
+        } else {
+            let text = self.expression(right);
+            group(right, text, true)
+        };
         format!("{left_text} {op} {right_text}")
+    }
+
+    /// An operand as a float: an int widened.
+    pub(super) fn float_operand(&mut self, value: &Expr) -> String {
+        if let Expr::Int(text) = value {
+            return format!("{text}.0");
+        }
+        let text = self.expression(value);
+        match self.type_of(value) {
+            Bt::Float => text,
+            Bt::Int => format!("({text} as float)"),
+            _ => {
+                self.uses_shim = true;
+                format!("gd::float({text})")
+            }
+        }
     }
 
     pub(super) fn dict(&mut self, pairs: &[(Expr, Expr)]) -> String {
@@ -184,16 +223,13 @@ impl Emitter<'_> {
         }
         // A key that is not a literal string cannot stand in an object
         // literal, so the shim builds the map from pairs.
-        let parts: Vec<String> = pairs
-            .iter()
-            .map(|(key, value)| {
-                let key = self.expression(key);
-                let value = self.expression(value);
-                format!("[{key}, {value}]")
-            })
-            .collect();
+        let mut flat = Vec::new();
+        for (key, value) in pairs {
+            flat.push(self.expression(key));
+            flat.push(self.expression(value));
+        }
         self.uses_shim = true;
-        format!("gd::dict([{}])", parts.join(", "))
+        format!("gd::dict({})", super::map::any_list(&flat))
     }
 
     /// A lambda, lifted into a method of its own: Godot captures a local by
@@ -224,12 +260,14 @@ impl Emitter<'_> {
             let bound = safe(local);
             text.push_str(&format!("        let {bound} = cap.get({});\n", super::quoted(local)));
         }
-        let returns = matches!(body, [Stmt::Return(Some(_)) | Stmt::Expr(_)]);
-        if let [Stmt::Return(Some(value)) | Stmt::Expr(value)] = body {
-            let value = self.expression(value);
-            text.push_str(&format!("        {value}\n"));
-        } else {
-            text.push_str(&self.block(body, 2));
+        // A lambda answers what it returns; a lone expression is a statement,
+        // as it is in GDScript.
+        let returns = body
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::Return(Some(_))));
+        text.push_str(&self.block(body, 2));
+        if returns {
+            text.push_str("        return nil;\n");
         }
         self.scopes = outer_scopes;
         let awaited = std::mem::replace(&mut self.awaits, outer_awaits);
@@ -252,6 +290,18 @@ impl Emitter<'_> {
         let target = if self.context.object_class { "this" } else { "self.node" };
         format!("gd::lambda({target}, {}, {cap})", super::quoted(&name))
     }
+}
+
+/// The shim's name for a bitwise operator.
+pub(super) fn bit_verb(op: &str) -> Option<&'static str> {
+    Some(match op {
+        "|" => "bit_or",
+        "&" => "bit_and",
+        "^" => "bit_xor",
+        "<<" => "shift_left",
+        ">>" => "shift_right",
+        _ => return None,
+    })
 }
 
 /// Whether an expression is a literal, whose type is known where it stands.

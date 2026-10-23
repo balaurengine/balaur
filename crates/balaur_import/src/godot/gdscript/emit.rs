@@ -1,17 +1,16 @@
-//! The tree as Rune text.
+//! The tree as Balaur Script text.
 //!
-//! Three Rune rules shape what comes out, all of them from `AGENTS.md`:
-//! `obj.field = a || b` overwrites `a` when `a` is a local, so a short-circuit
-//! into a field goes through a temporary; `match` has no or-patterns, so a
-//! GDScript `match` becomes an `if` chain; and `a[i] += v` is unsupported, so
-//! an indexed compound assignment is expanded.
+//! A value whose type a hint or a literal gives is typed; every other is an
+//! `any`, Godot's Variant, and what GDScript does to one goes through the
+//! shim's `gd::`. A GDScript `match` becomes an `if` chain over `gd::same`,
+//! since its arms compare Variants.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use super::ast::{Expr, MatchArm, Stmt};
 use super::map;
-use super::{GETTER, SETTER};
+use super::{GETTER, SETTER, module_name, module_use};
 
 mod calls;
 mod ops;
@@ -24,7 +23,7 @@ pub(crate) use types::Bt;
 /// resolves the way GDScript resolved it.
 #[derive(Default)]
 pub(crate) struct Context {
-    /// Member variables, own and inherited: a bare one is `this.name`.
+    /// Member variables, own and inherited: a bare one is `self.name`.
     pub members: BTreeSet<String>,
     /// Instance methods, own and inherited: a bare call takes `this`.
     pub methods: BTreeSet<String>,
@@ -53,7 +52,8 @@ pub(crate) struct Context {
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
     pub renames: BTreeMap<String, String>,
-    /// `class_name` to the `.rn` beside it, for a static call on a project class.
+    /// `class_name` to the `.bs` it was written to, for a static call on a
+    /// project class.
     pub classes: BTreeMap<String, String>,
     /// `static var` names to the Rune text of their default. A Rune module
     /// holds no state, so these live on the scene root under a key this
@@ -103,11 +103,28 @@ pub(crate) struct Context {
     pub member_types: BTreeMap<String, Bt>,
     /// Each method's declared result.
     pub returns: BTreeMap<String, Bt>,
+    /// This class's named enums, each with its members: `State.IDLE` is the
+    /// constant `State__IDLE`, and `State` alone the function building it.
+    pub enums: BTreeMap<String, BTreeSet<String>>,
+    /// Another class's constants that are functions there, by class.
+    pub class_lazy: BTreeMap<String, BTreeSet<String>>,
+    /// Another class's named enums, by class.
+    pub class_enums: BTreeMap<String, BTreeSet<String>>,
 }
+
+/// An enum member's constant: `State.IDLE` is `State__IDLE`.
+pub(crate) fn enum_member(name: &str, member: &str) -> String {
+    format!("{name}__{member}")
+}
+
+/// The field of a node class's struct that holds its members' class.
+pub(crate) const MY: &str = "my";
 
 /// The members that stand in for Godot's per-node process switch.
 pub(crate) const PROCESS_FLAG: &str = "process_enabled";
 pub(crate) const PHYSICS_PROCESS_FLAG: &str = "physics_process_enabled";
+/// The member that stands in for `set_process_input`.
+pub(crate) const INPUT_FLAG: &str = "input_enabled";
 
 /// What a base's overridden function is named here, so `super` can reach it.
 pub(crate) const BASE_SUFFIX: &str = "__base";
@@ -124,19 +141,12 @@ fn tree_parameter<'e>(object: &'e Expr, index: &'e Expr) -> Option<(&'e Expr, &'
     }
 }
 
-/// The module a `script::require("…")` text loads, whatever wraps it.
-fn required_path(text: &str) -> Option<&str> {
-    let rest = text.strip_prefix('(').unwrap_or(text);
-    rest.strip_prefix("script::require(\"")?.split('"').next()
-}
-
-/// Rune's reserved words: a GDScript name that is one gains a trailing `_`.
+/// Balaur Script's keywords, its type names and the prelude's `map`: a
+/// GDScript name that is one gains a trailing `_`.
 pub(crate) const RESERVED: &[&str] = &[
-    "abstract", "alignof", "as", "async", "await", "become", "break", "const", "continue", "crate",
-    "default", "do", "else", "enum", "extern", "false", "final", "fn", "for", "if", "impl", "in",
-    "is", "let", "loop", "macro", "match", "mod", "move", "mut", "not", "offsetof", "override",
-    "priv", "proc", "pure", "ref", "return", "select", "self", "Self", "sizeof", "static",
-    "struct", "super", "true", "typeof", "unsafe", "use", "virtual", "while", "yield",
+    "as", "async", "await", "break", "class", "const", "continue", "else", "extern", "fn", "for",
+    "if", "impl", "in", "let", "loop", "mut", "pub", "return", "self", "struct", "use", "while",
+    "true", "false", "nil", "int", "float", "bool", "str", "any", "map", "gd", "classes",
 ];
 
 /// What marks a line in converted output that the port must finish. It is
@@ -165,6 +175,10 @@ pub(crate) struct Emitter<'a> {
     pub(crate) local_types: BTreeMap<String, Bt>,
     /// The methods this body's lambdas were lifted into.
     pub(crate) lifted: Vec<String>,
+    /// The modules the body reaches, as `use` spells them.
+    pub(crate) uses: BTreeSet<String>,
+    /// Each module reached, by the name its items go by, to its file.
+    modules: BTreeMap<String, String>,
     /// Locals and parameters typed `String`: an index on one is a character.
     pub string_locals: BTreeSet<String>,
     /// Names of temporaries already handed out, so nested ones do not collide.
@@ -218,6 +232,8 @@ impl<'a> Emitter<'a> {
             bool_locals: BTreeSet::new(),
             local_types: BTreeMap::new(),
             lifted: Vec::new(),
+            uses: BTreeSet::new(),
+            modules: BTreeMap::new(),
             string_locals: BTreeSet::new(),
             enclosing: String::new(),
             awaited_here: false,
@@ -232,15 +248,49 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// What a member is read off: the struct's `self` in a node class, the
-    /// object's table, `this`, in an object class.
-    pub(crate) fn me(&self) -> &'static str {
-        if self.context.object_class { "this" } else { "self" }
+    /// A member of this class as a value: the struct's field in a node
+    /// class, the object's key in an object class, whose `this` is a map.
+    pub(crate) fn member(&self, name: &str) -> String {
+        if self.context.object_class {
+            format!("this.get({})", quoted(name))
+        } else {
+            format!("self.{MY}.{}", safe(name))
+        }
     }
 
-    /// The class's own node.
+    /// The statement that stores `value` in a member.
+    pub(crate) fn member_store(&self, name: &str, value: &str) -> String {
+        if self.context.object_class {
+            format!("this.set({}, {value})", quoted(name))
+        } else {
+            format!("self.{MY}.{} = {value}", safe(name))
+        }
+    }
+
+    /// The class's own node. An object class has none: its node calls reach
+    /// a node that is not there, and do nothing.
     pub(crate) fn own_node(&self) -> &'static str {
-        if self.context.object_class { "this.node" } else { "self.node" }
+        if self.context.object_class { "scene::node_by_id(\"\")" } else { "self.node" }
+    }
+
+    /// A project module, used by this file, as the prefix its items take.
+    pub(crate) fn module_ref(&mut self, path: &str) -> String {
+        let name = module_name(path);
+        self.uses.insert(module_use(path));
+        self.modules.insert(name.clone(), path.to_string());
+        format!("{name}::")
+    }
+
+    /// Whether `text` is an item of a module this file uses.
+    pub(crate) fn in_module(&self, text: &str) -> bool {
+        text.split_once("::")
+            .is_some_and(|(name, _)| self.modules.contains_key(name))
+    }
+
+    /// The file behind a module prefix [`Self::module_ref`] handed out.
+    pub(crate) fn module_path(&self, text: &str) -> Option<&str> {
+        let name = text.strip_suffix("::")?;
+        self.modules.get(name).map(String::as_str)
     }
 
     /// A call of one of the class's own methods.
@@ -263,10 +313,19 @@ impl<'a> Emitter<'a> {
         format!("tmp{}", self.temps)
     }
 
-    /// A rewrite, with the shim flagged where one reached it.
+    /// A rewrite, with the shim flagged where one reached it, and the
+    /// module of a `.tres` it loads used.
     fn shimmed(&mut self, text: String) -> String {
         if text.contains(map::SHIM_MARK) {
             self.uses_shim = true;
+        }
+        let mut rest = text.as_str();
+        while let Some(at) = rest.find(map::RESOURCE_CALL) {
+            rest = &rest[at + map::RESOURCE_CALL.len()..];
+            if let Some(path) = rest.strip_prefix('"').and_then(|r| r.split('"').next()) {
+                let module = crate::godot::resource::module_path(path);
+                self.uses.insert(module_use(&module));
+            }
         }
         text
     }
@@ -346,6 +405,9 @@ impl<'a> Emitter<'a> {
                         self.uses_shim = true;
                         format!("gd::int({text})")
                     }
+                    Some(value) if declared == Some(Bt::Float) && self.type_of(value) == Bt::Int => {
+                        self.float_operand(value)
+                    }
                     Some(value) => self.expression(value),
                     // A declaration with no value: its type says what empty is.
                     None => {
@@ -411,6 +473,10 @@ impl<'a> Emitter<'a> {
                     }
                     _ => None,
                 };
+                // `for i in n` counts to an int's value.
+                let counted = counted.or_else(|| {
+                    (self.type_of(iter) == Bt::Int).then(|| format!("0..{}", self.expression(iter)))
+                });
                 let (iter, element) = match counted {
                     Some(range) => (range, Bt::Int),
                     None => {
@@ -526,6 +592,7 @@ impl<'a> Emitter<'a> {
                     };
                 }
                 let literal = matches!(**inner, Expr::Int(_) | Expr::Float(_));
+                let numeric = self.type_of(inner).numeric();
                 let compound = matches!(**inner, Expr::Binary(..) | Expr::Is(..) | Expr::Cast(..));
                 let inner = self.expression(inner);
                 let inner = if compound {
@@ -533,13 +600,14 @@ impl<'a> Emitter<'a> {
                 } else {
                     inner
                 };
-                // `~n` flips an integer's bits, which Rune spells `!`.
+                // `~n` flips an integer's bits.
                 if *op == "~" {
-                    return format!("!{inner}");
+                    self.uses_shim = true;
+                    return format!("gd::bit_not({inner})");
                 }
-                // Rune negates a number and nothing else; a vector goes through
-                // the shim, which scales it.
-                if *op == "-" && !literal {
+                // A number negates; a vector goes through the shim, which
+                // scales it.
+                if *op == "-" && !literal && !numeric {
                     self.uses_shim = true;
                     return format!("gd::neg({inner})");
                 }
@@ -555,8 +623,18 @@ impl<'a> Emitter<'a> {
                 format!("(if {cond} {{ {then} }} else {{ {other} }})")
             }
             Expr::Array(items) => {
-                let items: Vec<String> = items.iter().map(|item| self.expression(item)).collect();
-                format!("[{}]", items.join(", "))
+                // One known type throughout is a list of it, which boxes into
+                // an `any` list; mixed or unknown kinds build an `any` list.
+                let first = items.first().map(|item| self.type_of(item));
+                let typed = first.is_some_and(|t| {
+                    t != Bt::Any && t != Bt::Node && items.iter().all(|i| self.type_of(i) == t)
+                });
+                let texts: Vec<String> = items.iter().map(|item| self.expression(item)).collect();
+                if typed {
+                    return format!("[{}]", texts.join(", "));
+                }
+                self.uses_shim = true;
+                map::any_list(&texts)
             }
             Expr::Dict(pairs) => self.dict(pairs),
             Expr::Lambda { params, body } => self.lambda(params, body),
@@ -609,11 +687,8 @@ impl<'a> Emitter<'a> {
         self.awaits = true;
         // A method on a receiver only known at run time may suspend:
         // the shim waits on it the way the engine resumes one.
-        if let Some(rest) = text.strip_prefix("gd::invoke_many(") {
-            return format!("await gd::invoke_async_many({rest}");
-        }
-        if let Some(rest) = text.strip_prefix("gd::invoke") {
-            return format!("await gd::invoke_async{rest}");
+        if let Some(rest) = text.strip_prefix(map::INVOKE) {
+            return format!("await gd::call_async({rest}");
         }
         format!("await {text}")
     }
@@ -638,7 +713,7 @@ impl<'a> Emitter<'a> {
             // changed: GDScript's statics hold their containers by reference.
             return format!("gd::static_ref({key}, {fallback})");
         }
-        if self.context.lazy.contains(name) {
+        if self.context.lazy.contains(name) || self.context.enums.contains_key(name) {
             return format!("{name}()");
         }
         if self.context.consts.contains(name) {
@@ -688,14 +763,43 @@ impl<'a> Emitter<'a> {
         map::todo(name)
     }
 
-    /// A project class used as a value: the module beside it, required once
-    /// per use. `script::require` is cached by the engine, so this is a lookup
-    /// rather than a load.
+    /// A project class named: its module, which this file uses, as the
+    /// prefix its items take.
     fn class_module(&mut self, name: &str) -> String {
-        match self.context.classes.get(name) {
-            Some(path) => format!("script::require({})", quoted(path)),
+        match self.context.classes.get(name).cloned() {
+            Some(path) => self.module_ref(&path),
             None => safe(name),
         }
+    }
+
+    /// An item of another class's module, read: a constant, an enum, a
+    /// lazily computed constant, or a function handed over as a value.
+    fn module_item(&mut self, module: &str, class: &str, field: &str) -> String {
+        if self
+            .context
+            .class_methods
+            .get(class)
+            .is_some_and(|names| names.contains(field))
+        {
+            return format!("{module}{}", safe(field));
+        }
+        if self
+            .context
+            .class_lazy
+            .get(class)
+            .is_some_and(|names| names.contains(field))
+        {
+            return format!("{module}{}()", safe(field));
+        }
+        if self
+            .context
+            .class_enums
+            .get(class)
+            .is_some_and(|names| names.contains(field))
+        {
+            return format!("{module}{}()", safe(field));
+        }
+        format!("{module}{}", safe(field))
     }
 
     /// What a local's declaration says it holds: a bool by its type or its
@@ -761,9 +865,9 @@ impl<'a> Emitter<'a> {
             let values: Vec<String> = fixed.iter().map(|value| self.expression(value)).collect();
             let _ = write!(
                 record,
-                ".with({}, [{}])",
+                ".with({}, {})",
                 quoted(map::BOUND_ARGS),
-                values.join(", ")
+                map::any_list(&values)
             );
         }
         record
@@ -774,7 +878,7 @@ impl<'a> Emitter<'a> {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
             return self.own_call(&format!("{GETTER}{name}"), &[]);
         }
-        format!("{}.{}", self.me(), safe(name))
+        self.member(name)
     }
 
     fn in_accessor_of(&self, name: &str) -> bool {
@@ -808,6 +912,21 @@ impl<'a> Emitter<'a> {
                 return closure;
             }
         }
+        if let Expr::Name(name) = object
+            && !self.is_local(name)
+            && self.context.enums.get(name).is_some_and(|m| m.contains(field))
+        {
+            return enum_member(name, field);
+        }
+        // `Other.State.IDLE`: another class's enum member, its constant.
+        if let Expr::Field(inner, name) = object
+            && let Expr::Name(class) = &**inner
+            && !self.is_local(class)
+            && self.context.class_enums.get(class).is_some_and(|e| e.contains(name))
+        {
+            let module = self.class_module(class);
+            return format!("{module}{}", enum_member(name, field));
+        }
         if let Expr::Name(class) = object
             && !self.is_local(class)
             && !self.context.members.contains(class)
@@ -822,29 +941,18 @@ impl<'a> Emitter<'a> {
                 self.uses_shim = true;
                 return format!("gd::static_ref({key}, {fallback})");
             }
-            if let Some(module) = self.context.inner.get(&format!("{class}.{field}")) {
-                return format!("script::require({})", quoted(module));
+            if let Some(module) = self.context.inner.get(&format!("{class}.{field}")).cloned() {
+                return self.module_ref(&module);
             }
             // The same inner class off a name that preloaded its file.
             if let Some(path) = self.context.classes.get(class)
-                && let Some(module) = self.context.inner.get(&format!("{path}.{field}"))
+                && let Some(module) = self.context.inner.get(&format!("{path}.{field}")).cloned()
             {
-                return format!("script::require({})", quoted(module));
+                return self.module_ref(&module);
             }
             if self.context.classes.contains_key(class) {
                 let module = self.class_module(class);
-                // Another class's function handed over as a callable.
-                if self
-                    .context
-                    .class_methods
-                    .get(class)
-                    .is_some_and(|names| names.contains(field))
-                {
-                    return format!("{module}.{}", safe(field));
-                }
-                // A constant another module computes is a function there.
-                self.uses_shim = true;
-                return format!("gd::constant({module}.{})", safe(field));
+                return self.module_item(&module, class, field);
             }
         }
         let text = self.expression(object);
@@ -855,15 +963,11 @@ impl<'a> Emitter<'a> {
             return self.shimmed(mapped);
         }
         // A class inside the module the text names: `PB.Msg.Part`.
-        if let Some(path) = required_path(&text)
-            && let Some(module) = self.context.inner.get(&format!("{path}.{field}"))
-        {
-            return format!("script::require({})", quoted(module));
-        }
-        // A module's own item is a field; anything else may be a node whose
-        // script holds the value, so the read goes through the shim.
-        if text.starts_with("(script::require(") || text == "this" {
-            return format!("{text}.{}", safe(field));
+        if let Some(path) = self.module_path(&text).map(str::to_string) {
+            if let Some(module) = self.context.inner.get(&format!("{path}.{field}")).cloned() {
+                return self.module_ref(&module);
+            }
+            return format!("{text}{}", safe(field));
         }
         self.uses_shim = true;
         format!("gd::field({text}, {})", quoted(field))
@@ -899,7 +1003,7 @@ impl<'a> Emitter<'a> {
                 crate::godot::nodes::bare_document(class, crate::godot::script::NEW_NAME)
         {
             self.uses_shim = true;
-            return format!("gd::new_node({}, nil)", quoted(&doc));
+            return format!("gd::new_node({}, \"\")", quoted(&doc));
         }
         if let Some(text) = map::static_call(class, method, parts) {
             return self.shimmed(text);
@@ -984,6 +1088,16 @@ impl<'a> Emitter<'a> {
                 let bound = self.method_name(&name);
                 let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
                 self.pad_defaults(&name, args.len(), &mut parts);
+                // A hook that cannot wait starts a method that does through
+                // the engine, which runs it on.
+                if self.context.asyncs.contains(&name)
+                    && !self.allow_await
+                    && !self.context.object_class
+                {
+                    let mut all = vec![quoted(&bound)];
+                    all.extend(parts);
+                    return format!("self.node.call_async({})", all.join(", "));
+                }
                 let text = self.own_call(&bound, &parts);
                 return self.awaited(&name, text);
             }
@@ -1010,9 +1124,9 @@ impl<'a> Emitter<'a> {
             if self.context.object_class && verb == "emit" {
                 self.uses_shim = true;
                 return format!(
-                    "gd::emit_obj(this, {}, [{}])",
+                    "gd::emit_obj(this, {}, {})",
                     quoted(&signal),
-                    parts.join(", ")
+                    map::any_list(&parts)
                 );
             }
             if let Some(text) = map::signal_verb(&signal, verb, &parts) {
@@ -1054,9 +1168,8 @@ impl<'a> Emitter<'a> {
             if let Some(text) = map::global(name, &parts) {
                 return self.shimmed(text);
             }
-            if let Some(head) = map::value_type(name) {
-                self.uses_shim = true;
-                return format!("{head}({})", parts.join(", "));
+            if let Some(text) = map::value_type(name, &parts) {
+                return self.shimmed(text);
             }
             if let Some(text) = map::implicit_self(name, &parts) {
                 return self.shimmed(text);
@@ -1079,23 +1192,22 @@ impl<'a> Emitter<'a> {
     /// script's method asked for at run time.
     fn method_call(&mut self, object: &Expr, method: &str, parts: &[String]) -> String {
         let receiver = self.expression(object);
-        // A required module's functions are its fields, and a field
-        // holding a function is called in parentheses, whatever it is
-        // named: `Feedback.clear(node)` is that class's own `clear`.
-        if receiver.starts_with("script::require(") {
-            let module = receiver
-                .trim_start_matches("script::require(\"")
-                .trim_end_matches("\")");
+        // A module's function, `Feedback.clear(node)`: every parameter it
+        // takes is passed, nil for what the call left to its default.
+        if let Some(module) = self.module_path(&receiver).map(str::to_string) {
+            let mut parts = parts.to_vec();
             let takes = self
                 .context
                 .defaulted
-                .get(module)
-                .and_then(|fns| fns.get(method));
-            let name = match takes {
-                Some(total) if parts.len() < *total => format!("{}__{}", method, parts.len()),
-                _ => safe(method),
-            };
-            return format!("({receiver}.{name})({})", parts.join(", "));
+                .get(&module)
+                .and_then(|fns| fns.get(method))
+                .copied()
+                .unwrap_or(0);
+            while parts.len() < takes {
+                parts.push("nil".into());
+            }
+            let name = if method == "new" { "new" } else { method };
+            return format!("{receiver}{}({})", safe(name), parts.join(", "));
         }
         if let Some(text) = map::method(&receiver, method, parts) {
             return self.shimmed(text);
@@ -1122,12 +1234,12 @@ impl<'a> Emitter<'a> {
             return None;
         }
         if name.starts_with("is_") {
-            return Some(format!("{}.{flag}", self.me()));
+            return Some(self.member(flag));
         }
         let value = args
             .first()
             .map_or("true".to_string(), |a| self.expression(a));
-        Some(format!("{}.{flag} = {value}", self.me()))
+        Some(self.member_store(flag, &value))
     }
 
     /// `super(..)` and `super.name(..)`: the base's copy, which §4's
@@ -1149,9 +1261,17 @@ impl<'a> Emitter<'a> {
             suffixed
         } else {
             self.note(format!("`super` reaches `{base}`, which no base declares"));
-            base
+            base.clone()
         };
-        Some(self.own_call(&target, parts))
+        let text = self.own_call(&target, parts);
+        // The base's copy waits where the function it overrides does.
+        let godot = self
+            .context
+            .renames
+            .iter()
+            .find(|(_, here)| **here == base)
+            .map_or(base.clone(), |(godot, _)| godot.clone());
+        Some(self.awaited(&godot, text))
     }
 
     fn method_name(&self, name: &str) -> String {
@@ -1220,12 +1340,15 @@ pub(crate) fn discardable(text: &str) -> String {
     text.to_string()
 }
 
-/// A Rune string literal for arbitrary text.
+/// A string literal for arbitrary text: a brace doubled, since one alone
+/// opens an interpolation.
 pub(crate) fn quoted(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
     for c in text.chars() {
         match c {
+            '{' => out.push_str("{{"),
+            '}' => out.push_str("}}"),
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
             '\n' => out.push_str("\\n"),

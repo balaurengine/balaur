@@ -46,12 +46,48 @@ pub(crate) fn scene_path(godot: &str) -> String {
     }
 }
 
-/// A script's path in the converted project: the same tree, `.rn`.
+/// A script's path in the converted project: the same tree, `.bs`.
 pub(crate) fn script_path(godot: &str) -> String {
     match godot.strip_suffix(".gd") {
-        Some(stem) => format!("{stem}.rn"),
+        Some(stem) => module_file(stem),
         None => godot.to_string(),
     }
+}
+
+/// The modules a project file must not be named as: the engine's own, and
+/// the two the importer writes.
+const TAKEN: &[&str] = &[
+    "animation", "apple", "assets", "audio", "browser", "debugger", "encoding", "engine",
+    "events", "export", "fs", "gamend", "geometry2d", "geometry3d", "hash", "http", "import",
+    "input", "json", "log", "math", "multiplayer", "node", "physics", "physics2d", "physics3d",
+    "platform", "project", "random", "regex", "release", "render", "replay", "rollback", "save",
+    "scene", "script", "settings", "skeleton", "strings", "task", "toml", "ui", "websocket",
+    "window", "gd", "classes",
+];
+
+/// `stem` as a `.bs` file `use` can name: each part of its path a name, and
+/// the file's own no engine module's or keyword's.
+pub(crate) fn module_file(stem: &str) -> String {
+    let mut parts: Vec<String> = stem
+        .split('/')
+        .map(|part| {
+            let mut name: String = part
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+                name.insert(0, '_');
+            }
+            name
+        })
+        .collect();
+    if let Some(last) = parts.last_mut()
+        && (TAKEN.contains(&last.as_str())
+            || crate::godot::gdscript::RESERVED.contains(&last.as_str()))
+    {
+        last.push_str("_gd");
+    }
+    format!("{}.bs", parts.join("/"))
 }
 
 /// Where a node's keys are written: its own table, or an override table on
@@ -425,7 +461,7 @@ impl Walk<'_> {
         }
     }
 
-    /// The node's script, renamed to the `.rn` the script phase writes, and
+    /// The node's script, renamed to the `.bs` the script phase writes, and
     /// the values its `@export`s were given here.
     fn script(&mut self, section: &Section, path: &str, prefab_script: Option<&str>) {
         let Some(reference) = section.field("script") else {

@@ -8,6 +8,7 @@
 // lambda captured in `__cap`. No function value crosses between scripts.
 
 use classes;
+use godot_settings;
 
 pub const CLASS_KEY: str = "__class";
 pub const TARGET_KEY: str = "__target";
@@ -29,6 +30,11 @@ const NODE: str = "node";
 /// Godot's `null`.
 pub fn is_nil(value: any) -> bool {
     value.is_nil()
+}
+
+/// Whether a value is of one kind: Godot's `is` on a built-in type.
+pub fn is_kind(value: any, kind: str) -> bool {
+    value.kind() == kind
 }
 
 /// Godot's truth: null, zero, an empty string or collection and a freed node
@@ -460,7 +466,12 @@ pub fn find(container: any, value: any) -> int {
     -1
 }
 
+/// `clear()`: a dictionary's keys and an array's items gone where they are;
+/// a node or an object answers its own, an option button emptying its items.
 pub fn clear(container: any) -> any {
+    if container.kind() == NODE || is_object(container) {
+        return call(container, "clear", list());
+    }
     if container.kind() == MAP {
         for key in container.keys() {
             container.remove(key);
@@ -1066,28 +1077,12 @@ pub fn size_of(node: Node) -> any {
     vec2(r.width, r.height)
 }
 
-/// Reading a property: another script's field, its getter, one of Godot's
-/// node properties, an object's field or a map's key.
-pub fn field(owner: Node, name: str) -> any {
-    if !owner.is_valid() {
-        return nil;
-    }
-    let getter = "get_{name}";
-    if owner.has_method(getter) {
-        return owner.call(getter);
-    }
-    let held = owner.script_field(name);
-    if !held.is_nil() {
-        return held;
-    }
-    node_property(owner, name)
-}
-
-/// `owner.name` on any value.
-pub fn read(owner: any, name: str) -> any {
+/// `owner.name` on any value: another script's member, one of Godot's node
+/// properties, an object's property, a map's key, a vector's lane.
+pub fn field(owner: any, name: str) -> any {
     let kind = owner.kind();
     if kind == NODE {
-        return field(owner.as_node(), name);
+        return node_field(owner.as_node(), name);
     }
     if is_object(owner) {
         return classes::get(owner, name);
@@ -1098,11 +1093,34 @@ pub fn read(owner: any, name: str) -> any {
     nil
 }
 
+// A node's member: its script answers `__get`, which falls back to the
+// node's own properties; a node with no converted script has those alone.
+fn node_field(node: Node, name: str) -> any {
+    if !node.is_valid() {
+        return nil;
+    }
+    if node.has_method(GET) {
+        return node.call(GET, name);
+    }
+    node_property(node, name)
+}
+
+const GET: str = "__get";
+const SET: str = "__set";
+
 /// `owner.name = value` on any value.
-pub fn write(owner: any, name: str, value: any) {
+pub fn set_field(owner: any, name: str, value: any) {
     let kind = owner.kind();
     if kind == NODE {
-        set_field(owner.as_node(), name, value);
+        let node = owner.as_node();
+        if !node.is_valid() {
+            return;
+        }
+        if node.has_method(SET) {
+            node.call(SET, name, value);
+            return;
+        }
+        set_node_property(node, name, value);
     } else if is_object(owner) {
         classes::set(owner, name, value);
     } else if kind == MAP {
@@ -1110,47 +1128,129 @@ pub fn write(owner: any, name: str, value: any) {
     }
 }
 
-/// Writing a property on a node: its script's setter, or one of Godot's
-/// node properties.
-pub fn set_field(owner: Node, name: str, value: any) {
-    if !owner.is_valid() {
-        return;
+/// `local.field = value` on a value a script holds, as the changed value: a
+/// vector or a colour is a value in Godot, so it is a changed copy here; a
+/// node, an object or a dictionary is changed where it is.
+pub fn with_field(owner: any, name: str, value: any) -> any {
+    if is_vector(owner) || is_color(owner) {
+        let out: any = map();
+        for key in owner.keys() {
+            out.set(key.as_str(), owner.get(key.as_str()));
+        }
+        out.set(name, value.as_float());
+        return out;
     }
-    let setter = "set_{name}";
-    if owner.has_method(setter) {
-        owner.call(setter, value);
-        return;
-    }
-    set_node_property(owner, name, value);
+    set_field(owner, name, value);
+    owner
 }
 
 /// One of Godot's node properties, read off the node's components; nil for
 /// a name that is not one.
 pub fn node_property(node: Node, name: str) -> any {
     if name == "position" {
-        position_of(node)
-    } else if name == "global_position" {
-        global_position_of(node)
-    } else if name == "scale" {
-        let s = node.transform.scale;
-        vec2(s.x, s.y)
-    } else if name == "rotation" {
-        rotation_of(node)
-    } else if name == "rotation_degrees" {
-        math::to_degrees(rotation_of(node))
-    } else if name == "size" {
-        size_of(node)
-    } else if name == "visible" {
-        node.visible()
-    } else if name == "modulate" || name == "self_modulate" {
-        color_map(node.tint())
-    } else if name == "z_index" {
-        node.z_index()
-    } else if name == "name" {
-        node.name()
-    } else {
-        nil
+        return position_of(node);
     }
+    if name == "global_position" {
+        return global_position_of(node);
+    }
+    if name == "scale" {
+        let s = node.transform.scale;
+        return vec2(s.x, s.y);
+    }
+    if name == "rotation" {
+        return rotation_of(node);
+    }
+    if name == "rotation_degrees" {
+        return math::to_degrees(rotation_of(node));
+    }
+    if name == "size" {
+        if node.stable_id() == scene::root().stable_id() {
+            return wd_window_pixels();
+        }
+        return size_of(node);
+    }
+    if name == "visible" {
+        return node.visible();
+    }
+    if name == "modulate" || name == "self_modulate" {
+        return color_map(node.tint());
+    }
+    if name == "z_index" {
+        return node.z_index();
+    }
+    if name == "name" {
+        return node.name();
+    }
+    if name == "zoom" {
+        return wd_camera_zoom(node);
+    }
+    // Kept beside the node: the engine has no fold groups, and a material or
+    // a multimesh a script built is a record it never draws with.
+    if name == "foldable_group" || name == "material" || name == "multimesh" {
+        return get_meta(node, name, nil);
+    }
+    if wd_is_line(node) {
+        let shape: any = node.get_component(WD_SHAPE2D);
+        if name == "points" {
+            return wd_line_points(node);
+        }
+        if name == "width" {
+            return num(get(shape, "width", 0.0)) * PIXELS;
+        }
+        if name == "default_color" {
+            return color_map(wd_color(get(shape, "color", nil)));
+        }
+    }
+    if wd_has(node, WD_PARTICLES) {
+        if name == "amount" {
+            return wd_particle_amount(node);
+        }
+        if name == WD_LIFETIME || name == "emitting" || name == "one_shot" {
+            return get(node.get_component(WD_PARTICLES), name, nil);
+        }
+    }
+    if wd_has(node, WD_ANIMATION) {
+        if name == WD_SPEED_SCALE {
+            return num(get(node.get_component(WD_ANIMATION), WD_SPEED_SCALE, 1.0));
+        }
+        if name == "current_animation" {
+            let current = animation::current_clip(node);
+            return if current.is_none() { "" } else { current.unwrap() };
+        }
+    }
+    if name == "active" && wd_has(node, WD_MACHINE) {
+        return truthy(get(node.get_component(WD_MACHINE), "enabled", true));
+    }
+    if name == "text" && (wd_has(node, WD_TEXT2D) || wd_has(node, WD_WIDGET)) {
+        return text_of(node);
+    }
+    let w = wd_widget(node);
+    if w.is_nil() {
+        return nil;
+    }
+    if name == "selected" {
+        return option_index(node);
+    }
+    if name == "item_count" {
+        return option_count(node);
+    }
+    if name == "folded" {
+        return folded(node);
+    }
+    if name == "icon" {
+        return icon_of(node);
+    }
+    if name == "disabled" {
+        return !truthy(get(w, "enabled", true));
+    }
+    if name == "custom_minimum_size" {
+        return min_size(node);
+    }
+    let key = wd_widget_key(name);
+    if key != "" {
+        return get(w, key, nil);
+    }
+    nil
 }
 
 /// Writing one of Godot's node properties; false for a name that is not one.
@@ -1162,19 +1262,42 @@ pub fn set_node_property(node: Node, name: str, value: any) -> bool {
     } else if name == "scale" {
         set_scale(node, value);
     } else if name == "rotation" {
-        set_rotation(node, value.as_float());
+        set_rotation(node, num(value));
     } else if name == "rotation_degrees" {
-        set_rotation(node, math::to_radians(value.as_float()));
+        set_rotation(node, math::to_radians(num(value)));
     } else if name == "visible" {
-        node.set_visible(value.as_bool());
+        node.set_visible(truthy(value));
     } else if name == "modulate" || name == "self_modulate" {
         set_tint(node, value);
     } else if name == "z_index" {
-        node.set_z_index(value.as_int());
+        node.set_z_index(int(value));
     } else if name == "name" {
-        node.set_name(value.as_str());
+        node.set_name(text(value));
+    } else if name == "zoom" && wd_has(node, WD_CAMERA2D) {
+        node.patch_component(WD_CAMERA2D, map().with("pixels_per_unit", num(get(value, "x", 1.0)) * PIXELS));
+    } else if name == "foldable_group" || name == "material" {
+        set_meta(node, name, value);
+    } else if name == "multimesh" && value.kind() == MAP && value.has("__multimesh") {
+        // The multimesh's own module gives the node its component.
+        set_meta(node, name, value);
+    } else if name == "shape" && value.kind() == MAP && value.has("__shape") {
+        node.patch_component(WD_COLLIDER2D, wd_collider_of(value));
+    } else if name == "points" && wd_is_line(node) {
+        wd_set_line_points(node, value);
+    } else if name == "width" && wd_is_line(node) {
+        node.patch_component(WD_SHAPE2D, map().with("width", num(value) / PIXELS));
+    } else if name == "default_color" && wd_is_line(node) {
+        node.patch_component(WD_SHAPE2D, map().with("color", wd_color_list(value)));
+    } else if name == WD_SPEED_SCALE && wd_has(node, WD_ANIMATION) {
+        node.patch_component(WD_ANIMATION, map().with(WD_SPEED_SCALE, num(value)));
+    } else if wd_is_particle_key(name) && wd_has(node, WD_PARTICLES) {
+        wd_set_particles(node, name, value);
+    } else if name == "active" && wd_has(node, WD_MACHINE) {
+        node.patch_component(WD_MACHINE, map().with("enabled", truthy(value)));
+    } else if name == "text" && (wd_has(node, WD_TEXT2D) || wd_has(node, WD_WIDGET)) {
+        set_text(node, value);
     } else {
-        return false;
+        return wd_set_widget_property(node, name, value);
     }
     true
 }
@@ -1197,8 +1320,8 @@ fn clone_under(node: Node, parent: Node) -> Node {
 }
 
 /// `owner.name(args)` when what `owner` is is known only as it runs: a
-/// node's script, an object's class, a callable, or one of Godot's own
-/// methods on an array, a dictionary or a string.
+/// node's script, an object's class, a callable, an input event, or one of
+/// Godot's own methods on an array, a dictionary or a string.
 pub fn call(owner: any, name: str, args: any) -> any {
     let kind = owner.kind();
     if kind == NODE {
@@ -1210,6 +1333,12 @@ pub fn call(owner: any, name: str, args: any) -> any {
     }
     if is_object(owner) {
         return classes::call(owner, name, args);
+    }
+    if is_signal(owner) {
+        return signal_verb(owner, name, args);
+    }
+    if is_event(owner) {
+        return event_method(owner, name, args);
     }
     if is_callable(owner) && (name == "call" || name == "callv") {
         return call_value(owner, if name == "callv" { args.at(0) } else { args });
@@ -1229,6 +1358,7 @@ fn node_call(node: Node, name: str, args: any) -> any {
     } else if n == 3 {
         node.call(name, args.at(0), args.at(1), args.at(2))
     } else {
+        // The engine passes four at most; a fifth on is dropped.
         node.call(name, args.at(0), args.at(1), args.at(2), args.at(3))
     }
 }
@@ -1275,6 +1405,10 @@ pub fn lambda(target: any, method: str, cap: any) -> any {
 
 // Godot's own methods on a node with no script method of the name.
 fn native_node(node: Node, name: str, args: any) -> any {
+    let mine = wd_node_verb(node, name, args);
+    if !wd_not_mine(mine) {
+        return mine;
+    }
     if name == "get_node" || name == "get_node_or_null" {
         return node.get_node(args.at(0).as_str());
     }
@@ -1311,6 +1445,15 @@ fn native_node(node: Node, name: str, args: any) -> any {
     if name == "show" || name == "hide" {
         node.set_visible(name == "show");
         return nil;
+    }
+    // Godot's `set_x(v)`, `get_x()` and `is_x()` for one of its properties.
+    let rest = if name.starts_with("is_") { name.slice(3, name.len()) } else { name.slice(4, name.len()) };
+    if name.starts_with("set_") && args.len() == 1 {
+        set_node_property(node, rest, args.at(0));
+        return nil;
+    }
+    if (name.starts_with("get_") || name.starts_with("is_")) && args.len() == 0 {
+        return node_property(node, rest);
     }
     nil
 }
@@ -1467,4 +1610,2820 @@ fn vector_length(v: any) -> float {
         total += x * x;
     }
     math::sqrt(total)
+}
+
+// ---- Lists, records and stubs -------------------------------------------
+
+/// An empty list of any kinds.
+pub fn list() -> any {
+    let out: any = [];
+    out
+}
+
+/// Values of any kinds as one list.
+pub fn list_of(items: [any]) -> any {
+    let out: any = [];
+    for item in items {
+        out.push(item);
+    }
+    out
+}
+
+/// The `at`th of a call's arguments, nil past the last: a parameter Godot
+/// let the call leave out.
+pub fn arg(args: any, at: int) -> any {
+    if args.kind() != LIST || at >= args.len() {
+        return nil;
+    }
+    args.at(at)
+}
+
+/// A dictionary from its keys and values in turn: a map keyed by each
+/// key's text.
+pub fn dict(flat: any) -> any {
+    let out: any = map();
+    let i = 0;
+    while i + 1 < flat.len() {
+        out.set(key_text(flat.at(i)), flat.at(i + 1));
+        i += 2;
+    }
+    out
+}
+
+/// Two lists as one, Godot's `a + b` on arrays.
+pub fn concat(a: any, b: any) -> any {
+    let out: any = [];
+    for x in a {
+        out.push(x);
+    }
+    for x in b {
+        out.push(x);
+    }
+    out
+}
+
+/// Godot's `hash()`: the same number for the same value.
+pub fn hash(value: any) -> int {
+    let s = text(value);
+    let h = 5381;
+    for c in s.chars() {
+        h = (h * 33 + c.len()) % 2147483647;
+    }
+    h
+}
+
+/// What the importer could not translate: nil, said once when it runs.
+pub fn todo(what: str) -> any {
+    log::warn("not translated: {what}");
+    nil
+}
+
+/// A value's text, or `fallback` for null.
+pub fn or_text(value: any, fallback: str) -> str {
+    if value.is_nil() {
+        return fallback;
+    }
+    text(value)
+}
+
+/// Godot's `Rect2`: a map of `position` and `size`, each a vector.
+pub fn rect(x: float, y: float, w: float, h: float) -> any {
+    map().with("position", vec2(x, y)).with("size", vec2(w, h))
+}
+
+/// A rectangle from a position and a size, Godot's `Rect2(p, s)`.
+pub fn rect_of(position: any, size: any) -> any {
+    map().with("position", position).with("size", size)
+}
+
+/// Godot's `JSON.new()`: a record whose `data` a parse fills.
+pub fn json_object() -> any {
+    map().with("__json", true).with("data", nil)
+}
+
+/// A vector from the engine's own, as a script holds one.
+pub fn vec_of(v: Vec3) -> any {
+    vec3(v.x as float, v.y as float, v.z as float)
+}
+
+/// A colour's alpha.
+pub fn color_alpha(c: any) -> float {
+    if is_color(c) {
+        return c.get("a").as_float();
+    }
+    1.0
+}
+
+// ---- Statics and metadata -------------------------------------------------
+
+/// A `static var`, held for as long as the app runs, as Godot holds one.
+pub fn static_get(key: str, fallback: any) -> any {
+    let held: any = script::stored(key);
+    if held.is_nil() {
+        return fallback;
+    }
+    held
+}
+
+/// A static's value, stored first when this is its first use.
+pub fn static_ref(key: str, fallback: any) -> any {
+    let held: any = script::stored(key);
+    if held.is_nil() {
+        script::store(key, fallback);
+        return fallback;
+    }
+    held
+}
+
+pub fn static_set(key: str, value: any) -> any {
+    script::store(key, value);
+    value
+}
+
+// Where a node's metadata is kept: beside the node, by its id.
+fn meta_key(node: Node, key: str) -> str {
+    "meta:{node.stable_id()}:{key}"
+}
+
+/// Godot's metadata, kept beside the node.
+pub fn set_meta(node: any, key: str, value: any) {
+    let n = node_of(node);
+    if n.is_valid() {
+        script::store(meta_key(n, key), value);
+    }
+}
+
+pub fn get_meta(node: any, key: str, fallback: any) -> any {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return fallback;
+    }
+    let held: any = script::stored(meta_key(n, key));
+    if !held.is_nil() {
+        return held;
+    }
+    if n.has_component(META) {
+        let filed: any = n.get_component(META);
+        if filed.has(key) {
+            return filed.get(key);
+        }
+    }
+    fallback
+}
+
+pub fn has_meta(node: any, key: str) -> bool {
+    !get_meta(node, key, nil).is_nil()
+}
+
+pub fn remove_meta(node: any, key: str) {
+    let n = node_of(node);
+    if n.is_valid() {
+        script::store(meta_key(n, key), nil);
+    }
+}
+
+const META: str = "meta";
+const EXPORTS_META: str = "__exports";
+const GODOT_TAG: str = "__godot";
+
+/// Godot's value for an export the scene filed in the node's `meta`, or
+/// `fallback` where the scene set none.
+pub fn export_value(node: Node, name: str, fallback: any) -> any {
+    if !node.is_valid() || !node.has_component(META) {
+        return fallback;
+    }
+    let meta: any = node.get_component(META);
+    let filed: any = get(get(meta, EXPORTS_META, map()), name, nil);
+    if filed.is_nil() {
+        return fallback;
+    }
+    godot_value(filed)
+}
+
+/// An exported node, by the path the scene filed, from `node`.
+pub fn export_node(node: Node, name: str, fallback: any) -> any {
+    let path: any = export_value(node, name, nil);
+    if path.kind() != STR || path.as_str() == "" {
+        return fallback;
+    }
+    let found = node.get_node(path.as_str());
+    if found.is_valid() {
+        return found;
+    }
+    fallback
+}
+
+/// Exported nodes, each by its path.
+pub fn export_nodes(node: Node, name: str, fallback: any) -> any {
+    let paths: any = export_value(node, name, nil);
+    if paths.kind() != LIST {
+        return fallback;
+    }
+    let out: any = [];
+    for path in paths {
+        if path.kind() == STR {
+            let found = node.get_node(path.as_str());
+            if found.is_valid() {
+                out.push(found);
+            }
+        }
+    }
+    out
+}
+
+// A filed value back as Godot's: a tagged vector, rectangle or colour as
+// that type, and a list or a table with every value inside it turned back.
+fn godot_value(value: any) -> any {
+    let kind = value.kind();
+    if kind == LIST {
+        let out: any = [];
+        for item in value {
+            out.push(godot_value(item));
+        }
+        return out;
+    }
+    if kind != MAP {
+        return value;
+    }
+    if value.has(GODOT_TAG) {
+        return tagged_value(value.get(GODOT_TAG).as_str(), get(value, "v", list()));
+    }
+    let out: any = map();
+    for key in value.keys() {
+        out.set(key.as_str(), godot_value(value.get(key.as_str())));
+    }
+    out
+}
+
+fn tagged_value(tag: str, v: any) -> any {
+    if tag == "Vector2" {
+        return vec2(num(v.at(0)), num(v.at(1)));
+    }
+    if tag == "Vector3" {
+        return vec3(num(v.at(0)), num(v.at(1)), num(v.at(2)));
+    }
+    if tag == "Rect2" {
+        return rect(num(v.at(0)), num(v.at(1)), num(v.at(2)), num(v.at(3)));
+    }
+    if tag == "Color" {
+        let alpha = if v.len() > 3 { num(v.at(3)) } else { 1.0 };
+        return color(num(v.at(0)), num(v.at(1)), num(v.at(2)), alpha);
+    }
+    if tag == "Vector2Array" {
+        let out: any = [];
+        for p in v {
+            out.push(vec2(num(p.at(0)), num(p.at(1))));
+        }
+        return out;
+    }
+    nil
+}
+
+// ---- Nodes ----------------------------------------------------------------
+
+/// A value as a node: an invalid one when it holds something else.
+pub fn node_of(value: any) -> Node {
+    value.as_node()
+}
+
+/// Godot's `X.new()` for a node: built from `doc`, a one-node scene, under a
+/// hidden holder until something adds it somewhere, with `script` attached.
+pub fn new_node(doc: str, script: str) -> Node {
+    let holder = detached();
+    let serial = static_get("gd:new_node", 0).as_int() + 1;
+    static_set("gd:new_node", serial);
+    let name = "new_{serial}";
+    scene::instantiate(doc.replace("__new__", name), holder);
+    let node = holder.get_node(name);
+    if node.is_valid() && script != "" {
+        node.attach_script(script);
+    }
+    node
+}
+
+/// Godot's `PackedScene.instantiate()`: the scene a path names, built where
+/// `new()` builds nodes, to be added by `add_child`.
+pub fn instantiate(path: any) -> any {
+    if path.kind() != STR {
+        return nil;
+    }
+    let text: any = scene::source(path.as_str());
+    if text.kind() != STR {
+        log::warn("{path}: no scene there to instantiate");
+        return nil;
+    }
+    let holder = detached();
+    let before = holder.children().len();
+    scene::instantiate(text.as_str(), holder);
+    let made = holder.children();
+    if made.len() > before {
+        return made[made.len() - 1];
+    }
+    nil
+}
+
+// Where a node `new()` made waits to be added: hidden, under the root.
+fn detached() -> Node {
+    let root = scene::root();
+    let held = root.get_node(DETACHED);
+    if !held.is_valid() {
+        held = root.add_child(DETACHED);
+        held.set_visible(false);
+    }
+    held
+}
+
+const DETACHED: str = "__detached";
+
+/// Godot's `is_inside_tree()`: a live node the scene reaches, not one made by
+/// `new()` or `instantiate()` and still waiting to be added.
+pub fn inside_tree(node: any) -> bool {
+    let at = node_of(node);
+    if !at.is_valid() {
+        return false;
+    }
+    while at.is_valid() {
+        if at.name() == DETACHED {
+            return false;
+        }
+        at = at.parent();
+    }
+    true
+}
+
+/// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
+/// name makes a new child, as the engine's own `add_child` does.
+pub fn add_child(parent: any, child: any) -> any {
+    let p = node_of(parent);
+    let kind = child.kind();
+    // A class that was a Node in Godot and is a map here owns no place in
+    // the tree, so adding it is nothing.
+    if kind == MAP {
+        return child;
+    }
+    if kind == NODE {
+        let c = child.as_node();
+        move_keeping_local(c, p);
+        if c.has_tag(REMOVED) {
+            c.remove_tag(REMOVED);
+            c.set_visible(true);
+        }
+        return child;
+    }
+    if kind == STR {
+        return p.add_child(child.as_str());
+    }
+    nil
+}
+
+/// `parent.remove_child(child)`: a node here is always in the tree, so it
+/// waits under the root, hidden, until it is added again or freed.
+pub fn remove_child(child: any) {
+    let c = node_of(child);
+    if c.is_valid() && !c.has_tag(REMOVED) {
+        move_keeping_local(c, scene::root());
+        c.add_tag(REMOVED);
+        c.set_visible(false);
+    }
+}
+
+// A node moved under `parent` as Godot moves one: its own transform is
+// kept, where the engine's `set_parent` keeps where it is in the world.
+fn move_keeping_local(child: Node, parent: Node) {
+    let held = child.has_component(TRANSFORM);
+    let local: any = if held { child.get_component(TRANSFORM) } else { nil };
+    child.set_parent(parent);
+    if held {
+        child.patch_component(TRANSFORM, local);
+    }
+}
+
+const TRANSFORM: str = "transform";
+
+// Marks a node `remove_child` hid, so adding it back shows it again.
+const REMOVED: str = "__removed";
+
+/// A node by the id Godot's `get_instance_id` answered.
+pub fn instance_from_id(id: any) -> any {
+    let found = scene::node_by_id(text(id));
+    if found.is_valid() {
+        return found;
+    }
+    nil
+}
+
+// ---- Project ----------------------------------------------------------------
+
+/// Godot's `ProjectSettings.get`: what `project.godot` said.
+pub fn project_setting(path: str, fallback: any) -> any {
+    let held: any = godot_settings::setting(path);
+    if held.is_nil() {
+        return fallback;
+    }
+    held
+}
+
+/// A `res://` or `user://` path as the project-relative one `fs` takes.
+pub fn project_path(path: str) -> str {
+    if path.starts_with("res://") {
+        return path.slice(6, path.len());
+    }
+    if path.starts_with("user://") {
+        return "{engine::user_data_directory()}/{path.slice(7, path.len())}";
+    }
+    path
+}
+
+/// A `.tres` a script loads: made once by its module's `resource`, then the
+/// same value every time, as Godot's cache answers.
+pub fn resource_of(path: str, make: fn() -> any) -> any {
+    let key = "resource:{path}";
+    let held: any = script::stored(key);
+    if !held.is_nil() {
+        return held;
+    }
+    let made: any = make();
+    script::store(key, made);
+    made
+}
+
+/// `load(path)` with a path known only at run time: the project path, and
+/// a scene's as the converted `.toml`.
+pub fn load(path: any) -> any {
+    if path.kind() != STR {
+        return nil;
+    }
+    let p = project_path(path.as_str());
+    if p.ends_with(".tscn") {
+        let out: any = "{p.slice(0, p.len() - 5)}.toml";
+        return out;
+    }
+    let out: any = p;
+    out
+}
+
+/// Whether a project file is there.
+pub fn resource_exists(path: any) -> bool {
+    path.kind() == STR && fs::exists(project_path(path.as_str()))
+}
+
+// ---- Signals ----------------------------------------------------------------
+
+// Where a node's script signals keep their handlers: one list per emitter
+// and signal, called as the signal is emitted.
+fn handlers_key(emitter: Node, name: str) -> str {
+    "signal:{emitter.stable_id()}:{name}"
+}
+
+// Where an object keeps what `connect` gave it, by signal.
+const LISTENERS: str = "__listeners";
+
+/// Hearing another node's event; an object's signal keeps the handler.
+pub fn listen(node: Node, name: str, from: any, handler: any) {
+    let kind = from.kind();
+    if kind == NODE {
+        events::listen(node, name, from.as_node());
+        return;
+    }
+    if is_object(from) && !handler.is_nil() {
+        if !from.has(LISTENERS) {
+            from.set(LISTENERS, map());
+        }
+        let table: any = from.get(LISTENERS);
+        if !table.has(name) {
+            table.set(name, list());
+        }
+        table.get(name).push(handler);
+        return;
+    }
+    log::warn("{name}: nothing to hear it from");
+}
+
+pub fn unlisten(node: Node, name: str, from: any) {
+    if from.kind() == NODE {
+        events::stop_listening(node, name, from.as_node());
+    }
+}
+
+/// Godot's `signal.connect(f)` on a script's own signal.
+pub fn connect(emitter: any, name: str, handler: any) {
+    if is_object(emitter) {
+        listen(scene::root(), name, emitter, handler);
+        return;
+    }
+    let node = node_of(emitter);
+    if !node.is_valid() || handler.is_nil() {
+        return;
+    }
+    let key = handlers_key(node, name);
+    let held: any = script::stored(key);
+    let handlers: any = if held.kind() == LIST { held } else { list() };
+    handlers.push(handler);
+    script::store(key, handlers);
+}
+
+/// Godot's `disconnect`: here every handler of that signal goes.
+pub fn disconnect(emitter: any, name: str) {
+    if emitter.kind() == NODE {
+        script::store(handlers_key(emitter.as_node(), name), list());
+    }
+    if is_object(emitter) && emitter.has(LISTENERS) {
+        emitter.get(LISTENERS).set(name, list());
+    }
+}
+
+pub fn is_connected(emitter: any, name: str) -> bool {
+    if emitter.kind() == NODE {
+        let held: any = script::stored(handlers_key(emitter.as_node(), name));
+        return held.kind() == LIST && held.len() > 0;
+    }
+    false
+}
+
+/// Godot's `signal.emit(..)`: each handler called now, then the event sent,
+/// one argument as its payload and several as a list.
+pub fn emit_now(emitter: Node, name: str, args: any) {
+    let held: any = script::stored(handlers_key(emitter, name));
+    if held.kind() == LIST {
+        for f in held {
+            call_value(f, args);
+        }
+    }
+    let n = args.len();
+    let payload: any = if n == 0 { nil } else if n == 1 { args.at(0) } else { args };
+    emitter.emit(name, payload);
+}
+
+/// An object's signal: each listener called with what was emitted.
+pub fn emit_obj(owner: any, name: str, args: any) {
+    if !is_object(owner) || !owner.has(LISTENERS) {
+        return;
+    }
+    for f in get(owner.get(LISTENERS), name, list()) {
+        call_value(f, args);
+    }
+}
+
+/// `other.some_signal.emit(v)`: a widget's own handler runs now, on the node
+/// or scripted ancestor the widget layer would pick; any other signal reaches
+/// what connected to it.
+pub fn emit_engine(emitter: any, name: str, args: any) -> any {
+    let key = widget_handler_key(name);
+    let node = node_of(emitter);
+    if key != "" && node.is_valid() && node.has_component("widget") {
+        let widget: any = node.get_component("widget");
+        let method: any = get(widget, key, "");
+        if method.kind() == STR && method.as_str() != "" {
+            let sent: any = list();
+            if key != "on_click" && args.len() > 0 {
+                sent.push(args.at(0));
+            }
+            if truthy(get(widget, "pass_node", false)) {
+                sent.push(node);
+            }
+            let at = node;
+            while at.is_valid() {
+                if at.has_method(method.as_str()) {
+                    return node_call(at, method.as_str(), sent);
+                }
+                at = at.parent();
+            }
+        }
+    }
+    if node.is_valid() {
+        emit_now(node, name, args);
+        return nil;
+    }
+    emit_obj(emitter, name, args);
+    nil
+}
+
+// The widget key holding the handler for a Godot control signal: the
+// translator's `WIDGET_SIGNALS`, which a test holds this copy to.
+fn widget_handler_key(name: str) -> str {
+    if name == "pressed" || name == "button_up" {
+        return "on_click";
+    }
+    if name == "toggled" || name == "value_changed" || name == "text_changed" || name == "item_selected" || name == "color_changed" || name == "tab_changed" || name == "tab_selected" || name == "folding_changed" || name == "close_requested" {
+        return "on_change";
+    }
+    if name == "text_submitted" {
+        return "on_submit";
+    }
+    if name == "focus_entered" {
+        return "on_focus";
+    }
+    ""
+}
+
+// The event the engine sends for a Godot signal, where it names it its own
+// way: the translator's `ENGINE_EVENTS`, which a test holds this copy to.
+fn engine_event(name: str) -> str {
+    if name == "body_entered" || name == "area_entered" {
+        return "collision_enter";
+    }
+    if name == "body_exited" || name == "area_exited" {
+        return "collision_exit";
+    }
+    if name == "mouse_entered" {
+        return "pointer_enter";
+    }
+    if name == "mouse_exited" {
+        return "pointer_exit";
+    }
+    if name == "focus_exited" {
+        return "blur";
+    }
+    if name == "child_entered_tree" {
+        return "child_added";
+    }
+    if name == "child_exiting_tree" {
+        return "child_removed";
+    }
+    if name == "sleeping_state_changed" {
+        return "sleeping_changed";
+    }
+    if name == "screen_entered" {
+        return "screen_enter";
+    }
+    if name == "screen_exited" {
+        return "screen_exit";
+    }
+    if name == "about_to_popup" {
+        return "opened";
+    }
+    if name == "popup_hide" {
+        return "closed";
+    }
+    name
+}
+
+/// What a Godot collision handler is handed: the other node out of the
+/// engine's collision record, or the value itself when a script emitted one.
+pub fn collided(payload: any) -> any {
+    if payload.kind() == MAP && payload.has("other") {
+        return payload.get("other");
+    }
+    payload
+}
+
+const WIDGET_BOUND: str = "widget:bound:";
+const SIGNAL_KEY: str = "__signal";
+
+/// Godot's `Signal` as a value, `button.pressed` handed to a function: a
+/// record whose `connect`, `is_connected` and `disconnect` reach the widget
+/// key when `key` names one, and the node's handlers otherwise.
+pub fn signal_value(node: any, name: str, key: str) -> any {
+    map().with(SIGNAL_KEY, name).with("node", node).with("key", key)
+}
+
+fn is_signal(value: any) -> bool {
+    value.kind() == MAP && value.has(SIGNAL_KEY)
+}
+
+// A signal record's own verbs.
+fn signal_verb(sig: any, name: str, args: any) -> any {
+    let node: any = sig.get("node");
+    let signal = sig.get(SIGNAL_KEY).as_str();
+    let key = sig.get("key").as_str();
+    if name == "connect" {
+        if key == "" {
+            connect(node, signal, arg(args, 0));
+        } else {
+            widget_bind(node, key, arg(args, 0));
+        }
+        return nil;
+    }
+    if name == "is_connected" {
+        if key == "" {
+            return is_connected(node, signal);
+        }
+        let n = node_of(node);
+        let held: any = script::stored("{WIDGET_BOUND}{n.stable_id()}:{key}");
+        return held.kind() == LIST && held.len() > 0;
+    }
+    if name == "disconnect" {
+        if key == "" {
+            disconnect(node, signal);
+        } else {
+            script::store("{WIDGET_BOUND}{node_of(node).stable_id()}:{key}", list());
+        }
+        return nil;
+    }
+    if name == "emit" {
+        return emit_engine(node, signal, args);
+    }
+    nil
+}
+
+/// A widget signal's handler that is no method here, a `.bind` or a lambda:
+/// the widget calls the class's forwarder with its node, which finds it.
+pub fn widget_bind(node: any, key: str, handler: any) {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return;
+    }
+    n.patch_component("widget", map().with("pass_node", true).with(key, "__widget_{key}"));
+    let store_key = "{WIDGET_BOUND}{n.stable_id()}:{key}";
+    let held: any = script::stored(store_key);
+    let handlers: any = if held.kind() == LIST { held } else { list() };
+    handlers.push(handler);
+    script::store(store_key, handlers);
+}
+
+pub fn widget_fire(node: Node, key: str, args: any) {
+    let held: any = script::stored("{WIDGET_BOUND}{node.stable_id()}:{key}");
+    if held.kind() == LIST {
+        for f in held {
+            call_value(f, args);
+        }
+    }
+}
+
+/// Whether a widget signal's key names `handler`, which is what connecting
+/// it wrote.
+pub fn widget_connected(node: any, key: str, handler: str) -> bool {
+    let n = node_of(node);
+    if !n.is_valid() || !n.has_component("widget") {
+        return false;
+    }
+    text(get(n.get_component("widget"), key, "")) == handler
+}
+
+/// `create_timer(t)`: its `timeout` is what a script awaits or connects.
+pub fn timer(seconds: any) -> any {
+    map().with("timeout", map().with("__after", num(seconds)))
+}
+
+/// Godot's `await node.signal`: the next time that node delivers the event,
+/// a widget's press being its `click`.
+pub async fn wait_signal(owner: any, name: str) -> any {
+    // The tree's own frame signals are a frame's wait.
+    if name == "process_frame" || name == "physics_frame" {
+        await task::frames(1);
+        return nil;
+    }
+    if owner.kind() == NODE {
+        // A widget's key is `on_` and the event it emits.
+        let key = widget_handler_key(name);
+        let event = if key != "" { key.slice(3, key.len()) } else { engine_event(name) };
+        let payload: any = await task::wait(events::next(event, owner.as_node()));
+        if event == "collision_enter" || event == "collision_exit" {
+            return collided(payload);
+        }
+        return payload;
+    }
+    let value: any = field(owner, name);
+    if value.kind() == MAP && value.has("__after") {
+        await task::seconds(value.get("__after").as_float());
+        return nil;
+    }
+    value
+}
+
+/// `await x.method(..)` on a receiver only known at run time: a node's
+/// method through `call_async`, which resumes once it has returned.
+pub async fn call_async(owner: any, name: str, args: any) -> any {
+    if owner.kind() != NODE {
+        return call(owner, name, args);
+    }
+    let node = owner.as_node();
+    if !node.has_method(name) {
+        return native_node(node, name, args);
+    }
+    let n = args.len();
+    let token = if n == 0 {
+        node.call_async(name)
+    } else if n == 1 {
+        node.call_async(name, args.at(0))
+    } else if n == 2 {
+        node.call_async(name, args.at(0), args.at(1))
+    } else if n == 3 {
+        node.call_async(name, args.at(0), args.at(1), args.at(2))
+    } else {
+        node.call_async(name, args.at(0), args.at(1), args.at(2), args.at(3))
+    };
+    let out: any = await task::wait(token);
+    out
+}
+
+// ---- Widgets, theme and controls ---------------------------------------------
+
+const WD_WIDGET: str = "widget";
+const WD_TEXT2D: str = "text2d";
+const WD_IMAGE: str = "image";
+const WD_OPTIONS: str = "options";
+const WD_FOLD_OPEN: str = "open";
+const WD_TITLE_BAR: str = "title_bar";
+const WD_SHAPE2D: str = "shape2d";
+const WD_POLYLINE: str = "polyline";
+const WD_PARTICLES: str = "particles2d";
+const WD_CAMERA2D: str = "camera2d";
+const WD_ANIMATION: str = "animation";
+const WD_SPEED_SCALE: str = "speed_scale";
+const WD_RATE: str = "rate";
+const WD_LIFETIME: str = "lifetime";
+const WD_MACHINE: str = "state_machine";
+const WD_COLLIDER2D: str = "collider2d";
+
+// What a node verb answers when the name is none of the widget layer's.
+const WD_NOT_MINE: str = "__not_a_widget_verb";
+
+// A node's widget table; nil for a node with none.
+fn wd_widget(node: Node) -> any {
+    if node.is_valid() && node.has_component(WD_WIDGET) {
+        return node.get_component(WD_WIDGET);
+    }
+    nil
+}
+
+fn wd_has(node: Node, component: str) -> bool {
+    node.is_valid() && node.has_component(component)
+}
+
+fn wd_not_mine(value: any) -> bool {
+    value.kind() == STR && value.as_str() == WD_NOT_MINE
+}
+
+/// A Control property written to its widget. A node with none, such as a
+/// label in the world, takes nothing: a patch would make one.
+pub fn patch_widget(node: any, patch: any) {
+    let n = node_of(node);
+    if wd_has(n, WD_WIDGET) {
+        n.patch_component(WD_WIDGET, patch);
+    }
+}
+
+/// A FoldableContainer's title bar control: a child of the fold, drawn in
+/// its header beside the arrow.
+pub fn add_title_bar_control(fold: any, control: any) {
+    add_child(fold, control);
+    patch_widget(control, map().with(WD_TITLE_BAR, true));
+}
+
+/// A FoldableContainer's `folded`: its `fold` widget shut.
+pub fn folded(node: any) -> bool {
+    let w = wd_widget(node_of(node));
+    !w.is_nil() && !truthy(get(w, WD_FOLD_OPEN, true))
+}
+
+/// A Control's `custom_minimum_size`: the widget's `min_width` and
+/// `min_height`.
+pub fn min_size(node: any) -> any {
+    let w = wd_widget(node_of(node));
+    if w.is_nil() {
+        return vec2(0.0, 0.0);
+    }
+    vec2(num(get(w, "min_width", 0.0)), num(get(w, "min_height", 0.0)))
+}
+
+/// Godot's `get_combined_minimum_size`: the stated minimum, or the size the
+/// widget layer last laid the node out at, whichever is larger.
+pub fn combined_min_size(node: any) -> any {
+    let floor = min_size(node);
+    let n = node_of(node);
+    if !n.is_valid() {
+        return floor;
+    }
+    let drawn = ui::widget_rect(n);
+    if drawn.is_none() {
+        return floor;
+    }
+    let r = drawn.unwrap();
+    vec2(math::max(num(floor.get("x")), r.width), math::max(num(floor.get("y")), r.height))
+}
+
+pub fn set_min_size(node: any, size: any) {
+    patch_widget(node, map().with("min_width", num(get(size, "x", 0.0))).with("min_height", num(get(size, "y", 0.0))));
+}
+
+/// `control.size = v`: the widget panel's width and height.
+pub fn set_size(node: any, size: any) {
+    patch_widget(node, map().with("width", num(get(size, "x", 0.0))).with("height", num(get(size, "y", 0.0))));
+}
+
+/// Godot's `ButtonGroup.new()` and `FoldableGroup.new()`: a name no other
+/// group has, which its buttons carry as their widget `group`.
+pub fn button_group() -> any {
+    let serial = static_get("gd:button_group", 0).as_int() + 1;
+    static_set("gd:button_group", serial);
+    "group_{serial}"
+}
+
+/// The widget `cursor` for one of Godot's `CursorShape` numbers.
+pub fn cursor_word(shape: any) -> str {
+    let words = ["arrow", "text", "hand", "cross", "wait", "progress", "grab", "grabbing", "forbidden", "resize_y", "resize_x", "resize_nesw", "resize_nwse", "move", "resize_row", "resize_col", "help"];
+    let at = int(shape);
+    if at < 0 || at >= words.len() {
+        return "arrow";
+    }
+    words[at]
+}
+
+// ---- Captions, icons and options ---------------------------------------------
+
+/// A caption: a world label's `text2d`, or the widget's.
+pub fn text_of(node: any) -> any {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return field(node, "text");
+    }
+    if n.has_component(WD_TEXT2D) {
+        return get(n.get_component(WD_TEXT2D), "text", "");
+    }
+    get(wd_widget(n), "text", nil)
+}
+
+/// `text = value` on a world label or a widget.
+pub fn set_text(node: any, value: any) {
+    let n = node_of(node);
+    if !n.is_valid() {
+        if node.kind() != NODE {
+            set_field(node, "text", value);
+        }
+        return;
+    }
+    let patch = map().with("text", text(value));
+    if n.has_component(WD_TEXT2D) {
+        n.patch_component(WD_TEXT2D, patch);
+    } else if n.has_component(WD_WIDGET) {
+        n.patch_component(WD_WIDGET, patch);
+    }
+}
+
+/// A button's `icon`: the picture its widget draws, nil for none.
+pub fn icon_of(node: any) -> any {
+    let image: any = get(wd_widget(node_of(node)), WD_IMAGE, "");
+    if image.kind() != STR || image.as_str() == "" {
+        return nil;
+    }
+    image
+}
+
+/// `icon = texture`: the picture the widget draws before its caption, or
+/// none for nil.
+pub fn set_icon(node: any, texture: any) {
+    let image = if texture.kind() == STR { texture.as_str() } else { "" };
+    patch_widget(node, map().with(WD_IMAGE, image));
+}
+
+// The labels a dropdown holds.
+fn wd_options(node: Node) -> any {
+    let held: any = get(wd_widget(node), WD_OPTIONS, nil);
+    if held.kind() == LIST {
+        return held;
+    }
+    list()
+}
+
+/// `item_count`.
+pub fn option_count(node: any) -> any {
+    if node.kind() != NODE {
+        return field(node, "item_count");
+    }
+    wd_options(node_of(node)).len()
+}
+
+/// `selected`: the picked item's index, -1 for none.
+pub fn option_index(node: any) -> any {
+    if node.kind() != NODE {
+        return field(node, "selected");
+    }
+    let n = node_of(node);
+    let picked: any = get(wd_widget(n), "text", "");
+    let index = 0;
+    for item in wd_options(n) {
+        if same(item, picked) {
+            return index;
+        }
+        index += 1;
+    }
+    -1
+}
+
+/// `selected = i` and `select(i)`; -1 picks nothing.
+pub fn option_select(node: any, index: any) -> any {
+    if node.kind() != NODE {
+        set_field(node, "selected", index);
+        return nil;
+    }
+    let n = node_of(node);
+    let at = int(index);
+    let label: any = if at < 0 { "" } else { get(wd_options(n), at, "") };
+    patch_widget(n, map().with("text", text(label)));
+    true
+}
+
+// An `OptionButton`'s item verbs over the dropdown: `options` holds the
+// labels and `text` the one picked. `WD_NOT_MINE` for any other name.
+fn wd_option_verb(node: Node, name: str, args: any) -> any {
+    if !wd_has(node, WD_WIDGET) {
+        return WD_NOT_MINE;
+    }
+    let a0 = arg(args, 0);
+    if name == "clear" {
+        let none: any = list();
+        node.patch_component(WD_WIDGET, map().with(WD_OPTIONS, none).with("text", ""));
+        return true;
+    }
+    if name == "add_item" || name == "add_icon_item" {
+        let label: any = if name == "add_item" { a0 } else { arg(args, 1) };
+        let items = wd_options(node);
+        items.push(text(label));
+        node.patch_component(WD_WIDGET, map().with(WD_OPTIONS, items));
+        return true;
+    }
+    if name == "select" {
+        return option_select(node, a0);
+    }
+    if name == "get_item_text" {
+        return get(wd_options(node), a0, "");
+    }
+    if name == "get_item_count" {
+        return option_count(node);
+    }
+    if name == "get_selected" || name == "get_selected_id" {
+        return option_index(node);
+    }
+    if name == "get_item_id" {
+        return a0;
+    }
+    if name == "is_item_disabled" {
+        return false;
+    }
+    if name == "set_item_disabled" {
+        return true;
+    }
+    WD_NOT_MINE
+}
+
+// ---- Theme -------------------------------------------------------------------
+
+/// A control's theme, as the one value scripts read off it.
+pub fn theme_of(node: any) -> any {
+    map().with("default_font_size", 16)
+}
+
+// The padding slot a `margin_*` constant names: left, top, right, bottom.
+fn wd_side(name: str) -> int {
+    if name == "margin_left" {
+        0
+    } else if name == "margin_top" {
+        1
+    } else if name == "margin_right" {
+        2
+    } else {
+        3
+    }
+}
+
+/// Godot's `get_theme_constant`: the widget key a theme constant lands on,
+/// as `theme_override` writes it; 0 for one the widget has no key for.
+pub fn theme_constant(node: any, name: str) -> any {
+    let w = wd_widget(node_of(node));
+    if w.is_nil() {
+        return 0;
+    }
+    if name.starts_with("margin_") {
+        let padding: any = get(w, "padding", 0.0);
+        if padding.kind() == LIST {
+            return num(get(padding, wd_side(name), 0.0)) as int;
+        }
+        return num(padding) as int;
+    }
+    if name == "separation" || name == "h_separation" || name == "v_separation" {
+        let axis = if name == "v_separation" { 1 } else { 0 };
+        return num(get(get(w, "gap", nil), axis, 0.0)) as int;
+    }
+    0
+}
+
+/// Godot's `get_theme_color`: the widget's text or icon colour; white where
+/// the widget takes its theme's.
+pub fn theme_color(node: any, name: str) -> any {
+    let w = wd_widget(node_of(node));
+    if w.is_nil() {
+        return color(1.0, 1.0, 1.0, 1.0);
+    }
+    let key = if name.starts_with("icon") { "icon_color" } else { "text_color" };
+    let held: any = get(w, key, nil);
+    if held.is_nil() || (held.kind() == STR && held.as_str() == "") {
+        return color(1.0, 1.0, 1.0, 1.0);
+    }
+    let c = wd_color(held);
+    if c.a == 0.0 && c.r == 0.0 && c.g == 0.0 && c.b == 0.0 {
+        // The widget's default, which takes its theme's colour.
+        return color(1.0, 1.0, 1.0, 1.0);
+    }
+    color_map(c)
+}
+
+pub fn theme_font_size(node: any, name: str) -> any {
+    let w = wd_widget(node_of(node));
+    if w.is_nil() {
+        return 16;
+    }
+    let size = num(get(w, "font_size", 0.0));
+    if size <= 0.0 {
+        return 16;
+    }
+    size as int
+}
+
+/// Godot's `add_theme_*_override`: the widget key that carries the item, or
+/// nothing where the widget has none.
+pub fn theme_override(node: any, group: str, name: str, value: any) {
+    let n = node_of(node);
+    if wd_has(n, WD_TEXT2D) {
+        wd_world_text_override(n, group, name, value);
+        return;
+    }
+    if !wd_has(n, WD_WIDGET) {
+        return;
+    }
+    let key = wd_override_key(group, name);
+    if key == "" {
+        return;
+    }
+    let patch: any = map();
+    if key == "gap" {
+        patch.set(key, wd_gap_with(n, name, num(value)));
+    } else if key == "padding" {
+        patch.set(key, wd_padding_with(n, name, num(value)));
+    } else if key == "text_color" {
+        patch.set(key, wd_color_list(value));
+    } else if key == "icon_color" {
+        patch.set(key, wd_hex(color_of(value)));
+    } else {
+        patch.set(key, num(value));
+    }
+    n.patch_component(WD_WIDGET, patch);
+}
+
+// The widget key a Godot theme item lands on; "" for none.
+fn wd_override_key(group: str, name: str) -> str {
+    if group == "colors" {
+        if name == "font_color" || name == "default_color" {
+            return "text_color";
+        }
+        if name == "icon_normal_color" {
+            return "icon_color";
+        }
+        return "";
+    }
+    if group == "constants" {
+        if name == "separation" || name == "h_separation" || name == "v_separation" {
+            return "gap";
+        }
+        if name.starts_with("margin_") {
+            return "padding";
+        }
+        return "";
+    }
+    if group == "font_sizes" && (name == "font_size" || name == "normal_font_size") {
+        return "font_size";
+    }
+    ""
+}
+
+// The widget's gap with one of Godot's separations written in:
+// `separation` both ways, `h_separation` across, `v_separation` down.
+fn wd_gap_with(node: Node, name: str, px: float) -> any {
+    let held: any = get(node.get_component(WD_WIDGET), "gap", nil);
+    let across = num(get(held, 0, -1.0));
+    let down = num(get(held, 1, -1.0));
+    if name == "h_separation" {
+        return list_of([px, down]);
+    }
+    if name == "v_separation" {
+        return list_of([across, px]);
+    }
+    list_of([px, px])
+}
+
+// The widget's padding with one side written in. A side the widget left to
+// its theme is zero, as a MarginContainer's is in Godot.
+fn wd_padding_with(node: Node, name: str, px: float) -> any {
+    let held: any = get(node.get_component(WD_WIDGET), "padding", nil);
+    let sides: any = list();
+    for i in 0..4 {
+        let side = if held.kind() == LIST { num(get(held, i, 0.0)) } else { num(held) };
+        sides.push(if side < 0.0 { 0.0 } else { side });
+    }
+    sides.put(wd_side(name), px);
+    sides
+}
+
+// A label in the world takes a theme override on its `text2d`.
+fn wd_world_text_override(node: Node, group: str, name: str, value: any) {
+    let key = if group == "colors" && name == "font_color" {
+        "color"
+    } else if group == "colors" && name == "font_outline_color" {
+        "outline_color"
+    } else if group == "font_sizes" && name == "font_size" {
+        "font_size"
+    } else if group == "constants" && name == "outline_size" {
+        "outline_size"
+    } else {
+        ""
+    };
+    if key == "" {
+        return;
+    }
+    let patch: any = map();
+    if group == "colors" {
+        patch.set(key, wd_color_list(value));
+    } else {
+        patch.set(key, num(value));
+    }
+    node.patch_component(WD_TEXT2D, patch);
+}
+
+// A colour from a script's value or a component's: a map, a hex text, or
+// the `[r, g, b, a]` list a component keeps.
+fn wd_color(value: any) -> Color {
+    if value.kind() == LIST {
+        let a = if value.len() > 3 { num(value.at(3)) } else { 1.0 };
+        return [num(get(value, 0, 0.0)), num(get(value, 1, 0.0)), num(get(value, 2, 0.0)), a];
+    }
+    color_of(value)
+}
+
+// A colour as the `[r, g, b, a]` list a component key takes.
+fn wd_color_list(value: any) -> any {
+    let c = wd_color(value);
+    list_of([c.r, c.g, c.b, c.a])
+}
+
+// `#rrggbbaa`, for a key that takes a colour as text.
+fn wd_hex(c: Color) -> str {
+    "#{wd_hex_byte(c.r)}{wd_hex_byte(c.g)}{wd_hex_byte(c.b)}{wd_hex_byte(c.a)}"
+}
+
+fn wd_hex_byte(x: float) -> str {
+    let digits = "0123456789abcdef";
+    let n = math::round(math::clamp(x, 0.0, 1.0) * 255.0) as int;
+    let hi = n / 16;
+    let lo = n % 16;
+    "{digits.slice(hi, hi + 1)}{digits.slice(lo, lo + 1)}"
+}
+
+// ---- Shader parameters and images --------------------------------------------
+
+/// `material.set_shader_parameter(name, value)` on a `ShaderMaterial`
+/// record, which keeps it.
+pub fn set_shader_parameter(material: any, name: any, value: any) {
+    if material.kind() == MAP && material.has("params") {
+        material.get("params").set(key_text(name), value);
+    }
+}
+
+pub fn get_shader_parameter(material: any, name: any) -> any {
+    if material.kind() == MAP && material.has("params") {
+        return get(material.get("params"), key_text(name), nil);
+    }
+    nil
+}
+
+/// `Image.load(path)`: the record names the file, which
+/// `ImageTexture.create_from_image` answers as the texture's path.
+pub fn image_load(image: any, path: any) -> any {
+    if image.kind() != MAP || !image.has("__image") {
+        return -1;
+    }
+    image.set("path", project_path(text(path)));
+    0
+}
+
+// ---- Lines, particles, cameras -----------------------------------------------
+
+// A Godot `Line2D`, which converts to a `shape2d` polyline.
+fn wd_is_line(node: Node) -> bool {
+    wd_has(node, WD_SHAPE2D) && text(get(node.get_component(WD_SHAPE2D), "kind", "")) == WD_POLYLINE
+}
+
+// A `Line2D`'s points in Godot's pixels, y down: the anchors of the
+// `path2d` the polyline strokes, every third control point.
+fn wd_line_points(node: Node) -> any {
+    let out: any = list();
+    let mesh: any = get(node.get_component(WD_SHAPE2D), "mesh", "");
+    let path: any = nil;
+    if mesh.kind() == MAP {
+        path = mesh;
+    } else if mesh.kind() == STR && mesh.as_str() != "" && assets::exists(mesh.as_str()) {
+        path = assets::load(mesh.as_str());
+    }
+    let controls: any = get(path, "points", nil);
+    if controls.kind() != LIST {
+        return out;
+    }
+    let step = if controls.len() == 2 { 1 } else { 3 };
+    let at = 0;
+    while at < controls.len() {
+        let p: any = controls.at(at);
+        out.push(vec2(num(get(p, 0, 0.0)) * PIXELS, -num(get(p, 1, 0.0)) * PIXELS));
+        at += step;
+    }
+    out
+}
+
+// Godot's points written back as a `path2d` of straight segments, in units
+// with y up; fewer than two draw nothing.
+fn wd_set_line_points(node: Node, points: any) {
+    let anchors: any = list();
+    for p in iter(points) {
+        anchors.push(list_of([num(get(p, "x", 0.0)) / PIXELS, -num(get(p, "y", 0.0)) / PIXELS]));
+    }
+    if anchors.len() < 2 {
+        node.patch_component(WD_SHAPE2D, map().with("mesh", ""));
+        return;
+    }
+    let controls: any = list();
+    controls.push(anchors.at(0));
+    for i in 1..anchors.len() {
+        controls.push(anchors.at(i - 1));
+        controls.push(anchors.at(i));
+        controls.push(anchors.at(i));
+    }
+    node.patch_component(WD_SHAPE2D, map().with("mesh", map().with("type", "path2d").with("points", controls)));
+}
+
+// Godot's `Line2D` point verbs, or `WD_NOT_MINE` for any other name.
+fn wd_line_verb(node: Node, name: str, args: any) -> any {
+    if !wd_is_line(node) {
+        return WD_NOT_MINE;
+    }
+    let a0 = arg(args, 0);
+    if name == "get_point_count" {
+        return wd_line_points(node).len();
+    }
+    if name == "get_point_position" {
+        return get(wd_line_points(node), a0, nil);
+    }
+    if name == "clear_points" {
+        wd_set_line_points(node, list());
+        return nil;
+    }
+    if name == "add_point" {
+        let points = wd_line_points(node);
+        let at = if args.len() > 1 { int(arg(args, 1)) } else { -1 };
+        if at < 0 || at >= points.len() {
+            points.push(a0);
+        } else {
+            points.insert(at, a0);
+        }
+        wd_set_line_points(node, points);
+        return nil;
+    }
+    if name == "set_point_position" {
+        let points = wd_line_points(node);
+        points.put(int(a0), arg(args, 1));
+        wd_set_line_points(node, points);
+        return nil;
+    }
+    if name == "remove_point" {
+        let points = wd_line_points(node);
+        points.remove(int(a0));
+        wd_set_line_points(node, points);
+        return nil;
+    }
+    WD_NOT_MINE
+}
+
+// A Camera2D's zoom as Godot's multiplier: the engine's is pixels a unit.
+fn wd_camera_zoom(node: Node) -> any {
+    if !wd_has(node, WD_CAMERA2D) {
+        return nil;
+    }
+    let zoom = num(get(node.get_component(WD_CAMERA2D), "pixels_per_unit", PIXELS)) / PIXELS;
+    vec2(zoom, zoom)
+}
+
+// Godot's particle count: the engine's `rate` over one `lifetime`.
+fn wd_particle_amount(node: Node) -> int {
+    let particles: any = node.get_component(WD_PARTICLES);
+    let born = num(get(particles, WD_RATE, 0.0)) * num(get(particles, WD_LIFETIME, 1.0));
+    math::round(born) as int
+}
+
+// A particle property written in Godot's terms: a count is a rate over the
+// lifetime, and a new lifetime keeps the count.
+fn wd_set_particles(node: Node, name: str, value: any) {
+    let particles: any = node.get_component(WD_PARTICLES);
+    let lifetime = num(get(particles, WD_LIFETIME, 1.0));
+    let patch: any = map();
+    if name == "amount" {
+        patch.set(WD_RATE, num(value) / lifetime);
+    } else if name == WD_LIFETIME {
+        let count = num(get(particles, WD_RATE, 0.0)) * lifetime;
+        let next = num(value);
+        patch.set(WD_LIFETIME, next);
+        if next > 0.0 {
+            patch.set(WD_RATE, count / next);
+        }
+    } else {
+        patch.set(name, value);
+    }
+    node.patch_component(WD_PARTICLES, patch);
+}
+
+fn wd_is_particle_key(name: str) -> bool {
+    name == "amount" || name == WD_LIFETIME || name == "emitting" || name == "one_shot"
+}
+
+// The `collider2d` keys a shape record describes, in units.
+fn wd_collider_of(shape: any) -> any {
+    if text(get(shape, "__shape", "")) == "circle" {
+        return map().with("kind", "circle").with("radius", num(get(shape, "radius", 10.0)) / PIXELS);
+    }
+    let size: any = get(shape, "size", nil);
+    let w = num(get(size, "x", 20.0)) / PIXELS;
+    let h = num(get(size, "y", 20.0)) / PIXELS;
+    map().with("kind", "rectangle").with("size", list_of([w, h]))
+}
+
+// The widget key for a Godot button, field or range property; "" for none.
+fn wd_widget_key(name: str) -> str {
+    if name == "button_pressed" || name == "pressed" {
+        "checked"
+    } else if name == "min_value" {
+        "min"
+    } else if name == "max_value" {
+        "max"
+    } else if name == "placeholder_text" {
+        "placeholder"
+    } else if name == "tooltip_text" {
+        "tooltip"
+    } else if name == "editable" || name == "value" {
+        name
+    } else {
+        ""
+    }
+}
+
+// The window in its own pixels, which Godot's root viewport measures in:
+// the design size times the UI's scale.
+fn wd_window_pixels() -> any {
+    let size = ui::window_size();
+    let by = ui::scale();
+    vec2(size.x * by, size.y * by)
+}
+
+// A control's rect where the layer last drew it: on the screen, or relative
+// to its parent's.
+fn wd_drawn_rect(node: Node, relative: bool) -> any {
+    let drawn = ui::widget_rect(node);
+    if drawn.is_none() {
+        return rect(0.0, 0.0, 0.0, 0.0);
+    }
+    let r = drawn.unwrap();
+    let x = r.x;
+    let y = r.y;
+    let origin = node.parent();
+    if relative && origin.is_valid() {
+        let base = ui::widget_rect(origin);
+        if !base.is_none() {
+            let b = base.unwrap();
+            x -= b.x;
+            y -= b.y;
+        }
+    }
+    rect(x, y, r.width, r.height)
+}
+
+// The widget layer's own node verbs: an option button's items, a line's
+// points, a control's rect. `WD_NOT_MINE` for any other name.
+fn wd_node_verb(node: Node, name: str, args: any) -> any {
+    let listed = wd_option_verb(node, name, args);
+    if !wd_not_mine(listed) {
+        return listed;
+    }
+    let line = wd_line_verb(node, name, args);
+    if !wd_not_mine(line) {
+        return line;
+    }
+    if name == "get_size" {
+        return size_of(node);
+    }
+    if name == "get_global_rect" {
+        return wd_drawn_rect(node, false);
+    }
+    if name == "get_rect" {
+        return wd_drawn_rect(node, true);
+    }
+    if name == "get_combined_minimum_size" || name == "get_minimum_size" {
+        return combined_min_size(node);
+    }
+    if name == "grab_focus" {
+        ui::set_focus(node);
+        return nil;
+    }
+    WD_NOT_MINE
+}
+
+// ---- Input events --------------------------------------------------------------
+
+const WD_EVENT_KEY: str = "__event";
+const WD_INPUT_HANDLED: str = "input:handled";
+
+/// An input event record a hook built.
+pub fn is_event(value: any) -> bool {
+    value.kind() == MAP && value.has(WD_EVENT_KEY)
+}
+
+/// Godot's `event is InputEventKey`: which classes the event stands for. A
+/// finger is a click here, so a pointer event is a touch as well.
+pub fn event_is(event: any, name: str) -> bool {
+    if !is_event(event) {
+        return false;
+    }
+    if name == "InputEvent" {
+        return true;
+    }
+    let kind = text(event.get(WD_EVENT_KEY));
+    if kind == name {
+        return true;
+    }
+    if kind == "InputEventKey" {
+        return name == "InputEventWithModifiers";
+    }
+    if kind == "InputEventMouseButton" {
+        return name == "InputEventWithModifiers" || name == "InputEventMouse" || name == "InputEventScreenTouch";
+    }
+    if kind == "InputEventMouseMotion" {
+        return name == "InputEventWithModifiers" || name == "InputEventMouse" || name == "InputEventScreenDrag";
+    }
+    false
+}
+
+/// Godot's verbs on an event record: `is_action_pressed`, `is_pressed`,
+/// `get_position` and the like.
+pub fn event_method(event: any, name: str, args: any) -> any {
+    let pressed = truthy(get(event, "pressed", false));
+    let action = text(arg(args, 0));
+    if name == "is_action_pressed" {
+        return pressed && input::action_just_pressed(action);
+    }
+    if name == "is_action_released" {
+        return !pressed && input::action_just_released(action);
+    }
+    if name == "is_action" {
+        return input::action_just_pressed(action) || input::action_just_released(action);
+    }
+    if name == "is_pressed" {
+        return pressed;
+    }
+    if name == "is_released" {
+        return !pressed;
+    }
+    if name == "is_echo" || name == "is_canceled" {
+        return false;
+    }
+    if name == "is_action_type" {
+        return true;
+    }
+    if name == "as_text" {
+        if event.has("keycode") {
+            return text(event.get("keycode"));
+        }
+        return text(event.get(WD_EVENT_KEY));
+    }
+    if name.starts_with("get_") && event.has(name.slice(4, name.len())) {
+        return event.get(name.slice(4, name.len()));
+    }
+    native(event, name, args)
+}
+
+// The code point of a printable ASCII character; 0 for any other.
+fn wd_code_of(c: str) -> int {
+    let letters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{{|}}~";
+    if c.len() != 1 {
+        return 0;
+    }
+    let at = letters.find(c);
+    if at < 0 {
+        return 0;
+    }
+    at + 32
+}
+
+// The character the keyboard typed this frame, for Godot's `unicode`.
+fn wd_typed_code() -> int {
+    let typed: any = input::typed();
+    if typed.kind() != STR || typed.len() == 0 {
+        return 0;
+    }
+    let chars = typed.as_str().chars();
+    wd_code_of(chars[0])
+}
+
+// A modifier as Godot codes it, one code for either side; any other key as
+// the engine names it, which a translated `KEY_*` holds too.
+fn wd_godot_key(key: str) -> str {
+    if key == input::KEY_LEFT_SHIFT || key == input::KEY_RIGHT_SHIFT {
+        return input::KEY_SHIFT;
+    }
+    if key == input::KEY_LEFT_CONTROL || key == input::KEY_RIGHT_CONTROL {
+        return input::KEY_CONTROL;
+    }
+    if key == input::KEY_LEFT_ALT || key == input::KEY_RIGHT_ALT {
+        return input::KEY_ALT;
+    }
+    if key == input::KEY_LEFT_META || key == input::KEY_RIGHT_META {
+        return input::KEY_META;
+    }
+    key
+}
+
+/// A key hook's event: Godot's `InputEventKey`.
+pub fn key_event(key: str, pressed: bool) -> any {
+    let code = wd_godot_key(key);
+    map()
+        .with(WD_EVENT_KEY, "InputEventKey")
+        .with("keycode", code)
+        .with("physical_keycode", code)
+        .with("key_label", code)
+        .with("pressed", pressed)
+        .with("echo", false)
+        .with("unicode", wd_typed_code())
+        .with("shift_pressed", input::key_down(input::KEY_SHIFT))
+        .with("ctrl_pressed", input::key_down(input::KEY_CONTROL))
+        .with("alt_pressed", input::key_down(input::KEY_ALT))
+        .with("meta_pressed", input::key_down(input::KEY_META))
+}
+
+// Godot numbers the buttons from one; the engine names them.
+fn wd_button_index(button: any) -> int {
+    let name = text(button);
+    if name == "right" {
+        return 2;
+    }
+    if name == "middle" {
+        return 3;
+    }
+    1
+}
+
+fn wd_pointer_at() -> any {
+    let at = input::mouse_position();
+    vec2(at.x, at.y)
+}
+
+/// A pointer hook's event: Godot's `InputEventMouseButton`, and its touch.
+pub fn pointer_event(button: any, pressed: bool) -> any {
+    let at = wd_pointer_at();
+    map()
+        .with(WD_EVENT_KEY, "InputEventMouseButton")
+        .with("button_index", wd_button_index(button))
+        .with("pressed", pressed)
+        .with("position", at)
+        .with("global_position", at)
+        .with("double_click", false)
+        .with("factor", 1.0)
+        .with("index", 0)
+        .with("button_mask", if pressed { 1 } else { 0 })
+}
+
+/// A drag hook's event: Godot's `InputEventMouseMotion` with a button held.
+pub fn motion_event(dx: float, dy: float) -> any {
+    let at = wd_pointer_at();
+    map()
+        .with(WD_EVENT_KEY, "InputEventMouseMotion")
+        .with("relative", vec2(dx, dy))
+        .with("velocity", vec2(dx, dy))
+        .with("position", at)
+        .with("global_position", at)
+        .with("pressed", true)
+        .with("index", 0)
+        .with("button_mask", 1)
+}
+
+/// A scroll hook's event: Godot's wheel buttons, 4 up and 5 down.
+pub fn scroll_event(dx: float, dy: float) -> any {
+    let at = wd_pointer_at();
+    map()
+        .with(WD_EVENT_KEY, "InputEventMouseButton")
+        .with("button_index", if dy > 0.0 { 4 } else { 5 })
+        .with("pressed", true)
+        .with("position", at)
+        .with("global_position", at)
+        .with("double_click", false)
+        .with("factor", math::abs(dy))
+        .with("index", 0)
+        .with("button_mask", 0)
+}
+
+/// Godot's `set_input_as_handled` and `accept_event`: the hook that called
+/// the handler answers it, and the engine stops the broadcast there.
+pub fn set_input_handled() {
+    script::store(WD_INPUT_HANDLED, true);
+}
+
+pub fn input_handled() -> bool {
+    let held: any = script::stored(WD_INPUT_HANDLED);
+    held.kind() == BOOL && held.as_bool()
+}
+
+/// Whether a handler took the event, cleared for the next one.
+pub fn take_input_handled() -> bool {
+    let held = input_handled();
+    script::store(WD_INPUT_HANDLED, false);
+    held
+}
+
+// ---- Node properties -------------------------------------------------------------
+
+
+
+// A Control property on the node's widget; false for one it has no key for.
+fn wd_set_widget_property(node: Node, name: str, value: any) -> bool {
+    if !wd_has(node, WD_WIDGET) {
+        return false;
+    }
+    if name == "selected" {
+        option_select(node, value);
+    } else if name == "folded" {
+        node.patch_component(WD_WIDGET, map().with(WD_FOLD_OPEN, !truthy(value)));
+    } else if name == "size" {
+        set_size(node, value);
+    } else if name == "custom_minimum_size" {
+        set_min_size(node, value);
+    } else if name == "icon" {
+        set_icon(node, value);
+    } else if name == "disabled" {
+        node.patch_component(WD_WIDGET, map().with("enabled", !truthy(value)));
+    } else if wd_widget_key(name) != "" {
+        node.patch_component(WD_WIDGET, map().with(wd_widget_key(name), value));
+    } else {
+        return false;
+    }
+    true
+}
+
+// ---- Dispatch ----------------------------------------------------------------
+
+// ---- Tweens -----------------------------------------------------------------
+
+// Godot's Tween over `animation::tween`. A tween is a map of its node, the
+// default transition and mode, its steps, the `finished` steps, the join
+// flags, its loops and the running handle. Godot collects a tween's steps
+// and runs them from the next frame; here each step appended restarts one
+// engine tween holding every step so far, which is the same sequence while a
+// chain is appended in one frame, as GDScript's is.
+//
+// The engine tween runs on the nearest node holding the tween's node and
+// every node a step drives, since a step's `target` is a path below it. A
+// callable is no function the engine can keep, so a callback step calls
+// `fire` on a hidden child that `gd_callback.bs` runs, which calls the
+// callable this file stored for it.
+
+const TW_MARK: str = "__tween";
+const TW_TWEENER: str = "__tweener";
+// The node a step drives, kept on the step until the engine tween is built.
+const TW_AT: str = "__at";
+const TW_NONE: int = -1;
+const TW_CALLBACK_SCRIPT: str = "gd_callback.bs";
+const TW_CALLBACK_PREFIX: str = "__cb_";
+// What `wait_signal` waits on: `finished`, holding the seconds left.
+const TW_FINISHED: str = "finished";
+const TW_AFTER: str = "__after";
+
+fn tw_is(t: any) -> bool {
+    t.kind() == MAP && t.has(TW_MARK)
+}
+
+fn tw_is_tweener(t: any) -> bool {
+    t.kind() == MAP && t.has(TW_TWEENER)
+}
+
+// The tween a verb works on: the tween, or the one a step's tweener is of.
+fn tw_of(t: any) -> any {
+    if tw_is_tweener(t) {
+        return t.get("tween");
+    }
+    t
+}
+
+fn tw_node(t: any) -> Node {
+    let n = node_of(t.get("node"));
+    if n.is_valid() {
+        return n;
+    }
+    scene::root()
+}
+
+/// A tween verb the engine has no use for: the tween back, or the object's
+/// own method where the receiver is no tween.
+pub fn tween_same(t: any, name: str, args: any) -> any {
+    if tw_is(t) || tw_is_tweener(t) {
+        return t;
+    }
+    call(t, name, args)
+}
+
+/// Godot's `create_tween()` on a node; anything else tweens from the root,
+/// as the tree's own `create_tween()` does.
+pub fn create_tween(node: any) -> any {
+    let t: any = map();
+    t.set(TW_MARK, true);
+    t.set("node", node);
+    t.set("trans", "linear");
+    t.set("mode", "in_out");
+    t.set("steps", list());
+    t.set("done", list());
+    t.set("cbs", list());
+    t.set("join", false);
+    t.set("joined", false);
+    t.set("loops", 1);
+    t.set("handle", TW_NONE);
+    t
+}
+
+/// The transition of the steps appended after, or of one step's tweener.
+pub fn set_trans(t: any, name: any) -> any {
+    if tw_is_tweener(t) {
+        if name.kind() == STR {
+            t.set("trans", name);
+            tw_reease(t);
+        }
+        return t;
+    }
+    if !tw_is(t) {
+        return call(t, "set_trans", list_of([name]));
+    }
+    if name.kind() == STR {
+        t.set("trans", name);
+    }
+    t
+}
+
+/// The ease mode of the steps appended after, or of one step's tweener.
+pub fn set_ease(t: any, name: any) -> any {
+    if tw_is_tweener(t) {
+        if name.kind() == STR {
+            t.set("mode", name);
+            tw_reease(t);
+        }
+        return t;
+    }
+    if !tw_is(t) {
+        return call(t, "set_ease", list_of([name]));
+    }
+    if name.kind() == STR {
+        t.set("mode", name);
+    }
+    t
+}
+
+// A tweener's step eased again by its own transition and mode.
+fn tw_reease(tweener: any) {
+    let step: any = tweener.get("step");
+    if !step.has("property") {
+        return;
+    }
+    step.set("ease", tw_curve(tweener.get("trans").as_str(), tweener.get("mode").as_str()));
+    tw_restart(tweener.get("tween"));
+}
+
+/// The next step runs with the one before it, as Godot's `parallel()`.
+pub fn tween_parallel(t: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "parallel", list());
+    }
+    tw.set("join", true);
+    tw
+}
+
+/// Every step runs with the one before it, as `set_parallel(true)`.
+pub fn tween_set_parallel(t: any, on: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "set_parallel", list_of([on]));
+    }
+    tw.set("joined", on.is_nil() || truthy(on));
+    tw
+}
+
+pub fn tween_chain(t: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "chain", list());
+    }
+    tw.set("join", false);
+    tw
+}
+
+/// `set_loops(n)`; none or zero loops forever.
+pub fn tween_loops(t: any, count: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "set_loops", list_of([count]));
+    }
+    let loops = if count.is_nil() { 0 } else { int(count) };
+    tw.set("loops", loops);
+    // A callback counts the loops to know its last call.
+    for cb in tw.get("cbs") {
+        let key = tw_cb_key(node_of(cb));
+        let held: any = script::stored(key);
+        if held.kind() == MAP {
+            held.set("loops", loops);
+            script::store(key, held);
+        }
+    }
+    tw_restart(tw);
+    tw
+}
+
+// Godot's transition and mode are the engine's one curve name: `sine` with
+// `in` is `in_sine`, and linear has no mode.
+fn tw_curve(trans: str, mode: str) -> str {
+    if trans == "linear" || trans == "" {
+        return "linear";
+    }
+    "{mode}_{trans}"
+}
+
+// The engine property a Godot property drives, or "" for one it has none of.
+fn tw_track(node: Node, name: str) -> str {
+    if name == "modulate" || name == "self_modulate" {
+        "tint"
+    } else if name == "position" || name == "global_position" {
+        "position"
+    } else if name == "scale" {
+        "scale"
+    } else if name == "rotation" || name == "rotation_degrees" {
+        "rotation_euler"
+    } else if name == "visible" {
+        "visible"
+    } else if name == "zoom" && node.has_component("camera2d") {
+        "camera2d/pixels_per_unit"
+    } else {
+        ""
+    }
+}
+
+// Which number of a vector or a colour a `:x` or `:a` names, -1 for none.
+fn tw_slot(channel: str) -> int {
+    if channel == "x" || channel == "r" {
+        0
+    } else if channel == "y" || channel == "g" {
+        1
+    } else if channel == "z" || channel == "b" {
+        2
+    } else if channel == "a" {
+        3
+    } else {
+        -1
+    }
+}
+
+// A vector's or a colour's numbers, or `fallback` where `value` is neither.
+fn tw_numbers(value: any, fallback: any) -> any {
+    if is_color(value) {
+        return list_of([num(value.get("r")), num(value.get("g")), num(value.get("b")), num(value.get("a"))]);
+    }
+    if value.kind() == MAP && value.has("x") {
+        let out = list_of([num(value.get("x")), num(get(value, "y", 0.0))]);
+        if value.has("z") {
+            out.push(num(value.get("z")));
+        }
+        return out;
+    }
+    if value.kind() == STR {
+        let c = hex_color(value.as_str());
+        return list_of([c.r, c.g, c.b, c.a]);
+    }
+    fallback
+}
+
+// `want` over `held`: the whole value, or one channel of it.
+fn tw_overlay(held: any, channel: str, want: any) -> any {
+    let slot = tw_slot(channel);
+    if channel != "" {
+        if slot >= 0 && slot < held.len() {
+            held.put(slot, num(want));
+        }
+        return held;
+    }
+    let given = tw_numbers(want, list());
+    for i in 0..given.len() {
+        if i < held.len() {
+            held.put(i, given.at(i));
+        }
+    }
+    held
+}
+
+// Where a Godot property should end, as the numbers its engine track takes.
+fn tw_goal(node: Node, name: str, track: str, channel: str, want: any) -> any {
+    if track == "tint" {
+        let c = node.tint();
+        return tw_overlay(list_of([c.r, c.g, c.b, c.a]), channel, want);
+    }
+    let deep = channel == "" && want.kind() == MAP && want.has("z");
+    if track == "position" {
+        let global = name == "global_position";
+        let local = node.transform.position;
+        let ux = 0.0;
+        let uy = 0.0;
+        let uz = if global { node.transform.global_position().z } else { local.z };
+        if deep {
+            // A Vector3 is a 3D node's, in units already.
+            ux = num(want.get("x"));
+            uy = num(want.get("y"));
+            uz = num(want.get("z"));
+        } else {
+            let px = tw_overlay(tw_numbers(if global { global_position_of(node) } else { position_of(node) }, list()), channel, want);
+            let flat = units_of(vec2(num(px.at(0)), num(px.at(1))));
+            ux = flat.x;
+            uy = flat.y;
+        }
+        if global {
+            let here = node.transform.global_position();
+            return list_of([local.x + ux - here.x, local.y + uy - here.y, local.z + uz - here.z]);
+        }
+        return list_of([ux, uy, uz]);
+    }
+    if track == "scale" {
+        let s = node.transform.scale;
+        return tw_overlay(list_of([s.x, s.y, s.z]), channel, want);
+    }
+    if track == "rotation_euler" {
+        let degrees = name == "rotation_degrees";
+        if deep {
+            let by = if degrees { math::to_radians(1.0) } else { 1.0 };
+            return list_of([num(want.get("x")) * by, num(want.get("y")) * by, num(want.get("z")) * by]);
+        }
+        let e = node.transform.rotation_euler;
+        let turn = if degrees { math::to_radians(num(want)) } else { num(want) };
+        return list_of([e.x, e.y, -turn]);
+    }
+    if track == "visible" {
+        let shown = if truthy(want) { 1.0 } else { 0.0 };
+        return shown;
+    }
+    // A camera's zoom is one number here, as many pixels to a unit.
+    let zoom = tw_numbers(want, list_of([num(want)]));
+    num(zoom.at(0)) * PIXELS
+}
+
+// `target` as a path below `top`: "" for `top` itself, nil when elsewhere.
+fn tw_below(top: Node, target: Node) -> any {
+    let from = top.path();
+    let at = target.path();
+    if at == from {
+        return "";
+    }
+    let head = if from.ends_with("/") { from } else { "{from}/" };
+    if at.starts_with(head) {
+        return at.slice(head.len(), at.len());
+    }
+    nil
+}
+
+// The nearest node holding both.
+fn tw_common(a: Node, b: Node) -> Node {
+    let at = a;
+    while at.is_valid() {
+        if !tw_below(at, b).is_nil() {
+            return at;
+        }
+        at = at.parent();
+    }
+    scene::root()
+}
+
+// A step as the engine reads it, from `host`: its node as a `target` path,
+// and the shim's own keys left out.
+fn tw_built(step: any, host: Node) -> any {
+    let out: any = map();
+    for key in step.keys() {
+        if key != TW_AT {
+            out.set(key, step.get(key));
+        }
+    }
+    if step.has(TW_AT) {
+        let at = node_of(step.get(TW_AT));
+        let path: any = tw_below(host, at);
+        if path.kind() == STR && path.as_str() != "" {
+            out.set("target", path);
+        }
+    }
+    out
+}
+
+// Whether the node a step drives is still there.
+fn tw_alive(step: any) -> bool {
+    !step.has(TW_AT) || node_of(step.get(TW_AT)).is_valid()
+}
+
+// One step appended, joined to the last where the chain says so, and the
+// tween started again with it.
+fn tw_push(t: any, step: any) {
+    if (truthy(t.get("join")) || truthy(t.get("joined"))) && t.get("steps").len() > 0 {
+        step.set("parallel", true);
+    }
+    t.set("join", false);
+    t.get("steps").push(step);
+    tw_restart(t);
+}
+
+// Stop what runs and start every step so far as one engine tween, with the
+// `finished` callbacks as its last steps. A step whose node is gone waits
+// its time instead, and a callback that is gone is dropped.
+fn tw_restart(t: any) {
+    let held = t.get("handle").as_int();
+    if held != TW_NONE {
+        animation::stop(held);
+    }
+    t.set("handle", TW_NONE);
+    let all: any = list();
+    for step in t.get("steps") {
+        all.push(step);
+    }
+    for step in t.get("done") {
+        all.push(step);
+    }
+    let host = tw_node(t);
+    for step in all {
+        if step.has(TW_AT) && tw_alive(step) {
+            host = tw_common(host, node_of(step.get(TW_AT)));
+        }
+    }
+    let steps: any = list();
+    for step in all {
+        if tw_alive(step) {
+            steps.push(tw_built(step, host));
+        } else if step.has("duration") {
+            let wait: any = map().with("interval", step.get("duration"));
+            if step.has("parallel") {
+                wait.set("parallel", true);
+            }
+            steps.push(wait);
+        }
+    }
+    if steps.len() == 0 {
+        return;
+    }
+    let spec: any = map().with("steps", steps).with("loops", t.get("loops"));
+    t.set("handle", animation::tween(host, spec));
+    tw_timeline(t, steps);
+}
+
+// When the tween ends, as `finished` for `await tween.finished` to wait on,
+// and when its last step that is no call does, for that step's tweener.
+// Steps fall on the timeline as the engine lays them: a parallel step starts
+// with the group, any other once everything before it is done.
+fn tw_timeline(t: any, steps: any) {
+    let chain = 0.0;
+    let group = 0.0;
+    let last = 0.0;
+    for step in steps {
+        let start = if truthy(get(step, "parallel", false)) { group } else { chain };
+        group = start;
+        let length = num(get(step, "duration", get(step, "interval", 0.0)));
+        if !step.has("call") {
+            last = start + length;
+        }
+        chain = math::max(chain, start + length);
+    }
+    let loops = t.get("loops").as_int();
+    t.set("last_end", last);
+    // An endless tween has no end to wait for, and Godot's never comes.
+    if loops > 0 {
+        t.set(TW_FINISHED, map().with(TW_AFTER, chain * (loops as float)));
+    } else if t.has(TW_FINISHED) {
+        t.remove(TW_FINISHED);
+    }
+}
+
+/// `tween_property(target, "modulate:a", to, seconds)`: a step on one of the
+/// node properties a track drives, answered by the step's tweener, whose
+/// `set_trans` and `set_ease` are its own. Any other property only waits.
+pub fn tween_property(t: any, target: any, path: any, to: any, seconds: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "tween_property", list_of([target, path, to, seconds]));
+    }
+    let duration = num(seconds);
+    let node = node_of(target);
+    let name = text(path);
+    let channel = "";
+    let cut = name.split_once(":");
+    if cut.len() == 2 {
+        name = cut[0];
+        channel = cut[1];
+    }
+    let track = if node.is_valid() { tw_track(node, name) } else { "" };
+    let step: any = map();
+    if track == "" {
+        let said = "gd:tween_warned:{name}";
+        if static_get(said, nil).is_nil() {
+            static_set(said, true);
+            log::warn("tween of `{name}`: no track drives it here, so the step only waits");
+        }
+        step.set("interval", duration);
+    } else {
+        step.set("property", track);
+        step.set("to", tw_goal(node, name, track, channel, to));
+        step.set("duration", duration);
+        step.set("ease", tw_curve(tw.get("trans").as_str(), tw.get("mode").as_str()));
+        step.set(TW_AT, node);
+    }
+    let tweener: any = map();
+    tweener.set(TW_TWEENER, true);
+    tweener.set("tween", tw);
+    tweener.set("step", step);
+    tweener.set("trans", tw.get("trans"));
+    tweener.set("mode", tw.get("mode"));
+    tw_push(tw, step);
+    tweener.set(TW_FINISHED, map().with(TW_AFTER, get(tw, "last_end", duration)));
+    tweener
+}
+
+/// A step that only waits, which a chain uses to space the others.
+pub fn tween_interval(t: any, seconds: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "tween_interval", list_of([seconds]));
+    }
+    tw_push(tw, map().with("interval", num(seconds)));
+    tw
+}
+
+/// A callable the chain calls when it reaches this step.
+pub fn tween_callback(t: any, f: any) -> any {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return call(t, "tween_callback", list_of([f]));
+    }
+    if is_callable(f) {
+        tw_push(tw, tw_callback_step(tw, f, false));
+    }
+    tw
+}
+
+/// Godot's `finished`: a callable the tween calls once its last loop is done.
+/// On anything else it is that value's own `finished` signal.
+pub fn when_finished(t: any, f: any) {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        connect(t, "finished", f);
+        return;
+    }
+    if !is_callable(f) {
+        return;
+    }
+    tw.get("done").push(tw_callback_step(tw, f, true));
+    tw_restart(tw);
+}
+
+// Where a callback node's callable and count are kept.
+fn tw_cb_key(node: Node) -> str {
+    "tween:cb:{node.stable_id()}"
+}
+
+// A hidden child of the tween's node that calls `f` when the tween reaches
+// it: every loop, or only after the last when `finish` says so.
+fn tw_callback_step(t: any, f: any, finish: bool) -> any {
+    let serial = static_get("gd:tween_cb", 0).as_int() + 1;
+    static_set("gd:tween_cb", serial);
+    let child = tw_node(t).add_child("{TW_CALLBACK_PREFIX}{serial}");
+    child.set_visible(false);
+    child.attach_script(TW_CALLBACK_SCRIPT);
+    let held: any = map();
+    held.set("f", f);
+    held.set("finish", finish);
+    held.set("loops", t.get("loops"));
+    held.set("fired", 0);
+    script::store(tw_cb_key(child), held);
+    t.get("cbs").push(child);
+    let step: any = map();
+    step.set("call", "fire");
+    step.set(TW_AT, child);
+    step
+}
+
+/// What `gd_callback.bs` runs when a tween reaches its node: the stored
+/// callable, then the node freed once it has no call left.
+pub fn tween_fired(node: Node) {
+    let key = tw_cb_key(node);
+    let held: any = script::stored(key);
+    if held.kind() != MAP {
+        return;
+    }
+    let loops = held.get("loops").as_int();
+    let fired = held.get("fired").as_int() + 1;
+    let last = loops > 0 && fired >= loops;
+    let finish = truthy(held.get("finish"));
+    // Godot's `finished` comes after the last loop, and never for endless ones.
+    if !finish || last {
+        call_value(held.get("f"), list());
+    }
+    let now: any = script::stored(key);
+    if now.kind() != MAP {
+        // The callable killed its tween, which freed this node.
+        return;
+    }
+    if last {
+        tw_free_callback(node);
+        return;
+    }
+    now.set("fired", fired);
+    script::store(key, now);
+}
+
+fn tw_free_callback(node: Node) {
+    if node.is_valid() {
+        script::store(tw_cb_key(node), nil);
+        node.queue_free();
+    }
+}
+
+/// `kill()`: the tween stops, its callbacks go, and nothing it held runs again.
+pub fn kill_tween(t: any) {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        call(t, "kill", list());
+        return;
+    }
+    let held = tw.get("handle").as_int();
+    if held != TW_NONE {
+        animation::stop(held);
+    }
+    tw.set("handle", TW_NONE);
+    for cb in tw.get("cbs") {
+        tw_free_callback(node_of(cb));
+    }
+    tw.set("cbs", list());
+    tw.set("steps", list());
+    tw.set("done", list());
+}
+
+pub fn tween_running(t: any) -> bool {
+    let tw = tw_of(t);
+    if !tw_is(tw) {
+        return truthy(call(t, "is_running", list()));
+    }
+    let held = tw.get("handle").as_int();
+    held != TW_NONE && animation::is_tween_running(held)
+}
+
+// ---- Drawing ----------------------------------------------------------------
+
+// Godot's `_draw` verbs: the engine draws for one frame, so `_draw` runs on
+// `queue_redraw` and the verbs it called are kept and drawn again every
+// frame, `draw_set_transform` among them in its place. A Transform2D is a
+// map of its `x` and `y` axes and its `origin`, each a vector, in Godot's
+// pixels with y down.
+
+const TW_DRAW_LIST: str = "draw:list:";
+const TW_DRAW_WANTED: str = "draw:wanted:";
+const TW_Z_INDEX: str = "z_index";
+const TW_TAU: float = 6.283185307179586;
+// Godot's default font size.
+const TW_FONT_SIZE: float = 16.0;
+
+fn tw_draw_key(prefix: str, node: Node) -> str {
+    "{prefix}{node.stable_id()}"
+}
+
+/// Godot's `queue_redraw`: `_draw` runs again on the next frame.
+pub fn queue_redraw(node: any) {
+    let n = node_of(node);
+    if n.is_valid() {
+        script::store(tw_draw_key(TW_DRAW_WANTED, n), true);
+    }
+}
+
+/// A frame of a node that draws: `_draw` when it is wanted, then every verb
+/// it recorded, drawn where the node is now and on its draw layer.
+pub fn draw_frame(node: Node) {
+    // Godot draws no hidden canvas item, nor any under one.
+    if !node.is_valid() || !node.visible_in_tree() {
+        return;
+    }
+    let list_key = tw_draw_key(TW_DRAW_LIST, node);
+    let wanted_key = tw_draw_key(TW_DRAW_WANTED, node);
+    let wanted: any = script::stored(wanted_key);
+    let drawn: any = script::stored(list_key);
+    if drawn.kind() != LIST || truthy(wanted) {
+        script::store(wanted_key, false);
+        script::store(list_key, list());
+        call(node, "_draw", list());
+        drawn = script::stored(list_key);
+    }
+    if drawn.kind() != LIST {
+        return;
+    }
+    let place: any = map().with(TW_Z_INDEX, node.effective_z_index());
+    let global = tw_global(node);
+    // Script pixels to world units: the node's transform, then the one
+    // `draw_set_transform` last set.
+    let xf = global;
+    for entry in drawn {
+        let verb = entry.at(0).as_str();
+        if verb == "transform" {
+            xf = tw_compose(global, entry.at(1));
+        } else {
+            tw_draw_entry(xf, verb, entry.at(1), place);
+        }
+    }
+}
+
+fn tw_record(node: any, verb: str, args: any) {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return;
+    }
+    let key = tw_draw_key(TW_DRAW_LIST, n);
+    let held: any = script::stored(key);
+    let drawn: any = if held.kind() == LIST { held } else { list() };
+    drawn.push(list_of([verb, args]));
+    script::store(key, drawn);
+}
+
+/// Godot's `draw_set_transform`: the verbs drawn after it are placed by it.
+pub fn draw_set_transform(node: any, position: any, rotation: any, scale: any) {
+    let at = tw_vec(position, 0.0);
+    let by = tw_vec(scale, 1.0);
+    tw_record(node, "transform", tw_xform(by.x, by.y, num(rotation), at.x, at.y));
+}
+
+pub fn draw_set_transform_matrix(node: any, xform: any) {
+    tw_record(node, "transform", xform);
+}
+
+pub fn draw_circle(node: any, position: any, radius: any, color: any, filled: any, width: any, antialiased: any) {
+    tw_record(node, "circle", list_of([position, radius, color, filled, width]));
+}
+
+pub fn draw_line(node: any, from: any, to: any, color: any, width: any, antialiased: any) {
+    tw_record(node, "line", list_of([from, to, color, width]));
+}
+
+pub fn draw_rect(node: any, rect: any, color: any, filled: any, width: any, antialiased: any) {
+    tw_record(node, "rect", list_of([rect, color, filled, width]));
+}
+
+pub fn draw_arc(node: any, center: any, radius: any, start_angle: any, end_angle: any, point_count: any, color: any, width: any, antialiased: any) {
+    tw_record(node, "arc", list_of([center, radius, start_angle, end_angle, color, width]));
+}
+
+pub fn draw_polyline(node: any, points: any, color: any, width: any, antialiased: any) {
+    tw_record(node, "polyline", list_of([points, color, width]));
+}
+
+pub fn draw_multiline(node: any, points: any, color: any, width: any, antialiased: any) {
+    tw_record(node, "multiline", list_of([points, color, width]));
+}
+
+/// `draw_polygon`: one colour, the first of `colors`, fills it.
+pub fn draw_polygon(node: any, points: any, colors: any, uvs: any, texture: any) {
+    let c: any = if colors.kind() == LIST && colors.len() > 0 && colors.at(0).kind() == MAP { colors.at(0) } else { colors };
+    tw_record(node, "polygon", list_of([points, c]));
+}
+
+pub fn draw_colored_polygon(node: any, points: any, color: any, uvs: any, texture: any) {
+    tw_record(node, "polygon", list_of([points, color]));
+}
+
+pub fn draw_texture_rect(node: any, texture: any, rect: any, tile: any, modulate: any, transpose: any) {
+    tw_record(node, "texture", list_of([texture, rect, modulate, nil]));
+}
+
+pub fn draw_texture_rect_region(node: any, texture: any, rect: any, src_rect: any, modulate: any, transpose: any, clip_uv: any) {
+    tw_record(node, "texture", list_of([texture, rect, modulate, src_rect]));
+}
+
+pub fn draw_string(node: any, font: any, position: any, text: any, alignment: any, width: any, font_size: any, modulate: any) {
+    tw_record(node, "text", list_of([position, text, font_size, modulate]));
+}
+
+/// Godot's `get_canvas_transform()`: world to viewport pixels through the 2D
+/// camera, the identity where no window draws one.
+pub fn canvas_transform(node: any) -> any {
+    let camera = render::camera_2d();
+    let zoom = camera.z;
+    if zoom == 0.0 {
+        return tw_xform(1.0, 1.0, 0.0, 0.0, 0.0);
+    }
+    let size = ui::window_size();
+    let scale = zoom / PIXELS;
+    tw_xform(scale, scale, 0.0, size.x / 2.0 - camera.x * zoom, size.y / 2.0 + camera.y * zoom)
+}
+
+// A Transform2D from a scale, a turn in radians and an origin.
+fn tw_xform(sx: float, sy: float, turn: float, ox: float, oy: float) -> any {
+    let c = math::cos(turn);
+    let s = math::sin(turn);
+    map().with("x", vec2(c * sx, s * sx)).with("y", vec2(-s * sy, c * sy)).with("origin", vec2(ox, oy))
+}
+
+// A Transform2D's column, as the engine's vector.
+fn tw_axis(xf: any, name: str, fallback: Vec2) -> Vec2 {
+    let v: any = get(xf, name, nil);
+    if v.kind() != MAP {
+        return fallback;
+    }
+    return [num(get(v, "x", 0.0)), num(get(v, "y", 0.0))];
+}
+
+fn tw_apply(xf: any, p: Vec2) -> Vec2 {
+    let x = tw_axis(xf, "x", [1.0, 0.0]);
+    let y = tw_axis(xf, "y", [0.0, 1.0]);
+    let o = tw_axis(xf, "origin", [0.0, 0.0]);
+    return [o.x + x.x * p.x + y.x * p.y, o.y + x.y * p.x + y.y * p.y];
+}
+
+// `a * b`: `b` applied first.
+fn tw_compose(a: any, b: any) -> any {
+    let ax = tw_axis(a, "x", [1.0, 0.0]);
+    let ay = tw_axis(a, "y", [0.0, 1.0]);
+    let bx = tw_axis(b, "x", [1.0, 0.0]);
+    let by = tw_axis(b, "y", [0.0, 1.0]);
+    let o = tw_apply(a, tw_axis(b, "origin", [0.0, 0.0]));
+    let x = vec2(ax.x * bx.x + ay.x * bx.y, ax.y * bx.x + ay.y * bx.y);
+    let y = vec2(ax.x * by.x + ay.x * by.y, ax.y * by.x + ay.y * by.y);
+    map().with("x", x).with("y", y).with("origin", vec2(o.x, o.y))
+}
+
+// A script's vector as the engine's, `fallback` on both axes for nil.
+fn tw_vec(value: any, fallback: float) -> Vec2 {
+    if value.kind() != MAP {
+        return [fallback, fallback];
+    }
+    return [num(get(value, "x", fallback)), num(get(value, "y", fallback))];
+}
+
+// A node's global transform in Godot's pixels.
+fn tw_global(node: Node) -> any {
+    let scale = node.transform.global_scale();
+    let turn = -node.transform.global_rotation_euler().z;
+    let at = node.transform.global_position();
+    tw_xform(scale.x, scale.y, turn, at.x * PIXELS, -at.y * PIXELS)
+}
+
+// A point of the script's as world units.
+fn tw_point(xf: any, point: any) -> Vec2 {
+    let world = tw_apply(xf, tw_vec(point, 0.0));
+    return [world.x / PIXELS, -world.y / PIXELS];
+}
+
+// How long the step `(dx, dy)` of the script's pixels from `point` is in
+// world units.
+fn tw_span(xf: any, point: any, dx: float, dy: float) -> float {
+    let at = tw_point(xf, point);
+    let p = tw_vec(point, 0.0);
+    let off = tw_point(xf, vec2(p.x + dx, p.y + dy));
+    let ox = off.x - at.x;
+    let oy = off.y - at.y;
+    math::sqrt(ox * ox + oy * oy)
+}
+
+// A colour as the channel list the engine's draw verbs take; nil is white.
+fn tw_rgba(value: any) -> any {
+    if value.kind() == LIST {
+        return value;
+    }
+    let c = color_of(value);
+    list_of([c.r, c.g, c.b, c.a])
+}
+
+// Godot's line width: `-1` is one pixel.
+fn tw_width(width: any) -> float {
+    let w = num(width);
+    if width.is_nil() || w <= 0.0 {
+        return 1.0;
+    }
+    w
+}
+
+fn tw_pair(p: Vec2) -> any {
+    list_of([p.x, p.y])
+}
+
+// One recorded verb, drawn for this frame through `xf` at `place`, the
+// node's layer.
+fn tw_draw_entry(xf: any, verb: str, a: any, place: any) {
+    if verb == "circle" {
+        let at = tw_point(xf, a.at(0));
+        let r = tw_span(xf, a.at(0), num(a.at(1)), 0.0);
+        let c = tw_rgba(a.at(2));
+        if a.at(3).kind() == BOOL && !a.at(3).as_bool() {
+            render::draw_arc_2d(at.x, at.y, r, 0.0, TW_TAU, tw_width(a.at(4)), c, place);
+        } else {
+            render::draw_circle_2d(at.x, at.y, r, c, place);
+        }
+        return;
+    }
+    if verb == "line" {
+        // A two-point polyline keeps the colour's alpha, which a line drops.
+        let line: any = list_of([tw_pair(tw_point(xf, a.at(0))), tw_pair(tw_point(xf, a.at(1)))]);
+        render::draw_polyline_2d(line, tw_width(a.at(3)), tw_rgba(a.at(2)), place);
+        return;
+    }
+    if verb == "rect" {
+        let corners = tw_corners(xf, a.at(0));
+        let c = tw_rgba(a.at(1));
+        if a.at(2).kind() == BOOL && !a.at(2).as_bool() {
+            corners.push(corners.at(0));
+            render::draw_polyline_2d(corners, tw_width(a.at(3)), c, place);
+        } else {
+            render::draw_polygon_2d(corners, c, place);
+        }
+        return;
+    }
+    if verb == "arc" {
+        let at = tw_point(xf, a.at(0));
+        let r = tw_span(xf, a.at(0), num(a.at(1)), 0.0);
+        // Godot's angles run clockwise with y down and the engine's
+        // counter-clockwise with y up, turned with the node.
+        let p = tw_vec(a.at(0), 0.0);
+        let ahead = tw_point(xf, vec2(p.x + 1.0, p.y));
+        let turn = math::atan2(ahead.y - at.y, ahead.x - at.x);
+        render::draw_arc_2d(at.x, at.y, r, turn - num(a.at(2)), turn - num(a.at(3)), tw_width(a.at(5)), tw_rgba(a.at(4)), place);
+        return;
+    }
+    if verb == "polyline" {
+        render::draw_polyline_2d(tw_points(xf, a.at(0)), tw_width(a.at(2)), tw_rgba(a.at(1)), place);
+        return;
+    }
+    if verb == "multiline" {
+        let c = tw_rgba(a.at(1));
+        let w = tw_width(a.at(2));
+        let points = tw_points(xf, a.at(0));
+        let at = 0;
+        while at + 1 < points.len() {
+            render::draw_polyline_2d(list_of([points.at(at), points.at(at + 1)]), w, c, place);
+            at += 2;
+        }
+        return;
+    }
+    if verb == "polygon" {
+        tw_filled(tw_points(xf, a.at(0)), tw_rgba(a.at(1)), place);
+        return;
+    }
+    if verb == "texture" {
+        tw_picture(xf, a, place);
+        return;
+    }
+    if verb == "text" {
+        let at = tw_point(xf, a.at(0));
+        let size = if a.at(2).is_nil() || num(a.at(2)) <= 0.0 { TW_FONT_SIZE } else { num(a.at(2)) };
+        let opts: any = map();
+        opts.set("color", tw_rgba(a.at(3)));
+        opts.set("font_size", size);
+        opts.set(TW_Z_INDEX, place.get(TW_Z_INDEX));
+        // A pixel of the script's is a font pixel at the node's scale.
+        let by = tw_span(xf, a.at(0), 1.0, 0.0);
+        if by > 0.0 {
+            opts.set("pixels_per_unit", 1.0 / by);
+        }
+        render::draw_text_2d(at.x, at.y, text(a.at(1)), opts);
+    }
+}
+
+// A rect's four corners, in world units.
+fn tw_corners(xf: any, rect: any) -> any {
+    let pos = tw_vec(get(rect, "position", nil), 0.0);
+    let size = tw_vec(get(rect, "size", nil), 0.0);
+    let out: any = list();
+    out.push(tw_pair(tw_point(xf, vec2(pos.x, pos.y))));
+    out.push(tw_pair(tw_point(xf, vec2(pos.x + size.x, pos.y))));
+    out.push(tw_pair(tw_point(xf, vec2(pos.x + size.x, pos.y + size.y))));
+    out.push(tw_pair(tw_point(xf, vec2(pos.x, pos.y + size.y))));
+    out
+}
+
+fn tw_points(xf: any, points: any) -> any {
+    let out: any = list();
+    if points.kind() != LIST {
+        return out;
+    }
+    for p in points {
+        out.push(tw_pair(tw_point(xf, p)));
+    }
+    out
+}
+
+// A filled outline, concave or not: the engine fills convex ones, so it is
+// cut into triangles first.
+fn tw_filled(world: any, c: any, place: any) {
+    if world.len() < 3 {
+        return;
+    }
+    for t in geometry2d::triangulate(world) {
+        render::draw_polygon_2d(list_of([world.at(t[0]), world.at(t[1]), world.at(t[2])]), c, place);
+    }
+}
+
+// A picture over a rect, or the part of it `region` names in its pixels. A
+// loaded texture is its project path here, which the engine draws by.
+fn tw_picture(xf: any, a: any, place: any) {
+    let texture: any = a.at(0);
+    if texture.kind() != STR {
+        return;
+    }
+    let rect: any = a.at(1);
+    let pos = tw_vec(get(rect, "position", nil), 0.0);
+    let size = tw_vec(get(rect, "size", nil), 0.0);
+    let middle = vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0);
+    let centre = tw_point(xf, middle);
+    let w = tw_span(xf, middle, math::abs(size.x), 0.0);
+    let h = tw_span(xf, middle, 0.0, math::abs(size.y));
+    let opts: any = map().with(TW_Z_INDEX, place.get(TW_Z_INDEX));
+    let region: any = a.at(3);
+    if region.kind() == MAP {
+        let from = tw_vec(get(region, "position", nil), 0.0);
+        let span = tw_vec(get(region, "size", nil), 0.0);
+        opts.set("region_origin", list_of([from.x, from.y]));
+        opts.set("region_size", list_of([span.x, span.y]));
+    }
+    render::draw_texture_2d(texture.as_str(), centre.x, centre.y, w, h, tw_rgba(a.at(2)), opts);
+}
+
+// ---- Bits ---------------------------------------------------------------------
+
+// Balaur Script has no bitwise operators: these work on an int's bits one
+// at a time, its sign bit included, as two's complement holds them.
+
+const BITS: int = 64;
+
+// `n` halved, rounded down, as a shift right by one.
+fn half_down(n: int) -> int {
+    let half = n / 2;
+    if n < 0 && half * 2 != n {
+        return half - 1;
+    }
+    half
+}
+
+// An int from two ints' bits combined: `op` 0 is and, 1 or, 2 xor. Halving
+// walks a number's bits low first; past the last, a negative one is all
+// ones, which is its sign.
+fn from_bits(a: int, b: int, op: int) -> int {
+    let out = 0;
+    let place = 1;
+    let x = a;
+    let y = b;
+    let i = 0;
+    while i < BITS - 1 {
+        let bx = x - half_down(x) * 2;
+        let by = y - half_down(y) * 2;
+        let r = if op == 0 { bx * by } else if op == 1 { if bx + by > 0 { 1 } else { 0 } } else { (bx + by) % 2 };
+        out += r * place;
+        x = half_down(x);
+        y = half_down(y);
+        if i < BITS - 2 {
+            place *= 2;
+        }
+        i += 1;
+    }
+    let sa = if x < 0 { 1 } else { 0 };
+    let sb = if y < 0 { 1 } else { 0 };
+    let sign = if op == 0 { sa * sb } else if op == 1 { if sa + sb > 0 { 1 } else { 0 } } else { (sa + sb) % 2 };
+    if sign == 1 {
+        // The top bit set: the value less 2^63, the most negative int.
+        return out + (-9223372036854775807 - 1);
+    }
+    out
+}
+
+pub fn bit_and(a: any, b: any) -> int {
+    from_bits(a.as_int(), b.as_int(), 0)
+}
+
+pub fn bit_or(a: any, b: any) -> int {
+    from_bits(a.as_int(), b.as_int(), 1)
+}
+
+pub fn bit_xor(a: any, b: any) -> int {
+    from_bits(a.as_int(), b.as_int(), 2)
+}
+
+pub fn bit_not(a: any) -> int {
+    -a.as_int() - 1
+}
+
+pub fn shift_left(a: any, n: any) -> int {
+    let out = a.as_int();
+    let i = 0;
+    while i < n.as_int() {
+        out *= 2;
+        i += 1;
+    }
+    out
+}
+
+/// An arithmetic shift: a negative number stays negative, as Godot's does.
+pub fn shift_right(a: any, n: any) -> int {
+    let out = a.as_int();
+    let i = 0;
+    while i < n.as_int() {
+        out = half_down(out);
+        i += 1;
+    }
+    out
 }

@@ -25,7 +25,7 @@ impl Bt {
             "float" => Bt::Float,
             "bool" => Bt::Bool,
             "String" | "StringName" | "NodePath" => Bt::Str,
-            h if crate::godot::nodes::is_node_class(h) => Bt::Node,
+            // A node-typed variable may hold null, which a `Node` cannot.
             _ => Bt::Any,
         }
     }

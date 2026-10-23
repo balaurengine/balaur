@@ -27,6 +27,8 @@ pub(crate) struct Walk {
     scenes: usize,
     scripts: usize,
     failed: usize,
+    /// Every object class converted, for the project's dispatcher.
+    objects: Vec<super::script::ObjectClass>,
 }
 
 impl Walk {
@@ -48,7 +50,10 @@ impl Walk {
         let mut report = Report::default();
         let mut sink = ProjectSink::new(project);
         sink.put("project.toml", converted.project_toml.as_bytes())?;
-        sink.put("godot_settings.rn", converted.settings_module.as_bytes())?;
+        sink.put(
+            super::gdscript::SETTINGS_PATH,
+            converted.settings_module.as_bytes(),
+        )?;
         report.section("project.godot", converted.notes);
         // A project's own faces come first in every font chain, from `fonts/`.
         if let Some(font) = super::project::custom_font(&document, &uids, &root) {
@@ -75,9 +80,9 @@ impl Walk {
                 };
                 let path = path.trim_start_matches('*');
                 let path = crate::godot::relative_path(path);
-                let Some(stem) = path.strip_suffix(".gd") else {
+                if !path.ends_with(".gd") {
                     continue;
-                };
+                }
                 // Static functions and constants alone need no node: the name
                 // reads the translated module, as a `class_name` does.
                 let source = super::io::text(&root.join(path)).unwrap_or_default();
@@ -85,7 +90,9 @@ impl Walk {
                     lookups.classes.files.insert(name.clone(), path.to_string());
                     continue;
                 }
-                lookups.autoloads.push((name.clone(), format!("{stem}.rn")));
+                lookups
+                    .autoloads
+                    .push((name.clone(), super::scene::script_path(path)));
                 lookups.classes.autoload_nodes.insert(name.clone());
             }
         }
@@ -99,6 +106,7 @@ impl Walk {
             scenes: 0,
             scripts: 0,
             failed: 0,
+            objects: Vec::new(),
         })
     }
 
@@ -142,8 +150,9 @@ impl Walk {
                 source.push_str(&super::machine::check_functions(checks));
             }
             let converted = super::script::convert(&source, &relative, &self.lookups.classes);
-            let target = format!("{}.rn", relative.trim_end_matches(".gd"));
-            self.sink.put(&target, converted.rune.as_bytes())?;
+            let target = super::scene::script_path(&relative);
+            self.sink.put(&target, converted.text.as_bytes())?;
+            self.objects.extend(converted.object);
             self.write_inner_scripts(&source, &relative)?;
             self.scripts += 1;
             self.report.section(&relative, converted.notes);
@@ -170,8 +179,9 @@ impl Walk {
             let path = super::script::inner_file(file, &name);
             let module = super::script::convert(&inner, &path, &self.lookups.classes);
             self.sink
-                .put(&path.replace(".gd", ".rn"), module.rune.as_bytes())?;
+                .put(&super::scene::script_path(&path), module.text.as_bytes())?;
             self.report.section(&path, module.notes);
+            self.objects.extend(module.object);
             self.write_inner_scripts(&inner, &path)?;
         }
         Ok(())
@@ -180,11 +190,17 @@ impl Walk {
     /// The shim, the report, and what the whole walk wrote.
     pub(crate) fn finish(mut self) -> Result<Imported> {
         if self.scripts > 0 {
-            // Every converted body calls into the shim, so it ships with them.
-            self.sink.put("gd.rn", super::gdscript::SHIM.as_bytes())?;
-            let classes = super::exports::class_table(&self.lookups.classes);
+            // Every converted body calls into the shim, so it ships with them,
+            // and the shim calls an object's class through the dispatcher.
             self.sink
-                .put(super::exports::CLASS_TABLE, classes.as_bytes())?;
+                .put(super::gdscript::SHIM_PATH, super::gdscript::SHIM.as_bytes())?;
+            self.sink.put(
+                super::gdscript::CALLBACK_PATH,
+                super::gdscript::CALLBACK.as_bytes(),
+            )?;
+            let classes = super::exports::classes_module(&self.lookups.classes, &self.objects);
+            self.sink
+                .put(super::gdscript::CLASSES_PATH, classes.as_bytes())?;
         }
         let (scenes, scripts, failed) = (self.scenes, self.scripts, self.failed);
         let lines = self.report.write(&mut self.sink)?;

@@ -14,7 +14,7 @@ use crate::godot::{Document, Value, keys};
 /// A converted project, and what would not convert.
 pub(crate) struct Converted {
     pub project_toml: String,
-    /// `godot_settings.rn`: every plain setting `project.godot` holds, which
+    /// `godot_settings.bs`: every plain setting `project.godot` holds, which
     /// a converted `ProjectSettings.get` reads.
     pub settings_module: String,
     /// One line per thing that did not carry, for the import report.
@@ -167,12 +167,12 @@ fn settings_module(document: &Document) -> String {
                 _ => continue,
             };
             let path = crate::godot::gdscript::quoted(&format!("{}/{key}", section.kind));
-            let _ = writeln!(arms, "        {path} => {literal},");
+            let _ = writeln!(arms, "    if path == {path} {{\n        return {literal};\n    }}");
         }
     }
     format!(
         "// Written by `balaur import` from project.godot: what `ProjectSettings`\n\
-         // answered there.\n\npub fn setting(path) {{\n    match path {{\n{arms}        _ => (),\n    }}\n}}\n"
+         // answered there.\n\npub fn setting(path: str) -> any {{\n{arms}    nil\n}}\n"
     )
 }
 

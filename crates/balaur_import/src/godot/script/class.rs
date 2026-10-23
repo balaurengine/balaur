@@ -1,83 +1,27 @@
-//! What a class needs beyond its functions: the `init` a class with no
-//! `_ready` still runs, and Godot's `new()`.
+//! What a class needs beyond its functions: Godot's `new()`, and the doors
+//! another script reads, writes and calls it through.
 
-use std::fmt::Write as _;
+use super::members::Plan;
+use super::render::{Fun, Shape};
+use super::{Classes, Context, Function, ObjectClass, safe};
+use crate::godot::gdscript::{self, GETTER, MY, SETTER};
 
-use super::{Classes, Function, gdscript, safe, shim_binding};
-
-/// The `init` hook a class with no `_ready` still needs, when it has
-/// defaults to set or a `_init` to run: nothing else would call them, and a
-/// member read before its default is set is an error at run time.
-pub(super) fn write_default_init(
-    out: &mut String,
-    functions: &[Function],
-    scened: bool,
-    context: &gdscript::Context,
-) -> bool {
-    let data = &context.data_exports;
-    // The plain members are the engine's to set; what is left for `init` is
-    // the half that waits for the scene, a Godot `_init`, and the exports
-    // the scene filed in `meta`.
-    let needed = scened || constructs(functions) || !data.is_empty();
-    if !needed || functions.iter().any(|f| f.name == "_ready") {
-        return false;
-    }
-    let set = if scened {
-        "    scene_defaults(this);\n"
-    } else {
-        ""
-    };
-    let init = if constructs(functions) {
-        init_call(functions, context.scene_exports)
-    } else {
-        String::new()
-    };
-    let reads = data_reads(data);
-    let _ = write!(out, "\npub fn init(this) {{\n{set}{init}{reads}}}\n");
-    true
-}
-
-/// `init`'s reads of the exports the scene filed in the node's `meta`, each
-/// back as the Godot value it was, or the member's default where the scene
-/// set none.
-pub(super) fn data_reads(data: &[String]) -> String {
-    let mut out = String::new();
-    for name in data {
-        let field = safe(name);
-        let _ = writeln!(
-            out,
-            "    this.{field} = gd::export_value(this.node, \"{name}\", this.{field});"
-        );
-    }
-    out
-}
-
-/// Whether the class has a `_init` taking nothing, which Godot ran when the
-/// node was made and the `init` hook runs here.
+/// Whether the class has a `_init` a call with no arguments runs, which
+/// Godot ran as the node was made and `init` runs here.
 pub(super) fn constructs(functions: &[Function]) -> bool {
     functions.iter().any(|f| {
         f.name == "_init" && f.defaults.iter().all(Option::is_some) && !f.overridden && !f.is_static
     })
 }
 
-/// The call that runs `_init` with every parameter at its default. What the
-/// scene set in `exports()` is put back after it, as Godot set it after.
-pub(super) fn init_call(functions: &[Function], scene_exports: bool) -> String {
+/// The call that runs a node class's `_init` with every parameter at its
+/// default: nil, which each defaulted parameter fills in.
+pub(super) fn init_call(functions: &[Function]) -> String {
     let takes = functions
         .iter()
         .find(|f| f.name == "_init" && !f.overridden)
-        .is_some_and(|f| !f.params.is_empty());
-    let call = if takes {
-        "    _init__0(this);\n"
-    } else {
-        "    _init(this);\n"
-    };
-    if !scene_exports {
-        return call.to_string();
-    }
-    format!(
-        "    let scene_set = gd::scene_exports(this, exports());\n{call}    gd::keep_exports(this, scene_set);\n"
-    )
+        .map_or(0, |f| f.params.len());
+    format!("self._init({});\n", vec!["nil"; takes].join(", "))
 }
 
 /// The Godot class a script's chain of `extends` ends at: `RefCounted` for
@@ -103,109 +47,225 @@ pub(super) fn builtin_root(source: &str, classes: &Classes) -> String {
     root
 }
 
-/// The classes `new()` makes a table of rather than a node.
+/// The classes `new()` makes a map of rather than a node.
 pub(super) const OBJECT_ROOTS: &[&str] = &["RefCounted", "Resource", "Object", "Reference"];
-
-/// Godot's `Class.new()`. A node class is built under a holder and its
-/// script attached; any other class is a table naming this module, whose
-/// functions the shim calls with it as `this`.
-pub(super) fn write_constructor(
-    out: &mut String,
-    source: &str,
-    path: &str,
-    classes: &Classes,
-    functions: &[Function],
-    members: &super::members::Members,
-) {
-    if functions.iter().any(|f| f.name == "new") {
-        return;
-    }
-    let module = path.replace(".gd", ".rn");
-    let root = builtin_root(source, classes);
-    if !OBJECT_ROOTS.contains(&root.as_str()) {
-        let doc = crate::godot::nodes::bare_document(&root, NEW_NAME)
-            .unwrap_or_else(|| format!("[[nodes]]\nname = \"{NEW_NAME}\"\n"));
-        // `_init`'s arguments reach it once the node exists; its `init`
-        // hook has run it with the defaults already.
-        let params: Vec<String> = functions
-            .iter()
-            .find(|f| f.name == "_init" && !f.overridden)
-            .map(|f| f.params.iter().map(|p| safe(p)).collect())
-            .unwrap_or_default();
-        let rerun = if params.is_empty() {
-            String::new()
-        } else {
-            format!("    node.call(\"_init\", {});\n", params.join(", "))
-        };
-        let init = functions
-            .iter()
-            .find(|f| f.name == "_init" && !f.overridden);
-        let _ = write!(
-            out,
-            "\n/// Godot's `new()`: a {root} carrying this script.\npub fn new({}) {{\n{}    let node = gd::new_node({}, {});\n{rerun}    node\n}}\n",
-            params.join(", "),
-            shim_binding(1),
-            gdscript::quoted(&doc),
-            gdscript::quoted(&module),
-        );
-        write_new_forwarders(out, init);
-        return;
-    }
-    let init = functions
-        .iter()
-        .find(|f| f.name == "_init" && !f.overridden);
-    let params: Vec<String> = init
-        .map(|f| f.params.iter().map(|p| safe(p)).collect())
-        .unwrap_or_default();
-    let _ = write!(
-        out,
-        "\n/// Godot's `new()`: this class as a table its functions take as `this`.\npub fn new({}) {{\n    let this = #{{ \"__class\": {} }};\n",
-        params.join(", "),
-        gdscript::quoted(&module),
-    );
-    // A class that is a table has no node to attach, so its constructor is
-    // where the members it declared are set.
-    if members.defaults {
-        out.push_str("    defaults(this);\n");
-    }
-    if members.scened {
-        out.push_str("    scene_defaults(this);\n");
-    }
-    if init.is_some() {
-        let mut args = vec!["this".to_string()];
-        args.extend(params);
-        let _ = writeln!(out, "    _init({});", args.join(", "));
-    }
-    out.push_str("    this\n}\n");
-    write_new_forwarders(out, init);
-}
-
-/// `new__1(a)` for a `new(a, b = 2)`: a call that leaves the defaulted tail
-/// out reaches the constructor with it filled in, as `name__N` does.
-pub(super) fn write_new_forwarders(out: &mut String, init: Option<&Function>) {
-    let Some(init) = init else { return };
-    let Some(required) = init.defaults.iter().position(Option::is_some) else {
-        return;
-    };
-    for count in required..init.params.len() {
-        let given: Vec<String> = init.params[..count].iter().map(|p| safe(p)).collect();
-        let rest: Vec<String> = init.defaults[count..]
-            .iter()
-            .map(|d| {
-                d.as_deref()
-                    .and_then(crate::godot::exports::literal)
-                    .unwrap_or_else(|| "()".into())
-            })
-            .collect();
-        let all: Vec<String> = given.iter().cloned().chain(rest).collect();
-        let _ = write!(
-            out,
-            "\npub fn new__{count}({}) {{\n    new({})\n}}\n",
-            given.join(", "),
-            all.join(", ")
-        );
-    }
-}
 
 /// The name `new_node` gives the node before it swaps in a unique one.
 pub(crate) const NEW_NAME: &str = "__new__";
+
+/// The key an object's map names its class's module under.
+pub(crate) const CLASS_KEY: &str = "__class";
+
+/// A node class's `new()`, a node carrying the script, and the doors another
+/// script reads and writes its members through: `__get` and `__set`, which
+/// answer Godot's own properties for any other name.
+pub(super) fn write_node(
+    shape: &mut Shape,
+    source: &str,
+    module: &str,
+    classes: &Classes,
+    functions: &[Function],
+    context: &Context,
+) {
+    let init = functions
+        .iter()
+        .find(|f| f.name == "_init" && !f.overridden);
+    if !functions.iter().any(|f| f.name == "new") {
+        let root = builtin_root(source, classes);
+        let doc = crate::godot::nodes::bare_document(&root, NEW_NAME)
+            .unwrap_or_else(|| format!("[[nodes]]\nname = \"{NEW_NAME}\"\n"));
+        let params: Vec<String> = init
+            .map(|f| f.params.iter().map(|p| safe(p)).collect())
+            .unwrap_or_default();
+        // `_init`'s arguments reach it once the node exists: its `init` has
+        // run it with the defaults already.
+        let rerun = if params.is_empty() {
+            String::new()
+        } else {
+            format!("node.call(\"_init\", {});\n", params.join(", "))
+        };
+        let body = format!(
+            "let node: Node = gd::new_node({}, {});\n{rerun}return node;\n",
+            gdscript::quoted(&doc),
+            gdscript::quoted(module),
+        );
+        let typed: Vec<String> = params.iter().map(|p| format!("{p}: any")).collect();
+        let mut fun = Fun::method("new", &[], body)
+            .doc(&format!("Godot's `new()`: a {root} carrying this script."))
+            .returns("Node");
+        fun.params = typed;
+        fun.method = false;
+        shape.funs.push(fun);
+    }
+    let mut get = String::new();
+    let mut set = String::new();
+    for member in &context.members {
+        let name = gdscript::quoted(member);
+        let field = format!("self.{MY}.{}", safe(member));
+        if context.getters.contains(member) {
+            get.push_str(&format!("if name == {name} {{\nreturn self.{GETTER}{member}();\n}}\n"));
+        } else {
+            get.push_str(&format!("if name == {name} {{\nreturn {field};\n}}\n"));
+        }
+        if context.setters.contains(member) {
+            set.push_str(&format!(
+                "if name == {name} {{\nself.{SETTER}{member}(value);\nreturn;\n}}\n"
+            ));
+        } else {
+            set.push_str(&format!("if name == {name} {{\n{field} = value;\nreturn;\n}}\n"));
+        }
+    }
+    get.push_str("return gd::node_property(self.node, name);\n");
+    set.push_str("gd::set_node_property(self.node, name, value);\n");
+    shape.funs.push(
+        Fun::method("__get", &["name: str"], get)
+            .doc("A member, as another script reads it; else the node's own property.")
+            .returns("any"),
+    );
+    shape.funs.push(
+        Fun::method("__set", &["name: str", "value: any"], set)
+            .doc("A member, as another script writes it; else the node's own property."),
+    );
+    shape.uses.insert("gd".into());
+}
+
+/// An object class: `new()` makes its map, and `__call`, `__get` and
+/// `__set` are what the project's dispatcher reaches it by.
+pub(super) fn write_object(
+    shape: &mut Shape,
+    module: &str,
+    functions: &[Function],
+    context: &Context,
+    plan: &Plan,
+) -> ObjectClass {
+    let init = functions
+        .iter()
+        .find(|f| f.name == "_init" && !f.overridden && !f.is_static);
+    let params: Vec<String> = init
+        .map(|f| f.params.iter().map(|p| safe(p)).collect())
+        .unwrap_or_default();
+    let mut body = format!(
+        "let this: any = map().with({}, {});\n",
+        gdscript::quoted(CLASS_KEY),
+        gdscript::quoted(module)
+    );
+    for line in &plan.defaults {
+        body.push_str(line);
+        body.push('\n');
+    }
+    if init.is_some() {
+        let mut args = vec!["this".to_string()];
+        args.extend(params.iter().cloned());
+        body.push_str(&format!("_init({});\n", args.join(", ")));
+    }
+    body.push_str("return this;\n");
+    let mut new = Fun::method("new", &[], body)
+        .doc("Godot's `new()`: this class as a map its functions take as `this`.")
+        .returns("any");
+    new.params = params.iter().map(|p| format!("{p}: any")).collect();
+    new.method = false;
+    shape.funs.push(new);
+
+    let mut call = String::new();
+    for f in shape.funs.iter().filter(|f| f.name != "new") {
+        if f.is_async {
+            continue;
+        }
+        let args: Vec<String> = (0..f.params.len())
+            .map(|i| format!("gd::arg(args, {i})"))
+            .collect();
+        let mut all = Vec::new();
+        if f.method {
+            all.push("this".to_string());
+        }
+        all.extend(args);
+        call.push_str(&dispatch_arm(&f.name, &all.join(", "), f.ret.is_some()));
+    }
+    for lifted in &shape.lifted {
+        let Some((name, takes, returns)) = lifted_signature(lifted) else {
+            continue;
+        };
+        let mut all = vec!["this".to_string()];
+        all.extend((0..takes).map(|i| format!("gd::arg(args, {i})")));
+        call.push_str(&dispatch_arm(&name, &all.join(", "), returns));
+    }
+    call.push_str("return nil;\n");
+    shape.funs.push(Fun {
+        name: "__call".into(),
+        params: vec!["method: str".into(), "args: any".into()],
+        ret: Some("any".into()),
+        body: call,
+        is_async: false,
+        doc: vec!["/// One of the class's functions, by name, as the dispatcher calls it.".into()],
+        method: true,
+    });
+    let accessors = !context.getters.is_empty() || !context.setters.is_empty();
+    if accessors {
+        let mut get = String::new();
+        let mut set = String::new();
+        for member in &context.getters {
+            let name = gdscript::quoted(member);
+            get.push_str(&format!("if name == {name} {{\nreturn {GETTER}{member}(this);\n}}\n"));
+        }
+        for member in &context.setters {
+            let name = gdscript::quoted(member);
+            set.push_str(&format!(
+                "if name == {name} {{\n{SETTER}{member}(this, value);\nreturn;\n}}\n"
+            ));
+        }
+        get.push_str("return this.get(name);\n");
+        set.push_str("this.set(name, value);\n");
+        shape.funs.push(Fun {
+            name: "__get".into(),
+            params: vec!["name: str".into()],
+            ret: Some("any".into()),
+            body: get,
+            is_async: false,
+            doc: vec!["/// A property, through its getter where it declares one.".into()],
+            method: true,
+        });
+        shape.funs.push(Fun {
+            name: "__set".into(),
+            params: vec!["name: str".into(), "value: any".into()],
+            ret: None,
+            body: set,
+            is_async: false,
+            doc: vec!["/// A property, through its setter where it declares one.".into()],
+            method: true,
+        });
+    }
+    shape.uses.insert("gd".into());
+    ObjectClass {
+        module: module.to_string(),
+        takes: params.len(),
+        accessors,
+    }
+}
+
+// One arm of a dispatcher: the call, and its result or nil.
+fn dispatch_arm(name: &str, args: &str, returns: bool) -> String {
+    let quoted = gdscript::quoted(name);
+    if returns {
+        format!("if method == {quoted} {{\nreturn {name}({args});\n}}\n")
+    } else {
+        format!("if method == {quoted} {{\n{name}({args});\nreturn nil;\n}}\n")
+    }
+}
+
+// A lifted lambda's name, how many values it takes past `this` and what it
+// captured, and whether it answers one: read off the function it became.
+fn lifted_signature(text: &str) -> Option<(String, usize, bool)> {
+    let head = text.trim_start();
+    if head.starts_with("pub async fn") {
+        return None;
+    }
+    let rest = head.strip_prefix("pub fn ")?;
+    let (name, rest) = rest.split_once('(')?;
+    let (params, tail) = rest.split_once(')')?;
+    let takes = params
+        .split(',')
+        .filter(|p| !p.trim().is_empty() && !p.trim().starts_with("this:"))
+        .count();
+    let returns = tail.trim_start().starts_with("->");
+    Some((name.to_string(), takes, returns))
+}
