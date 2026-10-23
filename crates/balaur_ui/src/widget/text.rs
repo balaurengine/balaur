@@ -18,43 +18,15 @@ pub(crate) fn label(
     style: &crate::widget::theme::Style,
 ) {
     let widget = &at.arena[index].widget;
-    let (wrap, truncate) = (widget.wrap, widget.width > 0.0);
-    let (align, elided) = (
-        widget.text_align.clone(),
-        widget.egui.show_tooltip_when_elided,
-    );
     let pad = crate::widget::arrange::padding_of(widget, style);
     let mut inset = (pad.taken() != egui::Vec2::ZERO).then(|| {
         let rect = pad.inside(ui.max_rect());
         ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()))
     });
     let text_ui = inset.as_mut().unwrap_or(ui);
-    if !shaped_label(text_ui, at, index, caption, color, font) {
-        let mut label = egui::Label::new(crate::widget::theme::rich(
-            caption,
-            font,
-            color,
-            at.slant(index),
-            &widget.text_look,
-        ));
-        // A stated width is a column, so the text is cut to it rather
-        // than run past into whatever sits beside it. Without one,
-        // `extend` is the old behaviour: one line, however wide.
-        label = if wrap {
-            label.wrap()
-        } else if truncate {
-            label.truncate()
-        } else {
-            label.extend()
-        }
-        .show_tooltip_when_elided(elided);
-        text_ui.with_layout(
-            egui::Layout::top_down(crate::widget::layer::across(&align)),
-            |ui| {
-                ui.add(label);
-            },
-        );
-    }
+    // The shaper is made before the first pass draws, so a label always has
+    // it: a pass that binds the fonts draws nothing.
+    shaped_label(text_ui, at, index, caption, color, font);
     if let Some(inset) = inset {
         ui.advance_cursor_after_rect(pad.around(inset.min_rect()));
     }
@@ -194,8 +166,7 @@ fn label_width(
     (width, column)
 }
 
-/// Draw a label through the shaper. Answers false when the shaper is not
-/// up yet, so the caller may fall back to egui's own text.
+/// Draw a label through the shaper; nothing while the shaper is not up.
 pub(crate) fn shaped_label(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -203,9 +174,9 @@ pub(crate) fn shaped_label(
     caption: &str,
     color: egui::Color32,
     font: &egui::FontId,
-) -> bool {
+) {
     let Some(state) = balaur_text::state(at.eng) else {
-        return false;
+        return;
     };
     let look = at.look(index);
     let style = &look.style;
@@ -292,7 +263,6 @@ pub(crate) fn shaped_label(
         crate::widget::theme::tip(&response, caption);
     }
     ui.set_clip_rect(held);
-    true
 }
 
 /// Whether a truncating label was cut short, which the whole line shaped with

@@ -133,6 +133,92 @@ pub(crate) fn gap_of(widget: &Widget, style: &Style, font_size: f32) -> f32 {
     }
 }
 
+/// A box that answers the pointer the way egui's button does, with nothing
+/// painted in it: at least `min`, its padding and a control's height, under
+/// the next automatic id, and named to a screen reader as `kind`.
+pub(crate) fn sensor(
+    ui: &mut egui::Ui,
+    min: egui::Vec2,
+    sense: egui::Sense,
+    kind: egui::WidgetType,
+    label: &str,
+) -> egui::Response {
+    let spacing = ui.spacing();
+    let mut size = min.max(spacing.button_padding * 2.0);
+    size.y = size.y.max(spacing.interact_size.y);
+    let (id, rect) = ui.allocate_space(size);
+    let response = ui.interact(rect, id, sense);
+    if let Some(cursor) = ui.visuals().interact_cursor
+        && response.hovered()
+    {
+        ui.ctx().set_cursor_icon(cursor);
+    }
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::labeled(kind, enabled, label));
+    response
+}
+
+/// A button of one line of text, painted as egui's: the frame the pointer's
+/// state dresses, the text at the layout's side. Inside a menu the menu's
+/// style leaves it flat until the pointer is on it. `selected` makes it a
+/// row of a list, framed only when picked or under the pointer.
+pub(crate) fn text_button(
+    ui: &mut egui::Ui,
+    text: egui::RichText,
+    selected: Option<bool>,
+) -> egui::Response {
+    let pad = ui.spacing().button_padding;
+    let galley = egui::WidgetText::from(text).into_galley(
+        ui,
+        None,
+        ui.available_width() - 2.0 * pad.x,
+        egui::TextStyle::Button,
+    );
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let label = galley.text().to_owned();
+    let response = sensor(
+        ui,
+        galley.size() + pad * 2.0,
+        egui::Sense::click(),
+        egui::WidgetType::Button,
+        &label,
+    );
+    if let Some(on) = selected {
+        let enabled = ui.is_enabled();
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::Button, enabled, on, &label)
+        });
+    }
+    if ui.is_rect_visible(response.rect) {
+        let look = ui.style().interact(&response);
+        let resting =
+            !(response.hovered() || response.is_pointer_button_down_on() || response.has_focus());
+        let fill = if selected == Some(true) {
+            ui.visuals().selection.bg_fill
+        } else {
+            look.weak_bg_fill
+        };
+        if !(selected == Some(false) && resting) {
+            ui.painter().set(
+                plate,
+                egui::epaint::RectShape::new(
+                    response.rect.expand(look.expansion),
+                    look.corner_radius,
+                    fill,
+                    look.bg_stroke,
+                    egui::StrokeKind::Inside,
+                ),
+            );
+        }
+        let side = egui::Align2([ui.layout().horizontal_align(), egui::Align::Center]);
+        let at = side
+            .align_size_within_rect(galley.size(), response.rect.shrink2(pad))
+            .min;
+        ui.painter().galley(at, galley, look.text_color());
+    }
+    response
+}
+
 /// What a button's `sense` lets the pointer do to it.
 fn sense_of(word: &str) -> egui::Sense {
     match word {
@@ -284,12 +370,12 @@ pub(crate) fn button(
         .max(floor)
         .max(given);
     let plate = ui.painter().add(egui::Shape::Noop);
-    let response = ui.add(
-        egui::Button::new("")
-            .min_size(min)
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::NONE)
-            .sense(sense_of(&widget.egui.sense)),
+    let response = sensor(
+        ui,
+        min,
+        sense_of(&widget.egui.sense),
+        egui::WidgetType::Button,
+        caption,
     );
     let pointer = Pointer::of(&response);
     let down = pointer == Pointer::Held || widget.checked;

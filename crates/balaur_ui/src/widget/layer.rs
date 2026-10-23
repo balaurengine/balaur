@@ -1055,8 +1055,17 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             warn_once(&widget.source, &err);
             if !widget.egui.alt_text.is_empty() {
                 let look = at.look(index);
-                let words = egui::RichText::new(widget.egui.alt_text.as_str());
-                ui.label(words.font(look.font.clone()).color(look.ink));
+                let words = egui::RichText::new(widget.egui.alt_text.as_str())
+                    .font(look.font.clone())
+                    .color(look.ink);
+                let galley = egui::WidgetText::from(words).into_galley(
+                    ui,
+                    None,
+                    ui.available_width(),
+                    egui::TextStyle::Body,
+                );
+                let (rect, _) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
+                ui.painter().galley(rect.min, galley, look.ink);
             }
             return;
         }

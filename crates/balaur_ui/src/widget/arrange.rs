@@ -14,8 +14,9 @@ use smol_str::SmolStr;
 use std::cell::RefCell;
 
 thread_local! {
-    /// What each widget drew last frame, so a subtree off the clip carries
-    /// its size over without drawing.
+    /// What each widget drew last frame: a subtree off the clip carries its
+    /// size over without drawing, and a size that moved lays the tree out
+    /// again.
     static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// Where each widget was drawn, for a script that has to place something
@@ -110,6 +111,12 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
+    // What a widget drew follows from more than its component: the fonts
+    // settling after the first passes, the scale. No write announces those,
+    // so a size that moved is what asks for the tree to be laid out again.
+    if measured_of(entity) != size {
+        crate::widget::arena::widget_changed(entity);
+    }
 }
 
 /// Last frame's measurements become this frame's; a widget that stopped
@@ -338,6 +345,47 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
 }
 
+/// One page's button on a `tabs` strip: the caption with a button's air,
+/// filled while it is the page showing and washed under the pointer.
+fn tab_head(
+    ui: &mut egui::Ui,
+    text: egui::RichText,
+    label: &str,
+    on: bool,
+    style: &crate::widget::theme::Style,
+) -> egui::Response {
+    let text = egui::WidgetText::from(text).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Button,
+    );
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let response = crate::widget::button::sensor(
+        ui,
+        text.size() + ui.spacing().button_padding * 2.0,
+        egui::Sense::click(),
+        egui::WidgetType::Button,
+        label,
+    );
+    let radius = egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8);
+    let fill = match (on, style.fill) {
+        (true, Some(fill)) => fill,
+        (true, None) => Color32::from_black_alpha(96),
+        (false, _) => Color32::TRANSPARENT,
+    };
+    ui.painter()
+        .set(plate, egui::Shape::rect_filled(response.rect, radius, fill));
+    if response.hovered() {
+        let held = response.is_pointer_button_down_on();
+        ui.painter()
+            .rect_filled(response.rect, radius, crate::widget::theme::wash(ui, held));
+    }
+    let at = response.rect.center() - text.size() / 2.0;
+    ui.painter().galley(at, text, Color32::PLACEHOLDER);
+    response
+}
+
 /// A tab container: a strip of its children's names, then the one showing.
 ///
 /// The label is a page's `text` where it has one and its node name otherwise,
@@ -401,20 +449,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
-                let mut button = egui::Button::new(crate::widget::theme::rich(
+                let text = crate::widget::theme::rich(
                     label.as_str(),
                     &font,
                     color,
                     slant,
                     &widget.text_look,
-                ))
-                .corner_radius(egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8));
-                button = match (on, style.fill) {
-                    (true, Some(fill)) => button.fill(fill),
-                    (true, None) => button.fill(Color32::from_black_alpha(96)),
-                    (false, _) => button.fill(Color32::TRANSPARENT),
-                };
-                let response = ui.add(button);
+                );
+                let response = tab_head(ui, text, label.as_str(), on, &style);
                 TAB_HEADS.with(|m| {
                     m.borrow_mut()
                         .insert(heads[slot].to_bits().get(), response.rect);

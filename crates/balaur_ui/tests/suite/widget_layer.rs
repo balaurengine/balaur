@@ -917,7 +917,11 @@ fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, vec![]);
     let first = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
-    assert!(first.contains("Text"), "control: the button drew no text");
+    // The caption is shaped by the engine and painted as a glyph mesh.
+    assert!(
+        first.contains("Mesh"),
+        "control: the button drew no caption"
+    );
     let settled = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
     assert_eq!(
         first, settled,

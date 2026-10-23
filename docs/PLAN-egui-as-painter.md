@@ -140,7 +140,8 @@ answer it.
 | `Checkbox`, `Slider`, `DragValue`, `ProgressBar`, `ComboBox`, `Separator` | no | Each draws egui's own face under the theme's. Phase 2 |
 | `Label` | no | The fallback when no shaper is loaded. Phase 2 makes the shaper always there |
 | `Button` as a sensor | no | A rect with `Sense::click()` is `ui.interact`. Phase 2 |
-| `Image` | may | A textured quad. `Shape::image` is the same thing with fewer options |
+| `Image` | yes | The tint, the corner radius, the region and `fit` are its own; `Shape::image` has none of the four |
+| `color_picker` | yes | The hue and saturation square and its popup are a picker, as `TextEdit` is a field. The roadmap's colour wheel kind (0.5) replaces it |
 | Panels, containers, the controls `immediate/` draws | no | Phase 1 |
 | `epaint_default_fonts` | editor only | Already a feature, `fallback-fonts`; a game ships its own faces |
 
@@ -203,8 +204,6 @@ times a frame each span ran, so the `ui rerun` row is a count.
 - The `code` kind's editor is `widget/code.rs` and reads the node and its
   theme. `api.rs` is the module, `chord.rs` the chord reader.
 - `fill_rows` lost the hidden `draw` node every row carried.
-- A size a widget drew no longer marks it changed. Only a `draw` node's
-  layout read it.
 - `balaur_bench`'s `seam` bench and its `widget_hatch` group went; both
   timed immediate calls.
 
@@ -253,6 +252,34 @@ suite passes with `widget_draw.rs` removed and nothing else changed; the
 editor's screenshots regenerate without a diff.
 
 ### Phase 2. The kinds draw their own face
+
+**Built 2026-10-23.** The layer builds no `Button`, `Checkbox`, `Slider`,
+`DragValue`, `ProgressBar`, `ComboBox`, `Separator` or `Label`.
+
+- `button::sensor` is egui's button with nothing painted: the box allocated
+  under the next automatic id, so focus and ids are what they were. The
+  `button` kind, a tab of the strip and a `number_field`'s arrows sense
+  through it.
+- `widget/drag.rs` and `widget/slide.rs` are egui's `DragValue` and
+  `Slider` ported: the drag and its smart aim, typing on a click, the keys,
+  the logarithmic scale and the number formats. Each names egui's licence
+  in its header.
+- `checkbox`, `separator`, `progress_bar`, the `dropdown`'s button, a
+  `menu`'s text buttons and its rows paint what egui painted, from egui's
+  visuals, which the theme dresses. The look is unchanged; the code is the
+  layer's.
+- A `label` is shaped by `balaur_text` or not drawn: the shaper is made
+  before the first pass draws.
+- Kept: `Image` and `color_picker`, §2 says why.
+- Phase 1 had stopped a size a widget drew from marking it changed, taking
+  it for a `draw` node's alone. It is what lays a tree out again once the
+  fonts settle: without it, `examples/interface`'s menu bar kept the widths
+  of its first pass. It is back.
+
+Proof: `examples/interface`'s four scenes, which hold every kind this phase
+touched, shot offscreen at 1280x800 before and after by `balaur run
+--offscreen --shot`. All four match to the pixel. The UI suite passes, and
+the editor's 24 self-test states run clean offscreen.
 
 The ROADMAP's "Theme states and icons" row (0.3) is most of this phase: the
 icons a check, a spin box, a tab and a slider draw. It widens to every kind
