@@ -183,9 +183,9 @@ pub fn download_project() -> Result<js_sys::Array, JsValue> {
     unreachable_pub,
     reason = "exported to the page by wasm-bindgen, not to another crate"
 )]
-pub fn project_file(path: String) -> Option<js_sys::Uint8Array> {
+pub fn project_file(path: &str) -> Option<js_sys::Uint8Array> {
     let fs = crate::web_store::ProjectFs::live()?;
-    fs.file(&path)
+    fs.file(path)
         .map(|bytes| js_sys::Uint8Array::from(bytes.as_slice()))
 }
 

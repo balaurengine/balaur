@@ -23,7 +23,7 @@ pub use export::Exporter;
 pub use host::{BsHost, EXTENSION};
 pub use mixed::Mixed;
 pub use native::NATIVE_FRAMEWORK;
-#[cfg(feature = "native")]
+#[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;
 #[cfg(feature = "c")]
 pub use native::native_source;

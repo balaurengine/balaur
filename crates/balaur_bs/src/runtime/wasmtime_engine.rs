@@ -304,12 +304,12 @@ pub(crate) fn instantiate(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     }))
 }
 
-fn store_for(engine: &Engine, setup: &Setup<'_>) -> Store<Data> {
+fn store_for(eng: &Engine, setup: &Setup<'_>) -> Store<Data> {
     let limits = setup
         .memory_bytes
         .map(|m| wasmtime::StoreLimitsBuilder::new().memory_size(m).build());
     let mut store = Store::new(
-        engine,
+        eng,
         Data {
             mem: None,
             host: setup.host.clone(),
@@ -589,12 +589,12 @@ fn fill_links(
 // it makes that unit, which fills every slot waiting for it, and calls it.
 fn stand_in(
     cx: impl AsContextMut<Data = Data>,
-    engine: &Engine,
+    eng: &Engine,
     link: &crate::Link,
     target: usize,
 ) -> Func {
     let ty = FuncType::new(
-        engine,
+        eng,
         link.params.iter().map(|s| vt(*s)),
         link.results.iter().map(|s| vt(*s)),
     );

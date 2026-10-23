@@ -23,11 +23,11 @@ atomics only that build has.
 | `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
 | `bs` | on | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
 | `bs-jit` | on | on |  | nothing |
-| `bs-wasmi` | off | off | The interpreter alone, beside `bs-web` in the web editor's module so a debugger can park a call; `bs` brings `native`, whose libloading has no wasm32 build. | nothing |
+| `bs-wasmi` | off | off | The interpreter alone: what the web editor's module adds beside `bs-web` so a debugger can park a call. | nothing |
 | `bs-web` | off | on |  | nothing |
 | `compile` | on | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the pack. | nothing |
 | `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (25 crates) |
-| `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | nothing |
+| `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | on | on | One feature per container `audio` decodes; a build without one plays none of that format. | `symphonia-bundle-flac` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |

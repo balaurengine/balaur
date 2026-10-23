@@ -9,12 +9,19 @@ fn main() {
         source_hash("src")
     );
     println!("cargo::rustc-check-cfg=cfg(jit)");
+    println!("cargo::rustc-check-cfg=cfg(native)");
     println!("cargo::rerun-if-env-changed=CARGO_FEATURE_WASMTIME");
+    println!("cargo::rerun-if-env-changed=CARGO_FEATURE_NATIVE");
     let asked = std::env::var_os("CARGO_FEATURE_WASMTIME").is_some();
     let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if asked && arch != "wasm32" && os != "ios" {
         println!("cargo::rustc-cfg=jit");
+    }
+    // `native`: a loaded native build may run a module. A browser cannot open
+    // a library, so there the feature is granted nothing.
+    if std::env::var_os("CARGO_FEATURE_NATIVE").is_some() && arch != "wasm32" {
+        println!("cargo::rustc-cfg=native");
     }
 }
 

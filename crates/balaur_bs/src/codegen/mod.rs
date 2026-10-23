@@ -9,7 +9,9 @@ mod host;
 mod lower;
 mod optional;
 mod rt;
+mod sections;
 mod stmt;
+mod units;
 
 use crate::ast::{Expr, ExprKind, FnDecl, Pos, Program, StmtKind, Ty};
 use crate::{
@@ -24,17 +26,14 @@ pub(crate) use func::show;
 /// allocator's free lists. A linked script's units put theirs from here.
 pub(crate) const DATA_START: u32 = DATA_BASE;
 use func::{FnGen, LVal, Mode, R, err};
-use rt::{
-    DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LINK_BASE,
-    G_LIVE, G_MEMORY_BASE, G_TABLE_BASE, GLOBALS, HELPER_COUNT, Helpers, mem,
-};
+use rt::{DATA_BASE, G_MEMORY_BASE, GLOBALS, HELPER_COUNT, Helpers, mem};
+use sections::{code_sections, export_section, host_global, memory_and_globals, table_sections};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
+use units::{UnitPlan, link_list, link_stubs, unit_imports};
 use wasm_encoder::{
-    BlockType, CodeSection, ConstExpr, DataSection, ElementSection, Elements, EntityType,
-    ExportKind, ExportSection, Function, FunctionSection, GlobalSection, GlobalType, ImportSection,
-    Instruction as I, MemorySection, MemoryType, Module, RefType, TableSection, TableType,
-    TypeSection, ValType,
+    BlockType, ConstExpr, DataSection, EntityType, ExportKind, GlobalType, ImportSection,
+    Instruction as I, Module, TypeSection, ValType,
 };
 
 /// A function of another unit, called through the link slots from `slot`:
@@ -630,162 +629,6 @@ fn script_sigs(
     Ok(idx)
 }
 
-/// A unit's module functions: each one its own functions name is a link,
-/// each one they do not is left out.
-#[derive(Default)]
-struct UnitPlan {
-    unit: bool,
-    /// Each module function's file.
-    origins: HashMap<String, String>,
-    called: std::collections::HashSet<String>,
-    methods: std::collections::HashSet<String>,
-    links: HashMap<String, Linked>,
-    slots: u32,
-    unused: std::collections::HashSet<String>,
-}
-
-impl UnitPlan {
-    fn of(prog: &Program, unit: bool) -> Self {
-        if !unit {
-            return UnitPlan::default();
-        }
-        let origins: HashMap<String, String> = prog.origin.iter().cloned().collect();
-        let (called, methods) = named(prog, &origins);
-        UnitPlan {
-            unit,
-            origins,
-            called,
-            methods,
-            ..UnitPlan::default()
-        }
-    }
-
-    // How many function indices module function `f` takes: its stubs, or
-    // none when nothing calls it; `None` for one of the file's own.
-    fn module_fn(&mut self, f: &FnDecl, key: &str) -> Option<u32> {
-        let file = self.origins.get(key)?;
-        let used = match &f.owner {
-            Some(_) => self.methods.contains(&f.name),
-            None => self.called.contains(key),
-        };
-        if !used {
-            self.unused.insert(key.to_string());
-            return Some(0);
-        }
-        let n = if f.is_async { 3 } else { 1 };
-        self.links.insert(
-            key.to_string(),
-            Linked {
-                slot: self.slots,
-                file: file.clone(),
-            },
-        );
-        self.slots += n;
-        Some(n)
-    }
-}
-
-// The functions a unit's own functions call or take as values, and the
-// methods they call by name: the module functions it needs links for, or a
-// few more.
-fn named(
-    prog: &Program,
-    origins: &HashMap<String, String>,
-) -> (
-    std::collections::HashSet<String>,
-    std::collections::HashSet<String>,
-) {
-    use crate::ast::{Block, Part};
-    type Names = std::collections::HashSet<String>;
-    fn block(b: &Block, out: &mut (Names, Names)) {
-        for s in &b.stmts {
-            match &s.kind {
-                StmtKind::Let { init, .. } => expr(init, out),
-                StmtKind::Assign { target, value, .. } => {
-                    expr(target, out);
-                    expr(value, out);
-                }
-                StmtKind::Expr(e) | StmtKind::Return(Some(e)) => expr(e, out),
-                StmtKind::While { cond, body } => {
-                    expr(cond, out);
-                    block(body, out);
-                }
-                StmtKind::Loop(body) => block(body, out),
-                StmtKind::ForRange { from, to, body, .. } => {
-                    expr(from, out);
-                    expr(to, out);
-                    block(body, out);
-                }
-                StmtKind::ForEach { items, body, .. } => {
-                    expr(items, out);
-                    block(body, out);
-                }
-                StmtKind::Return(None) | StmtKind::Break | StmtKind::Continue => {}
-            }
-        }
-        if let Some(t) = &b.tail {
-            expr(t, out);
-        }
-    }
-    fn expr(e: &Expr, out: &mut (Names, Names)) {
-        match &e.kind {
-            ExprKind::Call(name, args) => {
-                out.0.insert(name.clone());
-                for a in args {
-                    expr(a, out);
-                }
-            }
-            ExprKind::Var(v) => {
-                out.0.insert(v.clone());
-            }
-            ExprKind::Method(base, name, args) => {
-                out.1.insert(name.clone());
-                expr(base, out);
-                for a in args {
-                    expr(a, out);
-                }
-            }
-            ExprKind::Interp(parts) => {
-                for p in parts {
-                    if let Part::Value(v) = p {
-                        expr(v, out);
-                    }
-                }
-            }
-            ExprKind::Bin(_, a, b) | ExprKind::Index(a, b) | ExprKind::ArrayRepeat(a, b) => {
-                expr(a, out);
-                expr(b, out);
-            }
-            ExprKind::Unary(_, a)
-            | ExprKind::Field(a, _)
-            | ExprKind::Await(a)
-            | ExprKind::Cast(a, _) => expr(a, out),
-            ExprKind::StructLit(_, fields) => fields.iter().for_each(|(_, f)| expr(f, out)),
-            ExprKind::ArrayLit(items) => items.iter().for_each(|i| expr(i, out)),
-            ExprKind::If(c, then, els) => {
-                expr(c, out);
-                block(then, out);
-                if let Some(b) = els {
-                    block(b, out);
-                }
-            }
-            ExprKind::Int(_)
-            | ExprKind::Float(_)
-            | ExprKind::Bool(_)
-            | ExprKind::Str(_)
-            | ExprKind::Nil
-            | ExprKind::SelfRef
-            | ExprKind::Resumed(..) => {}
-        }
-    }
-    let mut out = (Names::new(), Names::new());
-    for f in prog.fns.iter().filter(|f| !origins.contains_key(&f.key())) {
-        block(&f.body, &mut out);
-    }
-    out
-}
-
-// A scalar a built-in import passes: a heap value goes as its pointer.
 fn wasm_of(t: &Ty) -> ValType {
     match t {
         Ty::Int | Ty::Node => ValType::I64,
@@ -882,41 +725,6 @@ fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternIn
         unit_imports(&mut sec);
     }
     (sec, externs, list)
-}
-
-// What a unit shares with the rest of its script: the memory, the `fn`
-// table, the allocator's globals, and where its own parts start.
-fn unit_imports(sec: &mut ImportSection) {
-    let host = words::HOST_MODULE;
-    let memory = MemoryType {
-        minimum: 1,
-        maximum: None,
-        memory64: false,
-        shared: false,
-        page_size_log2: None,
-    };
-    sec.import(host, words::MEMORY, EntityType::Memory(memory));
-    let table = TableType {
-        element_type: RefType::FUNCREF,
-        table64: false,
-        minimum: 1,
-        maximum: None,
-        shared: false,
-    };
-    sec.import(host, words::TABLE, EntityType::Table(table));
-    let global = |mutable| {
-        EntityType::Global(GlobalType {
-            val_type: ValType::I32,
-            mutable,
-            shared: false,
-        })
-    };
-    for name in words::UNIT_GLOBALS {
-        sec.import(host, name, global(true));
-    }
-    for name in [words::MEMORY_BASE, words::TABLE_BASE, words::LINK_BASE] {
-        sec.import(host, name, global(false));
-    }
 }
 
 #[derive(Default)]
@@ -1039,81 +847,6 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
     Ok(out)
 }
 
-// A function of another unit: a stub that calls through its link slot, or
-// three for an async one. A call and a `fn` value of it go to the stub.
-fn link_stubs(g: &Gen, sig: &Sig, slot: u32, out: &mut Emitted) {
-    let stub = |p: Vec<ValType>, r: Vec<ValType>, at: u32| {
-        let ty = g.type_idx(p.clone(), r);
-        let mut code: Vec<I<'static>> = (0..p.len() as u32).map(I::LocalGet).collect();
-        code.extend([
-            I::I32Const(at as i32),
-            I::GlobalGet(G_LINK_BASE),
-            I::I32Add,
-            I::CallIndirect {
-                type_index: ty,
-                table_index: 0,
-            },
-        ]);
-        (
-            ty,
-            FuncBody {
-                locals: vec![],
-                code,
-            },
-        )
-    };
-    g.calls_indirect.set(true);
-    if sig.kind == Kind::Async {
-        let ((sp, sr), (pp, pr)) = asyncs::signatures(g, sig);
-        out.bodies.push(stub(sp, sr, slot));
-        out.bodies.push(stub(pp, pr, slot + 1));
-        out.bodies.push(stub(vec![], vec![ValType::I32], slot + 2));
-    } else {
-        let (p, r) = g.wasm_sig(sig);
-        out.bodies.push(stub(p, r, slot));
-    }
-}
-
-// Each link slot's target, in slot order: the file, its export, its types.
-fn link_list(g: &Gen, prog: &Program) -> Vec<crate::Link> {
-    let slots = |v: &[ValType]| -> Vec<Slot> {
-        v.iter()
-            .map(|t| match t {
-                ValType::I64 => Slot::I64,
-                ValType::F64 => Slot::F64,
-                _ => Slot::I32,
-            })
-            .collect()
-    };
-    let mut out = vec![];
-    for f in &prog.fns {
-        let key = f.key();
-        let Some(link) = g.links.get(&key) else {
-            continue;
-        };
-        let sig = &g.sigs[&key];
-        // Its name in its own unit: `util::Thing.m` is `Thing.m` there.
-        let own = key.split_once("::").map_or(key.as_str(), |(_, k)| k);
-        let mut add = |suffix: &str, (p, r): Signature| {
-            out.push(crate::Link {
-                file: link.file.clone(),
-                export: format!("{}{own}{suffix}", words::LINK),
-                params: slots(&p),
-                results: slots(&r),
-            });
-        };
-        if sig.kind == Kind::Async {
-            let (start, poll) = asyncs::signatures(g, sig);
-            add(words::START, start);
-            add(words::POLL, poll);
-            add(words::FRAME, (vec![], vec![ValType::I32]));
-        } else {
-            add("", g.wasm_sig(sig));
-        }
-    }
-    out
-}
-
 // `ids`: the debugger's id for the function, in a debug build, and its row
 // in a profiled module's table.
 fn emit_sync(
@@ -1127,10 +860,9 @@ fn emit_sync(
     let (body, pts) = sync_fn(g, sig, f, ids)?;
     let (p, r) = g.wasm_sig(sig);
     out.bodies.push((g.type_idx(p, r), body));
-    // Every method is exported: the host calls `init` and `update` by name.
-    // One with a `&mut` parameter has no caller outside the module to hand
-    // its value back to.
-    // A unit's for the units that call it, `&mut` or not.
+    // Every method is exported for the host, bar one with a `&mut` parameter,
+    // which no caller outside the module can hand its value back to; a unit's
+    // methods are exported for the units that call them, `&mut` or not.
     if g.unit && (f.public || f.owner.is_some()) {
         out.exports.push((format!("{}{key}", words::LINK), sig.idx));
     }
@@ -1167,179 +899,6 @@ fn emit_dyns(g: &Gen, out: &mut Emitted) -> Vec<(u32, Ty)> {
             .push((g.type_idx(vec![ValType::I32], vec![]), body));
     }
     list
-}
-
-// `shift` is how far a direct module moved every function.
-fn export_section(
-    g: &Gen,
-    out: &Emitted,
-    dyns: &[(u32, Ty)],
-    debug: bool,
-    shift: u32,
-) -> ExportSection {
-    let mut ex = ExportSection::new();
-    ex.export(words::MEMORY, ExportKind::Memory, 0);
-    ex.export(words::ALLOC, ExportKind::Func, g.h.alloc + shift);
-    ex.export(words::FREE, ExportKind::Func, g.h.free + shift);
-    ex.export(words::LIVE, ExportKind::Global, G_LIVE);
-    ex.export(words::DBG_RESET, ExportKind::Func, g.h.dbg_reset + shift);
-    if g.meter {
-        ex.export(words::FUEL, ExportKind::Global, rt::G_FUEL);
-    }
-    if let Some(base) = g.prof_globals {
-        ex.export(words::STEPS, ExportKind::Global, base);
-        ex.export(words::PROF, ExportKind::Global, base + 2);
-    }
-    if debug {
-        for (name, at) in [
-            (words::DBG_BASE, G_DBG_BASE),
-            (words::DBG_SP, G_DBG_SP),
-            (words::DBG_FLAGS, G_DBG_FLAGS),
-            (words::DBG_BREAKS, G_DBG_BREAKS),
-        ] {
-            ex.export(name, ExportKind::Global, at);
-        }
-    }
-    ex.export(
-        &format!("{}str", words::DEC),
-        ExportKind::Func,
-        g.h.dec_str + shift,
-    );
-    for (i, ty) in dyns {
-        ex.export(
-            &format!("{}{}", words::DEC, show(ty)),
-            ExportKind::Func,
-            *i + shift,
-        );
-    }
-    for (name, i) in &out.exports {
-        ex.export(name, ExportKind::Func, *i + shift);
-    }
-    ex
-}
-
-// The table `fn` values index, when the module takes any: slot 0 empty, then
-// each function a `fn` value names, moved as far as a direct module moved them.
-fn table_sections(g: &Gen, shift: u32) -> (Option<TableSection>, Option<ElementSection>) {
-    let refs = g.fn_refs.borrow();
-    // A unit fills the script's table from its own base.
-    if g.unit {
-        if refs.is_empty() {
-            return (None, None);
-        }
-        let mut elements = ElementSection::new();
-        elements.active(
-            Some(0),
-            &ConstExpr::global_get(G_TABLE_BASE),
-            Elements::Functions(std::borrow::Cow::Owned(refs.clone())),
-        );
-        return (None, Some(elements));
-    }
-    if refs.is_empty() && !g.calls_indirect.get() {
-        return (None, None);
-    }
-    let size = refs.len() as u64 + 1;
-    let mut table = TableSection::new();
-    table.table(TableType {
-        element_type: RefType::FUNCREF,
-        table64: false,
-        minimum: size,
-        maximum: Some(size),
-        shared: false,
-    });
-    if refs.is_empty() {
-        return (Some(table), None);
-    }
-    let funcs: Vec<u32> = refs.iter().map(|i| i + shift).collect();
-    let mut elements = ElementSection::new();
-    elements.active(
-        Some(0),
-        &ConstExpr::i32_const(1),
-        Elements::Functions(std::borrow::Cow::Owned(funcs)),
-    );
-    (Some(table), Some(elements))
-}
-
-fn code_sections(bodies: &[(u32, FuncBody)]) -> (FunctionSection, CodeSection) {
-    let mut funcs = FunctionSection::new();
-    let mut code = CodeSection::new();
-    for (t, b) in bodies {
-        funcs.function(*t);
-        let mut f = Function::new(b.locals.iter().map(|v| (1u32, *v)));
-        for i in &b.code {
-            f.instruction(i);
-        }
-        f.instruction(&I::End);
-        code.function(&f);
-    }
-    (funcs, code)
-}
-
-// Memory: the static strings, then in debug builds the shadow stack and the
-// breakpoint table (a byte per statement), then the heap.
-fn memory_and_globals(
-    data_len: u32,
-    probes: u32,
-    debug: bool,
-    options: &Options,
-) -> (MemorySection, GlobalSection) {
-    let dbg_stack = (DATA_BASE + data_len).next_multiple_of(16);
-    let breaks = dbg_stack + DEBUG_STACK;
-    let heap = if debug {
-        (breaks + probes).next_multiple_of(16)
-    } else {
-        dbg_stack
-    };
-    let minimum = u64::from(heap / 65536 + 1);
-    let maximum = options
-        .memory_max
-        .map(|bytes| (bytes as u64).div_ceil(65536).max(minimum));
-    let mut memory = MemorySection::new();
-    memory.memory(MemoryType {
-        minimum,
-        maximum,
-        memory64: false,
-        shared: false,
-        page_size_log2: None,
-    });
-    let mut globals = GlobalSection::new();
-    let mutable = GlobalType {
-        val_type: ValType::I32,
-        mutable: true,
-        shared: false,
-    };
-    let mut init = [0u32; GLOBALS];
-    for (at, v) in [
-        (G_BUMP, heap),
-        (G_LIVE, 0),
-        (G_DBG_SP, dbg_stack),
-        (G_DBG_BASE, dbg_stack),
-        (G_DBG_FLAGS, 0),
-        (G_DBG_BREAKS, breaks),
-    ] {
-        init[at as usize] = v;
-    }
-    for v in init {
-        globals.global(mutable, &ConstExpr::i32_const(v as i32));
-    }
-    if options.meter {
-        globals.global(mutable, &ConstExpr::i32_const(i32::MAX));
-    }
-    if options.profile {
-        for _ in 0..PROF_GLOBALS {
-            globals.global(mutable, &ConstExpr::i32_const(0));
-        }
-    }
-    (memory, globals)
-}
-
-/// A profiled module's globals: the statement count, the callees' share of
-/// the call running, and the table's address.
-const PROF_GLOBALS: u32 = 3;
-
-// A direct module's instance id, after the fuel and the profile's globals.
-fn host_global(options: &Options) -> u32 {
-    GLOBALS as u32 + u32::from(options.meter) + PROF_GLOBALS * u32::from(options.profile)
 }
 
 pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Error> {

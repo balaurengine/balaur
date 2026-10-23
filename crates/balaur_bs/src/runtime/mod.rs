@@ -9,7 +9,7 @@ mod anys;
 mod debugger;
 mod engine;
 mod host;
-#[cfg(feature = "native")]
+#[cfg(native)]
 mod native_engine;
 mod profile;
 mod reentry;
@@ -52,21 +52,21 @@ pub fn cache_compiled_in(dir: &std::path::Path) {
 ///
 /// # Errors
 /// A library that does not open, or one built for another runtime.
-#[cfg(feature = "native")]
+#[cfg(native)]
 pub fn load_native(path: &std::path::Path) -> Result<usize, String> {
     native_engine::load(path)
 }
 
 /// Whether any native build is loaded: its modules are whole files, so a
 /// host builds its scripts whole to run them from it.
-#[cfg(feature = "native")]
+#[cfg(native)]
 #[must_use]
 pub fn native_loaded() -> bool {
     native_engine::any()
 }
 
 /// Whether a loaded native build has `wasm`.
-#[cfg(feature = "native")]
+#[cfg(native)]
 #[must_use]
 pub fn has_native(wasm: &[u8]) -> bool {
     native_engine::find(wasm).is_some()

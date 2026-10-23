@@ -239,12 +239,12 @@ pub(crate) fn instantiate(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     }))
 }
 
-fn store_for(engine: &Engine, setup: &Setup<'_>) -> Store<Data> {
+fn store_for(eng: &Engine, setup: &Setup<'_>) -> Store<Data> {
     let limits = setup
         .memory_bytes
         .map(|m| wasmi::StoreLimitsBuilder::new().memory_size(m).build());
     let mut store = Store::new(
-        engine,
+        eng,
         Data {
             mem: None,
             host: setup.host.clone(),

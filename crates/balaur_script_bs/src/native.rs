@@ -42,7 +42,7 @@ pub fn native_source(
 ///
 /// # Errors
 /// A library that does not open, or one built for another runtime.
-#[cfg(feature = "native")]
+#[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub fn load_native(path: &std::path::Path) -> anyhow::Result<usize> {
     balaur_bs::runtime::load_native(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))
 }
@@ -50,16 +50,16 @@ pub fn load_native(path: &std::path::Path) -> anyhow::Result<usize> {
 /// Whether a native build runs this game's scripts: one beside the
 /// executable, or one loaded by hand.
 pub(crate) fn any_native() -> bool {
-    #[cfg(feature = "native")]
+    #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
     return load_beside_executable() || balaur_bs::runtime::native_loaded();
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(all(feature = "native", not(target_arch = "wasm32"))))]
     false
 }
 
 pub(crate) fn has_native(wasm: &[u8]) -> bool {
-    #[cfg(feature = "native")]
+    #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
     return balaur_bs::runtime::has_native(wasm);
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(all(feature = "native", not(target_arch = "wasm32"))))]
     {
         let _ = wasm;
         false
@@ -68,7 +68,7 @@ pub(crate) fn has_native(wasm: &[u8]) -> bool {
 
 /// Loads the native build beside the executable, once a process, when there
 /// is one; whether any is loaded.
-#[cfg(feature = "native")]
+#[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub(crate) fn load_beside_executable() -> bool {
     static LOADED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *LOADED.get_or_init(|| {

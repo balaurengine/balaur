@@ -88,7 +88,7 @@ pub(crate) trait ImportCtx {
 }
 
 /// Reads past the end of memory come back as zeros, as an unwritten slot would.
-#[cfg(any(feature = "wasmi", feature = "native", jit))]
+#[cfg(any(feature = "wasmi", native, jit))]
 pub(crate) fn read_from(data: &[u8], at: usize, len: usize) -> Vec<u8> {
     data.get(at..at + len)
         .map_or_else(|| vec![0; len], <[u8]>::to_vec)
@@ -110,7 +110,7 @@ pub enum EngineKind {
     Browser,
     /// The native build an export made, loaded with
     /// [`load_native`](super::load_native); an error when it lacks the module.
-    #[cfg(feature = "native")]
+    #[cfg(native)]
     Native,
 }
 
@@ -143,6 +143,13 @@ pub(crate) fn unit_layout(
     (bases, at)
 }
 
+#[cfg_attr(
+    not(any(native, all(target_arch = "wasm32", feature = "web"))),
+    allow(
+        clippy::needless_pass_by_value,
+        reason = "the native and browser engines take the setup itself"
+    )
+)]
 pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     // A unit links with the units it uses, which wasmtime and wasmi do.
     if setup.meta.unit.is_some() {
@@ -162,7 +169,7 @@ pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn 
         };
     }
     // A native build beats every engine, when one has this module.
-    #[cfg(feature = "native")]
+    #[cfg(native)]
     if matches!(kind, EngineKind::Auto | EngineKind::Native) {
         if let Some(module) = super::native_engine::find(setup.wasm) {
             return super::native_engine::instantiate(module, setup);
