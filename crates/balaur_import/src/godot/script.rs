@@ -384,12 +384,13 @@ fn split_functions(source: &str) -> Vec<Function> {
         let line = lines[i];
         let top = !line.starts_with([' ', '\t']) && !line.trim().is_empty();
         if top && (line.starts_with("func ") || line.starts_with("static func ")) {
-            // A signature may run over lines until its closing `):`.
-            let mut signature = line.to_string();
+            // A signature may run over lines until its closing `):`, each
+            // line read without its comment.
+            let mut signature = uncommented(line).trim_end().to_string();
             while !balanced(&signature) && i + 1 < lines.len() {
                 i += 1;
                 signature.push(' ');
-                signature.push_str(lines[i].trim());
+                signature.push_str(uncommented(lines[i]).trim());
             }
             // A static `_init` is the class's static initialiser, not its
             // constructor.
@@ -400,10 +401,14 @@ fn split_functions(source: &str) -> Vec<Function> {
             function.lines.push(signature);
             // A bracket left open runs on, even past a line at column 0: a
             // list's closing `]` may sit there.
+            // A `"""` string runs over lines too, and its brackets count
+            // for nothing.
             let mut open = 0;
+            let mut long = false;
             while i + 1 < lines.len() {
                 let next = lines[i + 1];
                 let continues = open > 0
+                    || long
                     || next.trim().is_empty()
                     || next.starts_with([' ', '\t'])
                     || next.starts_with('#');
@@ -411,7 +416,13 @@ fn split_functions(source: &str) -> Vec<Function> {
                     break;
                 }
                 i += 1;
-                open = (open + depth_of(uncommented(next))).max(0);
+                let quotes = next.matches("\"\"\"").count();
+                if !long && quotes == 0 {
+                    open = (open + depth_of(uncommented(next))).max(0);
+                }
+                if quotes % 2 == 1 {
+                    long = !long;
+                }
                 function.lines.push(next.to_string());
             }
             functions.push(function);

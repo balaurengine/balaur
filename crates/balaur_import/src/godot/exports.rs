@@ -685,6 +685,14 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         };
         let inners = crate::godot::script::inner_classes(&source);
         index_inner_classes(&mut classes, file, &inners);
+        // Every module's defaulted functions, a class's or not: a call that
+        // leaves arguments out passes nil for them.
+        let defaulted = crate::godot::script::defaulted(&source);
+        if !defaulted.is_empty() {
+            classes
+                .defaulted
+                .insert(crate::godot::scene::script_path(file), defaulted);
+        }
         if let Some(name) = word("class_name ") {
             if let Some(base) = extends_target(&source) {
                 classes.bases.insert(name.clone(), base);
@@ -708,12 +716,6 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
                     format!("{name}.{inner}"),
                     crate::godot::script::inner_file(file, inner),
                 );
-            }
-            let defaulted = crate::godot::script::defaulted(&source);
-            if !defaulted.is_empty() {
-                classes
-                    .defaulted
-                    .insert(crate::godot::scene::script_path(file), defaulted);
             }
             classes.files.insert(name, file.clone());
         }
@@ -762,6 +764,12 @@ fn index_inner_classes(classes: &mut Classes, file: &str, inners: &[(String, Str
             format!("{}.{inner}", crate::godot::scene::script_path(file)),
             path.clone(),
         );
+        let defaulted = crate::godot::script::defaulted(text);
+        if !defaulted.is_empty() {
+            classes
+                .defaulted
+                .insert(crate::godot::scene::script_path(&path), defaulted);
+        }
         index_inner_classes(classes, &path, &crate::godot::script::inner_classes(text));
     }
 }

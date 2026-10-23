@@ -795,10 +795,28 @@ pub fn join(sep: str, parts: any) -> str {
     out
 }
 
-pub fn split(s: str, sep: str) -> any {
+/// Godot's `split(sep, allow_empty, maxsplit)`: empty parts kept unless
+/// `allow_empty` is false; past `maxsplit` splits, the rest is one part.
+pub fn split(s: str, sep: str, allow_empty: any, maxsplit: any) -> any {
+    let keep_empty = allow_empty.is_nil() || truthy(allow_empty);
+    let most = if maxsplit.is_nil() { 0 } else { maxsplit.as_int() };
     let out: any = [];
-    for part in s.split(sep) {
-        out.push(part);
+    let rest = s;
+    let made = 0;
+    while sep != "" && (most <= 0 || made < most) {
+        let at = rest.find(sep);
+        if at < 0 {
+            break;
+        }
+        let part = rest.slice(0, at);
+        if keep_empty || part != "" {
+            out.push(part);
+        }
+        made += 1;
+        rest = rest.slice(at + sep.len(), rest.len());
+    }
+    if keep_empty || rest != "" {
+        out.push(rest);
     }
     out
 }
@@ -1392,6 +1410,30 @@ fn node_call(node: Node, name: str, args: any) -> any {
 
 /// A callable's method, run with `args`. A lambda's method takes what it
 /// captured first.
+/// `await callable.call(..)`: a node's method through `call_async`, which
+/// resumes once it has returned.
+pub async fn call_value_async(callable: any, args: any) -> any {
+    if !is_callable(callable) {
+        return nil;
+    }
+    let target: any = callable.get(TARGET_KEY);
+    let method = callable.get(METHOD_KEY).as_str();
+    let full: any = [];
+    if callable.has(CAP_KEY) {
+        full.push(callable.get(CAP_KEY));
+    }
+    for a in args {
+        full.push(a);
+    }
+    if callable.has(ARGS_KEY) {
+        for a in callable.get(ARGS_KEY) {
+            full.push(a);
+        }
+    }
+    let out: any = await call_async(target, method, full);
+    out
+}
+
 pub fn call_value(callable: any, args: any) -> any {
     if !is_callable(callable) {
         return nil;
@@ -1603,7 +1645,7 @@ fn native(owner: any, name: str, args: any) -> any {
             return s.ends_with(a0.as_str());
         }
         if name == "split" {
-            return split(s, a0.as_str());
+            return split(s, a0.as_str(), a1, arg(args, 2));
         }
         if name == "replace" {
             return s.replace(a0.as_str(), a1.as_str());

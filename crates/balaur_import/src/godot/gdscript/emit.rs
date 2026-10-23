@@ -773,6 +773,9 @@ impl<'a> Emitter<'a> {
         if let Some(rest) = text.strip_prefix(map::INVOKE) {
             return format!("await gd::call_async({rest}");
         }
+        if let Some(rest) = text.strip_prefix("gd::call_value(") {
+            return format!("await gd::call_value_async({rest}");
+        }
         format!("await {text}")
     }
 

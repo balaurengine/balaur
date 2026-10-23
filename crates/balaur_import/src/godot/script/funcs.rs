@@ -131,6 +131,12 @@ pub(super) fn write_functions(
         text.push('\n');
         // A path that ends without a `return` answers the type's zero, as
         // Godot answers null.
+        // An async function's last wait may sit inside a branch, which reads
+        // as its value: it ends on a bare `return` instead.
+        if ret.is_none() && !synchronous && (body.awaits || context.asyncs.contains(&function.name))
+        {
+            text.push_str("return;\n");
+        }
         if let Some(ty) = &ret
             && !body
                 .text
@@ -187,8 +193,8 @@ fn parameters(
             Some(&"float") => Bt::Float,
             _ => kind,
         };
-        types.push((param.clone(), kind));
         let Some(fallback) = fallback.filter(|_| hook.is_none()) else {
+            types.push((param.clone(), kind));
             params.push(format!("{bound}: {}", kind.text()));
             continue;
         };
@@ -196,6 +202,9 @@ fn parameters(
         params.push(format!("{given}: any"));
         let value = super::expression(&fallback, context, function.is_static)
             .map_or_else(|| "nil".to_string(), |(text, _)| text);
+        // A default of null is no value of a typed parameter's type.
+        let kind = if value == "nil" { Bt::Any } else { kind };
+        types.push((param.clone(), kind));
         if kind == Bt::Any {
             prologue.push_str(&format!(
                 "let {bound}: any = {given};\nif {bound}.is_nil() {{\n{bound} = {value};\n}}\n"
@@ -338,7 +347,14 @@ fn write_forwarders(
         } else {
             ""
         };
-        let call = own_call(context, handler, &args);
+        // A handler that waits is started through the node, which runs it on.
+        let call = if context.asyncs.contains(handler) && !context.object_class {
+            let mut all = vec![crate::godot::gdscript::quoted(handler)];
+            all.extend(args.iter().cloned());
+            format!("self.node.call_async({})", all.join(", "))
+        } else {
+            own_call(context, handler, &args)
+        };
         let body = format!("{guard}{call};\n");
         let mut fun = Fun::method(&name, &["payload: any"], body)
             .doc(&format!("`{signal}`, as the engine delivers it."));

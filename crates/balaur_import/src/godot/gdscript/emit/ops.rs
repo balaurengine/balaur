@@ -299,6 +299,9 @@ impl Emitter<'_> {
         text.push_str(&self.block(body, 2));
         if returns {
             text.push_str("        return nil;\n");
+        } else if self.awaits {
+            // A body that ends on a wait inside a branch still ends here.
+            text.push_str("        return;\n");
         }
         self.scopes = outer_scopes;
         let awaited = std::mem::replace(&mut self.awaits, outer_awaits);
@@ -318,7 +321,10 @@ impl Emitter<'_> {
             cap.push_str(&format!(".with({}, {})", super::quoted(local), safe(local)));
         }
         self.uses_shim = true;
-        let target = if self.context.object_class {
+        // A static function has no instance for the lambda's method.
+        let target = if self.in_static {
+            "nil"
+        } else if self.context.object_class {
             "this"
         } else {
             "self.node"
