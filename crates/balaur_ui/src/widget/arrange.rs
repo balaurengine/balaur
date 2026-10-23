@@ -7,6 +7,7 @@
 use crate::vocabulary::words as w;
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use balaur_core::hecs::Entity;
 use egui::{Color32, pos2, vec2};
 use rustc_hash::FxHashMap;
@@ -273,7 +274,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The frame is painted under the box once the box is known, carrying the
     // look and no margin: `egui::Margin` is whole points, and the padding comes
     // off in floats instead.
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     {
         let frame_ui = &mut *ui;
         // The padding comes off the box in floats; the frame itself carries
@@ -332,7 +333,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let used = pad.around(inner_ui.min_rect());
         frame_ui.allocate_rect(used, egui::Sense::hover());
         if style.fill.is_some() || style.stroke.is_some() {
-            frame_ui.painter().set(
+            Brush::of(frame_ui).set(
                 plate,
                 crate::widget::theme::frame_shape(
                     used,
@@ -360,7 +361,7 @@ fn tab_head(
         f32::INFINITY,
         egui::TextStyle::Button,
     );
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let response = crate::widget::button::sensor(
         ui,
         text.size() + ui.spacing().button_padding * 2.0,
@@ -374,15 +375,13 @@ fn tab_head(
         (true, None) => Color32::from_black_alpha(96),
         (false, _) => Color32::TRANSPARENT,
     };
-    ui.painter()
-        .set(plate, egui::Shape::rect_filled(response.rect, radius, fill));
+    Brush::of(ui).set(plate, paint::filled(response.rect, radius, fill));
     if response.hovered() {
         let held = response.is_pointer_button_down_on();
-        ui.painter()
-            .rect_filled(response.rect, radius, crate::widget::theme::wash(ui, held));
+        Brush::of(ui).fill(response.rect, radius, crate::widget::theme::wash(ui, held));
     }
     let at = response.rect.center() - text.size() / 2.0;
-    ui.painter().galley(at, text, Color32::PLACEHOLDER);
+    Brush::of(ui).galley(at, text, Color32::PLACEHOLDER);
     response
 }
 
@@ -586,7 +585,7 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let style = at.style_of(&widget);
     if style.fill.is_some() || style.stroke.is_some() {
         let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
-        ui.painter().add(crate::widget::theme::frame_shape(
+        Brush::of(ui).add(crate::widget::theme::frame_shape(
             ui.max_rect(),
             radius,
             style.fill.unwrap_or(Color32::TRANSPARENT),

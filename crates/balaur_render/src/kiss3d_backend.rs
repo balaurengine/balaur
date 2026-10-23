@@ -316,7 +316,7 @@ impl Frontend {
                 balaur_ui::run_pass(&app.engine, ctx);
                 // After the widget pass and on the layer below it: the pass
                 // owns the context, and a control belongs under a menu.
-                crate::touch_draw::draw(&app.engine, ctx);
+                balaur_ui::draw_touch_controls(&app.engine, ctx);
             });
         }
         // On-screen keyboard follows ui keyboard focus, edge-detected after

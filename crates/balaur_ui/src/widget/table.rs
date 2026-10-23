@@ -7,6 +7,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 use crate::widget::rows::{
     Clicked, Ink, SEP, after_click, backdrop, landed, picked_set, shows, strings_of,
 };
@@ -298,7 +299,7 @@ fn head_row(ui: &mut egui::Ui, head: &Head<'_>, widths: &mut [f32]) -> Asked {
     };
     let (rect, _) = ui.allocate_exact_size(vec2(width, look.row_h), Sense::hover());
     if shows(look.ink.head) {
-        ui.painter().rect_filled(rect, 0.0, look.ink.head);
+        Brush::of(ui).fill(rect, 0.0, look.ink.head);
     }
     let ruled = shows(look.ink.rule);
     let line = Stroke::new(1.0, look.ink.rule);
@@ -352,13 +353,11 @@ fn head_row(ui: &mut egui::Ui, head: &Head<'_>, widths: &mut [f32]) -> Asked {
             asked.moved = true;
         }
         if ruled {
-            ui.painter()
-                .line_segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], line);
+            Brush::of(ui).segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], line);
         }
     }
     if ruled {
-        ui.painter()
-            .line_segment([rect.left_bottom(), rect.right_bottom()], line);
+        Brush::of(ui).segment([rect.left_bottom(), rect.right_bottom()], line);
     }
     asked
 }
@@ -390,17 +389,16 @@ fn cells(ui: &mut egui::Ui, c: &Cells<'_>) -> (bool, bool) {
         ui.allocate_exact_size(vec2(ui.available_width(), c.look.row_h), Sense::click());
     let radius = egui::CornerRadius::same((c.look.row_h * 0.2) as u8);
     if c.slot % 2 == 1 && shows(c.look.ink.stripe) {
-        ui.painter().rect_filled(rect, 0.0, c.look.ink.stripe);
+        Brush::of(ui).fill(rect, 0.0, c.look.ink.stripe);
     }
     if c.on {
-        ui.painter().rect_filled(rect, radius, c.look.ink.on);
+        Brush::of(ui).fill(rect, radius, c.look.ink.on);
     }
     // A picked row still answers the pointer: the wash goes over the fill
     // that says it is picked rather than instead of it.
     if response.hovered() {
         let held = response.is_pointer_button_down_on();
-        ui.painter()
-            .rect_filled(rect, radius, c.look.ink.wash(held));
+        Brush::of(ui).fill(rect, radius, c.look.ink.wash(held));
     }
     let (cells, tint) = split(c.item, c.heads.len());
     let ink = if c.on {
@@ -467,9 +465,7 @@ fn text_in(ui: &egui::Ui, cell: Rect, one: &Cell<'_>, color: Color32) {
         return;
     }
     let (at, align) = anchored(one, cell, inner);
-    ui.painter()
-        .with_clip_rect(inner)
-        .text(at, align, one.text, one.look.font.clone(), color);
+    Brush::clipped(ui, inner).text(at, align, one.text, one.look.font.clone(), color);
 }
 
 /// Whether a column is drawn against its right edge, which its name says by

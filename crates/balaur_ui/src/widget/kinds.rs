@@ -14,6 +14,7 @@ use crate::widget::arrange::{
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{Pointer, Style, WidgetState, rich};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
@@ -40,7 +41,7 @@ pub(crate) fn check(
         at.clicked.push(placed.entity);
     }
     if at.focused == Some(placed.entity) {
-        ui.painter().rect_stroke(
+        Brush::of(ui).outline(
             response.rect.expand(2.0),
             4.0,
             Stroke::new(2.0, color),
@@ -96,8 +97,8 @@ fn tick_box(
     );
     let mark =
         egui::Rect::from_center_size(frame.center(), egui::Vec2::splat(spacing.icon_width_inner));
-    let painter = ui.painter();
-    painter.rect(
+    let painter = Brush::of(ui);
+    painter.plate(
         frame,
         look.corner_radius,
         look.bg_fill,
@@ -149,15 +150,14 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let knob = dressed
         .text_color
         .unwrap_or(crate::widget::theme::DEFAULT_INK);
-    ui.painter().rect_filled(rect, height / 2.0, track);
+    Brush::of(ui).fill(rect, height / 2.0, track);
     let inset = height / 2.0;
     let x = if on {
         rect.max.x - inset
     } else {
         rect.min.x + inset
     };
-    ui.painter()
-        .circle_filled(pos2(x, rect.center().y), height * 0.34, knob);
+    Brush::of(ui).disc(pos2(x, rect.center().y), height * 0.34, knob);
 }
 
 /// One of the widget's `options`, chosen from a list that drops down.
@@ -250,7 +250,7 @@ fn picker(
     picked: egui::RichText,
     (fold, width): (egui::TextWrapMode, Option<f32>),
 ) -> egui::Response {
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let spacing = ui.spacing().clone();
     let margin = spacing.button_padding;
     let mut outer = ui.available_rect_before_wrap();
@@ -281,9 +281,9 @@ fn picker(
         } else {
             ui.style().interact(&response)
         };
-        ui.painter().set(
+        Brush::of(ui).set(
             plate,
-            egui::epaint::RectShape::new(
+            paint::rect(
                 rect.expand(look.expansion),
                 look.corner_radius,
                 look.weak_bg_fill,
@@ -298,7 +298,7 @@ fn picker(
             icon.center(),
             vec2(icon.width() * 0.7, icon.height() * 0.45),
         );
-        ui.painter().add(egui::Shape::convex_polygon(
+        Brush::of(ui).add(paint::polygon(
             vec![arrow.left_top(), arrow.right_top(), arrow.center_bottom()],
             look.fg_stroke.color,
             Stroke::NONE,
@@ -306,7 +306,7 @@ fn picker(
         let at = egui::Align2::LEFT_CENTER
             .align_size_within_rect(galley.size(), slot)
             .min;
-        ui.painter().galley(at, galley, look.text_color());
+        Brush::of(ui).galley(at, galley, look.text_color());
     }
     ui.advance_cursor_after_rect(rect);
     response
@@ -640,13 +640,13 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
     // An overhang past the box below zero pulls the line in from both ends.
     let grow = o.overhang;
     if across {
-        ui.painter().hline(
+        Brush::of(ui).hline(
             (rect.left() - grow)..=(rect.right() + grow),
             rect.center().y,
             stroke,
         );
     } else {
-        ui.painter().vline(
+        Brush::of(ui).vline(
             rect.center().x,
             (rect.top() - grow)..=(rect.bottom() + grow),
             stroke,
@@ -675,7 +675,7 @@ pub(crate) fn fold(
         return;
     }
     let top = strip.max.y + ui.spacing().item_spacing.y;
-    let frame = ui.painter().add(egui::Shape::Noop);
+    let frame = Brush::of(ui).slot();
     let pad = style
         .body
         .as_deref()
@@ -729,7 +729,7 @@ fn fold_header(
     let mark = font.size;
     let slant = at.slant(index);
     let galley = (!caption.is_empty())
-        .then(|| crate::widget::theme::galley(ui.painter(), caption, font, slant));
+        .then(|| crate::widget::theme::galley(&Brush::of(ui), caption, font, slant));
     let words = galley.as_ref().map_or(0.0, |galley| galley.size().x + gap);
     let sizes: Vec<egui::Vec2> = {
         let mut measure = Measure::new(at.eng, at.arena, ui);
@@ -744,7 +744,7 @@ fn fold_header(
         .map_or(mark, |galley| galley.size().y.max(mark));
     let tall = sizes.iter().fold(line, |most, size| most.max(size.y));
     let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
-    let frame = ui.painter().add(egui::Shape::Noop);
+    let frame = Brush::of(ui).slot();
     // Sensed before the bar's children are drawn, so theirs sit on top.
     let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
     if header.clicked() {
@@ -768,8 +768,7 @@ fn fold_header(
     let mut across = arrow.max.x + gap;
     if let Some(galley) = galley {
         let height = galley.size().y;
-        ui.painter()
-            .galley(pos2(across, middle - height / 2.0), galley, ink);
+        Brush::of(ui).galley(pos2(across, middle - height / 2.0), galley, ink);
         across += words;
     }
     for (child, size) in bar.iter().zip(sizes) {
@@ -778,7 +777,7 @@ fn fold_header(
         across = rect.max.x + gap;
     }
     if state.focused && style.focus.is_none() {
-        ui.painter().rect_stroke(
+        Brush::of(ui).outline(
             strip.expand(2.0),
             4.0,
             Stroke::new(2.0, ink),
@@ -800,12 +799,11 @@ fn fold_arrow(
     let texture = picture.and_then(|path| crate::images::texture_of(eng, ui.ctx(), path).ok());
     if let Some(texture) = texture {
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-        ui.painter()
-            .image(texture.id(), rect, whole, Color32::WHITE);
+        Brush::of(ui).picture(texture.id(), rect, whole, Color32::WHITE);
         return;
     }
     let mark = if open { "▾" } else { "▸" };
-    ui.painter().text(
+    Brush::of(ui).text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         mark,
@@ -816,7 +814,7 @@ fn fold_arrow(
 
 /// A style's frame over `rect`, into the slot reserved for it before what
 /// sits on it was drawn: its nine-patch, or its fill and outline.
-fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Style, rect: Rect) {
+fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &Style, rect: Rect) {
     if let Some(path) = style.image.as_ref() {
         nine_patch_plate(ui, eng, slot, path, style.slice, rect);
         return;
@@ -829,7 +827,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Styl
     } else {
         style.radius.unwrap_or(0.0)
     };
-    ui.painter().set(
+    Brush::of(ui).set(
         slot,
         crate::widget::theme::frame_shape(
             rect,
@@ -940,7 +938,7 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     );
     // The frame first, under everything the stack holds, as a container's is.
     if style.fill.is_some() || style.stroke.is_some() {
-        ui.painter().add(crate::widget::theme::frame_shape(
+        Brush::of(ui).add(crate::widget::theme::frame_shape(
             outer,
             egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -1042,7 +1040,7 @@ pub(crate) fn nine_patch(
     native: egui::Vec2,
     rect: Rect,
     slice: [f32; 4],
-) -> Vec<egui::Shape> {
+) -> Vec<crate::widget::paint::Shape> {
     nine_patch_tinted(texture, native, rect, slice, Color32::WHITE)
 }
 
@@ -1053,7 +1051,7 @@ pub(crate) fn nine_patch_tinted(
     rect: Rect,
     slice: [f32; 4],
     tint: Color32,
-) -> Vec<egui::Shape> {
+) -> Vec<crate::widget::paint::Shape> {
     let [left, top, right, bottom] = slice;
     let xs = [
         rect.min.x,
@@ -1089,7 +1087,7 @@ pub(crate) fn nine_patch_tinted(
             }
             let uv =
                 Rect::from_min_max(pos2(us[column], vs[row]), pos2(us[column + 1], vs[row + 1]));
-            shapes.push(egui::Shape::image(texture, piece, uv, tint));
+            shapes.push(paint::picture(texture, piece, uv, tint));
         }
     }
     shapes
@@ -1100,7 +1098,7 @@ pub(crate) fn nine_patch_tinted(
 pub(crate) fn nine_patch_plate(
     ui: &egui::Ui,
     eng: &Engine,
-    plate: egui::layers::ShapeIdx,
+    plate: crate::widget::paint::Slot,
     path: &str,
     slice: [f32; 4],
     rect: Rect,
@@ -1109,7 +1107,7 @@ pub(crate) fn nine_patch_plate(
     if let Ok(texture) = crate::images::texture_of(eng, &ctx, path) {
         let native = crate::images::native_size(eng, path, &texture);
         let shapes = nine_patch(texture.id(), native, rect, slice);
-        ui.painter().set(plate, egui::Shape::Vec(shapes));
+        Brush::of(ui).set(plate, paint::group(shapes));
     }
 }
 

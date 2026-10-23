@@ -21,6 +21,7 @@ pub mod palette;
 mod routing;
 mod splash;
 mod theme;
+mod touch;
 mod vocabulary;
 mod widget;
 
@@ -32,6 +33,7 @@ pub use loading::Loading;
 pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
+pub use touch::draw_touch_controls;
 pub use widget::input::{
     ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
     CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,

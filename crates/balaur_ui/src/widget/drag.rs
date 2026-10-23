@@ -10,6 +10,7 @@ use std::ops::RangeInclusive;
 use egui::{Key, Modifiers, Sense, TextEdit, TextWrapMode};
 
 use crate::vocabulary::words as w;
+use crate::widget::paint::Brush;
 
 /// How a number is spelled: the decimals a drag settles on, or a base.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -348,7 +349,7 @@ fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui:
     let response = ui.interact(rect, id, Sense::click_and_drag());
     if ui.is_rect_visible(rect) {
         let look = ui.style().interact(&response);
-        ui.painter().rect(
+        Brush::of(ui).plate(
             rect.expand(look.expansion),
             look.corner_radius,
             look.weak_bg_fill,
@@ -361,7 +362,7 @@ fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui:
         for piece in pieces {
             let at = egui::pos2(x, content.center().y - piece.size().y / 2.0);
             x += piece.size().x;
-            ui.painter().galley(at, piece, look.text_color());
+            Brush::of(ui).galley(at, piece, look.text_color());
         }
     }
     let enabled = ui.is_enabled();

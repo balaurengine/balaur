@@ -46,6 +46,7 @@ use crate::vocabulary::tokens as t;
 use crate::vocabulary::weights;
 use crate::vocabulary::words as w;
 use crate::widget::node::{Widget, rgba_color};
+use crate::widget::paint::{self, Brush};
 use egui::Color32;
 
 /// Where the pointer is, as far as one widget is concerned.
@@ -869,7 +870,7 @@ fn dashed_frame(
     radius: egui::CornerRadius,
     fill: Color32,
     stroke: egui::Stroke,
-) -> egui::Shape {
+) -> crate::widget::paint::Shape {
     let edge = rect.shrink(stroke.width / 2.0);
     let path = [
         edge.left_top(),
@@ -878,9 +879,9 @@ fn dashed_frame(
         edge.left_bottom(),
         edge.left_top(),
     ];
-    let mut shapes = vec![egui::epaint::RectShape::filled(rect, radius, fill).into()];
-    shapes.extend(egui::Shape::dashed_line(&path, stroke, 6.0, 5.0));
-    egui::Shape::Vec(shapes)
+    let mut shapes = vec![paint::filled(rect, radius, fill)];
+    shapes.extend(paint::dashed(&path, stroke, 6.0, 5.0));
+    paint::group(shapes)
 }
 
 /// A frame's fill and outline over `rect`. The outline is the style's stroke
@@ -891,10 +892,9 @@ pub(crate) fn frame_shape(
     radius: egui::CornerRadius,
     fill: Color32,
     style: &Style,
-) -> egui::Shape {
-    use egui::epaint::RectShape;
+) -> crate::widget::paint::Shape {
     let Some(color) = style.stroke else {
-        return RectShape::filled(rect, radius, fill).into();
+        return paint::filled(rect, radius, fill);
     };
     let [left, top, right, bottom] = match style.border {
         Some(sides) => sides,
@@ -906,14 +906,13 @@ pub(crate) fn frame_shape(
     }
     #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
     if left == top && top == right && right == bottom {
-        return RectShape::new(
+        return paint::rect(
             rect,
             radius,
             fill,
             egui::Stroke::new(left, color),
             egui::StrokeKind::Inside,
-        )
-        .into();
+        );
     }
     // Sides of different widths: egui strokes all four alike, so each band is
     // its own strip, square at the corners.
@@ -923,14 +922,14 @@ pub(crate) fn frame_shape(
         egui::Rect::from_min_max(egui::pos2(rect.max.x - right, rect.min.y), rect.max),
         egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.max.y - bottom), rect.max),
     ];
-    let mut shapes = vec![RectShape::filled(rect, radius, fill).into()];
+    let mut shapes = vec![paint::filled(rect, radius, fill)];
     shapes.extend(
         strips
             .into_iter()
             .filter(egui::Rect::is_positive)
-            .map(|strip| RectShape::filled(strip, 0.0, color).into()),
+            .map(|strip| paint::filled(strip, 0.0, color)),
     );
-    egui::Shape::Vec(shapes)
+    paint::group(shapes)
 }
 
 /// The near-white a caption takes when neither the widget nor its theme says.
@@ -1014,7 +1013,7 @@ pub(crate) fn rich(
 /// One unwrapped line laid out for the painter, slanted where [`slanted`]
 /// says; painted later in the ink the caller picks.
 pub(crate) fn galley(
-    painter: &egui::Painter,
+    painter: &Brush,
     text: &str,
     font: &egui::FontId,
     slant: bool,
@@ -1027,7 +1026,7 @@ pub(crate) fn galley(
     for section in &mut job.sections {
         section.format.italics = slant;
     }
-    painter.layout_job(job)
+    painter.job(job)
 }
 
 /// The weight a widget draws at, the theme answering for one left regular.

@@ -7,6 +7,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
 use crate::widget::drag::{DragNumber, Spelling};
 use crate::widget::layer::{Edit, Painting};
+use crate::widget::paint::{self, Brush};
 use crate::widget::slide::{Clamping, Scale, Slide};
 use crate::widget::theme::rich;
 
@@ -39,7 +40,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ui.available_width().min(160.0)
     };
     // The shown number sits after the track inside the same box.
-    let shown = value_room(ui.painter(), widget);
+    let shown = value_room(&Brush::of(ui), widget);
     ui.spacing_mut().slider_width = (length - shown).max(16.0);
     let decimals = usize::try_from(o.decimals).ok();
     let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
@@ -100,7 +101,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// What a `slider`'s shown number takes along it, the space before it
 /// included: its widest end with `prefix` and `suffix` across, a control's
 /// height down. Nothing where it shows none.
-pub(crate) fn value_room(painter: &egui::Painter, widget: &crate::widget::node::Widget) -> f32 {
+pub(crate) fn value_room(painter: &Brush, widget: &crate::widget::node::Widget) -> f32 {
     let o = &widget.egui;
     if !o.show_value {
         return 0.0;
@@ -125,7 +126,7 @@ pub(crate) fn value_room(painter: &egui::Painter, widget: &crate::widget::node::
         .into_iter()
         .map(|text| {
             let font = egui::TextStyle::Body.resolve(&style);
-            painter.layout_no_wrap(text, font, Color32::WHITE).size().x
+            painter.line_of(text, font, Color32::WHITE).size().x
         })
         .fold(0.0, f32::max)
         + pieces * spacing.icon_spacing;
@@ -263,8 +264,8 @@ fn paint_bar(
         || egui::CornerRadius::from(half),
         |radius| egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
     );
-    let painter = ui.painter();
-    painter.rect_filled(outer, radius, visuals.extreme_bg_color);
+    let painter = Brush::of(ui);
+    painter.fill(outer, radius, visuals.extreme_bg_color);
     let least = 2.0 * f32::from(radius.sw.max(radius.nw)).min(half);
     let filled = egui::Rect::from_min_size(
         outer.min,
@@ -277,7 +278,7 @@ fn paint_bar(
         1.0
     };
     let fill = style.fill.unwrap_or(visuals.selection.bg_fill);
-    painter.rect_filled(
+    painter.fill(
         filled,
         radius,
         Color32::from(egui::Rgba::from(fill) * shade),
@@ -294,7 +295,7 @@ fn paint_bar(
                 filled.right_center() + reach * vec2(cos as f32, sin as f32) + vec2(-half, 0.0)
             })
             .collect();
-        painter.add(egui::Shape::line(
+        painter.add(paint::line(
             points,
             egui::Stroke::new(2.0, visuals.text_color()),
         ));
@@ -332,8 +333,8 @@ fn arrow(ui: &mut egui::Ui, rect: egui::Rect, glyph: &str, size: f32) -> bool {
     });
     if ui.is_rect_visible(response.rect) {
         let look = ui.style().interact(&response);
-        let painter = ui.painter();
-        painter.rect(
+        let painter = Brush::of(ui);
+        painter.plate(
             response.rect.expand(look.expansion),
             look.corner_radius,
             look.weak_bg_fill,
@@ -425,7 +426,5 @@ pub(crate) fn progress(
     let ink = visuals
         .override_text_color
         .unwrap_or(visuals.selection.stroke.color);
-    ui.painter()
-        .with_clip_rect(outer)
-        .galley(place, galley, ink);
+    Brush::clipped(ui, outer).galley(place, galley, ink);
 }

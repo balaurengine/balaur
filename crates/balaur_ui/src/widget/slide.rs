@@ -12,6 +12,7 @@ use egui::emath::{Rangef, lerp, remap, remap_clamp};
 use egui::{Key, Pos2, Rect, Sense, pos2, vec2};
 
 use crate::widget::drag::{DragNumber, Spelling, clamp};
+use crate::widget::paint::{self, Brush};
 
 /// When a number is held inside the range.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -196,8 +197,8 @@ impl Slide<'_> {
             )
         };
         let corner = widgets.inactive.corner_radius;
-        let painter = ui.painter();
-        painter.rect_filled(bar, corner, widgets.inactive.bg_fill);
+        let painter = Brush::of(ui);
+        painter.fill(bar, corner, widgets.inactive.bg_fill);
         let at = self.position_of(value, along);
         let centre: Pos2 = if self.upright {
             pos2(bar.center().x, at)
@@ -214,17 +215,17 @@ impl Slide<'_> {
             } else {
                 trail.max.x = centre.x + f32::from(corner.nw);
             }
-            painter.rect_filled(trail, corner, ui.visuals().selection.bg_fill);
+            painter.fill(trail, corner, ui.visuals().selection.bg_fill);
         }
         let radius = self.handle_radius(&rect);
         match self.handle {
             None => {
-                painter.add(egui::epaint::CircleShape {
-                    center: centre,
-                    radius: radius + look.expansion,
-                    fill: look.bg_fill,
-                    stroke: look.fg_stroke,
-                });
+                painter.add(paint::circle(
+                    centre,
+                    radius + look.expansion,
+                    look.bg_fill,
+                    look.fg_stroke,
+                ));
             }
             Some(aspect) => {
                 let half = if self.upright {
@@ -232,7 +233,7 @@ impl Slide<'_> {
                 } else {
                     vec2(radius * aspect, radius)
                 } + egui::Vec2::splat(look.expansion);
-                painter.rect(
+                painter.plate(
                     Rect::from_center_size(centre, 2.0 * half),
                     look.corner_radius,
                     look.bg_fill,

@@ -18,6 +18,7 @@ pub(crate) mod measure;
 pub(crate) mod node;
 pub(crate) mod numbers;
 pub(crate) mod options;
+pub(crate) mod paint;
 pub(crate) mod pool;
 pub(crate) mod rows;
 pub(crate) mod schema;

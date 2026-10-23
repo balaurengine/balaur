@@ -9,6 +9,7 @@ use crate::UiState;
 use crate::theme;
 use crate::vocabulary::{keys as k, tokens as t, words as w};
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 use crate::widget::theme::WidgetTheme;
 
 /// A `code` node and the theme it is drawn under: what the editor reads.
@@ -406,23 +407,18 @@ impl Gutter {
                 pos2(rect.min.x, top),
                 pos2(ui.max_rect().right(), top + row_h),
             );
-            ui.painter()
-                .rect_filled(row, CornerRadius::ZERO, self.current_fill);
+            Brush::of(ui).fill(row, CornerRadius::ZERO, self.current_fill);
         }
         let font = FontId::new((self.size - 1.5).max(8.0), theme::family(w::MONO));
         for i in 0..n_lines {
             let center_y = rect.min.y + row_h * (i as f32 + 0.5);
             if self.breakpoints.contains(&(i + 1)) {
-                ui.painter().circle_filled(
-                    pos2(rect.min.x + 7.0, center_y),
-                    4.0,
-                    self.breakpoint_color,
-                );
+                Brush::of(ui).disc(pos2(rect.min.x + 7.0, center_y), 4.0, self.breakpoint_color);
             }
             // On the inner edge, so it reads beside the code and cannot be
             // taken for the breakpoint dot on the outer one.
             if let Some(color) = self.marks.color(i + 1) {
-                ui.painter().rect_filled(
+                Brush::of(ui).fill(
                     egui::Rect::from_min_size(
                         pos2(rect.max.x - 2.0, center_y - row_h * 0.5),
                         vec2(2.0, row_h),
@@ -431,7 +427,7 @@ impl Gutter {
                     color,
                 );
             }
-            ui.painter().text(
+            Brush::of(ui).text(
                 pos2(rect.max.x - 6.0, center_y),
                 Align2::RIGHT_CENTER,
                 (i + 1).to_string(),
@@ -482,9 +478,8 @@ pub(crate) fn code_editor(
     let margin = code_margin(widget.padding);
     let (changed, clicked, caret) = {
         let font = font.clone();
-        let row_h = ui
-            .painter()
-            .layout_no_wrap("0".into(), font.clone(), gutter.color)
+        let row_h = Brush::of(ui)
+            .line_of("0".into(), font.clone(), gutter.color)
             .size()
             .y;
         let mut changed = false;

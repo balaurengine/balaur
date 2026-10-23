@@ -13,6 +13,7 @@ use crate::widget::arrange::{Axis, hold_to, lay_out, padding_of, solved_of};
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 
 /// The cross on the title bar.
 const CLOSE: &str = "×";
@@ -72,7 +73,7 @@ pub(crate) fn window(
     if folded_now {
         box_size.y = 0.0;
     }
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     // Top down whatever the parent runs, as a panel's is.
     let mut inner = ui.new_child(
@@ -99,7 +100,7 @@ pub(crate) fn window(
         at.bounds = held;
     }
     let background = pad.around(inner.min_rect());
-    ui.painter().set(
+    Brush::of(ui).set(
         plate,
         crate::widget::theme::frame_shape(
             background,
@@ -131,7 +132,7 @@ fn title_bar(
         let arrow = egui::Rect::from_min_size(rect.min, vec2(line, line));
         let shut = folded(entity, &widget);
         let mark = if shut { FOLDED_MARK } else { UNFOLDED };
-        ui.painter().text(
+        Brush::of(ui).text(
             arrow.center(),
             egui::Align2::CENTER_CENTER,
             mark,
@@ -148,7 +149,7 @@ fn title_bar(
     }
     if widget.egui.closable {
         let cross = egui::Rect::from_min_max(pos2(rect.max.x - line, rect.min.y), rect.max);
-        ui.painter().text(
+        Brush::of(ui).text(
             cross.center(),
             egui::Align2::CENTER_CENTER,
             CLOSE,
@@ -167,9 +168,9 @@ fn title_bar(
         right = cross.min.x;
     }
     let slant = at.slant(index);
-    let words = crate::widget::theme::galley(ui.painter(), caption, font, slant);
+    let words = crate::widget::theme::galley(&Brush::of(ui), caption, font, slant);
     let y = rect.center().y - words.size().y / 2.0;
-    ui.painter().galley(pos2(left, y), words, color);
+    Brush::of(ui).galley(pos2(left, y), words, color);
     let handle = egui::Rect::from_min_max(pos2(left, rect.min.y), pos2(right, rect.max.y));
     if widget.egui.movable {
         let title = ui.interact(handle, ui.id().with(("title", entity)), Sense::drag());
@@ -216,7 +217,7 @@ fn grip(
     let ink = color.gamma_multiply(0.5);
     for step in 1..=3 {
         let inset = GRIP * step as f32 / 4.0;
-        ui.painter().line_segment(
+        Brush::of(ui).segment(
             [
                 pos2(corner.max.x - inset, corner.max.y - 2.0),
                 pos2(corner.max.x - 2.0, corner.max.y - inset),

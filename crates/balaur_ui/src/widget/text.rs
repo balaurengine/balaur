@@ -7,6 +7,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 use crate::widget::theme::weight_of;
 
 /// A label: its text inside the padding the layout kept round it.
@@ -235,8 +236,7 @@ pub(crate) fn shaped_label(
             .token(crate::vocabulary::tokens::PRIMARY_TEXT)
             .unwrap_or(ui.visuals().hyperlink_color)
     });
-    balaur_text::paint(
-        ui.painter(),
+    Brush::of(ui).glyphs(
         texture,
         &shaped,
         origin,
@@ -250,7 +250,7 @@ pub(crate) fn shaped_label(
     }
     for picture in &shaped.pictures {
         if let Ok(handle) = crate::images::texture_of(at.eng, ui.ctx(), &picture.path) {
-            ui.painter().image(
+            Brush::of(ui).picture(
                 handle.id(),
                 picture.rect.translate(origin.to_vec2()),
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
@@ -385,7 +385,7 @@ fn selecting(
                 .rect
                 .translate(origin.to_vec2())
                 .expand2(vec2(0.0, 2.0));
-            ui.painter().rect_filled(box_, 0.0, fill);
+            Brush::of(ui).fill(box_, 0.0, fill);
         }
     }
     // The platform's copy key, which is what `ui::shortcut` spells `cmd+c`.
@@ -422,8 +422,7 @@ fn underline(
     let mut run: Option<(u16, egui::Rect)> = None;
     let draw = |(_, box_): (u16, egui::Rect)| {
         let y = box_.max.y + 1.0;
-        ui.painter()
-            .hline(box_.min.x..=box_.max.x, y, egui::Stroke::new(1.0, color));
+        Brush::of(ui).hline(box_.min.x..=box_.max.x, y, egui::Stroke::new(1.0, color));
     };
     for quad in &shaped.quads {
         let box_ = quad.rect.translate(origin.to_vec2());
@@ -547,7 +546,7 @@ fn edit(
     let mut slanted = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
         let shown = if secret {
             std::iter::repeat_n(
-                egui::epaint::text::PASSWORD_REPLACEMENT_CHAR,
+                crate::widget::paint::PASSWORD_CHAR,
                 text.as_str().chars().count(),
             )
             .collect()

@@ -18,6 +18,7 @@ use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
 };
 use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{
     Pointer, Style, WidgetState, WidgetTheme, face, rich, styled, theme_of,
 };
@@ -982,7 +983,7 @@ fn panel(
     let style = at.style_of(widget);
     let pad = padding_of(widget, &style);
     let box_size = solved_of(widget, &at.style_of(widget), at.assigned);
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     // Top down whatever the parent runs: a caption in a centred row was
     // drawn halfway down the box, over the children placed under it.
@@ -1018,7 +1019,7 @@ fn panel(
     if let Some(path) = style.image.as_ref() {
         crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, background);
     } else {
-        ui.painter().set(
+        Brush::of(ui).set(
             plate,
             crate::widget::theme::frame_shape(
                 background,
@@ -1065,7 +1066,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                     egui::TextStyle::Body,
                 );
                 let (rect, _) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
-                ui.painter().galley(rect.min, galley, look.ink);
+                Brush::of(ui).galley(rect.min, galley, look.ink);
             }
             return;
         }
@@ -1083,11 +1084,11 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // stretches to the box.
         let (rect, response) = ui.allocate_exact_size(size, sense);
         if let Some(fill) = style.fill {
-            ui.painter().rect_filled(rect, 0.0, fill);
+            Brush::of(ui).fill(rect, 0.0, fill);
         }
         let shapes =
             crate::widget::kinds::nine_patch_tinted(texture.id(), native, rect, widget.slice, tint);
-        ui.painter().add(egui::Shape::Vec(shapes));
+        Brush::of(ui).add(paint::group(shapes));
         response.clicked()
     } else if widget.fit.is_empty() {
         let mut picture = picture_of(&texture, size, uv, o, &style);
@@ -1099,7 +1100,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let box_size = solved_of(widget, &style, at.assigned).max(size);
         let (rect, response) = ui.allocate_exact_size(box_size, sense);
         if let Some(fill) = style.fill {
-            ui.painter().rect_filled(rect, 0.0, fill);
+            Brush::of(ui).fill(rect, 0.0, fill);
         }
         let held = fitted(&widget.fit, rect, native);
         picture_of(&texture, held.size(), uv, o, &style).paint_at(ui, held);

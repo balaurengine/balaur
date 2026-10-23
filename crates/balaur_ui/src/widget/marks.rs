@@ -3,6 +3,7 @@
 
 use egui::{Color32, Rect, Sense, pos2};
 
+use crate::widget::paint::Brush;
 use crate::widget::rows::{Ink, SEP};
 
 /// One mark as a pass saw it: its name, its glyph, and what the pointer did.
@@ -49,13 +50,13 @@ pub(super) fn draw(
     for (name, glyph, sensed) in marks {
         if sensed.hovered() {
             let radius = egui::CornerRadius::same((sensed.rect.height() * 0.2) as u8);
-            ui.painter().rect_filled(
+            Brush::of(ui).fill(
                 sensed.rect.shrink(sensed.rect.height() * 0.1),
                 radius,
                 wash.wash(sensed.is_pointer_button_down_on()),
             );
         }
-        ui.painter().text(
+        Brush::of(ui).text(
             sensed.rect.center(),
             egui::Align2::CENTER_CENTER,
             *glyph,

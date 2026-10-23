@@ -46,6 +46,7 @@ mechanical; **REPORT** prints only.
 | Rule | Fails on |
 | --- | --- |
 | `platform-float-math` | `.sin()`, `f32::sin(x)`, `.powf()` and the rest of the inexact list |
+| `epaint-outside-paint` | egui's painter, a `Shape` or `epaint` named in `balaur_ui` outside `widget/paint.rs` and the pass in `lib.rs` |
 | `nondeterministic-iteration` | iterating a `HashMap`/`HashSet`; `DetHashMap`/`DetHashSet` are the substitutes |
 | `channel-outside-external-io` | an `mpsc` channel in a file naming neither `ExternalIo` nor `replay::suppressed` |
 | `allow-without-reason` | `#[allow(..)]` with no `reason = ".."` and no comment |

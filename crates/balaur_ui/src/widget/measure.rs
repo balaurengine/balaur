@@ -11,6 +11,7 @@ use crate::widget::arena::Placed;
 use crate::widget::arrange::padding_of;
 use crate::widget::layer::caption;
 use crate::widget::node::{Widget, lays_out};
+use crate::widget::paint::Brush;
 use crate::widget::theme::WidgetTheme;
 use balaur_core::Engine;
 use egui::vec2;
@@ -26,7 +27,7 @@ pub(crate) struct Measure<'a> {
     arena: &'a [Placed],
     /// The painter is how text is measured without drawing it, and the
     /// padding is what egui will put around a button's own text.
-    painter: egui::Painter,
+    painter: Brush,
     padding: egui::Vec2,
     seen: FxHashMap<usize, egui::Vec2>,
     /// What `leaf` answered, which is not what `of` answers: no stated size
@@ -43,7 +44,7 @@ impl<'a> Measure<'a> {
         Self {
             eng,
             arena,
-            painter: ui.painter().clone(),
+            painter: Brush::of(ui),
             padding: ui.spacing().button_padding * 2.0,
             seen: FxHashMap::default(),
             leaves: FxHashMap::default(),
@@ -457,7 +458,7 @@ impl<'a> Measure<'a> {
                 family(w::ICON),
             );
             self.painter
-                .layout_no_wrap(widget.icon.to_string(), face, egui::Color32::WHITE)
+                .line_of(widget.icon.to_string(), face, egui::Color32::WHITE)
                 .size()
         };
         let pic = self.picture(widget, style, font.size);
@@ -465,7 +466,7 @@ impl<'a> Measure<'a> {
             egui::Vec2::ZERO
         } else {
             self.painter
-                .layout_no_wrap(
+                .line_of(
                     widget.trailing.to_string(),
                     font.clone(),
                     egui::Color32::WHITE,
@@ -528,7 +529,7 @@ impl<'a> Measure<'a> {
         }
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         self.painter
-            .layout_no_wrap(
+            .line_of(
                 widget.egui.alt_text.to_string(),
                 look.font.clone(),
                 egui::Color32::WHITE,
@@ -643,11 +644,11 @@ impl<'a> Measure<'a> {
         match width {
             Some(width) => self
                 .painter
-                .layout(text.to_owned(), font, egui::Color32::WHITE, width)
+                .wrapped(text.to_owned(), font, egui::Color32::WHITE, width)
                 .size(),
             None => self
                 .painter
-                .layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
+                .line_of(text.to_owned(), font, egui::Color32::WHITE)
                 .size(),
         }
     }

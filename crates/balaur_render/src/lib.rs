@@ -172,8 +172,6 @@ mod shader_material_3d;
 mod skinned_2d;
 #[cfg(feature = "window")]
 mod skinned_3d;
-#[cfg(feature = "window")]
-mod touch_draw;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor

@@ -320,6 +320,22 @@ diff in it a face the theme now draws; phase 0's `ui` row, not slower.
 
 ### Phase 3. One paint seam
 
+**Built 2026-10-23.** `widget/paint.rs` holds a `Brush`, egui's painter
+with a method for each shape the layer paints and each line of text it
+measures, made from a `Ui`, a clip or a layer. The shapes a kind keeps to
+paint later (`rect`, `filled`, `picture`, `group`, `dashed`, `polygon`,
+`circle`) are built there too, and `Slot` holds a place in the paint order.
+
+- About 150 painter calls across sixteen files, `splash.rs` among them, go
+  through it.
+- The touch controls moved from `balaur_render/src/touch_draw.rs` into
+  `balaur_ui/src/touch.rs`, as `balaur_ui::draw_touch_controls`, so they
+  paint through it too.
+- `epaint-outside-paint` fails `.painter()`, `layer_painter`,
+  `egui::Shape`, `egui::Painter`, `epaint::` or `ShapeIdx` in `balaur_ui`
+  outside `widget/paint.rs` and `lib.rs`, which owns the pass and its font
+  atlas.
+
 Every shape a kind emits goes through `widget/paint.rs`: a plate (fill,
 stroke, corner), a line, a glyph run from a `balaur_text::Shaped`, a picture
 from a texture id, a clip. The 97 painter lines in `widget/` become calls
@@ -336,7 +352,8 @@ into it, and `theme.rs`'s ten keep only the look, not the shape.
   calls are, so that a second painter, if one ever comes, is one file to
   write.
 
-Proof: the lint is green; the UI suite's shape assertions are unchanged.
+Proof: the lint is green, the UI suite passes, and `examples/interface`'s
+four scenes shot before phase 2 and after this phase match to the pixel.
 
 ### Phase 4. One pass a frame
 

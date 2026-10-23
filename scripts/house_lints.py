@@ -48,6 +48,13 @@ PLATFORM_FLOAT_RS = re.compile(rf"(?:\.|\bf(?:32|64)::)(?:{_INEXACT_FLOAT})\(")
 # glam's own methods, which the workspace builds with glam's `libm` feature.
 GLAM_BOUND = {"crates/balaur_script_rune/src/value/glam_api.rs"}
 
+# egui's painter, reached from the widget layer: `widget/paint.rs` is the one
+# file that holds it, and `lib.rs` the pass that owns the context and its font
+# atlas (docs/PLAN-egui-as-painter.md, phase 3).
+EGUI_PAINT = re.compile(r"\.painter\(\)|\blayer_painter\s*\(|\begui::(?:Shape|epaint|Painter)\b|\bepaint::|\bShapeIdx\b")
+EGUI_PAINT_SCOPE = "crates/balaur_ui/src/"
+EGUI_PAINT_HOLDERS = {"crates/balaur_ui/src/widget/paint.rs", "crates/balaur_ui/src/lib.rs"}
+
 # A literal key is a second spelling of what the crate's vocabulary already
 # names (NAMING.md N17), and the reader takes the default instead of saying so.
 VOCABULARY_LITERAL = re.compile(
@@ -604,6 +611,14 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                             f"comment adds nothing over `{m.group(1)}`", "REPORT"))
                 comment_run_start = None
                 comment_run = []
+
+        if (not is_comment and rel.as_posix().startswith(EGUI_PAINT_SCOPE)
+                and rel.as_posix() not in EGUI_PAINT_HOLDERS and not is_test_file(rel)):
+            m = EGUI_PAINT.search(line)
+            if m:
+                findings.append(Finding(rel, i, "epaint-outside-paint",
+                                        f"`{m.group(0)}` reaches egui's painter; paint through "
+                                        "`widget::paint` (docs/PLAN-egui-as-painter.md)", "ERROR"))
 
         if not is_comment and rel.as_posix() not in GLAM_BOUND:
             m = PLATFORM_FLOAT_RS.search(line)

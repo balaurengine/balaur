@@ -10,6 +10,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::{Pad, padding_of};
 use crate::widget::layer::Painting;
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{Pointer, Style, WidgetState};
 
 /// What a button paints inside itself: a picture, the icon glyph, the
@@ -65,17 +66,14 @@ fn face_of(
     } else {
         Some(widget.trailing.to_string())
     };
-    let trailing = shown.map(|text| {
-        ui.painter()
-            .layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER)
-    });
+    let trailing =
+        shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER));
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(
             crate::widget::text::icon_px(widget, font.size),
             family(w::ICON),
         );
-        ui.painter()
-            .layout_no_wrap(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
+        Brush::of(ui).line_of(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
     });
     let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
     let pic = picture.map_or(egui::Vec2::ZERO, |(_, s)| {
@@ -93,10 +91,8 @@ fn face_of(
             shaped = crate::widget::text::shaped_caption(ui, at, index, caption, font, room);
         }
     }
-    let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
-        ui.painter()
-            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::PLACEHOLDER)
-    });
+    let plain = (shaped.is_none() && !caption.is_empty())
+        .then(|| Brush::of(ui).line_of(caption.to_owned(), font.clone(), Color32::PLACEHOLDER));
     let text = shaped.as_ref().map_or_else(
         || plain.as_ref().map_or(egui::Vec2::ZERO, |g| g.size()),
         |(shaped, _)| shaped.size,
@@ -174,7 +170,7 @@ pub(crate) fn text_button(
         ui.available_width() - 2.0 * pad.x,
         egui::TextStyle::Button,
     );
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let label = galley.text().to_owned();
     let response = sensor(
         ui,
@@ -199,9 +195,9 @@ pub(crate) fn text_button(
             look.weak_bg_fill
         };
         if !(selected == Some(false) && resting) {
-            ui.painter().set(
+            Brush::of(ui).set(
                 plate,
-                egui::epaint::RectShape::new(
+                paint::rect(
                     response.rect.expand(look.expansion),
                     look.corner_radius,
                     fill,
@@ -214,7 +210,7 @@ pub(crate) fn text_button(
         let at = side
             .align_size_within_rect(galley.size(), response.rect.shrink2(pad))
             .min;
-        ui.painter().galley(at, galley, look.text_color());
+        Brush::of(ui).galley(at, galley, look.text_color());
     }
     response
 }
@@ -244,9 +240,9 @@ fn paint_face(
     // A caption that neither wraps nor truncates is cut at the box rather
     // than painted over whatever sits beside it.
     let painter = if face.size.x + pad.taken().x > rect.width() {
-        ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()))
+        Brush::clipped(ui, rect)
     } else {
-        ui.painter().clone()
+        Brush::of(ui)
     };
     let inner = pad.inside(rect);
     let align = style.align.as_deref();
@@ -276,12 +272,12 @@ fn paint_face(
             size + egui::Vec2::splat(face.plate * 2.0),
         );
         if let Some(plate) = style.plate {
-            painter.rect_filled(disc, disc.height() / 2.0, plate);
+            painter.fill(disc, disc.height() / 2.0, plate);
         }
         let inner = egui::Rect::from_center_size(disc.center(), size);
         // A theme that names an `icon_color` tints the picture with it, the
         // way Godot's `icon_normal_color` dresses a button's icon.
-        painter.add(egui::Shape::image(
+        painter.add(paint::picture(
             texture,
             inner,
             egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
@@ -299,8 +295,7 @@ fn paint_face(
     }
     if let Some((shaped, texture)) = &face.shaped {
         let origin = pos2(at_x, middle - shaped.size.y / 2.0);
-        balaur_text::paint(
-            &painter,
+        painter.glyphs(
             *texture,
             shaped,
             origin,
@@ -369,7 +364,7 @@ pub(crate) fn button(
         .max(vec2(widget.width, widget.height))
         .max(floor)
         .max(given);
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let response = sensor(
         ui,
         min,
@@ -393,7 +388,7 @@ pub(crate) fn button(
             style.slice,
             response.rect,
         ),
-        None => ui.painter().set(
+        None => Brush::of(ui).set(
             plate,
             crate::widget::theme::frame_shape(
                 response.rect,
@@ -407,8 +402,7 @@ pub(crate) fn button(
     // answers the pointer, and a theme refines what that looks like.
     let plain = base.hover.is_none() && base.active.is_none() && base.checked.is_none();
     if (response.hovered() || widget.checked) && plain {
-        ui.painter()
-            .rect_filled(response.rect, radius, crate::widget::theme::wash(ui, down));
+        Brush::of(ui).fill(response.rect, radius, crate::widget::theme::wash(ui, down));
     }
     let ink = if widget.text_color[3] > 0.0 {
         color
@@ -422,7 +416,7 @@ pub(crate) fn button(
     if focused == Some(entity) {
         // Drawn rather than egui's own focus ring: the ring follows
         // egui's keyboard focus, and this follows the scene's.
-        ui.painter().rect_stroke(
+        Brush::of(ui).outline(
             response.rect.expand(2.0),
             radius,
             Stroke::new(2.0, style.stroke.unwrap_or(ink)),
