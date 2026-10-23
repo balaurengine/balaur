@@ -33,7 +33,9 @@ mod interact;
 
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result, bail};
+#[cfg(any(feature = "bs-backend", feature = "extensions"))]
+use anyhow::Context;
+use anyhow::{Result, bail};
 
 /// Every optional module: the name it goes by, the cargo feature that
 /// switches it on, and the plugin it registers.
