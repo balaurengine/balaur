@@ -15,11 +15,11 @@ fn app_with(body: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.rn\" }\n\n\
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\n\
          [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\nwidget = { kind = \"row\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("s.rn"), body).unwrap();
+    std::fs::write(dir.path().join("s.bs"), body).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -47,20 +47,24 @@ fn prop(app: &App, node: Entity, key: &str) -> Option<toml::Value> {
 fn number(app: &App, name: &str) -> Option<f64> {
     let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
         .expect("the scene has a Root node");
-    balaur::script_rune::rune_of(&app.engine).number_field(root, name)
+    crate::support::script_number(app, root, name)
 }
 
 #[test]
 fn a_strip_makes_a_node_a_control_and_hides_what_a_shorter_list_leaves() {
     let (_dir, mut app) = app_with(
-        "pub fn init(this) { this.n = 3; this.frames = 0.0; }\n\
-         pub fn update(this, dt) {\n\
-             this.frames += 1.0;\n\
-             let controls = [];\n\
-             for i in 0..this.n { controls.push(#{ kind: \"label\", text: `L${i}` }); }\n\
-             ui::fill_strip(\"Root/Bar\", controls);\n\
-             this.n = 1;\n\
-         }\n",
+        "pub struct Root { node: Node, n: int, frames: int }
+impl Root {
+    fn init() { self.n = 3; }
+    fn update(dt: float) {
+        self.frames += 1;
+        let controls: [any] = [];
+        for i in 0..self.n { controls.push(map().with(\"kind\", \"label\").with(\"text\", \"L{i}\")); }
+        ui::fill_strip(\"Root/Bar\", controls);
+        self.n = 1;
+    }
+}
+",
     );
     app.tick(1.0 / 60.0);
     let made = kids(&app);
@@ -91,13 +95,18 @@ fn a_strip_makes_a_node_a_control_and_hides_what_a_shorter_list_leaves() {
 #[test]
 fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
-        "pub fn init(this) { this.on = false; this.edits = 0.0; }\n\
-         pub fn update(this, dt) {\n\
-             ui::fill_strip(\"Root/Bar\", [#{ kind: \"checkbox\", checked: this.on, on: |v| {\n\
-                 this.edits += 1.0;\n\
-                 this.on = v;\n\
-             } }]);\n\
-         }\n",
+        "pub struct Root { node: Node, on: bool, edits: int }
+impl Root {
+    fn update(dt: float) {
+        let controls: [any] = [map().with(\"kind\", \"checkbox\").with(\"checked\", self.on).with(\"on\", \"toggled\")];
+        ui::fill_strip(\"Root/Bar\", controls);
+    }
+    pub fn toggled(data: any, v: any) {
+        self.edits += 1;
+        self.on = v.as_bool();
+    }
+}
+",
     );
     app.tick(1.0 / 60.0);
     let boxed = kids(&app)[0];
@@ -136,15 +145,20 @@ fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
 #[test]
 fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
     let (_dir, mut app) = app_with(
-        "pub fn init(this) { this.frames = 0.0; }\n\
-         pub fn update(this, dt) {\n\
-             this.frames += 1.0;\n\
-             if this.frames % 2.0 == 0.0 {\n\
-                 scene::get_node(\"Root/Bar\").patch_component(\"widget\", #{ visible: false });\n\
-             } else {\n\
-                 ui::fill_rows(\"Root/Bar\", [#{ label: \"a\", controls: [#{ kind: \"label\", text: \"x\" }] }], 40.0, false);\n\
-             }\n\
-         }\n",
+        "pub struct Root { node: Node, frames: int }
+impl Root {
+    fn update(dt: float) {
+        self.frames += 1;
+        if self.frames % 2 == 0 {
+            scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"visible\", false));
+        } else {
+            let label: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"x\")];
+            let rows: [any] = [map().with(\"label\", \"a\").with(\"controls\", label)];
+            ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
+        }
+    }
+}
+",
     );
     for frame in 1..=7 {
         app.tick(1.0 / 60.0);
@@ -168,19 +182,25 @@ fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
 #[test]
 fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
     let (_dir, mut app) = app_with(
-        "pub fn init(this) {\n\
-             this.frames = 0.0; this.edits = 0.0;\n\
-             scene::get_node(\"Root/Bar\").patch_component(\"widget\", #{ kind: \"column\", anchor: \"fill\" });\n\
-         }\n\
-         pub fn update(this, dt) {\n\
-             this.frames += 1.0;\n\
-             let control = if this.frames < 3.0 {\n\
-                 #{ kind: \"number_field\", grow: 1, value: 0.5, min: 0.01, max: 2.0, prefix: \"px\", on: |v| { this.edits += 1.0; } }\n\
-             } else {\n\
-                 #{ kind: \"number_field\", grow: 1, value: -24.0, on: |v| { this.edits += 1.0; } }\n\
-             };\n\
-             ui::fill_rows(\"Root/Bar\", [#{ label: \"x\", controls: [control] }], 40.0, false);\n\
-         }\n",
+        "pub struct Root { node: Node, frames: int, edits: int }
+impl Root {
+    fn init() {
+        scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"kind\", \"column\").with(\"anchor\", \"fill\"));
+    }
+    fn update(dt: float) {
+        self.frames += 1;
+        let control = if self.frames < 3 {
+            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", 0.5).with(\"min\", 0.01)
+                .with(\"max\", 2.0).with(\"prefix\", \"px\").with(\"on\", \"edited\")
+        } else {
+            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", -24.0).with(\"on\", \"edited\")
+        };
+        let rows: [any] = [map().with(\"label\", \"x\").with(\"controls\", [control])];
+        ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
+    }
+    pub fn edited(data: any, v: any) { self.edits += 1; }
+}
+",
     );
     let ctx = egui::Context::default();
     for _ in 0..6 {
