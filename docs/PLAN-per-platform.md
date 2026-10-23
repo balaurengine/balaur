@@ -81,7 +81,7 @@ Three smaller facts that shape the work:
    and `applies`. That is the whole of what makes them searchable and grouped:
    the settings screen is driven by the registry, so a declared table appears
    in it without a line of editor code.
-6. **The export sheet becomes a view.** `editor/scripts/exporter.rn` keeps the
+6. **The export sheet becomes a view.** `editor/scripts/exporter.bs` keeps the
    target rows and the button, and the fields it currently explains in a
    sentence become deep links into the settings screen, which `open_at` and
    `open_search` already serve. The three loaders in `balaur_export` read

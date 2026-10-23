@@ -1,6 +1,6 @@
 # Engine API for Balaur Script: what the editor calls
 
-> **Status:** audit, 2026-10-20, of the tree before step 4 of [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md), which closed its gaps. `scripts/bs_editor_calls.py` is the live check. How each number was taken is in §11.
+> **Status:** audit, 2026-10-20, of the tree before step 4 of [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md), which closed its gaps; the editor is `.bs` since, and `balaur check editor` is the live check. How each number was taken is in §11.
 
 The editor (`editor/**/*.rn`, 161 files, 41.6k lines) is scanned for every `a::b` path. Each is one of: an editor
 module of its own (ported, not bound), an engine binding, or a constant of an engine module. This file says, for each

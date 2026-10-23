@@ -1,12 +1,14 @@
 # balaur_port
 
 Rune to Balaur Script, for the editor's style: step 5 of
-`docs/PLAN-engine-in-bs.md`. The output is a draft a person reads and fixes.
+`docs/PLAN-engine-in-bs.md`, which ported the editor with it. `balaur port`
+runs it on a game still written in Rune. The output is a draft a person reads
+and fixes.
 Whatever the translator could not map is a `// TODO(port): why` line in the
 `.bs` and a line in that file's report.
 
 ```sh
-cargo run -p balaur_port -- editor --out /tmp/editor-bs
+cargo run -p balaur_port -- path/to/game --out /tmp/game-bs
 ```
 
 - Every `.rn` named, or under a directory named, is ported in one pass, so a
@@ -118,5 +120,4 @@ Rune has none, so every one is inferred, over every file at once:
 ## Tests
 
 `tests/snippets.rs`: one per mapping above, on snippets in the editor's
-style. `tests/editor.rs`: the whole editor ports, every report adds up, and
-at least 80% of its lines are clean.
+style.

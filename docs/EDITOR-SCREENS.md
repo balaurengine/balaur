@@ -12,7 +12,7 @@ in. Design a panel against its own picture rather than hunting for it in a
 screenshot of everything.
 
 The shell is **Stage**: the scene runs edge to edge and every panel is a sheet at
-a rect `editor/scripts/layout.rn` computes. The rects that matter are the table
+a rect `editor/scripts/layout.bs` computes. The rects that matter are the table
 in [PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1; §1 below is the docked
 shell it replaced, kept for its sizes. The workspace bar, command pill and document
 tabs are one full-width bar (`chrome::top_bar`); the status strip is the bottom
@@ -31,7 +31,7 @@ not.
 
 Fixed: nothing floats. A workspace re-fills four regions and states which panels
 are open in each dock; a tab's close mark takes one away and the mark menu at
-the head of the bar puts it back. Drawn by `editor.rn:draw_ui` in this order:
+the head of the bar puts it back. Drawn by `editor.bs:draw_ui` in this order:
 workspace bar, status bar, tree, inspector, dock, centre.
 
 ```
@@ -327,7 +327,7 @@ a ring its radius. The last row says where the list will land.
 ## 7b. Folded, moved and resized
 
 The same shell with a dock taken away, a panel moved, the scale raised or the
-screen changed. `layout.rn` computes every rect from the room left, so none of
+screen changed. `layout.bs` computes every rect from the room left, so none of
 these has code of its own; the shots are what proves the rects still add up.
 
 | Shot | State | What changes |
@@ -362,14 +362,14 @@ dropped as they are fixed; git holds them.
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
 | D15 | **The dock tab row is 12 controls wide** — 8 tabs, a filter field, three level pills and clear — with no grouping. | `dock::tab_row` | `01` |
-| D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.rn` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.rn`, `plugins.rn`, `editor/plugins/counter.rn` | `--state test:plugin_docks` |
-| D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.rn` overwrites `S.compact` from the window width every frame. | `editor.rn:init`, `settings.rn` | any |
-| D22 | **Showcase clicks land off-target.** `showcase.rn` measures its spots off the pre-Stage shell (`ROW = 27` against the tree's 23 px rows, tabs at `y = 27`), so the drawn cursor misses the control the verb drives in every clip. | `showcase.rn` | `--state show:*` |
-| D23 | **`settings_search:<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.rn`, `search.rn` | `--state settings?theme` |
+| D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.bs` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.bs`, `plugins.bs`, `editor/plugins/counter.bs` | `--state test:plugin_docks` |
+| D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.bs` overwrites `S.compact` from the window width every frame. | `editor.bs:init`, `settings.bs` | any |
+| D22 | **Showcase clicks land off-target.** `showcase.bs` measures its spots off the pre-Stage shell (`ROW = 27` against the tree's 23 px rows, tabs at `y = 27`), so the drawn cursor misses the control the verb drives in every clip. | `showcase.bs` | `--state show:*` |
+| D23 | **`settings_search:<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.bs`, `search.bs` | `--state settings?theme` |
 | D24 | **The top bar clips instead of folding on a narrow screen.** At 390 px the bar ends after the fourth workspace: Interface, play, pause, stop and the command pill are not drawn, so a phone cannot start the game from the bar. At 844 × 390 the last control is cut at the edge. | `chrome::top_bar` | `40`, `41` |
 | D25 | **A moved panel draws in the wrong dock.** Output moved to the left dock shows an empty body; Assets moved to the right draws its toolbar there and its cards in the bottom dock, under the Problems tab. | `docks::move_to`, `dock::draw` | `27` |
 | D26 | **Whatever draws at the top of the stage sits under the viewport's chip strip.** The font sheet's `FONT COVERAGE` and a playing game's `Score 0` overdraw `3D · Perspective` and `2D · Orthographic`. | `center::viewport`'s chips | `09`, `28` |
-| D27 | **Bone names overdraw each other.** A chain's labels sit at their joints at one size, so `Plume`, `Plume2`, `Plume3`, `Elbow` and `Hand` pile into one unreadable block. | `rig.rn` | `21` |
+| D27 | **Bone names overdraw each other.** A chain's labels sit at their joints at one size, so `Plume`, `Plume2`, `Plume3`, `Elbow` and `Hand` pile into one unreadable block. | `rig.bs` | `21` |
 | D28 | **Deep tree rows clip names mid-word.** Past the fifth level the row runs out of width and cuts `Plume2` to `Plum` and `Hand` to `Ha`, with no ellipsis. | `left::tree_row` | `21` |
 
 ### Where the measurements live

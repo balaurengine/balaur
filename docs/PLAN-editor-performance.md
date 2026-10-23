@@ -42,7 +42,7 @@ balaur edit <project> --offscreen --frames 1000 --timings \
 
 **Built 2026-09-07, the outliner on `ui.list`.** `egui::ScrollArea::show_rows`
 places uniform rows by arithmetic and hands back the range on screen, so no
-crate was added. `left.rn`'s recursive `walk` became `flatten`, which builds
+crate was added. `left.bs`'s recursive `walk` became `flatten`, which builds
 the open tree as an array and draws none of it.
 
 | 2000 nodes, `ui` pass | | wall |
@@ -63,7 +63,7 @@ quote.
 
 **Built 2026-10-17, the inspector on an `inspector` kind.** The widget names
 a node and one of its components. Every pass it reads the registry's schema
-and the node and fills the pool's own rows, so `inspector.rn` states one
+and the node and fills the pool's own rows, so `inspector.bs` states one
 control for a run of properties instead of a table a row. An edit comes back
 as one `change`: `property`, `path` and `value`, in the units the component
 stores. Three kinds of row stay the script's: a node picker, which lists the
@@ -111,7 +111,7 @@ flat 1 ms is a floor for the chrome rather than a measurement of it.
 
 ## 1. Where the per-node cost goes
 
-`inspector.rn` and `dock.rn` are 2,615 lines and run every pass. One inspector
+`inspector.bs` and `dock.bs` are 2,615 lines and run every pass. One inspector
 row is five crossings before its control draws:
 
 ```rune
@@ -145,7 +145,7 @@ N rows is one crossing rather than N.
 3. The script API takes a row count and a callback, in the shape `ui.fold`
    already uses, so a dock hands over its model instead of looping. The
    callback runs for a visible row, so a list of 200 crosses about 20 times.
-4. **`inspector`**, which crosses nothing per row. `inspector.rn` builds its
+4. **`inspector`**, which crosses nothing per row. `inspector.bs` builds its
    rows from `model::schema`, and that is `scene::component_schema`, a Rust
    binding over the component registry. A kind taking a node and a component
    name reads the same registry and draws every row natively, so the script
@@ -209,7 +209,7 @@ about short runs does not reach them.
 | --- | ---: | ---: |
 | the whole editor shell | 71,436 | |
 | `gizmo::draw` | 53,333 | 0.86 ms |
-| `overlays.rn`, seven functions | 9,583 | |
+| `overlays.bs`, seven functions | 9,583 | |
 | everything else, every dock included | ~8,500 | |
 | the UI pass, for comparison | | 1.58 ms |
 | **wall, frame to frame** | | **3.74 ms** |
@@ -229,9 +229,9 @@ large project; fix the gizmo for every project.
 
 `gizmo::draw` rebuilds the manipulator from nothing each frame: twelve box
 edges, the handles and the rings, one `render::draw_line` a segment, across 39
-loops in `editor/scripts/gizmo.rn`. Nothing in it changes unless the selection,
+loops in `editor/scripts/gizmo.bs`. Nothing in it changes unless the selection,
 the transform, the camera, the tool or the hovered part changes. Caching the
-line list against those five inputs is the fix. `overlays.rn` has the same
+line list against those five inputs is the fix. `overlays.bs` has the same
 shape and takes the same one.
 
 These numbers were taken after the allocation fixes in `crates/balaur_ui`
@@ -271,7 +271,7 @@ into script values.
 
 `node.get_component(component, key)` now answers one property, and the `widget`
 component answers the common keys straight off the struct through
-`components::answers_property`. `pool.rn` asks for the one property it wants,
+`components::answers_property`. `pool.bs` asks for the one property it wants,
 and asks for nothing at all where a control carries nothing.
 
 Measured on `examples/hello`, offscreen, 600 frames, three pairs run back to
@@ -463,7 +463,7 @@ and `balaur_ui`'s `widget_reader` suite holds the keys a frame reads.
 
 ## 6c. The shell writes what changed
 
-**Built 2026-09-20.** `pool.rn` patched every widget it drives on every pass:
+**Built 2026-09-20.** `pool.bs` patched every widget it drives on every pass:
 the bars, the rail, the tabs, each inspector row and each of its controls. A
 patch rebuilds the widget and dirties the layout, and a shell that nobody
 touched asks for the same table it asked for last pass.
@@ -565,7 +565,7 @@ their keys with `==`, which in the fork compares by value.
 
 Two things the count does not say, both timed on 100,000 calls. A `const`
 table looked up is six times slower than the `match` it would replace,
-because the table is built again on every access, so `icons.rn` stays a
+because the table is built again on every access, so `icons.bs` stays a
 `match`. A plain loop costs more instructions than `iter().any` with a
 closure and runs in 0.76 s against 1.23.
 
@@ -749,7 +749,7 @@ seam's pixel for pixel.
 What is left is in the scripts, and each item is larger than what is left in
 the seam:
 
-- `layout.rn`'s `stated` reads a dock's whole `widget` to learn one size, for
+- `layout.bs`'s `stated` reads a dock's whole `widget` to learn one size, for
   three docks a frame. Reading the key, `get_component("widget", key)`, takes
   `hello` from 19,988 to 16,368 allocations a frame.
 - String `+` is 14% of the main thread's allocations: `dragged` builds

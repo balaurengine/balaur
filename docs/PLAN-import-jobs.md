@@ -44,10 +44,10 @@ verb is absent from a browser build.
   dead `let _ = Stage::First;` where a pump would go.
 - **The cost.** Sponza is 0.58 s on a release build: 143 files and 51 MB, of
   which 69 images are copied. The editor calls it from `dropin::update`, which
-  runs in the frame (`editor/scripts/editor.rn:298`), so the window is blocked
+  runs in the frame (`editor/scripts/editor.bs`), so the window is blocked
   for all of it, with the instancing and the texture upload after.
 - **The failure.** `drop_import` logs `import failed: <message>` and returns
-  (`editor/scripts/dropin.rn:210`). The Output dock is where that lands. It
+  (`editor/scripts/dropin.bs`). The Output dock is where that lands. It
   does not open itself, its tab carries no mark, and the editor has no toast:
   `toast` is a `widget` kind a scene holds, and the editor's own chrome is
   `ui::*`.
@@ -55,10 +55,10 @@ verb is absent from a browser build.
   nothing else. There is no Import button: `PLAN-scenes-and-assets.md` names
   the missing `assets::import`. The project manager's Import Godot button
   creates an empty project and opens it without converting anything
-  (`editor/scripts/manager.rn:625`).
+  (`editor/scripts/manager.bs`).
 - **The extensions.** `import_file` reads `godot`, `tscn` and `tres` as well as
   the models, sprites and levels, but neither list the editor gates on says so:
-  `IMPORTED` in `import_api.rs` and `kind_of` in `dropin.rn` both stop at
+  `IMPORTED` in `import_api.rs` and `kind_of` in `dropin.bs` both stop at
   `ldtk`.
 - **The web.** `balaur_import` is a dependency under
   `cfg(not(target_family = "wasm"))`, so a browser build has no importers to
@@ -200,7 +200,7 @@ this.
   the bar are one pass and cannot disagree; `PLAN-widgets.md`'s popup pass is
   what would make it a kind instead, and this does not wait for that.
 - **The Output dock opens itself on a failure**, the way starting a play
-  already opens it (`editor/scripts/shell.rn:258`).
+  already opens it (`editor/scripts/shell.bs`).
 
 ### 2.5 The buttons
 
@@ -469,7 +469,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   them. A single-file drop should fail with a sentence naming what it needed,
   not half an import.
 - `dropin::take` is the test seam the selftest already drives
-  (`editor/scripts/selftest.rn:1901`). A job makes it asynchronous, so those
+  (`editor/scripts/selftest.bs`). A job makes it asynchronous, so those
   tests need a frame to pass before they assert.
 - The aseprite importer is behind `balaur_render`'s `aseprite` feature, which
   the `import` feature has to turn on rather than assume.

@@ -23,11 +23,11 @@ Built:
 | --- | --- |
 | Components attached by name, and presets that attach several: `scene.apply_preset(node, "rigid_body2d")` | `balaur_core/src/engine_api.rs` |
 | Binding rows: an event, a `when` over scene variables, one of twelve actions, a target | `balaur_core/src/bindings.rs` |
-| The Events view that authors those rows, and Convert to script, which writes the Rune a row equals | `editor/scripts/events.rn` |
+| The Events view that authors those rows, and Convert to script, which writes the Rune a row equals | `editor/scripts/events.bs` |
 | Pointer, key, action, scroll and resize hooks on any drawn node | `balaur/src/interact.rs` |
 | States and scene variables, in the snapshot and the digest | the `states` component, `[variables]` |
 | `exports()` on a script, edited per node in the inspector as `[nodes.script.props]` | `docs/PLAN-scripting-nodes-ui-editor.md` |
-| A library dock that copies a file into the project and drops it | `editor/library/`, `editor/scripts/library.rn` |
+| A library dock that copies a file into the project and drops it | `editor/library/`, `editor/scripts/library.bs` |
 | Whole-project templates behind `balaur new --template` | `editor/library/templates/{empty,platformer,viewer}` |
 | Character controllers in both dimensions | `character2d`, `character3d` |
 | An API that documents itself: 39 modules, 638 functions with signatures and docs | `balaur api`, `docs/generated/`, the site's `api.json` |

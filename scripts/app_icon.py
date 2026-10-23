@@ -2,7 +2,7 @@
 """The macOS app icon: the light-ink mark on the dark plate the dock draws.
 
 The geometry is `prepare` in crates/balaur_render/src/app_icon.rs and the
-plate is chrome.rn's DARK_PLATE, so the Finder shows what the running dock
+plate is chrome.bs's DARK_PLATE, so the Finder shows what the running dock
 does. Writes editor/assets/balaur-app-icon.png:
 
   python3 scripts/app_icon.py

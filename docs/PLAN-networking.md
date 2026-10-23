@@ -27,7 +27,7 @@
 >
 > Two housekeeping items wait on other work: `docs/generated/crates.md`
 > still lists `balaur_net` and regenerates once the whole workspace builds,
-> and the editor's manifest loader (`model.rn`, now reading
+> and the editor's manifest loader (`model.bs`, now reading
 > `manifest.application`) has not been rendered since the `[application]`
 > migration because the editor build sits behind crates mid-edit elsewhere.
 

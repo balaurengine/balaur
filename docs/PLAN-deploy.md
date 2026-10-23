@@ -28,7 +28,7 @@ Built, and not built for this:
 | Templates fetched, checksum-verified, and an install that updates itself | `templates.rs`, `update.rs`, `balaur update` |
 | CI artifacts turned into a release draft on every push and tag | `scripts/draft_release.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
-| An editor that is a game, whose every command is a script | `editor/scripts/*.rn`, `palette.rn` |
+| An editor that is a game, whose every command is a script | `editor/scripts/*.rn`, `palette.bs` |
 | A project checked without running it, every finding with a line | `balaur check --strict` |
 
 Missing:

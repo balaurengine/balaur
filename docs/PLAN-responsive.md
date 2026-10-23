@@ -22,13 +22,13 @@ Measured 2026-09-13.
   context. `crates/balaur_ui` has two vocabularies: the `widget` component a
   scene holds, 29 kinds laid out by taffy, and the `ui::*` verbs the editor
   draws itself with. The editor's shell is itself a scene of 46 nodes,
-  `editor/scenes/main.toml`, sized by `editor/scripts/layout.rn`.
+  `editor/scenes/main.toml`, sized by `editor/scripts/layout.bs`.
 - **Touch is a recorded fact and nothing else.** `platform.touchscreen` is on
   `PlatformFacts` and in every session header. No tag, theme, widget or editor
   script reads it; `touch_button`'s `visibility = "touchscreen"` is the one
   consumer.
 - **Width has one breakpoint, the editor's.** `COMPACT_W = 1240.0` in
-  `editor/scripts/editor.rn` drops labels and tightens gutters. The widget tree
+  `editor/scripts/editor.bs` drops labels and tightens gutters. The widget tree
   has `visible` as a plain bool and `min_width`; nothing on a widget answers to
   the screen.
 - **No touch target.** `crates/balaur_ui/src/theme.rs` sets a 4 px grid and a
@@ -232,7 +232,7 @@ system_text_size = false`. The editor's `ui_scale` stays an editor setting.
 ### The editor's shells
 
 The editor is a scene, so the class tables apply to its 46 nodes as to any
-scene's, and `layout.rn` reads the class for what the tables cannot say.
+scene's, and `layout.bs` reads the class for what the tables cannot say.
 
 | Class | The shell |
 | --- | --- |
@@ -280,7 +280,7 @@ decision.
 | A simulator build | Planned: `aarch64-apple-ios-sim` beside `aarch64-apple-ios` in `scripts/package_runtime.sh`, as `--target ios-sim` |
 | The editor on a tablet | Planned: the `touch` and `medium` rows of §2's table |
 | The editor on a phone | Planned: the `narrow` and `short` rows, as step 7 |
-| A palette row per shortcut | Planned: an audit that fails the selftest for a `ui::shortcut` no `palette.rn` row names |
+| A palette row per shortcut | Planned: an audit that fails the selftest for a `ui::shortcut` no `palette.bs` row names |
 | Native platform UI | Not planned, §0 |
 | A device-named class | Not planned: `phone` and `tablet` are what the two axes replace |
 

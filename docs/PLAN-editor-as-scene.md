@@ -46,7 +46,7 @@ Four capabilities, and every view fell out of them.
    be nodes at all: 134 call sites spelled a fill and 81 a tooltip.
 3. **A pool.** A form whose fields change with the selection, and a strip
    whose controls change with the workspace, cannot be authored.
-   `editor/scripts/pool.rn` makes nodes to order and hides the spares.
+   `editor/scripts/pool.bs` makes nodes to order and hides the spares.
 4. **`grid_columns` on `list`, and `table` and `code` as kinds.** One property
    turned three views into three fills; `code` was a wrapper over the
    highlighter the `ui` module already had.
@@ -83,12 +83,12 @@ Three traps, each of which cost a build:
 
 A `draw` node with no size and nothing remembered takes the leftover, which
 is what "until it has drawn once" meant before. A hatch that must always draw
-states a size; `layout.rn` writes the ones that vary.
+states a size; `layout.bs` writes the ones that vary.
 
 ## 2. The shape
 
 The shell is data: sheets, docks, tabs, bars and their placement are a scene
-of `panel`, `row` and `column` nodes, and `layout.rn` reads their rects back
+of `panel`, `row` and `column` nodes, and `layout.bs` reads their rects back
 rather than computing them. What a script keeps is the click, which
 `on_click` and the pool's `on` already carry.
 
@@ -120,10 +120,10 @@ Rune and tooling traps, all avoidable:
 
 ## 4. The pool
 
-`editor/scripts/pool.rn`, used by the Inspector, Import and every chrome
+`editor/scripts/pool.bs`, used by the Inspector, Import and every chrome
 strip. Since 2026-09-26 it is `ui::fill_strip` and `ui::fill_rows` in
 `crates/balaur_ui/src/widget/pool.rs`, which write through the same node
-operations a script calls; `pool.rn` is the three names in front of them.
+operations a script calls; `pool.bs` is the three names in front of them.
 
 - `sync` fills a column with labelled rows; `strip` fills a row with
   controls; a control carrying its own `controls` is a group with no air in
@@ -152,18 +152,18 @@ the files below rather than the whole. It is at **549**.
 
 | Where | Was | Now | What they are |
 | --- | --: | --: | --- |
-| `manager.rn` | 146 | 130 | the start screen, now a root; item 1 |
-| `dock.rn` | 126 | 88 | a panel's chrome, and the four `draw` views |
-| `inspector.rn` | 127 | 14 | the rows no schema describes |
-| `settings.rn` | 52 | 3 | the sheet's rows, item 1 |
-| `statemachine.rn` | 53 | 0 | the dock's rows, item 3 |
-| `center.rn` | 45 | 45 | the document area's overlays |
-| `editor.rn` | 52 | 52 | the frame's own calls, not a surface |
-| `kit.rn` | 49 | 1 | what a plugin dock fills with; §8 |
-| `palette.rn`, `newnode.rn` | 49 | 3 | what the picker holds, item 1 |
-| `left.rn` | 21 | 10 | the tree's own chrome |
-| `about.rn` | 22 | 7 | the line this build follows |
-| `tiles.rn` | 35 | 0 | the tile palette, item 3 |
+| `manager.bs` | 146 | 130 | the start screen, now a root; item 1 |
+| `dock.bs` | 126 | 88 | a panel's chrome, and the four `draw` views |
+| `inspector.bs` | 127 | 14 | the rows no schema describes |
+| `settings.bs` | 52 | 3 | the sheet's rows, item 1 |
+| `statemachine.bs` | 53 | 0 | the dock's rows, item 3 |
+| `center.bs` | 45 | 45 | the document area's overlays |
+| `editor.bs` | 52 | 52 | the frame's own calls, not a surface |
+| `kit.bs` | 49 | 1 | what a plugin dock fills with; §8 |
+| `palette.bs`, `newnode.bs` | 49 | 3 | what the picker holds, item 1 |
+| `left.bs` | 21 | 10 | the tree's own chrome |
+| `about.bs` | 22 | 7 | the line this build follows |
+| `tiles.bs` | 35 | 0 | the tile palette, item 3 |
 
 Most of what is left is content drawn inside a node that already exists. So
 the work is not "move the screens", it is "stop drawing the controls".
@@ -172,12 +172,12 @@ What is left is drawn on purpose, and each has its reason here:
 
 - **A canvas.** The Timeline's lanes, the Weights map, the Bone map and the
   Session lanes place marks by number over a rect, which no row shape says.
-  `inputview.rn`'s ripples and `complete.rn`'s popup at the caret are the
+  `inputview.bs`'s ripples and `complete.bs`'s popup at the caret are the
   same: a drawing, not a list.
 - **A list of thousands.** The start screen's project history and the Assets
   grid are a `ui::list` and a `cards` node, which build only the rows on
   screen; a column of pooled nodes would build every one.
-- **The frame itself.** `editor.rn`'s calls are the pass, not a surface: the
+- **The frame itself.** `editor.bs`'s calls are the pass, not a surface: the
   hatches, the repaint, the screen size.
 - **A plugin's floating window**, until a window is a node the way a dock is.
 - **A plugin's property editor**, which is item 5.
@@ -241,7 +241,7 @@ What is left is drawn on purpose, and each has its reason here:
    every `grow` child nothing. The solve's own root is skipped in that loop
    now.
 
-   The shell never showed it because `layout.rn` patches explicit sizes onto
+   The shell never showed it because `layout.bs` patches explicit sizes onto
    its children every frame, so they never needed free space. Those fifteen
    `size` calls a frame were holding up a broken solve.
 
@@ -318,7 +318,7 @@ What is left is drawn on purpose, and each has its reason here:
    and that row writes on submit, so it wants an `on_submit` carrier first.
    The rest of the file followed: the skeleton and polygon sections, the
    script rows, the animation clip, the material and shader rows, the
-   component headings, both notes and every field. `inspector.rn` is at
+   component headings, both notes and every field. `inspector.bs` is at
    **14**, down from 127, and every call left has a named reason:
 
    | Left | Why |
@@ -337,8 +337,8 @@ What is left is drawn on purpose, and each has its reason here:
      `checked`, flips on a click like a `check`, and takes its track from its
      role while off and from that role's `active` table while on, because a
      checked widget already wears the held look. The Interface section and the
-     material features are nodes now; the two inside `statemachine.rn` and
-     `settings.rn` stay drawn because the panels round them are.
+     material features are nodes now; the two inside `statemachine.bs` and
+     `settings.bs` stay drawn because the panels round them are.
    - **A field reports its submit.** Built 2026-09-21. `on_submit` names a
      script method on the node, and a pooled row has no script, so three rows
      that write on Enter had to be drawn. `submitted` is now true for the one
@@ -369,8 +369,8 @@ What is left is drawn on purpose, and each has its reason here:
    `BottomChrome` is a column of pooled rows beside the hatch, hidden for
    every panel that keeps none and filled by `docks::chrome_rows` for the ones
    that do: the Assets path, item count, verbs and search, the Library's
-   chips, the State machine's header and the Tiles tools. `dock.rn` is at 108
-   of its 126, `library.rn` at 5 of 11, and `search::control` is the pooled
+   chips, the State machine's header and the Tiles tools. `dock.bs` is at 108
+   of its 126, `library.bs` at 5 of 11, and `search::control` is the pooled
    spelling of a search box, over the same `S.search[id]` the drawn one uses.
    What is left there is the four `draw` views, which stay.
 
@@ -407,7 +407,7 @@ What is left is drawn on purpose, and each has its reason here:
    Its head carries the title and the two verbs, and a binding is a row of
    eight controls; the scene's variables and the node's script hooks are rows
    under them. `test:events` asserts what the pool left and the width the
-   document area gave it. Every other document tab draws, so `center.rn`
+   document area gave it. Every other document tab draws, so `center.bs`
    hides the node for them.
 5. **`plugins::editor` returns a closure**, and a `draw` widget names a
    method by string, so a plugin's property editor cannot be a node. Until
@@ -437,7 +437,7 @@ carries 101 roles.
 - **Constant per role, so it moves.** Done 2026-09-21: the Shell's gutter and
   seam are `[roles.shell]`, the nine dock head rows share `[roles.dock_strip]`,
   and the nine outliner verbs share `[roles.tree_verb]`. The scene states 58
-  sizes where it stated 103, and `layout.rn` reads the shell's two back
+  sizes where it stated 103, and `layout.bs` reads the shell's two back
   through `role_num` so the arithmetic and the node cannot drift.
 - **A role's `width` and `height` bind on both sizing paths.** Done
   2026-09-21: `arrange::size_of` is the one rule — what the node states, else
@@ -449,17 +449,17 @@ carries 101 roles.
   the outliner verbs keep their sizes in the theme because of it.
 - **Derived, so it stays.** The shell's width follows the window, a dock's
   width follows the drag that set it, the stage is what is left. No resource
-  can hold those; `layout.rn` patches them, 15 `size` calls a frame.
+  can hold those; `layout.bs` patches them, 15 `size` calls a frame.
 - **The Shell should not be one of them.** It states `x = 0, y = 0` and
-  `layout.rn` then patches its `width` and `height` from `S.screen_w/h`
+  `layout.bs` then patches its `width` and `height` from `S.screen_w/h`
   every frame. Anchored `fill` the engine owns its box, `safe_area` insets
-  it without help, and `editor.rn`'s own inset arithmetic goes away with
+  it without help, and `editor.bs`'s own inset arithmetic goes away with
   four of the fifteen patches. The floors then read the shell back with
   `ui::widget_rect` rather than recomputing what the engine just solved.
 
 ## 8. A dock is a node a plugin is handed
 
-Designed 2026-09-21, built 2026-09-22. `kit.rn` was 49 `ui::*` calls and is 1:
+Designed 2026-09-21, built 2026-09-22. `kit.bs` was 49 `ui::*` calls and is 1:
 every verb answers a row now, and the editor writes the rows onto the node it
 made for that dock.
 
@@ -520,14 +520,14 @@ Two things this does not cover:
 
 - **A plugin's floating window is still drawn.** `draw_windows` places each
   one with `layout::window_rect` inside an immediate sheet, so a window has no
-  node to hand over. `counter.rn` keeps one drawn function for its window,
+  node to hand over. `counter.bs` keeps one drawn function for its window,
   which is the one `ui::*` call left in the plugin seam.
 - **`scrolls: true` is gone.** A plugin dock always carries its own scroll
   now, so the option said nothing.
 
 ## 8.1 The old plan: a kit of scenes, not of calls
 
-`kit.rn` is the shared kit today and it draws: 49 `ui::*` calls. A kit of
+`kit.bs` is the shared kit today and it draws: 49 `ui::*` calls. A kit of
 nodes is a scene fragment per shape, instantiated under a parent with
 `scene::instantiate`, which takes TOML text rather than a path. A plugin dock
 then gets the same rows the editor's own docks are built from, and a theme
@@ -575,7 +575,7 @@ Built 2026-10-18, phase 0:
 ### 9.2 How a panel talks to the controller
 
 The controller emits from the Editor node, once a frame however many edits
-the frame made: `signals.rn` holds each word and its guard, which the Editor
+the frame made: `signals.bs` holds each word and its guard, which the Editor
 clears by hearing its own event. A panel listens in its `init`, and on the
 word asks the Editor for what it shows (`editor.call("outline_view", query,
 facet)`), then writes its nodes. A pick goes the other way as a call
@@ -587,7 +587,7 @@ here the query and the facet.
 
 Built 2026-10-18. `scenes/panels/scene_tree.toml` holds the search field, the
 facet dropdown, the "nothing matches" note, the tree and its context menu;
-`scripts/panels/scene_tree.rn` answers them. `outline_changed` is emitted
+`scripts/panels/scene_tree.bs` answers them. `outline_changed` is emitted
 wherever the document's revision, the selection, a lock, the warnings or the
 theme moves. Gone: the search and facet drawn every pass, and `show_tree`
 reading the tree's `text` every pass. `test:rows` drives it as a pointer
@@ -600,7 +600,7 @@ shows and hides the panel on `docks_changed` (9.5).
 
 Built 2026-10-18. `scenes/panels/inspector.toml` holds the head (the node's
 mark and name, its type), the search, the "nothing selected" note, the form's
-scroll and host, and "Add component"; `scripts/panels/inspector.rn` answers
+scroll and host, and "Add component"; `scripts/panels/inspector.bs` answers
 them. It listens for `outline_changed` and `inspector_changed`, the second
 emitted where the workspace, the tool, play, the polygon being edited, the
 clip, the doc tab or the screen's class is written, and only when the key
@@ -623,7 +623,7 @@ panel for all of them. A control in the form is heard through
 ### 9.5 The docks
 
 Built 2026-10-18, phase 3. Each dock (the left sheet, the right sheet, the
-bottom) carries `scripts/panels/dock.rn`. It listens for `docks_changed`,
+bottom) carries `scripts/panels/dock.bs`. It listens for `docks_changed`,
 which is emitted when the key it is built from moves: the docks' tabs, active
 panels, folds and widths, the workspace, the screen's class, the Problems
 count, the plugin docks, and whether a recording is open. On it the dock has
@@ -635,7 +635,7 @@ Every bottom tab is a scene of its own with one script:
 
 - Output hears the engine's `logged`, a line written to the log.
 - Problems and Docs hear `problems_changed` and `docs_changed`.
-- Profiler and Cost share `meter.rn`, the one panel on a clock: four samples
+- Profiler and Cost share `meter.bs`, the one panel on a clock: four samples
   a second while it shows, each a scheduled repaint.
 - Assets hears `assets_changed`. The Editor emits it from its own verbs, an
   import's report and the engine's `assets_reloaded`, a project file
@@ -666,7 +666,7 @@ Built 2026-10-18, phase 4.
 
 - **The keys** are `scenes/panels/keys.toml`: a button a command, laid out
   off the screen, each with its chord in `shortcut`, and one script that
-  hands the button's name to the Editor (`command`, `commands.rn`). F5 is
+  hands the button's name to the Editor (`command`, `commands.bs`). F5 is
   Play until a script stops, and then Continue, by `enabled`. Not declared
   actions: the editor's action table is the played game's.
 - **A chord while typing.** While a field holds the keyboard, a widget's
@@ -758,7 +758,7 @@ nodes now, each a scene with one script that fills on a word.
 ### 9.10 Plugin docks
 
 Built 2026-10-18, phase 8. A plugin's dock subtree carries
-`scripts/panels/plugin.rn`, which has the plugin fill it on
+`scripts/panels/plugin.bs`, which has the plugin fill it on
 `plugins_changed` (the kit's `changed`), the outline's and the Inspector's
 words, `debugger_changed`, the engine's `saved` and `assets_reloaded`, and
 after one of its own controls; the dock fills it when it shows it. A plugin's
