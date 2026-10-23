@@ -8,12 +8,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use super::ast::{Expr, MatchArm, Stmt};
+use super::ast::Expr;
 use super::map;
-use super::{GETTER, SETTER, module_name, module_use};
+use super::{module_name, module_use};
 
 mod calls;
+mod names;
 mod ops;
+mod statements;
 mod types;
 mod writes;
 
@@ -348,279 +350,6 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// A block of statements at `depth` tabs of four spaces.
-    pub(crate) fn block(&mut self, body: &[Stmt], depth: usize) -> String {
-        self.scopes.push(BTreeSet::new());
-        let mut out = String::new();
-        for stmt in body {
-            out.push_str(&self.statement(stmt, depth));
-        }
-        self.scopes.pop();
-        out
-    }
-
-    fn statement(&mut self, stmt: &Stmt, depth: usize) -> String {
-        let pad = "    ".repeat(depth);
-        let outer_before = std::mem::take(&mut self.before);
-        let outer_after = std::mem::take(&mut self.after);
-        let body = self.statement_body(stmt, depth);
-        let before = std::mem::replace(&mut self.before, outer_before);
-        let after = std::mem::replace(&mut self.after, outer_after);
-        let mut out = String::new();
-        for line in before {
-            let _ = writeln!(out, "{pad}{line}");
-        }
-        // What must run after a `return` runs before it, on the value kept.
-        let returned = body
-            .trim_start()
-            .strip_prefix("return ")
-            .and_then(|t| t.trim_end().strip_suffix(';'))
-            .map(str::to_string);
-        if let Some(value) = returned.filter(|_| !after.is_empty()) {
-            let name = self.temp();
-            let _ = writeln!(out, "{pad}let {name}: any = {value};");
-            for line in after {
-                let _ = writeln!(out, "{pad}{line}");
-            }
-            let _ = writeln!(out, "{pad}return {name};");
-            return self.bare_modules(out);
-        }
-        out.push_str(&body);
-        for line in after {
-            let _ = writeln!(out, "{pad}{line}");
-        }
-        self.bare_modules(out)
-    }
-
-    /// A class named as a value, not an item of it: its module's file, which
-    /// is what the shim knows a class by.
-    fn bare_modules(&self, text: String) -> String {
-        let mut out = text;
-        for (name, path) in &self.modules {
-            let prefix = format!("{name}::");
-            let mut done = String::with_capacity(out.len());
-            let mut rest = out.as_str();
-            while let Some(at) = rest.find(&prefix) {
-                let before = rest[..at].chars().last();
-                let after = rest[at + prefix.len()..].chars().next();
-                let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
-                done.push_str(&rest[..at]);
-                if word(before) || word(after) {
-                    done.push_str(&prefix);
-                } else {
-                    done.push_str(&quoted(path));
-                }
-                rest = &rest[at + prefix.len()..];
-            }
-            done.push_str(rest);
-            out = done;
-        }
-        out
-    }
-
-    fn statement_body(&mut self, stmt: &Stmt, depth: usize) -> String {
-        let pad = "    ".repeat(depth);
-        let mut out = String::new();
-        match stmt {
-            Stmt::Pass => {}
-            Stmt::Break => {
-                let _ = writeln!(out, "{pad}break;");
-            }
-            Stmt::Continue => {
-                let _ = writeln!(out, "{pad}continue;");
-            }
-            Stmt::Return(None) => {
-                let _ = writeln!(out, "{pad}return;");
-            }
-            Stmt::Return(Some(value)) => {
-                let text = self.expression(value);
-                // A function declared `-> bool` answers Godot's truth of what
-                // it returns.
-                let text = if self.context.returns.get(&self.enclosing) == Some(&Bt::Bool)
-                    && !self.is_boolish(value)
-                    && self.type_of(value) != Bt::Bool
-                {
-                    self.uses_shim = true;
-                    format!("gd::truthy({text})")
-                } else {
-                    text
-                };
-                // Rune reads `return || f` as `(return) || f`.
-                let text = if text.starts_with('|') {
-                    format!("({text})")
-                } else {
-                    text
-                };
-                let _ = writeln!(out, "{pad}return {text};");
-            }
-            Stmt::Raw(text) => {
-                self.note(format!("`{text}`: this line is not translated"));
-                let _ = writeln!(out, "{pad}// {MARKER} {text}");
-            }
-            Stmt::Var { name, value, hint } => {
-                let declared = hint.as_deref().map(Bt::of_hint);
-                let text = match value {
-                    // A typed int takes a float as its whole part, which is
-                    // what a number from JSON arrives as.
-                    Some(value)
-                        if hint.as_deref() == Some("int") && !matches!(value, Expr::Int(_)) =>
-                    {
-                        let text = self.expression(value);
-                        self.uses_shim = true;
-                        format!("gd::int({text})")
-                    }
-                    Some(value)
-                        if declared == Some(Bt::Float) && self.type_of(value) == Bt::Int =>
-                    {
-                        self.float_operand(value)
-                    }
-                    Some(value) => self.expression(value),
-                    // A declaration with no value: its type says what empty is.
-                    None => {
-                        let zero = typed_zero(hint.as_deref().unwrap_or_default());
-                        self.uses_shim |= zero.contains(map::SHIM_MARK);
-                        zero.to_string()
-                    }
-                };
-                // The hint's type, else what the value is known to be, else
-                // Godot's Variant: a later write may hold anything.
-                let known = declared.unwrap_or_else(|| match value {
-                    Some(value) => self.type_of(value),
-                    None => Bt::Any,
-                });
-                let bound = safe(name);
-                let _ = writeln!(out, "{pad}let {bound}: {} = {text};", known.text());
-                self.declare(name);
-                self.local_types.insert(name.clone(), known);
-                self.note_local_type(name, hint.as_deref(), value.as_ref());
-            }
-            Stmt::Assign { target, op, value } => {
-                out.push_str(&self.assignment(target, op, value, &pad));
-            }
-            Stmt::Expr(value) => {
-                self.bare = true;
-                let text = self.expression(value);
-                // A call that is nothing here leaves no statement.
-                if text != "nil" {
-                    let _ = writeln!(out, "{pad}{};", discardable(&text));
-                }
-            }
-            Stmt::If { arms, other } => {
-                for (index, (cond, body)) in arms.iter().enumerate() {
-                    let cond = self.condition(cond);
-                    let word = if index == 0 { "if" } else { "} else if" };
-                    let _ = writeln!(out, "{pad}{word} {cond} {{");
-                    out.push_str(&self.block(body, depth + 1));
-                }
-                if let Some(body) = other {
-                    let _ = writeln!(out, "{pad}}} else {{");
-                    out.push_str(&self.block(body, depth + 1));
-                }
-                let _ = writeln!(out, "{pad}}}");
-            }
-            Stmt::While { cond, body } => {
-                let cond = self.condition(cond);
-                let _ = writeln!(out, "{pad}while {cond} {{");
-                out.push_str(&self.block(body, depth + 1));
-                let _ = writeln!(out, "{pad}}}");
-            }
-            Stmt::For { name, iter, body } => {
-                let bound = safe(name);
-                // `range(a, b)` counts as an int; anything else Godot walks
-                // (a dictionary's keys, an int, a string's characters) the
-                // shim lays out as a list.
-                let counted = match iter {
-                    Expr::Call(callee, args)
-                        if matches!(&**callee, Expr::Name(n) if n == "range" && !self.is_local(n))
-                            && (1..=2).contains(&args.len()) =>
-                    {
-                        // A range counts in ints; Godot truncates a float end.
-                        let ends: Vec<String> = args
-                            .iter()
-                            .map(|a| {
-                                let text = self.expression(a);
-                                if self.type_of(a) == Bt::Int {
-                                    text
-                                } else {
-                                    self.uses_shim = true;
-                                    format!("gd::int({text})")
-                                }
-                            })
-                            .collect();
-                        Some(if ends.len() == 1 {
-                            format!("0..{}", ends[0])
-                        } else {
-                            format!("{}..{}", ends[0], ends[1])
-                        })
-                    }
-                    _ => None,
-                };
-                // `for i in n` counts to an int's value.
-                let counted = counted.or_else(|| {
-                    (self.type_of(iter) == Bt::Int).then(|| format!("0..{}", self.expression(iter)))
-                });
-                let (iter, element) = match counted {
-                    Some(range) => (range, Bt::Int),
-                    None => {
-                        let iter = self.expression(iter);
-                        self.uses_shim = true;
-                        (format!("gd::iter({iter})"), Bt::Any)
-                    }
-                };
-                let _ = writeln!(out, "{pad}for {bound} in {iter} {{");
-                self.scopes.push(BTreeSet::from([name.clone()]));
-                self.local_types.insert(name.clone(), element);
-                out.push_str(&self.block(body, depth + 1));
-                self.scopes.pop();
-                let _ = writeln!(out, "{pad}}}");
-            }
-            Stmt::Match { subject, arms } => out.push_str(&self.match_chain(subject, arms, depth)),
-        }
-        out
-    }
-
-    /// GDScript's `match` as an `if` chain: Rune has no or-patterns, and an
-    /// arm here may carry several values.
-    fn match_chain(&mut self, subject: &Expr, arms: &[MatchArm], depth: usize) -> String {
-        let pad = "    ".repeat(depth);
-        let mut out = String::new();
-        let subject = self.expression(subject);
-        let name = self.temp();
-        let _ = writeln!(out, "{pad}let {name}: any = {subject};");
-        self.declare(&name);
-        let mut started = false;
-        for arm in arms {
-            let wildcard = arm
-                .patterns
-                .iter()
-                .any(|p| matches!(p, Expr::Name(word) if word == "_"));
-            if wildcard {
-                let word = if started { "} else {" } else { "if true {" };
-                let _ = writeln!(out, "{pad}{word}");
-                out.push_str(&self.block(&arm.body, depth + 1));
-                started = true;
-                continue;
-            }
-            let tests: Vec<String> = arm
-                .patterns
-                .iter()
-                .map(|pattern| {
-                    let value = self.expression(pattern);
-                    self.uses_shim = true;
-                    format!("gd::same({name}, {value})")
-                })
-                .collect();
-            let word = if started { "} else if" } else { "if" };
-            let _ = writeln!(out, "{pad}{word} {} {{", tests.join(" || "));
-            out.push_str(&self.block(&arm.body, depth + 1));
-            started = true;
-        }
-        if started {
-            let _ = writeln!(out, "{pad}}}");
-        }
-        out
-    }
-
     /// `a[i]`: a tree parameter, a string's character, or Rune's own index.
     fn index(&mut self, object: &Expr, index: &Expr) -> String {
         if let Some((object, key)) = tree_parameter(object, index) {
@@ -817,115 +546,6 @@ impl<'a> Emitter<'a> {
         format!("await {text}")
     }
 
-    fn name(&mut self, name: &str) -> String {
-        if name == "_" {
-            return "_".into();
-        }
-        if self.is_local(name) {
-            return safe(name);
-        }
-        if self.context.getters.contains(name)
-            && self.context.static_vars.contains_key(name)
-            && !self.in_accessor_of(name)
-        {
-            return format!("{GETTER}{name}()");
-        }
-        if let Some(fallback) = self.context.static_vars.get(name).cloned() {
-            self.uses_shim = true;
-            let key = quoted(&format!("{}:{name}", self.context.static_prefix));
-            // The stored value itself, so a container changed in place stays
-            // changed: GDScript's statics hold their containers by reference.
-            return format!("gd::static_ref({key}, {fallback})");
-        }
-        if self.context.lazy.contains(name) || self.context.enums.contains_key(name) {
-            return format!("{name}()");
-        }
-        if self.context.consts.contains(name) {
-            return name.to_string();
-        }
-        // A method named as a value is Godot's `Callable`: a closure here.
-        if !self.context.members.contains(name)
-            && let Some(closure) = self.callable(&Expr::Name(name.to_string()))
-        {
-            return closure;
-        }
-        if self.context.members.contains(name) {
-            if self.in_static && !self.context.static_vars.contains_key(name) {
-                self.note(format!(
-                    "`{name}` is a member, and a static function has no instance to read it from"
-                ));
-                self.uses_shim = true;
-                return map::todo(name);
-            }
-            return self.member_read(name);
-        }
-        if self.context.signals.contains(name) {
-            return quoted(name);
-        }
-        if let Some(text) = map::constant(name) {
-            return self.shimmed(text);
-        }
-        // A node autoload is found by the id the importer gave its node.
-        if self.context.autoload_nodes.contains(name) {
-            return format!("scene::node_by_id({})", quoted(&format!("autoload_{name}")));
-        }
-        if self.context.classes.contains_key(name) {
-            return self.class_module(name);
-        }
-        // Godot read a bare name off `self` when the class declared none, and
-        // the node's own properties are what is left.
-        if let Some(text) = map::property(self.own_node(), name) {
-            return self.shimmed(text);
-        }
-        if let Some(text) = map::global_constant(name) {
-            return text.to_string();
-        }
-        // A capitalised name with no class and no constant is a Godot type
-        // used as a value, which nothing here carries.
-        self.note(format!("`{name}`: no value of that name here"));
-        self.uses_shim = true;
-        map::todo(name)
-    }
-
-    /// A project class named: its module, which this file uses, as the
-    /// prefix its items take.
-    fn class_module(&mut self, name: &str) -> String {
-        match self.context.classes.get(name).cloned() {
-            Some(path) => self.module_ref(&path),
-            None => safe(name),
-        }
-    }
-
-    /// An item of another class's module, read: a constant, an enum, a
-    /// lazily computed constant, or a function handed over as a value.
-    fn module_item(&mut self, module: &str, class: &str, field: &str) -> String {
-        if self
-            .context
-            .class_methods
-            .get(class)
-            .is_some_and(|names| names.contains(field))
-        {
-            return format!("{module}{}", safe(field));
-        }
-        if self
-            .context
-            .class_lazy
-            .get(class)
-            .is_some_and(|names| names.contains(field))
-        {
-            return format!("{module}{}()", safe(field));
-        }
-        if self
-            .context
-            .class_enums
-            .get(class)
-            .is_some_and(|names| names.contains(field))
-        {
-            return format!("{module}{}()", safe(field));
-        }
-        format!("{module}{}", safe(field))
-    }
-
     /// What a local's declaration says it holds: a bool by its type or its
     /// value, a string by its type, a literal, or an own method declared
     /// `-> String`, which the context lists under the same name.
@@ -995,140 +615,6 @@ impl<'a> Emitter<'a> {
             );
         }
         record
-    }
-
-    /// A member read: its getter, outside the property's own accessors.
-    fn member_read(&self, name: &str) -> String {
-        if self.context.getters.contains(name) && !self.in_accessor_of(name) {
-            // A static's getter is a function of the module.
-            if self.context.static_vars.contains_key(name) {
-                return format!("{GETTER}{name}()");
-            }
-            return self.own_call(&format!("{GETTER}{name}"), &[]);
-        }
-        self.member(name)
-    }
-
-    fn in_accessor_of(&self, name: &str) -> bool {
-        self.enclosing == format!("{GETTER}{name}")
-            || self.enclosing == format!("{SETTER}{name}")
-            || self
-                .context
-                .named_accessors
-                .get(&self.enclosing)
-                .map(String::as_str)
-                == Some(name)
-    }
-
-    fn field(&mut self, object: &Expr, field: &str) -> String {
-        if matches!(object, Expr::SelfRef) {
-            if self.context.members.contains(field) {
-                return self.member_read(field);
-            }
-            if self.context.lazy.contains(field) {
-                return format!("{field}()");
-            }
-            if self.context.consts.contains(field) {
-                return field.to_string();
-            }
-            if self.context.signals.contains(field) {
-                return quoted(field);
-            }
-            if let Some(closure) =
-                self.callable(&Expr::Field(Box::new(Expr::SelfRef), field.to_string()))
-            {
-                return closure;
-            }
-        }
-        if let Expr::Name(name) = object
-            && !self.is_local(name)
-            && self
-                .context
-                .enums
-                .get(name)
-                .is_some_and(|m| m.contains(field))
-        {
-            return enum_member(name, field);
-        }
-        // `Other.State.IDLE`: another class's enum member, its constant.
-        if let Expr::Field(inner, name) = object
-            && let Expr::Name(class) = &**inner
-            && !self.is_local(class)
-            && self
-                .context
-                .class_enums
-                .get(class)
-                .is_some_and(|e| e.contains(name))
-        {
-            let module = self.class_module(class);
-            return format!("{module}{}", enum_member(name, field));
-        }
-        if let Expr::Name(class) = object
-            && !self.is_local(class)
-            && !self.context.members.contains(class)
-        {
-            // A value on one of Godot's own types: `Vector2.ZERO`.
-            if let Some(text) = map::static_value(class, field) {
-                return self.shimmed(text);
-            }
-            // A static on a project class reads through its module, where the
-            // function is a field and must be called in parentheses.
-            if let Some((key, fallback)) = self.foreign_static(class, field) {
-                self.uses_shim = true;
-                return format!("gd::static_ref({key}, {fallback})");
-            }
-            if let Some(module) = self.context.inner.get(&format!("{class}.{field}")).cloned() {
-                return self.module_ref(&module);
-            }
-            // The same inner class off a name that preloaded its file.
-            if let Some(path) = self.context.classes.get(class)
-                && let Some(module) = self.context.inner.get(&format!("{path}.{field}")).cloned()
-            {
-                return self.module_ref(&module);
-            }
-            if self.context.classes.contains_key(class) {
-                let module = self.class_module(class);
-                return self.module_item(&module, class, field);
-            }
-        }
-        let text = self.expression(object);
-        if let Some(signal) = self.signal_as_value(&text, field) {
-            return signal;
-        }
-        if let Some(mapped) = map::property(&text, field) {
-            return self.shimmed(mapped);
-        }
-        // A class inside the module the text names: `PB.Msg.Part`.
-        if let Some(path) = self.module_path(&text).map(str::to_string) {
-            if let Some(module) = self.context.inner.get(&format!("{path}.{field}")).cloned() {
-                return self.module_ref(&module);
-            }
-            return format!("{text}{}", safe(field));
-        }
-        self.uses_shim = true;
-        format!("gd::field({text}, {})", quoted(field))
-    }
-
-    /// `button.pressed` read rather than called: Godot's `Signal` as a value,
-    /// a record whose `connect` and kin reach the widget key or the node's
-    /// handlers. A name some class declares as a variable is read as one.
-    fn signal_as_value(&mut self, receiver: &str, field: &str) -> Option<String> {
-        let key = map::widget_signal(field);
-        let declared = self.context.signal_arity.contains_key(field)
-            && !self.context.members.contains(field)
-            && !self.context.project_members.contains(field);
-        if key.is_none() && !declared {
-            return None;
-        }
-        if let Some(key) = key {
-            self.widget_forwarders.insert(key.to_string());
-        }
-        self.uses_shim = true;
-        Some(format!(
-            "gd::signal_value({receiver}, {}, {})",
-            quoted(field),
-            quoted(key.unwrap_or(""))
-        ))
     }
 
     /// A call on one of Godot's own classes: `Timer.new()`, `OS.get_name()`.
@@ -1229,31 +715,10 @@ impl<'a> Emitter<'a> {
         if let Some(text) = self.process_verb(callee, args) {
             return text;
         }
-        if let Some(name) = own {
-            if self.context.methods.contains(&name) {
-                let bound = self.method_name(&name);
-                let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
-                self.pad_defaults(&name, args.len(), &mut parts);
-                // A hook that cannot wait starts a method that does through
-                // the engine, which runs it on.
-                if self.context.asyncs.contains(&name)
-                    && !self.allow_await
-                    && !self.context.object_class
-                {
-                    let mut all = vec![quoted(&bound)];
-                    all.extend(parts);
-                    return format!("self.node.call_async({})", all.join(", "));
-                }
-                let text = self.own_call(&bound, &parts);
-                return self.awaited(&name, text);
-            }
-            if self.context.statics.contains(&name) {
-                let bound = self.method_name(&name);
-                let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
-                self.pad_defaults(&name, args.len(), &mut parts);
-                let text = format!("{bound}({})", parts.join(", "));
-                return self.awaited(&name, text);
-            }
+        if let Some(name) = own
+            && let Some(text) = self.own_method_call(&name, args)
+        {
+            return text;
         }
         // A built-in signal on a widget: the handler's name is what the
         // widget carries, and the engine calls it on the first ancestor whose
@@ -1342,6 +807,34 @@ impl<'a> Emitter<'a> {
             return format!("({head})({})", parts.join(", "));
         }
         format!("{head}({})", parts.join(", "))
+    }
+
+    /// A call on one of the class's own methods or statics, padded with the
+    /// defaults it left out.
+    fn own_method_call(&mut self, name: &str, args: &[Expr]) -> Option<String> {
+        if self.context.methods.contains(name) {
+            let bound = self.method_name(name);
+            let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+            self.pad_defaults(name, args.len(), &mut parts);
+            // A hook that cannot wait starts a method that does through
+            // the engine, which runs it on.
+            if self.context.asyncs.contains(name) && !self.allow_await && !self.context.object_class
+            {
+                let mut all = vec![quoted(&bound)];
+                all.extend(parts);
+                return Some(format!("self.node.call_async({})", all.join(", ")));
+            }
+            let text = self.own_call(&bound, &parts);
+            return Some(self.awaited(name, text));
+        }
+        if self.context.statics.contains(name) {
+            let bound = self.method_name(name);
+            let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+            self.pad_defaults(name, args.len(), &mut parts);
+            let text = format!("{bound}({})", parts.join(", "));
+            return Some(self.awaited(name, text));
+        }
+        None
     }
 
     /// `set_process(false)` and its kin, called on this script itself.

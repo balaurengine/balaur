@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-822 packages listed here, some under licences that are not MIT.
+820 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,12 +22,12 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 425 |
+| `MIT OR Apache-2.0` | 424 |
 | `MIT` | 146 |
 | `Apache-2.0 OR MIT` | 47 |
-| `Apache-2.0` | 27 |
 | `Apache-2.0 WITH LLVM-exception` | 27 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
+| `Apache-2.0` | 26 |
 | `Unicode-3.0` | 18 |
 | `BSD-3-Clause` | 16 |
 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` | 13 |
@@ -148,7 +148,6 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | `MIT OR Apache-2.0` |
 | [clap_lex](https://github.com/clap-rs/clap) | 1.1.1 | `MIT OR Apache-2.0` |
 | [cobs](https://github.com/jamesmunns/cobs.rs) | 0.3.0 | `MIT OR Apache-2.0` |
-| [codespan-reporting](https://github.com/brendanzab/codespan) | 0.11.1 | `Apache-2.0` |
 | [codespan-reporting](https://github.com/brendanzab/codespan) | 0.13.1 | `Apache-2.0` |
 | [color_quant](https://github.com/image-rs/color_quant.git) | 1.1.0 | `MIT` |
 | [colorchoice](https://github.com/rust-cli/anstyle.git) | 1.0.5 | `MIT OR Apache-2.0` |
@@ -170,19 +169,19 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [cpp_demangle](https://github.com/gimli-rs/cpp_demangle) | 0.5.1 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.3.1 | `MIT OR Apache-2.0` |
-| cranelift-assembler-x64 | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| cranelift-assembler-x64-meta | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-bforest](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-bitset](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen-meta](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen-shared](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-control](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-entity](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-frontend](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-isle](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-native](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-srcgen](https://github.com/bytecodealliance/wasmtime) | 0.135.6 | `Apache-2.0 WITH LLVM-exception` |
+| cranelift-assembler-x64 | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| cranelift-assembler-x64-meta | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-bforest](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-bitset](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen-meta](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen-shared](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-control](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-entity](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-frontend](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-isle](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-native](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-srcgen](https://github.com/bytecodealliance/wasmtime) | 0.135.7 | `Apache-2.0 WITH LLVM-exception` |
 | [crc](https://github.com/mrhooray/crc-rs.git) | 3.4.0 | `MIT OR Apache-2.0` |
 | [crc-catalog](https://github.com/akhilles/crc-catalog.git) | 2.5.0 | `MIT OR Apache-2.0` |
 | [crc32fast](https://github.com/srijs/rust-crc32fast) | 1.5.2 | `MIT OR Apache-2.0` |
@@ -515,8 +514,8 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [proc-macro2](https://github.com/dtolnay/proc-macro2) | 1.0.107 | `MIT OR Apache-2.0` |
 | [profiling](https://github.com/aclysma/profiling) | 1.0.18 | `MIT OR Apache-2.0` |
 | [profiling-procmacros](https://github.com/aclysma/profiling) | 1.0.18 | `MIT OR Apache-2.0` |
-| [pulley-interpreter](https://github.com/bytecodealliance/wasmtime/tree/main/pulley) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [pulley-macros](https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
+| [pulley-interpreter](https://github.com/bytecodealliance/wasmtime/tree/main/pulley) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [pulley-macros](https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
 | [pulp](https://github.com/sarah-quinones/pulp/) | 0.22.3 | `MIT` |
 | [pulp-wasm-simd-flag](https://github.com/sarah-quinones/pulp/) | 0.1.1 | `MIT` |
 | [pxfm](https://github.com/awxkee/pxfm) | 0.1.30 | `BSD-3-Clause OR Apache-2.0` |
@@ -594,7 +593,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [rustls-pki-types](https://github.com/rustls/pki-types) | 1.15.1 | `MIT OR Apache-2.0` |
 | [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier) | 0.7.0 | `MIT OR Apache-2.0` |
 | [rustls-platform-verifier-android](https://github.com/rustls/rustls-platform-verifier) | 0.1.1 | `MIT OR Apache-2.0` |
-| [rustls-webpki](https://github.com/rustls/webpki) | 0.103.15 | `ISC` |
+| [rustls-webpki](https://github.com/rustls/webpki) | 0.103.16 | `ISC` |
 | [rusttype](https://gitlab.redox-os.org/redox-os/rusttype) | 0.9.3 | `MIT OR Apache-2.0` |
 | [rustversion](https://github.com/dtolnay/rustversion) | 1.0.23 | `MIT OR Apache-2.0` |
 | [ryu](https://github.com/dtolnay/ryu) | 1.0.23 | `Apache-2.0 OR BSL-1.0` |
@@ -693,7 +692,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [tinystr](https://github.com/unicode-org/icu4x) | 0.8.4 | `Unicode-3.0` |
 | [tinyvec](https://github.com/Lokathor/tinyvec) | 1.13.3 | `Zlib OR Apache-2.0 OR MIT` |
 | [token_stream_flatten](https://github.com/brkalmar/token_stream_flatten-rs) | 0.1.0 | `MIT` |
-| [tokio](https://github.com/tokio-rs/tokio) | 1.53.1 | `MIT` |
+| [tokio](https://github.com/tokio-rs/tokio) | 1.54.1 | `MIT` |
 | [tokio-macros](https://github.com/tokio-rs/tokio) | 2.7.2 | `MIT` |
 | [tokrepr](https://github.com/wgsl-tooling-wg/wesl-rs) | 0.1.1 | `MIT OR Apache-2.0` |
 | [tokrepr-derive](https://github.com/wgsl-tooling-wg/wesl-rs) | 0.1.0 | `MIT OR Apache-2.0` |
@@ -721,7 +720,6 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [unicode-linebreak](https://github.com/axelf4/unicode-linebreak) | 0.1.5 | `Apache-2.0` |
 | [unicode-script](https://github.com/unicode-rs/unicode-script) | 0.5.8 | `MIT OR Apache-2.0` |
 | [unicode-segmentation](https://github.com/unicode-rs/unicode-segmentation) | 1.13.3 | `MIT OR Apache-2.0` |
-| [unicode-width](https://github.com/unicode-rs/unicode-width) | 0.1.14 | `MIT OR Apache-2.0` |
 | [unicode-width](https://github.com/unicode-rs/unicode-width) | 0.2.2 | `MIT OR Apache-2.0` |
 | [unicode-xid](https://github.com/unicode-rs/unicode-xid) | 0.2.6 | `MIT OR Apache-2.0` |
 | [untrusted](https://github.com/briansmith/untrusted) | 0.9.0 | `ISC` |
@@ -762,16 +760,16 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.254.2 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.262.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmprinter](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmprinter) | 0.254.2 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
-| [wasmtime](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-environ](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-component-util](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| wasmtime-internal-core | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-cranelift](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-fiber](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-jit-debug](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-jit-icache-coherence](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-unwinder](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-versioned-export-macros](https://github.com/bytecodealliance/wasmtime) | 48.0.6 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-environ](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-component-util](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| wasmtime-internal-core | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-cranelift](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-fiber](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-jit-debug](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-jit-icache-coherence](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-unwinder](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-versioned-export-macros](https://github.com/bytecodealliance/wasmtime) | 48.0.7 | `Apache-2.0 WITH LLVM-exception` |
 | [wayland-backend](https://github.com/smithay/wayland-rs) | 0.3.17 | `MIT` |
 | [wayland-client](https://github.com/smithay/wayland-rs) | 0.31.15 | `MIT` |
 | [wayland-csd-frame](https://github.com/rust-windowing/wayland-csd-frame) | 0.3.0 | `MIT` |
@@ -786,9 +784,9 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [web-transport-proto](https://github.com/moq-dev/web-transport) | 0.6.2 | `MIT OR Apache-2.0` |
 | [web-transport-quinn](https://github.com/moq-dev/web-transport) | 0.13.0 | `MIT OR Apache-2.0` |
 | [web-transport-trait](https://github.com/moq-dev/web-transport) | 0.5.0 | `MIT OR Apache-2.0` |
-| [webpki-root-certs](https://github.com/rustls/webpki-roots) | 1.0.9 | `CDLA-Permissive-2.0` |
+| [webpki-root-certs](https://github.com/rustls/webpki-roots) | 1.0.11 | `CDLA-Permissive-2.0` |
 | [webpki-roots](https://github.com/rustls/webpki-roots) | 0.26.11 | `CDLA-Permissive-2.0` |
-| [webpki-roots](https://github.com/rustls/webpki-roots) | 1.0.9 | `CDLA-Permissive-2.0` |
+| [webpki-roots](https://github.com/rustls/webpki-roots) | 1.0.11 | `CDLA-Permissive-2.0` |
 | [weezl](https://github.com/image-rs/weezl) | 0.1.12 | `MIT OR Apache-2.0` |
 | [wesl](https://github.com/webgpu-tools/wesl-rs) | 0.5.0 | `MIT OR Apache-2.0` |
 | [wesl-core](https://github.com/webgpu-tools/wesl-rs) | 0.1.0 | `MIT OR Apache-2.0` |
@@ -893,14 +891,14 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, codespan-reporting, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
-### LICENSE-APACHE — 176 packages
+### LICENSE-APACHE — 175 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-addr2line 0.26.1, ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, cpp_demangle 0.5.1, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, debug-ignore 1.0.5, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, embedded-io 0.4.0, embedded-io 0.6.1, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, gimli 0.33.0, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, leb128fmt 0.1.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, object 0.39.1, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, postcard 1.1.3, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-demangle 0.1.28, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.2, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-encoder 0.254.2, wasm-encoder 0.262.0, wasmparser 0.254.2, wasmparser 0.262.0, wasmprinter 0.254.2, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
+addr2line 0.26.1, ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, cpp_demangle 0.5.1, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, debug-ignore 1.0.5, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, embedded-io 0.4.0, embedded-io 0.6.1, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, gimli 0.33.0, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, leb128fmt 0.1.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, object 0.39.1, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, postcard 1.1.3, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-demangle 0.1.28, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.2, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-encoder 0.254.2, wasm-encoder 0.262.0, wasmparser 0.254.2, wasmparser 0.262.0, wasmprinter 0.254.2, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
 
 </details>
 
@@ -2196,7 +2194,7 @@ Apache License
 <details>
 <summary>Which packages carry this exact file</summary>
 
-cranelift-bforest 0.135.6, cranelift-codegen 0.135.6, cranelift-codegen-meta 0.135.6, cranelift-codegen-shared 0.135.6, cranelift-control 0.135.6, cranelift-entity 0.135.6, cranelift-frontend 0.135.6, cranelift-native 0.135.6, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, regalloc2 0.15.2, rustix 0.38.44, rustix 1.1.5, target-lexicon 0.13.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.254.2, wasm-encoder 0.262.0, wasmparser 0.254.2, wasmparser 0.262.0, wasmprinter 0.254.2, wasmtime 48.0.6, wasmtime-environ 48.0.6, wasmtime-internal-cranelift 48.0.6, wasmtime-internal-fiber 48.0.6, wasmtime-internal-unwinder 48.0.6, wit-bindgen 0.57.1
+cranelift-bforest 0.135.7, cranelift-codegen 0.135.7, cranelift-codegen-meta 0.135.7, cranelift-codegen-shared 0.135.7, cranelift-control 0.135.7, cranelift-entity 0.135.7, cranelift-frontend 0.135.7, cranelift-native 0.135.7, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, regalloc2 0.15.2, rustix 0.38.44, rustix 1.1.5, target-lexicon 0.13.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.254.2, wasm-encoder 0.262.0, wasmparser 0.254.2, wasmparser 0.262.0, wasmprinter 0.254.2, wasmtime 48.0.7, wasmtime-environ 48.0.7, wasmtime-internal-cranelift 48.0.7, wasmtime-internal-fiber 48.0.7, wasmtime-internal-unwinder 48.0.7, wit-bindgen 0.57.1
 
 </details>
 
@@ -3043,43 +3041,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### LICENSE-MIT — 10 packages
-
-<details>
-<summary>Which packages carry this exact file</summary>
-
-cpp_demangle 0.5.1, gimli 0.33.0, heck 0.5.0, linked-hash-map 0.5.6, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, vec_map 0.8.2
-
-</details>
-
-```
-Copyright (c) 2015 The Rust Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 ### UNLICENSE — 9 packages
 
 <details>
@@ -3114,6 +3075,43 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org/>
+```
+
+### LICENSE-MIT — 9 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+cpp_demangle 0.5.1, gimli 0.33.0, heck 0.5.0, linked-hash-map 0.5.6, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.2.2, unicode-xid 0.2.6, vec_map 0.8.2
+
+</details>
+
+```
+Copyright (c) 2015 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ```
 
 ### LICENSE-APACHE — 9 packages
@@ -4854,25 +4852,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### COPYRIGHT — 4 packages
-
-<details>
-<summary>Which packages carry this exact file</summary>
-
-unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6
-
-</details>
-
-```
-Licensed under the Apache License, Version 2.0
-<LICENSE-APACHE or
-http://www.apache.org/licenses/LICENSE-2.0> or the MIT
-license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
-at your option. All files in the project carrying such
-notice may not be copied, modified, or distributed except
-according to those terms.
-```
-
 ### LICENSE-MIT — 3 packages
 
 <details>
@@ -6530,12 +6509,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### COPYRIGHT — 3 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+unicode-segmentation 1.13.3, unicode-width 0.2.2, unicode-xid 0.2.6
+
+</details>
+
+```
+Licensed under the Apache License, Version 2.0
+<LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT
+license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
+at your option. All files in the project carrying such
+notice may not be copied, modified, or distributed except
+according to those terms.
+```
+
 ### LICENSE — 3 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-webpki-root-certs 1.0.9, webpki-roots 0.26.11, webpki-roots 1.0.9
+webpki-root-certs 1.0.11, webpki-roots 0.26.11, webpki-roots 1.0.11
 
 </details>
 
@@ -22278,7 +22276,7 @@ SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
-rustls-webpki 0.103.15
+rustls-webpki 0.103.16
 
 </details>
 
@@ -23901,7 +23899,7 @@ SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
-tokio 1.53.1
+tokio 1.54.1
 
 </details>
 

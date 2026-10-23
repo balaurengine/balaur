@@ -136,10 +136,8 @@ pub(super) fn write_functions(
                 .join("\n");
             text.push('\n');
         }
-        // A path that ends without a `return` answers the type's zero, as
-        // Godot answers null.
-        // An async function's last wait may sit inside a branch, which reads
-        // as its value: it ends on a bare `return` instead.
+        // A path ending without `return` answers the type's zero, Godot's null; an
+        // async function ends on a bare `return`, else its last wait reads as its value.
         if ret.is_none() && !synchronous && (body.awaits || context.asyncs.contains(&function.name))
         {
             text.push_str("return;\n");

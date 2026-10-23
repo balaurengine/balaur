@@ -90,7 +90,7 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Names settled** — one name per concept across the script API, scene files, themes, settings, the CLI and the editor, held by lints. | 0.3 | [PLAN-naming.md](PLAN-naming.md) |
-| **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. Replaced by Balaur Script. | 0.1 done | no plan |
+| **Rune scripting** — the first language, replaced by Balaur Script: a `math` module, hot reload, a DAP debugger and a self-documenting API. | 0.1 done | no plan |
 | **A second scripting language** — Luau, C# or mimas beside Balaur Script, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
 | **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
@@ -104,7 +104,7 @@ being built, marked `done`, never back in the shipped one.
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
-| **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to a `.wasm` module and run over the same host calls; the editor, the examples and the GDScript importer use it, and Rune is gone. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
+| **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to `.wasm` over the same host calls; the editor, examples and importer run on it. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 | **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |

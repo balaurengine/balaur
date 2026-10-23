@@ -69,62 +69,8 @@ impl Emitter<'_> {
             let r = self.condition(right);
             return format!("{} {op} {}", wrap(left, l), wrap(right, r));
         }
-        // `"%s" % [a]` is formatting, not modulo. A literal says which it is;
-        // anything else asks the shim, as Godot asks the value.
-        if op == "%" && (matches!(left, Expr::Str(_)) || matches!(right, Expr::Array(_))) {
-            let text = self.expression(left);
-            let args = match right {
-                Expr::Array(_) => self.expression(right),
-                other => {
-                    let one = self.expression(other);
-                    super::map::any_list(&[one])
-                }
-            };
-            self.uses_shim = true;
-            return format!("gd::format({text}, {args})");
-        }
-        if op == "%" && !matches!(left, Expr::Int(_) | Expr::Float(_)) {
-            let l = self.expression(left);
-            let r = self.expression(right);
-            self.uses_shim = true;
-            return format!("gd::modulo({l}, {r})");
-        }
-        // `a + [b]`: Godot joins two arrays; Rune adds no lists.
-        if op == "+" && (matches!(left, Expr::Array(_)) || matches!(right, Expr::Array(_))) {
-            let left = self.expression(left);
-            let right = self.expression(right);
-            self.uses_shim = true;
-            return format!("gd::concat({left}, {right})");
-        }
-        if op == "in" {
-            let left = self.expression(left);
-            let right = self.expression(right);
-            self.uses_shim = true;
-            return format!("gd::has({right}, {left})");
-        }
-        // `x == null` is `is_nil`: Rune does not compare against unit.
-        if matches!(op, "==" | "!=") && (matches!(left, Expr::Nil) || matches!(right, Expr::Nil)) {
-            let value = if matches!(left, Expr::Nil) {
-                right
-            } else {
-                left
-            };
-            let text = self.expression(value);
-            self.uses_shim = true;
-            let nil = format!("gd::is_nil({text})");
-            return if op == "==" { nil } else { format!("!{nil}") };
-        }
-        if op == "**" {
-            let left = self.float_operand(left);
-            let right = self.float_operand(right);
-            return format!("math::pow({left}, {right})");
-        }
-        // Balaur Script has no bitwise operators: the shim does them on ints.
-        if let Some(verb) = bit_verb(op) {
-            let left = self.expression(left);
-            let right = self.expression(right);
-            self.uses_shim = true;
-            return format!("gd::{verb}({left}, {right})");
+        if let Some(text) = self.value_operator(op, left, right) {
+            return text;
         }
         // Two literal strings are one.
         if op == "+"
@@ -197,6 +143,70 @@ impl Emitter<'_> {
             group(right, text, true)
         };
         format!("{left_text} {op} {right_text}")
+    }
+
+    /// An operator Godot has and Balaur Script does not, done by the shim or
+    /// `math`: `%` as formatting or modulo, `+` joining lists, `in`, a nil
+    /// test, a power, the bitwise ones.
+    fn value_operator(&mut self, op: &str, left: &Expr, right: &Expr) -> Option<String> {
+        // `"%s" % [a]` is formatting, not modulo. A literal says which it is;
+        // anything else asks the shim, as Godot asks the value.
+        if op == "%" && (matches!(left, Expr::Str(_)) || matches!(right, Expr::Array(_))) {
+            let text = self.expression(left);
+            let args = match right {
+                Expr::Array(_) => self.expression(right),
+                other => {
+                    let one = self.expression(other);
+                    super::map::any_list(&[one])
+                }
+            };
+            self.uses_shim = true;
+            return Some(format!("gd::format({text}, {args})"));
+        }
+        if op == "%" && !matches!(left, Expr::Int(_) | Expr::Float(_)) {
+            let l = self.expression(left);
+            let r = self.expression(right);
+            self.uses_shim = true;
+            return Some(format!("gd::modulo({l}, {r})"));
+        }
+        // `a + [b]`: Godot joins two arrays; Rune adds no lists.
+        if op == "+" && (matches!(left, Expr::Array(_)) || matches!(right, Expr::Array(_))) {
+            let left = self.expression(left);
+            let right = self.expression(right);
+            self.uses_shim = true;
+            return Some(format!("gd::concat({left}, {right})"));
+        }
+        if op == "in" {
+            let left = self.expression(left);
+            let right = self.expression(right);
+            self.uses_shim = true;
+            return Some(format!("gd::has({right}, {left})"));
+        }
+        // `x == null` is `is_nil`: Rune does not compare against unit.
+        if matches!(op, "==" | "!=") && (matches!(left, Expr::Nil) || matches!(right, Expr::Nil)) {
+            let value = if matches!(left, Expr::Nil) {
+                right
+            } else {
+                left
+            };
+            let text = self.expression(value);
+            self.uses_shim = true;
+            let nil = format!("gd::is_nil({text})");
+            return Some(if op == "==" { nil } else { format!("!{nil}") });
+        }
+        if op == "**" {
+            let left = self.float_operand(left);
+            let right = self.float_operand(right);
+            return Some(format!("math::pow({left}, {right})"));
+        }
+        // Balaur Script has no bitwise operators: the shim does them on ints.
+        if let Some(verb) = bit_verb(op) {
+            let left = self.expression(left);
+            let right = self.expression(right);
+            self.uses_shim = true;
+            return Some(format!("gd::{verb}({left}, {right})"));
+        }
+        None
     }
 
     /// The pieces of a chain of strings joined by `+`, each as it stands

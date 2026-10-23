@@ -228,11 +228,8 @@ impl BsHost {
         Some(BsHost { inner })
     }
 
-    // A pack holds each script's source: `Compiled` carries a `Meta` with no
-    // encoding yet, and compiling at load is a millisecond a thousand lines.
-    // A key the pack lacks is read through `fs`: the editor in a browser runs
-    // from its own pack and plays a project's scripts by their path under the
-    // game root, as it does from a directory on a desktop.
+    // A pack holds each script's source; a key it lacks is read through `fs`,
+    // as the browser editor plays a project's scripts from under the game root.
     fn source(&self, key: &str) -> Result<String> {
         let packed = self
             .inner

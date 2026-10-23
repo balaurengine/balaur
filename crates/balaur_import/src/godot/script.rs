@@ -145,23 +145,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         )],
         ..Shape::default()
     };
-    // The class's own documentation: the `##` block before its first
-    // declaration, past `extends` and `class_name`.
-    shape.doc = source
-        .lines()
-        .skip_while(|line| {
-            let line = line.trim();
-            line.is_empty()
-                || line.starts_with("extends ")
-                || line.starts_with("class_name ")
-                || line.starts_with('@') && !line.contains(" var ")
-        })
-        .take_while(|line| line.trim_start().starts_with("##"))
-        .map(|line| {
-            let text = line.trim_start().trim_start_matches('#').trim_end();
-            format!("///{text}").trim_end().to_string()
-        })
-        .collect();
+    shape.doc = class_doc(source);
     if !context.object_class {
         shape.node_class = Some(struct_name(source, path));
     }
@@ -204,6 +188,26 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         notes,
         object,
     }
+}
+
+/// The class's own documentation: the `##` block before its first
+/// declaration, past `extends` and `class_name`.
+fn class_doc(source: &str) -> Vec<String> {
+    source
+        .lines()
+        .skip_while(|line| {
+            let line = line.trim();
+            line.is_empty()
+                || line.starts_with("extends ")
+                || line.starts_with("class_name ")
+                || line.starts_with('@') && !line.contains(" var ")
+        })
+        .take_while(|line| line.trim_start().starts_with("##"))
+        .map(|line| {
+            let text = line.trim_start().trim_start_matches('#').trim_end();
+            format!("///{text}").trim_end().to_string()
+        })
+        .collect()
 }
 
 /// The modules a file's text reaches: the shim, each project class's module
@@ -399,10 +403,8 @@ fn split_functions(source: &str) -> Vec<Function> {
             }
             let mut function = parse_signature(&signature, line.starts_with("static"));
             function.lines.push(signature);
-            // A bracket left open runs on, even past a line at column 0: a
-            // list's closing `]` may sit there.
-            // A `"""` string runs over lines too, and its brackets count
-            // for nothing.
+            // An open bracket or a `"""` string runs on, even past a line at
+            // column 0; the string's brackets count for nothing.
             let mut open = 0;
             let mut long = false;
             while i + 1 < lines.len() {
@@ -1088,6 +1090,8 @@ mod constants;
 mod draw;
 mod funcs;
 mod inner;
+#[cfg(test)]
+mod inner_tests;
 mod input;
 mod members;
 mod notification;

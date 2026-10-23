@@ -1,11 +1,5 @@
-// Godot's Variant verbs, for scripts `balaur import` converted. Written by
-// the importer: edit the importer, not this file.
-//
-// A value whose GDScript type is unknown is an `any`. A Vector2 is a map of
-// `x` and `y`, a Vector3 adds `z`, a Color is `r`, `g`, `b` and `a`; an
-// object of a GDScript class is a map with its fields and `__class`, and a
-// callable a map of `__target`, a node or an object, `__method`, and what a
-// lambda captured in `__cap`. No function value crosses between scripts.
+// Godot's Variant verbs for scripts `balaur import` converted: edit the importer, not this file.
+// Unknown types are `any`; vectors, colors, objects and callables are maps, and no fn value crosses scripts.
 
 use classes;
 use godot_settings;
@@ -1768,8 +1762,7 @@ fn vector_length(v: any) -> float {
     math::sqrt(total)
 }
 
-// ---- Lists, records and stubs -------------------------------------------
-
+// Lists, records and stubs
 /// An empty list of any kinds.
 pub fn list() -> any {
     let out: any = [];
@@ -1880,8 +1873,7 @@ pub fn color_alpha(c: any) -> float {
     1.0
 }
 
-// ---- Statics and metadata -------------------------------------------------
-
+// Statics and metadata
 /// A `static var`, held for as long as the app runs, as Godot holds one.
 pub fn static_get(key: str, fallback: any) -> any {
     let held: any = script::stored(key);
@@ -2045,8 +2037,7 @@ fn tagged_value(tag: str, v: any) -> any {
     nil
 }
 
-// ---- Nodes ----------------------------------------------------------------
-
+// Nodes
 /// A value as a node: an invalid one when it holds something else.
 pub fn node_of(value: any) -> Node {
     value.as_node()
@@ -2180,8 +2171,7 @@ pub fn instance_from_id(id: any) -> any {
     nil
 }
 
-// ---- Project ----------------------------------------------------------------
-
+// Project
 /// Godot's `ProjectSettings.get`: what `project.godot` said.
 pub fn project_setting(path: str, fallback: any) -> any {
     let held: any = godot_settings::setting(path);
@@ -2261,8 +2251,7 @@ pub fn resource_exists(path: any) -> bool {
     fs::exists(p)
 }
 
-// ---- Signals ----------------------------------------------------------------
-
+// Signals
 // Where a node's script signals keep their handlers: one list per emitter
 // and signal, called as the signal is emitted.
 fn handlers_key(emitter: Node, name: str) -> str {
@@ -2623,8 +2612,7 @@ pub async fn call_async(owner: any, name: str, args: any) -> any {
     out
 }
 
-// ---- Widgets, theme and controls ---------------------------------------------
-
+// Widgets, theme and controls
 const WD_WIDGET: str = "widget";
 const WD_TEXT2D: str = "text2d";
 const WD_IMAGE: str = "image";
@@ -2736,8 +2724,7 @@ pub fn cursor_word(shape: any) -> str {
     words[at]
 }
 
-// ---- Captions, icons and options ---------------------------------------------
-
+// Captions, icons and options
 /// A caption: a world label's `text2d`, or the widget's.
 pub fn text_of(node: any) -> any {
     let n = node_of(node);
@@ -2873,8 +2860,7 @@ fn wd_option_verb(node: Node, name: str, args: any) -> any {
     WD_NOT_MINE
 }
 
-// ---- Theme -------------------------------------------------------------------
-
+// Theme
 /// A control's theme, as the one value scripts read off it.
 pub fn theme_of(node: any) -> any {
     map().with("default_font_size", 16)
@@ -3084,13 +3070,8 @@ fn wd_hex_byte(x: float) -> str {
     "{digits.slice(hi, hi + 1)}{digits.slice(lo, lo + 1)}"
 }
 
-// ---- Shader parameters and images --------------------------------------------
-
-
-
-
-// ---- Lines, particles, cameras -----------------------------------------------
-
+// Shader parameters and images
+// Lines, particles, cameras
 // A Godot `Line2D`, which converts to a `shape2d` polyline.
 fn wd_is_line(node: Node) -> bool {
     wd_has(node, WD_SHAPE2D) && text(get(node.get_component(WD_SHAPE2D), "kind", "")) == WD_POLYLINE
@@ -3315,8 +3296,7 @@ fn wd_node_verb(node: Node, name: str, args: any) -> any {
     WD_NOT_MINE
 }
 
-// ---- Input events --------------------------------------------------------------
-
+// Input events
 const WD_EVENT_KEY: str = "__event";
 const WD_INPUT_HANDLED: str = "input:handled";
 
@@ -3525,10 +3505,7 @@ pub fn take_input_handled() -> bool {
     held
 }
 
-// ---- Node properties -------------------------------------------------------------
-
-
-
+// Node properties
 // A Control property on the node's widget; false for one it has no key for.
 fn wd_set_widget_property(node: Node, name: str, value: any) -> bool {
     if !wd_has(node, WD_WIDGET) {
@@ -3554,22 +3531,8 @@ fn wd_set_widget_property(node: Node, name: str, value: any) -> bool {
     true
 }
 
-// ---- Dispatch ----------------------------------------------------------------
-
-// ---- Tweens -----------------------------------------------------------------
-
-// Godot's Tween over `animation::tween`. A tween is a map of its node, the
-// default transition and mode, its steps, the `finished` steps, the join
-// flags, its loops and the running handle. Godot collects a tween's steps
-// and runs them from the next frame; here each step appended restarts one
-// engine tween holding every step so far, which is the same sequence while a
-// chain is appended in one frame, as GDScript's is.
-//
-// The engine tween runs on the nearest node holding the tween's node and
-// every node a step drives, since a step's `target` is a path below it. A
-// callable is no function the engine can keep, so a callback step calls
-// `fire` on a hidden child that `gd_callback.bs` runs, which calls the
-// callable this file stored for it.
+// Tweens: Godot's Tween over `animation::tween`, a map of node, defaults, steps, loops and the running handle.
+// Each appended step restarts one engine tween holding every step so far; callbacks fire through a hidden `gd_callback.bs` child.
 
 const TW_MARK: str = "__tween";
 const TW_TWEENER: str = "__tweener";
@@ -3965,10 +3928,8 @@ fn tw_restart(t: any) {
     tw_timeline(t, steps);
 }
 
-// When the tween ends, as `finished` for `await tween.finished` to wait on,
-// and when its last step that is no call does, for that step's tweener.
-// Steps fall on the timeline as the engine lays them: a parallel step starts
-// with the group, any other once everything before it is done.
+// `finished` fires when the tween ends, for `await tween.finished`, and a step's tweener when that step does;
+// a parallel step starts with its group, any other once everything before it is done.
 fn tw_timeline(t: any, steps: any) {
     let chain = 0.0;
     let group = 0.0;
@@ -4164,13 +4125,8 @@ pub fn tween_running(t: any) -> bool {
     held != TW_NONE && animation::is_tween_running(held)
 }
 
-// ---- Drawing ----------------------------------------------------------------
-
-// Godot's `_draw` verbs: the engine draws for one frame, so `_draw` runs on
-// `queue_redraw` and the verbs it called are kept and drawn again every
-// frame, `draw_set_transform` among them in its place. A Transform2D is a
-// map of its `x` and `y` axes and its `origin`, each a vector, in Godot's
-// pixels with y down.
+// Drawing: `_draw` runs on `queue_redraw` and its verbs are kept and drawn again every frame, `draw_set_transform` in place.
+// A Transform2D is a map of its `x` and `y` axes and `origin`, each a vector, in Godot's pixels with y down.
 
 const TW_DRAW_LIST: str = "draw:list:";
 const TW_DRAW_WANTED: str = "draw:wanted:";
@@ -4538,8 +4494,7 @@ fn tw_picture(xf: any, a: any, place: any) {
     render::draw_texture_2d(texture.as_str(), centre.x, centre.y, w, h, tw_rgba(a.at(2)), opts);
 }
 
-// ---- Bits ---------------------------------------------------------------------
-
+// Bits
 // Balaur Script has no bitwise operators: these work on an int's bits one
 // at a time, its sign bit included, as two's complement holds them.
 
@@ -4622,10 +4577,8 @@ pub fn shift_right(a: any, n: any) -> int {
     out
 }
 
-// ---- Resources, records and platform ----------------------------------------
-//
-// Godot's resources and singletons a script builds or asks: each a map with a
-// tag key, whose methods `native` answers by the tag.
+// Resources, records and platform: Godot's resources and singletons a script builds or asks,
+// each a map with a tag key whose methods `native` answers by the tag.
 
 const MS_CONFIG: str = "__config";
 const MS_JSON: str = "__json";
@@ -4757,8 +4710,7 @@ fn ms_record_verb(tag: str, rec: any, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- Platform ------------------------------------------------------------------
-
+// Platform
 /// Godot's viewport rectangle: the window's design size, from the origin.
 pub fn viewport_rect() -> any {
     let size = ui::window_size();
@@ -4865,8 +4817,7 @@ pub fn monitor(id: any) -> any {
     0
 }
 
-// ---- ConfigFile -------------------------------------------------------------------
-
+// ConfigFile
 /// Godot's `ConfigFile.new()`: sections of keys, kept in the `save` slot named
 /// after the file it loads from or saves to; `user://settings.cfg` is the
 /// slot `settings`.
@@ -5043,8 +4994,7 @@ fn ms_config_verb(cfg: any, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- JSON ---------------------------------------------------------------------------
-
+// JSON
 // `JSON.new()`'s verbs, on the record base `json_object` makes. Text that is
 // not JSON at all answers Godot's `ERR_PARSE_ERROR`.
 fn ms_json_verb(rec: any, name: str, args: any) -> any {
@@ -5074,8 +5024,7 @@ fn ms_json_verb(rec: any, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- RegEx --------------------------------------------------------------------------
-
+// RegEx
 /// Godot's `RegEx.new()`: a record over `regex::*`, the pattern compiled on
 /// every call.
 pub fn regexp() -> any {
@@ -5223,8 +5172,7 @@ fn ms_match_verb(m: any, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- Files ---------------------------------------------------------------------------
-
+// Files
 const MS_FILE_ERROR: str = "file:last_error";
 
 /// Godot's `FileAccess.open(path, mode)`: a record holding the file's text and
@@ -5540,8 +5488,7 @@ fn ms_csv_rows(source: str, sep: str) -> any {
     rows
 }
 
-// ---- Shaders, shapes, images, meshes ---------------------------------------------
-
+// Shaders, shapes, images, meshes
 /// Godot's `Shader.new()`: the code a script assigns, kept and never compiled;
 /// the engine draws with its own `material` assets.
 pub fn shader() -> any {
@@ -5701,7 +5648,6 @@ pub fn image_texture(image: any) -> any {
     nil
 }
 
-// A texture's size in pixels, by its path.
 fn ms_texture_size(path: str) -> any {
     if path == "" {
         return vec2(0.0, 0.0);
@@ -5802,8 +5748,7 @@ fn ms_add_surface(mesh: any, primitive: int, arrays: any) {
     mesh.set("surfaces", mesh.get("surfaces").as_int() + 1);
 }
 
-// ---- MultiMesh ---------------------------------------------------------------------
-
+// MultiMesh
 /// Godot's `MultiMesh.new()`: the instances a `MultiMeshInstance2D` or `3D`
 /// draws, kept as Godot's flat buffer in the engine's units. `multimesh = mm`
 /// gives the node a `multimesh2d` or `multimesh3d` over it; each write after
@@ -6109,8 +6054,7 @@ fn ms_multimesh_set(mm: any, name: str, value: any) {
     }
 }
 
-// ---- Transform2D -----------------------------------------------------------------
-
+// Transform2D
 // A Godot `Transform2D`: its `x` and `y` columns and `origin`, in pixels, y down.
 fn ms_xform(xx: float, xy: float, yx: float, yy: float, ox: float, oy: float) -> any {
     map().with(MS_XFORM, true).with("x", vec2(xx, xy)).with("y", vec2(yx, yy)).with("origin", vec2(ox, oy))
@@ -6318,8 +6262,7 @@ fn ms_xform_verb(t: any, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- Nodes ---------------------------------------------------------------------------
-
+// Nodes
 /// Godot's `get_node_or_null(path)`: nothing for no path or no node there,
 /// the node for a node, the node at the path otherwise.
 pub fn node_at(owner: any, path: any) -> any {
@@ -6386,8 +6329,7 @@ fn ms_glob(pattern: str, name: str) -> bool {
     pi == p.len()
 }
 
-// ---- Geometry ------------------------------------------------------------------------
-
+// Geometry
 // A Godot polygon as the `[x, y]` pairs `geometry2d` takes.
 fn ms_points(polygon: any) -> any {
     let out: any = list();
@@ -6432,8 +6374,7 @@ pub fn merge_polygons(a: any, b: any) -> any {
     out
 }
 
-// ---- Random numbers ------------------------------------------------------------------
-
+// Random numbers
 /// Godot's `RandomNumberGenerator.new()`: its methods over the engine's one
 /// seeded generator, which keeps a replay the same; `seed` is kept, not used.
 pub fn random_numbers() -> any {
@@ -6484,8 +6425,7 @@ fn ms_rng_verb(name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- Classes -------------------------------------------------------------------------
-
+// Classes
 /// Godot's `x is Name`: a project class by the scripts that are it or extend
 /// it, an object by its class, a node's Godot class by the component or
 /// widget kind it became, a record or a value by what it holds.
@@ -6758,8 +6698,7 @@ fn ms_record_is(value: any, name: str) -> bool {
     false
 }
 
-// ---- String verbs --------------------------------------------------------------------
-
+// String verbs
 pub fn to_lower(value: any) -> str {
     text(value).to_lower()
 }
@@ -7028,8 +6967,7 @@ fn ms_string_verb(s: str, name: str, args: any) -> any {
     MS_UNHANDLED
 }
 
-// ---- Properties a script sets records under ------------------------------------------
-
+// Properties a script sets records under
 /// The resource a node holds under one of Godot's properties: its `material`,
 /// `multimesh` or `shape`, as the record a script set or one over what the
 /// scene gave it; nil for another name.
