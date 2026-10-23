@@ -47,7 +47,6 @@ balaur_cfg = { path = "crates/balaur_cfg", version = "0.2.0" }
 balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
-balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0", default-features = false }
 balaur_bs = { path = "crates/balaur_bs", version = "0.2.0", default-features = false }
 balaur_script_bs = { path = "crates/balaur_script_bs", version = "0.2.0", default-features = false }
 balaur_port = { path = "crates/balaur_port", version = "0.2.0" }
@@ -126,7 +125,6 @@ balaur_render = { opt-level = 1 }
 balaur_bs = { opt-level = 1 }
 balaur_script = { opt-level = 1 }
 balaur_script_bs = { opt-level = 1 }
-balaur_script_rune = { opt-level = 1 }
 balaur_text = { opt-level = 1 }
 balaur_ui = { opt-level = 1 }
 
@@ -167,7 +165,6 @@ strip = true
 rune = { opt-level = "s" }
 rune-alloc = { opt-level = "s" }
 rune-core = { opt-level = "s" }
-balaur_script_rune = { opt-level = "s" }
 
 # Four forks. Cargo.lock pins each commit; to hack on one locally, use a
 # `paths` override in .cargo/config.toml rather than editing this.

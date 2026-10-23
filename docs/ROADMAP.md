@@ -81,20 +81,20 @@ being built, marked `done`, never back in the shipped one.
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **The editor on a tablet and a phone** — the docks fold away on a small screen and open one at a time, and every control clears a finger. | 0.8 | [PLAN-responsive.md](PLAN-responsive.md) |
 | **More than one window** — a second OS window: a dock torn off the editor, or a game on a second display. | 1.0 | no plan |
-| **A shader graph** — the canvas the Rune graph brings, emitting WESL instead of Rune, with `[params]` still read off the linked shader. | 1.0 | [PLAN-shaders.md](PLAN-shaders.md) |
+| **A shader graph** — the canvas the script graph brings, emitting WESL instead of a script, with `[params]` still read off the linked shader. | 1.0 | [PLAN-shaders.md](PLAN-shaders.md) |
 | **Modelling in the viewport** — push and pull a face, bevel an edge, subdivide and unwrap with `xatlas`, editing the `mesh` asset every shape already is. | 1.0 | no plan |
-| **A graph that writes Rune** — a `graphs/*.toml` asset whose save emits the `.rn` beside it, over a node palette generated from `api.json`. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
+| **A graph that writes a script** — a `graphs/*.toml` asset whose save emits the `.bs` beside it, over a node palette generated from `api.json`. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 
 ## Scripts and assets
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Names settled** — one name per concept across the script API, scene files, themes, settings, the CLI and the editor, held by lints. | 0.3 | [PLAN-naming.md](PLAN-naming.md) |
-| **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. | 0.1 done | no plan |
-| **A second scripting language** — Luau, C# or mimas beside Rune, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
+| **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. Replaced by Balaur Script. | 0.1 done | no plan |
+| **A second scripting language** — Luau, C# or mimas beside Balaur Script, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
 | **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
-| **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path, in `balaur_script_rune`. | 0.2 done | no plan |
+| **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path. | 0.2 done | no plan |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
 | **Godot import** — `balaur import` over `project.godot`, `.tscn`, `.tres` and `.gdshader`, writing scenes, assets, script bodies and a report naming what did not convert. | 0.2 done | [PLAN-godot-import.md](PLAN-godot-import.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
@@ -104,7 +104,7 @@ being built, marked `done`, never back in the shipped one.
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
-| **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
+| **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to a `.wasm` module and run over the same host calls; the editor, the examples and the GDScript importer use it, and Rune is gone. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 | **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |
@@ -156,7 +156,7 @@ being built, marked `done`, never back in the shipped one.
 | **Theme states and icons** — `disabled` and `focus` tables in a `widget_theme`, and the icons a check, a spin box, a tab and a slider draw. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **Dark mode on every platform** — `dark_mode()` and `on_dark_mode_changed` answer on Windows, Linux, iOS and Android, as on macOS and in a browser. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
-| **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
+| **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the script graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **Pickers, and drag and drop** — a colour wheel and a file chooser as widget kinds, with a payload one widget offers and another takes. | 0.5 | [PLAN-widgets.md#pickers-and-drag](PLAN-widgets.md#pickers-and-drag) |
 | **Accessibility** — a screen reader over the widget tree, text scaling, captions, and colour-blind-safe defaults. | 0.6 | no plan |
 | **A controller-only shell** — directional focus between widgets, an on-screen keyboard, safe-area insets applied to layout, and button glyphs that follow the pad. | 0.8 | no plan |
@@ -197,7 +197,7 @@ can do today, in the batches it would be built in.
 | --- | :-: | --- |
 | **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record, replay and rollback, and three transports behind one trait. | 0.1 done | no plan |
 | **WebTransport in the browser** — native QUIC datagrams, binary frames, stable ids and rollback are built, and the browser side is not. | 0.4 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
-| **Multiplayer from a script** — a `multiplayer` module to host, join and leave a match from Rune, on a player's machine or a headless server. | 0.4 | [PLAN-multiplayer.md](PLAN-multiplayer.md) |
+| **Multiplayer from a script** — a `multiplayer` module to host, join and leave a match from a script, on a player's machine or a headless server. | 0.4 | [PLAN-multiplayer.md](PLAN-multiplayer.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **State replication and RPC** — deltas generated off the component registry, addressed by `StableId` rather than by path. | 0.4 | [PLAN-networking.md#3-steps](PLAN-networking.md#3-steps) |
 | **Client prediction and reconciliation** — the client runs ahead and is corrected against the server, with nodes it does not own interpolated a send interval behind. | 0.4 | [PLAN-networking.md#hiding-latency](PLAN-networking.md#hiding-latency) |
@@ -243,7 +243,7 @@ waits for its tick to settle.
 | --- | :-: | --- |
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
 | **A splash while a game loads** — a picture over the first frames on every target, held past its seconds while a script reports what it is loading. | 0.2 done | no plan |
-| **A smaller web template** — a game ships without the editor, the Rune compiler or egui's fonts, and `[export] runtime` leaves out a physics world. | 0.2 done | [PLAN-embed.md](PLAN-embed.md) |
+| **A smaller web template** — a game ships without the editor, the script compiler or egui's fonts, and `[export] runtime` leaves out a physics world. | 0.2 done | [PLAN-embed.md](PLAN-embed.md) |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics, the clipboard, keep-awake and vibration, behind one `device` module. | 0.8 | [PLAN-2d-games.md](PLAN-2d-games.md) |

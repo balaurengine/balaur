@@ -167,7 +167,7 @@ checksum = "f211a51805bc641f3ad5b7664c77d2547af685cc33b4cd8d31964027a46f13f1"
 dependencies = [
  "anstyle",
  "memchr",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -857,7 +857,6 @@ dependencies = [
  "anyhow",
  "balaur_core",
  "balaur_script",
- "balaur_script_rune",
  "libloading 0.9.0",
  "serde",
  "serde_json",
@@ -933,29 +932,6 @@ dependencies = [
  "balaur_script",
  "notify",
  "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "balaur_script_rune"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "balaur_core",
- "balaur_script",
- "bincode",
- "glamx",
- "hecs",
- "indexmap",
- "libm",
- "notify",
- "rune",
- "rustc-hash 2.1.3",
- "serde",
- "serde_json",
- "smallvec",
- "tempfile",
- "toml",
  "tracing",
 ]
 
@@ -1402,23 +1378,13 @@ dependencies = [
 
 [[package]]
 name = "codespan-reporting"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
-dependencies = [
- "termcolor",
- "unicode-width 0.1.14",
-]
-
-[[package]]
-name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -3935,7 +3901,7 @@ dependencies = [
  "bitflags 2.13.2",
  "cfg-if",
  "cfg_aliases",
- "codespan-reporting 0.13.1",
+ "codespan-reporting",
  "half",
  "hashbrown 0.17.1",
  "indexmap",
@@ -5906,7 +5872,6 @@ version = "0.14.2"
 source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#ba2939fef7e23bbf467bcf7ee4f7021695d2ff45"
 dependencies = [
  "anyhow",
- "codespan-reporting 0.11.1",
  "futures-core",
  "futures-util",
  "itoa",
@@ -7477,12 +7442,6 @@ name = "unicode-segmentation"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
-
-[[package]]
-name = "unicode-width"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 
 [[package]]
 name = "unicode-width"

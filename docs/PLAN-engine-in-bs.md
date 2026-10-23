@@ -221,8 +221,7 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      an engine error ends the script's call, and the inspector expects
      refusals.
 7. **Examples, templates, the GDScript translator, docs.** In progress.
-   Every example's scripts are `.bs`; `hello` keeps `spinner.rn` beside its
-   port for the comparison test until step 8. The benchmark builds every
+   Every example's scripts are `.bs`. The benchmark builds every
    physics case as Rune did, to the same fingerprint.
    - A benchmark case is a `Case` class. What a closure held sits in its
      fields (`spots`, `component`, `params`, `order`), and each of its
@@ -312,7 +311,13 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      project every converted script compiles, and each project boots and
      runs 120 frames headless; what is left is the same unmapped calls the
      Rune importer left (`to_local`, `get_global_mouse_position`).
-8. **Rune removed.**
+8. **Rune removed** (2026-10-23). The engine-crate tests run Balaur Script,
+   the CLI's tooling (language server, formatter, `balaur api`, checks) reads
+   `.bs` only, the Rune editor and `crates/balaur_script_rune` are deleted,
+   and balaurengine.org teaches Balaur Script. `balaur port` keeps Rune's
+   parser to translate a `.rn` file. Left: the Gamend SDK addon under
+   `editor/library/addons/gamend` is still Rune, and its player-flow tests
+   wait on its port.
    In progress. The engine boots `.bs` alone: `script_language` defaults to
    `bs`, and a scene attaching a `.rn` is a `balaur check` error. `balaur
    lsp`, `fmt`, `test` and `check` answer for `.bs` only, and `balaur api`

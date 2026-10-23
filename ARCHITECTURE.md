@@ -85,7 +85,8 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 `balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
 `serde`, `smol_str`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
-`ScriptHost<Engine>`. Rune cost one crate and changed nothing else.
+`ScriptHost<Engine>`. Balaur Script (`balaur_bs`, `balaur_script_bs`) is the
+one backend; the Rune backend before it was one crate and went as one.
 
 - Operations are declared once in core (`node_api.rs` `NODE_OPS`,
   `engine_api.rs` `ENGINE_OPS`) and reach every language. A second language
@@ -119,22 +120,24 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 ### Model
 
-- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `on_hot_reload`.
-  One instance per attached node, with `node` on it.
-- Free functions take the instance first (`pub fn update(this, dt)`) and mutate
-  it in place. `mod name;` pulls in `name.rn` beside the file — disk in a dev
-  run, pack when shipped.
+- A script is a `pub struct` with a `node: Node` field and an `impl` of its
+  methods: `init()`, `update(dt: float)`, `fixed_update(dt: float)`,
+  `on_free()`. One instance per attached node. A method reads its fields as
+  `self.x`; a call back into the same node while one of its methods runs is
+  lent a second holder of the struct, so state that call must see sits in a
+  `class` field.
+- `use name;` links `name.bs`, found beside the file or in a folder above it,
+  and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
+  struct is a module others use. Disk in a dev run, pack when shipped.
 
 ### Exported properties
 
-`pub fn exports() { #{ speed: 2.0 } }` declares what a scene may tune;
-`script.props` overrides only what it names.
+A `pub` field with a literal default (`pub speed: float = 2.0`) is what a
+scene may tune; `script.props` overrides only what it names.
 
-- At attach: `exports` once per file, defaults written, `props` over them, then
-  `init` — so `init` reads tuned values.
-- An unexported property is still written, and warns; dropping it would lose an
-  edit. `#[export] pub const` declares one beside its use, merged with
-  `exports()`; a name declared in both is an error.
+- At attach: the struct is made with its defaults, `props` written over them,
+  then `init` — so `init` reads tuned values.
+- A prop naming no field is dropped, and warns.
 - `props` is sparse: the inspector writes an override only where it differs, so
   changing a default reaches every node that never overrode it. The default's
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.
@@ -146,20 +149,8 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   it, the way an `asset` property names its asset type.
 - A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
   resolved the way one is, and a path naming nothing is nil in its place.
-- `script::require` hands back a module's `pub fn`s and its top-level `pub
-  const`s, so a shared constant is read where it is declared. A relative
-  path is looked up in the roots a host added before the project's own:
-  `balaur edit` runs with the editor as the project, and the game it plays
-  requires its own addons.
-- An addon's files are also native modules: `addons/<name>/<file>.rn` is
-  `<name>::<file>` in every script, with no `require`. Its `pub fn`s are
-  called by path and its `pub const`s read as constants, a `pub mod` block's
-  one segment deeper. Each function forwards to the file's current unit, so
-  a save reaches every caller. The context is built again when a root is
-  added or a saved addon changes what it exposes. A pack keeps the
-  signatures; a constant is already inside each unit that reads it. A path
-  clashing with an engine item is reported and left out
-  (`balaur_script_rune/src/mounts.rs`).
+- A module is linked into each script that uses it, so its constants are read
+  where they are declared and a save of it recompiles every script using it.
 
 ### Prefabs
 
@@ -191,10 +182,9 @@ the node's own, and the root's children become the node's.
 
 - The host watches the project (`notify`); on save the file recompiles. A
   compile error keeps the previous unit running, reported once.
-- Rune compiles to an immutable unit, so the new unit replaces the old,
-  instances keep their state, and the next call resolves against new code.
-  Save-to-live latency is the watcher's, a few milliseconds. `on_hot_reload`
-  migrates state shapes.
+- The new module replaces the old, and every instance of the file is carried
+  across by field name, so state survives a save; a field the new struct
+  dropped goes, one it added starts at its default.
 - Content reloads through the same watcher, sorted by extension exactly as
   `Pack::build` does. A `.toml` asset was parsed, so the cache forgets it; a
   texture, model, font, sound or `.wesl` is a source, so only the asset
@@ -214,12 +204,10 @@ Breakpoints, stepping and a call stack with locals, for scripts in the editor.
   `request_break`, `paused`, `resume(StepMode)` — so a backend without a
   debugger compiles unchanged. The `debugger` module exposes them plus `scope`
   and `set_scope`, so the dock is plain script.
-- Rune: a unit with breakpoints runs through `Vm::execute` + `VmExecution::step`;
-  one without keeps the plain call, so the no-debugger cost is unchanged. A
-  requested line lands on the next line with code, re-applied after a reload.
-  Step over/into/out compare frame depth and line. Locals are the frame's named
-  arguments — Rune keeps no other names. A breakpoint inside an async entry
-  point (`task::wait`) is let through: a future cannot be parked.
+- A file with breakpoints compiles with a probe per statement and runs
+  stepwise; one without keeps the plain module, so the no-debugger cost is
+  unchanged. A requested line lands on the next line with code, re-applied
+  after a reload. Step over/into/out compare frame depth and line.
 
 ### Components
 
@@ -241,10 +229,8 @@ and remove hooks.
   spec, so `min`, `options`, `asset` and `component` work at any depth. A
   nested spec may leave its `default` out and registration writes the type's
   zero in. A `map`'s `key` is `"string"` or `"int"`, and the file spells a
-  number key `"7"` either way. A `record` may name a script `class`, and the
-  host hands that script an instance of its own struct: the fork carries
-  `Value::struct_parts` and `Unit::new_struct` for it, because Rune keeps a
-  dynamic struct private to its crate.
+  number key `"7"` either way. A `record` is a struct a script reads as its
+  own type.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the
@@ -878,26 +864,14 @@ sees half of one.
 
 Identical inputs produce bit-for-bit identical simulation on every platform.
 
-Rune fits: IEEE-754 doubles and 64-bit integers, `+ - * /` and `sqrt` exactly
-specified, a single-threaded interpreter with no codegen. Our fork lets an int
-meet a float as a float, the conversion exact, and makes values of different
-types unequal where upstream raises.
-
-The maths types (`balaur::Vec2`, `Vec3`, `Vec4`, `IVec2`, `IVec3`, `Quat`,
-`Transform2d`, `Transform3d`, `Color`) are glam's f64 and i64 types, bound
-from glam's source by `scripts/gen_glam_api.py`. They are value types, as
-Godot's are. Rune shares every value between the names that hold it, so the
-fork copies a type that answers its `COPY` protocol wherever one is bound or
-stored: `let`, `x = ..`, parameters, patterns, fields, indexes, literals and a
-native function's arguments. A field read is not copied, so `this.pos.x = 1`
-writes into `this.pos`. Strings and byte buffers are values the same way,
-copied only when a second name would share one, so a fresh string costs
-nothing. Arrays and tables stay shared, as Godot's are.
+Balaur Script fits: it compiles to WebAssembly, whose integer and float
+operations are exactly specified, the interpreter canonicalises NaNs, and the
+JIT, the native build and the interpreter run the same module. Its `Vec2`,
+`Vec3` and `Color` are values, copied where they are bound, as Godot's are.
 
 | Hazard | Status |
 | --- | --- |
-| `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`; Rune has no transcendentals, and our fork puts its `powf`/`powi` on libm (`crates/balaur_script_rune/tests/suite/pow.rs`) |
-| Object iteration order is the hash map's | **Done** — the fork keeps objects, `HashMap` and `HashSet` in insertion order, and hashes with `XxHash64` at a fixed seed. Upstream's `ahash` seeds from `getrandom` and its AES and software paths disagree |
+| `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`, and a script reaches transcendentals only through it |
 | A random source seeded from entropy | **Done** — `rng` is an engine-owned PCG32 with a fixed default seed |
 | Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `fixed_dt()`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
 
@@ -911,8 +885,8 @@ Engine-side:
 - Rendering and audio are pure observers; a headless run computes what a
   windowed run computes.
 - Transcendentals use `libm`, glam's included (`glamx/libm`,
-  `glamx/scalar-math`). `house_lints.py` fails a bare `.sin()` in Rust; the rune
-  fork closes the script side.
+  `glamx/scalar-math`). `house_lints.py` fails a bare `.sin()` in Rust; a
+  script has no other path to one.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - The solver threads on rayon wherever the default `parallel` feature builds,
   every native target: `tests/suite/threads.rs` asserts one thread and
@@ -1201,9 +1175,8 @@ overlay, dark and light token sets.
 - The workspace patches `kiss3d` to `github.com/Ughuuu/kiss3d` (`balaur-hooks`):
   upstream v0.46.0 plus the opaque web canvas, IME events, a mid-pass screen
   copy for 2D materials and UIKit's safe area. The `rune` patch
-  (`balaurengine/rune`, `deterministic-pow`) is not temporary: it puts `powf`
-  and `powi` on `libm`, takes hashing off the platform, and adds VM breakpoints
-  and an instruction counter.
+  (`balaurengine/rune`, `deterministic-pow`) is left for `balaur port`, which
+  reads a `.rn` file with Rune's own parser to translate it to `.bs`.
 
 ## Input
 
