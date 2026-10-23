@@ -976,18 +976,19 @@ fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
     assert_eq!(appearance(&app), (false, 1.0), "hidden, and opaque again");
 }
 
-/// A script that passes the tween a function, which counts each time it runs.
+/// A script whose tween names one of its methods, which counts each time it
+/// runs.
 const MOVER: &str = r#"
-pub fn init(this) {
-    this.landed = 0;
-    let at = this;
-    animation::tween(this.node, #{
-        "steps": [
-            #{ "property": "position", "to": [0.0, 10.0, 0.0], "duration": 0.5 },
-            #{ "call": || { at.landed += 1; } },
-        ],
-    });
-    this.ready = true;
+pub struct Mover { node: Node, landed: int, ready: bool }
+impl Mover {
+    fn init() {
+        let rise = map().with("property", "position").with("to", [0.0, 10.0, 0.0]).with("duration", 0.5);
+        animation::tween(self.node, map().with("steps", [rise, map().with("call", "land")]));
+        self.ready = true;
+    }
+    pub fn land() {
+        self.landed += 1;
+    }
 }
 "#;
 
@@ -1020,16 +1021,16 @@ fn landed(app: &App, entity: Entity) -> Option<i64> {
 }
 
 #[test]
-fn a_call_step_runs_a_function_the_script_passed() {
+fn a_call_step_runs_the_method_the_script_named() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
         "[project]\nname = \"anim\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("mover.rn"), MOVER).unwrap();
+    std::fs::write(dir.path().join("mover.bs"), MOVER).unwrap();
     let mut app = App::new(AppConfig {
-        script_backend: Some(balaur::script_rune::factory()),
+        script_backend: Some(crate::script::bs_backend()),
         ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();
@@ -1038,7 +1039,7 @@ fn a_call_step_runs_a_function_the_script_passed() {
     app.engine
         .script_host()
         .unwrap()
-        .attach(balaur_core::node_id_of(entity), "mover.rn")
+        .attach(balaur_core::node_id_of(entity), "mover.bs")
         .unwrap();
 
     tick(&mut app, 5);
