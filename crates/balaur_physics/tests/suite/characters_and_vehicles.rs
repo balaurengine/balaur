@@ -563,11 +563,8 @@ fn a_collision_reports_where_the_sweep_met_the_obstacle() {
 pub struct S { node: Node, done: bool }
 impl S {
     fn fixed_update(dt: float) {
-        // Every engine call logs wasmtime's trace lines, which would push the
-        // check's own line out of the log a test reads.
-        if self.done { return; }
         let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
-        if moved.get("collisions").len() > 0 {
+        if !self.done && moved.get("collisions").len() > 0 {
             let hit = moved.get("collisions").at(0);
             let point = x(hit.get("point"));
             if point <= 1.4 || point >= 1.6 { log::error("the wall was met at {point}"); }
