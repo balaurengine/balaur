@@ -118,10 +118,12 @@ pub(super) fn write_functions(
             }
         }
         let ret = result(function, &body.text);
-        // A bare `return` in a function that answers one answers its zero.
-        let body_text = match &ret {
-            Some(ty) => body
-                .text
+        text.push_str(&body.text);
+        text.push('\n');
+        // A bare `return` in a function that answers one, its prologue's
+        // included, answers its zero.
+        if let Some(ty) = &ret {
+            text = text
                 .lines()
                 .map(|line| {
                     if line.trim() == "return;" {
@@ -131,11 +133,9 @@ pub(super) fn write_functions(
                     }
                 })
                 .collect::<Vec<_>>()
-                .join("\n"),
-            None => body.text.clone(),
-        };
-        text.push_str(&body_text);
-        text.push('\n');
+                .join("\n");
+            text.push('\n');
+        }
         // A path that ends without a `return` answers the type's zero, as
         // Godot answers null.
         // An async function's last wait may sit inside a branch, which reads

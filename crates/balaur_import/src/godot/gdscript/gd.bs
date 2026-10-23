@@ -459,7 +459,7 @@ pub fn erase(container: any, value: any) -> any {
         return container;
     }
     if container.kind() == LIST {
-        let index = find(container, value);
+        let index = find(container, value, nil);
         if index >= 0 {
             container.remove(index);
         }
@@ -473,9 +473,18 @@ pub fn remove_at(container: any, index: any) {
 }
 
 /// An array's index of `value`, or a string's of a substring; -1 when none.
-pub fn find(container: any, value: any) -> int {
+pub fn find(container: any, value: any, from: any) -> int {
+    let start = if from.is_nil() { 0 } else { from.as_int() };
     if container.kind() == STR {
-        return container.as_str().find(value.as_str());
+        let s = container.as_str();
+        if start <= 0 {
+            return s.find(value.as_str());
+        }
+        if start >= s.len() {
+            return -1;
+        }
+        let at = s.slice(start, s.len()).find(value.as_str());
+        return if at < 0 { -1 } else { at + start };
     }
     let index = 0;
     for item in container {
@@ -1631,7 +1640,7 @@ fn native(owner: any, name: str, args: any) -> any {
         return erase(owner, a0);
     }
     if name == "find" {
-        return find(owner, a0);
+        return find(owner, a0, a1);
     }
     if name == "clear" {
         return clear(owner);
