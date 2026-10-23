@@ -32,6 +32,14 @@ pub(crate) fn inner_classes(source: &str) -> Vec<(String, String)> {
             body.push(lines[i]);
             i += 1;
         }
+        // `class Name:` with `extends Base` as its body's first line.
+        let mut base = base;
+        if let Some(at) = body.iter().position(|l| !l.trim().is_empty())
+            && let Some(named) = body[at].trim().strip_prefix("extends ")
+        {
+            base = named.trim();
+            body.remove(at);
+        }
         let unit = body
             .iter()
             .filter(|l| !l.trim().is_empty())

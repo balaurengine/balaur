@@ -720,6 +720,7 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             classes.files.insert(name, file.clone());
         }
     }
+    inherit_defaulted(&mut classes);
     for file in files
         .iter()
         .filter(|f| crate::godot::files::has_extension(f, "tscn"))
@@ -732,6 +733,34 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             .extend(collision_handlers(&source));
     }
     classes
+}
+
+/// A class's defaulted functions include those it inherits: `GroupsApi.new()`
+/// takes what its base's `_init` takes.
+fn inherit_defaulted(classes: &mut Classes) {
+    use crate::godot::scene::script_path;
+    let names: Vec<String> = classes.files.keys().cloned().collect();
+    for name in names {
+        let Some(own) = classes.files.get(&name).map(|f| script_path(f)) else {
+            continue;
+        };
+        let mut merged = classes.defaulted.get(&own).cloned().unwrap_or_default();
+        let mut base = classes.bases.get(&name).cloned();
+        for _ in 0..16 {
+            let Some(step) = base else { break };
+            if let Some(file) = classes.files.get(&step).map(|f| script_path(f))
+                && let Some(theirs) = classes.defaulted.get(&file)
+            {
+                for (function, takes) in theirs {
+                    merged.entry(function.clone()).or_insert(*takes);
+                }
+            }
+            base = classes.bases.get(&step).cloned();
+        }
+        if !merged.is_empty() {
+            classes.defaulted.insert(own, merged);
+        }
+    }
 }
 
 /// The methods a scene's `[connection]` lines aim a collision signal at.

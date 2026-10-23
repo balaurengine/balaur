@@ -222,7 +222,7 @@ pub(crate) fn global(name: &str, args: &[String], me: &str) -> Option<String> {
         "Color" => match args.len() {
             0 => "gd::color(0.0, 0.0, 0.0, 1.0)".into(),
             1 => format!("gd::color_of({one})"),
-            2 => format!("gd::color_alpha({all})"),
+            2 => format!("gd::color_with_alpha({all})"),
             3 => format!("gd::color({all}, 1.0)"),
             _ => format!("gd::color({all})"),
         },
@@ -283,7 +283,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS" | "DisplayServer", "get_name") => "gd::os_name()".into(),
         ("DisplayServer", "window_get_size" | "screen_get_size") => "gd::screen_size()".into(),
         ("OS", "get_user_data_dir") => "engine::user_data_directory()".into(),
-        ("OS", "shell_open") => format!("engine::open_url({one})"),
+        ("OS", "shell_open") => format!("gd::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
         ("ConfigFile", "new") => "gd::config()".into(),
         ("OS", "get_cmdline_args" | "get_cmdline_user_args") => "engine::args()".into(),
@@ -976,7 +976,7 @@ fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         "change_scene_to_file" | "change_scene_to_packed" => {
             format!("scene::switch(gd::text(gd::load({one})))")
         }
-        "reload_current_scene" => "scene::switch(scene::source())".into(),
+        "reload_current_scene" => "gd::todo(\"reload_current_scene\")".into(),
         "quit" if receiver == TREE => format!(
             "engine::quit({})",
             args.first().cloned().unwrap_or("0".into())
@@ -1060,7 +1060,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "set_visible" => format!("{node}.set_visible({one})"),
         "is_visible" => format!("{node}.visible()"),
         "is_visible_in_tree" => format!("{node}.visible_in_tree()"),
-        "get_instance_id" => format!("{node}.stable_id()"),
+        "get_instance_id" => format!("gd::instance_id({receiver})"),
         "is_in_group" => format!("{node}.has_tag({one})"),
         "add_to_group" => format!("{node}.add_tag({one})"),
         "remove_from_group" => format!("{node}.remove_tag({one})"),

@@ -970,10 +970,17 @@ fn declaration_start(line: &str) -> Option<&str> {
         "signal ",
         "enum ",
     ];
+    // The first keyword standing as a word: `var callback_func := ..` is a
+    // `var`, not the `func` inside its name.
     WORDS
         .iter()
-        .filter_map(|word| line.find(word).map(|at| &line[at..]))
-        .min_by_key(|rest| rest.len())
+        .filter_map(|word| {
+            line.match_indices(word)
+                .map(|(at, _)| at)
+                .find(|&at| at == 0 || line[..at].ends_with([' ', '\t', ')']))
+        })
+        .min()
+        .map(|at| &line[at..])
 }
 
 /// The identifier a declaration opens with.

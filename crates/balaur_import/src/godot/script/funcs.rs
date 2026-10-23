@@ -165,7 +165,7 @@ pub(super) fn write_functions(
     input::write_widget_forwarders(shape, &widget_keys);
     input::write_input_hooks(shape, functions);
     draw::write_draw_hook(shape, functions);
-    notification::write_notification_hooks(shape, functions);
+    notification::write_notification_hooks(shape, functions, context);
 }
 
 /// A function's parameters as declared, each one's type for its body, and

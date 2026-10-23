@@ -431,6 +431,17 @@ impl<'a> Emitter<'a> {
             }
             Stmt::Return(Some(value)) => {
                 let text = self.expression(value);
+                // A function declared `-> bool` answers Godot's truth of what
+                // it returns.
+                let text = if self.context.returns.get(&self.enclosing) == Some(&Bt::Bool)
+                    && !self.is_boolish(value)
+                    && self.type_of(value) != Bt::Bool
+                {
+                    self.uses_shim = true;
+                    format!("gd::truthy({text})")
+                } else {
+                    text
+                };
                 // Rune reads `return || f` as `(return) || f`.
                 let text = if text.starts_with('|') {
                     format!("({text})")
@@ -776,6 +787,30 @@ impl<'a> Emitter<'a> {
         if let Some(rest) = text.strip_prefix("gd::call_value(") {
             return format!("await gd::call_value_async({rest}");
         }
+        // Godot awaits any value: a signal one hands back, a timer, or a
+        // plain value, which goes on at once. Only a function that itself
+        // waits is awaited as it is.
+        let own = match inner {
+            Expr::Call(callee, _) => match &**callee {
+                Expr::Name(name) if !self.is_local(name) => Some(name.clone()),
+                Expr::Field(object, name) if matches!(**object, Expr::SelfRef) => {
+                    Some(name.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let waits = match &own {
+            Some(name) => {
+                self.context.asyncs.contains(name)
+                    || !(self.context.methods.contains(name) || self.context.statics.contains(name))
+            }
+            None => matches!(inner, Expr::Call(..)),
+        };
+        if !waits {
+            self.uses_shim = true;
+            return format!("await gd::wait_on({text})");
+        }
         format!("await {text}")
     }
 
@@ -962,6 +997,10 @@ impl<'a> Emitter<'a> {
     /// A member read: its getter, outside the property's own accessors.
     fn member_read(&self, name: &str) -> String {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
+            // A static's getter is a function of the module.
+            if self.context.static_vars.contains_key(name) {
+                return format!("{GETTER}{name}()");
+            }
             return self.own_call(&format!("{GETTER}{name}"), &[]);
         }
         self.member(name)
@@ -1271,6 +1310,12 @@ impl<'a> Emitter<'a> {
                 return self.shimmed(text);
             }
             if let Some(text) = map::implicit_self(name, &parts) {
+                // An object or a static function has no node of its own.
+                let text = if self.context.object_class || self.in_static {
+                    text.replace("self.node", self.own_node())
+                } else {
+                    text
+                };
                 return self.shimmed(text);
             }
             return self.unresolved(&format!("{name}()"));

@@ -21,7 +21,11 @@ fn number(name: &str) -> &'static str {
 
 /// A class with a `_notification` gains a method for each engine hook that
 /// carries a notification's news, handing it Godot's number for that news.
-pub(super) fn write_notification_hooks(shape: &mut Shape, functions: &[Function]) {
+pub(super) fn write_notification_hooks(
+    shape: &mut Shape,
+    functions: &[Function],
+    context: &crate::godot::gdscript::Context,
+) {
     let has = |name: &str| functions.iter().any(|f| f.name == name);
     if !has(NOTIFICATION) {
         return;
@@ -59,17 +63,19 @@ pub(super) fn write_notification_hooks(shape: &mut Shape, functions: &[Function]
             number("NOTIFICATION_WM_CLOSE_REQUEST").to_string(),
         ),
     ];
+    // A handler that waits is started through the node, which runs it on.
+    let call = if context.asyncs.contains(NOTIFICATION) {
+        format!("self.node.call_async(\"{NOTIFICATION}\", what)")
+    } else {
+        format!("self.{NOTIFICATION}(what)")
+    };
     for (hook, params, what) in hooks {
         if has(hook) {
             continue;
         }
         shape.funs.push(
-            Fun::method(
-                hook,
-                params,
-                format!("let what: int = {what};\nself.{NOTIFICATION}(what);\n"),
-            )
-            .doc("Godot's notification for this news, from the engine's hook."),
+            Fun::method(hook, params, format!("let what: int = {what};\n{call};\n"))
+                .doc("Godot's notification for this news, from the engine's hook."),
         );
     }
 }

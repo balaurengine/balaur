@@ -546,11 +546,41 @@ pub fn duplicate_deep(value: any) -> any {
     value
 }
 
-pub fn merge(into: any, other: any) -> any {
+/// Godot's `merge(other, overwrite)`: a key already there stays unless
+/// `overwrite`.
+pub fn merge(into: any, other: any, overwrite: any) -> any {
+    let replace = truthy(overwrite);
     for key in other.keys() {
-        into.set(key, other.get(key));
+        if replace || !into.has(key.as_str()) {
+            into.set(key, other.get(key));
+        }
     }
     into
+}
+
+/// `Color(c, alpha)`: the colour with its alpha replaced.
+pub fn color_with_alpha(c: any, alpha: any) -> any {
+    let out: any = color(num(get(c, "r", 0.0)), num(get(c, "g", 0.0)), num(get(c, "b", 0.0)), num(alpha));
+    out
+}
+
+/// `OS.shell_open(url)`: the engine opens it; Godot's `OK` back.
+pub fn open_url(url: any) -> int {
+    engine::open_url(text(url));
+    0
+}
+
+/// Godot's `get_instance_id()`: a number standing for the node, which
+/// `instance_from_id` turns back into it.
+pub fn instance_id(node: any) -> int {
+    let n = node_of(node);
+    if !n.is_valid() {
+        return 0;
+    }
+    let id = n.stable_id();
+    let number = hash(id);
+    script::store("iid:{number}", id);
+    number
 }
 
 pub fn front(container: any) -> any {
@@ -1625,7 +1655,7 @@ fn native(owner: any, name: str, args: any) -> any {
         return slice(owner, a0, a1);
     }
     if name == "merge" {
-        return merge(owner, a0);
+        return merge(owner, a0, a1);
     }
     if kind == STR {
         let s = owner.as_str();
@@ -1778,9 +1808,19 @@ pub fn hash(value: any) -> int {
     let s = text(value);
     let h = 5381;
     for c in s.chars() {
-        h = (h * 33 + c.len()) % 2147483647;
+        h = (h * 33 + ord(c)) % 2147483647;
     }
     h
+}
+
+/// A character's code, for the printable ASCII ones; 0 for any other.
+pub fn ord(c: str) -> int {
+    let letters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{{|}}~";
+    let at = letters.find(c);
+    if at < 0 || c.len() != 1 {
+        return 0;
+    }
+    at + 32
 }
 
 /// What the importer could not translate: nil, said once when it runs.
@@ -2116,7 +2156,9 @@ const REMOVED: str = "__removed";
 
 /// A node by the id Godot's `get_instance_id` answered.
 pub fn instance_from_id(id: any) -> any {
-    let found = scene::node_by_id(text(id));
+    let held: any = script::stored("iid:{text(id)}");
+    let key = if held.is_nil() { text(id) } else { text(held) };
+    let found = scene::node_by_id(key);
     if found.is_valid() {
         return found;
     }
@@ -2515,6 +2557,28 @@ pub async fn wait_signal(owner: any, name: str) -> any {
         await task::seconds(value.get("__after").as_float());
         return nil;
     }
+    value
+}
+
+/// Godot's `await value`: a signal waited for, a timer's time, and any other
+/// value back after a frame.
+pub async fn wait_on(value: any) -> any {
+    if is_signal(value) {
+        let out: any = await wait_signal(value.get("node"), value.get(SIGNAL_KEY).as_str());
+        return out;
+    }
+    if value.kind() == MAP && value.has("__after") {
+        await task::seconds(value.get("__after").as_float());
+        return nil;
+    }
+    if value.kind() == MAP && value.has("timeout") {
+        let timer: any = value.get("timeout");
+        if timer.kind() == MAP && timer.has("__after") {
+            await task::seconds(timer.get("__after").as_float());
+            return nil;
+        }
+    }
+    await task::frames(1);
     value
 }
 
