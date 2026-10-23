@@ -5,7 +5,7 @@
 //! ```text
 //! project.toml          # name + main scene
 //! scenes/main.toml      # node tree
-//! scripts/*.rn          # node scripts
+//! scripts/*.bs          # node scripts
 //! ```
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the
@@ -361,7 +361,7 @@ impl<'de> Deserialize<'de> for ProjectManifest {
 }
 
 fn default_language() -> String {
-    "rune".to_string()
+    "bs".to_string()
 }
 
 impl ProjectManifest {

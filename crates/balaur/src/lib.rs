@@ -23,7 +23,6 @@ pub use balaur_platform as platform;
 pub use balaur_render as render;
 #[cfg(feature = "bs-backend")]
 pub use balaur_script_bs as script_bs;
-pub use balaur_script_rune as script_rune;
 pub use balaur_ui as ui;
 
 // A `Transport` a project names at run time, not a plugin: nothing to load.
@@ -94,35 +93,26 @@ fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManife
     balaur_core::project::ProjectManifest::parse(&text).ok()
 }
 
-/// The script backend a project asks for in its `project.toml`. Rune is the
-/// one language this build ships; the field stays so a project states it.
-fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
-    let language = manifest_of(config).map_or_else(|| "rune".to_string(), |m| m.language);
-    match language.as_str() {
-        "rune" => Ok(with_lang(balaur_script_rune::factory())),
-        other => Err(anyhow::anyhow!(
-            "project.toml asks for script_language \"{other}\"; this build has rune"
-        )),
+/// The script backend a project asks for in its `project.toml`: `bs`, the
+/// one language this build runs; the field stays so a project states it.
+fn backend_for(config: &AppConfig) -> Result<Option<balaur_core::ScriptHostFactory>> {
+    let language = manifest_of(config).map_or_else(|| BS.to_string(), |m| m.language);
+    if language != BS {
+        bail!("project.toml asks for script_language \"{language}\"; this build runs {BS}");
     }
+    #[cfg(feature = "bs-backend")]
+    return Ok(Some(balaur_script_bs::factory()));
+    #[cfg(not(feature = "bs-backend"))]
+    Ok(None)
 }
 
-/// `.bs` scripts run beside the project's Rune ones, chosen by extension.
-#[cfg(feature = "bs-backend")]
-fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
-    balaur_script_bs::beside(rune)
-}
-
-#[cfg(not(feature = "bs-backend"))]
-fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
-    rune
-}
+/// The `script_language` of a project written in Balaur Script.
+const BS: &str = "bs";
 
 /// Build an export pack with the script backend `standard_app` installs.
 ///
-/// Rune resolves `input::…` while compiling, so an export has to run against
-/// the same modules the game will have: boot the app the game would boot, and
-/// compile through its host. Exporting through a bare context instead rejects
-/// every script that touches the engine.
+/// A script compiles against the engine's modules, so an export boots the app
+/// the game would boot and compiles through its host.
 pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
     build_pack_with(project_root, false)
 }
@@ -139,12 +129,7 @@ pub fn build_pack_using(
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
-    with_rune_host(project_root, extra, |engine, host| {
-        // `.bs` files compile through their own backend, beside Rune's.
-        #[cfg(feature = "bs-backend")]
-        let exporter = balaur_script_bs::Exporter::new(engine, host);
-        #[cfg(feature = "bs-backend")]
-        let host = &exporter;
+    with_host(project_root, extra, |engine, host| {
         let pack = Pack::build_with(project_root, host, keep_sources)?;
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
@@ -175,7 +160,7 @@ pub fn native_scripts(
     pack: &Pack,
 ) -> Result<Option<NativeScripts>> {
     #[cfg(all(feature = "bs-backend", feature = "compile"))]
-    return with_rune_host(project_root, extra, |engine, _| {
+    return with_host(project_root, extra, |engine, _| {
         Ok(
             balaur_script_bs::native_source(engine, &pack.scripts)?.map(|(c, modules)| {
                 NativeScripts {
@@ -207,40 +192,83 @@ fn with_shaders(engine: &balaur_core::Engine, mut pack: Pack) -> Result<Pack> {
 }
 
 /// Modules the calling binary registers on top of the standard set. The CLI's
-/// `export` is one: the editor's scripts call it, and Rune resolves a module
-/// while compiling, so a tool that compiles the editor has to load it first.
+/// `export` is one: the editor's scripts call it, so a tool that compiles the
+/// editor has to load it first.
 pub type ExtraPlugins<'a> = &'a mut [Box<dyn balaur_plugin::Plugin>];
 
-/// Boot the project as a build tool does and hand its engine and Rune host
+/// Boot the project as a build tool does and hand its engine and script host
 /// to `f`.
-fn with_rune_host<R>(
+#[cfg(feature = "bs-backend")]
+fn with_host<R>(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
-    f: impl FnOnce(&balaur_core::Engine, &balaur_script_rune::RuneHost) -> Result<R>,
+    f: impl FnOnce(&balaur_core::Engine, &balaur_script_bs::BsHost) -> Result<R>,
 ) -> Result<R> {
     let mut app = standard_app(AppConfig::export(project_root))?;
     balaur_plugin::load_all(&mut app, extra)?;
-    let host = app
-        .engine
-        .script_host()
-        .context("no script backend for the project")?;
-    let host = host
-        .as_any()
-        .downcast_ref::<balaur_script_rune::RuneHost>()
-        .context("expected the rune backend")?;
-    f(&app.engine, host)
+    let host =
+        balaur_script_bs::BsHost::of(&app.engine).context("no script backend for the project")?;
+    f(&app.engine, &host)
+}
+
+#[cfg(not(feature = "bs-backend"))]
+fn with_host<R>(
+    project_root: &std::path::Path,
+    extra: ExtraPlugins<'_>,
+    f: impl FnOnce(&balaur_core::Engine, &NoScripts) -> Result<R>,
+) -> Result<R> {
+    let _ = (project_root, extra, f);
+    bail!("this build runs no scripts: build it with the `bs` feature")
+}
+
+/// The host a build without a script backend would hand a tool; never made.
+#[cfg(not(feature = "bs-backend"))]
+enum NoScripts {}
+
+#[cfg(not(feature = "bs-backend"))]
+impl balaur_script::ScriptCompiler for NoScripts {
+    fn extensions(&self) -> &[&str] {
+        match *self {}
+    }
+    fn compile(&self, _: &str, _: &str) -> Result<Vec<u8>> {
+        match *self {}
+    }
+}
+
+/// One problem `balaur check` reports: where it is, and what.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Finding {
+    /// Project-relative.
+    pub file: String,
+    /// From 1; 0 for a problem with the whole file.
+    pub line: usize,
+    pub column: usize,
+    /// `"error"` or `"warning"`.
+    pub severity: &'static str,
+    pub message: String,
+}
+
+impl Finding {
+    fn error(file: &str, line: usize, column: usize, message: String) -> Self {
+        Finding {
+            file: file.to_string(),
+            line,
+            column,
+            severity: "error",
+            message,
+        }
+    }
 }
 
 /// Every finding in a project: each script a scene attaches, compiled through
 /// a booted host, plus the files those scenes name.
 ///
-/// The unit a check compiles is the root a scene names, not every `.rn` in
-/// the tree: a `mod` submodule compiled on its own fails on its own imports,
-/// and its diagnostics arrive through the root that reaches it anyway.
+/// The unit a check compiles is the script a scene names: a file it `use`s
+/// is compiled with it, and its errors arrive through that script.
 ///
 /// # Errors
 /// If the project will not boot.
-pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script_rune::Finding>> {
+pub fn check_project(project_root: &std::path::Path) -> Result<Vec<Finding>> {
     check_project_using(project_root, &mut [])
 }
 
@@ -251,47 +279,43 @@ pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script
 pub fn check_project_using(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
-) -> Result<Vec<balaur_script_rune::Finding>> {
-    with_rune_host(project_root, extra, |engine, host| {
+) -> Result<Vec<Finding>> {
+    with_host(project_root, extra, |_, host| {
         let mut found = Vec::new();
         for rel in scene_scripts(project_root) {
-            let path = project_root.join(&rel);
-            let Some(source) = text_of(&path) else {
-                found.push(balaur_script_rune::Finding {
-                    file: rel.clone(),
-                    line: 0,
-                    column: 0,
-                    end_line: 0,
-                    end_column: 0,
-                    severity: "error",
-                    message: format!("script {rel} does not exist"),
-                });
+            let Some(source) = text_of(&project_root.join(&rel)) else {
+                found.push(Finding::error(
+                    &rel,
+                    0,
+                    0,
+                    format!("script {rel} does not exist"),
+                ));
                 continue;
             };
-            #[cfg(feature = "bs-backend")]
-            if let Some(lang) = balaur_script_bs::BsHost::of(engine)
-                && balaur_script_bs::BsHost::claims(&rel)
-            {
-                found.extend(lang.check(&rel, &source).into_iter().map(|e| {
-                    let (line, column) = (e.pos.line as usize, e.pos.col as usize);
-                    balaur_script_rune::Finding {
-                        file: rel.clone(),
-                        line,
-                        column,
-                        end_line: line,
-                        end_column: column,
-                        severity: "error",
-                        message: e.msg,
-                    }
-                }));
-                continue;
-            }
-            #[cfg(not(feature = "bs-backend"))]
-            let _ = engine;
-            found.extend(host.check_source(&rel, &source)?);
+            found.extend(check_script(host, &rel, &source));
         }
         Ok(found)
     })
+}
+
+#[cfg(feature = "bs-backend")]
+fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
+    if !balaur_script_bs::BsHost::claims(rel) {
+        let message = format!(
+            "{rel} is not a `.{}` script, the one kind this engine runs",
+            balaur_script_bs::EXTENSION
+        );
+        return vec![Finding::error(rel, 0, 0, message)];
+    }
+    host.check(rel, source)
+        .into_iter()
+        .map(|e| Finding::error(rel, e.pos.line as usize, e.pos.col as usize, e.msg))
+        .collect()
+}
+
+#[cfg(not(feature = "bs-backend"))]
+fn check_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
+    match *host {}
 }
 
 /// Every script path the project's scene files attach, deduplicated and in a
@@ -299,8 +323,7 @@ pub fn check_project_using(
 /// loader's error to report, not the checker's.
 ///
 /// This is what a checker means by a root: the unit the compiler starts from.
-/// A `mod` submodule is not one — compiled on its own it fails on its own
-/// imports — and its diagnostics arrive through the root that imports it.
+/// A file a root `use`s is compiled with it, and its errors arrive through it.
 #[must_use]
 pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
     balaur_core::attachments::scene_attachments(project_root)
@@ -310,7 +333,7 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
-        config.script_backend = Some(backend_for(&config)?);
+        config.script_backend = backend_for(&config)?;
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
     #[cfg(feature = "extensions")]

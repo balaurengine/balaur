@@ -38,6 +38,19 @@ const KEYWORDS: [&str; 23] = [
     "struct", "class", "impl", "async", "await", "true", "false", "self", "const", "extern", "as",
 ];
 
+/// The value types every script holds, each with its fields: `Vec2` and the
+/// rest, as the engine's vectors and colours arrive.
+#[must_use]
+pub fn value_types() -> &'static [(&'static str, &'static [&'static str])] {
+    &types::PRELUDE
+}
+
+/// The functions every script calls without a module, with their signatures.
+#[must_use]
+pub fn builtins() -> &'static [(&'static str, &'static str)] {
+    &NATIVES
+}
+
 /// One file, read against the engine's API and the modules it `use`s.
 pub struct Analysis {
     src: String,

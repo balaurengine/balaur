@@ -26,9 +26,9 @@ pub(crate) struct Entry {
     /// What a script passes, `"(message: string)"`, as the docs of a function
     /// registered without Rust types spell it.
     pub documented: Option<&'static str>,
-    /// The component the function drives, from its docs: a script calls it
-    /// on that component, `node.transform.translate(..)`.
-    pub acts_on: Option<&'static str>,
+    /// The components the function drives, from its docs: a script calls it
+    /// on the first, `node.transform.translate(..)`.
+    pub acts_on: &'static [&'static str],
     /// What the function does, in its module's words: the reference's text.
     pub doc: Option<&'static str>,
 }
@@ -42,6 +42,8 @@ pub(crate) struct Registry {
     /// Each record a module declared, keyed `module::Name`: its fields as the
     /// docs spell them.
     pub records: BTreeMap<String, &'static str>,
+    /// What each module is for, as the reference opens it.
+    pub module_docs: BTreeMap<String, &'static str>,
     read: OnceCell<Rc<Structs>>,
 }
 
@@ -98,7 +100,11 @@ impl Registry {
         self.modules
             .iter()
             .filter(|(m, _)| m.as_str() != crate::node_ops::MODULE)
-            .find(|(_, entries)| entries.get(name).is_some_and(|e| e.acts_on == Some(comp)))
+            .find(|(_, entries)| {
+                entries
+                    .get(name)
+                    .is_some_and(|e| e.acts_on.first() == Some(&comp))
+            })
             .map(|(m, _)| (m.clone(), name.to_string()))
     }
 
@@ -150,13 +156,17 @@ impl Bindings<Engine> for Module {
             if !doc.is_empty() {
                 self.entry(name, |e| e.doc = Some(doc));
             }
-            if let Some(comp) = acts_on.first() {
-                self.entry(name, |e| e.acts_on = Some(comp));
+            if !acts_on.is_empty() {
+                self.entry(name, |e| e.acts_on = *acts_on);
             }
             if !signature.is_empty() {
                 self.entry(name, |e| e.documented = Some(signature));
             }
         }
+    }
+    fn module_doc(&mut self, doc: &'static str) {
+        let mut r = self.registry.borrow_mut();
+        r.module_docs.insert(self.name.clone(), doc);
     }
     fn records(&mut self, entries: &[RecordDoc]) {
         let mut r = self.registry.borrow_mut();
@@ -282,7 +292,7 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
             if let Some((params, ret)) = typed {
                 let ret = result(ret);
                 // One that drives a component is called on it, too.
-                if let Some(comp) = entry.acts_on
+                if let Some(comp) = entry.acts_on.first()
                     && params.first() == Some(&Ty::Node)
                 {
                     let on = format!("{}{comp}.{name}", crate::node_ops::PREFIX);
@@ -369,28 +379,70 @@ struct Page {
     functions: Vec<Value>,
     signatures: Vec<(String, Value)>,
     docs: Vec<(String, Value)>,
+    acts_on: Vec<(String, Value)>,
+    components: BTreeSet<&'static str>,
 }
 
-/// The script reference `script::api()` answers: one row a module in name
-/// order, each with its functions' names, their signatures as a script
-/// writes them, what each does, and the module's constants.
+/// The node operation a key calls, `node.add_tag` or `node.transform.translate`
+/// alike; `None` for another module's function called on a component.
+fn node_op<'k>(registry: &Registry, key: &'k str) -> Option<&'k str> {
+    let rest = key.strip_prefix(crate::node_ops::PREFIX)?;
+    let Some((comp, op)) = rest.split_once('.') else {
+        return Some(rest);
+    };
+    let entry = registry.modules.get(crate::node_ops::MODULE)?.get(op)?;
+    (entry.acts_on.first() == Some(&comp)).then_some(op)
+}
+
+/// What a module only the host fills is for.
+fn own_module_doc(module: &str) -> Option<&'static str> {
+    [crate::waits::MODULE_DOC, crate::tool_verbs::MODULE_DOC]
+        .into_iter()
+        .find(|(m, _)| *m == module)
+        .map(|(_, doc)| doc)
+}
+
+/// The script reference `script::api()` answers and `balaur api` prints: one
+/// row a module in name order, each with what it is for, its functions'
+/// names, their signatures as a script compiles against them, what each
+/// does and the components it drives, and the module's constants. A node's
+/// own operations are the `node` module's.
 pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
+    // The host's own functions, which no plugin registers.
+    let own: BTreeMap<String, &'static str> = crate::tool_verbs::docs()
+        .chain(crate::waits::docs())
+        .chain(crate::store::docs())
+        .collect();
+    let mut named: Vec<(&str, &str, &HostSignature)> = api
+        .functions
+        .iter()
+        .filter_map(|f| {
+            let split = f
+                .key
+                .split_once("::")
+                .or_else(|| Some((crate::node_ops::MODULE, node_op(registry, &f.key)?)));
+            split.map(|(module, name)| (module, name, f))
+        })
+        .collect();
+    named.sort_by_key(|(module, name, _)| (*module, *name));
     let mut modules: BTreeMap<&str, Page> = BTreeMap::new();
-    for f in &api.functions {
-        let Some((module, name)) = f.key.split_once("::") else {
-            continue;
-        };
-        let doc = registry
-            .modules
-            .get(module)
-            .and_then(|m| m.get(name))
-            .and_then(|e| e.doc)
-            .unwrap_or("");
+    for (module, name, f) in named {
+        let entry = registry.modules.get(module).and_then(|m| m.get(name));
         let row = modules.entry(module).or_default();
         row.functions.push(Value::text(name));
         row.signatures
             .push((name.to_string(), Value::text(f.text())));
+        let doc = entry
+            .and_then(|e| e.doc)
+            .or_else(|| own.get(&f.key).copied())
+            .unwrap_or("");
         row.docs.push((name.to_string(), Value::text(doc)));
+        let acts_on = entry.map_or(&[][..], |e| e.acts_on);
+        if !acts_on.is_empty() {
+            let list = acts_on.iter().map(|c| Value::text(*c)).collect();
+            row.acts_on.push((name.to_string(), Value::List(list)));
+            row.components.extend(acts_on);
+        }
     }
     let rows = modules
         .into_iter()
@@ -413,12 +465,21 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                     ]))
                 })
                 .collect();
+            let doc = registry
+                .module_docs
+                .get(module)
+                .copied()
+                .or_else(|| own_module_doc(module))
+                .unwrap_or("");
+            let components = row.components.into_iter().map(Value::text).collect();
             Value::Map(vec![
                 ("name".into(), Value::text(module)),
-                ("doc".into(), Value::text("")),
+                ("doc".into(), Value::text(doc)),
                 ("functions".into(), Value::List(row.functions)),
                 ("signatures".into(), Value::Map(row.signatures)),
                 ("docs".into(), Value::Map(row.docs)),
+                ("acts_on".into(), Value::Map(row.acts_on)),
+                ("components".into(), Value::List(components)),
                 ("constants".into(), Value::List(constants)),
             ])
         })

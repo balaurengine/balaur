@@ -53,13 +53,13 @@ svg = ["balaur_core/svg"]
 physics2d = ["balaur_physics/physics2d"]
 # The 3D physics world: `physics3d.*`, its components and presets.
 physics3d = ["balaur_physics/physics3d"]
-# The Rune compiler and the WESL shader linker: a dev run, a pack carrying
-# sources, the editor and `balaur check`. A template leaves it off and draws
-# with the shaders an export linked into the pack.
-compile = ["balaur_script_rune/compile", "balaur_render/compile", "balaur_script_bs?/c"]
-# Balaur Script (`.bs`) beside Rune: `bs` on wasmi or an iOS export's native
-# build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web
-# or iOS), `bs-web` on the page's own engine with no wasmi.
+# The WESL shader linker and the `.bs` to C translator: a dev run, the editor
+# and an export. A template leaves it off and draws with the shaders an export
+# linked into the pack.
+compile = ["balaur_render/compile", "balaur_script_bs?/c"]
+# Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi
+# or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi,
+# about 11 MB; not on the web or iOS), `bs-web` on the page's own engine.
 bs = ["bs-backend", "balaur_script_bs?/wasmi", "balaur_script_bs?/native"]
 bs-jit = ["bs-backend", "balaur_script_bs?/wasmtime"]
 bs-web = ["bs-backend", "balaur_script_bs?/web"]
@@ -74,7 +74,6 @@ fallback-fonts = ["balaur_ui/fallback-fonts"]
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
-balaur_script_rune.workspace = true
 balaur_script_bs = { workspace = true, optional = true }
 balaur_physics = { workspace = true, default-features = false }
 balaur_animation.workspace = true

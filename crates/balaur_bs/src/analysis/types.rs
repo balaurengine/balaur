@@ -5,7 +5,7 @@ use crate::ast::{Expr, ExprKind, FnDecl, Pos, Program, Ty};
 use crate::codegen::show;
 use crate::{HostApi, HostSignature};
 
-const PRELUDE: [(&str, &[&str]); 3] = [
+pub(crate) const PRELUDE: [(&str, &[&str]); 3] = [
     ("Vec2", &["x", "y"]),
     ("Vec3", &["x", "y", "z"]),
     ("Color", &["r", "g", "b", "a"]),

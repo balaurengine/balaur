@@ -34,6 +34,16 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
     ]
 }
 
+/// What each does, by key.
+pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
+    [
+        (STORE_FN, "Keep any value under a key for as long as the app runs: state no node owns, like a class's static variable."),
+        (STORED_FN, "What `store` kept under a key; nil when nothing was."),
+    ]
+    .into_iter()
+    .map(|(key, doc)| (key.to_string(), doc))
+}
+
 /// Whether `key` is one of these.
 pub(crate) fn is_store(key: &str) -> bool {
     key == STORE_FN || key == STORED_FN

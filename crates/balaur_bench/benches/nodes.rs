@@ -1,11 +1,11 @@
-//! Where a scene-tree operation's microsecond goes, layer by layer: the Rune
+//! Where a scene-tree operation's microsecond goes, layer by layer: the script
 //! loop on its own, a binding call that does nothing, the node op through the
 //! value layer from Rust, and the bare ECS spawn — so a slow `add_child` says
 //! which of the four to look at.
 
 use std::time::{Duration, Instant};
 
-use balaur_bench::{Backend, Project, app as app_fn, attach_many};
+use balaur_bench::{Backend, Project, app as app_fn, attach_many, script};
 use balaur_core::node_api::NODE_OPS;
 use balaur_core::{Command, Engine, components, scene};
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -31,8 +31,8 @@ fn rust_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rust");
     group.throughput(Throughput::Elements(COUNT as u64));
 
-    let project = Project::new(Backend::Rune, "pub fn init(this) {}\n").unwrap();
-    let app = app_fn(Backend::Rune, &project).unwrap();
+    let project = Project::new(Backend::Bs, &script("", "")).unwrap();
+    let app = app_fn(Backend::Bs, &project).unwrap();
     let root = app.engine.root();
 
     // Each batch is freed off the clock, so the world does not grow by a
@@ -120,8 +120,8 @@ fn rust_side(c: &mut Criterion) {
 fn drain_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rust");
     group.throughput(Throughput::Elements(COUNT as u64));
-    let project = Project::new(Backend::Rune, "pub fn init(this) {}\n").unwrap();
-    let mut app = app_fn(Backend::Rune, &project).unwrap();
+    let project = Project::new(Backend::Bs, &script("", "")).unwrap();
+    let mut app = app_fn(Backend::Bs, &project).unwrap();
     let root = app.engine.root();
     let spawn_batch = |eng: &Engine| {
         let holder = scene::spawn_node(&mut eng.world_mut(), "holder", root);
@@ -156,8 +156,8 @@ fn drain_side(c: &mut Criterion) {
 fn lookup_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rust");
     group.throughput(Throughput::Elements(COUNT as u64));
-    let project = Project::new(Backend::Rune, "pub fn init(this) {}\n").unwrap();
-    let app = app_fn(Backend::Rune, &project).unwrap();
+    let project = Project::new(Backend::Bs, &script("", "")).unwrap();
+    let app = app_fn(Backend::Bs, &project).unwrap();
     let root = app.engine.root();
     let lookup_root = scene::spawn_node(&mut app.engine.world_mut(), "Lookups", root);
     let mut paths = Vec::with_capacity(COUNT);
@@ -192,47 +192,64 @@ fn lookup_side(c: &mut Criterion) {
     group.finish();
 }
 
-/// The Rune half: the loop alone, then the real calls — so the seam is the
+/// What `get_node` looks up: a random tree of 1000 nodes under the script's
+/// own, each named by its path from there.
+const LOOKUPS: &str = "    fn init() {
+        let nodes = [self.node];
+        let names = [\"\"];
+        for i in 0..1000 {
+            let at = random::int(0, nodes.len() - 1);
+            let name = \"n{i}\";
+            nodes.push(nodes[at].add_child(name));
+            let above = names[at];
+            let path = if above == \"\" { name } else { \"{above}/{name}\" };
+            names.push(path);
+            self.paths.push(path);
+        }
+    }
+    fn update(dt: float) {
+        for path in self.paths {
+            let found = self.node.get_node(path);
+        }
+    }";
+
+/// The script half: the loop alone, then the real calls — so the seam is the
 /// difference from the baseline next to them.
-fn rune_side(c: &mut Criterion) {
-    let mut group = c.benchmark_group("node_ops_rune");
+fn script_side(c: &mut Criterion) {
+    let mut group = c.benchmark_group("node_ops_script");
     group.throughput(Throughput::Elements(COUNT as u64));
+    let update = |body: &str| format!("    fn update(dt: float) {{ {body} }}");
     let bodies = [
         (
             "loop_only",
-            "pub fn update(this, dt) { for i in 0..1000 { let s = format!(\"n{}\", i); } }",
+            update("for i in 0..1000 { let s = \"n{i}\"; }"),
         ),
         (
             "parent_call",
-            "pub fn update(this, dt) { for i in 0..1000 { this.node.parent(); } }",
+            update("for i in 0..1000 { let p = self.node.parent(); }"),
         ),
         (
             "queue_free_only",
-            "pub fn update(this, dt) { for i in 0..1000 { this.node.queue_free(); } }",
+            update("for i in 0..1000 { self.node.queue_free(); }"),
         ),
         (
             "add_child",
-            "pub fn update(this, dt) { let p = this.node.add_child(\"batch\"); for i in 0..1000 { p.add_child(format!(\"n{}\", i)); } }",
+            update(
+                "let p = self.node.add_child(\"batch\"); \
+                 for i in 0..1000 { let n = p.add_child(\"n{i}\"); }",
+            ),
         ),
-        (
-            "get_node",
-            "pub fn init(this) { this.paths = []; let nodes = [this.node]; let names = [\"\"]; for i in 0..1000 { let at = random::int(0, (nodes.len() - 1) as i64); let name = format!(\"n{}\", i); nodes.push(nodes[at].add_child(name)); let above = names[at]; let path = if above == \"\" { name } else { format!(\"{}/{}\", above, name) }; names.push(path); this.paths.push(path); } }\npub fn update(this, dt) { for path in this.paths { this.node.get_node(path); } }",
-        ),
+        ("get_node", LOOKUPS.to_string()),
     ];
     for (name, body) in bodies {
-        let source = if body.contains("pub fn init") {
-            body.to_string()
-        } else {
-            format!("pub fn init(this) {{}}\n{body}\n")
-        };
-        let project = Project::new(Backend::Rune, &source).unwrap();
-        let mut app = app_fn(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, &script(", paths: [str]", &body)).unwrap();
+        let mut app = app_fn(Backend::Bs, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
             let m: &mut dyn Bindings<Engine> = &mut *m;
             m.function("noop", |_: &Engine, _: i64| Ok(()));
         }
-        attach_many(&app, Backend::Rune, 1).unwrap();
+        attach_many(&app, Backend::Bs, 1).unwrap();
         let host = app.engine.script_host().unwrap();
         group.bench_function(BenchmarkId::new(name, COUNT), |b| {
             // Drop what a body queued, so `queue_free_only` cannot pile up
@@ -246,5 +263,5 @@ fn rune_side(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, rust_side, drain_side, lookup_side, rune_side);
+criterion_group!(benches, rust_side, drain_side, lookup_side, script_side);
 criterion_main!(benches);

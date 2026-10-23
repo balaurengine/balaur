@@ -1,22 +1,25 @@
 //! A Language Server, so an editor outside Balaur gets the diagnostics the
 //! Balaur editor's Problems dock shows.
 //!
-//! It speaks LSP on stdin and stdout and calls the same `check_source` the
-//! editor calls, so there is one definition of what is wrong with a script.
+//! It speaks LSP on stdin and stdout and asks the same `LanguageTools` the
+//! editor asks, so there is one definition of what is wrong with a script.
 //!
 //! # Not a system in the engine
 //!
 //! The DAP server ([`balaur_core::dap`]) lives inside a running game because
 //! debugging is a conversation with one: a breakpoint has to land at a point
-//! in the frame. Checking has no such tie — it needs the script context and
-//! nothing else — so this is a process an editor spawns, boots the project
+//! in the frame. Checking has no such tie — it needs the engine's script API
+//! and nothing else — so this is a process an editor spawns, boots the project
 //! once, and then blocks on stdin. No threads, no frame loop, no game.
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use anyhow::{Context, Result};
+use balaur_core::Engine;
+use balaur_script::{LanguageTools, ScriptHost};
 use serde_json::{Value as Json, json};
 
 /// Serve LSP on stdin/stdout until the client says to exit.
@@ -28,11 +31,12 @@ fn serve(project_root: &Path) -> Result<()> {
         .canonicalize()
         .unwrap_or_else(|_| project_root.to_path_buf());
     let app = balaur::standard_app(balaur::AppConfig::export(&root))?;
-    let host = balaur::script_rune::rune_of(&app.engine);
     let mut server = Server {
         root,
-        host,
-        scripts: app.engine.script_host(),
+        scripts: app
+            .engine
+            .script_host()
+            .context("this build runs no scripts")?,
         published: BTreeSet::new(),
         open: Vec::new(),
     };
@@ -86,9 +90,7 @@ fn write_message(writer: &mut impl Write, message: &Json) -> Result<()> {
 
 struct Server {
     root: PathBuf,
-    host: balaur::script_rune::RuneHost,
-    /// The whole script host, for a file another language answers for.
-    scripts: Option<std::rc::Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>>,
+    scripts: Rc<dyn ScriptHost<Engine>>,
     /// URIs a `publishDiagnostics` has gone out for, so one that stops having
     /// findings is cleared rather than left showing the last ones.
     published: BTreeSet<String>,
@@ -180,171 +182,86 @@ impl Server {
     }
 
     /// The answer to one request, or `Json::Null` for a method we do not
-    /// serve. Split from `handle`, which is then about the document's
-    /// lifecycle and the frames around it.
+    /// serve or a file no language answers for.
     fn answer(&self, method: &str, params: &Json) -> Json {
-        if let Some(out) = self.foreign(method, params) {
-            return out;
+        if method == "workspace/symbol" {
+            return self.workspace_symbols(params);
         }
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        let Some(tools) = self.scripts.tools_for(&rel) else {
+            return Json::Null;
+        };
         match method {
-            "textDocument/completion" => self.at(params, |host, key, source, line, column| {
-                Ok(host
-                    .complete(key, source, line, column)?
-                    .iter()
-                    .map(completion)
-                    .collect())
-            }),
-            "textDocument/hover" => self.one(params, |host, key, source, line, column| {
-                Ok(host
-                    .hover(key, source, line, column)?
-                    .map(|h| json!({ "contents": { "kind": "markdown", "value": markdown(&h) } })))
-            }),
-            "textDocument/signatureHelp" => self.one(params, |host, key, source, line, column| {
-                Ok(host
-                    .signature_help(key, source, line, column)?
-                    .map(|(h, active)| {
-                        json!({
-                            "signatures": [{
-                                "label": format!("{}{}", h.title, h.detail),
-                                "documentation": h.doc,
-                            }],
-                            "activeSignature": 0,
-                            "activeParameter": active,
-                        })
-                    }))
-            }),
-            "textDocument/formatting" => self.formatting(params),
-            "textDocument/definition" => {
-                self.one(params, |host, key, source, line, column| {
-                    // A definition with no file is engine API; the URL is
-                    // what a client should open, so it goes back as one.
-                    Ok(host.definition(key, source, line, column)?.map(|d| {
-                        if d.file.is_empty() {
-                            json!({ "uri": d.url, "range": span(1, 1) })
-                        } else {
-                            json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })
-                        }
-                    }))
+            "textDocument/completion" => tools
+                .complete(&rel, &source, line, column)
+                .iter()
+                .map(|c| {
+                    json!({
+                        "label": c.label,
+                        "kind": item_kind(c.kind),
+                        "detail": c.detail,
+                        "insertText": c.label,
+                    })
                 })
-            }
-            "workspace/symbol" => self.workspace_symbols(params),
-            "textDocument/documentSymbol" => self.whole(params, |host, key, source| {
-                Ok(host
-                    .symbols(key, source)?
-                    .iter()
-                    .map(|one| {
-                        json!({
-                            "name": one.name,
-                            "kind": symbol_kind(one.kind),
-                            "detail": one.detail,
-                            "range": span(one.line.max(1), one.column),
-                            "selectionRange": span(one.line.max(1), one.column),
-                        })
-                    })
-                    .collect())
+                .collect(),
+            "textDocument/hover" => tools.hover(&rel, &source, line, column).map_or(Json::Null, |h| {
+                json!({ "contents": { "kind": "markdown", "value": format!("```bs\n{h}\n```") } })
             }),
-            "textDocument/references" => self.at(params, |host, key, source, line, column| {
-                let offset = balaur::script_rune::offset_of(source, line, column);
-                let name = word_at(source, offset);
-                if name.is_empty() {
-                    return Ok(Vec::new());
-                }
-                Ok(host
-                    .references(key, source, &name)
-                    .iter()
-                    .map(|one| {
-                        json!({
-                            "uri": self.uri_of(&one.file),
-                            "range": span(one.line, one.column),
-                        })
-                    })
-                    .collect())
+            "textDocument/definition" => tools
+                .definition(&rel, &source, line, column)
+                .map_or(Json::Null, |d| json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })),
+            _ => self.answer_more(method, params, tools, &rel, &source, (line, column)),
+        }
+    }
+
+    /// The rest of [`Server::answer`]: the outline, the call, and the edits.
+    fn answer_more(
+        &self,
+        method: &str,
+        params: &Json,
+        tools: &dyn LanguageTools,
+        rel: &str,
+        source: &str,
+        (line, column): (usize, usize),
+    ) -> Json {
+        let word = || word_at(source, offset_of(source, line, column));
+        match method {
+            "textDocument/signatureHelp" => tools.signature(rel, source, line, column).map_or(Json::Null, |(sig, active)| {
+                json!({ "signatures": [{ "label": sig }], "activeSignature": 0, "activeParameter": active })
             }),
-            "textDocument/rename" => self.rename(params),
+            "textDocument/documentSymbol" => tools
+                .symbols(rel, source)
+                .iter()
+                .map(|one| {
+                    json!({
+                        "name": one.name,
+                        "kind": symbol_kind(one.kind),
+                        "detail": one.detail,
+                        "range": span(one.line.max(1), one.column),
+                        "selectionRange": span(one.line.max(1), one.column),
+                    })
+                })
+                .collect(),
+            "textDocument/references" => tools
+                .references(rel, source, &word())
+                .iter()
+                .map(|one| json!({ "uri": self.uri_of(&one.file), "range": span(one.line, one.column) }))
+                .collect(),
+            "textDocument/rename" => params["newName"]
+                .as_str()
+                .and_then(|to| tools.rename(rel, source, &word(), to))
+                .map_or(Json::Null, |text| {
+                    let mut changes = serde_json::Map::new();
+                    changes.insert(self.uri_of(rel), json!([whole_file(&text)]));
+                    json!({ "changes": changes })
+                }),
+            "textDocument/formatting" => tools.format(rel, source).map_or(Json::Null, |text| {
+                if text == source { json!([]) } else { json!([whole_file(&text)]) }
+            }),
             _ => Json::Null,
         }
-    }
-
-    /// Run `f` for the file and position a request names, answering `null`
-    /// when the file is not one we have. LSP counts from zero and the host
-    /// counts from one.
-    fn at<T>(
-        &self,
-        params: &Json,
-        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str, usize, usize) -> Result<Vec<T>>,
-    ) -> Json
-    where
-        T: Into<Json>,
-    {
-        let Some((rel, source, line, column)) = self.locate(params) else {
-            return Json::Null;
-        };
-        match f(&self.host, &rel, &source, line, column) {
-            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
-            Err(err) => {
-                tracing::error!("{rel}: {err:#}");
-                Json::Null
-            }
-        }
-    }
-
-    /// `at` for a request answering one value rather than a list.
-    fn one(
-        &self,
-        params: &Json,
-        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str, usize, usize) -> Result<Option<Json>>,
-    ) -> Json {
-        let Some((rel, source, line, column)) = self.locate(params) else {
-            return Json::Null;
-        };
-        match f(&self.host, &rel, &source, line, column) {
-            Ok(Some(found)) => found,
-            Ok(None) => Json::Null,
-            Err(err) => {
-                tracing::error!("{rel}: {err:#}");
-                Json::Null
-            }
-        }
-    }
-
-    /// A rename as a `WorkspaceEdit`: every file it touches, each replaced
-    /// whole. The provider works textually, so one edit per file is both
-    /// simpler and safer than a list of ranges the client applies in order.
-    fn rename(&self, params: &Json) -> Json {
-        let Some((rel, source, line, column)) = self.locate(params) else {
-            return Json::Null;
-        };
-        let Some(to) = params["newName"].as_str() else {
-            return Json::Null;
-        };
-        let from = word_at(
-            &source,
-            balaur::script_rune::offset_of(&source, line, column),
-        );
-        if from.is_empty() {
-            return Json::Null;
-        }
-        let written = match self.host.rename(&rel, &source, &from, to) {
-            Ok(written) => written,
-            Err(err) => {
-                tracing::error!("{rel}: {err:#}");
-                return Json::Null;
-            }
-        };
-        let mut changes = serde_json::Map::new();
-        for (file, text) in written {
-            changes.insert(
-                self.uri_of(&file),
-                json!([{
-                    "range": {
-                        "start": { "line": 0, "character": 0 },
-                        "end": { "line": u32::MAX, "character": 0 },
-                    },
-                    "newText": text,
-                }]),
-            );
-        }
-        json!({ "changes": changes })
     }
 
     /// Every symbol in the project whose name contains the query, as the flat
@@ -355,17 +272,11 @@ impl Server {
         let query = params["query"].as_str().unwrap_or("").to_lowercase();
         let mut out = Vec::new();
         for rel in balaur::scene_scripts(&self.root) {
-            let Some(source) = self.source_of(&rel) else {
+            let (Some(source), Some(tools)) = (self.source_of(&rel), self.scripts.tools_for(&rel))
+            else {
                 continue;
             };
-            let found = match self.host.symbols(&rel, &source) {
-                Ok(found) => found,
-                Err(err) => {
-                    tracing::error!("{rel}: {err:#}");
-                    continue;
-                }
-            };
-            for one in found {
+            for one in tools.symbols(&rel, &source) {
                 if !query.is_empty() && !one.name.to_lowercase().contains(&query) {
                     continue;
                 }
@@ -381,63 +292,6 @@ impl Server {
             }
         }
         Json::Array(out)
-    }
-
-    /// `at` for a request about a whole file rather than a position.
-    fn whole<T>(
-        &self,
-        params: &Json,
-        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str) -> Result<Vec<T>>,
-    ) -> Json
-    where
-        T: Into<Json>,
-    {
-        let Some(uri) = params["textDocument"]["uri"].as_str() else {
-            return Json::Null;
-        };
-        let Some(rel) = self.rel_of(uri) else {
-            return Json::Null;
-        };
-        let Some(source) = self.source_of(&rel) else {
-            return Json::Null;
-        };
-        match f(&self.host, &rel, &source) {
-            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
-            Err(err) => {
-                tracing::error!("{rel}: {err:#}");
-                Json::Null
-            }
-        }
-    }
-
-    /// The whole file formatted, as the one edit LSP wants: a range covering
-    /// everything, replaced. `null` when the source will not parse, which is
-    /// what a client should see rather than a mangled buffer.
-    fn formatting(&self, params: &Json) -> Json {
-        let Some(uri) = params["textDocument"]["uri"].as_str() else {
-            return Json::Null;
-        };
-        let Some(rel) = self.rel_of(uri) else {
-            return Json::Null;
-        };
-        let Some(source) = self.source_of(&rel) else {
-            return Json::Null;
-        };
-        let Ok(formatted) = self.host.format(&rel, &source) else {
-            return Json::Null;
-        };
-        if formatted == source {
-            return json!([]);
-        }
-        // The end is past any real position, which is how LSP says "to the
-        // end of the document" without counting its lines.
-        json!([{
-            "range": {
-                "start": { "line": 0, "character": 0 },
-                "end": { "line": u32::MAX, "character": 0 },
-            },
-            "newText": formatted,
-        }])
     }
 
     /// The file, its text, and the 1-based position a request names.
@@ -466,8 +320,8 @@ impl Server {
     }
 
     /// Check every root and send the findings, grouped by the file they are
-    /// in. A root is a script a scene attaches; a `mod` submodule is reached
-    /// through the root that imports it, and its findings name it.
+    /// in. A root is a script a scene attaches; a file it `use`s is checked
+    /// with it.
     fn publish(&mut self, writer: &mut impl Write) -> Result<()> {
         let mut by_file: std::collections::BTreeMap<String, Vec<Json>> =
             std::collections::BTreeMap::new();
@@ -475,22 +329,17 @@ impl Server {
             let Some(source) = self.source_of(&rel) else {
                 continue;
             };
-            if let Some(tools) = self.scripts.as_ref().and_then(|s| s.tools_for(&rel)) {
-                let found: Vec<Json> = tools
-                    .check(&rel, &source)
-                    .iter()
-                    .map(foreign_diagnostic)
-                    .collect();
-                if !found.is_empty() {
-                    by_file.entry(rel.clone()).or_default().extend(found);
-                }
-                continue;
-            }
-            for one in self.host.check_source(&rel, &source)? {
-                by_file
-                    .entry(one.file.clone())
-                    .or_default()
-                    .push(diagnostic(&one));
+            let found: Vec<Json> = match self.scripts.tools_for(&rel) {
+                Some(tools) => tools.check(&rel, &source).iter().map(diagnostic).collect(),
+                None => vec![diagnostic(&balaur_script::Diagnostic {
+                    line: 1,
+                    column: 1,
+                    severity: "error",
+                    message: format!("{rel} is not a script this engine runs"),
+                })],
+            };
+            if !found.is_empty() {
+                by_file.entry(rel.clone()).or_default().extend(found);
             }
         }
         // Every file that had findings and no longer does gets an empty list,
@@ -504,87 +353,6 @@ impl Server {
         }
         self.published = now;
         Ok(())
-    }
-
-    /// A request on a file another language answers for (a `.bs` beside the
-    /// Rune scripts), or `None` to let Rune answer.
-    fn foreign(&self, method: &str, params: &Json) -> Option<Json> {
-        let (rel, source, line, column) = self.locate(params)?;
-        let tools = self.scripts.as_ref()?.tools_for(&rel)?;
-        Some(match method {
-            "textDocument/completion" => tools
-                .complete(&rel, &source, line, column)
-                .iter()
-                .map(|c| {
-                    json!({
-                        "label": c.label,
-                        "kind": item_kind(c.kind),
-                        "detail": c.detail,
-                        "insertText": c.label,
-                    })
-                })
-                .collect(),
-            "textDocument/hover" => tools.hover(&rel, &source, line, column).map_or(Json::Null, |h| {
-                json!({ "contents": { "kind": "markdown", "value": format!("```bs\n{h}\n```") } })
-            }),
-            "textDocument/definition" => tools
-                .definition(&rel, &source, line, column)
-                .map_or(Json::Null, |d| json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })),
-            _ => self.foreign_more(method, params, tools, &rel, &source, (line, column)),
-        })
-    }
-
-    /// The rest of [`Server::foreign`]: the outline, the call, and the edits.
-    fn foreign_more(
-        &self,
-        method: &str,
-        params: &Json,
-        tools: &dyn balaur_script::LanguageTools,
-        rel: &str,
-        source: &str,
-        (line, column): (usize, usize),
-    ) -> Json {
-        let word = || word_at(source, balaur::script_rune::offset_of(source, line, column));
-        match method {
-            "textDocument/signatureHelp" => tools.signature(rel, source, line, column).map_or(Json::Null, |(sig, active)| {
-                json!({ "signatures": [{ "label": sig }], "activeSignature": 0, "activeParameter": active })
-            }),
-            "textDocument/documentSymbol" => tools
-                .symbols(rel, source)
-                .iter()
-                .map(|one| {
-                    let kind = match one.kind {
-                        "function" => 12,
-                        "struct" => 23,
-                        _ => 7,
-                    };
-                    json!({
-                        "name": one.name,
-                        "kind": kind,
-                        "detail": one.detail,
-                        "range": span(one.line.max(1), one.column),
-                        "selectionRange": span(one.line.max(1), one.column),
-                    })
-                })
-                .collect(),
-            "textDocument/references" => tools
-                .references(rel, source, &word())
-                .iter()
-                .map(|one| json!({ "uri": self.uri_of(&one.file), "range": span(one.line, one.column) }))
-                .collect(),
-            "textDocument/rename" => params["newName"]
-                .as_str()
-                .and_then(|to| tools.rename(rel, source, &word(), to))
-                .map_or(Json::Null, |text| {
-                    let mut changes = serde_json::Map::new();
-                    changes.insert(self.uri_of(rel), json!([whole_file(&text)]));
-                    json!({ "changes": changes })
-                }),
-            "textDocument/formatting" => tools.format(rel, source).map_or(Json::Null, |text| {
-                if text == source { json!([]) } else { json!([whole_file(&text)]) }
-            }),
-            _ => Json::Null,
-        }
     }
 
     /// The client's copy of a file if it has one, else what is on disk.
@@ -609,36 +377,12 @@ impl Server {
     }
 }
 
-/// A [`Completion`](balaur::script_rune::Completion) as an LSP completion item. The
-/// doc line is the reference's, so a popup says what the manual says.
-fn completion(one: &balaur::script_rune::Completion) -> Json {
-    json!({
-        "label": one.label,
-        "kind": one.kind.lsp(),
-        "detail": one.detail,
-        "documentation": one.doc,
-        "insertText": one.insert,
-    })
-}
-
-/// A hover as the markdown a client renders: the name in code, then the
-/// signature, then the reference's own doc line.
-fn markdown(one: &balaur::script_rune::Hover) -> String {
-    let mut out = format!("```rune\n{}{}\n```", one.title, one.detail);
-    if !one.doc.is_empty() {
-        out.push_str("\n\n");
-        out.push_str(&one.doc);
-    }
-    out
-}
-
-/// The LSP `SymbolKind` for what a script declares: a function, or a property
-/// its `exports()` returned.
-fn symbol_kind(kind: balaur::script_rune::Kind) -> u8 {
-    if kind == balaur::script_rune::Kind::Function {
-        12
-    } else {
-        7
+/// The LSP `SymbolKind` for what a script declares.
+fn symbol_kind(kind: &str) -> u8 {
+    match kind {
+        "function" | "method" => 12,
+        "struct" => 23,
+        _ => 7,
     }
 }
 
@@ -647,6 +391,19 @@ fn symbol_kind(kind: balaur::script_rune::Kind) -> u8 {
 fn span(line: usize, column: usize) -> Json {
     let start = position(line, column);
     json!({ "start": start, "end": start })
+}
+
+/// The byte offset of a 1-based line and column, the column in characters.
+fn offset_of(source: &str, line: usize, column: usize) -> usize {
+    let mut at = 0;
+    for (n, text) in source.split('\n').enumerate() {
+        if n + 1 == line.max(1) {
+            let index = text.char_indices().nth(column.saturating_sub(1));
+            return at + index.map_or(text.len(), |(i, _)| i);
+        }
+        at += text.len() + 1;
+    }
+    source.len()
 }
 
 /// The whole identifier a byte offset touches, for a request that names a
@@ -693,7 +450,9 @@ fn item_kind(kind: &str) -> u8 {
     }
 }
 
-fn foreign_diagnostic(one: &balaur_script::Diagnostic) -> Json {
+/// A diagnostic as LSP has it: lines and characters from zero, the host's
+/// from one.
+fn diagnostic(one: &balaur_script::Diagnostic) -> Json {
     let start = position(one.line, one.column);
     json!({
         "range": { "start": start, "end": start },
@@ -708,20 +467,6 @@ fn notification(uri: &str, diagnostics: &[Json]) -> Json {
         "jsonrpc": "2.0",
         "method": "textDocument/publishDiagnostics",
         "params": { "uri": uri, "diagnostics": diagnostics },
-    })
-}
-
-/// A [`Finding`](balaur::script_rune::Finding) as an LSP diagnostic. LSP counts
-/// lines and characters from zero and Rune counts from one; a finding with no
-/// span (line 0) is about the file, and lands on its first line.
-fn diagnostic(one: &balaur::script_rune::Finding) -> Json {
-    let start = position(one.line, one.column);
-    let end = position(one.end_line.max(one.line), one.end_column.max(one.column));
-    json!({
-        "range": { "start": start, "end": end },
-        "severity": if one.severity == "error" { 1 } else { 2 },
-        "source": "balaur",
-        "message": one.message,
     })
 }
 

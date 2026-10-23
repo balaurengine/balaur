@@ -7,7 +7,7 @@ use balaur_bench::{Backend, Project, app};
 use balaur_core::scene;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
-const EMPTY: &str = "local S = {}\nfunction S:init() end\nreturn S\n";
+const EMPTY: &str = "pub struct S { node: Node }\n";
 
 /// One looping track on the node itself, so the sampler runs and the write
 /// lands without a rig to resolve first.
@@ -37,8 +37,8 @@ fn propagate(c: &mut Criterion) {
     let mut group = c.benchmark_group("propagate_transforms");
     {
         let count = 1000usize;
-        let project = Project::new(Backend::Rune, EMPTY).unwrap();
-        let app = app(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, EMPTY).unwrap();
+        let app = app(Backend::Bs, &project).unwrap();
         let root = app.engine.root();
         {
             let mut world = app.engine.world_mut();
@@ -65,8 +65,8 @@ fn spawn(c: &mut Criterion) {
     let mut group = c.benchmark_group("spawn_nodes");
     {
         let count = 1000usize;
-        let project = Project::new(Backend::Rune, EMPTY).unwrap();
-        let app = app(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, EMPTY).unwrap();
+        let app = app(Backend::Bs, &project).unwrap();
         let root = app.engine.root();
         group.throughput(Throughput::Elements(count as u64));
         // Freed off the clock, as node_ops_rust does: a world that grows by
@@ -118,8 +118,8 @@ fn instantiate_scene(c: &mut Criterion) {
                  transform = {{ position = [1.0, 2.0, 3.0] }}\n\n"
             );
         }
-        let project = Project::new(Backend::Rune, EMPTY).unwrap();
-        let app = app(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, EMPTY).unwrap();
+        let app = app(Backend::Bs, &project).unwrap();
         let root = app.engine.root();
         group.throughput(Throughput::Elements(count as u64));
         // Into a holder that is freed off the clock, so each iteration loads
@@ -173,8 +173,8 @@ fn physics_step(c: &mut Criterion) {
     let count = 1000usize;
     for body in ["body2d", "body3d"] {
         {
-            let project = Project::new(Backend::Rune, EMPTY).unwrap();
-            let mut app = app(Backend::Rune, &project).unwrap();
+            let project = Project::new(Backend::Bs, EMPTY).unwrap();
+            let mut app = app(Backend::Bs, &project).unwrap();
             let root = app.engine.root();
             for i in 0..count {
                 let e = scene::spawn_node(&mut app.engine.world_mut(), &format!("b{i}"), root);
@@ -195,10 +195,10 @@ fn animation_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("animation_step");
     {
         let count = 1000usize;
-        let project = Project::new(Backend::Rune, EMPTY).unwrap();
+        let project = Project::new(Backend::Bs, EMPTY).unwrap();
         std::fs::create_dir_all(project.path().join("animations")).unwrap();
         std::fs::write(project.path().join("animations/bench.toml"), CLIP).unwrap();
-        let mut app = app(Backend::Rune, &project).unwrap();
+        let mut app = app(Backend::Bs, &project).unwrap();
         let root = app.engine.root();
         for i in 0..count {
             let e = scene::spawn_node(&mut app.engine.world_mut(), &format!("a{i}"), root);
@@ -223,8 +223,8 @@ fn event_delivery(c: &mut Criterion) {
     let mut group = c.benchmark_group("event_delivery");
     {
         let count = 1000usize;
-        let project = Project::new(Backend::Rune, EMPTY).unwrap();
-        let mut app = app(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, EMPTY).unwrap();
+        let mut app = app(Backend::Bs, &project).unwrap();
         let root = app.engine.root();
         for i in 0..count {
             let e = scene::spawn_node(&mut app.engine.world_mut(), &format!("l{i}"), root);

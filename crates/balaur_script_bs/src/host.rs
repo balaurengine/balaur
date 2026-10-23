@@ -283,7 +283,7 @@ impl BsHost {
 
     /// The script reference: each module's functions, what each takes and
     /// does, and its constants, as `script::api()` answers it.
-    pub(crate) fn reference(&self) -> balaur_script::Value {
+    pub fn reference(&self) -> balaur_script::Value {
         crate::api::reference(&self.api(), &self.inner.registry.borrow())
     }
 
@@ -422,7 +422,7 @@ impl BsHost {
         };
         let mut rt =
             Runtime::new(&compiled, self.host_fns(), limits).map_err(|e| anyhow!("{key}: {e}"))?;
-        self.arm(key, &mut rt);
+        self.arm(key, &compiled, &mut rt);
         Ok(Rc::new(File {
             native,
             reentry: rt.reentry(),
@@ -886,7 +886,7 @@ impl ScriptHost<Engine> for BsHost {
         rt.set_engine(self.engine_for(&key));
         let swapped = rt.reload(&compiled, self.host_fns(), &mut refs);
         if swapped.is_ok() {
-            self.arm(&key, &mut rt);
+            self.arm(&key, &compiled, &mut rt);
         }
         for (inst, obj) in insts.iter().zip(objs) {
             *inst.obj.borrow_mut() = Some(obj);

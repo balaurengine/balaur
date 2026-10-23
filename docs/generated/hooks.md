@@ -2,10 +2,10 @@
 
 # Hooks
 
-The methods the engine calls on a node's script by name. Each takes the
-instance first, `pub fn update(this, dt)`, and a script declares only the
-ones it wants. What a component announces is listed with the component in
-[components.md](./components.md).
+The methods the engine calls on a node's script by name. Each is a method
+of the script's struct, `fn update(dt: float)`, and a script declares only
+the ones it wants. What a component announces is listed with the component
+in [components.md](./components.md).
 
 <table>
 <thead><tr><th>hook</th><th>when</th></tr></thead>

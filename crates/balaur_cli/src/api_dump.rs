@@ -12,7 +12,7 @@ pub(crate) fn dump_api() -> Result<()> {
 
 /// Boot a standard app in a scratch project and ask it what scripts can reach.
 ///
-/// The engine is asked, not the source: constants like `input.KEY_SPACE` are
+/// The engine is asked, not the source: constants like `input::KEY_SPACE` are
 /// derived at registration, so parsing Rust would miss them.
 pub(crate) fn api_value() -> Result<serde_json::Value> {
     let dir = std::env::temp_dir().join("balaur-api-probe");
@@ -32,8 +32,15 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load_all(&mut app, &mut crate::own_modules(&dir))?;
     app.load_project()?;
-    let host = balaur::script_rune::rune_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::script_rune::api_json(&host)?)?;
+    let mut api = serde_json::json!({"modules": [], "types": [], "builtins": {}});
+    #[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
+    if let Some(host) = balaur::script_bs::BsHost::of(&app.engine) {
+        api["modules"] = balaur::file_api::to_json(&host.reference())?;
+        api["types"] = value_types();
+        api["builtins"] = builtins();
+        api["bs"] = bs_api(&host.api());
+        api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
+    }
     // Component schemas ride along, so docs and tools read one probe.
     let components: std::collections::BTreeMap<String, serde_json::Value> =
         balaur::components::schemas(&app.engine)
@@ -102,18 +109,32 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
         })
         .unwrap_or_default();
     api["asset_types"] = serde_json::to_value(asset_types)?;
-    #[cfg(any(feature = "bs", feature = "bs-web"))]
-    if let Some(host) = balaur::script_bs::BsHost::of(&app.engine) {
-        api["bs"] = bs_api(&host.api());
-        api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
-    }
     Ok(api)
+}
+
+/// The value types every script holds, each with its fields.
+#[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
+fn value_types() -> serde_json::Value {
+    balaur::script_bs::value_types()
+        .iter()
+        .map(|(name, fields)| serde_json::json!({"name": name, "fields": fields}))
+        .collect()
+}
+
+/// The functions every script calls without a module, with their signatures.
+#[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
+fn builtins() -> serde_json::Value {
+    balaur::script_bs::builtins()
+        .iter()
+        .map(|(name, signature)| ((*name).to_string(), serde_json::json!(signature)))
+        .collect::<serde_json::Map<_, _>>()
+        .into()
 }
 
 /// The engine as a `.bs` script compiles against it: each function's
 /// signature and how many arguments a call must pass, each constant, and
 /// each record's fields.
-#[cfg(any(feature = "bs", feature = "bs-web"))]
+#[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
 fn bs_api(api: &balaur::script_bs::HostApi) -> serde_json::Value {
     use balaur::script_bs::Literal;
     let functions: serde_json::Map<String, serde_json::Value> = api

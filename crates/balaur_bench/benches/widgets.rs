@@ -45,7 +45,7 @@ fn screen(app: &App, count: usize, cell: &toml::Value) -> (Entity, Entity) {
         app,
         root,
         "Screen",
-        &toml::toml! { kind = "column" anchor = "fill" gap = 2 }.into(),
+        &toml::toml! { kind = "column" anchor = "fill" gap = [2, 2] }.into(),
     );
     let mut leaf = column;
     let mut made = 1;
@@ -54,7 +54,7 @@ fn screen(app: &App, count: usize, cell: &toml::Value) -> (Entity, Entity) {
             app,
             column,
             "Row",
-            &toml::toml! { kind = "row" gap = 2 }.into(),
+            &toml::toml! { kind = "row" gap = [2, 2] }.into(),
         );
         made += 1;
         for _ in 0..PER_ROW {
@@ -123,7 +123,7 @@ fn widgets(c: &mut Criterion) {
                 &app.engine,
                 column,
                 "widget",
-                Some(&toml::toml! { kind = "column" anchor = "fill" gap = 2 }.into()),
+                Some(&toml::toml! { kind = "column" anchor = "fill" gap = [2, 2] }.into()),
             )
             .unwrap();
             one_pass(&app, &ctx);
@@ -152,7 +152,7 @@ fn app_from(scene: &str, script: &str) -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -167,7 +167,7 @@ fn app_from(scene: &str, script: &str) -> (tempfile::TempDir, App) {
 fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
     let mut scene = String::from(
         "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\n\
-         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n",
+         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = [2, 2]\n",
     );
     for i in 0..count {
         let _ = write!(
@@ -176,24 +176,24 @@ fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
              [nodes.widget]\nkind = \"button\"\ntext = \"cell\"\n"
         );
     }
-    app_from(&scene, "pub fn init(this) {}\n")
+    app_from(&scene, "pub struct Screen { node: Node }\n")
 }
 
 /// The same `count` cells as one `draw` node, painted by a script: what the
 /// top bar and the status strip do.
 fn as_one_draw(count: usize) -> (tempfile::TempDir, App) {
-    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.rn\" }\n\
-         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n\
+    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.bs\" }\n\
+         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = [2, 2]\n\
          \n[[nodes]]\nid = \"hatch\"\nname = \"Hatch\"\nparent = \"screen\"\n\
          [nodes.widget]\nkind = \"draw\"\ndraw = \"cells\"\n";
     let script = format!(
-        "pub fn init(this) {{}}\n\
-         pub fn cells(this) {{\n\
-         \x20   ui::row(#{{ tight: true }}, || {{\n\
+        "pub struct Screen {{ node: Node }}\n\
+         impl Screen {{\n\
+         \x20   fn cells() {{\n\
          \x20       for i in 0..{count} {{\n\
-         \x20           ui::button(\"cell\", #{{}});\n\
+         \x20           ui::button(\"cell\", map());\n\
          \x20       }}\n\
-         \x20   }});\n\
+         \x20   }}\n\
          }}\n"
     );
     app_from(scene, &script)

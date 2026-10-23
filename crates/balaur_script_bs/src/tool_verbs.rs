@@ -12,6 +12,12 @@ use std::collections::BTreeSet;
 
 pub(crate) const MODULE: &str = "script::";
 
+/// What the module is for, as the reference opens it.
+pub(crate) const MODULE_DOC: (&str, &str) = (
+    "script",
+    "What a tool asks about a script file, and state no node owns.",
+);
+
 /// What the answers are made of, as `balaur_script::tool_answer` builds them.
 #[rustfmt::skip]
 pub(crate) const RECORDS: &[(&str, &str)] = &[
@@ -24,22 +30,22 @@ pub(crate) const RECORDS: &[(&str, &str)] = &[
     ("Edit", "{ file: string, source: string }"),
 ];
 
-/// Each verb, and what it takes after the path and gives back.
+/// Each verb, what it takes after the path and gives back, and what it does.
 #[rustfmt::skip]
-const VERBS: &[(&str, &str)] = &[
-    ("check", "(source: string) -> [Diagnostic]"),
-    ("complete", "(source: string, line: int, column: int) -> [Completion]"),
-    ("hover", "(source: string, line: int, column: int) -> Hover?"),
-    ("definition", "(source: string, line: int, column: int) -> Place?"),
-    ("symbols", "(source: string) -> [Symbol]"),
-    ("signature", "(source: string, line: int, column: int) -> Signature?"),
-    ("references", "(source: string, name: string) -> [Place]"),
-    ("rename", "(source: string, from: string, to: string) -> [Edit]"),
-    ("find", "(source: string, needle: string) -> [Place]"),
-    ("replace", "(source: string, from: string, to: string) -> [Edit]"),
-    ("format", "(source: string) -> string"),
-    ("exports", "() -> list"),
-    ("api", "() -> list"),
+const VERBS: &[(&str, &str, &str)] = &[
+    ("check", "(source: string) -> [Diagnostic]", "Every compiler error in the source, read as the file at the path: one for each function that does not compile."),
+    ("complete", "(source: string, line: int, column: int) -> [Completion]", "Every completion valid at that caret; an editor passes the buffer it is showing."),
+    ("hover", "(source: string, line: int, column: int) -> Hover?", "What the name at that caret is: its type, or its signature; nil when it is nothing."),
+    ("definition", "(source: string, line: int, column: int) -> Place?", "Where the name at that caret is declared in the file; nil when it is not."),
+    ("symbols", "(source: string) -> [Symbol]", "What the file declares: its structs, their fields and methods, and its functions."),
+    ("signature", "(source: string, line: int, column: int) -> Signature?", "The call the caret is inside, and which argument it is on."),
+    ("references", "(source: string, name: string) -> [Place]", "Every use of that name in the file."),
+    ("rename", "(source: string, from: string, to: string) -> [Edit]", "The file with a name renamed; nothing is written, so a caller can show it first."),
+    ("find", "(source: string, needle: string) -> [Place]", "Every place that text appears in the file, matched as text rather than as a name."),
+    ("replace", "(source: string, from: string, to: string) -> [Edit]", "The file with that text replaced; nothing is written, so a caller can show it first."),
+    ("format", "(source: string) -> string", "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse."),
+    ("exports", "() -> list", "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults."),
+    ("api", "() -> list", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
 ];
 
 // The verbs about the engine rather than a file: no path first.
@@ -53,7 +59,7 @@ pub(crate) fn signatures(records: &BTreeSet<String>) -> Vec<HostSignature> {
     };
     VERBS
         .iter()
-        .filter_map(|(name, doc)| {
+        .filter_map(|(name, doc, _)| {
             let (params, ret) = crate::doc_types::signature(doc, &cx)?;
             let path = (!PATHLESS.contains(name)).then_some(Ty::Str);
             Some(HostSignature {
@@ -64,6 +70,13 @@ pub(crate) fn signatures(records: &BTreeSet<String>) -> Vec<HostSignature> {
             })
         })
         .collect()
+}
+
+/// What each verb does, keyed `script::name`.
+pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
+    VERBS
+        .iter()
+        .map(|(name, _, doc)| (format!("{MODULE}{name}"), *doc))
 }
 
 /// The verb a key names, when it is one of these.

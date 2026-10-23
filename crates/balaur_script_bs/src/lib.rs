@@ -1,8 +1,8 @@
 //! Balaur Script (`balaur_bs`) behind the scripting seam.
 //!
-//! [`BsHost`] runs `.bs` scripts; [`Mixed`] puts it beside another backend
-//! and hands each script to the one its extension names, so a project's Rune
-//! scripts keep running while some move over. `docs/PLAN-balaur-script.md`.
+//! [`BsHost`] runs `.bs` scripts; [`factory`] makes the engine's script host
+//! of it. [`Mixed`] puts it beside another backend and hands each script to
+//! the one its extension names. `docs/PLAN-balaur-script.md`.
 
 mod api;
 mod convert;
@@ -16,6 +16,7 @@ mod store;
 mod tool_verbs;
 mod waits;
 
+pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
 pub use balaur_bs::{HostApi, HostSignature, Literal};
 pub use export::Exporter;
@@ -136,6 +137,20 @@ pub(crate) fn bind(
 
 /// A call's arguments as the engine takes them, inline for the usual counts.
 type Neutral = smallvec::SmallVec<[Value; 4]>;
+
+/// A factory running `.bs` scripts.
+pub fn factory() -> balaur_core::ScriptHostFactory {
+    Box::new(|setup| {
+        let lang = BsHost::new(
+            setup.engine.clone(),
+            setup.project_root,
+            setup.pack.clone(),
+            setup.watch,
+        );
+        lang.register(setup.engine);
+        Ok(Rc::new(lang))
+    })
+}
 
 /// A factory running `inner`'s backend with `.bs` scripts beside it.
 pub fn beside(inner: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {

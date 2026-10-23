@@ -97,8 +97,8 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
 4. **The engine API the editor calls.** Done. All 266 engine functions and
    78 constants the editor names compile in a `.bs` file, and so does the
    argument count of each of its 1,811 calls. `scripts/bs_editor_calls.py`
-   checks the 2,154 references against the `bs` section of `balaur api`, in
-   CI.
+   checked the 2,154 references against the `bs` section of `balaur api` in
+   CI, until the editor was ported and `balaur check editor` took over.
    - A documented op names its result (`-> float`, `-> node?`, `-> map`);
      one with no `->` gives nothing back. 249 docs gained one.
    - Trailing `T?` and `any` parameters may be left out.
@@ -290,3 +290,9 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
    - The shim is `gd.bs`, ported from `gd_values.rn` and `gd_nodes.rn`.
    - The tests compile what they convert, against the engine's API.
 8. **Rune removed.**
+   In progress. The engine boots `.bs` alone: `script_language` defaults to
+   `bs`, and a scene attaching a `.rn` is a `balaur check` error. `balaur
+   lsp`, `fmt`, `test` and `check` answer for `.bs` only, and `balaur api`
+   reads its modules off the `.bs` host. The Rune editor is deleted. `balaur
+   port` stays, for a game still written in Rune. Left: the engine crates'
+   tests, the GDScript importer, the Gamend SDK, then `balaur_script_rune`.

@@ -121,7 +121,10 @@ pub(crate) fn signatures(registry: &Registry) -> Vec<HostSignature> {
     let docs = registry.modules.get(MODULE);
     OPS.iter()
         .map(|(name, params, ret)| HostSignature {
-            key: match docs.and_then(|d| d.get(*name)).and_then(|e| e.acts_on) {
+            key: match docs
+                .and_then(|d| d.get(*name))
+                .and_then(|e| e.acts_on.first())
+            {
                 Some(comp) => format!("{PREFIX}{comp}.{name}"),
                 None => format!("{PREFIX}{name}"),
             },

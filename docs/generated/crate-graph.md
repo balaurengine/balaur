@@ -52,7 +52,6 @@ graph TD
   balaur --> balaur_render
   balaur --> balaur_script
   balaur --> balaur_script_bs
-  balaur --> balaur_script_rune
   balaur --> balaur_ui
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
@@ -70,7 +69,6 @@ graph TD
   balaur_bench --> balaur
   balaur_bench --> balaur_core
   balaur_bench --> balaur_script
-  balaur_bench --> balaur_script_rune
   balaur_bench --> balaur_ui
   balaur_browser --> balaur_core
   balaur_browser --> balaur_plugin

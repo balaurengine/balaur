@@ -54,24 +54,26 @@ fn calling(before: &str, call: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.rn\" }\n\
+        "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.bs\" }\n\
          [nodes.widget]\nkind = \"column\"\nanchor = \"fill\"\n\
          \n[[nodes]]\nid = \"hatch\"\nname = \"Hatch\"\nparent = \"screen\"\n\
          [nodes.widget]\nkind = \"draw\"\ndraw = \"calls\"\nanchor = \"fill\"\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.rn"),
+        dir.path().join("scripts/s.bs"),
         format!(
-            "pub fn init(this) {{ this.made = 0; }}\n\
-             pub fn made(this) {{ this.made }}\n\
-             pub fn calls(this) {{\n\
-             \x20   this.made = 0;\n\
-             \x20   {before}\n\
-             \x20   for i in 0..{CALLS} {{\n\
-             \x20       {call};\n\
+            "pub struct Screen {{ node: Node, made: int }}\n\
+             impl Screen {{\n\
+             \x20   fn reached() -> int {{ return self.made; }}\n\
+             \x20   fn calls() {{\n\
+             \x20       self.made = 0;\n\
+             \x20       {before}\n\
+             \x20       for i in 0..{CALLS} {{\n\
+             \x20           {call};\n\
+             \x20       }}\n\
+             \x20       self.made = {CALLS};\n\
              \x20   }}\n\
-             \x20   this.made = {CALLS};\n\
              }}\n"
         ),
     )
@@ -106,19 +108,20 @@ fn ran(app: &App) -> bool {
     let made = app
         .engine
         .script_host()
-        .and_then(|host| host.call_on(balaur_core::node_id_of(screen), "made", &[]));
+        .and_then(|host| host.call_on(balaur_core::node_id_of(screen), "reached", &[]));
     made == Some(balaur_script::Value::Int(i64::from(CALLS)))
 }
 
-/// The shapes the editor's shell calls in: a number, an options table written
-/// at the call, the same table built once, and a container with a callback.
+/// The shapes the editor's shell calls in: a number, an options map written
+/// at the call, and the same map built once.
 /// The loop alone is the floor, so a case less `loop`, over [`CALLS`], is what
 /// one call costs.
 fn ui_call(c: &mut Criterion) {
     let mut group = c.benchmark_group("ui_call");
-    let table = "#{ font_size: 13, text_color: \"#c8ccd4\", truncate: true }";
+    let table =
+        "map().with(\"font_size\", 13).with(\"text_color\", \"#c8ccd4\").with(\"truncate\", true)";
     let cases = [
-        ("loop", String::new(), "()".to_string()),
+        ("loop", String::new(), "let n = i".to_string()),
         ("add_space", String::new(), "ui::add_space(2.0)".to_string()),
         (
             "label_table",
@@ -129,11 +132,6 @@ fn ui_call(c: &mut Criterion) {
             "label_held",
             format!("let opts = {table};"),
             "ui::label(\"name\", opts)".to_string(),
-        ),
-        (
-            "row_callback",
-            String::new(),
-            "ui::row(#{ height: 24 }, || {})".to_string(),
         ),
     ];
     let mut floor = 0.0;

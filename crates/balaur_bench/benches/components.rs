@@ -5,7 +5,7 @@
 //! underneath them. A UI pass reads hundreds of these a frame and animation
 //! writes one per track per tick, so the per-call number is the budget.
 
-use balaur_bench::{Backend, Project, app, attach_many};
+use balaur_bench::{Backend, Project, app, attach_many, script};
 use balaur_core::{Engine, components};
 use balaur_script::{Bindings, Value};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
@@ -13,8 +13,8 @@ use hecs::Entity;
 
 /// A booted app with one node carrying a `transform`.
 fn one_node() -> (tempfile::TempDir, balaur_core::App, Entity) {
-    let project = Project::new(Backend::Rune, "pub fn init(this) {}\n").unwrap();
-    let app = app(Backend::Rune, &project).unwrap();
+    let project = Project::new(Backend::Bs, &script("", "")).unwrap();
+    let app = app(Backend::Bs, &project).unwrap();
     let entity =
         balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", app.engine.root());
     let Project { dir } = project;
@@ -89,34 +89,32 @@ fn rust_side(c: &mut Criterion) {
 }
 
 /// The script-facing paths, which is what the editor and a game both spell.
-fn rune_side(c: &mut Criterion) {
-    let mut group = c.benchmark_group("component_rune");
+fn script_side(c: &mut Criterion) {
+    let mut group = c.benchmark_group("component_script");
     let count = 1000usize;
     let cases: [(&str, &str); 4] = [
-        (
-            "handle_read",
-            "pub fn update(this, dt) { for i in 0..1000 { this.node.transform.position; } }",
-        ),
+        ("handle_read", "let at = self.node.transform.position;"),
         (
             "handle_write",
-            "pub fn update(this, dt) { for i in 0..1000 { this.node.transform.position = [1.0, 2.0, 3.0]; } }",
+            "self.node.transform.position = vec3(1.0, 2.0, 3.0);",
         ),
         (
             "get_component_keyed",
-            "pub fn update(this, dt) { for i in 0..1000 { \
-             this.node.get_component(\"transform\", \"position\"); } }",
+            "let at = self.node.get_component(\"transform\", \"position\");",
         ),
         (
             "has_component",
-            "pub fn update(this, dt) { for i in 0..1000 { \
-             this.node.has_component(\"transform\"); } }",
+            "let has = self.node.has_component(\"transform\");",
         ),
     ];
     for (name, body) in cases {
-        let source = format!("pub fn init(this) {{}}\n{body}\n");
-        let project = Project::new(Backend::Rune, &source).unwrap();
-        let app = app(Backend::Rune, &project).unwrap();
-        attach_many(&app, Backend::Rune, 1).unwrap();
+        let source = script(
+            "",
+            &format!("    fn update(dt: float) {{ for i in 0..1000 {{ {body} }} }}"),
+        );
+        let project = Project::new(Backend::Bs, &source).unwrap();
+        let app = app(Backend::Bs, &project).unwrap();
+        attach_many(&app, Backend::Bs, 1).unwrap();
         let host = app.engine.script_host().unwrap();
         group.throughput(Throughput::Elements(count as u64));
         group.bench_function(BenchmarkId::new(name, count), |b| {
@@ -150,18 +148,23 @@ fn seam_arg_cost(c: &mut Criterion) {
         ),
     ];
     for (name, call) in cases {
-        let body = format!(
-            "pub fn init(this) {{}}\npub fn update(this, dt) {{ for i in 0..1000 {{ {call}; }} }}\n"
+        let body = script(
+            "",
+            &format!("    fn update(dt: float) {{ for i in 0..1000 {{ {call}; }} }}"),
         );
-        let project = Project::new(Backend::Rune, &body).unwrap();
-        let mut app = app(Backend::Rune, &project).unwrap();
+        let project = Project::new(Backend::Bs, &body).unwrap();
+        let mut app = app(Backend::Bs, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
             let m: &mut dyn Bindings<Engine> = &mut *m;
             m.function_raw("take0", Box::new(|_, _| Ok(Value::Nil)));
             m.function_raw("take1", Box::new(|_, _| Ok(Value::Nil)));
+            m.describe(&[
+                ("take0", &[], "()", "Takes nothing, does nothing."),
+                ("take1", &[], "(value: any)", "Takes a value, does nothing."),
+            ]);
         }
-        attach_many(&app, Backend::Rune, 1).unwrap();
+        attach_many(&app, Backend::Bs, 1).unwrap();
         let host = app.engine.script_host().unwrap();
         group.throughput(Throughput::Elements(count as u64));
         group.bench_function(BenchmarkId::new(name, count), |b| {
@@ -171,5 +174,5 @@ fn seam_arg_cost(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, rust_side, rune_side, seam_arg_cost);
+criterion_group!(benches, rust_side, script_side, seam_arg_cost);
 criterion_main!(benches);

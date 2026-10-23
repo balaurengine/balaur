@@ -1,16 +1,11 @@
-//! `balaur fmt`: a project's scripts laid out the house's way.
-//!
-//! A `.bs` file goes through `balaur_bs`'s formatter, which needs nothing but
-//! the source. A `.rn` file still goes through Rune's, which wants a booted
-//! app, so one is booted only when there is a `.rn` to format.
+//! `balaur fmt`: a project's scripts laid out the house's way, by
+//! `balaur_bs`'s formatter, which needs nothing but the source.
 
 use std::path::PathBuf;
 
 use anyhow::{Context as _, Result};
-use balaur::AppConfig;
 
-/// Format `.bs` and `.rn` files in place, or say which would change under
-/// `--check`.
+/// Format `.bs` files in place, or say which would change under `--check`.
 ///
 /// A directory is walked for every script under it, so `balaur fmt` on a
 /// project formats the project. Exits 1 under `--check` when one would change,
@@ -26,31 +21,11 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
     }
     files.sort();
     files.dedup();
-    let root = paths
-        .first()
-        .filter(|p| p.is_dir())
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("."));
-    let mut rune: Option<balaur::App> = None;
     let mut changed = 0;
     for file in &files {
         let source =
             std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
-        let formatted = if file.extension().is_some_and(|e| e == "bs") {
-            balaur::script_bs::fmt::format(&source).map_err(|e| e.to_string())
-        } else {
-            if rune.is_none() {
-                let mut app = balaur::standard_app(AppConfig::export(&root))?;
-                app.load_project().ok();
-                rune = Some(app);
-            }
-            let app = rune.as_ref().expect("booted above");
-            let key = file.to_string_lossy();
-            balaur::script_rune::rune_of(&app.engine)
-                .format(&key, &source)
-                .map_err(|e| e.to_string())
-        };
-        let formatted = match formatted {
+        let formatted = match format(&source) {
             Ok(text) => text,
             Err(err) => {
                 println!("{}: {err}", file.display());
@@ -81,7 +56,17 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
     Ok(())
 }
 
-/// Every `.bs` and `.rn` file under `dir`.
+#[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
+fn format(source: &str) -> Result<String, String> {
+    balaur::script_bs::fmt::format(source).map_err(|e| e.to_string())
+}
+
+#[cfg(not(any(feature = "bs", feature = "bs-jit", feature = "bs-web")))]
+fn format(_: &str) -> Result<String, String> {
+    Err("this build has no Balaur Script".into())
+}
+
+/// Every `.bs` file under `dir`.
 fn collect_scripts(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -90,7 +75,7 @@ fn collect_scripts(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         if path.is_dir() {
             collect_scripts(&path, out);
-        } else if path.extension().is_some_and(|e| e == "bs" || e == "rn") {
+        } else if path.extension().is_some_and(|e| e == "bs") {
             out.push(path);
         }
     }

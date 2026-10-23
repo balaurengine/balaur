@@ -41,7 +41,7 @@ async function start() {
     options: { cwd: root },
   };
   client = new LanguageClient("balaur", "Balaur", { run: server, debug: server }, {
-    documentSelector: [{ scheme: "file", language: "rune" }],
+    documentSelector: [{ scheme: "file", language: "balaur-script" }],
     outputChannelName: "Balaur",
   });
   await client.start();

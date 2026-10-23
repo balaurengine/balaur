@@ -23,6 +23,23 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
     ]
 }
 
+/// What each wait does, keyed `task::name`.
+pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
+    [
+        ("seconds", "Park an async method for a span of simulation time, in fixed steps; the wall clock never enters it."),
+        ("frames", "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
+        ("wait", "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."),
+    ]
+    .into_iter()
+    .map(|(name, doc)| (format!("{MODULE}::{name}"), doc))
+}
+
+/// What the module is for, as the reference opens it.
+pub(crate) const MODULE_DOC: (&str, &str) = (
+    MODULE,
+    "Waiting inside an async method: `init` and event handlers may await; `update` is synchronous.",
+);
+
 /// Whether `key` is one of these.
 pub(crate) fn is_wait(key: &str) -> bool {
     key.strip_prefix(MODULE)

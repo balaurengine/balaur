@@ -48,11 +48,11 @@ import = ["dep:balaur_import", "balaur/svg"]
 # scripts call, a browser tab's editor entry points, and egui's bundled faces.
 # A game template leaves it off.
 editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
-# The Rune compiler and the WESL shader linker. Off, the build runs only packs
-# exported without `--keep-sources`, drawing with the shaders the export linked.
+# The WESL shader linker and the `.bs` to C translator. Off, the build draws
+# with the shaders an export linked into the pack.
 compile = ["balaur/compile"]
-# Balaur Script (`.bs`) beside Rune, on wasmi; `bs-jit` runs it on wasmtime
-# where a JIT may run, `bs-web` on the browser's own engine.
+# Balaur Script (`.bs`), on wasmi; `bs-jit` runs it on wasmtime where a JIT
+# may run, `bs-web` on the browser's own engine.
 bs = ["balaur/bs"]
 bs-jit = ["balaur/bs-jit"]
 bs-web = ["balaur/bs-web"]
@@ -92,7 +92,8 @@ tracing.workspace = true
 # Template download and self-update; the web build has neither, so wasm
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-# `balaur port`: a project's Rune scripts as Balaur Script drafts.
+# `balaur port`: a project's Rune scripts as Balaur Script drafts, for a
+# project written before the engine ran Balaur Script alone.
 balaur_port.workspace = true
 # Reads the edited game's `project.toml` to hand its `[input]` to the engine.
 toml.workspace = true

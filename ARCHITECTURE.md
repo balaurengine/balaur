@@ -6,9 +6,9 @@ names.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  scripts (game code, and the editor itself)  .rn — Rune    │
+│  scripts (game code, and the editor itself)  .bs           │
 ├────────────────────────────────────────────────────────────┤
-│  balaur_script_rune: host, hot reload, mod files, debugger │
+│  balaur_script_bs: host, hot reload, `use` files, debugger │
 ├────────────────────────────────────────────────────────────┤
 │  balaur_script: the seam — Bindings, ScriptHost, Value.    │
 │  Traits only. No language; anyhow and serde.               │
@@ -114,8 +114,8 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - A scene inits its scripts children before parents, Godot's `_ready` order: a
   child can always reach its parent node, while a parent reading a child's
   script state is the one that would find nothing.
-- `language` in `project.toml` picks the language; absent means Rune, the one
-  this build ships.
+- `script_language` in `project.toml` names the language; absent means `bs`,
+  the one this build runs.
 
 ### Model
 
@@ -599,11 +599,8 @@ such a pack: the editor's, never a game template.
   `balaur_cli`. The template leaves out `editor` (the exporter, the project
   store, a tab's editor entry points), `compile` and `fallback-fonts` (egui's
   bundled faces, 1.35 MiB); the editor's module adds `import,editor`.
-- `compile` off gates the five calls into Rune's compiler, parser and
-  formatter, and turns off the fork's `macros`: `format!`, `println!` and
-  `assert!` are the stdlib's other way into the compiler, registered as
-  functions a context holds. Without both, LTO drops the parser and lowering.
-- `compile` off also drops the WESL linker. Every shader link goes through
+- `compile` off drops the `.bs` to C translator an iOS export uses, and the
+  WESL linker. Every shader link goes through
   `balaur_render::prelinked::cached`, keyed by what it links; an export runs
   each one the game can draw with (the engine's in every variant, each
   material morphed or not, in the transparency pass or not) and writes the
@@ -671,39 +668,25 @@ such a pack: the editor's, never a game template.
   macOS), and `--notarize` staples Apple's ticket.
 - The exporter sets the execute bits on its output: a template from a zip or an
   artifact store has lost them.
-- Rune resolves `input::key_just_pressed` at compile time, so `balaur::build_pack`
-  boots the app the game would boot and compiles through its host. A bare
-  `rune::Context` rejects every script that touches the engine.
+- A `.bs` script compiles against the engine's modules, so `balaur::build_pack`
+  boots the app the game would boot and compiles through its host.
 
 ### Tooling: one provider, two fronts
 
-The tooling in `balaur_script_rune` (`tooling.rs`, methods on `RuneHost`)
-answers *at this file, line and column: what completes, what is under the
-cursor, where it is defined, what this file's symbols are*. `balaur lsp` maps LSP methods onto it and the
-editor's `script` module calls the same verbs, so a script means one thing to
-both.
+`LanguageTools` on `BsHost`, over `balaur_bs::analysis`, answers *at this
+file, line and column: what completes, what is under the cursor, where it is
+defined, what this file's symbols are*. `balaur lsp` maps LSP methods onto it
+through `ScriptHost::tools_for`, and the editor's `script` module calls the
+same verbs, so a script means one thing to both.
 
-- Completions and hover text for `engine::`, `input::`, `node.`, a component
-  handle and a constant come off the same `ApiEntry` list `balaur api` prints.
-  The api lint that fails on an undocumented function is what keeps the popup
-  complete.
-- Rune's own language server is not reusable: `State` and its completion
-  helpers are `pub(super)`, and the only public item owns the stdin/stdout
-  loop and its own workspace. One piece is taken, `fmt`, which costs no new
-  dependency.
-- Rune's stdlib reaches completion through a fork patch that makes
-  `Context::iter_functions` and `ContextMeta` public and widens their feature
-  gate. Without it `"".len()` does not complete.
-- Rune offers no incremental parse, so what completes is decided from the text
-  around the caret: a table of cases, one test per row.
-- Rename and references are textual across the `mod` graph, because Rune 0.14
-  keeps no cross-file semantic index. A rename shows its list before writing.
-- Listing a file's functions by compiling a unit cost 50 ms per keystroke on a
-  1429-line script and answered with nothing mid-edit, so `declared_functions`
-  walks the `mod` graph as text. A completion is 1 ms after `::` and 3 ms on a
-  bare prefix.
-- A definition outside the project has no file to land in, so go-to opens the
-  reference page instead.
+- Completions and hover text for a module path, `self.`, a component handle
+  and a constant come off the `HostApi` a script compiles against, which
+  `balaur api` prints as `bs`.
+- Each request parses the buffer as it stands, `use`d files found from its
+  path, so an unsaved edit is what is answered for.
+- Rename and references stay inside the file asked about.
+- Formatting is `balaur_bs::fmt`, which `balaur fmt` and the editor's format
+  key call too.
 
 ## Game UI: widgets are nodes
 
@@ -1194,9 +1177,9 @@ overlay, dark and light token sets.
   translating in that face's plane, a rectangle at each face centre scaling
   along its normal, corner brackets scaling uniformly, and a rotation ball whose
   depth-biased rings win the pick over the face behind. Hit-testing and drag
-  math are screen-space script in `gizmo.rn`; the backend inhibits the orbit
+  math are screen-space script in `gizmo.bs`; the backend inhibits the orbit
   camera while the gizmo is hot.
-- The Animate persona edits an engine clip: `anim.rn` is an adapter over the
+- The Animate persona edits an engine clip: `anim.bs` is an adapter over the
   `assets` and `animation` modules, and the Timeline scrubs the node's actual
   player, so what is previewed is what ships. The clip lives inline
   (`[nodes.animation.library]`) or in `animations/<node>.toml`; **Save as file**
@@ -1206,8 +1189,8 @@ overlay, dark and light token sets.
 - The clip belongs to the *player* — the selection or its nearest ancestor
   carrying `animation` — so keying a bone writes a track on the character's
   clip, addressed by path.
-- `rig.rn` draws bones as Godot's diamonds and grows a chain by clicking;
-  `polygon.rn` turns Godot's UV window into four viewport modes (Points,
+- `rig.bs` draws bones as Godot's diamonds and grows a chain by clicking;
+  `polygon.bs` turns Godot's UV window into four viewport modes (Points,
   Polygons, UV, Weights). Every edit records history and then pushes the
   document's polygon onto the live node, so undo and the saved scene agree.
 - The editor's engine resolves files against the editor's own root, so
@@ -1304,7 +1287,7 @@ fire = ["mouse:left"]
 ## Showcase: the manual's pictures are a test
 
 `scripts/showcase.sh` drives the editor offscreen with `--state`. A still is
-`shot=<png>` at frame 60; a clip is `show:<name>`, a sequence in `showcase.rn`
+`shot=<png>` at frame 60; a clip is `show:<name>`, a sequence in `showcase.bs`
 of the calls the UI would make plus the input a person would feed, captured by
 `frames=<dir>` and encoded at 30 fps. Offscreen frames advance on the fixed
 step, so a clip is the same clip every time.
@@ -1314,7 +1297,7 @@ step, so a clip is the same clip every time.
   the editor from `update` rebuilt the scene under the game's own `update`.
 - Input goes through `input.feed_key`/`feed_mouse`/`feed_mouse_button`, which
   call the snapshot's own feeders, so a fed frame is indistinguishable from a
-  window's and the recorder records it. The pointer is drawn by `inputview.rn`
+  window's and the recorder records it. The pointer is drawn by `inputview.bs`
   from the snapshot rather than the OS cursor, for the same reason. egui never
   sees fed input, so a sequence puts the cursor on a control and calls the verb
   under it. The gizmo stands down while a sequence runs.

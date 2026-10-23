@@ -5,6 +5,7 @@ use super::tasks::Pending;
 use super::{BsHost, File, Instance, key_of};
 use crate::convert::to_neutral;
 use anyhow::{Result, anyhow};
+use balaur_bs::Compiled;
 use balaur_bs::runtime::{
     Command, EngineKind, Object, Paused, Runtime, Step, StopReason, Value as L,
 };
@@ -42,13 +43,14 @@ impl BsHost {
         self.inner.break_on_error.get() || self.inner.debugging.borrow().contains(key)
     }
 
-    /// The breakpoints asked of `key`, on its fresh runtime.
-    pub(super) fn arm(&self, key: &str, rt: &mut Runtime) {
+    /// The breakpoints asked of `key`, each on the line it lands on, on its
+    /// fresh runtime.
+    pub(super) fn arm(&self, key: &str, compiled: &Compiled, rt: &mut Runtime) {
         let mut debugger = rt.debugger();
         debugger.keep_locals(self.inner.break_on_error.get());
         if let Some(lines) = self.inner.breaks.borrow().get(key) {
-            for line in lines {
-                debugger.set_breakpoint(u32::try_from(*line).unwrap_or(u32::MAX));
+            for line in landed(compiled, lines) {
+                debugger.set_breakpoint(u32::try_from(line).unwrap_or(u32::MAX));
             }
         }
     }
@@ -192,7 +194,7 @@ impl BsHost {
         let Some(file) = self.inner.files.borrow().get(&key).cloned() else {
             return Ok(lines.to_vec());
         };
-        let landed = landed(&file, lines);
+        let landed = landed(&file.compiled, lines);
         let mut rt = file.rt.borrow_mut();
         let mut debugger = rt.debugger();
         debugger.clear_breakpoints();
@@ -202,13 +204,15 @@ impl BsHost {
         Ok(landed)
     }
 
+    /// The lines asked of `path`, where they landed once it compiled.
     pub(super) fn debug_breakpoints(&self, path: &str) -> Vec<usize> {
-        self.inner
-            .breaks
-            .borrow()
-            .get(&key_of(path))
-            .cloned()
-            .unwrap_or_default()
+        let key = key_of(path);
+        let asked = self.inner.breaks.borrow().get(&key).cloned();
+        let asked = asked.unwrap_or_default();
+        match self.inner.files.borrow().get(&key) {
+            Some(file) => landed(&file.compiled, &asked),
+            None => asked,
+        }
     }
 
     /// Every loaded file stops at the next line it runs.
@@ -309,9 +313,8 @@ fn parking_engine() -> EngineKind {
 }
 
 /// Each asked-for line moved to the first line at or after it with code.
-fn landed(file: &File, lines: &[usize]) -> Vec<usize> {
-    let mut code: Vec<usize> = file
-        .compiled
+fn landed(compiled: &Compiled, lines: &[usize]) -> Vec<usize> {
+    let mut code: Vec<usize> = compiled
         .meta
         .probes
         .iter()

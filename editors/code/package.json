@@ -1,7 +1,7 @@
 {
   "name": "balaur",
   "displayName": "Balaur",
-  "description": "Rune script support for the Balaur game engine: diagnostics, completion, hover, go-to-definition, symbols, formatting and rename, from the engine's own language server.",
+  "description": "Balaur Script support for the Balaur game engine: diagnostics, completion, hover, go-to-definition, symbols, formatting and rename, from the engine's own language server.",
   "version": "0.2.0",
   "publisher": "balaurengine",
   "license": "MIT",
@@ -15,36 +15,36 @@
   ],
   "keywords": [
     "balaur",
-    "rune",
+    "balaur script",
     "gamedev"
   ],
   "engines": {
     "vscode": "^1.91.0"
   },
   "activationEvents": [
-    "onLanguage:rune",
+    "onLanguage:balaur-script",
     "workspaceContains:project.toml"
   ],
   "main": "./extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "rune",
+        "id": "balaur-script",
         "extensions": [
-          ".rn"
+          ".bs"
         ],
         "aliases": [
-          "Rune",
-          "rune"
+          "Balaur Script",
+          "bs"
         ],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "rune",
+        "language": "balaur-script",
         "path": "./syntaxes/balaur.tmLanguage.json",
-        "scopeName": "source.rune"
+        "scopeName": "source.bs"
       }
     ],
     "commands": [
