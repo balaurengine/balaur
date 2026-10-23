@@ -176,7 +176,7 @@ rune = { git = "https://github.com/balaurengine/rune.git", branch = "determinist
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 # On `balaur-wrapped-surface` (Ughuuu/kiss3d#1) until it merges into `balaur-hooks`.
-kiss3d = { path = "/Users/dragosdaian/Documents/appsinacup/kiss3d" }
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-wrapped-surface" }
 # 0.19.0 on the harfrust and skrifa epaint uses, so one copy of each links.
 cosmic-text = { git = "https://github.com/Ughuuu/cosmic-text.git", branch = "balaur-harfrust-0.12" }
 # 0.36.2 with glyphs filled by zeno, which the engine's own text already links,

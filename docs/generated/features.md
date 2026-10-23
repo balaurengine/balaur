@@ -21,8 +21,9 @@ atomics only that build has.
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
 | `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (25 crates) |
 | `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
-| `bs` | on | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | `wasmi`, `wasmi_collections`, `wasmi_core`, `wasmi_ir` |
+| `bs` | on | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
 | `bs-jit` | on | on |  | nothing |
+| `bs-wasmi` | off | off | The interpreter alone, beside `bs-web` in the web editor's module so a debugger can park a call; `bs` brings `native`, whose libloading has no wasm32 build. | nothing |
 | `bs-web` | off | on |  | nothing |
 | `compile` | on | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the pack. | nothing |
 | `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (25 crates) |

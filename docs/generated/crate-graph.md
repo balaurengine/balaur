@@ -31,7 +31,6 @@ graph TD
   balaur_render[balaur_render]
   balaur_script[balaur_script]
   balaur_script_bs[balaur_script_bs]
-  balaur_script_rune[balaur_script_rune]
   balaur_testkit[balaur_testkit]
   balaur_text[balaur_text]
   balaur_ui[balaur_ui]
@@ -92,6 +91,7 @@ graph TD
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
   balaur_import --> balaur
+  balaur_import --> balaur_bs
   balaur_import --> balaur_core
   balaur_import --> balaur_plugin
   balaur_import --> balaur_render
@@ -121,8 +121,6 @@ graph TD
   balaur_script_bs --> balaur_bs
   balaur_script_bs --> balaur_core
   balaur_script_bs --> balaur_script
-  balaur_script_rune --> balaur_core
-  balaur_script_rune --> balaur_script
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core

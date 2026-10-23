@@ -160,3 +160,28 @@ fn the_report_names_every_stage_and_the_frame() {
     }
     assert!(report.contains("over 3 frames"), "{report}");
 }
+
+#[test]
+fn the_report_counts_how_often_a_span_ran_each_frame() {
+    let ms = Duration::from_millis;
+    let mut timings = Timings::default();
+    for (name, cost) in [("ui", 2), ("ui rerun", 1), ("ui rerun", 1)] {
+        timings.spans.push((name.into(), ms(cost)));
+    }
+    let mut log = TimingLog::default();
+    for _ in 0..4 {
+        log.observe(&timings);
+    }
+    let report = log.report();
+    // A row is its name, two spaces, then the columns; the count is last.
+    let calls = |name: &str| {
+        report
+            .lines()
+            .find(|line| line.trim_start().split("  ").next() == Some(name))
+            .and_then(|line| line.split_whitespace().last())
+            .unwrap_or_else(|| panic!("no {name} row in\n{report}"))
+            .to_owned()
+    };
+    assert_eq!(calls("ui"), "1.00", "{report}");
+    assert_eq!(calls("ui rerun"), "2.00", "{report}");
+}
