@@ -72,8 +72,14 @@ static uintptr_t bs_stack_floor(void) {
 }
 
 /* Every function, kept from turning a recursion into a loop: a script that
- * recurses without end runs out of stack, as it does on every engine. */
+ * recurses without end runs out of stack, as it does on every engine. GCC
+ * has no `disable_tail_calls`, and `-w` hides that it ignores it: there the
+ * same pass is switched off by name. */
+#if defined(__clang__)
 #define BS_FN static __attribute__((disable_tail_calls))
+#else
+#define BS_FN static __attribute__((optimize("no-optimize-sibling-calls")))
+#endif
 #define BS_ENTER(I) \
   if (__builtin_expect((uintptr_t)__builtin_frame_address(0) < (I)->floor, 0)) bs_trap(I, BS_STACK)
 #define BS_RELOAD() (M = I->mem, L = I->mem_len)
