@@ -157,6 +157,20 @@ fn engine(fuel: bool) -> Result<Engine, String> {
 
 static CACHE: OnceLock<PathBuf> = OnceLock::new();
 
+/// Where Cranelift spreads a module's functions: a pool of its own, built on
+/// the first compile. Rayon's global pool is the physics solver's to size,
+/// and the first compile would otherwise build it first.
+fn compile_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|i| format!("bs-compile-{i}"))
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
 /// Units compiled this run, by module hash and fuel: every script using one
 /// shares its machine code.
 #[allow(clippy::type_complexity, reason = "a cache keyed as its users ask")]
@@ -183,7 +197,14 @@ pub(crate) fn cache_in(dir: PathBuf) {
 /// `wasm` compiled, from the cache when it has it: compiling is most of
 /// what loading a script costs on wasmtime.
 fn module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module, String> {
-    let compile = || wasmtime::Module::new(eng, wasm).map_err(|e| format!("invalid module: {e:#}"));
+    let compile = || {
+        let build =
+            || wasmtime::Module::new(eng, wasm).map_err(|e| format!("invalid module: {e:#}"));
+        match compile_pool() {
+            Some(pool) => pool.install(build),
+            None => build(),
+        }
+    };
     let Some(dir) = CACHE.get() else {
         return compile();
     };

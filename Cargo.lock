@@ -596,6 +596,7 @@ dependencies = [
  "js-sys",
  "libloading 0.9.0",
  "libm",
+ "rayon",
  "rustc-hash 2.1.3",
  "smallvec",
  "wasm-bindgen",
