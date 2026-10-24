@@ -140,6 +140,26 @@ fn a_map_or_a_list_changes_in_place_for_every_holder() {
 }
 
 #[test]
+fn a_list_in_an_any_handed_to_an_array_parameter_is_the_same_list() {
+    let mut rt = run(r#"
+fn mark(doc: [any]) {
+    for node in doc {
+        node.set("id", "x");
+    }
+}
+pub fn marked() -> str {
+    let list: any = [map().with("name", "a")];
+    mark(list);
+    let none: any = nil;
+    mark(none);
+    "{list[0].get("id").as_str()} {list.len()}"
+}
+"#);
+    assert_eq!(call(&mut rt, "marked", &[]), Value::Str("x 1".into()));
+    assert_eq!(rt.live(), 0, "a list handed over as an array leaked");
+}
+
+#[test]
 fn the_invalid_node_boxes_to_nil() {
     let mut rt = run(r#"
 fn holds(v: any) -> bool { !v.is_nil() }
