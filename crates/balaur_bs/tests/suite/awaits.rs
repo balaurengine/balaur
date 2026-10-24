@@ -263,3 +263,48 @@ fn an_await_hands_back_a_string_an_array_or_an_any() {
     );
     assert_eq!(rt.live(), 0, "an awaited value leaked");
 }
+
+// An `await` in an `else if`, in an `if` nested last in a branch, and in an
+// `if` that ends the function: each is a block's tail, and each runs.
+const TAILS: &str = r#"
+    extern async fn wait(seconds: float);
+    extern fn say(text: str);
+    pub async fn branches(n: int) {
+        if n == 1 {
+            await wait(0.1);
+            say("one");
+        } else if n == 2 {
+            await wait(0.1);
+            say("two");
+        } else {
+            await wait(0.1);
+            say("other");
+        }
+        if n == 2 {
+            if n == 2 {
+                await wait(0.1);
+                say("nested");
+            }
+        }
+        while n == 2 {
+            if n == 2 {
+                await wait(0.1);
+                say("in a loop");
+                break;
+            }
+        }
+        if n == 2 {
+            await wait(0.1);
+            say("last");
+        }
+    }
+"#;
+
+#[test]
+fn an_await_in_a_block_s_tail_runs() {
+    let said = Rc::new(RefCell::new(vec![]));
+    let mut rt = run_with(TAILS, host(said.clone()), &Options::default());
+    let mut task = rt.start("branches", &[Value::Int(2)]).unwrap();
+    drive(&mut rt, &mut task, None);
+    assert_eq!(*said.borrow(), ["two", "nested", "in a loop", "last"]);
+}

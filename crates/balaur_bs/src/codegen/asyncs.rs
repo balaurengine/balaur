@@ -45,11 +45,16 @@ pub(super) fn emit(
     }
     let (state, handle) = (fg.local(ValType::I32), fg.local(ValType::I64));
     let mut body = f.body.clone();
+    // A tail is the result; with none to give, it is run for what it does,
+    // as an `if` that awaits in one branch is.
     if let Some(t) = body.tail.take() {
-        body.stmts.push(Stmt {
-            pos: t.pos,
-            kind: StmtKind::Return(Some(*t)),
-        });
+        let pos = t.pos;
+        let kind = if f.ret == Ty::Void {
+            StmtKind::Expr(*t)
+        } else {
+            StmtKind::Return(Some(*t))
+        };
+        body.stmts.push(Stmt { kind, pos });
     }
     let mut cfg = Cfg::new(g, sig.owner.clone());
     let entry = cfg.new_block();

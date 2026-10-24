@@ -77,14 +77,14 @@ fn escapes(s: &Stmt, depth: u32) -> bool {
         StmtKind::While { body, .. }
         | StmtKind::Loop(body)
         | StmtKind::ForRange { body, .. }
-        | StmtKind::ForEach { body, .. } => body.stmts.iter().any(|s| escapes(s, depth + 1)),
+        | StmtKind::ForEach { body, .. } => statements(body).iter().any(|s| escapes(s, depth + 1)),
         StmtKind::Expr(Expr {
             kind: ExprKind::If(_, t, e),
             ..
         }) => {
-            t.stmts.iter().any(|s| escapes(s, depth))
+            statements(t).iter().any(|s| escapes(s, depth))
                 || e.as_ref()
-                    .is_some_and(|e| e.stmts.iter().any(|s| escapes(s, depth)))
+                    .is_some_and(|e| statements(e).iter().any(|s| escapes(s, depth)))
         }
         _ => false,
     }
@@ -98,6 +98,16 @@ fn var(name: &str, pos: Pos) -> Expr {
 }
 fn stmt(kind: StmtKind, pos: Pos) -> Stmt {
     Stmt { kind, pos }
+}
+
+// A block's statements, its tail one more: a block in a statement's place
+// runs its tail for what it does, and an `else if` is such a tail.
+fn statements(b: &Block) -> Vec<Stmt> {
+    let mut out = b.stmts.clone();
+    if let Some(t) = &b.tail {
+        out.push(stmt(StmtKind::Expr((**t).clone()), t.pos));
+    }
+    out
 }
 fn plus_one(name: &str, pos: Pos) -> Stmt {
     stmt(
@@ -395,10 +405,10 @@ impl<'a> Cfg<'a> {
         let eb = self.new_block();
         let join = self.new_block();
         self.seal(cur, Term::Branch(cond.clone(), tb, eb));
-        let end = self.lower(&then.stmts, tb, in_loop)?;
+        let end = self.lower(&statements(then), tb, in_loop)?;
         self.seal(end, Term::Goto(join));
         let end = match els {
-            Some(e) => self.lower(&e.stmts, eb, in_loop)?,
+            Some(e) => self.lower(&statements(e), eb, in_loop)?,
             None => eb,
         };
         self.seal(end, Term::Goto(join));
@@ -418,7 +428,7 @@ impl<'a> Cfg<'a> {
             None => head,
         };
         self.loops.push((exit, head));
-        let end = self.lower(&body.stmts, first, true)?;
+        let end = self.lower(&statements(body), first, true)?;
         self.loops.pop();
         self.seal(end, Term::Goto(head));
         Ok(exit)
@@ -442,7 +452,7 @@ impl<'a> Cfg<'a> {
         self.blocks[next].stmts.push(step);
         self.seal(next, Term::Goto(head));
         self.loops.push((exit, next));
-        let end = self.lower(&body.stmts, bodyb, true)?;
+        let end = self.lower(&statements(body), bodyb, true)?;
         self.loops.pop();
         self.seal(end, Term::Goto(next));
         Ok(exit)
