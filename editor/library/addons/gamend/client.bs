@@ -1,7 +1,5 @@
-// The session, the socket and the server's hooks, over the engine's
-// `gamend::` calls. The socket id is the caller's; the rows, the topics and
-// the keys are this module's own, in the script store, so every script in a
-// game sees one cache.
+// The session, the socket and the server's hooks over `gamend::`. Rows,
+// topics and keys live in the script store, so every script sees one cache.
 
 use core;
 use events;

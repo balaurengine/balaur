@@ -618,25 +618,55 @@ impl<'a> FnGen<'a> {
             if matches!(want, Ty::Fn(..)) {
                 self.e(I::I32WrapI64);
             }
-        } else {
-            let slots = self.g.slots(want);
-            let addr = self.local(ValType::I32);
-            self.emit([
-                I::I32Const(8 * slots.len() as i32),
-                I::Call(self.g.h.alloc),
-                I::LocalSet(addr),
-            ]);
-            let text = self.g.str_addr(&show(want));
-            self.emit(text);
+        } else if matches!(want, Ty::Array(et) if **et == Ty::Any) {
+            // A list cell holds the `[any]` it boxed: handed back retained,
+            // not rebuilt, so a map in it stays the one every holder changes.
             self.get_raw(&v);
-            self.emit([I::LocalGet(addr), I::Call(self.g.imp.unboxing)]);
-            for (j, (vt, _)) in slots.into_iter().enumerate() {
-                self.emit([I::LocalGet(addr), super::rt::load(vt, 8 * j as u64)]);
-            }
-            self.emit([I::LocalGet(addr), I::Call(self.g.h.free)]);
+            self.e(I::If(BlockType::Result(ValType::I32)));
+            self.get_raw(&v);
+            self.emit([
+                I::I32Load(mem(4, 2)),
+                I::I32Const(crate::anys::LIST),
+                I::I32Eq,
+                I::Else,
+                I::I32Const(0),
+                I::End,
+                I::If(BlockType::Result(ValType::I32)),
+            ]);
+            self.get_raw(&v);
+            self.emit([
+                I::I64Load(mem(8, 3)),
+                I::I32WrapI64,
+                I::Call(self.g.h.retain),
+                I::Else,
+            ]);
+            self.unbox_by_host(want, &v);
+            self.e(I::End);
+        } else {
+            self.unbox_by_host(want, &v);
         }
         self.release(&v);
         true
+    }
+
+    // The `any` in `v` rebuilt as a `want` by the host, into scratch memory
+    // read back slot by slot.
+    fn unbox_by_host(&mut self, want: &Ty, v: &LVal) {
+        let slots = self.g.slots(want);
+        let addr = self.local(ValType::I32);
+        self.emit([
+            I::I32Const(8 * slots.len() as i32),
+            I::Call(self.g.h.alloc),
+            I::LocalSet(addr),
+        ]);
+        let text = self.g.str_addr(&show(want));
+        self.emit(text);
+        self.get_raw(v);
+        self.emit([I::LocalGet(addr), I::Call(self.g.imp.unboxing)]);
+        for (j, (vt, _)) in slots.into_iter().enumerate() {
+            self.emit([I::LocalGet(addr), super::rt::load(vt, 8 * j as u64)]);
+        }
+        self.emit([I::LocalGet(addr), I::Call(self.g.h.free)]);
     }
 
     // A list, struct or optional in an `any`: its slots written to scratch
