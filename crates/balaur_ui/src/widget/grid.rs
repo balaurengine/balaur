@@ -306,7 +306,8 @@ fn end(word: &str) -> Result<GridPlacement<String>, String> {
     if word.contains(char::is_whitespace) {
         return Err(format!("`{word}` is not a line, a span or a name"));
     }
-    Ok(GridPlacement::NamedLine(word.to_string(), 1))
+    // No count: an area's name finds its implicit `-start` and `-end` lines.
+    Ok(GridPlacement::NamedLine(word.to_string(), 0))
 }
 
 /// A child's `row` or `column`: one end, or two either side of a `/`. A name
@@ -320,7 +321,7 @@ pub(crate) fn placement(text: &str) -> Result<Line<GridPlacement<String>>, Strin
     } else {
         let first = end(text)?;
         let last = match &first {
-            GridPlacement::NamedLine(name, _) => GridPlacement::NamedLine(name.clone(), 1),
+            GridPlacement::NamedLine(name, _) => GridPlacement::NamedLine(name.clone(), 0),
             _ => GridPlacement::Auto,
         };
         (first, last)
@@ -391,8 +392,8 @@ mod tests {
         assert_eq!(both.end, GridPlacement::Line(3.into()));
         assert_eq!(placement("span 2").unwrap().start, GridPlacement::Span(2));
         let named = placement("main").unwrap();
-        assert_eq!(named.start, GridPlacement::NamedLine("main".into(), 1));
-        assert_eq!(named.end, GridPlacement::NamedLine("main".into(), 1));
+        assert_eq!(named.start, GridPlacement::NamedLine("main".into(), 0));
+        assert_eq!(named.end, GridPlacement::NamedLine("main".into(), 0));
         assert_eq!(placement("").unwrap().start, GridPlacement::Auto);
         assert!(placement("0").is_err());
     }
