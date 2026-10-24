@@ -52,7 +52,6 @@ pub(crate) fn build_framework(
     executable: &str,
     scripts: &balaur::NativeScripts,
     apple: &AppleConfig,
-    name: &str,
 ) -> Result<()> {
     if !cfg!(target_os = "macos") || !has_xcode() {
         tracing::warn!(
@@ -103,7 +102,7 @@ pub(crate) fn build_framework(
     }
     std::fs::write(
         dir.join("Info.plist"),
-        apple.framework_plist(name, framework, platform),
+        apple.framework_plist(framework, platform)?,
     )?;
     tracing::info!(
         "{} script(s) as native code -> {}",

@@ -69,7 +69,7 @@ inputs:
     required: false
     default: "false"
   android-keystore:
-    description: Base64 of the release keystore. Empty uses the debug identity.
+    description: Base64 of the release keystore. Empty signs with Android's debug identity (`--sign debug`).
     required: false
     default: ""
   android-keystore-password:
@@ -192,6 +192,8 @@ runs:
               ;;
             android)
               flags+=(--bundle apk)
+              # An export never takes the debug key unasked.
+              [ -f "$SECRETS/release.jks" ] || flags+=(--sign debug)
               # Play takes the bundle, every other store takes the APK, so a
               # run that has bundletool builds both.
               [ -n "$BALAUR_ANDROID_BUNDLETOOL" ] && flags+=(--bundle aab)

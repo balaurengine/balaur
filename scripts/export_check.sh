@@ -51,6 +51,8 @@ if [ "$base" = ios ]; then
 
 [apple]
 bundle_id = "org.balaur.example"
+version = "1.0.0"
+build_number = "1"
 team_id = "AB12CD34EF"
 min_ios = "15.0"
 capabilities = ["sign-in-with-apple", "game-center", "icloud-kv", "in-app-purchase"]
@@ -64,7 +66,16 @@ fi
 # not an array: `"${empty[@]}"` is unbound under `set -u` on bash 3.2.
 apk=""
 if [ "$base" = android ]; then
-  apk="--bundle apk --bundle aab"
+  # An export invents no identity, and signs with the debug key only when
+  # asked: CI has no release keystore, and what it proves installs anyway.
+  cat >>"$work/project/project.toml" <<'TOML'
+
+[android]
+application_id = "org.balaur.example"
+version = "1.0.0"
+version_code = 1
+TOML
+  apk="--bundle apk --bundle aab --sign debug"
   # Google ships bundletool apart from the SDK, so the runner has no copy.
   # Pinned by hash: the AAB this proves is the one that jar produces.
   step "bundletool"
@@ -86,8 +97,10 @@ ios)
   [ -d "$app" ] || fail "no $app"
   [ -f "$app/game.bpak" ] || fail "the exported .app carries no pack"
   [ -x "$app/Balaur" ] || fail "the .app's executable is missing or not executable"
-  grep -q '<string>project</string>' "$app/Info.plist" ||
-    fail "Info.plist still names the template, not the game"
+  # What the home screen shows is `[application] name`, never the folder.
+  title=$(awk -F'"' '/^name *=/ { print $2; exit }' "$work/project/project.toml")
+  grep -q "<key>CFBundleDisplayName</key><string>$title</string>" "$app/Info.plist" ||
+    fail "Info.plist does not name the game as [application] name does ($title)"
   # `file` says arm64 Mach-O for host and iOS alike, so ask the load command.
   # Which one it is depends on the deployment target: LC_BUILD_VERSION names a
   # platform, LC_VERSION_MIN_IPHONEOS names iOS by existing at all.
@@ -130,8 +143,8 @@ android)
     [ -f "$layout/lib/$abi/libmain.so" ] ||
       fail "the exported layout has no $abi libmain.so"
   done
-  grep -q 'package="org.balaur.project"' "$layout/AndroidManifest.xml" ||
-    fail "the manifest still names the template, not the game"
+  grep -q 'package="org.balaur.example"' "$layout/AndroidManifest.xml" ||
+    fail "the manifest does not carry the project's own application_id"
   grep -q 'android:icon="@mipmap/icon"' "$layout/AndroidManifest.xml" ||
     fail "the manifest names no icon"
   [ -f "$layout/res/mipmap-anydpi-v26/icon.xml" ] || fail "the layout has no adaptive icon"

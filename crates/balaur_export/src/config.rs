@@ -170,6 +170,28 @@ pub(crate) fn orientation_of(manifest: &toml::Table) -> balaur::project::Orienta
         })
 }
 
+/// `[application] name`, trimmed; empty when the project declares none.
+pub(crate) fn application_name(manifest: &toml::Table) -> String {
+    manifest
+        .get("application")
+        .and_then(|a| a.get("name"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+/// The same, for an export a player sees the name of: there is no folder
+/// name to guess with.
+pub(crate) fn required_name(manifest: &toml::Table) -> Result<String> {
+    let name = application_name(manifest);
+    anyhow::ensure!(!name.is_empty(), "{NAME_MISSING}");
+    Ok(name)
+}
+
+pub(crate) const NAME_MISSING: &str = "[application] name is not set: the name a home screen, \
+     a dock and a page title show, e.g. name = \"My Game\"";
+
 /// One table out of a resolved manifest, or the defaults when the project
 /// declares none.
 pub(crate) fn table_of<T: serde::de::DeserializeOwned + Default>(

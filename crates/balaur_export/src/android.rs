@@ -53,13 +53,14 @@ impl Abi {
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct AndroidConfig {
     /// The identifier Play resolves an OAuth client, a licence and an update
-    /// against. Empty keeps the invented `org.balaur.<name>`.
+    /// against. Required: an export refuses to invent one.
     pub application_id: String,
-    /// The name under the icon. Empty means the project's own.
+    /// The name under the icon; `[application] name` when empty.
     pub display_name: String,
-    /// `versionName`: what a player is shown.
+    /// `versionName`: what a player is shown. Required.
     pub version: String,
     /// `versionCode`: what Play orders updates by, and the only one it reads.
+    /// Required; 0 is unset.
     pub version_code: u32,
     /// The floor may not go under the template's, which is the API its
     /// libraries were built against.
@@ -68,7 +69,8 @@ pub(crate) struct AndroidConfig {
     /// Which of the template's ABIs the export keeps. Empty means every one
     /// the template carries, so a game that says nothing ships everywhere.
     pub abis: Vec<Abi>,
-    /// A project-relative keystore, or empty for Android's debug identity.
+    /// A project-relative keystore. Without one an export needs `--sign
+    /// debug`: Android's public key, which installs and ships nowhere.
     pub keystore: String,
     pub key: String,
     /// Where `bundletool.jar` is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and
@@ -79,6 +81,13 @@ pub(crate) struct AndroidConfig {
     /// setting every platform reads, taken from the same resolved document.
     #[serde(skip)]
     pub(crate) orientation: balaur::project::Orientation,
+    /// `[application] name`, which `display_name` overrides.
+    #[serde(skip)]
+    pub(crate) title: String,
+    /// `--sign debug`: the debug key asked for by name, never taken because
+    /// no keystore was set.
+    #[serde(skip)]
+    pub(crate) debug_key: bool,
 }
 
 impl Default for AndroidConfig {
@@ -86,8 +95,8 @@ impl Default for AndroidConfig {
         Self {
             application_id: String::new(),
             display_name: String::new(),
-            version: "1.0".into(),
-            version_code: 1,
+            version: String::new(),
+            version_code: 0,
             // 0 defers to the template's own, read at export.
             min_sdk: 0,
             target_sdk: 35,
@@ -96,6 +105,8 @@ impl Default for AndroidConfig {
             key: String::new(),
             bundletool: String::new(),
             orientation: balaur::project::Orientation::Any,
+            title: String::new(),
+            debug_key: false,
         }
     }
 }
@@ -106,6 +117,7 @@ impl AndroidConfig {
     pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
         Ok(Self {
             orientation: crate::config::orientation_of(manifest),
+            title: crate::config::application_name(manifest),
             ..crate::config::table_of(manifest, "android", project)?
         })
     }
@@ -141,37 +153,47 @@ impl AndroidConfig {
         Ok(())
     }
 
-    /// The identifier this APK ships with: the project's, or the invented one
-    /// for a game that declares none.
-    pub(crate) fn identifier(&self, name: &str) -> String {
-        if self.application_id.is_empty() {
-            let id: String = name
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-                .collect();
-            format!("org.balaur.{id}")
+    /// The identifier this APK ships with, which the project declares: Play
+    /// resolves its OAuth client, licence and updates against it.
+    pub(crate) fn identifier(&self) -> Result<&str> {
+        anyhow::ensure!(
+            !self.application_id.is_empty(),
+            "[android] application_id is not set: the identifier Play knows the game \
+             by, e.g. application_id = \"com.studio.game\""
+        );
+        Ok(&self.application_id)
+    }
+
+    /// The name under the icon: `display_name`, else `[application] name`.
+    fn label(&self) -> &str {
+        if self.display_name.is_empty() {
+            &self.title
         } else {
-            self.application_id.clone()
+            &self.display_name
         }
     }
 
     /// The template's manifest, rewritten to name this game.
     ///
     /// # Errors
-    /// When the identifier is not one Play accepts, when `min_sdk` goes under
+    /// When the name, the identifier or a version is not set, when the
+    /// identifier is not one Play accepts, when `min_sdk` goes under
     /// the API the template's libraries were built for, or when the template
     /// has lost an attribute this rewrites — each would otherwise be found by
     /// the store, or by a player whose device cannot load the library.
-    pub(crate) fn manifest(&self, template: &str, name: &str) -> Result<String> {
-        let id = self.identifier(name);
-        if let Err(bad) = check_identifier(&id) {
-            // A game named "2048" invents an id Play refuses, and the fix is
-            // to declare one rather than to have us invent a second guess.
-            if self.application_id.is_empty() {
-                bail!("{bad} It came from the project name; declare one.");
-            }
-            return Err(bad);
-        }
+    pub(crate) fn manifest(&self, template: &str) -> Result<String> {
+        anyhow::ensure!(!self.label().is_empty(), "{}", crate::config::NAME_MISSING);
+        let id = self.identifier()?;
+        check_identifier(id)?;
+        anyhow::ensure!(
+            !self.version.is_empty(),
+            "[android] version is not set: the version a player sees, e.g. version = \"1.0.0\""
+        );
+        anyhow::ensure!(
+            self.version_code > 0,
+            "[android] version_code is not set: the whole number Play orders updates by, \
+             from 1, e.g. version_code = 1"
+        );
         let floor: u32 = attr(template, "android:minSdkVersion")?.parse().context(
             "the template's android:minSdkVersion is not a number; \
              scripts/package_runtime.sh writes it",
@@ -194,12 +216,8 @@ impl AndroidConfig {
                 self.target_sdk
             );
         }
-        let label = if self.display_name.is_empty() {
-            name
-        } else {
-            self.display_name.as_str()
-        };
-        let mut xml = set_attr(template, "package", &id)?;
+        let label = self.label();
+        let mut xml = set_attr(template, "package", id)?;
         xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
         xml = set_attr(&xml, "android:versionName", &self.version)?;
         xml = set_attr(&xml, "android:minSdkVersion", &min_sdk.to_string())?;
@@ -690,9 +708,19 @@ struct Keystore {
     what: &'static str,
 }
 
-/// The project's release keystore, or Android's public debug identity for a
-/// build that has none — which installs on a device and ships nowhere.
+/// The project's release keystore, or Android's public debug identity when
+/// the export asks for it with `--sign debug` — which installs on a device and
+/// ships nowhere. Asked for, as `--sign` overrides the table on every platform.
 fn keystore_for(project: &Path, config: &AndroidConfig) -> Result<Keystore> {
+    if config.debug_key {
+        return Ok(Keystore {
+            path: debug_keystore()?,
+            alias: "androiddebugkey".into(),
+            store_password: "android".into(),
+            key_password: "android".into(),
+            what: "debug key — installs on a device, ships nowhere",
+        });
+    }
     if let Some(path) = ExportConfig::beside(project, &config.keystore) {
         anyhow::ensure!(
             path.is_file(),
@@ -713,13 +741,10 @@ fn keystore_for(project: &Path, config: &AndroidConfig) -> Result<Keystore> {
             what: "release key",
         });
     }
-    Ok(Keystore {
-        path: debug_keystore()?,
-        alias: "androiddebugkey".into(),
-        store_password: "android".into(),
-        key_password: "android".into(),
-        what: "debug key — installs on a device, ships nowhere",
-    })
+    bail!(
+        "[android] keystore is not set: name the release keystore, or export with \
+         --sign debug for a build that installs on a device and ships nowhere"
+    )
 }
 
 /// Android's debug keystore, created on first use exactly as the SDK does.
@@ -837,15 +862,26 @@ mod tests {
 </manifest>
 "#;
 
+    /// Everything an export needs named, as a project declares it.
+    fn named() -> AndroidConfig {
+        AndroidConfig {
+            application_id: "com.studio.tide".into(),
+            title: "Tide".into(),
+            version: "1.0".into(),
+            version_code: 1,
+            ..AndroidConfig::default()
+        }
+    }
+
     /// A template written before the attribute existed still takes one: the
     /// activity gets it added rather than the export failing.
     #[test]
     fn an_orientation_reaches_the_activity() {
         let config = AndroidConfig {
             orientation: balaur::project::Orientation::Landscape,
-            ..AndroidConfig::default()
+            ..named()
         };
-        let xml = config.manifest(TEMPLATE_WITH_ACTIVITY, "Tide").unwrap();
+        let xml = config.manifest(TEMPLATE_WITH_ACTIVITY).unwrap();
         assert!(
             xml.contains(r#"android:screenOrientation="landscape""#),
             "{xml}"
@@ -855,20 +891,55 @@ mod tests {
     /// A game that names none writes the manifest it always did.
     #[test]
     fn no_orientation_leaves_the_manifest_alone() {
-        let xml = AndroidConfig::default()
-            .manifest(TEMPLATE_WITH_ACTIVITY, "Tide")
-            .unwrap();
+        let xml = named().manifest(TEMPLATE_WITH_ACTIVITY).unwrap();
         assert!(!xml.contains("screenOrientation"), "{xml}");
     }
 
     #[test]
-    fn a_game_that_declares_nothing_still_stops_being_the_template() {
-        let xml = AndroidConfig::default().manifest(TEMPLATE, "Tide").unwrap();
-        assert!(xml.contains(r#"package="org.balaur.Tide""#), "{xml}");
+    fn the_label_is_the_application_name_unless_display_name_says_otherwise() {
+        let xml = named().manifest(TEMPLATE).unwrap();
+        assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
         assert!(xml.contains(r#"android:label="Tide""#), "{xml}");
         assert!(!xml.contains("org.balaur.template"), "{xml}");
         // The template's own floor, kept because the project named none.
         assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
+    }
+
+    /// Nothing is invented: each key missing is refused by name, in the order
+    /// a project would fill them in.
+    #[test]
+    fn a_game_that_declares_nothing_is_refused_key_by_key() {
+        let refusal = |config: AndroidConfig| config.manifest(TEMPLATE).unwrap_err().to_string();
+        let no_name = AndroidConfig {
+            title: String::new(),
+            ..named()
+        };
+        assert!(refusal(no_name).contains("[application] name"));
+        let no_id = AndroidConfig {
+            application_id: String::new(),
+            ..named()
+        };
+        assert!(refusal(no_id).contains("application_id"));
+        let no_version = AndroidConfig {
+            version: String::new(),
+            ..named()
+        };
+        assert!(refusal(no_version).contains("version is not set"));
+        let no_code = AndroidConfig {
+            version_code: 0,
+            ..named()
+        };
+        assert!(refusal(no_code).contains("version_code"));
+    }
+
+    #[test]
+    fn no_keystore_signs_with_the_debug_key_only_when_asked() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = super::keystore_for(dir.path(), &named())
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("--sign debug"), "{err}");
     }
 
     #[test]
@@ -879,9 +950,9 @@ mod tests {
             version: "2.3".into(),
             version_code: 17,
             target_sdk: 34,
-            ..AndroidConfig::default()
+            ..named()
         };
-        let xml = config.manifest(TEMPLATE, "Tide").unwrap();
+        let xml = config.manifest(TEMPLATE).unwrap();
         assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
         assert!(xml.contains(r#"android:versionCode="17""#), "{xml}");
         assert!(xml.contains(r#"android:versionName="2.3""#), "{xml}");
@@ -895,10 +966,10 @@ mod tests {
         for id in ["tide", "com.2studio.tide", "com..tide"] {
             let config = AndroidConfig {
                 application_id: id.into(),
-                ..AndroidConfig::default()
+                ..named()
             };
             let err = config
-                .manifest(TEMPLATE, "Tide")
+                .manifest(TEMPLATE)
                 .expect_err("an id Play would refuse")
                 .to_string();
             assert!(err.contains(id), "{err}");
@@ -906,22 +977,13 @@ mod tests {
     }
 
     #[test]
-    fn a_project_name_that_makes_no_id_says_to_declare_one() {
-        let err = AndroidConfig::default()
-            .manifest(TEMPLATE, "2048")
-            .expect_err("an id starting with a digit")
-            .to_string();
-        assert!(err.contains("declare one"), "{err}");
-    }
-
-    #[test]
     fn a_min_sdk_under_the_library_it_would_load_is_refused() {
         let config = AndroidConfig {
             min_sdk: 21,
-            ..AndroidConfig::default()
+            ..named()
         };
         let err = config
-            .manifest(TEMPLATE, "Tide")
+            .manifest(TEMPLATE)
             .expect_err("a floor under the template's")
             .to_string();
         assert!(err.contains("21") && err.contains("26"), "{err}");

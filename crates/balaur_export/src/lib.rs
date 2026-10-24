@@ -304,18 +304,14 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // folded onto `[export]` before any of these three is parsed.
     let manifest = config::manifest_for(&opts.path, target)?;
     let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
-    let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
+    let mut android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
+    android.debug_key = opts.sign.as_deref() == Some("debug");
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
     let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
-    // Only a game a runtime carries has an icon; a bare pack skips decoding them.
-    let icons = if target.is_some() || opts.runtime.is_some() {
-        icon::Icons::load(&opts.path, &manifest)?
-    } else {
-        None
-    };
+    let (title, icons) = presented(opts, &manifest)?;
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
@@ -332,7 +328,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     if let Some((kind, target)) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
         let runtime = bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?;
-        let shell = web_shell(&opts.path)?.replace("{{title}}", &game_title(&manifest, &name));
+        let shell = web_shell(&opts.path)?.replace("{{title}}", &title);
         let web_assets = bundle::web_files(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
         let written = export_bundle(
@@ -347,7 +343,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &web_assets,
             icons.as_ref(),
         )?;
-        native_scripts(kind, &written, opts, &mut extra, &pack, &apple, &name)?;
+        native_scripts(kind, &written, opts, &mut extra, &pack, &apple)?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
     let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
@@ -497,7 +493,6 @@ fn native_scripts(
     extra: &mut [Box<dyn balaur_plugin::Plugin>],
     pack: &balaur::Pack,
     apple: &AppleConfig,
-    name: &str,
 ) -> Result<()> {
     if kind != Bundle::Ios {
         return Ok(());
@@ -507,7 +502,7 @@ fn native_scripts(
     };
     let executable =
         bundle::runtime_executable(&app.join("Info.plist")).unwrap_or_else(|| "Balaur".to_string());
-    native::build_framework(app, &executable, &scripts, apple, name)
+    native::build_framework(app, &executable, &scripts, apple)
 }
 
 /// What a signed export uses: the flag when one was passed, else what the
@@ -590,18 +585,33 @@ fn finish_bundle(
     }
 }
 
-/// The exported game's name: the project directory's, or `game` for a path
-/// that has no name to read (the filesystem root, or one that vanished).
-/// What a page is titled: the game's `[application] name`, else its folder's.
-fn game_title(manifest: &toml::Table, folder: &str) -> String {
-    manifest
-        .get("application")
-        .and_then(|a| a.get("name"))
-        .and_then(toml::Value::as_str)
-        .unwrap_or(folder)
-        .to_string()
+/// What a player sees of the game: its name, required, and its icons. Only
+/// a game a runtime carries shows either; a bare pack names nothing and skips
+/// decoding them.
+fn presented(opts: &Options<'_>, manifest: &toml::Table) -> Result<(String, Option<icon::Icons>)> {
+    if opts.target.is_none() && opts.runtime.is_none() {
+        return Ok((String::new(), None));
+    }
+    Ok((
+        config::required_name(manifest)?,
+        icon::Icons::load(&opts.path, manifest)?,
+    ))
 }
 
+/// A bundle a store lists and a home screen shows needs its picture: there
+/// is no default one to ship.
+pub(crate) fn require_icon(icons: Option<&icon::Icons>, platform: &str) -> Result<()> {
+    anyhow::ensure!(
+        icons.is_some(),
+        "[application] icon is not set: a {platform} bundle shows it on the home screen \
+         and in the store, e.g. icon = \"icon.png\" (a square picture)"
+    );
+    Ok(())
+}
+
+/// The exported game's file name: the project directory's, or `game` for a
+/// path that has no name to read (the filesystem root, or one that vanished).
+/// What a player sees is `[application] name`, never this.
 fn project_name(path: &Path) -> String {
     path.canonicalize()
         .ok()
