@@ -1,8 +1,5 @@
-// The Gamend dock, an editor plugin this addon carries. It keeps nothing of
-// the server's: it reads the engine's `gamend` state, and asks the server with
-// the session the played game made. A reply reaches `on_gamend_event`, which
-// keeps it and says the dock moved; the dock fills again on that word, and on
-// the editor's own, never on a clock.
+// The Gamend dock: the engine's `gamend` state, and GETs whose replies reach
+// `on_gamend_event`, which refills it. Nothing runs on a clock.
 
 /// The save slots the addon keeps on the device.
 const SESSION_SLOT: str = "gamend";
