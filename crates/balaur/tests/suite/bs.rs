@@ -303,6 +303,25 @@ fn an_async_init_awaits_engine_frames_and_seconds() {
     assert_eq!(stage(&app), Some(Int(3)));
 }
 
+// A write that leaves a file as it was is no edit: a reload would drop the
+// init parked on its await. macOS reports the writes from just before the
+// watch began, so this is every script a test writes and then boots.
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "gives the file watcher's thread wall time to report the write"
+)]
+fn a_file_written_as_it_was_keeps_its_parked_init() {
+    use balaur_script::Value::Int;
+    let dir = waiter();
+    let mut app = booted(dir.path());
+    assert_eq!(stage(&app), Some(Int(1)));
+    std::fs::write(dir.path().join("scripts/w.bs"), WAITER).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    ticked(&mut app, 4);
+    assert_eq!(stage(&app), Some(Int(2)), "the parked init went on");
+}
+
 const COUNTER: &str = "pub struct Counter { count: int }
 impl Counter {
     fn update(dt: float) {
