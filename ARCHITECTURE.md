@@ -338,7 +338,10 @@ content is `asset`.
 - `application/ignore` in `project.toml` lists what is not the game's, as
   globs (`art/wip/**`, `**/*.blend1`): the asset index skips it and a pack
   leaves it out, so nothing there reaches a shipped game. One list rather than
-  a marker file per folder, so it is visible and versioned.
+  a marker file per folder, so it is visible and versioned. A script compiles
+  against the disk, where an ignored module still is, so the pack asks the
+  compiler what each shipped script links in (`ScriptCompiler::uses`) and
+  fails on one it left out, naming the pattern; `balaur check` says the same.
 - Sharing is the default; `assets.duplicate` opts out. Cache keys use a
   hand-written FNV-1a over bytes and TOML structure — `std`'s hashers specify
   nothing about their output, and this key must agree across platforms.

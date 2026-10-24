@@ -247,6 +247,31 @@ fn an_export_names_a_bs_script_that_does_not_compile() {
     assert!(format!("{err:#}").contains("scripts/spinner.bs"), "{err:#}");
 }
 
+// `[application] ignore` drops a module a shipped script uses. The script
+// compiles against the disk, where the module still is, so the export is
+// what says so, rather than the game on its first `use`.
+#[test]
+fn an_export_refuses_a_script_whose_module_the_project_ignores() {
+    let dir = one_script(
+        "Counter",
+        "use addons::steps;\npub struct C { count: int }\nimpl C {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
+    );
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("addons")).unwrap();
+    std::fs::write(
+        dir.path().join("addons/steps.bs"),
+        "pub fn next(n: int) -> int { n + 1 }\n",
+    )
+    .unwrap();
+    let err = format!("{:#}", balaur::build_pack(dir.path()).unwrap_err());
+    assert!(err.contains("scripts/s.bs uses addons/steps.bs"), "{err}");
+    assert!(err.contains("\"addons/**\""), "{err}");
+}
+
 const WAITER: &str = "pub struct Waiter { node: Node, stage: int }
 
 impl Waiter {

@@ -39,6 +39,13 @@ impl ScriptCompiler for Exporter<'_> {
         }
     }
 
+    fn uses(&self, rel: &str, source: &str) -> anyhow::Result<Vec<String>> {
+        match &self.lang {
+            Some(lang) if BsHost::claims(rel) => lang.uses(rel, source),
+            _ => self.primary.uses(rel, source),
+        }
+    }
+
     fn api(&self) -> Vec<String> {
         self.lang
             .as_ref()

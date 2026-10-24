@@ -375,6 +375,26 @@ pub fn compile(src: &str, options: &Options) -> Result<Compiled, Error> {
     Ok(compiled)
 }
 
+/// The files `src`'s `use`s link in, near or far, by key, as
+/// [`Meta::uses`] lists them, without building it: what has to ship beside
+/// it.
+///
+/// # Errors
+/// A file that does not parse, or a `use` that finds no file.
+pub fn uses(src: &str, options: &Options) -> Result<Vec<String>, Error> {
+    let mut prog = parse::parse(src)?;
+    if prog.uses.is_empty() {
+        return Ok(vec![]);
+    }
+    modules::link(
+        &mut prog,
+        &options.path,
+        options.modules.as_ref(),
+        true,
+        None,
+    )
+}
+
 /// Every error in `src`: the first that stops it being read at all, else one
 /// for each function that does not compile. Empty when it compiles.
 pub fn errors(src: &str, options: &Options) -> Vec<Error> {

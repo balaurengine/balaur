@@ -206,3 +206,32 @@ fn a_project_with_no_scenes_reports_nothing() {
         0
     );
 }
+
+/// A module `[application] ignore` leaves out compiles here, beside the
+/// script that uses it, and is missing from an export: the check says so
+/// before the export does.
+#[test]
+fn a_module_the_project_ignores_is_an_error_on_its_user() {
+    let dir = project(&format!(
+        "use addons::steps;\n{}",
+        script("        let n = steps::next(1);")
+    ));
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("addons")).unwrap();
+    std::fs::write(
+        dir.path().join("addons/steps.bs"),
+        "pub fn next(n: int) -> int { n + 1 }\n",
+    )
+    .unwrap();
+    let found = balaur::check_project(dir.path()).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].file, "main.bs", "{found:?}");
+    assert!(
+        found[0].message.contains("addons/steps.bs") && found[0].message.contains("\"addons/**\""),
+        "{found:?}"
+    );
+}

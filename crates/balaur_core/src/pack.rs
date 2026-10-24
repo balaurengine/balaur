@@ -72,6 +72,9 @@ impl Pack {
     /// Compile every script in `project_root` and gather scenes into a pack.
     ///
     /// `compiler` decides which files count as scripts and how they compile.
+    /// A script that imports a file the pack leaves out fails the build,
+    /// naming the `[application] ignore` pattern that dropped it: the game
+    /// would fail on it when it runs.
     pub fn build(
         project_root: &Path,
         compiler: &dyn balaur_script::ScriptCompiler,
@@ -109,6 +112,9 @@ impl Pack {
         // Every script is compiled before the build fails, so one export
         // names every file that does not compile rather than the first.
         let mut failed: Vec<String> = Vec::new();
+        // Each script and the files it links in, checked against what ships
+        // once every script is in.
+        let mut used: Vec<(String, Vec<String>)> = Vec::new();
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
@@ -120,8 +126,14 @@ impl Pack {
                         pack.scripts.insert(rel, source.into_bytes());
                         continue;
                     }
-                    let bytes = match compiler.compile(&rel, &source) {
-                        Ok(bytes) => bytes,
+                    let checked = compiler
+                        .compile(&rel, &source)
+                        .and_then(|bytes| Ok((bytes, compiler.uses(&rel, &source)?)));
+                    let bytes = match checked {
+                        Ok((bytes, files)) => {
+                            used.push((rel.clone(), files));
+                            bytes
+                        }
                         Err(err) => {
                             failed.push(format!("{rel}: {err:#}"));
                             continue;
@@ -155,6 +167,27 @@ impl Pack {
                 "{} script(s) did not compile:\n{}",
                 failed.len(),
                 failed.join("\n")
+            );
+        }
+        // A script compiled against the project, where an ignored module is
+        // still on disk; the runtime finds its imports in the pack alone.
+        let dropped: Vec<String> = used
+            .iter()
+            .flat_map(|(rel, files)| files.iter().map(move |file| (rel, file)))
+            .filter(|(_, file)| !pack.scripts.contains_key(file.as_str()))
+            .map(|(rel, file)| {
+                let why = crate::ignore::matching(&ignored, file).map_or_else(
+                    || "the pack leaves it out".to_string(),
+                    |pattern| format!("`[application] ignore` leaves it out (\"{pattern}\")"),
+                );
+                format!("{rel} uses {file}: {why}")
+            })
+            .collect();
+        if !dropped.is_empty() {
+            bail!(
+                "{} import(s) of a shipped script are left out of the pack:\n{}",
+                dropped.len(),
+                dropped.join("\n")
             );
         }
         // After every script compiled: the calls they make.
