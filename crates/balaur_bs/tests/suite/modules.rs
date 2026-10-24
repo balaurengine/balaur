@@ -38,15 +38,21 @@ fn modules(files: &[(&str, &str)]) -> Modules {
         .iter()
         .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
         .collect();
+    // Keys are `/`-separated on every OS, as a host's are: `Path::join` would
+    // write a `\` on Windows.
     Modules(Rc::new(move |from: &str, name: &str| {
-        let mut dir = std::path::Path::new(from).parent();
+        let file = format!("{}.bs", name.replace("::", "/"));
+        let mut dir = Some(from.rsplit_once('/').map_or("", |(d, _)| d));
         while let Some(d) = dir {
-            let file = format!("{}.bs", name.replace("::", "/"));
-            let key = d.join(file).to_string_lossy().into_owned();
+            let key = if d.is_empty() {
+                file.clone()
+            } else {
+                format!("{d}/{file}")
+            };
             if let Some(src) = files.get(&key) {
                 return Some((key, src.clone()));
             }
-            dir = d.parent();
+            dir = (!d.is_empty()).then(|| d.rsplit_once('/').map_or("", |(up, _)| up));
         }
         None
     }))
