@@ -13,7 +13,8 @@
 //! A pattern matches a project-relative path, `*` inside a segment and `**`
 //! across them, and a directory it names takes everything under it. The
 //! asset index skips what it matches and a pack leaves it out, so it never
-//! reaches a shipped game.
+//! reaches a shipped game. A shipped script that `use`s a file it matches
+//! fails the export, which names the pattern, rather than the game.
 
 use crate::engine::Engine;
 
@@ -55,15 +56,21 @@ pub fn from_manifest(manifest: &str) -> Vec<String> {
 /// directory above it, matching any pattern.
 #[must_use]
 pub fn ignored(patterns: &[String], rel: &str) -> bool {
+    matching(patterns, rel).is_some()
+}
+
+/// The pattern that ignores a project-relative path, if one does: what to
+/// name when an ignored file turns out to be wanted.
+#[must_use]
+pub fn matching<'a>(patterns: &'a [String], rel: &str) -> Option<&'a str> {
     if patterns.is_empty() {
-        return false;
+        return None;
     }
     let rel = rel.trim_start_matches('/');
-    std::iter::once(rel)
-        .chain(rel.match_indices('/').map(|(at, _)| &rel[..at]))
-        .any(|part| {
-            patterns
-                .iter()
-                .any(|pattern| crate::pack::glob_matches(pattern.trim_end_matches('/'), part))
-        })
+    patterns.iter().map(String::as_str).find(|pattern| {
+        let pattern = pattern.trim_end_matches('/');
+        std::iter::once(rel)
+            .chain(rel.match_indices('/').map(|(at, _)| &rel[..at]))
+            .any(|part| crate::pack::glob_matches(pattern, part))
+    })
 }

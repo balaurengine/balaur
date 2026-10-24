@@ -132,7 +132,7 @@ files exactly as `gamend_template` is:
   `restore_session` through `save::`; `go_offline`, `link`, `unlink`,
   `state`, and a `state_changed` event on the node that owns it.
 - `presence.rn` — the user cache, two verbs.
-- `editor/gamend.rn` — the Gamend dock, an editor plugin the addon carries
+- `editor/gamend.bs` — the Gamend dock, an editor plugin the addon carries
   (`docs/PLAN-gamend.md` step E3).
 - `logs.rn` — `setup`, `pump`, `flush`, `settle`, `report`, as
   `GamendLogs.gd`, over the engine's log cursor; designed in
@@ -206,7 +206,7 @@ outside the node that called it.
 | Client verbs | 16 | written, `client.rn` |
 | Auth verbs | 20 | written, `auth.rn` |
 | Presence verbs | 2 | written, `presence.rn` |
-| The Gamend dock | 1 | written, `editor/gamend.rn` |
+| The Gamend dock | 1 | written, `editor/gamend.bs` |
 | Log verbs | 7 | written, `logs.rn` and `log_sink.rn`, step 6 |
 | Pref verbs | 4 | written, `prefs.rn`, with the dock |
 | Signaling verbs: `connect_to_peer`, `send_data`, `broadcast_data`, `close_peer`, … | 12 | written, `signaling.rn`, step 6 |

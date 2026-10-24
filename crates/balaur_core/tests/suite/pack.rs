@@ -30,6 +30,27 @@ impl ScriptCompiler for Failing {
     }
 }
 
+/// Claims `.txt`, and each line `use path` names a file the script links in.
+struct Importing;
+
+impl ScriptCompiler for Importing {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn compile(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+        Ok(source.as_bytes().to_vec())
+    }
+
+    fn uses(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<String>> {
+        Ok(source
+            .lines()
+            .filter_map(|line| line.strip_prefix("use "))
+            .map(str::to_string)
+            .collect())
+    }
+}
+
 fn project() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -367,6 +388,53 @@ fn a_pack_leaves_out_what_the_project_ignores() {
         !held.iter().any(|path| path.ends_with(".blend1")),
         "nor a file the pattern names: {held:?}"
     );
+}
+
+/// A project ignoring `addons/gamend/**`, whose shipped script `s.txt`
+/// writes `script`, and an ignored module beside it.
+fn ignoring_a_module(script: &str) -> tempfile::TempDir {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\nignore = [\"art/wip/**\", \"addons/gamend/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("addons/gamend")).unwrap();
+    std::fs::write(dir.path().join("addons/gamend/prefs.txt"), "prefs").unwrap();
+    std::fs::write(dir.path().join("s.txt"), script).unwrap();
+    dir
+}
+
+/// A script compiles against the project, where an ignored module is still
+/// on disk; the shipped game looks for it in the pack and fails on its
+/// first `use`. The build names the script, the module and the pattern.
+#[test]
+fn a_shipped_script_that_uses_an_ignored_module_fails_the_build() {
+    let dir = ignoring_a_module("use addons/gamend/prefs.txt\n");
+    let err = Pack::build(dir.path(), &Importing).unwrap_err().to_string();
+    assert!(
+        err.contains("s.txt uses addons/gamend/prefs.txt"),
+        "the script and its module are named: {err}"
+    );
+    assert!(
+        err.contains("\"addons/gamend/**\""),
+        "so is the pattern: {err}"
+    );
+}
+
+#[test]
+fn a_script_left_out_with_the_module_it_uses_builds() {
+    let dir = ignoring_a_module("use lib.txt\n");
+    std::fs::write(dir.path().join("lib.txt"), "shipped").unwrap();
+    std::fs::create_dir_all(dir.path().join("art/wip")).unwrap();
+    std::fs::write(
+        dir.path().join("art/wip/sketch.txt"),
+        "use addons/gamend/prefs.txt\n",
+    )
+    .unwrap();
+    let pack = Pack::build(dir.path(), &Importing).unwrap();
+    assert!(pack.scripts.contains_key("lib.txt"));
+    assert!(!pack.scripts.contains_key("art/wip/sketch.txt"));
 }
 
 #[test]

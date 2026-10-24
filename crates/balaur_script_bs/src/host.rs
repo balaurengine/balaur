@@ -753,6 +753,16 @@ impl ScriptCompiler for BsHost {
         Ok(source.as_bytes().to_vec())
     }
 
+    fn uses(&self, rel: &str, source: &str) -> Result<Vec<String>> {
+        let key = key_of(rel);
+        let options = Options {
+            modules: Some(self.modules()),
+            path: key.clone(),
+            ..Options::default()
+        };
+        balaur_bs::uses(source, &options).map_err(|e| anyhow!("{key}:{e}"))
+    }
+
     fn api(&self) -> Vec<String> {
         self.inner.called.borrow().iter().cloned().collect()
     }

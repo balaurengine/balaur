@@ -266,7 +266,8 @@ impl Finding {
 /// a booted host, plus the files those scenes name.
 ///
 /// The unit a check compiles is the script a scene names: a file it `use`s
-/// is compiled with it, and its errors arrive through that script.
+/// is compiled with it, and its errors arrive through that script, as does
+/// one that `[application] ignore` leaves out of an export.
 ///
 /// # Errors
 /// If the project will not boot.
@@ -283,6 +284,9 @@ pub fn check_project_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Vec<Finding>> {
     with_host(project_root, extra, |_, host| {
+        let ignored = text_of(&project_root.join("project.toml"))
+            .map(|manifest| balaur_core::ignore::from_manifest(&manifest))
+            .unwrap_or_default();
         let mut found = Vec::new();
         for rel in scene_scripts(project_root) {
             let Some(source) = text_of(&project_root.join(&rel)) else {
@@ -295,9 +299,37 @@ pub fn check_project_using(
                 continue;
             };
             found.extend(check_script(host, &rel, &source));
+            found.extend(ignored_uses(host, &ignored, &rel, &source));
         }
         Ok(found)
     })
+}
+
+/// Each file the script at `rel` links in that `[application] ignore` leaves
+/// out of an export: it compiles here, beside the module on disk, and the
+/// export refuses it ([`Pack::build_with`]).
+fn ignored_uses(
+    host: &dyn balaur_script::ScriptCompiler,
+    ignored: &[String],
+    rel: &str,
+    source: &str,
+) -> Vec<Finding> {
+    // A script ignored itself does not ship; one that does not link already
+    // has its error.
+    if ignored.is_empty() || balaur_core::ignore::ignored(ignored, rel) {
+        return Vec::new();
+    }
+    let files = host.uses(rel, source).unwrap_or_default();
+    files
+        .iter()
+        .filter_map(|file| {
+            let pattern = balaur_core::ignore::matching(ignored, file)?;
+            let message = format!(
+                "uses {file}, which `[application] ignore` leaves out of an export (\"{pattern}\")"
+            );
+            Some(Finding::error(rel, 0, 0, message))
+        })
+        .collect()
 }
 
 #[cfg(feature = "bs-backend")]

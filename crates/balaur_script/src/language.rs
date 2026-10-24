@@ -18,6 +18,14 @@ pub trait ScriptCompiler {
     /// Compile one source file. `rel` is the project-relative path, for errors.
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>>;
 
+    /// The files `source`, the script at `rel`, links in through its
+    /// imports, near or far, project-relative: a pack checks that each one
+    /// ships beside it. Empty for a backend without imports.
+    fn uses(&self, rel: &str, source: &str) -> Result<Vec<String>> {
+        let _ = (rel, source);
+        Ok(Vec::new())
+    }
+
     /// The engine functions the scripts compiled here call, one line each
     /// with the types they were checked against, sorted; a pack carries them
     /// so the runtime that loads it can say which it lacks or types
