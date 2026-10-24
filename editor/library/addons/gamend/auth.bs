@@ -1,7 +1,5 @@
-// Signing in, and staying signed in. `gamend::login` knows a device id and
-// an email; every provider is an OAuth session the player finishes in a
-// browser and this asks after until it resolves, then keeps in a `save::`
-// slot.
+// Signing in and staying signed in: a device id, an email, or an OAuth
+// session asked after until it resolves, then kept in a `save::` slot.
 
 use core;
 use authentication;

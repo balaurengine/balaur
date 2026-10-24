@@ -1,6 +1,5 @@
-// What every generated call needs: a query string, a required-field check,
-// and the way this SDK reports a call it refused to make; and the reply
-// helpers. Linked as `use core;` inside the addon, and as
+// What every generated call needs: query strings, required fields, refused
+// calls and reply helpers. `use core;` inside the addon,
 // `use addons::gamend::core;` from a game's script.
 
 /// Whether a map carries a key with a value. A key set to nil is absent:
