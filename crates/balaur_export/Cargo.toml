@@ -13,7 +13,9 @@ default = ["recode-fonts"]
 recode-fonts = ["dep:hb-subset"]
 
 [dependencies]
-balaur = { workspace = true, default-features = false, features = ["compile", "physics2d", "physics3d"] }
+# `bs`: every export compiles the project's scripts. Rune was always built in;
+# its replacement is a feature, and without it the crate alone exports nothing.
+balaur = { workspace = true, default-features = false, features = ["compile", "physics2d", "physics3d", "bs"] }
 balaur_plugin.workspace = true
 # The `.fnt` reader, so a bitmap font's page is never scaled under its glyphs.
 balaur_text.workspace = true
