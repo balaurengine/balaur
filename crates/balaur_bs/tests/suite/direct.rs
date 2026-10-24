@@ -76,7 +76,8 @@ fn a_direct_module_answers_as_the_ordinary_one_does() {
     let plain = answers(EngineKind::Wasmi, false);
     assert_eq!(plain.0.len(), 6);
     assert_eq!(answers(EngineKind::Wasmi, true), plain);
-    #[cfg(feature = "wasmtime")]
+    // `jit`, not the feature: the feature asks, and iOS refuses a JIT.
+    #[cfg(jit)]
     assert_eq!(answers(EngineKind::Wasmtime, true), plain);
 }
 
