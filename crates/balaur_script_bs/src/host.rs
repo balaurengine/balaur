@@ -144,6 +144,9 @@ struct Inner {
     /// Each file's source as last read, or `None` for no such file: a unit
     /// resolves every `use` of every module it reads. An edit drops it.
     sources: RefCell<HashMap<String, Option<Rc<str>>>>,
+    /// Each file's text as last read, hashed: a watcher event for a file that
+    /// still holds it is no edit.
+    read: RefCell<HashMap<String, String>>,
     /// The engine's API, by hash: a unit kept on disk was built against one.
     api_hash: Cell<Option<String>>,
 }
@@ -209,6 +212,7 @@ impl BsHost {
                 units: RefCell::default(),
                 parsed: balaur_bs::Parsed::default(),
                 sources: RefCell::default(),
+                read: RefCell::default(),
                 api_hash: Cell::new(None),
             }),
         }
@@ -258,6 +262,8 @@ impl BsHost {
                 .read(&self.inner.root.join(key))
                 .with_context(|| format!("reading {key}"))?,
         };
+        let hash = balaur_bs::module_hash(&bytes);
+        self.inner.read.borrow_mut().insert(key.to_string(), hash);
         String::from_utf8(bytes).with_context(|| format!("{key} is not UTF-8"))
     }
 
@@ -503,6 +509,8 @@ impl BsHost {
 
     /// The `.bs` files the watcher saw written since the last pump, as keys
     /// under the root; a file or module not loaded is dropped by the caller.
+    /// Only a file whose text changed: macOS reports writes from just before
+    /// the watch began, and a reload drops every task the file has parked.
     fn edited(&self) -> Vec<String> {
         let Some(events) = &self.inner.events else {
             return vec![];
@@ -528,6 +536,11 @@ impl BsHost {
                 }
             }
         }
+        keys.retain(|key| {
+            let before = self.inner.read.borrow().get(key).cloned();
+            // A file gone is a change; `source` records what it read.
+            self.source(key).is_err() || self.inner.read.borrow().get(key) != before.as_ref()
+        });
         keys
     }
 
