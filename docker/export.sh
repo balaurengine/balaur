@@ -62,16 +62,19 @@ else
   log "==> runtime will be downloaded"
 fi
 
-# The last packaging step, where the platform has one. Both come out unsigned;
-# sign.sh signs them. `--apk` needs the SDK, which is a separate image tag.
+# The last packaging step, where the platform has one. Both come out unsigned
+# or debug-signed; sign.sh signs them. An `.apk` needs the SDK, which is a
+# separate image tag.
 case "$BALAUR_TARGET" in
   ios)
-    set -- "$@" --ipa
+    set -- "$@" --bundle ipa
     log "==> will wrap as .ipa (unsigned; balaur-sign signs it)"
     ;;
   android)
     if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
-      set -- "$@" "--${PACKAGE}"
+      # The debug key by name: an export never takes it because no keystore
+      # was set, and the owner's key is applied after, outside this sandbox.
+      set -- "$@" --bundle "${PACKAGE}" --sign debug
       log "==> will package an .${PACKAGE} (debug-signed; balaur-sign re-signs it)"
     elif [ "$PACKAGE" = aab ]; then
       fail "an .aab needs the Android SDK and bundletool; use the -android image"
