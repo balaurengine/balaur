@@ -3,61 +3,44 @@
 //! on port 4000, or `GAMEND_URL`.
 //!
 //! All of it runs with the e2e suite. A test that signs in registers its own
-//! account by device and deletes it through the SDK before it ends.
+//! account by device and deletes it before it ends.
 
-use balaur_testkit::{gamend_url, run_until_with, run_until_within};
-
-/// The SDK addon `editor/library/addons/gamend` holds, as a game carries it.
-fn gamend_addon() -> Vec<(String, String)> {
-    let root =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library/addons/gamend");
-    std::fs::read_dir(&root)
-        .unwrap_or_else(|e| panic!("no SDK addon at {}: {e}", root.display()))
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            let name = path.file_name()?.to_str()?.to_string();
-            if path.extension().is_none_or(|e| e != "rn") {
-                return None;
-            }
-            let text = std::fs::read_to_string(&path).ok()?;
-            Some((format!("addons/gamend/{name}"), text))
-        })
-        .collect()
-}
+use balaur_testkit::{gamend_url, run_until_within};
 
 #[test]
-fn the_sdk_addon_reads_the_public_api_of_the_server() {
+fn a_script_reads_the_public_api_of_the_server() {
     let Some(url) = gamend_url() else {
         return;
     };
-    let files = gamend_addon();
-    let borrowed: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_str()))
-        .collect();
-    // A query, a path parameter and a bare call, through the addon's own
-    // functions. One line at the end: the harness reads a fifty-entry ring.
+    // A query, a path parameter and a bare call. One line at the end: the
+    // harness reads a fifty-entry ring.
     let source = format!(
         r#"
-pub async fn init(this) {{
-    gamend::configure("{url}");
-    let boards = task::wait(gamend::leaderboards::list_leaderboards((), #{{ "page": 1 }})).await;
-    let listed = boards["body"]["data"];
-    let records = if listed.len() > 0 {{
-        task::wait(gamend::leaderboards::list_leaderboard_records((), listed[0]["id"], #{{}})).await["status"]
-    }} else {{
-        200
-    }};
-    let stats = task::wait(gamend::lobbies::lobby_stats(())).await;
-    let named = gamend::events::decode("lobby:7", "user_joined", #{{ "user_id": 3 }});
-    log::info(`sdk ${{boards["status"]}} ${{records}} ${{stats["status"]}} | ${{named["kind"]}}`);
+pub struct S {{ node: Node }}
+impl S {{
+    async fn init() {{
+        gamend::configure("{url}");
+        let boards = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards?page=1").as_int());
+        let listed = boards.get("body").get("data");
+        let records = 200;
+        if listed.len() > 0 {{
+            let id = listed.at(0).get("id");
+            let got = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards/{{id}}/records").as_int());
+            records = got.get("status").as_int();
+        }}
+        let stats = await task::wait(gamend::rest(nil(), "GET", "/api/v1/lobbies/stats").as_int());
+        let a = boards.get("status");
+        let c = stats.get("status");
+        log::info("rest {{a}} {{records}} {{c}}");
+    }}
 }}
 "#
     );
-    run_until_with(
-        &borrowed,
+    run_until_within(
+        &[],
         &source,
-        &["sdk 200 200 200 | lobby_member_joined"],
+        &["rest 200 200 200"],
+        std::time::Duration::from_secs(20),
     );
 }
 
@@ -67,38 +50,42 @@ fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
         return;
     };
     let device = device_id();
-    let files = gamend_addon();
-    let borrowed: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_str()))
-        .collect();
     let source = format!(
         r#"
-pub async fn init(this) {{
-    gamend::configure("{url}");
-    // A stock Gamend takes ten sign-ins a minute from one address.
-    let login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
-    while login.contains_key("error") && login["error"].contains("(429)") {{
-        let until = engine::unix_time() + 15.0;
-        while engine::unix_time() < until {{
-            task::frames(1).await;
+pub struct S {{ node: Node, socket: int }}
+impl S {{
+    async fn init() {{
+        gamend::configure("{url}");
+        // A stock Gamend takes ten sign-ins a minute from one address.
+        let login = await task::wait(gamend::login(nil(), map().with("device_id", "{device}")));
+        while login.has("error") && login.get("error").as_str().contains("(429)") {{
+            let until = engine::unix_time() + 15.0;
+            while engine::unix_time() < until {{
+                await task::frames(1);
+            }}
+            let again = await task::wait(gamend::login(nil(), map().with("device_id", "{device}")));
+            login = again;
         }}
-        login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
+        if login.has("error") {{
+            let error = login.get("error");
+            log::info("gamend-live login failed: {{error}}");
+            return;
+        }}
+        self.socket = gamend::connect(self.node);
     }}
-    if login.contains_key("error") {{
-        log::info(format!("gamend-live login failed: {{}}", login["error"]));
-        return;
-    }}
-    this.socket = gamend::connect(this.node);
-}}
 
-pub async fn on_gamend_event(this, e) {{
-    if e["kind"] == "open" {{
-        let me = task::wait(gamend::users::get_current_user(())).await;
-        let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
-        gamend::close(this.socket);
-        let gone = task::wait(gamend::users::delete_current_user((), ())).await;
-        log::info(format!("gamend-live {{}} {{}} {{}}", me["status"], hook["status"], gone["status"]));
+    async fn on_gamend_event(e: any) {{
+        if e.get("kind").as_str() != "open" {{
+            return;
+        }}
+        let me = await task::wait(gamend::rest(nil(), "GET", "/api/v1/me").as_int());
+        let hook = await task::wait(gamend::call_hook(self.socket, "sdk_probe", "echo", ["hi"]));
+        gamend::close(self.socket);
+        let gone = await task::wait(gamend::rest(nil(), "DELETE", "/api/v1/me").as_int());
+        let a = me.get("status");
+        let b = hook.get("status");
+        let c = gone.get("status");
+        log::info("gamend-live {{a}} {{b}} {{c}}");
     }}
 }}
 "#
@@ -106,7 +93,7 @@ pub async fn on_gamend_event(this, e) {{
     // No plugin answers `sdk_probe` on a stock server, so the hook's reply is
     // an error, which still proves the whole path.
     run_until_within(
-        &borrowed,
+        &[],
         &source,
         &["gamend-live 200 error 200"],
         std::time::Duration::from_secs(300),

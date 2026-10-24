@@ -55,7 +55,7 @@ sibling could be told "take what remains".
 ## 2. Is it possible
 
 **Yes, and the editor already does it.** Stage is an arrange-then-paint
-layout: `layout.rn` computes every rect from the window size, and every panel
+layout: `layout.bs` computes every rect from the window size, and every panel
 draws through `ui::overlay` at the rect it was given. egui is the painter;
 the editor owns placement. That is exactly Godot's model, written by hand for
 one fixed tree instead of walked over a general one.
@@ -102,7 +102,7 @@ out, in order of cost:
 - **Author it.** Containers divide explicit sizes and leftovers only; a leaf
   that must hug its content states a size. Covers the whole editor shell.
 - **Measure last frame.** Draw, record what was used, use it next frame. The
-  workspace bar already does this (`layout.rn`'s `bar_fit`) and settles in one
+  workspace bar already does this (`layout.bs`'s `bar_fit`) and settles in one
   frame with no visible flicker.
 - **A real measure pass.** A binding over egui's text galley so a node can be
   asked its minimum before anything draws. The correct answer, and the only
@@ -117,7 +117,7 @@ made the measure pass the rule and left the second as the fallback for a
 A `Split` container needs a draggable divider that writes back a ratio — the
 editor wants this between tree, stage and inspector. `Scroll` needs a
 viewport, a content rect and clipping; clipping now exists (`ui::overlay`
-clips since D18). `Tab` is a container plus the dock model `docks.rn` already
+clips since D18). `Tab` is a container plus the dock model `docks.bs` already
 has. Each is a container kind, none is deep.
 
 ### Two owners of layout
@@ -155,7 +155,7 @@ that can hold more than one rect; see below.)
 |---|---|---|---|
 | 1 | `grow`, `min_*`, and rect-assigning `row`/`column` | The enabling change; the spike is the algorithm | **done** |
 | 2 | `draw` kind | Lets a node host an immediate-mode body, which is what makes the editor expressible | **done** |
-| 3 | The editor's shell as a scene; `layout.rn` reads the tree | Proves it on the hardest real case | **done** |
+| 3 | The editor's shell as a scene; `layout.bs` reads the tree | Proves it on the hardest real case | **done** |
 | 4 | `split`, `scroll`, `tab` containers | Each unlocks a thing the editor hand-rolls today | **done** |
 | 5 | A measure pass over text | Removes the "author your sizes" restriction for everyone | **done** |
 
@@ -189,14 +189,14 @@ box to the pixel.
 `kind = "draw"`: a node that reserves a rect and calls a script to fill it,
 with the `ui::*` bindings pointed at that rect for the length of the call.
 `draw = "body"` names a method on the node's own script; `draw =
-"scripts/shell.rn:dock"` names a free function in a file, so a node that only
+"scripts/shell.bs:dock"` names a free function in a file, so a node that only
 reserves a rect does not have to carry a script instance to fill it.
 
 ### What phase 3 changed
 
 `editor/scenes/shell.toml` is the shell: a tree of `row`/`column`/`panel`
-nodes carrying the `widget` component's own properties. `arrange.rn` turns it
-into rects by the same rules the Rust containers use, and `layout.rn` states
+nodes carrying the `widget` component's own properties. `arrange.bs` turns it
+into rects by the same rules the Rust containers use, and `layout.bs` states
 the four sizes a file cannot know — the two side docks, the bottom dock and
 the tool rail — then publishes the result as `S.layout`. Nothing else in the
 editor changed: every panel still draws through `ui::overlay` at the rect it
@@ -287,7 +287,7 @@ the engine's, and all three are gone:
 | a `draw` node had to carry its own script instance | it asks the nearest scripted ancestor, so a shell of them needs one script, not one per panel |
 
 So `Editor/Shell` in `scenes/main.toml` is now `widget` nodes on a `shell`
-surface. `layout.rn` states the five sizes that move — the two side docks, the
+surface. `layout.bs` states the five sizes that move — the two side docks, the
 bottom dock, the tool rail, the hooks list — and reads every rect back; the
 Rune arrange is deleted. The nodes paint nothing, an unthemed `row` being a
 pure layout box, so every panel still draws through `ui::overlay` at the rect
@@ -295,12 +295,12 @@ it is given.
 
 Because the boxes are nodes, the engine's own animation system moves them:
 `animation::tween_to(node, "widget/width", to, 0.16, "out_cubic")` when a dock
-opens or shuts, the rail folds, or the hooks list arrives. `layout.rn` eases
+opens or shuts, the rail folds, or the hooks list arrives. `layout.bs` eases
 only a size that has *moved* — the first write places the box, so the shell
 does not assemble itself on screen at every start.
 
 The side docks resize by dragging: `handle = 12` on the body row, and
-`layout.rn` takes back whatever width the seam left before it computes the
+`layout.bs` takes back whatever width the seam left before it computes the
 next one. The bottom dock has no seam, because its height is derived every
 frame from whether its panel is a tall one — a drag there would snap back
 until that stops being derived.
@@ -339,6 +339,8 @@ available, and `test:layout` waits for a shell rather than for a frame number.
 
 - A leaf's contents stay immediate-mode. A code editor, a node tree, a
   timeline are recomputed every frame from live state; retained nodes buy
-  nothing there and cost a binding system.
+  nothing there and cost a binding system. **Reversed 2026-10-18:** the
+  editor's panels are nodes with one script each and nothing is drawn or
+  polled; `docs/PLAN-editor-as-scene.md` §9 holds the target and the order.
 - The theme. `editor/themes/*.toml` roles and `widget_theme` are already the
   Godot-shaped half and need no work for this.

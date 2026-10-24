@@ -362,8 +362,7 @@ instance = "scenes/enemy.toml"
 }
 
 /// The most useful override there is: the same prefab, tuned. Asserted here
-/// on the scene key rather than on a live instance — `balaur_script_rune`'s
-/// `props` suite runs the script half.
+/// on the scene key rather than on a live instance.
 #[test]
 fn a_script_key_with_no_source_is_refused_on_a_node_of_its_own() {
     let dir = project(&[("scenes/enemy.toml", ENEMY)]);

@@ -1,13 +1,17 @@
 > **Status:** §3 step 1 built 2026-09-07: the outliner draws its viewport
 > rather than the document, and §0 records what that was worth. The `table`
 > kind now places its body the same way and the Profiler and Cost docks are
-> on it, so §2 step 1 is built and still no crate has been added. §2 steps 3
-> and 4 and §3 step 2, the inspector, are not built.
+> on it, so §2 step 1 is built and still no crate has been added. §2 step 4
+> and §3 step 2, the inspector, built 2026-10-17 as an `inspector` kind, and
+> §0 records that too. §2 step 3 is not built.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
 > fixes §5 names have landed; nothing else in this plan has. §6h's engine
-> fixes landed 2026-09-26 with ratios only, taken under load.
+> fixes landed 2026-09-26 with ratios only, taken under load. Phase 4 is
+> built: the gizmo and overlay line lists since 2026-09-27 (§6i), §6's
+> tessellation cache 2026-10-17. §6m, the binding seam, built 2026-10-18.
+> §9, the `dev` and `web` build profiles, changed 2026-10-18.
 
 # Plan: what the editor's frame costs
 
@@ -38,7 +42,7 @@ balaur edit <project> --offscreen --frames 1000 --timings \
 
 **Built 2026-09-07, the outliner on `ui.list`.** `egui::ScrollArea::show_rows`
 places uniform rows by arithmetic and hands back the range on screen, so no
-crate was added. `left.rn`'s recursive `walk` became `flatten`, which builds
+crate was added. `left.bs`'s recursive `walk` became `flatten`, which builds
 the open tree as an array and draws none of it.
 
 | 2000 nodes, `ui` pass | | wall |
@@ -56,6 +60,34 @@ Read the spread, not the middle: two runs of the same command differ by up to
 70%, and the worst frame in a run reaches 500 ms. Something stalls
 intermittently, and until that is found only the ratios here are safe to
 quote.
+
+**Built 2026-10-17, the inspector on an `inspector` kind.** The widget names
+a node and one of its components. Every pass it reads the registry's schema
+and the node and fills the pool's own rows, so `inspector.bs` states one
+control for a run of properties instead of a table a row. An edit comes back
+as one `change`: `property`, `path` and `value`, in the units the component
+stores. Three kinds of row stay the script's: a node picker, which lists the
+document; a material's shader rows; and a datatype a plugin draws.
+Screenshots of 15 nodes in four examples match the script's rows pixel for
+pixel.
+
+Release with `--features window`, offscreen at 1920x1080, means of three
+interleaved pairs of 1000 frames at a load average near 2. "Selected" is
+`--state select:Plank` and `select:Box0_0`. Any `--state` makes the pool
+describe the form every pass for its self-test check, which is the frame a
+drag or a playing scene pays.
+
+| | `ui` before | after | right dock before | after | wall before | after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `examples/angrynerds`, as opened | 2.25 ms | 2.23 ms | 0.29 ms | 0.29 ms | 3.33 ms | 3.36 ms |
+| generated, 2001 nodes, as opened | 3.13 ms | 3.13 ms | 0.28 ms | 0.28 ms | 8.89 ms | 8.88 ms |
+| `examples/angrynerds`, `Plank` selected | 5.93 ms | **4.47 ms** | 2.86 ms | **1.30 ms** | 7.50 ms | 6.04 ms |
+| generated, `Box0_0` selected | 7.48 ms | **6.12 ms** | 2.92 ms | **1.36 ms** | 20.59 ms | 19.40 ms |
+
+The generated project is 40 groups of 49 static boxes, each a `body2d`, a
+`shape2d` and a `collider2d`. As opened, the root is selected and the form is
+not described again, so nothing moves. Described every pass, the right dock
+costs under half what it did.
 
 Three things fall out of it.
 
@@ -79,7 +111,7 @@ flat 1 ms is a floor for the chrome rather than a measurement of it.
 
 ## 1. Where the per-node cost goes
 
-`inspector.rn` and `dock.rn` are 2,615 lines and run every pass. One inspector
+`inspector.bs` and `dock.bs` are 2,615 lines and run every pass. One inspector
 row is five crossings before its control draws:
 
 ```rune
@@ -113,11 +145,12 @@ N rows is one crossing rather than N.
 3. The script API takes a row count and a callback, in the shape `ui.fold`
    already uses, so a dock hands over its model instead of looping. The
    callback runs for a visible row, so a list of 200 crosses about 20 times.
-4. **`inspector`**, which crosses nothing per row. `inspector.rn` builds its
+4. **`inspector`**, which crosses nothing per row. `inspector.bs` builds its
    rows from `model::schema`, and that is `scene::component_schema`, a Rust
    binding over the component registry. A kind taking a node and a component
    name reads the same registry and draws every row natively, so the script
-   says which components to show and Rust draws them.
+   says which components to show and Rust draws them. Built 2026-10-17: the
+   kind fills the pool's rows itself, so they look as the script's did.
 
 Step 4 is the shape to reach for wherever the model is already Rust. Step 1
 and step 2 are for the lists whose model is not: a search result, a filtered
@@ -146,7 +179,8 @@ In this order, measuring after each:
 1. The outliner. It is the only list whose length is the document's, so it
    owns the 12.8 microseconds a node costs and it is the whole of §0's slope.
 2. The inspector's property rows, which are bounded by a node's components
-   rather than by the document, so they cost a constant.
+   rather than by the document, so they cost a constant. Built 2026-10-17
+   on the `inspector` kind (§0).
 3. The Assets dock, the Docs dock's function list, the Events view. The
    first two are on the kinds; the Events view draws a row of controls per
    binding, so it is a form rather than a list and stays hand-drawn.
@@ -175,7 +209,7 @@ about short runs does not reach them.
 | --- | ---: | ---: |
 | the whole editor shell | 71,436 | |
 | `gizmo::draw` | 53,333 | 0.86 ms |
-| `overlays.rn`, seven functions | 9,583 | |
+| `overlays.bs`, seven functions | 9,583 | |
 | everything else, every dock included | ~8,500 | |
 | the UI pass, for comparison | | 1.58 ms |
 | **wall, frame to frame** | | **3.74 ms** |
@@ -195,9 +229,9 @@ large project; fix the gizmo for every project.
 
 `gizmo::draw` rebuilds the manipulator from nothing each frame: twelve box
 edges, the handles and the rings, one `render::draw_line` a segment, across 39
-loops in `editor/scripts/gizmo.rn`. Nothing in it changes unless the selection,
+loops in `editor/scripts/gizmo.bs`. Nothing in it changes unless the selection,
 the transform, the camera, the tool or the hovered part changes. Caching the
-line list against those five inputs is the fix. `overlays.rn` has the same
+line list against those five inputs is the fix. `overlays.bs` has the same
 shape and takes the same one.
 
 These numbers were taken after the allocation fixes in `crates/balaur_ui`
@@ -220,6 +254,13 @@ This is not §1's `render cpu` line. That one is the tessellation a row
 genuinely causes. This is the same work repeated on frames that drew nothing
 new, and it is fixed in the fork rather than here.
 
+**Built 2026-10-17.** `EguiRenderer` keeps the primitives with the
+points-per-pixel they were made at, and tessellates again only when a pass
+replaces the shapes or the scale moves. Shapes are cloned only when retained.
+Under §6l an idle editor renders no frames at all, so what this saves is a
+frame drawn with no pass: a game whose HUD is lazy, or a camera moved in the
+viewport.
+
 ## 6b. What a control costs to read
 
 **Built 2026-09-20.** A pooled control read its whole `widget` component twice
@@ -230,7 +271,7 @@ into script values.
 
 `node.get_component(component, key)` now answers one property, and the `widget`
 component answers the common keys straight off the struct through
-`components::answers_property`. `pool.rn` asks for the one property it wants,
+`components::answers_property`. `pool.bs` asks for the one property it wants,
 and asks for nothing at all where a control carries nothing.
 
 Measured on `examples/hello`, offscreen, 600 frames, three pairs run back to
@@ -422,7 +463,7 @@ and `balaur_ui`'s `widget_reader` suite holds the keys a frame reads.
 
 ## 6c. The shell writes what changed
 
-**Built 2026-09-20.** `pool.rn` patched every widget it drives on every pass:
+**Built 2026-09-20.** `pool.bs` patched every widget it drives on every pass:
 the bars, the rail, the tabs, each inspector row and each of its controls. A
 patch rebuilds the widget and dirties the layout, and a shell that nobody
 touched asks for the same table it asked for last pass.
@@ -524,7 +565,7 @@ their keys with `==`, which in the fork compares by value.
 
 Two things the count does not say, both timed on 100,000 calls. A `const`
 table looked up is six times slower than the `match` it would replace,
-because the table is built again on every access, so `icons.rn` stays a
+because the table is built again on every access, so `icons.bs` stays a
 `match`. A plain loop costs more instructions than `iter().any` with a
 closure and runs in 0.76 s against 1.23.
 
@@ -603,6 +644,121 @@ lets the loop sleep until something asks for a frame.
 A frame the pointer draws still runs every poll in `update`: the gizmo, the
 hotkeys, the overlays' lines. Those move onto hooks and nodes next.
 
+**Fixed 2026-10-17: a tap waited for the next input.** kiss3d fed egui at
+render, after the pass, so each pass answered the last frame's events. A press
+and release landing in one poll, as a trackpad tap does, reached egui after
+the pass that frame and owed no frame of its own. A frame woken by something
+else ran before the page's events were drained, and the poll closing its
+render queued them where no later wait looked. Either way the click waited for
+the next input or an unrelated wake, which on the web editor read as a second
+click needed. The pass now gets the events the frame read, the loop runs one
+while `Window::has_unread_ui_input` holds, and `wait_events` answers at once
+while that poll's events are unread. A web press and release carry their own
+position, so a tap with no move before it still lands.
+
+**Fixed 2026-10-17: a focused field drew two frames a second.** egui's caret
+blink asks for a repaint at each half second, and every one was a full frame:
+`update`, the pass and the render. It never stopped while the field kept
+focus. The pacing now blinks a caret for 10 s after the last input and then
+holds it on, as GTK's `gtk-cursor-blink-timeout` does. It times this by egui's
+clock, so `a_focused_caret_stops_blinking_ten_seconds_after_the_last_input`
+steps past the timeout without waiting for it.
+
+- On the web editor, after focusing the Scene search: 24 passes in the next
+  10.6 s, then none over the following 14 s.
+- The steady 1 Hz wake first seen on the web did not come back. A tab the
+  browser throttles runs frames once a second, so a run of passes reads there
+  as one wake a second. Natively, and on the web at 60 Hz and at an emulated
+  1 Hz, an untouched editor draws nothing after load, a click or a hover.
+- What remains are egui's own finite animations, mostly the scroll-bar fade in
+  `ScrollArea`: 12 to 17 passes, 0.2 to 1.3 s, each woken through
+  `begin_pass_repaint_logic`'s zero-delay repaint.
+
+## 6m. An argument crosses once
+
+**Built 2026-10-18.** Every binding call converts its arguments from Rune
+values to the neutral `balaur_script::Value`, and its answer back. A typed
+binding then copied each string and table again, because `FromArg` read its
+slot borrowed. A callback was copied twice more: once to hold, once to call.
+
+Counted on `examples/hello`, 1000 frames offscreen:
+
+- 240 binding calls a frame. The most called: `ui::shortcut` 35,
+  `scene::get_node` 26, `node.is_valid` 25, `node.patch_component` 19,
+  `ui::button` 15, `ui::widget_rect` 13.
+- Converting both ways is 2.6% (`to_neutral`) and 3.3% (`from_neutral`) of
+  the main thread in a `sample` profile. Two bulk calls own most of it:
+  `render::draw_lines` hands over about 2,200 numbers twice a frame, and
+  `node.get_component("widget")` hands back 228 keys three times a frame.
+- The main thread allocates about 20,000 times a frame, which is the 23%
+  allocator in open question 2. Rune's own run loop and binary operators make
+  39% of those, and the whole-widget read above 22%.
+
+What changed is in the Rune backend and `balaur_ui`. The neutral seam is
+still the contract a second language implements.
+
+- `Bindings::function_owned` hands a typed binding the slots its call built,
+  and `FromArg::take_arg` moves a string or a table out of its slot. The
+  default copies the slots first, so a backend that shares them is unchanged.
+- A callback is held as the script's own value: holding it and calling it
+  bump a count rather than copying what the closure captured.
+- `Opts::in_state` and `with_checked` lend the options for as long as the
+  state is read. Every button, field and menu row copied its table for it.
+- A table's keys copy their bytes rather than going through `Display`.
+- `to_neutral` tells the common kinds apart by one read of the type hash. A
+  number in a list used to fail four probes, each building an error.
+- Lists and tables are sized before they are filled, both ways.
+- `ui::shortcut` parses its chord without allocating, and the four font
+  family names are made once.
+
+`crates/balaur_bench/benches/seam.rs` times one call and counts what it
+allocates, and the count is the same on a loaded machine. Times are less the
+loop, means of two interleaved pairs at a load average near 9, taken before
+the last three items above landed:
+
+| `ui::*` call | allocations before | after | µs before | after |
+| --- | ---: | ---: | ---: | ---: |
+| `label("name", #{ 3 keys })` | 31 | 24 | 2.28 | 1.89 |
+| the same table, built once | 19 | 12 | 1.48 | 1.18 |
+| `row(#{ height: 24 }, \|\| {})` | 14 | 12 | 1.76 | 1.52 |
+| `add_space(2.0)` | 0 | 0 | 0.10 | 0.10 |
+
+The editor, main thread, allocations a frame between frame 500 and 1500:
+
+| | before | after |
+| --- | ---: | ---: |
+| `examples/hello` | 20,977 | 19,986 |
+| `examples/angrynerds` | 22,567 | 21,591 |
+
+The UI pass on `hello`, as interleaved ratios of after to before over 1000
+frames: 0.85, 0.86, 0.99 and 0.98 in four pairs at a load average of 4, and a
+median of 1.13 (0.91 to 1.23) in six pairs at 7 to 9 while two other editors
+ran. On this M1 a busy machine moves one run by more than the change, so the
+steady figure is what `time -l` says the process retires a frame between frame
+500 and 1500, every thread included:
+
+| | instructions a frame before | after |
+| --- | ---: | ---: |
+| `examples/hello` | 29.4 million | 27.9 million |
+| `examples/angrynerds` | 32.0 million | 31.1 million |
+
+`scripts/e2e.sh` passes on `hello` and `angrynerds`, every state it runs on
+each, and the 28 `uiaudit` screens on those two projects match the old
+seam's pixel for pixel.
+
+What is left is in the scripts, and each item is larger than what is left in
+the seam:
+
+- `layout.bs`'s `stated` reads a dock's whole `widget` to learn one size, for
+  three docks a frame. Reading the key, `get_component("widget", key)`, takes
+  `hello` from 19,988 to 16,368 allocations a frame.
+- String `+` is 14% of the main thread's allocations: `dragged` builds
+  `id + ":" + key` for every dock every frame.
+- An options table written at the call costs Rune 12 allocations before it
+  crosses, which is more than crossing it costs now.
+- A table still allocates one `String` a key on the way in. Interning them
+  changes `Value::Map`, which 247 places match on.
+
 ## 7. The instrument
 
 `engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions
@@ -640,12 +796,105 @@ not price them again.
   frame before batching. `Rgba16Float` is also the format SSAO, SSR and the
   probes share, so the change is not one line.
 
+## 9. What the build profile costs
+
+**Built 2026-10-18.** Every figure above is a release build. `cargo run`, the
+README's editor command, builds `dev`, and `dev` compiled every crate at
+opt-level 0: Rune's VM, egui, hecs, the allocator, and the workspace's own
+binding handlers, which instantiate in the crate that registers them.
+
+- `[profile.dev.package."*"]` builds every dependency at 3.
+- `[profile.dev.package]` builds the seven crates an editor frame runs
+  through at 1: `balaur`, `balaur_core`, `balaur_render`, `balaur_script`,
+  `balaur_script_rune`, `balaur_text`, `balaur_ui`. The rest stay at 0.
+- Debug assertions, overflow checks and the workspace's line tables stay.
+- `[profile.web.package]` builds `rune`, `rune-alloc`, `rune-core` and
+  `balaur_script_rune` at `"s"`. The rest of the web build stays `"z"`.
+
+Offscreen, 1000 frames at 1920x1080, built from `56a66182`. The figure is
+instructions retired per frame, read by `/usr/bin/time -l`, less a 1-frame run
+so startup is out. The load average ran from 4 to 250 on 8 cores; wall and CPU
+time moved two to three times with it, instructions at most 5% between
+rounds. CPU is from the quietest runs: load 8 to 28 on `hello`, 4 to 6 at 2000
+nodes.
+
+| `dev` | `hello` | CPU | 2000 nodes | CPU | startup, 2000 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| all at 0, before | 243.6 M | 48.6 ms | 960.8 M | 129.5 ms | 149.2 G |
+| dependencies at 3 | 84.0 M | 13.6 ms | 365.6 M | 38.3 ms | 45.1 G |
+| and `balaur_ui`, `balaur_script_rune` at 1 | 68.8 M | 11.2 ms | 282.1 M | 28.8 ms | 42.1 G |
+| the two at 2 | 57.5 M | 9.7 ms | 267.6 M | 28.2 ms | 40.0 G |
+| the two at 3 | 57.3 M | 9.9 ms | | | |
+| **the seven at 1** | **43.9 M** | | **140.9 M** | | **23.8 G** |
+| the seven and `balaur_physics` at 1 | 44.4 M | | 140.7 M | | 23.3 G |
+| the whole workspace at 1 | 42.1 M | 8.0 ms | 138.4 M | 13.9 ms | 23.2 G |
+| the whole workspace at 3 | 40.6 M | 8.0 ms | 135.5 M | 13.7 ms | 23.0 G |
+
+- Dependencies at 3 are 2.9 times fewer instructions on `hello` and 2.6 at
+  2000 nodes.
+- The two crates the binding handlers live in add 1.5 times on `hello` and
+  stop there: 2 and 3 read the same.
+- The other five carry the rest. `scene mirror` in `balaur_render` went from
+  1.81 to 0.25 ms on `hello` between the two at 2 and the workspace at 1.
+- The seven at 1 are 6.8 times fewer instructions than before at 2000 nodes,
+  within 3% of the whole workspace at 1. Side by side on `hello` at load 10
+  to 12, both took 10.4 to 10.9 ms of CPU a frame. The whole workspace at 3
+  buys 2% more. CPU fell further than instructions: 9.3 times less with the
+  workspace at 1.
+- Opening the editor on 2000 nodes is 6.3 times fewer instructions.
+
+What it costs to build: rustc's instructions for `cargo build -p balaur_cli
+--features window`. The link is not counted. An edit is one line inside a
+function body, the mean of two rebuilds, timed with the whole workspace at 1;
+the seven rebuild the same crate and fewer optimised dependents. The cold row
+sums the seven's share from the two cold builds.
+
+| rebuild after | at 0 | the seven at 1 | workspace at 1 |
+| --- | ---: | ---: | ---: |
+| an edit in `balaur_ui` | 49.8 G | | 60.1 G |
+| an edit in `balaur_script_rune` | 38.6 G | | 90.9 G |
+| an edit in `balaur_core` | 130.9 G | | 137.9 G |
+| every workspace crate, `CARGO_INCREMENTAL=0` | 696 G | 1903 G | 2955 G |
+
+- An edit in `balaur_script_rune` is the dear one: that crate's own share
+  goes from 8 to 60 G, because its generic handlers are most of its code.
+- Precommit and CI build the workspace with `CARGO_INCREMENTAL=0`, which is
+  the cold row. At a load of 100 to 150 the cold build took 191 s at 0 and
+  479 s with the whole workspace at 1.
+- An incremental `cargo check` or clippy runs no codegen and costs what it
+  did. `package."*"` outranks `build-override`, so proc macros and build
+  scripts build at 3 too, once per lockfile or toolchain change. CI's
+  `rust-cache` keeps them.
+- The editor binary is 106 MB instead of 345 MB, so the link has less to do.
+
+**`web`.** The runtime template `scripts/package_runtime.sh web` builds, after
+`wasm-opt -Oz`, and the editor module `package_play.sh` builds:
+
+| Rune at | template raw | gzip | brotli | editor raw | brotli |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `"z"`, before | 18.10 MB | 6.87 MB | 4.89 MB | 24.23 MB | 6.68 MB |
+| `"s"` | 18.65 MB | 7.01 MB | 4.96 MB | 24.90 MB | 6.79 MB |
+| 3 | 19.39 MB | 7.25 MB | 5.03 MB | 25.99 MB | 6.93 MB |
+
+No browser was timed. A native build with the `web` profile, fat LTO and
+`"z"` everywhere else, ran the same offscreen frames:
+
+| Rune at | `hello` | cycles | 2000 nodes | cycles | startup, 2000 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `"z"`, before | 50.3 M | 38.4 M | 186.5 M | 104.0 M | 29.3 G |
+| `"s"` | 42.3 M | 31.3 M | 144.7 M | 64.4 M | 23.3 G |
+| 3 | 39.4 M | 31.2 M | 137.2 M | 63.7 M | 21.7 G |
+
+`"s"` takes 1.2 to 1.6 times fewer cycles than `"z"` for 0.07 MB of brotli
+on the template. 3 runs the same cycles for twice the bytes. Wasm's own
+overhead sits on top of these, so only the ratio carries over to a browser.
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind
    places its body by `ScrollArea::show_rows`, the way `list` and `tree`
    already did, and its columns are shares of the width a drag on the header
-   moves. The inspector is still rows from `model::schema`.
+   moves. The inspector is on a kind of its own since 2026-10-17 (§0).
 2. The `list` kind and the outliner, against a scene with 50,000 nodes.
 3. The remaining docks, and a self-test state that fails when the shell costs
    more than a frame. The Profiler, the Cost dock and the Library's templates
@@ -654,7 +903,7 @@ not price them again.
    time any more. What still does draws controls per row rather than rows.
    `test:rows` is the self-test state that reads the outliner's node back.
 4. The gizmo and overlay line lists cached against their inputs, and the
-   tessellation cache in the fork. Neither waits on the kinds above.
+   tessellation cache in the fork. Built: §6i and §6.
 
 ## Open questions
 
@@ -665,6 +914,7 @@ not price them again.
    reads 36% Rune VM, 23% allocator, 10% egui and 3% tessellation, so the
    interpreter and the garbage it makes are most of it. If the docks still cost
    a frame once the rows are virtual, the next lever is the Rune call itself,
-   and that belongs in `docs/PLAN-scripting.md`.
+   and that belongs in `docs/PLAN-scripting.md`. §6m took the seam's copies
+   out; what allocates now is mostly the scripts' own strings and tables.
 3. **What the budget is.** A 60 Hz frame is 16.7 ms, and the editor shares it
    with the game it is editing while playing.

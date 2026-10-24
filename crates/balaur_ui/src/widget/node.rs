@@ -115,10 +115,6 @@ pub struct Widget {
     pub hide_taller: f32,
     pub min_width: f32,
     pub min_height: f32,
-    /// What fills a `draw` widget's rect: a method on this node's script or
-    /// the nearest scripted ancestor's, or `file.rn:function` for a free
-    /// function that needs no instance.
-    pub draw: SmolStr,
     /// How wide a grab the seams between this container's children get, in
     /// design pixels; 0 leaves them fixed.
     pub handle: f32,
@@ -139,6 +135,10 @@ pub struct Widget {
     pub trailing: SmolStr,
     /// A chord that clicks this widget from anywhere, as `cmd+shift+s`.
     pub shortcut: SmolStr,
+    /// Whether that chord fires while a text field holds the keyboard.
+    pub while_typing: bool,
+    /// Whether it takes its key ahead of the field, a plain key included.
+    pub takes_typing: bool,
     /// A menu held open by the scene rather than by a click.
     pub showing: bool,
     /// Where a menu opens: under its button, above it, at the pointer, or
@@ -273,6 +273,8 @@ pub struct Widget {
     /// from the theme's `[colors]`; empty takes the theme's own.
     pub fill: SmolStr,
     pub stroke: SmolStr,
+    /// Whether that outline is drawn in dashes rather than whole.
+    pub dashed: bool,
     /// Corner radius in design pixels; below zero takes the theme's own.
     pub radius: f32,
     /// How a container spreads its children along its own direction.
@@ -291,6 +293,8 @@ pub struct Widget {
     /// widget leaves all of it at the defaults, and a widget is cloned a node
     /// a frame.
     pub(crate) egui: std::sync::Arc<EguiOptions>,
+    /// What an `inspector` shows. Shared for the same reason `egui` is.
+    pub(crate) inspect: std::sync::Arc<Inspecting>,
     /// What its text is shaped and dressed with past its face and size.
     /// Shared for the same reason `egui` is.
     pub(crate) text_look: std::sync::Arc<crate::widget::text_look::TextLook>,
@@ -350,6 +354,21 @@ impl Bits {
     pub(crate) fn get(self) -> f32 {
         f32::from_bits(self.0)
     }
+}
+
+/// What an `inspector` shows: a node, one of its components, the width of
+/// its label column, and how it spells a file.
+#[derive(Clone, Default, PartialEq)]
+pub(crate) struct Inspecting {
+    /// The node, by path from the root, and which of its components.
+    pub(crate) target: SmolStr,
+    pub(crate) component: SmolStr,
+    /// How wide the label column is, in design pixels.
+    pub(crate) label_width: f32,
+    /// The folder a file's path is shown from, and the spellings shown in
+    /// place of a value, each `value` then U+001F then `shown`.
+    pub(crate) relative_to: SmolStr,
+    pub(crate) aliases: Vec<SmolStr>,
 }
 
 /// The options the egui widget behind each kind takes: one struct for every
@@ -443,6 +462,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::WINDOW
             | w::MENU
             | w::TOAST
+            | w::INSPECTOR
     )
 }
 

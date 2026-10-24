@@ -1,8 +1,0 @@
-pub fn init(this) {
-    log::info(format!("hello from {}", this.node.name()));
-    this.elapsed = 0.0;
-}
-
-pub fn update(this, dt) {
-    this.elapsed += dt;
-}

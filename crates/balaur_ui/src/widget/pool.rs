@@ -2,9 +2,12 @@
 //! pass. A form whose fields change with the selection cannot be authored,
 //! so a script says what it wants and the pool makes, reuses and hides nodes.
 //!
-//! A spec is a `widget` property table plus `on` and `on_submit`, the
-//! callbacks that hear the reader's edit. A spec carrying `controls` is a
-//! group: one node holding its controls. A node is written only when what is
+//! A spec is a `widget` property table plus `on` and `on_submit`, which hear
+//! the reader's edit: a callback, or the name of a method, called on the
+//! nearest node above the control whose script has it, with the spec's
+//! `data` and then the edit. A script that hands the engine no functions
+//! names its handler. A spec carrying `controls` is a group: one node
+//! holding its controls. A node is written only when what is
 //! asked of it changed, and spare nodes are hidden rather than freed.
 //!
 //! Nothing is polled. The pool keeps each control's callbacks, and the widget
@@ -52,15 +55,23 @@ struct HostMemo {
     worn: FxHashMap<String, FxHashSet<String>>,
 }
 
-/// A control's callbacks, kept past the fill that passed them, and where its
+/// A control's handlers, kept past the fill that passed them, and where its
 /// last write is remembered.
 struct Listener {
     host: u64,
     key: String,
-    on: Option<CallbackId>,
-    on_submit: Option<CallbackId>,
+    on: Option<Handler>,
+    on_submit: Option<Handler>,
     /// A button's `on` hears its click; any other control's hears its value.
     button: bool,
+}
+
+/// What hears a control: a function the script handed over, or a method
+/// named, with the data the spec gave it.
+#[derive(Clone)]
+enum Handler {
+    Callback(CallbackId),
+    Named { method: String, data: Value },
 }
 
 /// The node operations the pool writes through, resolved once.
@@ -220,7 +231,11 @@ impl Pool<'_> {
             return;
         };
         let kept = |name: &str| match want.get(name) {
-            Some(Value::Callback(cb)) if host.keep(*cb).is_ok() => Some(*cb),
+            Some(Value::Callback(cb)) if host.keep(*cb).is_ok() => Some(Handler::Callback(*cb)),
+            Some(Value::Str(method)) if !method.is_empty() => Some(Handler::Named {
+                method: method.clone(),
+                data: want.get(p::DATA).cloned().unwrap_or(Value::Nil),
+            }),
             _ => None,
         };
         let fresh = Listener {
@@ -267,7 +282,9 @@ impl Pool<'_> {
         // clamps the next number. Setting drops them.
         let swapped = match spec.get(k::KIND) {
             Some(kind) => {
-                *kind != self.widget(node, k::KIND)
+                let was = self.widget(node, k::KIND);
+                self.inspector_swapped(node, kind, &was);
+                *kind != was
                     || spec
                         .get(k::ROLE)
                         .cloned()
@@ -287,6 +304,31 @@ impl Pool<'_> {
         });
         let op = if whole { self.ops.set } else { self.ops.patch };
         self.write(op, node, value)
+    }
+
+    /// An `inspector` fills its own children with rows, so a slot turning
+    /// into one or out of one starts with none: anything else would read the
+    /// rows as its controls, or leave them anchored on their own.
+    fn inspector_swapped(&self, node: &Value, kind: &Value, was: &Value) {
+        let inspector = Value::text(w::INSPECTOR);
+        if kind == was || (*kind != inspector && *was != inspector) {
+            return;
+        }
+        let kids: Vec<balaur_core::hecs::Entity> = self
+            .children(node)
+            .iter()
+            .filter_map(|kid| match kid {
+                Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
+                _ => None,
+            })
+            .collect();
+        if !kids.is_empty() {
+            balaur_core::scene::free_nodes(self.eng, &kids);
+            self.forget();
+        }
+        if let Value::Node(id) = node {
+            crate::widget::inspector::forget(self.eng, *id);
+        }
     }
 
     /// Whether `value` differs from what `mark` was last written with, noted
@@ -321,7 +363,7 @@ impl Pool<'_> {
         self.listen(key, node, &want, button);
         let mut set = want;
         set.insert(k::VISIBLE.into(), Value::Bool(true));
-        for gone in [p::ON, k::ON_SUBMIT, k::CLICKED, k::SUBMITTED] {
+        for gone in [p::ON, p::DATA, k::ON_SUBMIT, k::CLICKED, k::SUBMITTED] {
             set.remove(gone);
         }
         self.patched(key, node, &set)
@@ -378,7 +420,7 @@ impl Pool<'_> {
     }
 
     /// A row: a label of a fixed width, then the control column taking what
-    /// is left, with a `draw` hatch beside the controls for a bespoke row.
+    /// is left.
     fn make_row(&self, host: &Value, index: usize) -> Result<()> {
         let row = self.make(
             host,
@@ -413,15 +455,6 @@ impl Pool<'_> {
             "C",
             &[(k::KIND, Value::text(w::ROW)), (k::GROW, Value::Int(1))],
         )?;
-        self.make(
-            &column,
-            "D",
-            &[
-                (k::KIND, Value::text(w::DRAW)),
-                (k::VISIBLE, Value::Bool(false)),
-                (k::GROW, Value::Int(1)),
-            ],
-        )?;
         Ok(())
     }
 
@@ -436,7 +469,7 @@ impl Pool<'_> {
         self.make(slot, &name, &[(k::KIND, Value::text(w::LABEL))])
     }
 
-    /// One row of a form: its box, its label, its hatch and its controls.
+    /// One row of a form: its box, its label and its controls.
     fn row(
         &self,
         i: usize,
@@ -506,16 +539,6 @@ impl Pool<'_> {
         if column == Value::Nil {
             return Ok(());
         }
-        // A row the caller draws itself: a node still, in the column.
-        let drawn = spec.get(k::DRAW).cloned();
-        let hatch = self.child(&column, "D");
-        if hatch != Value::Nil {
-            let want = match &drawn {
-                Some(name) => table(&[(k::VISIBLE, Value::Bool(true)), (k::DRAW, name.clone())]),
-                None => table(&[(k::VISIBLE, Value::Bool(false))]),
-            };
-            self.patched(&format!("{prefix}:D"), &hatch, &want)?;
-        }
         let slot = self.child(&column, "C");
         if slot == Value::Nil {
             return Ok(());
@@ -527,11 +550,8 @@ impl Pool<'_> {
         self.patched(
             &format!("{prefix}:C"),
             &slot,
-            &table(&[(k::VISIBLE, Value::Bool(drawn.is_none())), (k::ROLE, role)]),
+            &table(&[(k::VISIBLE, Value::Bool(true)), (k::ROLE, role)]),
         )?;
-        if drawn.is_some() {
-            return Ok(());
-        }
         let controls = list(spec.get(p::CONTROLS));
         if self.children(&slot).len() < controls.len() {
             self.forget();
@@ -547,12 +567,54 @@ impl Pool<'_> {
         }
         Ok(())
     }
+
+    /// Put one row a spec on the host's children, making what is missing and
+    /// hiding what is spare; true when a control's table changed.
+    fn rows(&self, host: &Value, specs: &[Value], label_w: &Value, stacked: bool) -> Result<bool> {
+        let mut made = self.children(host).len();
+        if made < specs.len() {
+            self.forget();
+        }
+        while made < specs.len() {
+            self.make_row(host, made)?;
+            made += 1;
+        }
+        for (i, row) in self.children(host).iter().enumerate() {
+            match specs.get(i) {
+                Some(spec) => self.row(i, row, spec, label_w, stacked)?,
+                None => self.hidden(&format!("r{i}"), row)?,
+            }
+        }
+        Ok(self.changed.get())
+    }
+
+    /// The control nodes under each of the host's first `rows` rows, in the
+    /// order their specs named them.
+    fn controls_of(&self, host: &Value, rows: usize) -> Vec<Vec<Value>> {
+        self.children(host)
+            .iter()
+            .take(rows)
+            .map(|row| {
+                let column = self.child(row, "H");
+                let slot = self.child(&column, "C");
+                if slot == Value::Nil {
+                    return Vec::new();
+                }
+                self.children(&slot)
+            })
+            .collect()
+    }
 }
 
 /// The host at `path`, shown, and the pass that fills it; nothing when no
 /// node is there.
 fn open<'a>(eng: &'a Engine, ops: Ops, path: &str) -> Result<Option<(Pool<'a>, Value)>> {
     let host = (ops.scene_node)(eng, &[Value::text(path)])?;
+    open_node(eng, ops, host)
+}
+
+/// `open` for a host already in hand.
+fn open_node(eng: &Engine, ops: Ops, host: Value) -> Result<Option<(Pool<'_>, Value)>> {
     let Value::Node(id) = host else {
         return Ok(None);
     };
@@ -580,8 +642,10 @@ fn open<'a>(eng: &'a Engine, ops: Ops, path: &str) -> Result<Option<(Pool<'a>, V
 
 /// Let go of what a listener kept.
 fn release(host: &dyn ScriptHost<Engine>, listener: &Listener) {
-    for cb in [listener.on, listener.on_submit].into_iter().flatten() {
-        host.release(cb);
+    for handler in [&listener.on, &listener.on_submit].into_iter().flatten() {
+        if let Handler::Callback(cb) = handler {
+            host.release(*cb);
+        }
     }
 }
 
@@ -622,7 +686,7 @@ pub(crate) fn dispatch(
     emitted: &[(balaur_core::hecs::Entity, &'static str, Value)],
     clicked: &[balaur_core::hecs::Entity],
 ) {
-    let calls: Vec<(CallbackId, Value)> = {
+    let calls: Vec<(u64, Handler, Value)> = {
         let Some(state) = eng.try_resource::<PoolState>() else {
             return;
         };
@@ -637,13 +701,13 @@ pub(crate) fn dispatch(
             let Some(listener) = state.listeners.get(&id) else {
                 continue;
             };
-            let callback = match *event {
-                crate::widget::input::CHANGE_EVENT => listener.on,
-                crate::widget::input::SUBMIT_EVENT => listener.on_submit,
+            let handler = match *event {
+                crate::widget::input::CHANGE_EVENT => listener.on.clone(),
+                crate::widget::input::SUBMIT_EVENT => listener.on_submit.clone(),
                 _ => None,
             };
-            if let Some(cb) = callback {
-                calls.push((cb, as_reported(value)));
+            if let Some(h) = handler {
+                calls.push((id, h, as_reported(value)));
             }
             heard.push((listener.host, listener.key.clone()));
         }
@@ -651,9 +715,9 @@ pub(crate) fn dispatch(
             let id = balaur_core::node_id_of(*entity).0;
             if let Some(listener) = state.listeners.get(&id)
                 && listener.button
-                && let Some(cb) = listener.on
+                && let Some(h) = listener.on.clone()
             {
-                calls.push((cb, Value::Bool(true)));
+                calls.push((id, h, Value::Bool(true)));
             }
         }
         for (host, key) in heard {
@@ -663,8 +727,34 @@ pub(crate) fn dispatch(
         }
         calls
     };
-    for (cb, value) in calls {
-        if let Err(err) = eng.invoke(cb, &[value]) {
+    // Every named handler's node found before any runs, which may reshape
+    // the tree the search walks: the nearest above the control whose script
+    // has the method, as a widget's own handler finds it.
+    let host = eng.script_host();
+    let calls: Vec<_> = calls
+        .into_iter()
+        .map(|(control, handler, value)| {
+            let to = match (&handler, &host) {
+                (Handler::Named { method, .. }, Some(host)) => {
+                    balaur_core::entity_of(balaur_script::NodeId(control))
+                        .ok()
+                        .map(|e| crate::widget::input::recipient(eng, host.as_ref(), e, method))
+                }
+                _ => None,
+            };
+            (handler, to, value)
+        })
+        .collect();
+    for (handler, to, value) in calls {
+        let heard = match (handler, to, &host) {
+            (Handler::Callback(cb), _, _) => eng.invoke(cb, &[value]).map(|_| ()),
+            (Handler::Named { method, data }, Some(to), Some(host)) => {
+                host.call_on(balaur_core::node_id_of(to), &method, &[data, value]);
+                Ok(())
+            }
+            (Handler::Named { method, .. }, ..) => Err(anyhow!("nothing hears `{method}`")),
+        };
+        if let Err(err) = heard {
             tracing::error!("a pooled control's handler: {err:#}");
         }
     }
@@ -698,22 +788,39 @@ fn fill_rows(
     let Some((pool, host)) = open(eng, ops, path)? else {
         return Ok(false);
     };
-    let specs = list(Some(specs));
-    let mut made = pool.children(&host).len();
-    if made < specs.len() {
-        pool.forget();
-    }
-    while made < specs.len() {
-        pool.make_row(&host, made)?;
-        made += 1;
-    }
-    for (i, row) in pool.children(&host).iter().enumerate() {
-        match specs.get(i) {
-            Some(spec) => pool.row(i, row, spec, label_w, stacked)?,
-            None => pool.hidden(&format!("r{i}"), row)?,
-        }
-    }
-    Ok(pool.changed.get())
+    pool.rows(&host, list(Some(specs)), label_w, stacked)
+}
+
+/// The node operations, resolved once for every caller in the crate.
+fn ops() -> Option<Ops> {
+    static OPS: std::sync::OnceLock<Option<Ops>> = std::sync::OnceLock::new();
+    *OPS.get_or_init(Ops::resolve)
+}
+
+/// `ui.fill_rows` for a host node in hand, and the control nodes each row
+/// holds after it, for a kind that fills its own children.
+pub(crate) fn fill_rows_on(
+    eng: &Engine,
+    host: balaur_core::hecs::Entity,
+    specs: &[Value],
+    label_w: f64,
+    stacked: bool,
+) -> Result<Vec<Vec<balaur_core::hecs::Entity>>> {
+    let ops = ops().ok_or_else(|| anyhow!("the pool cannot find the node operations"))?;
+    let node = Value::Node(balaur_core::node_id_of(host).0);
+    let Some((pool, host)) = open_node(eng, ops, node)? else {
+        return Ok(Vec::new());
+    };
+    pool.rows(&host, specs, &Value::Num(label_w), stacked)?;
+    let entity = |node: &Value| match node {
+        Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
+        _ => None,
+    };
+    Ok(pool
+        .controls_of(&host, specs.len())
+        .iter()
+        .map(|row| row.iter().filter_map(entity).collect())
+        .collect())
 }
 
 /// `ui.fill_strip` and `ui.fill_rows`.
@@ -722,14 +829,14 @@ pub(crate) fn install_pool(m: &mut dyn Bindings<Engine>) {
         (
             "fill_strip",
             &[],
-            "(host: string, controls: list)",
-            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen, so a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+            "(host: string, controls: list) -> bool",
+            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             "fill_rows",
             &[],
-            "(host: string, rows: list, label_width: number, stacked: bool)",
-            "`fill_strip` for a form: each row table is a `label`, its `controls` and an optional `draw` hatch, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+            "(host: string, rows: list, label_width: number, stacked: bool) -> bool",
+            "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

@@ -15,7 +15,7 @@ id = "n_scene"
 name = "Scene"
 
 [nodes.script]
-source = "scripts/pieces.rn"
+source = "scripts/pieces.bs"
 [nodes.script.props]
 # Set when the manual's picture or clip is being taken; empty for a normal run.
 shot = ""

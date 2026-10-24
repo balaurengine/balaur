@@ -20,14 +20,17 @@ fn rects(out: &egui::FullOutput) -> Vec<egui::Rect> {
 /// span's rather than the label's.
 #[test]
 fn a_url_span_calls_on_link_with_its_target() {
-    let script = "pub fn init(this) {\n    this.went = \"\";\n}\n\
-                  pub fn on_go(this, target) {\n    this.went = target;\n}\n\
-                  pub fn went(this) {\n    this.went\n}\n";
+    let script = "pub struct Owner { node: Node, went: str }
+impl Owner {
+    pub fn on_go(target: str) { self.went = target; }
+    pub fn went() -> str { self.went }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     let label = toml::toml! {
         kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0
@@ -76,14 +79,17 @@ fn a_url_span_emits_its_target_with_no_handler_named() {
 /// clicked, not the label around it.
 #[test]
 fn a_click_beside_a_url_span_reports_nothing() {
-    let script = "pub fn init(this) {\n    this.went = \"\";\n}\n\
-                  pub fn on_go(this, target) {\n    this.went = target;\n}\n\
-                  pub fn went(this) {\n    this.went\n}\n";
+    let script = "pub struct Owner { node: Node, went: str }
+impl Owner {
+    pub fn on_go(target: str) { self.went = target; }
+    pub fn went() -> str { self.went }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     let label = toml::toml! {
         kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0

@@ -1,0 +1,12 @@
+// A crate dropped onto the tiles: it lands on the stone and slides over the
+// seams between cells without catching on one.
+
+pub struct Drop {
+    node: Node,
+}
+
+impl Drop {
+    pub fn init() {
+        self.node.body2d.set_linear_velocity(2.0, 0.0);
+    }
+}

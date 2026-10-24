@@ -1,17 +1,16 @@
 # Balaur for VS Code
 
-Rune script support for a Balaur project, from `balaur lsp`. What the
+Balaur Script (`.bs`) support for a Balaur project, from `balaur lsp`. What the
 extension shows is what the engine knows, so a completion here and a
 completion in the Script persona come from the same place.
 
 - Diagnostics, on every keystroke, from the buffer rather than the file.
 - Completion for engine modules, node methods, component handles, constants,
-  the script's own functions and Rune's own methods.
-- Hover docs and signature help, the same lines as the reference.
+  and the script's own fields and functions.
+- Hover and signature help, typed as a script compiles against them.
 - Go-to-definition, document and workspace symbols, and find references.
-- Formatting, with Rune's own formatter.
-- Rename and find-and-replace across the files a script's `mod` declarations
-  reach.
+- Formatting, with `balaur fmt`'s formatter.
+- Rename within the file.
 
 ## Install
 
@@ -40,7 +39,7 @@ runs it.
 ```lua
 vim.lsp.config.balaur = {
   cmd = { "balaur", "lsp", "." },
-  filetypes = { "rune" },
+  filetypes = { "bs" },
   root_markers = { "project.toml" },
 }
 vim.lsp.enable("balaur")
@@ -56,3 +55,4 @@ vim.lsp.enable("balaur")
 
 `syntaxes/balaur.tmLanguage.json` and `language-configuration.json` are the
 Rune project's, MIT OR Apache-2.0, themselves derived from rust-analyzer's.
+Balaur Script's syntax is Rust's shape, so they highlight it.

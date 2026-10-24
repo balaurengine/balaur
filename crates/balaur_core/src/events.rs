@@ -72,7 +72,37 @@ pub struct EventState {
     /// Tokens parked on the next delivery of a name, from one emitter or,
     /// `None`, from any: what a script's `await` on an event is.
     waiters: Vec<(SmolStr, Option<Entity>, u64)>,
+    /// The log's running count at the last pump, for [`LOGGED`].
+    logs_seen: u64,
+    /// The asset cache's generation at the last pump, for [`ASSETS_RELOADED`].
+    assets_seen: u64,
+    /// The save slots' write count at the last pump, for [`SAVED`].
+    saves_seen: u64,
+    /// Where a script was stopped at the last pump, for [`DEBUGGER_STOPPED`].
+    stop_seen: Option<balaur_script::Pause>,
 }
+
+/// What the log says from no node when lines arrived since the last pump,
+/// with its running count: what an editor's log view listens for instead of
+/// reading the buffer each frame. Queued only while someone listens.
+pub const LOGGED: &str = "logged";
+
+/// What the asset cache says from no node when a file it holds was reloaded
+/// or declared stale since the last pump, with its generation: what an
+/// editor's file views listen for. Queued only while someone listens.
+pub const ASSETS_RELOADED: &str = "assets_reloaded";
+
+/// What the save slots say from no node when one was written or removed
+/// since the last pump, with their running count: what an editor's view of
+/// a game's saves listens for instead of listing the folder each frame.
+/// Queued only while someone listens.
+pub const SAVED: &str = "saved";
+
+/// What the debugger says from no node when a script stopped, stopped
+/// somewhere else or went on since the last pump, with where it is stopped
+/// or nil: what an editor's debugger view listens for instead of asking. A
+/// stop after a `resume` is new even where it is the same line again.
+pub const DEBUGGER_STOPPED: &str = "debugger_stopped";
 
 /// A token `task.wait` parks on until `name` is next delivered, from `from`
 /// or from anyone, and wakes with that event's payload.
@@ -111,6 +141,31 @@ pub fn unsubscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity
     }
 }
 
+/// The nodes someone listens to `name` from, for an engine that says `name`
+/// only where it is heard: a widget's `resized` is worth nothing unheard.
+pub fn listened_on(eng: &Engine, name: &str) -> Vec<Entity> {
+    eng.try_resource::<EventState>()
+        .map_or_else(Vec::new, |state| {
+            state
+                .borrow()
+                .listeners
+                .keys()
+                .filter(|(heard, _)| heard == name)
+                .filter_map(|(_, from)| *from)
+                .collect()
+        })
+}
+
+/// Whether anyone listens to `name` from anyone.
+pub fn heard(eng: &Engine, name: &str) -> bool {
+    eng.try_resource::<EventState>().is_some_and(|state| {
+        state
+            .borrow()
+            .listeners
+            .contains_key(&(SmolStr::new(name), None))
+    })
+}
+
 /// Queue an event from no particular node, for the next pump.
 pub fn emit(eng: &Engine, name: &str, payload: Value) {
     queue(eng, name, None, payload);
@@ -132,6 +187,9 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
         payload,
         announced: false,
     });
+    // Delivered at the next pump, which a loop sleeping under
+    // `low_processor` would otherwise not run until some input came.
+    crate::wake::wake();
 }
 
 /// An engine event on a node, heard every way at once: the node's rows and
@@ -172,6 +230,7 @@ pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
         payload,
         announced: true,
     });
+    crate::wake::wake();
 }
 
 /// The binding event a row answers `name` with.
@@ -213,11 +272,70 @@ pub fn delivered_from(eng: &Engine, from: Entity, name: &str) -> Vec<Value> {
 ///
 /// Registered before the script tick, so a handler runs at a point in the
 /// frame where nothing is mid-iteration.
+/// Forget the stop the last pump saw, as a `resume` lets it go: the next one
+/// is heard even where a loop stops on the same line with the same locals.
+pub(crate) fn resumed(eng: &Engine) {
+    if let Some(state) = eng.try_resource::<EventState>() {
+        state.borrow_mut().stop_seen = None;
+    }
+}
+
+/// Queue `name` from no node with what `payload` makes, where anyone listens
+/// for it from anyone: a change the engine only notices, which nobody need
+/// pay for unheard.
+fn say_if_heard(state: &mut EventState, name: &'static str, payload: impl FnOnce() -> Value) {
+    if state
+        .listeners
+        .contains_key(&(SmolStr::new_static(name), None))
+    {
+        state.queued.push(Queued {
+            name: name.into(),
+            from: None,
+            payload: payload(),
+            announced: false,
+        });
+    }
+}
+
+fn count(n: u64) -> Value {
+    Value::Int(i64::try_from(n).unwrap_or(i64::MAX))
+}
+
+/// What moved that nobody emitted: lines logged, a file reloaded, a script
+/// stopped or let go. Each is said once, at the pump after it moved.
+fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Pause>) {
+    let logs = crate::logbuf::total();
+    if logs != state.logs_seen {
+        state.logs_seen = logs;
+        say_if_heard(state, LOGGED, || count(logs));
+    }
+    let assets = crate::assets::generation(eng);
+    if assets != state.assets_seen {
+        state.assets_seen = assets;
+        say_if_heard(state, ASSETS_RELOADED, || count(assets));
+    }
+    let saves = crate::save::generation();
+    if saves != state.saves_seen {
+        state.saves_seen = saves;
+        say_if_heard(state, SAVED, || count(saves));
+    }
+    if stop != state.stop_seen {
+        say_if_heard(state, DEBUGGER_STOPPED, || {
+            stop.as_ref()
+                .map_or(Value::Nil, balaur_script::Pause::to_value)
+        });
+        state.stop_seen = stop;
+    }
+}
+
 pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
+    // Asked before the state is borrowed: the host keeps its own.
+    let stop = eng.script_host().and_then(|host| host.paused());
     let queued = {
         let state = eng.resource::<EventState>();
         let mut state = state.borrow_mut();
         state.delivered.clear();
+        notice(eng, &mut state, stop);
         std::mem::take(&mut state.queued)
     };
     if queued.is_empty() {
@@ -368,19 +486,19 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         (
             "emitted",
             &[],
-            "(name: string)",
+            "(name: string) -> list",
             "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
         ),
         (
             "emitted_from",
             &[],
-            "(node: node, name: string)",
+            "(node: node, name: string) -> list",
             "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
         ),
         (
             "next",
             &[],
-            "(name: string, from: node?)",
+            "(name: string, from: node?) -> int",
             "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
         ),
     ]);

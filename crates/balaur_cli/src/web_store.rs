@@ -343,11 +343,13 @@ impl ProjectFs {
         }
         let count = batch.len();
         self.in_flight.set(self.in_flight.get() + count);
+        let kept = self.paths_of(&batch);
         let me = self.me.clone();
         let on_done = Closure::once_into_js(move |_: web_sys::Event| {
             if let Some(fs) = me.upgrade() {
                 fs.in_flight.set(fs.in_flight.get().saturating_sub(count));
             }
+            announce_kept(&kept);
         });
         let me = self.me.clone();
         let on_err = Closure::once_into_js(move |_: web_sys::Event| {
@@ -362,6 +364,27 @@ impl ProjectFs {
         transaction.set_onerror(Some(on_err.unchecked_ref()));
         transaction.set_onabort(Some(on_err.unchecked_ref()));
         Some(transaction)
+    }
+
+    /// The root-relative paths of a batch's files, the directory markers left
+    /// out: what `balaur-project-kept` tells the page changed.
+    fn paths_of(&self, batch: &BTreeMap<String, Change>) -> Vec<String> {
+        batch
+            .keys()
+            .filter_map(|key| key.strip_prefix(&self.prefix))
+            .filter(|rel| !rel.is_empty() && !rel.ends_with(DIR_MARK))
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// One file under the root as it stands, root-relative; `None` for one
+    /// that is not there.
+    pub(crate) fn file(&self, rel: &str) -> Option<Vec<u8>> {
+        let path = self.root.join(rel.trim_start_matches('/'));
+        if self.inner.is_dir(&path) {
+            return None;
+        }
+        self.inner.read(&path).ok()
     }
 
     /// Every put and delete of one batch, and the record that dates it.
@@ -653,6 +676,29 @@ pub(crate) async fn import(
     }
     touch(&transaction.object_store(META)?, id, Some(name))?;
     settled(&transaction).await
+}
+
+/// Tell the page that files are kept: a `balaur-project-kept` event on the
+/// window whose `detail` is the root-relative paths written or removed. A
+/// page that syncs the project elsewhere (a server, a repository) listens for
+/// this rather than asking on a timer; the engine knows nothing of where.
+fn announce_kept(paths: &[String]) {
+    if paths.is_empty() {
+        return;
+    }
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let detail = js_sys::Array::new();
+    for path in paths {
+        detail.push(&JsValue::from_str(path));
+    }
+    let init = web_sys::CustomEventInit::new();
+    init.set_detail(&detail);
+    if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict("balaur-project-kept", &init)
+    {
+        let _ = window.dispatch_event(&event);
+    }
 }
 
 /// Every store on this origin, newest first, as `{ id, name, modified }`.

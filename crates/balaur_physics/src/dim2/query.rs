@@ -37,7 +37,7 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
 
 pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("raycast", &[], "(opts: table)", "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
+        ("raycast", &[], "(opts: table) -> map?", "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -112,7 +112,7 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "raycast_all",
         &[],
-        "(opts: table)",
+        "(opts: table) -> [map]",
         "Every collider a ray meets, nearest first.",
     )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
@@ -163,7 +163,7 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "shapecast",
         &[],
-        "(opts: table)",
+        "(opts: table) -> map?",
         "Sweep a shape along a direction until it hits something: a thick raycast.",
     )]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
@@ -211,37 +211,37 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         (
             "closest_point",
             &[],
-            "(opts: table)",
+            "(opts: table) -> map?",
             "The closest point on any collider to a world point.",
         ),
         (
             "overlap_point",
             &[],
-            "(opts: table)",
+            "(opts: table) -> [node]",
             "Every collider containing a world point: what a mouse click asks.",
         ),
         (
             "overlap_shape",
             &[],
-            "(opts: table)",
+            "(opts: table) -> [node]",
             "Every collider a shape overlaps where it stands.",
         ),
         (
             "overlap_aabb",
             &[],
-            "(opts: table)",
+            "(opts: table) -> [node]",
             "Every collider whose bounds meet an axis-aligned box.",
         ),
         (
             "distance",
             &[],
-            "(a: node, b: node)",
+            "(a: node, b: node) -> float",
             "The gap between two nodes' colliders, zero when they touch.",
         ),
         (
             "intersects",
             &[],
-            "(a: node, b: node)",
+            "(a: node, b: node) -> bool",
             "Whether two nodes' colliders overlap right now, sensor or not.",
         ),
     ]);
@@ -340,8 +340,8 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: table) -> map?", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -455,8 +455,8 @@ fn with_pair(
 /// `install_world_list_api` in two dimensions.
 pub(crate) fn install_physics2d_world_list_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
-        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+        ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
+        ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
         ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {

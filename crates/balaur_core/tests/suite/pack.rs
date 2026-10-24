@@ -98,8 +98,9 @@ fn binary_assets_travel_inside_the_pack() {
 fn a_corrupted_asset_is_caught_by_its_hash() {
     let dir = project();
     let mut bytes = Pack::build(dir.path(), &Reversing).unwrap().encode();
-    // Flip the last byte of the payload, which is inside the asset section.
-    let last = bytes.len() - 1;
+    // Flip the asset section's last byte: the payload ends on the `api`
+    // section, its count alone (four bytes) for a compiler that keeps none.
+    let last = bytes.len() - 5;
     bytes[last] ^= 0xff;
 
     let err = Pack::decode(&bytes).expect_err("a corrupted asset must not decode");
@@ -387,7 +388,7 @@ fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
 }
 
 /// A nested project's scripts are its own: `editor/library` is a project, and
-/// its `addons/<name>/<file>.rn` resolve only when mounted at *its* root.
+/// its `addons/<name>/<file>.bs` resolve only when mounted at *its* root.
 #[test]
 fn a_nested_projects_scripts_ship_as_source() {
     let dir = project();

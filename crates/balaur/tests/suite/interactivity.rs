@@ -38,7 +38,7 @@ fn app_with_scripts(scene: &str, scripts: &[(&str, &str)]) -> (tempfile::TempDir
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
     for (path, text) in scripts {
-        std::fs::write(dir.path().join(path), text).unwrap();
+        std::fs::write(dir.path().join(path), format!("{HIT}{text}")).unwrap();
     }
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
@@ -61,32 +61,42 @@ name = "Scene"
 id = "n_a"
 name = "A"
 parent = "n_scene"
-script = { source = "scripts/a.rn" }
+script = { source = "scripts/a.bs" }
 
 [[nodes]]
 id = "n_b"
 name = "B"
 parent = "n_scene"
-script = { source = "scripts/b.rn" }
+script = { source = "scripts/b.bs" }
+"#;
+
+/// Adds `by` to `hits`.
+const HIT: &str = r#"fn hit(by: int) {
+    scene::set_variable("hits", scene::variable("hits").as_int() + by);
+}
 "#;
 
 /// A hears what reaches it and takes nothing.
-const A_HEARS: &str = "pub fn on_key_down(this, key) {\n\
-    scene::set_variable(\"hits\", scene::variable(\"hits\") + 1);\n\
-}\n\
-pub fn on_pointer_down(this, button) {\n\
-    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
-}\n";
+const A_HEARS: &str = r"pub struct A { node: Node }
+impl A {
+    pub fn on_key_down(key: any) { hit(1); }
+    pub fn on_pointer_down(button: any) { hit(10); }
+}
+";
 
 /// B hears first, takes the key, and lets every press through.
-const B_HEARS: &str = "pub fn on_key_down(this, key) {\n\
-    scene::set_variable(\"hits\", scene::variable(\"hits\") + 1);\n\
-    true\n\
-}\n\
-pub fn on_pointer_down(this, button) {\n\
-    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
-    false\n\
-}\n";
+const B_HEARS: &str = r"pub struct B { node: Node }
+impl B {
+    pub fn on_key_down(key: any) -> bool {
+        hit(1);
+        true
+    }
+    pub fn on_pointer_down(button: any) -> bool {
+        hit(10);
+        false
+    }
+}
+";
 
 fn hits(app: &balaur::App) -> i64 {
     let variables = app.engine.resource::<Variables>();
@@ -96,20 +106,22 @@ fn hits(app: &balaur::App) -> i64 {
 }
 
 /// A that feeds a press from its own update, once, and hears like A.
-const A_FEEDS: &str = "pub fn update(this, dt) {\n\
-    if scene::variable(\"hits\") == 0 {\n\
-        input::feed_mouse_button(0, true);\n\
-    }\n\
-}\n\
-pub fn on_pointer_down(this, button) {\n\
-    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
-}\n";
+const A_FEEDS: &str = r#"pub struct A { node: Node }
+impl A {
+    fn update(dt: float) {
+        if scene::variable("hits").as_int() == 0 {
+            input::feed_mouse_button(0, true);
+        }
+    }
+    pub fn on_pointer_down(button: any) { hit(10); }
+}
+"#;
 
 #[test]
 fn a_press_a_script_feeds_reaches_the_hooks_on_the_next_frame() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.rn", A_FEEDS), ("scripts/b.rn", B_HEARS)],
+        &[("scripts/a.bs", A_FEEDS), ("scripts/b.bs", B_HEARS)],
     );
     app.tick(1.0 / 60.0);
     assert_eq!(hits(&app), 0, "fed during the tick, so not this frame's");
@@ -127,7 +139,7 @@ fn a_press_a_script_feeds_reaches_the_hooks_on_the_next_frame() {
 fn a_hook_that_answers_true_ends_the_broadcast() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
     );
     app.tick(1.0 / 60.0);
     {
@@ -144,7 +156,7 @@ fn a_hook_that_answers_true_ends_the_broadcast() {
 fn a_press_over_nothing_reaches_every_node() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
     );
     app.tick(1.0 / 60.0);
     {
@@ -191,7 +203,7 @@ fn press_at(app: &mut balaur::App, at: egui::Pos2, down: bool) {
 fn a_press_on_a_widget_reaches_no_node() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
     );
     let button = {
         let root = app.engine.root();
@@ -352,16 +364,15 @@ fn a_variable_change_reaches_the_nodes_that_declare_the_hook() {
     let (dir, mut app) = app_from(DOOR);
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
-        dir.path().join("scripts/watch.rn"),
+        dir.path().join("scripts/watch.bs"),
         r"
-pub fn init(this) {
-    this.seen = 0;
-    this.last = 0.0;
-}
+pub struct Watch { node: Node, seen: int, last: float }
 
-pub fn on_variable_changed(this, name, value) {
-    this.seen += 1;
-    this.last = value;
+impl Watch {
+    pub fn on_variable_changed(name: str, value: any) {
+        self.seen += 1;
+        self.last = value.as_float();
+    }
 }
 ",
     )
@@ -370,7 +381,7 @@ pub fn on_variable_changed(this, name, value) {
     app.engine
         .script_host()
         .unwrap()
-        .attach(balaur::node_id_of(ball), "scripts/watch.rn")
+        .attach(balaur::node_id_of(ball), "scripts/watch.bs")
         .unwrap();
 
     {
@@ -388,14 +399,15 @@ pub fn on_variable_changed(this, name, value) {
     // One frame, so the dispatch at the end of the tick runs.
     app.tick(0.016);
 
-    let rune = balaur::script_rune::rune_of(&app.engine);
+    let host = app.engine.script_host().unwrap();
+    let ball = balaur::node_id_of(ball);
     assert_eq!(
-        rune.number_field(ball, "seen"),
-        Some(1.0),
+        host.script_field(ball, "seen"),
+        Some(Value::Int(1)),
         "one change, one call: {:#?}",
         balaur::logbuf::recent(10)
     );
-    assert_eq!(rune.number_field(ball, "last"), Some(7.0));
+    assert_eq!(host.script_field(ball, "last"), Some(Value::Num(7.0)));
 }
 
 /// Every action core cannot run itself has a runner in a standard build, so
@@ -604,7 +616,7 @@ name = "Scene"
 id = "n_wave"
 name = "Wave"
 parent = "n_scene"
-script = { source = "scenes/wave.rn" }
+script = { source = "scenes/wave.bs" }
 
 [nodes.transform]
 position = [0, 0, 0]
@@ -630,11 +642,15 @@ fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), ONCE).unwrap();
     std::fs::write(
-        dir.path().join("scenes/wave.rn"),
-        "pub fn init(this) { events::listen(this.node, \"animation_finished\", this.node); }\n\
-         pub fn on_animation_finished(this, clip) {\n\
-         \x20   scene::set_variable(\"score\", scene::variable(\"score\") + 1);\n\
-         }\n",
+        dir.path().join("scenes/wave.bs"),
+        r#"pub struct Wave { node: Node }
+impl Wave {
+    fn init() { events::listen(self.node, "animation_finished", self.node); }
+    pub fn on_animation_finished(clip: any) {
+        scene::set_variable("score", scene::variable("score").as_int() + 1);
+    }
+}
+"#,
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
@@ -728,12 +744,13 @@ fn a_node_offers_the_events_its_components_announce() {
     .unwrap();
     std::fs::write(
         dir.path().join("scenes/main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Clock\"\nscript = { source = \"scenes/c.rn\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Clock\"\nscript = { source = \"scenes/c.bs\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scenes/c.rn"),
-        "pub fn offered(this) { scene::bindable_events(this.node) }\n",
+        dir.path().join("scenes/c.bs"),
+        "pub struct Clock { node: Node }\n\
+         impl Clock { pub fn offered() -> [str] { scene::bindable_events(self.node) } }\n",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());

@@ -1,0 +1,55 @@
+# The file being edited, over the stage or beside it in a split: the selected
+# node's script, or a shader a material opened. One script fills it, hears
+# the typing, the caret and the gutter, and holds the refactor sheet.
+
+[[nodes]]
+id = "code"
+name = "Code"
+script = { source = "scripts/panels/code.bs" }
+[nodes.widget]
+kind = "panel"
+text = ""
+absolute = true
+inset = [0.0, 0.0, 0.0, 0.0]
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = 11
+padding = [0, 12, 0, 12]
+visible = false
+
+[[nodes]]
+id = "note"
+name = "Note"
+parent = "code"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "code"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "editor"
+name = "Editor"
+parent = "scroll"
+[nodes.widget]
+kind = "code"
+text = ""
+font_size = 13
+gutter_width = 34
+
+# Rename a name across the scripts, or find and replace: over the code's top
+# right, with the list of what would change before anything is written.
+[[nodes]]
+id = "refactor"
+name = "Refactor"
+parent = "code"
+instance = "scenes/panels/refactor.toml"

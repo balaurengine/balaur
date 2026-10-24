@@ -69,16 +69,6 @@ def script_api():
     return json.loads(out)
 
 
-def module_owners():
-    """Which crate declares each script module, so backend-only ones show up."""
-    owners = {}
-    for rs in sorted((ROOT / "crates").rglob("src/**/*.rs")):
-        crate = rs.relative_to(ROOT / "crates").parts[0]
-        for m in re.finditer(r'(?:script_module|module)\(\s*(?:[^,()]+,\s*)*"([a-z0-9_]+)"\s*\)', rs.read_text()):
-            owners.setdefault(m.group(1), crate)
-    return owners
-
-
 def drift(name, have, want):
     """What changed, so a red build names the lines and not just the file."""
     diff = list(difflib.unified_diff(
@@ -115,12 +105,14 @@ NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr
 
 def web_runtime_features():
     """The feature set scripts/package_runtime.sh builds the web runtime with:
-    scripts/features.sh's game set, and a window."""
+    scripts/features.sh's game set with `bs` on the page's engine, and a
+    window."""
     text = (ROOT / "scripts" / "features.sh").read_text()
-    m = re.search(r"^GAME_FEATURES=([a-z0-9_,]+)$", text, re.M)
+    m = re.search(r"^GAME_FEATURES=([a-z0-9_,-]+)$", text, re.M)
     if not m:
         raise SystemExit("scripts/features.sh no longer names GAME_FEATURES")
-    return m.group(1).split(",") + ["window"]
+    game = ["bs-web" if f == "bs" else f for f in m.group(1).split(",")]
+    return game + ["window"]
 
 
 def cargo_tree(features, *extra):
@@ -228,20 +220,21 @@ def gen_features(crates):
     return body
 
 
-def gen_script_api(api, owners):
-    body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see.\n\n"
-    backend_only = {m: o for m, o in owners.items() if o.startswith("balaur_script_")}
-    body += "| Module | Functions | Constants | Declared by |\n| --- | ---: | ---: | --- |\n"
+def gen_script_api(api):
+    body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see. A node's own operations are\nthe `node` module's, called on the node: `self.node.add_tag(\"hit\")`.\n\n"
+    body += "| Module | Functions | Constants |\n| --- | ---: | ---: |\n"
     for m in api["modules"]:
-        where = "the backend" if m["name"] in backend_only else "the engine"
-        body += f"| [`{m['name']}`](#{m['name']}) | {len(m['functions'])} | {len(m['constants'])} | {where} |\n"
+        body += f"| [`{m['name']}`](#{m['name']}) | {len(m['functions'])} | {len(m['constants'])} |\n"
     body += "\n"
     for m in api["modules"]:
         body += f"## `{m['name']}`\n\n"
-        if m["name"] in backend_only:
-            body += f"Declared by `{backend_only[m['name']]}`, so it exists only on that backend.\n\n"
+        if m.get("doc"):
+            body += f"{m['doc']}\n\n"
         if m["functions"]:
-            body += "**Functions:** " + ", ".join(f"`{f}`" for f in m["functions"]) + "\n\n"
+            body += "| Function | Signature |\n| --- | --- |\n"
+            for f in m["functions"]:
+                body += f"| `{f}` | `{m['signatures'].get(f, '')}` |\n"
+            body += "\n"
         if m["constants"]:
             body += f"**Constants** ({len(m['constants'])}):\n\n"
             shown = m["constants"][:24]
@@ -343,16 +336,10 @@ def component_methods(api):
 
 
 def bound_signature(signature):
-    """The signature as the handle takes it: the node is already bound.
-
-    A binding of one argument spells it bare, `NodeId -> f32`, with no
-    parentheses to strip.
-    """
-    for prefix, rest in (("(NodeId, ", "("), ("(NodeId)", "()")):
+    """The signature as the handle takes it: the node is already bound."""
+    for prefix, rest in (("(Node, ", "("), ("(Node)", "()")):
         if signature.startswith(prefix):
             return rest + signature[len(prefix) :]
-    if signature == "NodeId" or signature.startswith("NodeId -> "):
-        return "()" + signature[len("NodeId") :]
     return signature
 
 
@@ -385,14 +372,14 @@ def gen_components(components, tags, docs=None, methods=None, events=None):
         "nothing with `body`; each component is independent and complete.\n\n"
         "Each component is registered by a plugin with the schema below; one\n"
         "registration provides the scene-file key, the runtime\n"
-        "`node:set_component` family, and the editor's inspector rows.\n\n"
+        "`node.set_component` family, and the editor's inspector rows.\n\n"
         "**Methods.** `node.<component>` is a handle that binds the node to the\n"
         "module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`\n"
         "is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a\n"
         "`body3d` handle reaches `physics3d`. The methods listed per component\n"
-        "below are the functions that declared they act on it. Every handle also\n"
-        "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
-        "with no methods of its own is still reachable that way.\n\n"
+        "below are the functions that declared they act on it. A component with\n"
+        "no methods of its own is reached through its properties, or through\n"
+        "`node.get_component(name)` and `node.set_component(name, value)`.\n\n"
         "**Events.** What a component announces from its node reaches the\n"
         "node's own `on_<name>(payload)`, an `emitted:<name>` row in\n"
         "`[[nodes.bindings.rows]]`, `events::listen` and\n"
@@ -402,8 +389,8 @@ def gen_components(components, tags, docs=None, methods=None, events=None):
         "that handle, so `node.collider3d.density = 15.0` writes one property\n"
         "and leaves the rest where they were, and `node.collider3d.density`\n"
         "reads it back off the running component rather than off the scene.\n"
-        "A name the component does not declare is an error, not a silent\n"
-        "no-op: `node.body3d.density` fails both ways.\n\n"
+        "A name the component does not declare does not compile:\n"
+        "`node.body3d.density` fails both ways.\n\n"
         "Components are grouped by the first of their facet tags; one with\n"
         "several (`collider2d` is both `2d` and `physics`) lists them all under\n"
         "its heading.\n\n",
@@ -644,10 +631,10 @@ def gen_hooks(api):
     )
     return (
         "# Hooks\n\n"
-        "The methods the engine calls on a node's script by name. Each takes the\n"
-        "instance first, `pub fn update(this, dt)`, and a script declares only the\n"
-        "ones it wants. What a component announces is listed with the component in\n"
-        "[components.md](./components.md).\n\n"
+        "The methods the engine calls on a node's script by name. Each is a method\n"
+        "of the script's struct, `fn update(dt: float)`, and a script declares only\n"
+        "the ones it wants. What a component announces is listed with the component\n"
+        "in [components.md](./components.md).\n\n"
         "<table>\n<thead><tr><th>hook</th><th>when</th></tr></thead>\n"
         f"<tbody>\n{rows}\n</tbody>\n</table>\n\n"
         "## Every node\n\n"
@@ -661,22 +648,19 @@ def gen_hooks(api):
 
 def gen_script_types(api):
     body = (
-        "# Script value types\n\nThe maths types a script holds as values: `balaur::Vec2` and the rest,\n"
-        "each glam's own type under a script name. A name bound to one holds its\n"
-        "own copy, and every method is glam's, bound by\n"
-        "`scripts/gen_glam_api.py`. Read from a booted engine.\n\n"
+        "# Script value types\n\nThe value types every script holds without a `use`: the engine's vectors\n"
+        "and colours arrive as them, each a struct of floats a script reads and\n"
+        "builds by field. Read from a booted engine.\n\n"
+        "| Type | Fields |\n| --- | --- |\n"
     )
-    types = api.get("types", [])
-    body += "| Type | Functions | Constants |\n| --- | ---: | ---: |\n"
-    for entry in types:
-        body += f"| [`balaur::{entry['name']}`](#balaur{entry['name'].lower()}) | {len(entry['functions'])} | {len(entry['constants'])} |\n"
-    body += "\n"
-    for entry in types:
-        body += f"## `balaur::{entry['name']}`\n\n"
-        if entry["functions"]:
-            body += "**Functions:** " + ", ".join(f"`{f}`" for f in entry["functions"]) + "\n\n"
-        if entry["constants"]:
-            body += "**Constants:** " + ", ".join(f"`{c}`" for c in entry["constants"]) + "\n\n"
+    for entry in api.get("types", []):
+        body += f"| `{entry['name']}` | " + ", ".join(f"`{f}`" for f in entry["fields"]) + " |\n"
+    body += (
+        "\n## Built-in functions\n\nCalled by name, with no module before them.\n\n"
+        "| Function | Signature |\n| --- | --- |\n"
+    )
+    for name, signature in sorted(api.get("builtins", {}).items()):
+        body += f"| `{name}` | `{signature}` |\n"
     return body
 
 
@@ -688,10 +672,9 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     crates = workspace()
     api = script_api()
-    owners = module_owners()
     files = {
         "crate-graph.md": gen_graph(crates),
-        "script-api.md": gen_script_api(api, owners),
+        "script-api.md": gen_script_api(api),
         "script-types.md": gen_script_types(api),
         "hooks.md": gen_hooks(api),
         "components.md": gen_components(

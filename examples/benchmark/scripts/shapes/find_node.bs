@@ -1,0 +1,12 @@
+// A path lookup every frame, which is the lazy way to reach another node.
+
+pub struct FindNode {
+    node: Node,
+    found: bool,
+}
+
+impl FindNode {
+    fn update(dt: float) {
+        self.found = self.node.get_node("../..").is_valid();
+    }
+}

@@ -752,9 +752,12 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
 
 #[test]
 fn a_dragged_row_reports_where_it_was_let_go() {
-    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
-                  pub fn on_move(this, what) {\n    this.said = `${what[0]}|${what[1]}|${what[2]}`;\n}\n\
-                  pub fn said(this) {\n    this.said\n}\n";
+    let script = "pub struct Owner { node: Node, said: str }
+impl Owner {
+    pub fn on_move(what: any) { self.said = \"{what.at(0)}|{what.at(1)}|{what.at(2)}\"; }
+    pub fn said() -> str { self.said }
+}
+";
     // Where in the row the drop lands: its top eighth is the gap above it,
     // and the middle of a tree's row is inside it.
     let dropped = |down: f32| {
@@ -762,7 +765,7 @@ fn a_dragged_row_reports_where_it_was_let_go() {
         let root = app.engine.root();
         let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
         let host = app.engine.script_host().unwrap();
-        host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+        host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
             .unwrap();
         add_child_widget(
             &app,
@@ -811,14 +814,17 @@ fn a_dragged_row_reports_where_it_was_let_go() {
 
 #[test]
 fn a_list_that_does_not_reorder_reports_no_drop() {
-    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
-                  pub fn on_move(this, what) {\n    this.said = `${what[0]}`;\n}\n\
-                  pub fn said(this) {\n    this.said\n}\n";
+    let script = "pub struct Owner { node: Node, said: str }
+impl Owner {
+    pub fn on_move(what: any) { self.said = \"{what.at(0)}\"; }
+    pub fn said() -> str { self.said }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     add_child_widget(
         &app,
@@ -854,15 +860,18 @@ fn a_list_that_does_not_reorder_reports_no_drop() {
 
 #[test]
 fn a_card_dragged_out_of_its_list_reports_itself_where_it_was_let_go() {
-    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
-                  pub fn on_drop(this, card) {\n    this.said = card;\n}\n\
-                  pub fn said(this) {\n    this.said\n}\n";
+    let script = "pub struct Owner { node: Node, said: str }
+impl Owner {
+    pub fn on_drop(card: str) { self.said = card; }
+    pub fn said() -> str { self.said }
+}
+";
     let dropped = |to: egui::Pos2| {
         let (_dir, mut app) = app_with_script(script);
         let root = app.engine.root();
         let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
         let host = app.engine.script_host().unwrap();
-        host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+        host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
             .unwrap();
         add_child_widget(
             &app,
@@ -943,14 +952,21 @@ fn marked_tree() -> (
     balaur_core::hecs::Entity,
     balaur_core::hecs::Entity,
 ) {
-    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
-                  pub fn on_mark(this, what) {\n    this.said = `${what.row}|${what.mark}`;\n}\n\
-                  pub fn said(this) {\n    this.said\n}\n";
+    let script = "pub struct Owner { node: Node, said: str }
+impl Owner {
+    pub fn on_mark(what: any) {
+        let row = what.get(\"row\");
+        let mark = what.get(\"mark\");
+        self.said = \"{row}|{mark}\";
+    }
+    pub fn said() -> str { self.said }
+}
+";
     let (dir, app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     let rows = add_child_widget(
         &app,

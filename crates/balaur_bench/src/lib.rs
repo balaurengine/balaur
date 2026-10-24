@@ -13,29 +13,35 @@ use balaur_core::{App, AppConfig, ScriptHostFactory};
 /// measured on the same scenarios the day its backend lands.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Backend {
-    Rune,
+    Bs,
 }
 
 impl Backend {
-    pub const ALL: [Self; 1] = [Self::Rune];
+    pub const ALL: [Self; 1] = [Self::Bs];
 
     pub fn name(self) -> &'static str {
         match self {
-            Self::Rune => "rune",
+            Self::Bs => "bs",
         }
     }
 
     pub fn extension(self) -> &'static str {
         match self {
-            Self::Rune => "rn",
+            Self::Bs => "bs",
         }
     }
 
     fn factory(self) -> ScriptHostFactory {
         match self {
-            Self::Rune => balaur_script_rune::factory(),
+            Self::Bs => balaur::script_bs::factory(),
         }
     }
+}
+
+/// A `.bs` script: one struct with `node` and `fields`, its methods `body`.
+#[must_use]
+pub fn script(fields: &str, body: &str) -> String {
+    format!("pub struct S {{ node: Node{fields} }}\nimpl S {{\n{body}\n}}\n")
 }
 
 /// A project directory that lives as long as the benchmark holds it.

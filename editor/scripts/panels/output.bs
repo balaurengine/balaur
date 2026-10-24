@@ -1,0 +1,79 @@
+// The Output tab's one script: it fills the log list when the engine says
+// lines arrived, and answers its clear, its levels and its search.
+
+pub struct Output {
+    node: Node,
+    level: str,
+    query: str,
+    editor: Node,
+}
+
+fn LEVELS() -> [str] {
+    ["error", "warn", "all"]
+}
+
+impl Output {
+    pub fn init() {
+        self.level = "all";
+        self.query = "";
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "logged");
+        events::listen(self.node, "outline_changed", self.editor);
+    }
+
+    pub fn on_logged(_total: any) {
+        self.refresh();
+    }
+
+    /// The theme moved, which inks the lines.
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        let name = node.name();
+        if name == "Clear" && event == "click" {
+            self.editor.call("output_clear");
+        } else if on_widget_event_any_0(name, LEVELS()) && event == "click" {
+            self.level = name;
+        } else if name == "Search" && event == "change" {
+            self.query = value.as_str();
+        } else {
+            return;
+        }
+        self.refresh();
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        // A hidden log costs nothing: it is filled again when it shows.
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("output_view", self.level, self.query);
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("Log").patch_component("widget", map().with("options", view.get("items")));
+        self.node.get_node("Nothing").patch_component("widget", map()
+            .with("visible", view.get("says").as_str() != "")
+            .with("text", view.get("says")));
+        let tools = self.node.get_node("Tools");
+        for level in LEVELS() {
+            let on = level == self.level;
+            // A chip's own lit state: the theme dresses it, nothing here names a
+            // colour.
+            tools.get_node(level).patch_component("widget", map().with("checked", on));
+        }
+    }
+}
+
+fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+    for level in items {
+        if level == name {
+            return true;
+        }
+    }
+    false
+}

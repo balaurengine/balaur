@@ -53,7 +53,7 @@ cargo run -p balaur_cli -- export my-game --runtime target/release/balaur
 ```
 
 Hot reload: run `cargo run -p balaur_cli -- run examples/hello --headless` and edit
-`examples/hello/scripts/spinner.rn` while it goes.
+`examples/hello/scripts/spinner.bs` while it goes.
 
 ## A scene and a script
 
@@ -61,7 +61,7 @@ Hot reload: run `cargo run -p balaur_cli -- run examples/hello --headless` and e
 # scenes/main.toml
 [[nodes]]
 name = "Ball"
-script = { source = "scripts/ball.rn", props = { speed = 3.5 } }
+script = { source = "scripts/ball.bs", props = { speed = 3.5 } }
 transform = { position = [0.0, 6.0, 0.0] }        # from balaur_core
 body3d = { kind = "dynamic" }                     # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
@@ -69,14 +69,18 @@ shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
 ```
 
 ```rust
-// scripts/ball.rn
-pub fn exports() { #{ speed: 2.0 } }              // what the inspector may tune
+// scripts/ball.bs
+pub struct Ball {
+    node: Node,
+    pub speed: float = 2.0,                       // what the inspector may tune
+    angle: float,
+}
 
-pub fn init(this) { this.angle = 0.0; }
-
-pub fn update(this, dt) {                         // per frame; fixed_update is per fixed tick
-    this.angle += dt * this.speed;
-    this.node.transform.rotation_euler = [0.0, this.angle, 0.0];
+impl Ball {
+    fn update(dt: float) {                        // per frame; fixed_update is per fixed tick
+        self.angle += dt * self.speed;
+        self.node.transform.rotation_euler = [0.0, self.angle, 0.0];
+    }
 }
 ```
 

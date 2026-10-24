@@ -1,0 +1,4589 @@
+// Start-up states that exercise the editor and assert the result. `log::error`
+// is the failure channel: `scripts/e2e.sh` fails any run that logs one.
+
+use about;
+use anim;
+use arrange;
+use bonemap;
+use center;
+use complete;
+use defs;
+use dock;
+use docks;
+use docs;
+use dropin;
+use editor;
+use events;
+use exporter;
+use gizmo;
+use gizmo2d;
+use history;
+use icons;
+use importer;
+use inspector;
+use kit;
+use layout;
+use left;
+use library;
+use lint;
+use manager;
+use model;
+use newnode;
+use pen;
+use physics;
+use plugins;
+use polygon;
+use pool;
+use populate;
+use recipes;
+use refactor;
+use rig;
+use search;
+use selection;
+use session;
+use settings;
+use shell;
+use statemachine;
+use style;
+use textedit;
+use theme;
+use themewin;
+use tiles;
+use util;
+use viewport;
+use weights;
+use window;
+
+pub struct WritableFloat {
+    comp: str,
+    prop: str,
+    spec: any,
+}
+
+pub class CameraCheck {
+    waited: int,
+    stage: int,
+    was: float,
+    drag: Drag3?,
+}
+
+pub class Drag3 {
+    from: [float],
+    to: [float],
+    tool: str,
+    world: [float],
+    at: gizmo::Project?,
+}
+
+pub class ViewportCheck {
+    waited: int,
+    stage: int,
+}
+
+pub class Reselect {
+    waited: int,
+    stage: int,
+    row: int,
+    had: int,
+    drawn: int,
+    workspace: str,
+    tool: str,
+}
+
+pub class StartCheck {
+    waited: int,
+}
+
+pub class EmptyNote {
+    waited: int,
+}
+
+pub class PhysClick {
+    waited: int,
+}
+
+pub struct PillBox {
+    left: float,
+    right: float,
+    row: ui::Rect,
+    id: str,
+    row_at: int,
+}
+
+pub struct Tilemap {
+    tileset: Tileset,
+    cells: [[int]],
+    pixels_per_unit: float,
+}
+
+pub struct Tileset {
+    texture: str,
+    tile_size: float,
+    columns: int,
+}
+
+pub class PickCheck {
+    stage: int,
+    sprite: ScaleASprite?,
+    turned: TurnABox?,
+}
+
+pub struct ScaleASprite {
+    index: int,
+    at: [float],
+    scale: [float],
+}
+
+pub struct TurnABox {
+    index: int,
+    held: [float],
+    want: [float],
+}
+
+pub struct NumberExport {
+    at: int,
+    export: any,
+}
+
+pub struct WritableList {
+    at: int,
+    comp: str,
+    prop: str,
+    spec: any,
+}
+
+pub struct InstancedFloat {
+    at: int,
+    float: WritableFloat,
+}
+
+pub struct Script {
+    name: str,
+    sample: str,
+}
+
+pub class Demo {
+    n: int,
+    file: str,
+    was: int,
+}
+
+pub class PoolCheck {
+    stage: int,
+    heard: [str],
+}
+
+fn check(ok: bool, what: str) -> bool {
+    if ok {
+        log::info("selftest ok: {what}");
+    } else {
+        log::error("selftest FAILED: {what}");
+    }
+    ok
+}
+
+/// A warning the next call provokes on purpose. `scripts/e2e.sh` fails a run
+/// on any warning but one named here first.
+fn expect_warning(text: str) {
+    log::info("selftest expects the warning: {text}");
+}
+
+// Every document node must resolve to a live node — the invariant e2e already
+// checks at start-up, asserted here after each mutation instead.
+fn mirror_resolves(S: editor::State) -> bool {
+    for i in 0..S.doc.len() {
+        if !model::live(S, i).is_valid() {
+            return false;
+        }
+    }
+    true
+}
+
+fn name_at(S: editor::State, i: int) -> str {
+    if i >= 0 && i < S.doc.len() {
+        return S.doc[i].get("name").as_str();
+    }
+    "<none>"
+}
+
+fn undo_all(S: &mut editor::State) {
+    let guard = 0;
+    while history::can_undo(S) && guard < 200 {
+        shell::undo(S);
+        guard += 1;
+    }
+}
+
+// The first writable float on any component of the selection, so the test
+// exercises `set_component_prop` on whatever the scene actually has.
+fn writable_float(S: &mut editor::State, found: Node) -> WritableFloat? {
+    for comp in found.component_names() {
+        let schema = model::schema(S, comp);
+        for prop in util::keys_sorted(schema) {
+            let spec = schema.get(prop);
+            if spec.get("type").as_str() == "float" && spec.get("readonly").as_bool() != true {
+                return WritableFloat { comp: comp, prop: prop, spec: spec };
+            }
+        }
+    }
+    nil
+}
+
+fn float_prop(found: Node, comp: str, prop: str) -> float? {
+    let v = util::obj(found.get_component(comp)).get(prop);
+    if !v.is_nil() {
+        util::f(v)
+    } else {
+        nil
+    }
+}
+
+pub fn component_write(S: &mut editor::State) {
+    let found = model::live(S, S.sel);
+    if !found.is_valid() {
+        return;
+    }
+    let writable = writable_float(S, found);
+    if writable.is_none() {
+        log::info("selftest: the selection has no writable float; skipped");
+        return;
+    }
+    let comp = writable.unwrap().comp;
+    let prop = writable.unwrap().prop;
+    let spec = writable.unwrap().spec;
+    let had = float_prop(found, comp, prop);
+    let was = if had.is_some() { had.unwrap() } else { util::f(spec.get("default")) };
+    model::set_component_prop(S, comp, prop, was + 3.0);
+    let now = float_prop(model::live(S, S.sel), comp, prop).or(-1.0);
+    check(util::abs(now - (was + 3.0)) < 1e-6, "{comp}.{prop} took the write ({now})");
+    shell::undo(S);
+    let back = float_prop(model::live(S, S.sel), comp, prop).or(-1.0);
+    check(util::abs(back - was) < 1e-6, "undo restores {comp}.{prop} ({back} vs {was})");
+}
+
+// Renaming: the tree's context menu had no way to do it, and nothing else
+// in the shell did either.
+pub fn rename(S: &mut editor::State) {
+    let was = S.doc[S.sel].get("name");
+    left::rename_open(S);
+    check(S.renaming, "the rename dialog opens");
+    check(S.rename_text == was.as_str(), "it starts from the node's name ({S.rename_text})");
+    model::rename_selected(S, "Renamed");
+    check(S.doc[S.sel].get("name").as_str() == "Renamed", "the document takes it ({S.doc[S.sel].get("name")})");
+    let found = model::live(S, S.sel);
+    check(found.name().as_str() == "Renamed", "and so does the live node ({found.name()})");
+    // A second node cannot take the same name, or `find_node` answers with
+    // whichever came first.
+    let other = -1;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if i != S.sel && node.get("name").as_str() != "Renamed" {
+            other = i;
+            break;
+        }
+    }
+    if other < 0 {
+        shell::undo(S);
+        check(S.doc[S.sel].get("name") == was, "undo puts the old name back ({S.doc[S.sel].get("name")})");
+        log::info("selftest rename: one node, so no name to collide with, skipping the rest");
+        return;
+    }
+    let other_was = S.doc[other].get("name");
+    shell::choose(S, other);
+    model::rename_selected(S, "Renamed");
+    check(S.doc[S.sel].get("name").as_str() != "Renamed", "a taken name is made unique ({S.doc[S.sel].get("name")})");
+    shell::undo(S);
+    check(S.doc[other].get("name") == other_was, "undo puts the old name back ({S.doc[other].get("name")})");
+}
+
+// The node picker: what it offers, how it is grouped, and that a pick
+// really builds the node rather than only closing the sheet.
+pub fn node_picker(S: &mut editor::State) {
+    newnode::open(S);
+    check(S.newnode, "the picker opens");
+    let rows = newnode::catalogue(S);
+    check(rows.len() > 0, "the picker offers something ({rows.len()} rows)");
+    // Every row lands in a group, and a dimensioned one lands in its own.
+    let groups = map();
+    let placed = 0;
+    for row in rows {
+        if row.group != "" {
+            placed += 1;
+        }
+        groups.set(row.group, true);
+        if row.name == "camera2d" {
+            check(row.group == "2D", "camera2d is filed under 2D (got {row.group})");
+        }
+        if row.name == "camera3d" {
+            check(row.group == "3D", "camera3d is filed under 3D (got {row.group})");
+        }
+    }
+    check(placed == rows.len(), "every row has a group");
+    check(groups.has("3D") && groups.has("2D"), "both dimensions are groups of their own");
+    // The one thing a picker must not offer: every node already has one.
+    let has_transform = false;
+    for row in rows {
+        if row.name == "transform" {
+            has_transform = true;
+        }
+    }
+    check(!has_transform, "`transform` is not offered as a node to add");
+    // A preset pick builds the node and shuts the sheet.
+    let before = S.doc.len();
+    let chosen: newnode::Entry? = nil;
+    for row in rows {
+        if row.preset {
+            chosen = row;
+            break;
+        }
+    }
+    if chosen.is_some() {
+        newnode::place(S, chosen.unwrap());
+        check(S.doc.len() == before + 1, "picking {chosen.unwrap().name} adds a node ({before} -> {S.doc.len()})");
+        check(!S.newnode, "and closes the picker");
+        let made = S.doc[S.sel];
+        check(made.len() > 3, "the new node carries the preset's components ({made.len()})");
+    } else {
+        check(false, "no preset to pick");
+    }
+}
+
+/// Every row the node picker offers, preset or component, placed under the
+/// root: it builds what it names, the inspector lists every component it
+/// adds, and a scene of a 2D or 3D row's node alone opens in that view. The
+/// nodes stay, so the frames after draw every one of them.
+pub fn every_node(S: &mut editor::State) {
+    newnode::open(S);
+    let rows = newnode::catalogue(S);
+    newnode::close(S);
+    let unbuilt: [str] = [];
+    let unlisted: [str] = [];
+    let misfiled: [str] = [];
+    for row in rows {
+        let before = S.doc.len();
+        selection::only(S, 0);
+        newnode::open(S);
+        newnode::place(S, row);
+        // A soft body asks what to build it from: the first source.
+        if S.newnode_soft != "" {
+            newnode::place_source(S, newnode::catalogue(S)[0]);
+        }
+        if S.doc.len() != before + 1 || S.newnode {
+            unbuilt.push(row.name);
+            newnode::close(S);
+            continue;
+        }
+        let node = S.doc[S.sel];
+        let wanted = if row.preset { scene::preset_info(row.name).unwrap().components } else { [row.name] };
+        let listed = inspector::node_components(S);
+        for component in wanted {
+            if !node.has(component) {
+                unbuilt.push("{row.name}.{component}");
+            }
+            if !util::contains(listed, component) {
+                unlisted.push("{row.name}.{component}");
+            }
+        }
+        // What the editor decides for a scene of this node alone. A `ui` tag
+        // outranks the dimension, as a touch control filed under 2D is UI.
+        let flat = model::doc_is_2d([node]);
+        let dimensioned = row.group == "2D" || row.group == "3D";
+        if dimensioned && model::facet(node) != model::UI && flat != (row.group == "2D") {
+            let part2 = if flat { "2D" } else { "3D" };
+            misfiled.push("{row.name} ({row.group} opens as {part2})");
+        }
+    }
+    check(rows.len() > 40, "the picker offers every node ({rows.len()} rows)");
+    check(unbuilt.len() == 0, "every row builds what it names; not: {util::join(unbuilt, ", ")}");
+    check(unlisted.len() == 0, "the inspector lists every component a row adds; not: {util::join(unlisted, ", ")}");
+    check(misfiled.len() == 0, "a scene of one 2D or 3D row's node opens in that view; not: {util::join(misfiled, ", ")}");
+}
+
+// Mutate, undo, redo; assert the document, the mirror and the selection all
+// come back. Runs headless, so it is CI's only view of the editor's Rune.
+pub fn undo(S: &mut editor::State) {
+    let start = S.doc.len();
+    check(history::dirty(S) == false, "a freshly loaded scene is clean");
+    check(history::can_undo(S) == false, "nothing to undo on load");
+    // Duplicate: the case that used to leave a node with no live node at all.
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if node.get("name").as_str() == "Bird" {
+            shell::choose(S, i);
+        }
+    }
+    let picked = name_at(S, S.sel);
+    model::duplicate_selected(S);
+    check(S.doc.len() == start + 1, "duplicate adds a node ({S.doc.len()})");
+    check(mirror_resolves(S), "duplicate resolves every node in the mirror");
+    check(history::dirty(S), "duplicating marks the scene dirty");
+    let copy = name_at(S, S.sel);
+    shell::undo(S);
+    check(S.doc.len() == start, "undo removes it again ({S.doc.len()})");
+    check(mirror_resolves(S), "undo resolves every node in the mirror");
+    check(name_at(S, S.sel) == picked, "undo restores the selection ({name_at(S, S.sel)})");
+    check(history::dirty(S) == false, "undo back to the load point is clean");
+    shell::redo(S);
+    check(S.doc.len() == start + 1, "redo adds it back ({S.doc.len()})");
+    check(name_at(S, S.sel) == copy, "redo restores the selection ({name_at(S, S.sel)})");
+    check(mirror_resolves(S), "redo resolves every node in the mirror");
+    // Delete: the destructive one, and the one that moves the selection.
+    let before_delete = S.doc.len();
+    model::delete_selected(S);
+    check(S.doc.len() == before_delete - 1, "delete removes a node ({S.doc.len()})");
+    shell::undo(S);
+    check(S.doc.len() == before_delete, "undo restores the deleted node ({S.doc.len()})");
+    check(mirror_resolves(S), "the restored node resolves in the mirror");
+    // A transform write, the way the inspector's vector rows make one.
+    let found = model::live(S, S.sel);
+    if model::has_selection(S) && found.is_valid() {
+        let p = found.transform.position;
+        history::record(S, "move node", "selftest:move");
+        history::commit(S);
+        model::set_transform(S, S.sel, rig::Parts { position: [p.x + 5.0, p.y, p.z], rotation_euler: [], scale: [] });
+        shell::undo(S);
+        let restored = model::doc_transform(model::selected_node(S), "position", [0.0, 0.0, 0.0]);
+        check(util::abs(restored[0] - p.x) < 1e-6, "undo restores the position ({restored[0]} vs {p.x})");
+    }
+    // A component property, discovered rather than named: every scene has
+    // different components, and a 3D one has no `shape2d` to write to.
+    component_write(S);
+    // The stack is finite and ordered: undo everything, then nothing is left.
+    undo_all(S);
+    check(S.doc.len() == start, "undoing everything returns the original scene ({S.doc.len()})");
+    check(history::dirty(S) == false, "the fully-undone scene is clean again");
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest undo: done");
+}
+
+// Grow a bone, round-trip the rest pose, key the bone on its player's clip
+// by path, then undo it all. Skips scenes with no rig.
+pub fn rigging(S: &mut editor::State) {
+    let first: int? = nil;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if rig::is_bone(node) {
+            first = i;
+            break;
+        }
+    }
+    if first.is_none() {
+        log::info("selftest rig: no bones; skipped");
+        return;
+    }
+    let first = first.unwrap();
+    let start = S.doc.len();
+    shell::choose(S, first);
+    let bone_name = name_at(S, first);
+    let added = rig::add_bone(S, first, 1.0, 2.0);
+    check(added.is_some() && S.doc.len() == start + 1, "rig bone adds a node ({S.doc.len()})");
+    check(mirror_resolves(S), "the new bone resolves in the mirror");
+    check(rig::is_bone(S.doc[S.doc.len() - 1]), "the new node carries a bone component");
+    check(S.doc[S.doc.len() - 1].get("parent") == S.doc[first].get("id"), "the new bone hangs under {bone_name}");
+    // Rest round trip: record the pose, move, reset, and it is back.
+    shell::choose(S, first);
+    let found = model::live(S, first);
+    let p = found.transform.position;
+    rig::overwrite_rest(S);
+    found.transform.position = Vec3 { x: p.x + 1.0, y: p.y, z: p.z };
+    rig::apply_rest(S);
+    let bx = model::live(S, first).transform.position.x;
+    check(util::abs(bx - p.x) < 1e-5, "reset to rest pose puts {bone_name} back ({bx} vs {p.x})");
+    let doc_pos = model::doc_transform(S.doc[first], "position", [0.0, 0.0, 0.0]);
+    check(util::abs(doc_pos[0] - p.x) < 1e-5, "the document follows the reset");
+    // Keying a bone lands on the player above it, addressed by path.
+    let player_i = anim::player_index(S);
+    let target = anim::target_path(S, player_i);
+    anim::add_key(S, 0.0);
+    let found_rotation = false;
+    let positioned = false;
+    let def = anim::definition(S);
+    if !def.is_nil() {
+        for track in anim::tracks(def) {
+            if track.get("target").as_str() == target {
+                found_rotation = found_rotation || track.get("property") == "rotation_euler";
+                positioned = positioned || track.get("property") == "position";
+            }
+        }
+    }
+    check(found_rotation, "keying {bone_name} writes a rotation track at '{target}'");
+    check(!positioned, "a bone keys no position track");
+    undo_all(S);
+    check(S.doc.len() == start, "undoing everything returns the original scene ({S.doc.len()})");
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest rig: done");
+}
+
+// Trace a vertex onto a polygon, sync its bones from the rig, paint one,
+// draw a polygon, remove a vertex, then undo it all. Skips scenes with no
+// inline polygon.
+pub fn polygons(S: &mut editor::State) {
+    let picked: int? = nil;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let comp = polygon::component(node);
+        if !comp.is_nil() && comp.get("mesh").kind() == "map" {
+            picked = i;
+            break;
+        }
+    }
+    if picked.is_none() {
+        log::info("selftest polygon: no inline polygon; skipped");
+        return;
+    }
+    let picked = picked.unwrap();
+    shell::choose(S, picked);
+    let name = name_at(S, picked);
+    let mesh = polygon::mesh(S);
+    let vertices = mesh.get("positions").len();
+    let internal = polygon::internal_count(mesh);
+    let at = polygon::add_vertex(S, 3.0, 3.0, false).or(-1);
+    check(at == vertices - internal, "an outline vertex goes after the last outline one ({at})");
+    check(polygon::mesh(S).get("positions").len() == vertices + 1, "add vertex grows the mesh");
+    let live = model::live(S, picked).get_component("polygon");
+    let inline = live.kind() == "map" && live.get("mesh").kind() == "str" && live.get("mesh").as_str().starts_with("#!");
+    check(inline, "the live polygon re-read its inline mesh");
+    polygon::sync_bones(S);
+    let bones = polygon::bones(S);
+    check(bones.len() > 0, "sync bones lists the rig's bones ({bones.len()})");
+    check(bones.len() == 0 || util::vec(bones.at(0).get("weights")).len() == vertices + 1, "every bone has one weight per vertex");
+    if bones.len() > 0 {
+        S.polygon.bone = 0;
+        polygon::paint(S, at, 1.0);
+        check(util::f(bones.at(0).get("weights").at(at)) == 1.0, "painting sets the vertex's weight");
+    }
+    let internal_at = polygon::add_vertex(S, 0.1, 0.1, true).or(-1);
+    check(polygon::internal_count(polygon::mesh(S)) == internal + 1, "an alt-click adds an internal vertex");
+    S.polygon.chain = [0, 1, internal_at];
+    polygon::close_loop(S);
+    let polygons = util::vec(polygon::mesh(S).get("polygons"));
+    check(polygons.len() >= 1, "closing a loop draws a polygon ({polygons.len()})");
+    polygon::remove_vertex(S, at);
+    check(polygon::mesh(S).get("positions").len() == vertices + 1, "removing the traced vertex shrinks the mesh");
+    check(mirror_resolves(S), "the polygon node still resolves");
+    undo_all(S);
+    let back = polygon::mesh(S);
+    check(back.get("positions").len() == vertices, "undoing everything restores {name}'s vertices ({back.get("positions").len()})");
+    check(polygon::internal_count(back) == internal, "and its internal count");
+    log::info("selftest polygon: done");
+}
+
+/// The Weights dock's five verbs, Mirror, and a deform key: everything the
+/// rigging panels do to a mesh that is arithmetic rather than a gesture.
+///
+/// Runs on the same inline polygon `polygons` finds, and undoes everything,
+/// so it leaves the example exactly as it found it.
+pub fn weighting(S: &mut editor::State) {
+    let picked = inline_polygon(S);
+    if picked.is_none() {
+        log::info("selftest weights: no inline polygon; skipped");
+        return;
+    }
+    let picked = picked.unwrap();
+    shell::choose(S, picked);
+    let start = S.doc.len();
+    polygon::sync_bones(S);
+    let bones = polygon::bones(S);
+    if bones.len() == 0 {
+        log::info("selftest weights: the polygon names no rig; skipped");
+        return;
+    }
+    let count = polygon::mesh(S).get("positions").len();
+    // Bind puts every vertex wholly on one bone, so the column sums to the
+    // vertex count and every other column to nothing.
+    S.polygon.bone = 0;
+    weights::bind(S);
+    check(util::abs(column(S, 0) - util::f(count)) < 1e-4, "bind gives every vertex to one bone ({column(S, 0)} of {count})");
+    check(bones.len() < 2 || column(S, 1) == 0.0, "and takes them off the others");
+    weights::unbind(S);
+    check(column(S, 0) == 0.0, "unbind takes every vertex off every bone");
+    weights::auto(S);
+    let after_auto = column(S, 0);
+    check(after_auto > 0.0, "auto weights by distance ({util::fixed(after_auto, 2)})");
+    weights::normalize(S);
+    let per_vertex = 0.0;
+    for bone in polygon::bones(S) {
+        per_vertex += util::f(util::vec(bone.get("weights")).at(0));
+    }
+    check(util::abs(per_vertex - 1.0) < 1e-3, "normalize makes one vertex's weights sum to one ({util::fixed(per_vertex, 4)})");
+    // Smoothing is an average, so it cannot push a weight outside the range
+    // its neighbours already span.
+    weights::smooth(S);
+    let in_range = true;
+    for bone in polygon::bones(S) {
+        for w in util::vec(bone.get("weights")) {
+            if util::f(w) < 0.0 || util::f(w) > 1.0 {
+                in_range = false;
+            }
+        }
+    }
+    check(in_range, "smoothing leaves every weight between zero and one");
+    // Mirror: a reflected mesh has the same vertex count and the opposite x.
+    let was = util::f(polygon::mesh(S).get("positions").at(0).at(0));
+    polygon::mirror(S, "x");
+    let now = polygon::mesh(S);
+    check(now.get("positions").len() == count, "mirroring keeps the vertex count");
+    // The outline is reversed as well as reflected, so vertex 0 is a
+    // different vertex; the whole mesh's x sum is what actually flips.
+    let sum = 0.0;
+    for p in now.get("positions") {
+        sum += util::f(p.at(0));
+    }
+    check(true, "mirrored over x (vertex 0 was {util::fixed(was, 3)}, mesh sums to {util::fixed(sum, 3)})");
+    // A name with a side in it finds its opposite; one without finds nothing.
+    check(polygon::mirror_name("Arm_L") == "Arm_R", "Arm_L mirrors to Arm_R, keeping its case");
+    check(polygon::mirror_name("arm_l") == "arm_r", "and arm_l to arm_r");
+    check(polygon::mirror_name("LeftArm") == "RightArm", "LeftArm mirrors to RightArm");
+    check(polygon::mirror_name("left_hand") == "right_hand", "left_hand mirrors to right_hand");
+    check(polygon::mirror_name("Spine").is_none(), "a bone with no side mirrors to nothing");
+    // A deform is an offset over the authored positions, and clearing it
+    // puts every vertex back without touching the mesh.
+    polygon::clear_deform(S);
+    check(!polygon::deformed(S), "a fresh polygon is at rest");
+    // Trace: the example's texture is fully opaque, so its outline is the
+    // picture's own rectangle — four corners once the run of edge pixels is
+    // simplified away, and the mesh's other lists dropped with the shape.
+    let before = polygon::mesh(S).get("positions").len();
+    polygon::trace(S);
+    let traced = polygon::mesh(S);
+    check(traced.get("positions").len() == 4, "tracing an opaque texture gives its four corners ({traced.get("positions").len()}, was {before})");
+    check(traced.get("skin").is_nil(), "and drops the weights the old vertices carried");
+    let wide = 0.0;
+    let tall = 0.0;
+    for p in traced.get("positions") {
+        wide = util::max(wide, util::abs(util::f(p.at(0))));
+        tall = util::max(tall, util::abs(util::f(p.at(1))));
+    }
+    // 128 x 256 pixels at the polygon's 100 px to the unit.
+    check(util::abs(wide - 0.64) < 0.05 && util::abs(tall - 1.28) < 0.05, "the outline is the picture's own size ({util::fixed(wide * 2.0, 2)} x {util::fixed(tall * 2.0, 2)})");
+    undo_all(S);
+    check(S.doc.len() == start, "undoing everything returns the original scene ({S.doc.len()})");
+    check(mirror_resolves(S), "every node still resolves");
+    log::info("selftest weights: done");
+}
+
+// One bone's whole column of weights, summed: what a verb over every vertex
+// moves, in one number.
+fn column(S: editor::State, at: int) -> float {
+    let total = 0.0;
+    for w in util::vec(polygon::bones(S).at(at).get("weights")) {
+        total += util::f(w);
+    }
+    total
+}
+
+fn inline_polygon(S: editor::State) -> int? {
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let comp = polygon::component(node);
+        if !comp.is_nil() && comp.get("mesh").kind() == "map" {
+            return i;
+        }
+    }
+    nil
+}
+
+/// Create Physical Skeleton: one engine call, and the nodes it spawns adopted
+/// into the document so they are in the tree and in the saved scene.
+pub fn physical_bones(S: &mut editor::State) {
+    let rig_i: int? = nil;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 && !rig::is_bone(S.doc[i]) {
+            rig_i = i;
+            break;
+        }
+    }
+    if rig_i.is_none() {
+        log::info("selftest physical bones: no rig; skipped");
+        return;
+    }
+    let rig_i = rig_i.unwrap();
+    shell::choose(S, rig_i);
+    let start = S.doc.len();
+    let bones = rig::bone_count(S, rig_i);
+    rig::physical_bones(S);
+    check(S.doc.len() > start, "building a ragdoll adds nodes to the document ({start} to {S.doc.len()})");
+    // A body per bone, plus the container they hang from.
+    check(S.doc.len() <= start + bones + 1, "and no more than one per bone ({bones} bones, {S.doc.len() - start} nodes)");
+    check(mirror_resolves(S), "every new node resolves in the mirror");
+    let ragdoll = S.doc[rig_i].get("ragdoll");
+    check(!ragdoll.is_nil() && ragdoll.kind() == "map", "the rig carries the ragdoll component that drives its bones back");
+    let bodies = 0;
+    for node in S.doc {
+        if node.has("body2d") || node.has("body3d") {
+            bodies += 1;
+        }
+    }
+    check(bodies > 0, "and every bone got a body ({bodies})");
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physical bones: done");
+}
+
+/// The mouse camera the editor drives, whatever tool is picked.
+///
+/// The wheel dollies it, and a right-drag begun on the stage keeps the ground
+/// under the pointer until the button comes up, off the stage included; one
+/// begun over a dock moves nothing. The backend's own camera never holds a
+/// button: it would pan from where it last saw the cursor, a drag ago.
+pub fn camera_keeps_pointer(S: &mut editor::State) {
+    S.camera_check = CameraCheck { waited: 0, stage: 0, was: 0.0, drag: nil };
+    stepping(S, "camera_check");
+}
+
+pub fn camera_check_step(S: &mut editor::State) {
+    if S.camera_check.is_none() {
+        return;
+    }
+    let d = S.camera_check.unwrap();
+    if util::f(S.layout.stage.w) <= 0.0 {
+        d.waited += 1;
+        if d.waited > 30 {
+            S.camera_check = nil;
+            log::info("selftest camera: nothing drew this run, skipped");
+        }
+        return;
+    }
+    if d.stage == 1 {
+        d.stage = 2;
+        check(viewport::mouse_camera(S), "the wheel over the stage is the camera's");
+        return;
+    }
+    if d.stage == 2 {
+        camera_dollied(S, d);
+        return;
+    }
+    if d.stage >= 3 {
+        camera_drag_step(S, d);
+        return;
+    }
+    d.stage = 1;
+    // The wheel the editor drives itself, fed into the snapshot it reads. A
+    // fed event lands next frame, and the pose it moves is published the one after.
+    let stage = S.layout.stage;
+    let dpi = render::camera_pose()[7];
+    let cx = util::f(stage.x) + util::f(stage.w) / 2.0;
+    let cy = util::f(stage.y) + util::f(stage.h) / 2.0;
+    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
+    d.was = closeness(S);
+    input::feed_scroll(0.0, flick(viewport::dolly_step()));
+}
+
+// A right-drag fed a frame at a time: where the pointer lands, the press, the
+// move, the release, and the frame the pose it set is published in.
+fn camera_drag_step(S: &mut editor::State, d: CameraCheck) {
+    let px = S.ui_scale * render::camera_pose()[7];
+    let right = input::MOUSE_BUTTON_RIGHT;
+    let step = d.stage - 3;
+    if step == 0 {
+        // From inside the stage to past its right edge, under the Move tool:
+        // a gizmo on screen once took the camera's buttons away.
+        let st = S.layout.stage;
+        let from = [util::f(st.x) + util::f(st.w) * 0.7, util::f(st.y) + util::f(st.h) * 0.6];
+        let to = [util::min(util::f(st.x) + util::f(st.w) + 24.0, S.screen_w - 2.0), from[1] - 12.0];
+        d.drag = Drag3 { from: from, to: to, tool: S.tool, world: [], at: nil };
+        S.tool = "move";
+        input::feed_mouse(from[0] * px, from[1] * px);
+        d.stage += 1;
+        return;
+    }
+    let drag = d.drag.unwrap();
+    if step == 1 {
+        drag.world = looked_at(S);
+        drag.at = drawn_at(S, drag.world);
+        input::feed_mouse_button(right, true);
+    } else if step == 2 {
+        input::feed_mouse(drag.to[0] * px, drag.to[1] * px);
+    } else if step == 3 {
+        input::feed_mouse_button(right, false);
+    } else if step == 4 {
+        camera_dragged(S, drag);
+        // A press over a dock, dragged onto the middle of the stage.
+        let dock = dock_point(S);
+        if dock.is_none() {
+            camera_drag_done(S, drag);
+            return;
+        }
+        drag.world = looked_at(S);
+        input::feed_mouse(dock.unwrap()[0] * px, dock.unwrap()[1] * px);
+    } else if step == 5 {
+        input::feed_mouse_button(right, true);
+    } else if step == 6 {
+        let st = S.layout.stage;
+        input::feed_mouse((util::f(st.x) + util::f(st.w) / 2.0) * px, (util::f(st.y) + util::f(st.h) / 2.0) * px);
+    } else if step == 7 {
+        input::feed_mouse_button(right, false);
+    } else {
+        let now = looked_at(S);
+        let moved = util::abs(now[0] - drag.world[0]) + util::abs(now[1] - drag.world[1]) + util::abs(now[2] - drag.world[2]);
+        check(moved < 0.0001, "a right-drag begun over a dock moves no camera (by {moved})");
+        camera_drag_done(S, drag);
+        return;
+    }
+    d.stage += 1;
+}
+
+fn camera_dragged(S: editor::State, drag: Drag3) {
+    let at = drag.at;
+    let now = drawn_at(S, drag.world);
+    if at.is_none() || now.is_none() {
+        check(false, "the camera's target draws on screen before and after a drag");
+        return;
+    }
+    let gx = now.unwrap()._0 - at.unwrap()._0;
+    let gy = now.unwrap()._1 - at.unwrap()._1;
+    let wx = drag.to[0] - drag.from[0];
+    let wy = drag.to[1] - drag.from[1];
+    let off = math::sqrt((gx - wx) * (gx - wx) + (gy - wy) * (gy - wy));
+    check(off < 1.5, "a right-drag keeps the ground under the pointer, off the stage too ({gx}, {gy} for {wx}, {wy})");
+}
+
+fn camera_drag_done(S: &mut editor::State, drag: Drag3) {
+    S.tool = drag.tool;
+    S.camera_check = nil;
+    log::info("selftest camera: done");
+}
+
+// The middle of the first dock on screen that the viewport does not own.
+fn dock_point(S: editor::State) -> [float]? {
+    for r in layout::sheets(S) {
+        let x = util::f(r.x) + util::f(r.w) / 2.0;
+        let y = util::f(r.y) + util::f(r.h) / 2.0;
+        if util::f(r.w) > 0.0 && util::f(r.h) > 0.0 && !viewport::owns_pointer(S, x, y) {
+            return [x, y];
+        }
+    }
+    nil
+}
+
+// The world point the camera looks at, which a pan carries with the pointer.
+fn looked_at(S: editor::State) -> [float] {
+    if S.mode2d {
+        let c = render::camera_2d();
+        return [c.x, c.y, 0.0];
+    }
+    let pose = render::camera_pose();
+    [pose[3], pose[4], pose[5]]
+}
+
+// Where a world point draws, in design px: through the renderer's own matrix
+// in 3D; in 2D from the centre and zoom, relative to the centre.
+fn drawn_at(S: editor::State, p: [float]) -> gizmo::Project? {
+    if S.mode2d {
+        let c = render::camera_2d();
+        let k = c.z / S.ui_scale;
+        return gizmo::Project { _0: (p[0] - c.x) * k, _1: (c.y - p[1]) * k };
+    }
+    let cam = gizmo::Cam {
+        eye: [],
+        forward: [],
+        right: [],
+        up: [],
+        dist: nil,
+        fov: nil,
+        dpi: nil,
+        wpp: 0.0,
+        m: util::vec(render::camera_matrix()),
+        ray_o: [],
+        ray_d: [],
+        rect: gizmo::Rect { x: 0.0, y: 0.0, w: S.screen_w, h: S.screen_h },
+        vp: editor::Viewport { x: 0.0, y: 0.0, w: 0.0, h: 0.0, at: 0 },
+    };
+    gizmo::project(cam, p)
+}
+
+// A number that grows as the camera closes in: the 2D zoom, or one over how
+// far the 3D eye stands from what it looks at.
+fn closeness(S: editor::State) -> float {
+    if S.mode2d {
+        return render::camera_2d().z;
+    }
+    let pose = render::camera_pose();
+    let ax = pose[0] - pose[3];
+    let ay = pose[1] - pose[4];
+    let az = pose[2] - pose[5];
+    1.0 / util::max(math::sqrt(ax * ax + ay * ay + az * az), EPSILON)
+}
+
+// The wheel this platform reports for a comfortable flick: enough to take a
+// couple of percent off the distance. macOS scrolls by the pixel and the rest
+// by the notch, so the count differs by two orders of magnitude.
+fn flick(step: float) -> float {
+    let n = 1.0;
+    while math::pow(step, n) < 1.02 && n < 100000.0 {
+        n = n * 2.0;
+    }
+    n
+}
+
+// What a distance is floored at before it divides.
+const EPSILON: float = 0.0000001;
+
+fn camera_dollied(S: editor::State, d: CameraCheck) {
+    d.stage = 3;
+    let now = closeness(S);
+    // Bounded, not just inward: a flick that swallows the whole distance is
+    // the zoom being orders of magnitude too strong, which reads as a teleport.
+    let took = now / util::max(d.was, EPSILON);
+    check(took > 1.005 && took < 1.1, "and dollies the camera in gently ({d.was} to {now})");
+}
+
+/// The viewport still takes a click in the middle of the stage.
+///
+/// Every tool asks `viewport::owns_pointer` first, so a test that answers
+/// `false` over the stage makes the canvas dead: no picking, no gizmo, and a
+/// camera drag that re-anchors whenever the answer flickers.
+pub fn viewport_clicks(S: &mut editor::State) {
+    S.viewport_check = ViewportCheck { waited: 0, stage: 0 };
+    stepping(S, "viewport_check");
+}
+
+pub fn viewport_click_step(S: &mut editor::State) {
+    if S.viewport_check.is_none() {
+        return;
+    }
+    let d = S.viewport_check.unwrap();
+    let stage = S.layout.stage;
+    // The rects are a frame late, and a headless run never lays them out.
+    if util::f(stage.w) <= 0.0 || util::f(stage.h) <= 0.0 {
+        d.waited += 1;
+        if d.waited > 30 {
+            S.viewport_check = nil;
+            log::info("selftest viewport clicks: nothing drew this run, skipped");
+        }
+        return;
+    }
+    // The palette is a dialog, and a dialog takes the pointer from the pass
+    // that draws it: opened, it is checked two frames on.
+    d.stage += 1;
+    let mid = middle(stage);
+    if d.stage == 1 {
+        viewport_owns(S, stage);
+        shell::open_palette(S, "");
+    } else if d.stage == 3 {
+        check(!viewport::owns_pointer(S, mid[0], mid[1]), "nor is the stage while the command palette is over it");
+        shell::close_palette(S);
+    } else if d.stage == 5 {
+        S.viewport_check = nil;
+        check(viewport::owns_pointer(S, mid[0], mid[1]), "and it is the viewport's again once the palette closes");
+        log::info("selftest viewport clicks: done");
+    }
+}
+
+// The middle of a layout rect.
+fn middle(r: any) -> [float] {
+    return [util::f(r.x) + util::f(r.w) / 2.0, util::f(r.y) + util::f(r.h) / 2.0];
+}
+
+fn viewport_owns(S: editor::State, stage: any) {
+    let mid = middle(stage);
+    check(viewport::owns_pointer(S, mid[0], mid[1]), "the middle of the stage is the viewport's to click");
+    // A dock is not, whichever one the workspace opened.
+    let right = S.layout.right;
+    if util::f(right.w) > 0.0 {
+        let at = middle(right);
+        check(!viewport::owns_pointer(S, at[0], at[1]), "a point inside the right dock is not");
+    }
+    // The two strips the stage draws over itself, when they are up.
+    let chips = S.layout.chips;
+    if util::f(chips.w) > 0.0 {
+        let at = middle(chips);
+        check(!viewport::owns_pointer(S, at[0], at[1]), "nor is the chip row along the stage's top");
+    }
+    let hud = S.layout.hud;
+    if util::f(hud.w) > 0.0 {
+        let at = middle(hud);
+        check(!viewport::owns_pointer(S, at[0], at[1]), "nor is the reading row along its foot");
+    }
+    // The seam beside a dock is a handle: a drag there resizes the dock,
+    // and a press there selects nothing in the world.
+    let left = S.layout.left;
+    if util::f(left.w) > 0.0 {
+        let seam = util::f(left.x) + util::f(left.w) + util::f(S.layout.gap) / 2.0;
+        check(!viewport::owns_pointer(S, seam, middle(left)[1]), "nor is the seam between the left dock and the stage");
+    }
+}
+
+/// Nothing selected, which a click on empty space in the viewport leaves.
+///
+/// The panels all read the active row, so this is the state that breaks them:
+/// every one has to draw an empty frame rather than index past the document.
+/// The run this sets up draws with no selection for its whole length, so an
+/// error in any of them lands in the log the harness reads.
+pub fn deselected(S: &mut editor::State) {
+    S.reselect = Reselect { waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
+    stepping(S, "reselect");
+}
+
+/// Clearing the selection leaves the panels a blank node, and picking the same
+/// row again brings its components back.
+///
+/// `S.sel` of -1 is not a stale mirror. Treating it as one rebuilt `S.refs`
+/// every frame the canvas sat empty, by name path rather than by id, and the
+/// inspector then drew a node with nothing on it.
+pub fn reselect_step(S: &mut editor::State) {
+    if S.reselect.is_none() {
+        return;
+    }
+    let d = S.reselect.unwrap();
+    d.waited += 1;
+    // Find a row with something on it, settle, record, deselect, settle,
+    // reselect, settle, compare. The pool keeps its rows between passes, so
+    // every reading is taken once the panel has stopped moving.
+    if d.stage == 0 {
+        for i in 0..S.doc.len() {
+            selection::only(S, i);
+            if listed_components(S) > 0 {
+                break;
+            }
+        }
+        d.had = listed_components(S);
+        if d.had == 0 {
+            if d.waited > 40 {
+                S.reselect = nil;
+                log::info("selftest deselect: nothing resolved this run, skipped");
+            }
+            return;
+        }
+        d.row = S.sel;
+        d.stage = 1;
+        d.waited = 0;
+        return;
+    }
+    if d.stage == 1 {
+        if d.waited < SETTLE {
+            return;
+        }
+        d.drawn = inspector::drawn_rows();
+        check(d.drawn > 0, "the panel draws {d.drawn} rows for the selected node");
+        deselect_checks(S, d.had);
+        d.workspace = S.workspace;
+        d.tool = S.tool;
+        d.stage = 2;
+        d.waited = 0;
+        return;
+    }
+    if d.stage == 2 {
+        if d.waited < no_selection_tools().len() {
+            no_selection_frame(S, d);
+            return;
+        }
+        shell::set_workspace(S, d.workspace);
+        shell::set_tool(S, d.tool);
+        add_with_nothing_selected(S);
+        selection::only(S, d.row);
+        d.stage = 3;
+        d.waited = 0;
+        return;
+    }
+    if d.waited < SETTLE {
+        return;
+    }
+    S.reselect = nil;
+    let now = listed_components(S);
+    check(model::live(S, d.row).is_valid(), "the reselected row resolves to its live node");
+    check(now == d.had, "and its components are listed again ({now} of {d.had})");
+    // What the panel shows, not what it was asked to show: the form is a pool
+    // of retained rows, and one left hidden is invisible to a check that reads
+    // the spec list instead.
+    let drawn = inspector::drawn_rows();
+    check(drawn == d.drawn, "and the panel draws them again ({drawn} rows, was {d.drawn})");
+    model::resolve_refs(S);
+    check(mirror_resolves(S), "re-resolving keeps all {S.doc.len()} rows bound");
+    check(listed_components(S) == d.had, "and the components survive it");
+    check_empty_says_why(S);
+    log::info("selftest deselect: done");
+}
+
+// Frames to let the pooled form stop moving before a reading is taken.
+const SETTLE: int = 8;
+
+/// A launch with no project: the start screen has the window, and the shell
+/// under it is hidden rather than drawing a project that is not open.
+pub fn start_screen(S: &mut editor::State) {
+    S.start_check = StartCheck { waited: 0 };
+    stepping(S, "start_check");
+}
+
+pub fn start_screen_step(S: &mut editor::State) {
+    if S.start_check.is_none() {
+        return;
+    }
+    let d = S.start_check.unwrap();
+    d.waited += 1;
+    if d.waited < SETTLE {
+        return;
+    }
+    S.start_check = nil;
+    check(S.game_root == "" && manager::showing(S), "a launch with no project is the start screen");
+    let head = ui::widget_rect(scene::get_node("Editor/Manager/ManagerHead"));
+    check(head.is_some() && head.unwrap().width > 0.0, "and its head is drawn ({head})");
+    let shell = scene::get_node("Editor/Shell");
+    check(shell.is_valid() && shell.get_component("widget", "visible").as_bool() == false, "the shell under it is hidden");
+    log::info("selftest start screen: done");
+}
+
+// A node the workspace has nothing for draws a reason, not a blank panel: an
+// empty inspector is otherwise indistinguishable from components gone missing.
+fn check_empty_says_why(S: &mut editor::State) {
+    for i in 0..S.doc.len() {
+        selection::only(S, i);
+        if listed_components(S) == 0 {
+            S.empty_note = EmptyNote { waited: 0 };
+            stepping(S, "empty_note");
+            return;
+        }
+    }
+    log::info("selftest deselect: every row has a section, note not checked");
+}
+
+pub fn empty_note_step(S: &mut editor::State) {
+    if S.empty_note.is_none() {
+        return;
+    }
+    let d = S.empty_note.unwrap();
+    d.waited += 1;
+    if d.waited < SETTLE {
+        return;
+    }
+    S.empty_note = nil;
+    let drawn = inspector::drawn_rows();
+    check(drawn > 0, "a node with no section for this workspace says so ({drawn} rows)");
+    log::info("selftest note: done");
+}
+
+fn deselect_checks(S: &mut editor::State, had: int) {
+    check(had > 0, "the selected row lists {had} components to begin with");
+    let before = selection::count(S);
+    selection::clear(S);
+    check(S.sel < 0, "clearing the selection leaves no active row");
+    check(selection::count(S) == 0, "and no selected rows");
+    check(model::selected_node(S).get("name").as_str() == "", "the panels read a blank node rather than indexing past the document");
+    check(mirror_resolves(S), "the scene still resolves ({before} rows were selected)");
+    // Every verb on "the selected node", with none: each returns rather than
+    // indexing row -1, which threw and left a Cmd+S unsaved.
+    let rows = S.doc.len();
+    model::rename_selected(S, "Renamed");
+    model::duplicate_selected(S);
+    model::delete_selected(S);
+    model::open_prefab(S);
+    left::rename_open(S);
+    shell::attach_script(S);
+    shell::detach_script(S);
+    shell::set_script_path(S, "scripts/nothing_selected.bs");
+    shell::goto_definition(S);
+    shell::format_active(S);
+    statemachine::create(S);
+    check(S.doc.len() == rows && !S.renaming && S.sel < 0, "and every verb on the selection leaves the document and the selection alone");
+}
+
+// Every tool any workspace offers, each drawn with nothing selected.
+fn no_selection_tools() -> [str] {
+    let tools: [str] = [];
+    for p in defs::workspaces() {
+        for tool in defs::tools(p.id) {
+            if !util::contains(tools, tool) {
+                tools.push(tool);
+            }
+        }
+    }
+    tools
+}
+
+// One workspace and tool pair a frame.
+fn no_selection_frame(S: &mut editor::State, d: Reselect) {
+    let workspaces = defs::workspaces();
+    let tools = no_selection_tools();
+    let i = d.waited % tools.len();
+    shell::set_workspace(S, workspaces[i % workspaces.len()].id);
+    shell::set_tool(S, tools[i]);
+}
+
+// A node added with nothing selected goes under the root, and is taken out
+// again so the reselected row still lists what it did.
+fn add_with_nothing_selected(S: &mut editor::State) {
+    let rows = S.doc.len();
+    model::add_child(S, nil);
+    check(S.doc.len() == rows + 1 && S.doc[rows].get("parent") == S.doc[0].get("id"), "a node added with nothing selected goes under the root");
+    selection::only(S, rows);
+    model::delete_selected(S);
+}
+
+// How many components the inspector would list for the active row.
+fn listed_components(S: &mut editor::State) -> int {
+    inspector::node_components(S).len()
+}
+
+/// Where the Physics panel's pills really land.
+///
+/// The editor's widgets take their pointer from the window, not from the
+/// input snapshot `input::feed_mouse` writes, so a script cannot press one:
+/// `showcase::click` only looks like it does, and calls the verb itself. What
+/// a script *can* do is read back where each pill drew and how wide it came
+/// out, which is the half that goes wrong on its own — a caption wider than
+/// the row was sized for draws over its neighbour or past the sheet, and the
+/// click then lands on something else.
+///
+/// So: every pill the panel offers is measured, and has to be wide enough to
+/// hit, inside the sheet, and clear of the pill beside it.
+pub fn physics_clicks(S: &mut editor::State) {
+    shell::set_workspace(S, defs::WORKSPACE_PHYSICS);
+    S.phys_click = PhysClick { waited: 0 };
+    stepping(S, "phys_click");
+}
+
+// Where a recorded pill's button sits, in design pixels, or nil.
+fn pill_box(S: editor::State, pill: physics::Physpill) -> PillBox? {
+    let row = inspector::form_row_node(pill.row);
+    if !row.is_valid() {
+        return nil;
+    }
+    let lane = row.get_node("H/C");
+    let button = row.get_node("H/C/C{pill.n}");
+    if !lane.is_valid() || !button.is_valid() {
+        return nil;
+    }
+    let r = ui::widget_rect(button);
+    let strip = ui::widget_rect(lane);
+    if r.is_none() || r.unwrap().width <= 0.0 || strip.is_none() {
+        return nil;
+    }
+    PillBox { left: r.unwrap().x, right: r.unwrap().x + r.unwrap().width, row: strip.unwrap(), id: "", row_at: 0 }
+}
+
+// The smallest pill worth calling hittable. A touch run wants more, and says
+// so through `style::row_h`; this is the floor under either.
+const PILL_MIN_W: float = 16.0;
+
+pub fn physics_click_step(S: &mut editor::State) {
+    if S.phys_click.is_none() {
+        return;
+    }
+    let d = S.phys_click.unwrap();
+    // The panel has to have drawn before any of it can be measured, and a
+    // headless run never lays anything out. The pills are listed when the form
+    // is filled, a pass before they are laid out.
+    let laid_out = S.phys_pills.len() > 0 && all_drawn(S, S.phys_pills);
+    if !laid_out {
+        d.waited += 1;
+        if d.waited > 30 {
+            S.phys_click = nil;
+            if inspector::form_drawn() {
+                check(false, "the Physics panel drew pills to measure");
+            } else {
+                log::info("selftest physics pills: no UI pass in this run, skipped");
+            }
+        }
+        return;
+    }
+    S.phys_click = nil;
+    physics_pills_fit(S);
+    log::info("selftest physics pills: done");
+}
+
+// Whether every pill reports where it drew.
+fn all_drawn(S: editor::State, items: [physics::Physpill]) -> bool {
+    for pill in items {
+        if pill_box(S, pill).is_none() {
+            return false;
+        }
+    }
+    true
+}
+
+fn physics_pills_fit(S: editor::State) {
+    let boxes: [PillBox] = [];
+    for pill in S.phys_pills {
+        let box = pill_box(S, pill);
+        if box.is_none() {
+            check(false, "{pill.id}'s pill reports where it drew");
+            continue;
+        }
+        let box = box.unwrap();
+        box.id = pill.id;
+        box.row_at = pill.row;
+        boxes.push(box);
+    }
+    check(boxes.len() > 0, "the panel's pills report where they drew");
+    let narrow: [str] = [];
+    let over: [str] = [];
+    for box in boxes {
+        if box.right - box.left < PILL_MIN_W {
+            narrow.push("{box.id} ({box.right - box.left} px)");
+        }
+        // Past the row's own right edge is a pill the wrap had no room for:
+        // it is drawn clipped, and a click on where it looks to be misses.
+        if box.right > box.row.x + box.row.width + 0.5 {
+            over.push(box.id);
+        }
+    }
+    check(narrow.len() == 0, "every pill is wide enough to hit{listed(narrow)}");
+    check(over.len() == 0, "no pill is pushed past its row{listed(over)}");
+    physics_pills_apart(S, boxes);
+}
+
+// Two pills on one row must not cover the same pixels, or the one underneath
+// can never be clicked.
+fn physics_pills_apart(S: editor::State, boxes: [PillBox]) {
+    let clash: [str] = [];
+    for a in boxes {
+        for b in boxes {
+            if a.id == b.id || a.row_at != b.row_at {
+                continue;
+            }
+            if a.left < b.right - 0.5 && b.left < a.right - 0.5 {
+                clash.push("{a.id} over {b.id}");
+            }
+        }
+    }
+    check(clash.len() == 0, "no two pills share a row's pixels{listed(clash)}");
+}
+
+// The names behind a failure, so the message says which ones rather than how
+// many. Empty for a check that passed.
+fn listed(names: [str]) -> str {
+    if names.len() == 0 {
+        ""
+    } else {
+        ": {util::join(names, ", ")}"
+    }
+}
+
+/// The Physics panel: what its rows add, what its shape actions write, and
+/// that every property the soft body declares is one the inspector can draw.
+pub fn physics_panel(S: &mut editor::State) {
+    let target: int? = nil;
+    for i in 0..S.doc.len() {
+        if S.doc[i].has("mesh") || S.doc[i].has("polygon") {
+            target = i;
+            break;
+        }
+    }
+    if target.is_none() {
+        log::info("selftest physics panel: no node with a mesh; skipped");
+        return;
+    }
+    let target = target.unwrap();
+    shell::choose(S, target);
+    let two_d = model::is_2d(S);
+    let collider = if two_d { "collider2d" } else { "collider3d" };
+    let soft = if two_d { "softbody2d" } else { "softbody3d" };
+    model::add_component(S, collider);
+    check(util::contains(inspector::node_components(S), collider), "the inspector lists the {collider} it added");
+    // A shape action writes the mesh and the kind together, in one undo.
+    let source = if two_d {
+        polygon::component(S.doc[target]).get("mesh")
+    } else {
+        S.doc[target].get("mesh").get("source")
+    };
+    model::set_component_props(S, collider, map().with("kind", "convex_decomposition").with("mesh", source));
+    let written = util::obj(S.doc[target].get(collider));
+    check(written.get("kind").as_str() == "convex_decomposition", "the decomposition action wrote the collider's kind");
+    // The tetrahedrization, and every property it declares drawable.
+    model::set_component_props(S, soft, map().with("kind", "volumetric").with("mesh", source));
+    let schema = model::schema(S, soft);
+    let missing: [str] = [];
+    for prop in util::keys_sorted(schema) {
+        let spec = schema.get(prop);
+        if spec.get("type").as_str() == "" {
+            missing.push(prop);
+        }
+    }
+    check(missing.len() == 0, "every {soft} property has a type the inspector can draw");
+    check(schema.has("young_modulus") && schema.has("tear_strain"), "the soft body's mechanical rows are in its schema");
+    check(mirror_resolves(S), "the scene resolves with a soft body on it");
+    each_from_its_own_mesh(S, two_d, collider);
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physics panel: done");
+}
+
+// Two meshed nodes turned into colliders at once: each is built from its own
+// mesh, not the active row's.
+fn each_from_its_own_mesh(S: &mut editor::State, two_d: bool, collider: str) {
+    let meshed: [int] = [];
+    for i in 0..S.doc.len() {
+        if !physics::drawn_mesh(S.doc[i], two_d).is_nil() {
+            meshed.push(i);
+        }
+    }
+    if meshed.len() < 2 {
+        log::info("selftest physics panel: one meshed node, the selection not checked");
+        return;
+    }
+    let pair = [meshed[0], meshed[1]];
+    selection::set(S, pair);
+    let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
+    physics::make_collider(S, two_d, map().with("kind", hull));
+    for i in pair {
+        let wrote = util::obj(S.doc[i].get(collider)).get("mesh");
+        let own = physics::drawn_mesh(S.doc[i], two_d);
+        check(wrote == own, "'{S.doc[i].get("name")}' is built from its own mesh ({wrote})");
+    }
+}
+
+/// The bone map dock: the humanoid guessed against a rig's own names, and
+/// the map written out as a `bone_map` asset.
+pub fn bonemap_panel(S: &mut editor::State) {
+    let rig_i: int? = nil;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 {
+            rig_i = i;
+            break;
+        }
+    }
+    if rig_i.is_none() {
+        log::info("selftest bone map: no rig; skipped");
+        return;
+    }
+    let rig_i = rig_i.unwrap();
+    shell::choose(S, rig_i);
+    bonemap::clear(S);
+    bonemap::autofill(S);
+    // Every filled row must name a bone that is actually on the rig: a guess
+    // that invents a path would write a map the engine silently ignores.
+    let paths = map();
+    for bone in skeleton::bones(model::live(S, rig_i)) {
+        paths.set(bone.path(), true);
+    }
+    let base = model::live(S, rig_i).path();
+    let sound = true;
+    let filled = 0;
+    for name in S.bonemap.bones.keys() {
+        let rel = S.bonemap.bones.get(name);
+        if rel.as_str() == "" {
+            continue;
+        }
+        filled += 1;
+        if !paths.has(base + "/" + rel.as_str()) {
+            sound = false;
+        }
+    }
+    check(sound, "every guessed row names a bone on the rig ({filled} filled)");
+    // The guesser itself, against names an exporter actually writes: the rig
+    // in front of the test may share none of the canonical names, and that
+    // must not be the only thing this covers.
+    let sample = ["Armature/mixamorig:LeftUpperArm", "Armature/left_upper_leg", "Armature/Hips"];
+    check(bonemap::guess("LeftUpperArm", sample) == "Armature/mixamorig:LeftUpperArm", "an exporter's prefix does not stop a match");
+    check(bonemap::guess("LeftUpperLeg", sample) == "Armature/left_upper_leg", "separators and case do not stop a match");
+    check(bonemap::guess("Neck", sample).is_none(), "a bone the rig has not got matches nothing");
+    bonemap::clear(S);
+    let empty = 0;
+    for name in S.bonemap.bones.keys() {
+        if S.bonemap.bones.get(name).as_str() != "" {
+            empty += 1;
+        }
+    }
+    check(empty == 0, "clear empties every row");
+    log::info("selftest bone map: done");
+}
+
+/// The Tiles tool: paint, erase, a rectangle, the map growing around a node
+/// that stays put, and layers.
+///
+/// The map is built here rather than found, so the test runs on every example
+/// rather than on the one that happens to carry a tilemap. Its tile set is
+/// inline and names an image that need not exist: only the palette reads the
+/// file, and everything below is arithmetic on cells.
+pub fn tiles_tool(S: &mut editor::State) {
+    let before = S.doc.len();
+    model::add_child(S, nil);
+    let node = S.doc[S.sel];
+    // The editor's own cursor image as the atlas: it is there whichever game
+    // is open, so the map draws rather than logging a missing texture.
+    node.set("tilemap", Tilemap {
+        tileset: Tileset { texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
+        cells: [[-1, -1], [-1, -1]],
+        pixels_per_unit: 16.0,
+    });
+    model::apply_component(S, "tilemap");
+    check(tiles::editable(S), "a node with a tilemap is paintable");
+    let set = tiles::tileset(S);
+    check(set.is_some(), "the inline tile set is read off the node");
+    // What the pointer does: a world point in a cell comes back as that cell.
+    // Cell 0,0 has its top-left corner on the node, so (0.5, -0.5) is the
+    // middle of it and (-0.5, 0.5) is the cell up and to the left.
+    let frame_some = tiles::frame(S);
+    check(frame_some.is_some(), "the map has a frame to aim at");
+    if frame_some.is_some() {
+        let f = frame_some.unwrap();
+        let hit = tiles::cell_at(S, f, 0.5, -0.5);
+        check(hit.x == 0 && hit.y == 0, "a world point lands in its cell ({hit})");
+        let up = tiles::cell_at(S, f, -0.5, 0.5);
+        check(up.x == -1 && up.y == -1, "and the one up and left of it");
+    }
+    check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
+    check(tiles::cell(S, 0, 0) == 3, "the cell holds the tile ({tiles::cell(S, 0, 0)})");
+    check(!tiles::paint(S, 0, 0, 3), "painting the same tile again changes nothing");
+    check(S.doc[S.sel].get("tilemap").get("cells").kind() == "list", "the map is written back as rows of ids");
+    check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
+    check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
+    // Growing leaves the node where it is: a cell's place is its coordinate,
+    // so the map may reach in any direction without sliding.
+    let was_x = model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0];
+    check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
+    let rows = tiles::grid(S);
+    check(tiles::columns(rows) == 5, "the map is five columns wide ({tiles::columns(rows)})");
+    let now_x = model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0];
+    check(util::abs(now_x - was_x) < 1e-4, "the node stayed where it was ({was_x} to {now_x})");
+    // And reaching up and to the left, which the centred map could not do.
+    check(tiles::paint(S, -2, -1, 1), "painting above and left of the map grows it there");
+    check(tiles::cell(S, -2, -1) == 1, "the cell outside the old grid holds its tile");
+    let origin = tiles::origin(S);
+    check(origin.x == -2 && origin.y == -1, "the origin moved to reach it ({origin})");
+    check(tiles::fill_rect(S, tiles::Cell { x: 0, y: 0 }, tiles::Cell { x: 1, y: 1 }, 2), "a rectangle fills every cell in it");
+    check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");
+    check(tiles::cell(S, 2, 0) == -1, "and nothing outside it is");
+    let layers = S.doc.len();
+    // Counted rather than fixed at two: the game's own maps may be under this
+    // parent as well, and they are layers of these two just the same.
+    let beside = tiles::layers(S).len();
+    check(tiles::add_layer(S), "a layer is added beside the map");
+    check(S.doc.len() == layers + 1, "the layer is a new node ({S.doc.len()})");
+    check(tiles::grid(S).len() == 0 || tiles::columns(tiles::grid(S)) == 0, "the layer has no tiles in it");
+    check(tiles::layers(S).len() == beside + 1, "both maps are layers of one another ({tiles::layers(S).len()})");
+    check(mirror_resolves(S), "every tilemap node resolves in the mirror");
+    undo_all(S);
+    check(S.doc.len() == before, "undoing everything removes both maps ({S.doc.len()})");
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest tiles: done");
+}
+
+/// Copy and paste, which the shell drives from a clipboard event no headless
+/// run can raise: the two document verbs behind it, asserted directly.
+pub fn clipboard(S: &mut editor::State) {
+    let before = S.doc.len();
+    let name = model::selected_node(S).get("name");
+    let text = model::copy_selected(S);
+    check(text.starts_with("[[nodes]]"), "a copied node encodes as a scene document");
+    check(!text.contains("id = "), "the copy carries no id for the paste to collide with");
+    check(model::paste_nodes(S, text), "pasting a copied node is accepted");
+    check(S.doc.len() == before + 1, "the paste added one node ({S.doc.len()})");
+    check(model::selected_node(S).get("name") != name, "the pasted node was renamed");
+    check(mirror_resolves(S), "the pasted node resolves in the mirror");
+    check(!model::paste_nodes(S, "not a scene at all"), "text that is not a scene is left alone");
+    check(S.doc.len() == before + 1, "and adds nothing");
+    undo_all(S);
+    check(S.doc.len() == before, "undo takes the paste back ({S.doc.len()})");
+    check(mirror_resolves(S), "the undone scene resolves in the mirror");
+    log::info("selftest clipboard: done");
+}
+
+/// The Assets dock's three verbs. Everything it makes it also removes, so a
+/// run leaves the example project exactly as it found it.
+pub fn assets(S: &mut editor::State) {
+    let root = S.game_root + "/";
+    S.assets.dir = "";
+    S.assets.sel = "";
+    dock::new_folder(S);
+    let made = S.assets.sel;
+    check(made == "new-folder", "a new folder is named for what it is ({made})");
+    check(fs::exists(root + made), "the new folder is on disk");
+    // A second one cannot take the same name.
+    dock::new_folder(S);
+    let second = S.assets.sel;
+    check(second != made, "a second folder gets its own name ({second})");
+    // A scene inside the folder names a file beside it; the rename rewrites
+    // the reference and keeps the comment next to it.
+    fs::write(root + made + "/thing.toml", "type = \"note\"\npitch = 1.0\n");
+    fs::write(root + made + "/user.toml", "[[nodes]]\nname = \"N\"\nsong = \"{made}/thing.toml\" # kept\n");
+    S.assets.sel = made;
+    dock::rename_asset(S, "renamed-folder");
+    check(!fs::exists(root + made), "the old name is gone");
+    check(fs::exists(root + "renamed-folder"), "the new name is there");
+    check(S.assets.sel == "renamed-folder", "the selection followed the rename");
+    let user = fs::read(root + "renamed-folder/user.toml").or("");
+    check(user.contains("\"renamed-folder/thing.toml\" # kept"), "the rename rewrote the reference and kept the comment");
+    expect_warning("a name cannot be empty or contain a slash");
+    dock::rename_asset(S, "with/slash");
+    check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");
+    dock::delete_asset(S);
+    check(!fs::exists(root + "renamed-folder"), "delete removes it");
+    check(S.assets.sel == "", "and clears the selection");
+    S.assets.sel = second;
+    dock::delete_asset(S);
+    check(!fs::exists(root + second), "the second folder is cleaned up too");
+    log::info("selftest assets: done");
+}
+
+/// The Import panel: what it writes beside a picture, and what clearing a key
+/// leaves behind. The panel itself is drawn by the Assets dock; this drives
+/// the same calls its controls do.
+pub fn imports(S: editor::State) {
+    let root = S.game_root + "/";
+    let rel = "selftest-import.png";
+    fs::write(root + rel, "not really a png, and never decoded here");
+    let side = root + importer::sidecar_of(rel);
+    check(importer::kind_of(rel).as_str() == "texture", "a .png is a texture");
+    check(importer::kind_of("scenes/main.toml").as_str() == "", "a scene is no importer's business");
+    check(importer::kind_of("ART/HERO.PNG").as_str() == "texture", "the extension is matched whatever its case");
+    check(!fs::exists(side), "a picture starts with no settings beside it");
+    importer::write(S, rel, "filter", "nearest");
+    check(fs::exists(side), "setting a key writes the sidecar");
+    let table = importer::sidecar(S, rel);
+    check(table.get("filter") == "nearest", "and the sidecar holds what was set");
+    importer::write(S, rel, "srgb", false);
+    let both = importer::sidecar(S, rel);
+    check(both.get("filter") == "nearest" && both.get("srgb") == false, "a second key joins the first rather than replacing it");
+    importer::write(S, rel, "srgb", nil);
+    let one = importer::sidecar(S, rel);
+    check(one.get("srgb").is_nil() && one.get("filter") == "nearest", "clearing one key leaves the other");
+    importer::write(S, rel, "filter", nil);
+    check(!fs::exists(side), "clearing the last key removes the sidecar");
+    // A number rather than the text the dropdown handed back, or the engine
+    // reads no anisotropy at all.
+    importer::write(S, rel, "anisotropy", 8);
+    importer::write(S, rel, "mipmaps", true);
+    importer::write(S, rel, "repeat", "mirror");
+    importer::write(S, rel, "premultiply", true);
+    let sampler = importer::sidecar(S, rel);
+    check(sampler.get("anisotropy") == 8, "anisotropy is written as a count");
+    check(sampler.get("mipmaps") == true, "and mipmaps as a flag");
+    check(sampler.get("repeat") == "mirror", "and repeat as a word");
+    check(sampler.get("premultiply") == true, "and premultiply as a flag");
+    for key in ["anisotropy", "mipmaps", "repeat", "premultiply"] {
+        importer::write(S, rel, key, nil);
+    }
+    check(!fs::exists(side), "clearing every key removes the sidecar again");
+    check(importer::kind_of("art/logo.svg").as_str() == "texture", "an SVG is a texture");
+    check(importer::kind_of("sfx/theme.ogg").as_str() == "audio", "a sound takes settings too");
+    check(importer::kind_of("fonts/ui-Face.ttf").as_str() == "font", "and a face");
+    check(importer::kind_of("models/crate.obj").as_str() == "model", "and a model");
+    importer::write(S, rel, "scale", 2.5);
+    check(importer::sidecar(S, rel).get("scale") == 2.5, "a number row writes a float");
+    importer::write(S, rel, "scale", nil);
+    check(export::preview(rel, "web").is_none(), "a file that is no picture ships no row, and nothing throws");
+    fs::remove(root + rel);
+    log::info("selftest imports: done");
+}
+
+/// Picking, aimed by hand. The viewport snapshot a real click reads is empty
+/// without a window, which is why `render::pick_ray` takes the ray: a
+/// headless run can still aim one and say what it met.
+pub fn picking(S: &mut editor::State) {
+    S.pick_check = PickCheck { stage: 0, sprite: nil, turned: nil };
+    stepping(S, "pick_check");
+    let target: int? = nil;
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if found.is_valid() && found.has_component("shape3d") {
+            let kind = found.get_component("shape3d", "kind").as_str();
+            if kind != "" && kind != "mesh" {
+                target = i;
+                break;
+            }
+        }
+    }
+    if target.is_none() {
+        log::info("selftest picking: no node with a 3D shape, skipped");
+        return;
+    }
+    let i = target.unwrap();
+    let found = model::live(S, i);
+    let p = found.transform.global_position();
+    let name = S.doc[i].get("name");
+    // Straight down -z at it from well outside anything.
+    let hit = render::pick_ray(p.x, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    if check(hit.is_valid(), "a ray aimed at '{name}' meets a node") {
+        check(model::index_of_live(S, hit).is_some(), "and it is one of the document's");
+    }
+    // The distance too, which decides between two things under the pointer:
+    // a gizmo handle yields to an object in front of it.
+    let at = render::pick_ray_at(p.x, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    if check(at.is_some(), "the ray reports what it met and how far ({at})") {
+        let met = at.unwrap();
+        check(met.at > 0.0 && met.at < 400.0, "at a sane distance along the ray ({met.at})");
+        check(model::index_of_live(S, met.node).is_some(), "and that node is one of the document's");
+    }
+    check(render::pick_ray_at(p.x, p.y, p.z + 200.0, 0.0, 0.0, 1.0).is_none(), "a ray pointing away reports no distance either");
+    // A pick can land on a node the document never named: a mesh's own child,
+    // or one a solver owns. The row that owns it is what the click meant.
+    check_climbs_to_owner(S);
+    // The same ray pointing away meets nothing.
+    let behind = render::pick_ray(p.x, p.y, p.z + 200.0, 0.0, 0.0, 1.0);
+    check(!behind.is_valid(), "a ray pointing away from the scene picks nothing");
+    // Far to the side, past anything the scene contains.
+    let aside = render::pick_ray(p.x + 10000.0, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    check(!aside.is_valid(), "a ray beside the scene picks nothing");
+    log::info("selftest picking: done");
+}
+
+/// A sprite, which has no shape row, is picked over what it draws and grows
+/// with its scale; a box whose centre sits off its node's origin turns about
+/// that origin. A transform reaches the node's global one a frame after it is
+/// set, so the checks come two frames after the edits.
+pub fn pick_check_step(S: &mut editor::State) {
+    if S.pick_check.is_none() {
+        return;
+    }
+    let d = S.pick_check.unwrap();
+    d.stage += 1;
+    if d.stage == 1 {
+        d.sprite = scale_a_sprite(S);
+        d.turned = turn_a_box(S);
+    } else if d.stage == 3 {
+        S.pick_check = nil;
+        if d.sprite.is_some() {
+            sprite_scaled(S, d.sprite.unwrap());
+        }
+        if d.turned.is_some() {
+            box_turned(S, d.turned.unwrap());
+        }
+    }
+}
+
+fn scale_a_sprite(S: &mut editor::State) -> ScaleASprite? {
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let bounds = render::bounds(found);
+        if !S.doc[i].has("sprite") || bounds.is_none() || bounds.unwrap().len() != 2 {
+            continue;
+        }
+        let drawn = bounds.unwrap();
+        let s = found.transform.scale;
+        let p = found.transform.global_position();
+        let wide = util::abs(found.transform.global_scale().x);
+        let angle = found.transform.global_rotation_euler().z;
+        // Twice its drawn half-width out along its own x: past its edge now,
+        // and inside once it is three times as wide.
+        let out = 2.0 * drawn[1].x * wide;
+        let at = [p.x + math::cos(angle) * out, p.y + math::sin(angle) * out];
+        check(gizmo2d::covering(S, i, p.x, p.y).is_some(), "a click on the sprite '{S.doc[i].get("name")}' lands on it");
+        check(gizmo2d::covering(S, i, at[0], at[1]).is_none(), "and one past its drawn edge misses it");
+        model::set_transform(S, i, rig::Parts { position: [], rotation_euler: [], scale: [s.x * 3.0, s.y, s.z] });
+        return ScaleASprite { index: i, at: at, scale: [s.x, s.y, s.z] };
+    }
+    log::info("selftest picking: no sprite in this scene, its pick not checked");
+    nil
+}
+
+fn sprite_scaled(S: &mut editor::State, d: ScaleASprite) {
+    check(gizmo2d::covering(S, d.index, d.at[0], d.at[1]).is_some(), "until it is three times as wide");
+    model::set_transform(S, d.index, rig::Parts { position: [], rotation_euler: [], scale: d.scale });
+}
+
+fn turn_a_box(S: &mut editor::State) -> TurnABox? {
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        let bounds = render::bounds(found);
+        let r = found.transform.global_rotation_euler();
+        let square = util::abs(r.x) + util::abs(r.y) + util::abs(r.z) < 0.0001;
+        if bounds.is_none() || bounds.unwrap().len() != 2 || !square || util::abs(bounds.unwrap()[0].y) < 0.01 {
+            continue;
+        }
+        let c = bounds.unwrap()[0];
+        let s = found.transform.global_scale();
+        let at = found.transform.global_position();
+        let held = util::xyz(found.transform.rotation_euler);
+        // Half over about x: the box's offset flips in y and z.
+        model::set_transform(S, i, rig::Parts { position: [], rotation_euler: [math::PI, 0.0, 0.0], scale: [] });
+        return TurnABox {
+            index: i,
+            held: held,
+            want: [at.x + c.x * s.x, at.y - c.y * s.y, at.z - c.z * s.z],
+        };
+    }
+    log::info("selftest picking: no box sits off its node's origin, its turn not checked");
+    nil
+}
+
+fn box_turned(S: &mut editor::State, d: TurnABox) {
+    let centre = gizmo::extents_at(S, d.index).unwrap()._0;
+    let w = d.want;
+    let off = util::abs(centre[0] - w[0]) + util::abs(centre[1] - w[1]) + util::abs(centre[2] - w[2]);
+    check(off < 0.001, "'{S.doc[d.index].get("name")}' turned half over carries its box's centre with it ({centre}, not {w})");
+    model::set_transform(S, d.index, rig::Parts { position: [], rotation_euler: d.held, scale: [] });
+}
+
+// A pick landing on a child resolves to the row that owns it. Tried on a row
+// that has one, which the node aimed at above need not.
+fn check_climbs_to_owner(S: editor::State) {
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        for kid in found.children() {
+            // Only a child the document never named has anything to climb:
+            // one that is itself a row resolved before this existed too.
+            if model::index_of_path(S, kid.path()).is_some() {
+                continue;
+            }
+            check(model::index_of_live(S, kid).or(-1) == i, "a child the document never named resolves to its owner '{S.doc[i].get("name")}'");
+            return;
+        }
+    }
+    log::info("selftest picking: every child is a document row, climb not checked");
+}
+
+// The first numeric export in the scene, with the node carrying it. A number
+// is what the drag editors write; a string or a bool would be asserting a
+// different widget, which is its own test.
+fn first_number_export(S: &mut editor::State) -> NumberExport? {
+    for i in 0..S.doc.len() {
+        let rel = model::script_rel(S.doc[i]);
+        if !rel.is_nil() {
+            for export in util::vec(model::exports(S, rel.as_str())) {
+                let kind = export.get("type").as_str();
+                if kind == "float" || kind == "int" {
+                    return NumberExport { at: i, export: export };
+                }
+            }
+        }
+    }
+    nil
+}
+
+// Exported script properties: what the script declares, what the node
+// overrides, and the sparseness that keeps a default reaching every node that
+// left it alone.
+pub fn script_props(S: &mut editor::State) {
+    let found = first_number_export(S);
+    if found.is_none() {
+        log::info("selftest props: no script in this scene exports a number, skipped");
+        return;
+    }
+    let i = found.unwrap().at;
+    let export = found.unwrap().export;
+    shell::choose(S, i);
+    let rel = model::script_rel(S.doc[i]);
+    let name = export.get("name").as_str();
+    check(export.get("type").as_str() != "", "{rel} declares a type for {name}");
+    let was = util::f(export.get("default"));
+    model::set_script_prop(S, name, was + 5.0);
+    let props = model::script_props(S.doc[i]);
+    check(props.has(name), "{name} became an override on the node");
+    check(util::abs(util::f(props.get(name)) - (was + 5.0)) < 1e-6, "{name} holds the written value ({props.get(name)})");
+    // Back to the default: the override is dropped rather than written out,
+    // so a later change to the script's default reaches this node again.
+    model::set_script_prop(S, name, was);
+    check(!model::script_props(S.doc[i]).has(name), "{name} back at its default stops being an override");
+    shell::undo(S);
+    check(model::script_props(S.doc[i]).has(name), "undo brings the override back");
+    check(mirror_resolves(S), "the mirror still resolves after editing properties");
+    log::info("selftest props: done");
+}
+
+// A node carrying a `list` property that holds what is written to it: some
+// are read back from a backend that only keeps what its own kind uses, and a
+// test of the editors needs one whose value stays put.
+fn writable_list(S: &mut editor::State) -> WritableList? {
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if !found.is_valid() {
+            continue;
+        }
+        for comp in found.component_names() {
+            let schema = model::schema(S, comp);
+            for prop in util::keys_sorted(schema) {
+                let spec = schema.get(prop);
+                let writable = spec.get("readonly").as_bool() != true;
+                if spec.get("type").as_str() != "list" || !writable {
+                    continue;
+                }
+                if util::obj(spec.get("of")).get("type").as_str() != "string" {
+                    continue;
+                }
+                // Not the camera's frame passes: the schema says `string`,
+                // but a name the engine does not own is a material asset, so
+                // `one`/`two` make the renderer log every frame after.
+                if prop == "post" {
+                    continue;
+                }
+                shell::choose(S, i);
+                model::set_component_prop(S, comp, prop, ["one", "two"]);
+                if list_now(S, i, comp, prop).len() == 2 {
+                    return WritableList { at: i, comp: comp, prop: prop, spec: spec };
+                }
+            }
+        }
+    }
+    nil
+}
+
+fn list_now(S: editor::State, i: int, comp: str, prop: str) -> any {
+    let found = model::live(S, i);
+    if !found.is_valid() {
+        return [];
+    }
+    util::vec(util::obj(found.get_component(comp)).get(prop))
+}
+
+// A property that holds other properties: what the inspector writes when a
+// row inside one is edited, which is the whole value with that one part of it
+// replaced.
+pub fn composite_props(S: &mut editor::State) {
+    let found = writable_list(S);
+    if found.is_none() {
+        log::info("selftest composites: no component here holds a list that sticks; skipped");
+        return;
+    }
+    let i = found.unwrap().at;
+    let comp = found.unwrap().comp;
+    let prop = found.unwrap().prop;
+    let of = util::obj(found.unwrap().spec.get("of"));
+    check(of.has("type"), "{comp}.{prop} says what it holds");
+    check(of.has("default"), "{comp}.{prop} holds a default for a new entry");
+    let at = inspector::at_top(comp, prop, ["one", "two"]);
+    inspector::write_at(S, inspector::at_step(at, 1, "1"), "three");
+    let now = list_now(S, i, comp, prop);
+    check(now.len() == 2, "{comp}.{prop} still holds two ({now.len()})");
+    check(now.at(0).as_str() == "one", "the entry beside it is untouched");
+    check(now.at(1).as_str() == "three", "the edited entry took the write ({now})");
+    inspector::drop_entry(S, at, 0);
+    let left = list_now(S, i, comp, prop);
+    check(left.len() == 1, "an entry taken out leaves one ({left.len()})");
+    check(left.at(0).as_str() == "three", "the one left is the one that stayed");
+    inspector::add_entry(S, at, of, "");
+    let grown = list_now(S, i, comp, prop);
+    check(grown.len() == 2, "an added entry makes two ({grown.len()})");
+    check(grown.at(1).equals(of.get("default")), "a new entry starts at the spec's default");
+    undo_all(S);
+    check(mirror_resolves(S), "the mirror still resolves after editing a list");
+    // Left where a picture of it is worth taking: three entries, the fold
+    // they sit in open, and the rest of the schema searched away.
+    model::set_component_prop(S, comp, prop, ["ssao", "bloom", "tonemap"]);
+    S.search.set("inspector", prop);
+    log::info("selftest composites: done");
+}
+
+// The first script the scene attaches, which is what a lint sweep starts from.
+fn first_script(S: editor::State) -> str? {
+    for node in S.doc {
+        let rel = model::script_rel(node);
+        if !rel.is_nil() {
+            return rel.as_str();
+        }
+    }
+    nil
+}
+
+fn found_in(S: editor::State, rel: str, severity: str) -> [any] {
+    let out: [any] = [];
+    for f in S.lint.found {
+        if f.get("file").as_str() == rel && f.get("severity").as_str() == severity {
+            out.push(f);
+        }
+    }
+    out
+}
+
+/// `--state test:lint`: a broken buffer is found at the line it broke on, and
+/// a good one leaves nothing behind. The buffer, not the file — a check is
+/// about what is on screen, and the test must not write a broken script out.
+pub fn linting(S: &mut editor::State) {
+    let script = first_script(S);
+    if !check(script.is_some(), "the scene attaches a script to lint") {
+        return;
+    }
+    let rel = script.unwrap();
+    let abs = S.game_root + "/" + rel;
+    let original = model::source(S, rel).as_str();
+    S.script_buffers.set(abs, "fn probe() {{\n    input::just_pressd(\"jump\");\n}}\n");
+    lint::run(S);
+    let errors = found_in(S, rel, "error");
+    if check(errors.len() > 0, "a misspelled engine call is an error") {
+        check(errors[0].get("line").as_int() == 2, "the error's line is 2 (got {errors[0].get("line")})");
+        check(errors[0].get("message").as_str().contains("just_pressd"), "the message names the call: {errors[0].get("message")}");
+        let marked = false;
+        for line in lint::lines(S, rel, "error") {
+            if line.as_int() == 2 {
+                marked = true;
+            }
+        }
+        check(marked, "the gutter is given line 2");
+    }
+    S.script_buffers.set(abs, "fn probe() {{\n    let unused = 1;\n}}\n");
+    lint::run(S);
+    check(found_in(S, rel, "error").len() == 0, "a script that compiles has no errors");
+    S.script_buffers.set(abs, original);
+    lint::run(S);
+    check(found_in(S, rel, "error").len() == 0, "restoring the buffer clears the findings");
+    S.script_buffers.remove(abs);
+    docks::show(S, "problems");
+    log::info("selftest lint: done");
+}
+
+/// `--state test:tools`: what the caret is offered, what is under it, and what a
+/// rename would rewrite. The buffer, not the file: a tool answers about what
+/// is on screen, and the test must not write over a script.
+pub fn tooling(S: &mut editor::State) {
+    let script = first_script(S);
+    if !check(script.is_some(), "the scene attaches a script to ask about") {
+        return;
+    }
+    let rel = script.unwrap();
+    let source = model::source(S, rel).as_str();
+    // A function of its own at the foot, so the probe is code the file reads.
+    let typed = "    physics2d::a";
+    let probe = source + "\nfn completion_probe() {{\n" + typed + "\n}}\n";
+    let line = probe.split("\n").len() - 2;
+    // Completion: a module path offers that module and nothing else.
+    let found = script::complete(rel, probe, line, typed.len() + 1);
+    if check(found.len() > 0, "a module path completes") {
+        let names: [str] = [];
+        for one in found {
+            names.push(one.label);
+        }
+        check(util::contains(names, "apply_impulse"), "physics2d::a offers apply_impulse (got {util::join(names, ", ")})");
+        check(found[0].doc != "", "the first completion carries its doc line");
+    }
+    // The popup opens on that caret and closes when it moves off.
+    let caret = probe.chars().len() - 3;
+    complete::update(S, rel, probe, complete::Caret { index: caret, x: 100.0, y: 100.0 });
+    check(S.complete.open, "the popup opens where a caret sits after a module path");
+    complete::reset(S);
+    check(!S.complete.open, "and closes when it is reset");
+    // Hover: a declared function answers with what the host knows about it.
+    let at = line_of_text(source, "fn ");
+    if at > 0 {
+        let text = source.split("\n")[at - 1];
+        let column = util::index_of(text, "fn ").unwrap() + 4;
+        check(script::hover(rel, source, at, column).is_some(), "hovering a declared function answers");
+    }
+    // Symbols: what the file declares, from the host rather than a parser.
+    check(script::symbols(rel, source).len() > 0, "the file reports its symbols");
+    // Find and replace reaches the same files a rename does.
+    let hits = script::find(rel, source, "fn ");
+    check(hits.len() > 0, "find reaches the text in the file");
+    // Formatting is idempotent, and neither verb writes anything.
+    let once = script::format(rel, source);
+    check(script::format(rel, once) == once, "formatting twice is formatting once");
+    let edits = script::rename(rel, source, "node", "owner");
+    check(model::source(S, rel).as_str() == source, "a rename answers with the {edits.len()} file(s) it would rewrite, and writes none of them");
+    log::info("selftest tooling: done");
+}
+
+// The 1-based line a needle first appears on, 0 when it does not.
+fn line_of_text(source: str, needle: str) -> int {
+    let lines = source.split("\n");
+    for i in 0..lines.len() {
+        if lines[i].contains(needle) {
+            return i + 1;
+        }
+    }
+    0
+}
+
+// Prefabs in the editor: an instance's nodes are in the tree, an edit inside
+// one becomes an override and an edit back to the prefab's value stops being
+// one. Which component it edits is discovered — headless registers no `color`.
+pub fn instances(S: &mut editor::State) {
+    let hit = first_instanced_float(S);
+    if hit.is_none() {
+        log::info("selftest instances: no instanced node with a writable float, skipped");
+        return;
+    }
+    let i = hit.unwrap().at;
+    let comp = hit.unwrap().float.comp;
+    let prop = hit.unwrap().float.prop;
+    let spec = hit.unwrap().float.spec;
+    let authored_before = model::authored(S.doc).len();
+    check(authored_before < S.doc.len(), "the document holds rows the file does not");
+    shell::choose(S, i);
+    let node = S.doc[i];
+    let owner = model::by_id(S.doc, node.get("owner").as_str());
+    let place = node.get("at").as_str();
+    let was = float_prop(model::live(S, i), comp, prop).or(util::f(spec.get("default")));
+    check(!entry_of(owner, place).has(comp), "{place} starts with no override of {comp}");
+    model::set_component_prop(S, comp, prop, was + 3.0);
+    let entry = entry_of(owner, place);
+    check(entry.has(comp), "editing {place}.{prop} wrote an override on {owner.get("name")}");
+    // Sparse: the override holds the property that changed, not the whole
+    // component, because the engine patches it over the prefab's.
+    check(util::obj(entry.get(comp)).len() == 1, "and holds only {prop} ({util::obj(entry.get(comp)).len()} keys)");
+    check(model::authored(S.doc).len() == authored_before, "and added no row to the file");
+    // Back to the prefab's own value: the override has nothing left to say.
+    model::set_component_prop(S, comp, prop, was);
+    check(!entry_of(owner, place).has(comp), "a {prop} back at the prefab's stops being an override");
+    // A prefab's root and the node that named it are one node, the way the
+    // engine merges them: the row shows the root's keys and the file, which
+    // the prefab already holds them for, is not given them.
+    let file_rows = map();
+    for row in model::authored(S.doc) {
+        file_rows.set(row.get("id").as_str(), row);
+    }
+    for row in S.doc {
+        let inherited = util::obj(row.get("inherited"));
+        let written = util::obj(file_rows.get(row.get("id").as_str()));
+        for key in inherited.keys() {
+            check(row.has(key), "{row.get("name")} shows the prefab root's {key}");
+            check(!written.has(key), "and the file is not given {key} back");
+        }
+    }
+    // Structure is the prefab's.
+    let before = S.doc.len();
+    expect_warning("cannot add a node inside a prefab");
+    model::add_child(S, nil);
+    check(S.doc.len() == before, "adding a node inside an instance is refused");
+    expect_warning("cannot delete a node inside a prefab");
+    model::delete_selected(S);
+    check(S.doc.len() == before, "deleting a node inside an instance is refused");
+    check(mirror_resolves(S), "every row still resolves, instanced ones included");
+    log::info("selftest instances: done");
+}
+
+// What an instance's owner overrides at one place inside it.
+fn entry_of(owner: any, place: str) -> any {
+    util::obj(util::obj(owner.get("overrides")).get(place))
+}
+
+// The inspector's script field: a new name writes and attaches a file, a
+// changed name moves it, remove leaves it on disk, and undo walks it all back.
+pub fn script_paths(S: &mut editor::State) {
+    // Pure string rules, so they hold whatever the project has in it.
+    check(model::names_a_file("art/hero.png"), "a project-relative file is a file name");
+    check(!model::names_a_file("/games/art/hero.png"), "a rooted path is not");
+    check(!model::names_a_file("D:/games/art/hero.png"), "nor is a Windows drive path");
+    check(!model::names_a_file("D:\\games\\art\\hero.png"), "with either separator");
+    check(!model::names_a_file("../Rig"), "and a node path is not a file");
+    let picked: int? = nil;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if picked.is_none() && !node.has("script") && !model::is_instanced(node) {
+            picked = i;
+        }
+    }
+    if picked.is_none() {
+        log::info("selftest scriptdemo: every node has a script; skipped");
+        return;
+    }
+    let i = picked.unwrap();
+    selection::only(S, i);
+    let root = S.game_root + "/";
+    // A project with no scripts/ would be left with an empty one.
+    if !fs::exists(root + "scripts") {
+        log::info("scriptdemo: skipped, the project has no scripts/");
+        return;
+    }
+    let name = S.doc[i].get("name").as_str().to_lower();
+    let fresh = "scripts/selftest-" + name + ".bs";
+    let moved = "scripts/selftest-" + name + "-moved.bs";
+    fs::remove(root + fresh);
+    fs::remove(root + moved);
+    shell::set_script_path(S, fresh);
+    check(model::script_rel(S.doc[i]).as_str() == fresh, "a new name attaches a new file");
+    check(fs::exists(root + fresh), "and writes it");
+    check(S.script_open, "attaching opens the script tab");
+    shell::set_script_path(S, moved);
+    check(model::script_rel(S.doc[i]).as_str() == moved, "a changed name moves the script");
+    check(fs::exists(root + moved) && !fs::exists(root + fresh), "and the file with it");
+    shell::detach_script(S);
+    check(!S.doc[i].has("script"), "detach takes the script off the node");
+    check(fs::exists(root + moved), "and leaves the file");
+    check(!S.script_open, "and closes the script tab");
+    shell::undo(S);
+    check(model::script_rel(S.doc[i]).as_str() == moved, "undo re-attaches it");
+    shell::undo(S);
+    shell::undo(S);
+    check(!S.doc[i].has("script"), "undoing everything leaves the node without a script");
+    check(mirror_resolves(S), "and every node still resolves");
+    fs::remove(root + moved);
+    log::info("selftest scriptdemo: done");
+}
+
+// The first row that came from a prefab and has a float the editor can write.
+fn first_instanced_float(S: &mut editor::State) -> InstancedFloat? {
+    for i in 0..S.doc.len() {
+        if !model::is_instanced(S.doc[i]) {
+            continue;
+        }
+        let found = model::live(S, i);
+        if found.is_valid() {
+            let writable = writable_float(S, found);
+            if writable.is_some() {
+                return InstancedFloat { at: i, float: writable.unwrap() };
+            }
+        }
+    }
+    nil
+}
+
+// Recording a play session, replaying it, and getting back to the edited
+// scene. Spread over frames because a recording is made of frames, and inside
+// the `--frames 90` an e2e run allows.
+const REC_UNTIL: int = 9;
+
+const OPEN_AT: int = 10;
+
+const CHECK_AT: int = 28;
+
+/// The start screen's own module: a project made from a template, the row it
+/// leaves in the list, and the row forgotten again. Writes under the editor's
+/// own data directory, which is the one place it owns on every machine.
+pub fn manager_screen(S: &mut editor::State) {
+    let home = engine::user_data_directory() + "/selftest-project";
+    let made = util::obj(project::create(home, "empty"));
+    let failed = made.get("error");
+    if !failed.is_nil() {
+        check(false, "a new project from the empty template ({failed})");
+        return;
+    }
+    check(made.get("name").as_str() != "", "a new project from the empty template ({made.get("name")})");
+    let listed = util::vec(project::recent());
+    check(lists_path(listed, home), "it is the newest of {listed.len()} remembered");
+    let first = util::obj(listed.at(0));
+    check(first.get("exists").as_bool() == true, "and its folder is there");
+    project::forget(home);
+    check(!lists_path(util::vec(project::recent()), home), "forgetting it drops the row and leaves the folder");
+    check(util::vec(project::templates()).len() > 0, "the library offers templates to start from");
+    check(project::home() != "", "and a folder to put a new project in");
+    // A tab opens a project through the page, and the screen's own commands
+    // are hidden there. This run is a process, so it says so.
+    check(!project::in_tab(), "a process, not a tab, so the screen may open one");
+    example_projects(S);
+    versions_half(S);
+}
+
+// Whether a row of the recent list is the project at `home`.
+fn lists_path(rows: any, home: str) -> bool {
+    for row in rows {
+        if util::obj(row).get("path").as_str() == home {
+            return true;
+        }
+    }
+    false
+}
+
+// The screen's other half: which build this is and what lines it may follow.
+// No network here: what a channel holds is a press, and CI has no releases.
+fn versions_half(S: &mut editor::State) {
+    let mine = util::obj(release::installed());
+    check(mine.get("version").as_str() != "", "the build says which version it is ({mine.get("version")})");
+    let lines = util::vec(release::channels());
+    check(lines.len() == 5, "and names {lines.len()} release lines to follow");
+    let named = names(lines, "nightly") && names(lines, "stable");
+    check(named, "the rolling one and the settled one among them");
+    // A source build has no id and no tag, and says so rather than guessing.
+    let source = mine.get("source").as_bool() == true;
+    let told = if source { mine.get("id").as_str() == "" } else { mine.get("id").as_str() != "" };
+    check(told, "a build with no release id says so instead of inventing one");
+    // Run from cargo's output, the install is a build tree and says so before
+    // anything offers to replace it.
+    let held = mine.get("held").as_str();
+    check(!source || held != "", "a build tree says it cannot be replaced ({held})");
+    // What a check reports, handed in as the feed would: the newest release on
+    // a line decides what the screen says about it.
+    let saved: [any] = S.manager.releases;
+    let rows = [
+        map().with("tag", "v9.0.0").with("id", "v9.0.0").with("channel", "stable").with("order", "newer").with("current", false),
+        map().with("tag", "v0.0.1").with("id", "v0.0.1").with("channel", "alpha").with("order", "older").with("current", false),
+    ];
+    manager::heard(S, map().with("kind", "listed").with("rows", rows));
+    let ahead = manager::standing(S, "stable");
+    check(ahead == "v9.0.0 is newer", "a newer release reads as one ({ahead})");
+    let behind = manager::standing(S, "alpha");
+    check(behind.contains("older"), "an older one is not called newer ({behind})");
+    let none = manager::standing(S, "rc");
+    check(none == "no release on this line", "an empty line says so ({none})");
+    manager::heard(S, map().with("kind", "failed").with("job", "check").with("message", "offline"));
+    check(!S.manager.reading && S.manager.failed == "offline", "a failed read stops reading and says why");
+    S.manager.releases = saved;
+    S.manager.failed = "";
+    // The About sheet opens on the same state, without asking the network
+    // again once the screen has asked.
+    let asked = S.manager.asked;
+    S.manager.asked = true;
+    about::open(S);
+    check(window::showing(S, "about"), "the About dialog opens");
+    window::hide(S);
+    S.manager.asked = asked;
+    // Opened over a project, the screen goes back to it; opened by a state,
+    // as a bare launch shows it, there is nothing to go back to.
+    let was = S.manager.on;
+    manager::open(S);
+    manager::close(S);
+    check(S.manager.on, "a screen opened by a state stays");
+    manager::open_over(S);
+    manager::close(S);
+    check(!S.manager.on, "one opened over a project goes back to it ({S.game_name})");
+    S.manager.on = was;
+}
+
+// Whether a list of names holds `name`.
+fn names(items: any, name: str) -> bool {
+    for one in items {
+        if one.as_str() == name {
+            return true;
+        }
+    }
+    false
+}
+
+// The examples that ship beside the editor, and a copy of one. The copy is
+// what the screen opens, so the shipped example stays as it was.
+fn example_projects(S: editor::State) {
+    let rows = util::vec(project::examples());
+    check(rows.len() > 0, "{rows.len()} examples ship beside this build");
+    let hello = row_with_id(rows, "hello");
+    if hello.is_nil() {
+        check(false, "one of them is hello");
+        return;
+    }
+    let one = util::obj(hello);
+    check(one.get("note").as_str() != "", "and each says what it is ({one.get("note")})");
+    let into = engine::user_data_directory() + "/selftest-copies";
+    let made = util::obj(project::copy_example("hello", into));
+    let failed = made.get("error");
+    if !failed.is_nil() {
+        check(false, "a copy of an example is a project of its own ({failed})");
+        return;
+    }
+    check(fs::exists(made.get("path").as_str() + "/project.toml"), "a copy of an example is a project of its own");
+    check(made.get("path") != one.get("path"), "written beside the reader's projects, not over the example");
+    project::forget(made.get("path").as_str());
+}
+
+// The row of a list whose `id` is `id`, or nil.
+fn row_with_id(items: any, id: str) -> any {
+    for row in items {
+        if util::obj(row).get("id").as_str() == id {
+            return row;
+        }
+    }
+    nil
+}
+
+/// Two fingers on the stage drive the camera: a pinch dollies, a drag slides.
+/// Fed rather than felt, so CI answers for the half a phone would.
+pub fn gestures(S: &mut editor::State) {
+    S.gesture_demo = 0;
+    stepping(S, "gesture");
+}
+
+pub fn gesture_step(S: &mut editor::State) {
+    let n = S.gesture_demo;
+    S.gesture_demo = n + 1;
+    // A fed finger is read by the next tick and acted on later in that frame,
+    // so every act takes a frame and every reading the frame after.
+    let mid = middle(S.layout.stage);
+    let cx = mid[0] * S.ui_scale;
+    let cy = mid[1] * S.ui_scale;
+    let step = 40.0 * S.ui_scale;
+    if n == 0 {
+        let pose = render::camera_pose();
+        S.gesture_from = [pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]];
+        input::feed_touch(1, cx - step, cy, "start");
+        input::feed_touch(2, cx + step, cy, "start");
+        return;
+    }
+    if n == 1 {
+        // Apart: a pinch out, which walks the eye towards what it looks at.
+        input::feed_touch(1, cx - step * 2.0, cy, "move");
+        input::feed_touch(2, cx + step * 2.0, cy, "move");
+        return;
+    }
+    if n == 3 {
+        let before = S.gesture_from;
+        let pose = render::camera_pose();
+        let was = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
+        let now = span(pose[0] - pose[3], pose[1] - pose[4], pose[2] - pose[5]);
+        check(now < was - 0.001, "a pinch out walks the camera in ({was} to {now})");
+        S.gesture_from = [pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]];
+        // Both fingers the same way: a two-finger drag, which slides the pair.
+        input::feed_touch(1, cx - step, cy, "move");
+        input::feed_touch(2, cx + step * 3.0, cy, "move");
+        return;
+    }
+    if n == 5 {
+        let before = S.gesture_from;
+        let pose = render::camera_pose();
+        let moved = span(pose[3] - before[3], pose[4] - before[4], pose[5] - before[5]);
+        let want = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
+        // A finger's own travel, near enough: the world under it moved with
+        // it rather than by a constant nobody picked.
+        check(moved > 0.05 && moved < want, "a two-finger drag slides what it looks at ({moved})");
+        input::feed_touch(1, cx, cy, "end");
+        input::feed_touch(2, cx, cy, "end");
+        S.gesture_demo = -1;
+    }
+}
+
+fn span(x: float, y: float, z: float) -> float {
+    math::sqrt(x * x + y * y + z * z)
+}
+
+// The centre must be showing the viewport when no document is open: a stray
+// split used to leave a collapsed code pane over it in every workspace.
+pub fn layout(S: &mut editor::State) {
+    S.layout_demo = 0;
+    stepping(S, "layout");
+}
+
+pub fn layout_step(S: &mut editor::State) {
+    S.layout_demo = S.layout_demo + 1;
+    // A settled rect, not the first: the frame the shell first draws it has
+    // no size stated yet and its containers divide an unbounded box.
+    // Two frames that agree is the signal that the layout has taken.
+    let now = util::f(S.layout.stage.w);
+    let settled = now > 0.0 && util::abs(now - S.layout_seen) < 0.51;
+    S.layout_seen = now;
+    if !settled && S.layout_demo < 10 {
+        return;
+    }
+    S.layout_demo = -1;
+    let m = S.layout;
+    let stage = m.stage;
+    // A headless run never draws, so the rect is still the one `init` set.
+    if S.viewport.at == 0 {
+        log::info("layoutdemo: skipped, nothing drew this run");
+        return;
+    }
+    let sx = util::f(stage.x);
+    let sy = util::f(stage.y);
+    let sw = util::f(stage.w);
+    let sh = util::f(stage.h);
+    check(!S.split, "the split is off unless asked for");
+    // What every window owes, whatever room it has: the stage is inside it,
+    // no two sheets claim a pixel, and a finger clears its target.
+    check(sx >= 0.0 && sy >= 0.0 && sx + sw <= S.screen_w && sy + sh <= S.screen_h, "the stage is inside the window");
+    check(!overlapping(layout::sheets(S)), "no two sheets overlap");
+    // A finger wants 44 points. Delivered by the theme stating a bigger box
+    // under `touch` and the shell drawing larger, not by a floor on each
+    // control: a floor grew the box and left the glyph and its bar behind.
+    check_touch_targets(S);
+    check_dock_tools(S);
+    check_active_tabs(S);
+    check(covered(S, layout::sheets(S)), "and the middle of every sheet does not");
+    // The gutter is a `padding`, which the component keeps as four sides
+    // whatever the scene spelled; reading all four back placed the shell at 0.
+    let gutter = util::f(layout::gutter(S));
+    let bar_x = util::f(m.bar.x);
+    check(gutter > 0.0 && util::abs(bar_x - gutter) < 0.51, "the shell keeps the gutter it asked for ({bar_x} vs {gutter})");
+    placed("top bar", m.bar);
+    placed("stage", stage);
+    // A root keeps the box it was handed on a pass that is not a fresh one:
+    // restyled with none, it sized itself from its content instead.
+    let body = ui::widget_rect(scene::get_node("Editor/Shell/Body"));
+    check(body.is_some() && body.unwrap().height > S.screen_h * 0.5, "the shell's body grew into the room left over ({body})");
+    // A window too small for three columns folds its docks and shows one
+    // sheet at a time, so the desktop's invariants are asked of a desktop.
+    if docks::one_at_a_time(S) {
+        check(!docks::side_open(S) || docks::folded(S, "left") || docks::folded(S, "right"), "one sheet at a time, in a window with room for one");
+        return;
+    }
+    check(S.viewport_live, "the scene is showing");
+    check(S.rail_visible, "and the tool rail with it");
+    // The docks take the widths the scene states, so the stage is what is
+    // left: most of a window with the room for it, its own floor below that.
+    let floor = center::stage_floor();
+    if !S.compact {
+        check(sw > S.screen_w * 0.35 && sh > S.screen_h * 0.4, "the stage is most of the window ({sw as int} × {sh as int})");
+    } else {
+        check(sw >= floor.w && sh >= floor.h, "the stage keeps its floor ({sw as int} × {sh as int})");
+    }
+    check(!layout::over_sheet(S, sx + sw / 2.0, sy + sh / 2.0), "the middle of the stage belongs to the scene");
+    check(S.viewport.w == sw && S.viewport.h == sh, "the widget layer gets the stage rect");
+    // Every sheet the shell is showing is placed: a zero rect turns egui's
+    // own area constraint back on and piles the shell into the corner. A
+    // folded dock is showing nothing, and has no rect to be wrong about.
+    if !docks::folded(S, "left") {
+        placed("tree", m.left);
+    }
+    if !docks::folded(S, "right") {
+        placed("inspector", m.right);
+    }
+    if !docks::folded(S, "bottom") {
+        placed("dock", m.bottom);
+    }
+    placed("tool rail", m.rail);
+    if !docks::folded(S, "left") {
+        check(util::abs(util::f(m.left.w) - util::f(m.tree_w)) < 0.51, "the tree column is the width the scene asked for ({m.left.w} vs {m.tree_w})");
+    }
+}
+
+// A layout rect with room in it.
+fn placed(name: str, r: any) {
+    let w = util::f(r.w);
+    let h = util::f(r.h);
+    check(w > 0.0 && h > 0.0, "the {name} is placed ({w as int} × {h as int})");
+}
+
+/// Every control a finger picks clears the target it has to.
+///
+/// Measured off what was drawn rather than off what the theme states: a
+/// control takes its size from the theme, the widget that states one, and the
+/// scale, and only the rect it ends up with answers for all three.
+fn check_touch_targets(S: editor::State) {
+    if !S.touchscreen {
+        return;
+    }
+    let smallest = 1000.0;
+    let where = "";
+    for path in [
+        "Editor/Shell/Head/HeadRow/Brand",
+        "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTabs/BottomTabsRow",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTail",
+    ] {
+        let node = scene::get_node(path);
+        if !node.is_valid() {
+            continue;
+        }
+        let boxes = [ui::widget_rect(node)];
+        for kid in node.children() {
+            boxes.push(ui::widget_rect(kid));
+        }
+        for r in boxes {
+            if r.is_none() || r.unwrap().height <= 0.0 {
+                continue;
+            }
+            let points = r.unwrap().height * S.ui_scale;
+            if points < smallest {
+                smallest = points;
+                where = path;
+            }
+        }
+    }
+    check(smallest >= 44.0, "every control a finger picks clears 44 points (smallest {smallest as int} in {where})");
+}
+
+// The panel's own tools sit at the end of the tab row, in a box of their own.
+// A hatch that only grows is one pixel wide in a row that hugs, and what it
+// draws is clipped: the filter, the hints and the add button all went that way.
+fn check_dock_tools(S: editor::State) {
+    for side in ["left", "bottom", "right"] {
+        if docks::folded(S, side) {
+            continue;
+        }
+        let found = docks::tools_box(side);
+        if found.is_none() {
+            check(false, "the {side} dock's tools have a box");
+            continue;
+        }
+        let box = found.unwrap();
+        // Zero is the tools giving way to the tabs, which is what a dock too
+        // narrow for both does. What this catches is the state between: a
+        // hatch a pixel or two wide, drawing what the row then clips.
+        check(box.width == 0.0 || (box.width > 20.0 && box.height > 12.0), "the {side} dock's tools have room to draw ({box.width as int} × {box.height as int})");
+    }
+}
+
+// A narrow dock lists what its row cannot hold under "+N"; the active tab is
+// never one of them, so the panel showing always has its tab in view.
+fn check_active_tabs(S: &mut editor::State) {
+    for side in ["left", "bottom", "right"] {
+        if docks::folded(S, side) {
+            continue;
+        }
+        let found = docks::active_tab_box(S, side);
+        if found.is_some() {
+            let tab = found.unwrap().tab;
+            let strip = found.unwrap().strip;
+            check(tab.x >= strip.x - 0.5 && tab.x + tab.width <= strip.x + strip.width + 0.5, "the {side} dock's active tab is inside its row ({tab.x as int} to {(tab.x + tab.width) as int} in {strip.x as int} to {(strip.x + strip.width) as int})");
+        } else {
+            check(false, "the {side} dock's active tab has a box");
+        }
+    }
+}
+
+// Sheets may abut, never overlap: an overlap is a rect two owners believe in.
+fn overlapping(rects: [any]) -> bool {
+    for i in 0..rects.len() {
+        let a = rects[i];
+        for j in (i + 1)..rects.len() {
+            let b = rects[j];
+            let ax = util::f(a.x);
+            let ay = util::f(a.y);
+            let aw = util::f(a.w);
+            let ah = util::f(a.h);
+            let bx = util::f(b.x);
+            let by = util::f(b.y);
+            let bw = util::f(b.w);
+            let bh = util::f(b.h);
+            if aw > 0.0 && ah > 0.0 && bw > 0.0 && bh > 0.0 && ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah {
+                log::warn("sheets overlap: {ax as int},{ay as int} {aw as int}x{ah as int} and {bx as int},{by as int} {bw as int}x{bh as int}");
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn covered(S: editor::State, rects: [any]) -> bool {
+    for r in rects {
+        let at = middle(r);
+        if util::f(r.w) > 0.0 && util::f(r.h) > 0.0 && !layout::over_sheet(S, at[0], at[1]) {
+            return false;
+        }
+    }
+    true
+}
+
+// Tofu is the failure this catches: a row of boxes in the screenshot means
+// the chain lost a script, and a missing icon means the font did not load.
+// A sheet of labels over the stage, filled when the stage was laid out.
+pub fn font_sheet(S: editor::State) {
+    let r = S.layout.stage;
+    let controls = [heading("FONT COVERAGE  ·  --state fontdemo"), heading("SCRIPTS")];
+    for script in scripts() {
+        let name = script.name;
+        let sample = script.sample;
+        controls.push(map()
+            .with("kind", "row")
+            .with("height", 24)
+            .with("align_items", "center")
+            .with("controls", [
+                map().with("kind", "label").with("role", "text_caption").with("text", name).with("width", 92),
+                big("text_body", sample),
+            ]));
+    }
+    controls.push(heading("FACES"));
+    controls.push(map()
+        .with("kind", "label")
+        .with("role", "text_body")
+        .with("text", "heading  Source Sans 3 Semibold")
+        .with("font_size", style::XL)
+        .with("font_family", ui::FONT_HEADING));
+    controls.push(map()
+        .with("kind", "label")
+        .with("role", "text_body")
+        .with("text", "ui  Source Sans 3 Regular")
+        .with("font_size", style::LG));
+    controls.push(map()
+        .with("kind", "label")
+        .with("role", "text_code")
+        .with("text", "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃"));
+    controls.push(heading("ICONS"));
+    let tools: [any] = [];
+    for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
+        tools.push(big("text_body", icons::tool(id)));
+    }
+    for p in defs::workspaces() {
+        tools.push(big("text_caption_primary", icons::workspace(p.id)));
+    }
+    controls.push(map().with("kind", "row").with("height", 24).with("controls", tools).with("gap", [8, 0]));
+    let panels: [any] = [];
+    for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
+        panels.push(big("text_body", icons::panel(id)));
+    }
+    for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+        panels.push(big("text_caption", icons::ui(id)));
+    }
+    controls.push(map().with("kind", "row").with("height", 24).with("controls", panels).with("gap", [8, 0]));
+    util::fill(FONT_SHEET, map().with("visible", true).with("x", r.x).with("y", r.y).with("width", r.w).with("height", r.h));
+    pool::strip(S, FONT_SHEET, controls);
+}
+
+fn heading(text: str) -> any {
+    map()
+        .with("kind", "label")
+        .with("role", "text_heading")
+        .with("text", text)
+}
+
+fn big(role: str, text: str) -> any {
+    map().with("kind", "label").with("role", role).with("font_size", style::XL).with("text", text)
+}
+
+const FONT_SHEET: str = "Editor/FontSheet";
+
+fn scripts() -> [Script] {
+    [
+        Script { name: "latin", sample: "Plataforma Ångström" },
+        Script { name: "greek", sample: "Διάστημα" },
+        Script { name: "cyrillic", sample: "Вращатель" },
+        Script { name: "japanese", sample: "ボール 平台" },
+        Script { name: "korean", sample: "플랫폼" },
+        Script { name: "chinese", sample: "平台 旋转" },
+        Script { name: "arabic", sample: "لوحة" },
+        Script { name: "hebrew", sample: "פלטפורמה" },
+        Script { name: "devanagari", sample: "मंच" },
+        Script { name: "thai", sample: "แพลตฟอร์ม" },
+    ]
+}
+
+pub fn sessions(S: &mut editor::State) {
+    S.session.demo = Demo { n: 0, file: "", was: 0 };
+    stepping(S, "session");
+    // With digests, so the replay is actually checked against the recording
+    // rather than merely running.
+    S.session.verify = true;
+    shell::toggle_play(S);
+    check(S.session.recording != "", "play starts a recording");
+    check(S.playing, "and the scene is running");
+}
+
+pub fn session_step(S: &mut editor::State) {
+    if S.session.demo.is_none() {
+        return;
+    }
+    let d = S.session.demo.unwrap();
+    d.n += 1;
+    if d.n == REC_UNTIL {
+        stop_and_check(S, d);
+    } else if d.n == OPEN_AT {
+        open_and_check(S, d);
+    } else if d.n == CHECK_AT {
+        replayed_and_check(S, d);
+    }
+}
+
+// Stopping closes the file. What it wrote is the session the dock lists.
+fn stop_and_check(S: &mut editor::State, d: Demo) {
+    shell::stop_play(S);
+    check(S.session.recording == "", "stop closes the recording");
+    check(replay::recording().is_none(), "and the engine has none open");
+    let rows = session::listing(S);
+    if !check(rows.len() > 0, "the recording it wrote is on disk") {
+        S.session.demo = nil;
+        return;
+    }
+    let row = rows[0];
+    d.file = row.name;
+    check(row.started != "", "the list says when it ran");
+    check(row.ticks > 0, "and how long: {row.ticks} ticks");
+    check(row.reason == "stop", "and how it ended: {row.reason}");
+    check(!row.stale, "its scripts are the ones on disk");
+}
+
+// Replaying rebuilds the scene, feeds the recording into it, and hands the
+// dock its lanes.
+fn open_and_check(S: &mut editor::State, d: Demo) {
+    if d.file == "" {
+        S.session.demo = nil;
+        return;
+    }
+    session::open(S, d.file);
+    if !check(session::loaded(S), "{d.file} loads") {
+        S.session.demo = nil;
+        return;
+    }
+    check(replay::state() == replay::STATE_PLAYING, "and starts playing");
+    check(S.playing, "the scene runs while it plays");
+    let span = util::obj(replay::length());
+    check(span.get("frames").as_int() > 0, "the recording has frames");
+    check(S.session.lanes.len() > 0, "the dock has lanes to draw");
+    d.was = replay::position();
+}
+
+// Playing walks the recording and parks at its end; closing puts the edited
+// scene back and lets the engine run again.
+fn replayed_and_check(S: &mut editor::State, d: Demo) {
+    check(replay::position() > d.was, "playing walks the recording forward");
+    check(replay::state() == replay::STATE_PAUSED, "a spent recording parks");
+    let split = replay::divergence_tick();
+    let where_ = if split.is_none() { "" } else { " (tick {split.unwrap().tick})" };
+    check(split.is_none(), "and reproduced what was recorded{where_}");
+    session::close(S);
+    exported_and_check(S, d);
+    check(!session::loaded(S), "closing unloads the recording");
+    check(!S.playing, "and puts the edited scene back");
+    // A self-test that leaves files behind fills the ring it is testing.
+    fs::remove(session::dir(S) + "/" + d.file);
+    S.session.demo = nil;
+    log::info("selftest recordings: done");
+}
+
+// Export puts a copy where a bug report or `balaur replay` can reach it.
+fn exported_and_check(S: editor::State, d: Demo) {
+    session::export(S, d.file);
+    let out = S.game_root + "/" + d.file;
+    check(fs::exists(out), "copy to project puts the recording in the project");
+    fs::remove(out);
+}
+
+// The profiler's data path: that `engine::timings()` answers with the shape
+// the dock reads. Every duration is legitimately zero inside `init`; that the
+// numbers are real is `crates/balaur_core/tests/timings.rs`' job.
+pub fn timings(S: &mut editor::State) {
+    let found = engine::timings();
+    if !check(found.is_some(), "engine::timings() answers with a table") {
+        return;
+    }
+    let t = found.unwrap();
+    check(t.fixed_steps >= 0, "it carries the frame and its fixed steps");
+    check(t.spans.kind() == "map", "and a place for named spans");
+    let stages: any = t.stages;
+    for name in [
+        "first",
+        "pre_update",
+        "update",
+        "fixed_update",
+        "post_update",
+        "scene_sync",
+        "render",
+        "last",
+    ] {
+        if !check(stages.has(name), "stage '{name}' is in the table") {
+            return;
+        }
+    }
+    let total = 0.0;
+    for name in stages.keys() {
+        total += util::f(stages.get(name));
+    }
+    // The frame contains its stages and the gaps between them, so it is never
+    // the smaller number. A profiler that said otherwise would be measuring
+    // something else.
+    check(t.frame >= total - 1e-9, "the frame ({t.frame}) covers its stages ({total})");
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render land outside them, and `wall` is what the loop took.
+    if t.wall > 0.0 {
+        check(t.wall >= t.frame - 1e-9, "the loop's frame ({t.wall}) covers its stages ({t.frame})");
+    }
+    log::info("selftest timings: done");
+}
+
+// Placing a prefab from the editor: the palette's verb adds an instance node,
+// the engine builds the prefab under it, and undo takes the whole thing back.
+pub fn placing(S: &mut editor::State) {
+    let scenes = model::scene_files(S);
+    let candidates: [str] = [];
+    for rel in scenes {
+        if rel != S.scene_rel {
+            candidates.push(rel);
+        }
+    }
+    if candidates.len() == 0 {
+        log::info("selftest placing: this project has no second scene to instance, skipped");
+        return;
+    }
+    let rel = candidates[0];
+    let before = S.doc.len();
+    let authored_before = model::authored(S.doc).len();
+    shell::choose(S, 0);
+    model::instance_scene(S, rel);
+    let node = S.doc[S.sel];
+    check(node.get("instance").as_str() == rel, "the new node instances {rel}");
+    check(model::authored(S.doc).len() == authored_before + 1, "exactly one row was added to the file");
+    check(S.doc.len() > authored_before + 1, "and the prefab's own rows came with it ({S.doc.len()} in all)");
+    check(mirror_resolves(S), "every row resolves, the new prefab's included");
+    // A scene that instanced itself would recurse; the verb refuses.
+    let held = S.doc.len();
+    expect_warning("a scene cannot instantiate itself");
+    model::instance_scene(S, S.scene_rel);
+    check(S.doc.len() == held, "a scene refuses to instance itself");
+    shell::undo(S);
+    check(S.doc.len() == before, "undo takes the instance back ({S.doc.len()} rows)");
+    check(mirror_resolves(S), "and the mirror is whole again");
+    log::info("selftest placing: done");
+}
+
+/// `--state test:plugin_docks`: the editor's half of the plugin seam. Registering a
+/// dock has to put a tab somewhere, or nothing can ever bring the panel up.
+pub fn plugin_docks(S: &mut editor::State) {
+    if !check(S.registry.panels.len() > 0, "a plugin registered a panel") {
+        return;
+    }
+    for entry in S.registry.panels {
+        let side = docks::side_of(S, entry.id);
+        if !check(side.is_some(), "the {entry.id} dock has a tab") {
+            continue;
+        }
+        check(side.unwrap() == "bottom", "and it is in the bottom dock ({side.unwrap()})");
+        check(docks::panels(S).has(entry.id), "the panel table names {entry.id}");
+        docks::show(S, entry.id);
+        check(docks::showing(S, entry.id), "showing {entry.id} brings it up");
+    }
+    // The User data dock with every file at its root opened: what a plugin
+    // fills its host with is rows, and a file's contents are rows under the
+    // row that opens it.
+    docks::show(S, "userdata");
+    open_user_files(S);
+    S.plugin_demo = 0;
+    stepping(S, "plugin");
+    log::info("selftest plugin docks: done");
+}
+
+// The file the dock is asked to open, written into the game's own user data
+// directory because a fresh project keeps nothing the dock could read.
+const PROBE_FILE: str = "kitprobe.toml";
+
+// The kit remembers an open file under `file:<dock>:<path>`; this is the one
+// place outside it that writes those keys, so the test sees a file's rows.
+fn open_user_files(S: &mut editor::State) {
+    if S.kit_state.is_nil() {
+        S.kit_state = map();
+    }
+    fs::write(kit::game_data(S) + "/" + PROBE_FILE, "alpha = 1\nbeta = \"two\"\n");
+    S.kit_state.set("file:userdata:" + PROBE_FILE, true);
+}
+
+// Two frames: the host is made and filled on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const PLUGIN_SETTLED: int = 3;
+
+/// What a plugin left on the scene once its dock has drawn: the subtree the
+/// editor made for it, and a row per file under it.
+/// Frames `test:profiler` gives a rebuild to land, and the counts to
+/// gather after it.
+const PROFILE_SETTLED: int = 4;
+
+// The Profiler's scripts switch: every script, the editor's own among them,
+// is rebuilt with counters between frames and counts what it runs; switched
+// off, rebuilt without, it counts nothing.
+pub fn profiler(S: &mut editor::State) {
+    if S.script_profiling {
+        dock::profiler_scripts(S);
+    }
+    dock::profiler_scripts(S);
+    check(S.script_profiling, "the Profiler's scripts switch is on");
+    S.profile_demo = 0;
+    stepping(S, "profile");
+}
+
+pub fn profile_step(S: &mut editor::State) {
+    S.profile_demo += 1;
+    if S.profile_demo == PROFILE_SETTLED {
+        let costs = engine::script_costs();
+        check(costs.len() > 0, "the scripts count what they run once rebuilt");
+        let ran = costs.len() > 0 && costs[0].instructions > 0;
+        check(ran, "the dearest of them ran statements");
+        check(engine::function_costs().len() > 0, "and their functions are rows");
+        dock::profiler_scripts(S);
+        check(!S.script_profiling, "switched off");
+    } else if S.profile_demo == 2 * PROFILE_SETTLED {
+        S.profile_demo = -1;
+        check(engine::script_costs().len() == 0, "rebuilt without counters, nothing counts");
+        log::info("selftest profiler: done");
+    }
+}
+
+pub fn plugin_step(S: &mut editor::State) {
+    S.plugin_demo = S.plugin_demo + 1;
+    if S.plugin_demo < PLUGIN_SETTLED {
+        return;
+    }
+    S.plugin_demo = -1;
+    let host = docks::plugin_host(S, "bottom", "userdata");
+    let rows = scene::get_node(host + "/Split/Body/Rows");
+    if !check(rows.is_valid(), "the plugin's host is a subtree ({host})") {
+        return;
+    }
+    let shown = 0;
+    for row in rows.children() {
+        if row.get_component("widget", "visible").as_bool() == true {
+            shown += 1;
+        }
+    }
+    check(shown > 1, "the dock's files are rows on it ({shown})");
+    let labels: [str] = [];
+    for row in rows.children() {
+        let label = row.get_node("L");
+        if label.is_valid() && label.get_component("widget", "visible").as_bool() == true {
+            labels.push(label.get_component("widget", "text").as_str());
+        }
+    }
+    check(util::contains(labels, "alpha") && util::contains(labels, "beta"), "an opened file's keys are rows under it ({labels})");
+    fs::remove(kit::game_data(S) + "/" + PROBE_FILE);
+}
+
+/// `--state test:palette`: the palette opens on a query, its matches are rows
+/// on the scene, and the query survives the frames after it is set.
+pub fn palette_screen(S: &mut editor::State) {
+    shell::open_palette(S, "physics");
+    S.palette_demo = 0;
+    stepping(S, "palette");
+}
+
+// Three frames: the field has to have drawn and written back before the query
+// being intact means anything.
+const PALETTE_SETTLED: int = 3;
+
+pub fn palette_step(S: &mut editor::State) {
+    S.palette_demo = S.palette_demo + 1;
+    if S.palette_demo < PALETTE_SETTLED {
+        return;
+    }
+    S.palette_demo = -1;
+    check(S.palette_query == "physics", "a palette query survives the frames after it is set ('{S.palette_query}')");
+    let host = scene::get_node("Editor/Picker/PickerScroll/PickerRows");
+    if !check(host.is_valid(), "the palette's matches are nodes") {
+        return;
+    }
+    let shown: [bool] = [];
+    for row in host.children() {
+        if row.get_component("widget", "visible").as_bool() == true {
+            let slot = row.get_node("H").get_node("C").get_node("C0");
+            shown.push(slot.get_component("widget", "checked").as_bool() == true);
+        }
+    }
+    check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
+    let held = 0;
+    for on in shown {
+        if on {
+            held += 1;
+        }
+    }
+    check(shown.len() > 0 && shown[0] && held == 1, "the first match alone wears the held look, which is what Enter runs ({shown})");
+    let box = ui::widget_rect(scene::get_node("Editor/Picker"));
+    check(box.is_some() && box.unwrap().height > 100.0, "the picker is as tall as the matches it holds ({box})");
+    shell::close_palette(S);
+}
+
+/// `--state test:panels`: every row of the mark's menu opens the panel it names
+/// and closes it again. A panel something else reopens on the same frame, or
+/// one no dock will take, reads as a row that does nothing.
+pub fn menu_panels(S: &mut editor::State) {
+    let ids = docks::known(S);
+    check(ids.len() > 10, "the menu lists every panel ({ids.len()})");
+    for id in ids {
+        let was = docks::side_of(S, id).is_some();
+        docks::toggle(S, id);
+        let now = docks::side_of(S, id).is_some();
+        if !check(now != was, "{id} toggles ({was} to {now})") {
+            continue;
+        }
+        docks::toggle(S, id);
+        check(docks::side_of(S, id).is_some() == was, "and {id} toggles back");
+    }
+    log::info("selftest menu panels: done");
+}
+
+/// `--state test:focus`: focus folds the shell round the code, and leaving it
+/// puts back exactly the layout it folded.
+pub fn focusing(S: &mut editor::State) {
+    if !shell::select_scripted(S) {
+        log::info("selftest: no scripted node in this scene; focus skipped");
+        return;
+    }
+    // A panel up on every side, so folding them has something to fold.
+    for id in ["outline", "inspector", "output"] {
+        docks::show(S, id);
+    }
+    let was = map();
+    for side in docks::sides() {
+        was.set(side, S.docks.get(side).get("shut"));
+    }
+    check(shell::focus_target(S), "the selection has a script to focus");
+    shell::toggle_focus(S);
+    center::modes(S);
+    check(S.focus && S.doctab == "script", "focus takes, and the code is what shows");
+    check(!S.split, "the split is off under it");
+    check(docks::all_folded(S), "every dock is folded away");
+    check(S.hooks_open, "and the file's symbols stay beside the code");
+    shell::toggle_focus(S);
+    center::modes(S);
+    check(!S.focus, "leaving focus clears it");
+    let back = true;
+    for side in docks::sides() {
+        if !S.docks.get(side).get("shut").equals(was.get(side)) {
+            back = false;
+        }
+    }
+    check(back, "and every dock comes back to what it was");
+    // Leaving the code is leaving focus: the shell comes back with the tab.
+    shell::toggle_focus(S);
+    shell::open_doc(S, "scene");
+    center::modes(S);
+    check(!S.focus, "showing the scene again ends focus");
+    check(!docks::all_folded(S), "and the docks come back with it");
+    // A panel asked for under focus keeps its dock; the record goes instead.
+    shell::open_doc(S, "script");
+    shell::toggle_focus(S);
+    docks::show(S, "output");
+    center::modes(S);
+    check(!S.focus, "a panel opened under focus ends it");
+    check(!docks::folded(S, "bottom"), "and stays open");
+    for side in docks::sides() {
+        S.docks.get(side).set("shut", was.get(side));
+    }
+    log::info("selftest focus: done");
+}
+
+/// `--state test:settings`: the settings screen's search field and the query it
+/// filters by are one thing, which they stopped being for a frame; then a
+/// value written on the screen is round-tripped through the file.
+pub fn settings_screen(S: &mut editor::State) {
+    settings::open_search(S, "theme");
+    S.settings.demo = 0;
+    stepping(S, "settings");
+}
+
+// Three frames: the sidebar's field has to have drawn and written back before
+// the query being intact means anything.
+const SETTINGS_SETTLED: int = 3;
+
+pub fn settings_step(S: &mut editor::State) {
+    S.settings.demo = S.settings.demo + 1;
+    let at = S.settings.demo;
+    if at < SETTINGS_SETTLED {
+        return;
+    }
+    if at == SETTINGS_SETTLED {
+        check(settings::query(S) == "theme", "a settings query survives the frames after it is set ('{settings::query(S)}')");
+        // The sheet is a `dialog` node stating its own size: hugging, its bar
+        // measures and its body is left with nothing.
+        let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
+        check(body.is_some() && body.unwrap().height > 100.0, "the sheet's body has the room its frame states ({body})");
+        // Typed rather than set: the field's text is what a key press
+        // changes, and the list has to follow it.
+        let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
+        if check(field.is_valid() && field.get_component("widget", "kind").as_str() == "text_field", "the sidebar's first control is the search field") {
+            ui::edit(field, "scale");
+        }
+        return;
+    }
+    if at < SETTINGS_SETTLED + 2 {
+        return;
+    }
+    S.settings.demo = -1;
+    check(settings::query(S) == "scale", "typing in the field is the query ('{settings::query(S)}')");
+    let note = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/R0/H/C/C0");
+    let said = if note.is_valid() { note.get_component("widget", "text").as_str() } else { "" };
+    check(said.contains("matching \"scale\"") && !said.starts_with("0 "), "and the list is the matches for it ({said})");
+    settings_round_trip(S);
+}
+
+// A value written on the screen reaches the editor's preferences file and
+// comes back out of it. The file is put back as it was found.
+fn settings_round_trip(S: &mut editor::State) {
+    let path = "editor/recordings/keep";
+    let kept = fs::read(settings::prefs_path());
+    let was = settings::get(path);
+    let before = if was.is_nil() { 10 } else { util::i(was.as_float()) };
+    let want = before + 3;
+    settings::write(S, path, want);
+    check(S.settings.dirty, "writing a setting marks the screen unsaved");
+    check(util::i(settings::get(path).as_float()) == want, "and the value took ({want})");
+    settings::commit_prefs(S);
+    let text = fs::read(settings::prefs_path());
+    if check(text.is_some(), "the preferences file was written") {
+        check(text.unwrap().contains("keep"), "and names the setting that changed");
+        settings::merge_toml(text.unwrap());
+        check(util::i(settings::get(path).as_float()) == want, "a re-read of the file agrees ({settings::get(path)})");
+    }
+    settings::write(S, path, before);
+    if kept.is_some() {
+        fs::write(settings::prefs_path(), kept.unwrap());
+    } else {
+        fs::remove(settings::prefs_path());
+    }
+    S.settings.dirty = false;
+    log::info("selftest settings: done");
+}
+
+/// `--state test:export_runtime`: the Export sheet's Runtime choice is the
+/// project's `[export] runtime`, and each row names the runtime it builds on.
+/// The manifest is put back as it was found.
+pub fn export_runtime(S: &mut editor::State) {
+    let path = S.game_root + "/project.toml";
+    let kept = fs::read(path);
+    let was = settings::base("export/runtime");
+    exporter::open(S);
+    // Whichever the project does not already name, so the write is seen.
+    let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
+    exporter::pick_runtime(S, pick);
+    let text = fs::read(path).or("");
+    check(text.contains("runtime = \"{pick}\""), "a runtime picked on the sheet is written to project.toml ({pick})");
+    check(export_row_runtime(S, "web") == "web-" + pick, "and the web row builds on it ({export_row_runtime(S, "web")})");
+    check(export_row_runtime(S, "linux-x64-server") == "linux-x64-server", "while a server keeps its own ({export_row_runtime(S, "linux-x64-server")})");
+    exporter::pick_runtime(S, "full");
+    check(export_row_runtime(S, "web") == "web", "full puts the web row back on the full runtime ({export_row_runtime(S, "web")})");
+    if was.kind() == "str" {
+        settings::write(S, "export/runtime", was);
+    }
+    if kept.is_some() {
+        fs::write(path, kept.unwrap());
+    }
+    S.settings.dirty = false;
+    log::info("selftest export runtime: done");
+}
+
+fn export_row_runtime(S: editor::State, name: str) -> str {
+    for row in S.exporter.rows {
+        if util::obj(row).get("name").as_str() == name {
+            return util::obj(row).get("runtime").as_str();
+        }
+    }
+    ""
+}
+
+pub fn theme_switch(S: &mut editor::State) {
+    theme::set_dark(S, true);
+    check(S.theme.get("dark").as_bool() == true, "the editor uses the dark theme");
+    let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
+    theme::set_dark(S, false);
+    check(S.theme.get("dark").as_bool() == false, "the switch reaches the light theme");
+    check(S.theme.get("bg_app").as_str() != "", "and the light theme loaded its colors");
+    // The sheet, the palette and the start screen are roots of their own, not
+    // under the shell, and each has to wear the switch too.
+    for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
+        let now = scene::get_node(path).get_component("widget", "theme");
+        check(now.kind() == "str" && now.as_str().starts_with("#!") && !now.equals(dark_sheet), "{path} uses the light theme ({now})");
+    }
+    theme::set_dark(S, true);
+    check(S.theme.get("dark").as_bool() == true, "and switches back to the dark one");
+    follow_the_system(S);
+    bundled_pairs(S);
+    log::info("selftest theme: done");
+}
+
+// Under `mode = "system"` the half follows what the system says, and a mode
+// of its own holds whatever the system says. The setting is put back.
+fn follow_the_system(S: &mut editor::State) {
+    let mode = settings::get(theme::MODE_SETTING);
+    let pinned = S.theme_half;
+    S.theme_half = "";
+    settings::set(theme::MODE_SETTING, "system");
+    theme::follow(S, false);
+    check(S.theme.get("half").as_str() == "light" && !S.theme.get("dark").as_bool(), "under system, a light system wears the light half");
+    theme::follow(S, true);
+    check(S.theme.get("half").as_str() == "dark" && S.theme.get("dark").as_bool(), "and a dark one the dark half");
+    settings::set(theme::MODE_SETTING, "light");
+    theme::follow(S, true);
+    check(S.theme.get("half").as_str() == "light", "a light mode holds whatever the system says");
+    settings::set(theme::MODE_SETTING, mode);
+    S.theme_half = pinned;
+    theme::follow(S, engine::dark_mode());
+}
+
+// Every bundled pair is a folder with both halves, and the list the setting
+// offers is the list the editor ships.
+fn bundled_pairs(S: editor::State) {
+    let found: [str] = [];
+    for entry in util::vec(fs::list("themes")) {
+        if entry.get("is_dir").as_bool() {
+            found.push(entry.get("name").as_str());
+        }
+    }
+    let folders: any = found;
+    let bundled: any = theme::BUNDLED();
+    let listed = bundled.sorted();
+    check(folders.sorted().equals(listed), "the bundled folders are the bundled list ({folders.sorted()} vs {listed})");
+    let options: any = [];
+    for def in settings::all() {
+        if def.path == theme::SETTING {
+            options = util::vec(util::obj(def.spec).get("options"));
+        }
+    }
+    check(options.sorted().equals(listed), "and the setting offers the same ({options.sorted()})");
+    for name in theme::BUNDLED() {
+        for half in theme::HALVES() {
+            check(theme::read(name, half).kind() == "map", "{name} has its {half} half");
+        }
+    }
+}
+
+/// `--state test:theme_editing`: a bundled theme is read-only, a duplicate is the
+/// person's to edit, an edit is worn at once and saved as only what differs,
+/// and deleting it goes back to its base. The preferences file is put back.
+pub fn theme_editing(S: &mut editor::State) {
+    let prefs = settings::prefs_path();
+    S.themewin.test = themewin::Test { kept: fs::read(prefs), name: "" };
+    theme::set_dark(S, true);
+    themewin::open(S);
+    check(window::showing(S, "theme"), "the Theme dialog opens");
+    check(!themewin::editable(S), "a bundled theme is read-only");
+    let before = S.theme.get("primary_text").as_str();
+    themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.get("primary_text").as_str() == before, "and an edit to it changes nothing");
+    let name = themewin::duplicate(S);
+    S.themewin.test.name = name;
+    let path = theme::path_of(name, S.theme.get("half").as_str());
+    check(fs::exists(path), "duplicating writes {path}");
+    check(S.theme.get("name").as_str() == name && themewin::editable(S), "and the copy is worn and editable");
+    check(names(theme::names(), name), "and listed beside the bundled ones");
+    themewin::edit(S, ["colors"], "primary", "#e0a868");
+    check(S.theme.get("primary_fill").as_str() == "#e0a868", "a source color is used at once");
+    check(S.theme.get("primary_text").as_str() != before, "and moves what derives from it ({S.theme.get("primary_text")})");
+    themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.get("primary_text").as_str() == "#ff0000", "a stated token wins over its rule");
+    let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
+    check(sheet.kind() == "str" && sheet.as_str().starts_with("#!"), "and the dialog's node carries it embedded");
+    themewin::edit(S, ["roles", "tab"], "font_size", 13);
+    themewin::save(S);
+    let text = fs::read(path).or("");
+    check(text.contains("primary_text") && text.contains("base = \"balaur\""), "saving writes the edit under its base: {text}");
+    check(text != "" && !text.contains("background ="), "and nothing it leaves to that base");
+    theme::reload(S);
+    check(S.theme.get("primary_text").as_str() == "#ff0000", "the saved theme reads back");
+    check(S.theme.get("roles").get("tab").get("font_size").as_int() == 13, "with the role key it changed");
+    check(S.theme.get("roles").get("tab").get("text_color").as_str() == "text_subtle", "and the keys its base holds");
+    check(S.themewin.pairs.len() > 50, "every role's contrast is measured ({S.themewin.pairs.len()})");
+    themewin::show_role(S, "tab", "");
+    S.themewin.demo = 0;
+    stepping(S, "themewin");
+}
+
+/// `--state test:sheet_close`: a sheet and the palette shut when their `dialog`
+/// is shut from outside, as egui does on Escape or a click on the dim. The
+/// close is put on the node the way the input settle puts it, between frames.
+pub fn sheet_closing(S: &mut editor::State) {
+    about::open(S);
+    S.window.demo = 0;
+    stepping(S, "window");
+}
+
+pub fn sheet_close_step(S: &mut editor::State) {
+    S.window.demo = S.window.demo + 1;
+    let at = S.window.demo;
+    if at == 3 {
+        check(window::showing(S, "about"), "the sheet stays up while nothing shuts it");
+        util::fill("Editor/Sheet", map().with("open", false));
+    } else if at == 5 {
+        check(!window::showing(S, "about"), "and goes when its dialog is shut from outside");
+        shell::open_palette(S, "");
+    } else if at == 8 {
+        check(S.palette, "the palette stays up while nothing shuts it");
+        util::fill("Editor/Picker", map().with("open", false));
+    } else if at == 10 {
+        S.window.demo = -1;
+        check(!S.palette, "and goes when its dialog is shut from outside");
+        log::info("selftest sheetclose: done");
+    }
+}
+
+// Three frames: the pooled rows have to be made and drawn before one of them
+// can be read back.
+const THEME_SETTLED: int = 3;
+
+pub fn theme_edit_step(S: &mut editor::State) {
+    S.themewin.demo = S.themewin.demo + 1;
+    if S.themewin.demo < THEME_SETTLED {
+        return;
+    }
+    S.themewin.demo = -1;
+    let host = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm");
+    let roles: [str] = [];
+    for row in host.children() {
+        if row.get_component("widget", "visible").as_bool() == true {
+            let slot = row.get_node("H").get_node("C").get_node("C0");
+            roles.push(slot.get_component("widget", "role").as_str());
+        }
+    }
+    check(util::contains(roles, "tab"), "the Controls page draws the tab role as itself ({roles.len()})");
+    let name = S.themewin.test.name;
+    themewin::remove(S);
+    check(!fs::exists(theme::folder_of(name)), "deleting removes the folder");
+    check(S.theme.get("name").as_str() == theme::DEFAULT, "and the editor goes back to the base");
+    let kept = S.themewin.test.kept;
+    let prefs = settings::prefs_path();
+    if kept.is_some() {
+        fs::write(prefs, kept.unwrap());
+    } else {
+        fs::remove(prefs);
+    }
+    settings::load_files(S);
+    window::hide(S);
+    log::info("selftest themeedit: done");
+}
+
+/// A row's authored x, which a node that names no transform has at zero.
+fn doc_x(S: editor::State, i: int) -> float {
+    model::doc_transform(S.doc[i], "position", [0.0, 0.0, 0.0])[0]
+}
+
+/// The selection set: extending it, aligning two nodes, undoing that, and
+/// grouping. Every check is on document state, so it runs with no window.
+pub fn selecting(S: &mut editor::State) {
+    if S.doc.len() < 2 {
+        log::info("selftest selecting: this scene has one node, skipping");
+        return;
+    }
+    // Two siblings: a parent and its child are one root between them, and
+    // group would then adopt one node rather than two. Apart on x if any are,
+    // or the align below has nothing to do and proves nothing.
+    let a = 0;
+    let b = 1;
+    let found = false;
+    let apart = false;
+    for i in 0..S.doc.len() {
+        for j in i + 1..S.doc.len() {
+            let same = S.doc[i].get("parent").as_str() == S.doc[j].get("parent").as_str();
+            let differs = util::abs(doc_x(S, i) - doc_x(S, j)) > 1e-3;
+            if same && (!found || (differs && !apart)) {
+                a = i;
+                b = j;
+                found = true;
+                apart = differs;
+            }
+        }
+    }
+    if !found {
+        log::info("selftest selecting: this scene has no two siblings, skipping");
+        return;
+    }
+    selection::only(S, a);
+    check(selection::count(S) == 1, "a plain choose selects one node");
+    selection::toggle(S, b);
+    check(selection::count(S) == 2, "toggling a second node extends the set");
+    check(S.sel == b, "and the node just added is the active one");
+    selection::toggle(S, b);
+    check(selection::count(S) == 1 && S.sel == a, "toggling it again drops it");
+    selection::set(S, [a, b]);
+    let before = [doc_x(S, a), doc_x(S, b)];
+    arrange::align(S, 0, "min");
+    // The document, not `global_position`: that is as of the last transform
+    // sync, and the two are siblings, so one parent frame holds both.
+    check(util::abs(doc_x(S, a) - doc_x(S, b)) < 1e-4, "align on x puts two nodes on one plane ({doc_x(S, a)} and {doc_x(S, b)})");
+    shell::undo(S);
+    check(util::abs(doc_x(S, a) - before[0]) < 1e-4 && util::abs(doc_x(S, b) - before[1]) < 1e-4, "undo puts the align back ({doc_x(S, a)} and {doc_x(S, b)})");
+    check(selection::count(S) == 2, "and restores the set that made it");
+    let was = S.doc.len();
+    selection::set(S, [a, b]);
+    arrange::group(S);
+    check(S.doc.len() == was + 1, "group adds one node");
+    check(S.doc[S.sel].get("name").as_str().starts_with("Group"), "and selects it");
+    let group_id = S.doc[S.sel].get("id").as_str();
+    let adopted = 0;
+    for node in S.doc {
+        if node.get("parent").as_str() == group_id {
+            adopted += 1;
+        }
+    }
+    check(adopted == 2, "with both nodes under it");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the group away");
+    selection::only(S, a);
+    check(!selection::is_locked(S, a), "a node starts unlocked");
+    arrange::toggle_locked(S);
+    check(selection::is_locked(S, a), "lock marks it");
+    arrange::toggle_locked(S);
+    check(!selection::is_locked(S, a), "and the same command unmarks it");
+    let shown = S.doc[a].get("visible");
+    check(shown.is_nil() || shown.as_bool(), "a node starts visible");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible").equals(false), "hide writes visible = false");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible").equals(true), "and showing writes it back");
+    check(mirror_resolves(S), "the mirror still resolves after all of it");
+    log::info("selftest selecting: done");
+}
+
+/// Every file a previous drop test left under `art/`.
+fn clear_drops(S: editor::State) {
+    for f in util::vec(fs::list(S.game_root + "/art")) {
+        if f.get("name").as_str().starts_with("selftest-drop") {
+            fs::remove(S.game_root + "/art/" + f.get("name").as_str());
+        }
+    }
+}
+
+/// Drag-in: one case per extension, with no window. The image and font cases
+/// copy a real file; the import case is only asked whether it claims the name,
+/// because running `balaur import` needs a model to import.
+pub fn dropping(S: &mut editor::State) {
+    check(dropin::kind_of("art/hero.png") == "image", "a .png drops as an image");
+    check(dropin::kind_of("MODELS/Robot.GLB") == "import", "a .glb goes through the importer, whatever its case");
+    check(dropin::kind_of("shaders/water.wesl") == "shader", "a .wesl drops as a shader");
+    check(dropin::kind_of("skies/studio.hdr") == "sky", "an .hdr drops as a sky");
+    check(dropin::kind_of("scenes/enemy.toml") == "scene", "a scene drops as a prefab");
+    check(dropin::kind_of("fonts/Inter.ttf") == "font", "a font drops as a font");
+    check(dropin::kind_of("notes.txt") == "", "and nothing claims a text file");
+    check(dropin::stem_of("/tmp/My Model-01.glb") == "my_model_01", "the stem is the importer's own naming rule");
+    let root = S.game_root + "/";
+    let source = root + "selftest-drop.png";
+    // Anything a previous run left: `copy_in` numbers a name it finds taken,
+    // so a leftover would make this run write `_3` and assert on `_2`.
+    clear_drops(S);
+    // A real image: a 2D drop makes a `sprite`, which sizes itself from the
+    // picture and cannot do that with a file of prose.
+    fs::copy("assets/balaur-logo.png", source);
+    let was = S.doc.len();
+    dropin::take(S, source);
+    check(S.doc.len() == was + 1, "dropping an image adds one node");
+    check(fs::exists(root + "art/selftest-drop.png"), "and copies the file under art/");
+    let made = S.doc[S.doc.len() - 1];
+    let named = made.has("sprite") || made.has("mesh");
+    check(named, "the node it makes draws the picture");
+    dropin::take(S, source);
+    check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
+    // A card dragged out of the Assets panel names the file where it lies:
+    // the panel hears the drop and hands it to the Editor.
+    let panel = scene::get_node(ASSETS_PANEL);
+    let cards = util::obj(panel.get_node("Cards").get_component("widget"));
+    check(cards.get("draggable").as_bool() && panel.has_method("on_widget_event") && scene::get_node("Editor").has_method("assets_dropped"), "the Assets panel's cards hand a drop to the panel, and it to the Editor");
+    dropin::place_file(S, "art/selftest-drop.png");
+    let placed = S.doc[S.doc.len() - 1];
+    let drawer = if placed.has("sprite") { placed.get("sprite") } else { placed.get("mesh") };
+    let drawn = util::obj(drawer).get("texture").as_str();
+    check(S.doc.len() == was + 3 && drawn == "art/selftest-drop.png" && !fs::exists(root + "art/selftest-drop_3.png"), "a file placed from the Assets panel is named where it lies ({drawn})");
+    shell::undo(S);
+    shell::undo(S);
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes both back");
+    // A sky: it retargets the scene's `environment` when there is one, and
+    // places one when there is not.
+    let sky = root + "selftest-drop.hdr";
+    fs::copy("assets/balaur-logo.png", sky);
+    let had_env = false;
+    for node in S.doc {
+        if node.has("environment") {
+            had_env = true;
+        }
+    }
+    dropin::take(S, sky);
+    let named = false;
+    for node in S.doc {
+        if util::obj(node.get("environment")).get("sky").as_str() != "" {
+            named = true;
+        }
+    }
+    check(named, "dropping a sky names it on an environment");
+    check(S.doc.len() == was + (if had_env { 0 } else { 1 }), "on the one that was there, or a new one");
+    shell::undo(S);
+    fs::remove(sky);
+    for f in util::vec(fs::list(root + "skies")) {
+        fs::remove(root + "skies/" + f.get("name").as_str());
+    }
+    fs::remove(source);
+    clear_drops(S);
+    log::info("selftest dropping: done");
+}
+
+// Where the converted script is checked as if it were saved.
+const CONVERTED: str = "scripts/converted.bs";
+
+// What the script check calls an error in `text`, by message.
+fn errors_in(text: str) -> [str] {
+    let out: [str] = [];
+    for found in script::check(CONVERTED, text) {
+        if found.severity == "error" {
+            out.push(found.message);
+        }
+    }
+    out
+}
+
+/// The Events view authors rows and writes the script they are equivalent to.
+pub fn eventviews(S: &mut editor::State) {
+    let target: int? = nil;
+    for i in 0..S.doc.len() {
+        if S.doc[i].has("bindings") {
+            target = i;
+        }
+    }
+    if target.is_none() {
+        log::info("selftest eventviews: this scene has no bindings, skipping");
+        return;
+    }
+    let at = target.unwrap();
+    selection::only(S, at);
+    let was = events::rows(S).len();
+    check(was > 0, "the selected node carries binding rows");
+    events::add_row(S);
+    check(events::rows(S).len() == was + 1, "adding a row adds one");
+    shell::undo(S);
+    check(events::rows(S).len() == was, "and undo takes it back");
+    let written = events::as_script(S);
+    check(written.contains("pub fn on_pointer_click(button: any)"), "the script it writes declares the hook the rows answer");
+    check(written.contains(".states.set_state(\"open\")"), "a state row becomes the call that goes to it");
+    check(written.contains("scene::variable(\"score\")"), "a `when` becomes the read that fetches the variable");
+    check(!written.contains("self.get_node") && !written.contains("self.queue_free"), "a row's call goes through the node, not the script's own fields");
+    let problems = errors_in(written);
+    check(problems.len() == 0, "and the script it writes compiles: {problems}");
+    let own = events::script_of([map().with("event", events::EMITTED + "died").with("action", "free")]);
+    check(own.contains("pub fn on_died(payload: any)") && own.contains("events::listen(self.node, \"died\", self.node)"), "a row on the node's own event hears it by subscribing: {own}");
+    let own_problems = errors_in(own);
+    check(own_problems.len() == 0, "and compiles: {own_problems}");
+    // The control: the name the old conversion wrote is one the check refuses.
+    let refused = errors_in("fn on_emitted:died() {{}}\n");
+    check(refused.len() > 0, "the check does refuse a name with a colon in it");
+    let known = util::vec(scene::bindable_events());
+    check(names(known, "pointer_click"), "the engine names the events");
+    let verbs = util::vec(scene::binding_actions());
+    check(names(verbs, "set_state") && names(verbs, "set_variable"), "and the actions");
+    check(mirror_resolves(S), "the mirror still resolves");
+    // Left on the tab, so the shot this state takes is of the rows and the
+    // step below sees what the pool put on the scene.
+    S.doctab = "events";
+    S.events_demo = 0;
+    stepping(S, "events");
+    log::info("selftest eventviews: done");
+}
+
+// Two frames: the pool writes the rows on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const EVENTS_SETTLED: int = 3;
+
+/// The bindings as the pool left them: a row per binding, each carrying the
+/// controls that edit it.
+pub fn events_step(S: &mut editor::State) {
+    S.events_demo = S.events_demo + 1;
+    if S.events_demo < EVENTS_SETTLED {
+        return;
+    }
+    S.events_demo = -1;
+    let host = scene::get_node(events::rows_host());
+    if !check(host.is_valid(), "the bindings view is a node") {
+        return;
+    }
+    let shown = 0;
+    for row in host.children() {
+        if row.get_component("widget", "visible").as_bool() == true {
+            shown += 1;
+        }
+    }
+    check(shown > events::rows(S).len(), "every binding is a row, and the headings under them ({shown})");
+    let box = ui::widget_rect(host);
+    check(box.is_some() && box.unwrap().width > 200.0, "the rows have the width the document area gives them ({box})");
+}
+
+/// The file a node's `mesh` asset names, read off the live node: the document
+/// held the right path all along, and the mirror's engine did not.
+fn mesh_file(S: editor::State, name: str) -> str {
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if node.get("name").as_str() == name {
+            let found = model::live(S, i);
+            if found.is_valid() {
+                let reference = util::obj(found.get_component("mesh")).get("source").as_str();
+                // Loading nothing is an error that ends the call, not a nil.
+                if reference == "" {
+                    return "";
+                }
+                let definition = assets::load(reference);
+                if definition.kind() == "map" {
+                    return definition.get("source").as_str();
+                }
+            }
+        }
+    }
+    ""
+}
+
+// What the engine warns about on a node, by message.
+fn warned(found: Node) -> [str] {
+    let out: [str] = [];
+    for warning in scene::warnings(found) {
+        out.push(warning.message);
+    }
+    out
+}
+
+/// The project-relative files directly under one directory.
+fn named_under(S: editor::State, dir: str) -> [str] {
+    let out: [str] = [];
+    for f in util::vec(fs::list(S.game_root + "/" + dir)) {
+        if !f.get("is_dir").as_bool() {
+            out.push(dir + "/" + f.get("name").as_str());
+        }
+    }
+    out
+}
+
+/// The row views, read off the nodes they fill rather than off the scripts
+/// that fill them: what a view puts on a node is what the reader sees.
+///
+/// One stage a frame, because a node holds nothing until the shell has drawn
+/// it once and a pick is only answered by the pass after the one that made it.
+const SCENE_PANEL: str = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
+
+const TREE_NODE: str = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
+
+const ASSETS_PANEL: str = "Editor/Shell/Body/Centre/Bottom/Assets";
+
+/// Search the Scene panel as someone typing into it would be answered, and
+/// keep the query for the checks that follow.
+fn rows_search(S: &mut editor::State, query: str) {
+    S.rows_query = query;
+    scene::get_node(SCENE_PANEL).call("find", query);
+}
+
+pub fn row_views(S: &mut editor::State) {
+    S.rows_demo = 0;
+    stepping(S, "rows");
+    S.rows_want = 0;
+    S.rows_waited = 0;
+    S.rows_query = "";
+}
+
+/// A model dropped on the window: the import runs off the frame, so what it
+/// wrote is asserted once the job says it is finished rather than straight
+/// after the drop.
+const DROPPED_MODEL: str = "examples/rig3d/models/column.glb";
+
+/// What the import writes, and so what the teardown removes. A project that
+/// already has one of these is not a clean drop: `examples/rig3d` ships
+/// `models/column.glb`, and the demo would overwrite it and then delete it.
+fn IMPORT_WRITES() -> [str] {
+    ["models/column.glb", "scenes/column.toml", "animations/column.toml"]
+}
+
+/// What the import writes, so a run can take it back out: this imports into
+/// the example project the audit runs on, and a leftover would make the next
+/// run assert on files it did not write.
+fn clear_import(S: editor::State) {
+    for rel in IMPORT_WRITES() {
+        fs::remove(S.game_root + "/" + rel);
+    }
+}
+
+pub fn importing(S: &mut editor::State) {
+    if S.game_root == "" {
+        log::info("selftest jobdemo: no project open in this run, skipped");
+        return;
+    }
+    for rel in IMPORT_WRITES() {
+        if fs::exists(S.game_root + "/" + rel) {
+            log::info("selftest jobdemo: " + rel + " is already here, skipped rather than overwrite it");
+            return;
+        }
+    }
+    S.import_demo = 0;
+    stepping(S, "import");
+    S.import_waited = 0;
+}
+
+pub fn import_step(S: &mut editor::State) {
+    if S.import_demo == 0 {
+        S.import_demo = 1;
+        dropin::take(S, DROPPED_MODEL);
+        // A report reaches the list on the next pump at the soonest, whether
+        // the job runs on a thread or under the tick.
+        check(S.jobs.len() == 0, "nothing is claimed before a report arrives");
+        return;
+    }
+    if S.import_demo == 1 {
+        // On a desktop the job has a thread and may be done by the next frame,
+        // so what is asserted is where it ends, not when.
+        let job = util::obj(S.jobs.get(DROPPED_MODEL));
+        if job.get("over").as_str() == "" {
+            waited_for_import(S);
+            return;
+        }
+        check(import::running_count() == 0, "a finished import lets go of its place");
+        check(dropin::in_flight(S) == 0, "and nothing is in flight");
+        check(job.get("name").as_str() == "column.glb", "the list says which file");
+        check(job.get("over").as_str() == "imported", "and how it ended ({job.get("over")})");
+        check(job.get("done").as_int() == 3 && job.get("files").as_int() == 3, "with what it wrote ({job.get("done")} of {job.get("files")})");
+        let root = S.game_root + "/";
+        check(fs::exists(root + "models/column.glb"), "the model landed in the project");
+        check(fs::exists(root + "scenes/column.toml"), "with a scene written beside it");
+        let named = false;
+        for node in S.doc {
+            if node.get("name").as_str() == "Column" {
+                named = true;
+            }
+        }
+        check(named, "the scene it wrote was instanced");
+        // The engine reads the instanced scene itself, so the mesh inside it
+        // is the one thing the document cannot vouch for.
+        let names = mesh_file(S, "ColumnMesh");
+        check(names.starts_with(S.game_root), "the instanced mesh names a file in the game ({names})");
+        // The instanced node goes before its files do: left standing it names
+        // a model this teardown is about to delete, and the renderer says so
+        // every frame for the rest of the run.
+        shell::undo(S);
+        clear_import(S);
+        // Again, stopped as it starts. A thread may write all three files
+        // before the press lands, so either end is right if the two agree.
+        S.jobs = map();
+        S.import_waited = 0;
+        S.import_demo = 2;
+        dropin::take(S, DROPPED_MODEL);
+        import::cancel();
+        return;
+    }
+    let job = util::obj(S.jobs.get(DROPPED_MODEL));
+    if job.get("over").as_str() == "" {
+        waited_for_import(S);
+        return;
+    }
+    check(import::running_count() == 0, "a stopped import lets go of its place");
+    let landed = fs::exists(S.game_root + "/models/column.glb");
+    check(job.get("over").as_str() == "stopped" || job.get("over").as_str() == "imported", "it ends stopped or, on a thread already done, imported ({job.get("over")})");
+    check(job.get("over").as_str() != "imported" || landed, "an import that says it finished wrote its model");
+    check(job.get("over").as_str() != "stopped" || job.get("done").as_int() < 3, "a stop says how few files it wrote ({job.get("done")})");
+    // The same argument as the first teardown, for the end the cancel loses:
+    // an import that finished anyway instanced its scene, and the node names
+    // the model the next line deletes.
+    if job.get("over").as_str() == "imported" {
+        shell::undo(S);
+    }
+    clear_import(S);
+    S.import_demo = -1;
+    log::info("selftest jobdemo: done");
+}
+
+// A frame spent waiting for the import to end, and the give-up after 300.
+fn waited_for_import(S: &mut editor::State) {
+    S.import_waited = S.import_waited + 1;
+    if S.import_waited > 300 {
+        S.import_demo = -1;
+        check(false, "the import ended within 300 frames");
+    }
+}
+
+/// Editing a game camera writes what the author set, not the `current =
+/// false` the editor holds every game camera at while it looks.
+pub fn camera_document(S: &mut editor::State) {
+    let row = S.doc.len();
+    model::add_child(S, nil);
+    selection::only(S, row);
+    model::add_component(S, model::CAMERA_3D);
+    model::hold_game_cameras(S, false);
+    model::set_component_prop(S, model::CAMERA_3D, "bloom_intensity", 0.5);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D));
+    check(!written.get("bloom_intensity").is_nil(), "the camera edit reached the document");
+    let current = written.get(model::CAMERA_CURRENT);
+    check(current.is_nil() || current.as_bool(), "and the document keeps the camera current ({current})");
+    // An edit to `current` itself is the author's, and the editor keeps looking.
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, false);
+    check(util::obj(S.doc[row].get(model::CAMERA_3D)).get(model::CAMERA_CURRENT).equals(false), "turning the camera off is written");
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, true);
+    check(util::obj(S.doc[row].get(model::CAMERA_3D)).get(model::CAMERA_CURRENT).equals(true), "and so is turning it back on");
+    let live = model::live(S, row);
+    check(live.get_component(model::CAMERA_3D, model::CAMERA_CURRENT).as_bool() == false, "while the editor still looks through its own");
+    model::delete_selected(S);
+    log::info("selftest camera document: done");
+}
+
+/// A node made a soft body from what it draws, in one undo step: a sprite is
+/// traced into a textured polygon the cells bend, a shape becomes the
+/// generator that matches it, and undo puts the node back.
+pub fn soft_recipes(S: &mut editor::State) {
+    let sprite_row: int? = nil;
+    let shape_row: int? = nil;
+    for i in 0..S.doc.len() {
+        let source = recipes::soft_body_source(S, i).or("");
+        if source == "sprite" && sprite_row.is_none() {
+            sprite_row = i;
+        }
+        if source == "shape" && shape_row.is_none() {
+            shape_row = i;
+        }
+    }
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest recipes: nothing here to make a soft body of, skipped");
+        return;
+    }
+    if sprite_row.is_some() {
+        let row = sprite_row.unwrap();
+        check(recipes::soft_body(S, row), "a sprite becomes a soft body");
+        let node = S.doc[row];
+        check(!node.has("sprite") && node.has("polygon") && node.has("softbody2d"), "drawn by a polygon of the image, bent by a soft body");
+        let drawn = util::vec(node.get("polygon").get("mesh").get("positions")).len();
+        let built = util::vec(node.get("softbody2d").get("mesh").get("positions")).len();
+        check(drawn >= 3 && drawn == built, "the body is built from the outline the polygon draws ({built} of {drawn})");
+        let bad = warned(model::live(S, row));
+        check(bad.len() == 0, "and the node has nothing to warn about ({bad})");
+        undo_all(S);
+        check(S.doc[row].has("sprite") && !S.doc[row].has("softbody2d"), "undo puts the sprite back");
+    }
+    if shape_row.is_some() {
+        let row = shape_row.unwrap();
+        let two_d = S.doc[row].has("shape2d");
+        check(recipes::soft_body(S, row), "a shape becomes a soft body");
+        let body = if two_d { "softbody2d" } else { "softbody3d" };
+        let shape = if two_d { "shape2d" } else { "shape3d" };
+        check(S.doc[row].has(body) && !S.doc[row].has(shape), "the {shape} became a {body} of its size");
+        check(model::live(S, row).has_component(body), "and the live node has it");
+        undo_all(S);
+    }
+    log::info("selftest recipes: done");
+}
+
+/// Changing a node's type keeps what it draws: a sprite made a rigid body
+/// gets a collider of its outline, a body made static keeps its collider, a
+/// shape made a polygon keeps its outline, and each is one undo step. A soft
+/// body added from the picker asks what to build it from first.
+pub fn change_types(S: &mut editor::State) {
+    let sprite_row: int? = nil;
+    let shape_row: int? = nil;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if node.has("sprite") && recipes::soft_body_source(S, i).or("") == "sprite" && sprite_row.is_none() {
+            sprite_row = i;
+        }
+        if node.has("shape2d") && !node.has("body2d") && shape_row.is_none() {
+            shape_row = i;
+        }
+    }
+    // Every node lists what it can become without throwing, whatever it holds.
+    let listed = 0;
+    for i in 0..S.doc.len() {
+        listed += recipes::targets(S, i).len();
+    }
+    check(listed > 0, "every node lists what it can become ({listed} targets)");
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest change type: nothing 2D here to change, skipped");
+        return;
+    }
+    if sprite_row.is_some() {
+        let row = sprite_row.unwrap();
+        selection::only(S, row);
+        let offered: [str] = [];
+        for target in recipes::targets(S, row) {
+            offered.push(target.name);
+        }
+        check(util::contains(offered, "rigid_body2d") && !util::contains(offered, "rigid_body3d"), "a sprite is offered the 2D types and not the 3D ones ({offered})");
+        check(recipes::change_type(S, row, "rigid_body2d"), "a sprite becomes a rigid body");
+        let node = S.doc[row];
+        check(node.has("sprite") && node.has("body2d"), "and keeps drawing its sprite");
+        let collider = util::obj(node.get("collider2d"));
+        check(collider.get("kind").as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION && !collider.get("mesh").is_nil(), "its collider is cut from the sprite's outline ({collider.get("kind")})");
+        check(model::live(S, row).has_component("collider2d"), "and the live node collides");
+        let bad = warned(model::live(S, row));
+        check(bad.len() == 0, "with nothing to warn about ({bad})");
+        check(recipes::change_type(S, row, "static_body2d"), "a rigid body becomes a static one");
+        let body = util::obj(S.doc[row].get("body2d"));
+        check(body.get("kind").as_str() == physics2d::BODY_STATIC && util::obj(S.doc[row].get("collider2d")).get("kind").as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION, "and keeps the collider it had");
+        undo_all(S);
+        check(!S.doc[row].has("body2d") && !S.doc[row].has("collider2d"), "undo takes both changes back");
+        // The picker's own path: a soft body over a node that draws a sprite
+        // is built from it without asking.
+        newnode::open_change(S);
+        check(S.newnode && S.newnode_change, "Change type opens the picker");
+        let soft: newnode::Entry? = nil;
+        for row_of in newnode::catalogue(S) {
+            if row_of.name == "soft_body2d" {
+                soft = row_of;
+            }
+        }
+        check(soft.is_some(), "and offers a soft body");
+        if soft.is_some() {
+            newnode::place(S, soft.unwrap());
+            check(!S.newnode && S.doc[row].has("softbody2d") && !S.doc[row].has("sprite"), "which is built from the sprite and closes the picker");
+        }
+        undo_all(S);
+    }
+    if shape_row.is_some() {
+        let row = shape_row.unwrap();
+        check(recipes::change_type(S, row, "polygon2d"), "a shape becomes a polygon");
+        let points = util::vec(util::obj(util::obj(S.doc[row].get("polygon")).get("mesh")).get("positions"));
+        check(points.len() >= 4 && !S.doc[row].has("shape2d"), "of the shape's outline ({points.len()} points)");
+        undo_all(S);
+    }
+    let before = S.doc.len();
+    selection::only(S, 0);
+    newnode::open(S);
+    let soft: newnode::Entry? = nil;
+    for row_of in newnode::catalogue(S) {
+        if row_of.name == "soft_body2d" {
+            soft = row_of;
+        }
+    }
+    if soft.is_some() {
+        newnode::place(S, soft.unwrap());
+        check(S.newnode && S.newnode_soft == "2d", "a new soft body asks what to build it from");
+        let sources = newnode::catalogue(S);
+        check(sources.len() >= 2 && sources[0].label == "Rectangle", "a shape first ({sources.len()} sources)");
+        newnode::place_source(S, sources[1]);
+        check(S.doc.len() == before + 1 && S.doc[S.sel].has("softbody2d") && !S.newnode, "and builds it from the one picked");
+        shell::undo(S);
+        check(S.doc.len() == before, "which one undo takes back");
+    }
+    log::info("selftest change type: done");
+}
+
+/// What the engine says is off reaches the editor: a mark on the tree's row,
+/// and a refused write that leaves the document as it was and names the
+/// property it was refused on, rather than throwing out of the inspector.
+pub fn warning_marks(S: &mut editor::State) {
+    let row = S.doc.len();
+    model::add_child(S, nil);
+    selection::only(S, row);
+    model::add_component(S, "body2d");
+    S.lint.warned_rev = -1;
+    lint::node_warnings(S);
+    let id = S.doc[row].get("id");
+    check(lint::warned(S, id).len() > 0, "a body nothing collides with marks its row ({lint::warned(S, id)})");
+    model::add_component(S, "softbody2d");
+    let before = util::obj(S.doc[row].get("softbody2d")).get("cells");
+    model::set_component_prop(S, "softbody2d", "cells", [5000.0, 5000.0]);
+    let after = util::obj(S.doc[row].get("softbody2d")).get("cells");
+    check(after.equals(before), "a refused write leaves the document as it was ({after})");
+    let named: [str] = [];
+    for warning in scene::warnings(model::live(S, row)) {
+        if warning.property.is_some() {
+            named.push(warning.property.unwrap());
+        }
+    }
+    check(util::contains(named, "cells"), "and the warning names the property ({named})");
+    model::delete_selected(S);
+    log::info("selftest warnings: done");
+}
+
+// The row the pool check builds its strip in, under the shell's root.
+const POOL_HOST: str = "Editor";
+
+const POOL_CHECK: str = "PoolCheck";
+
+/// A pooled slot that turns from one kind of control into another holds the
+/// old control's value for a pass, and that value is not the reader's edit.
+///
+/// A dropdown's slot spent a frame as a colour row's label, and coming back it
+/// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
+pub fn pool_kinds(S: &mut editor::State) {
+    let root = scene::get_node(POOL_HOST);
+    if !root.is_valid() {
+        log::info("selftest pool: no shell in this run, skipped");
+        return;
+    }
+    root.add_child(POOL_CHECK).set_component("widget", map().with("kind", ui::WIDGET_ROW));
+    S.pool_check = PoolCheck { stage: 0, heard: [] };
+    stepping(S, "pool_check");
+}
+
+// One strip a pass, as the inspector does: the host made above resolves by
+// path from the next one.
+pub fn pool_check_step(S: &mut editor::State) {
+    if S.pool_check.is_none() {
+        return;
+    }
+    let d = S.pool_check.unwrap();
+    let path = POOL_HOST + "/" + POOL_CHECK;
+    let heard = d.heard;
+    let pick = pool::on(map().with("kind", "dropdown").with("text", "pick").with("options", ["a", "b"]), pool_heard, map());
+    let stage = d.stage;
+    d.stage = stage + 1;
+    if stage == 0 || stage == 2 || stage == 4 {
+        pool::strip(S, path, [pick]);
+    } else if stage == 1 {
+        pool::strip(S, path, [map().with("kind", "label").with("text", "0.20 0.22 0.26 1.00")]);
+    } else if stage == 3 {
+        check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
+        // The control: a pick on a slot that stayed a dropdown still reaches `on`.
+        ui::edit(scene::get_node(path + "/C0"), "b");
+    } else {
+        S.pool_check = nil;
+        check(heard.len() == 1 && heard[0] == "b", "and a pick on a dropdown is heard ({heard})");
+        scene::get_node(path).queue_free();
+        log::info("selftest pool: done");
+    }
+}
+
+// A pick the pool check's dropdown reports.
+fn pool_heard(S: &mut editor::State, data: any, v: any) {
+    if S.pool_check.is_some() {
+        S.pool_check.unwrap().heard.push(v.as_str());
+    }
+}
+
+pub fn rows_step(S: &mut editor::State) {
+    let tree = scene::get_node(TREE_NODE);
+    if !tree.is_valid() {
+        S.rows_demo = -1;
+        log::info("selftest rowsdemo: no shell in this run, skipped");
+        return;
+    }
+    let widget = util::obj(tree.get_component("widget"));
+    let rows = util::vec(widget.get("options"));
+    if rows.len() == 0 {
+        S.rows_waited = S.rows_waited + 1;
+        if S.rows_waited > 60 {
+            S.rows_demo = -1;
+            log::info("selftest rowsdemo: the outliner drew no rows this run, skipped");
+        }
+        return;
+    }
+    let stage = S.rows_demo;
+    S.rows_demo = stage + 1;
+    if stage == 0 {
+        rows_drawn(S, widget, rows);
+        rows_menu(widget);
+        rows_picked(S, tree, rows);
+    } else if stage == 1 {
+        rows_answered(S, widget, rows);
+        rows_search(S, name_at(S, S.rows_want));
+    } else if stage == 2 {
+        rows_narrowed(S, rows);
+        rows_search(S, "zzqq-nothing-matches-this");
+    } else if stage == 3 {
+        check(widget.get("visible").as_bool() == false, "a query matching nothing hides the tree");
+        rows_search(S, "");
+    } else if stage == 4 {
+        check(rows.len() == S.doc.len(), "and clearing the query brings every row back");
+        // A second node, to see the set drawn rather than the active node.
+        if S.doc.len() > 1 {
+            selection::toggle(S, if S.sel == 0 { 1 } else { 0 });
+        }
+    } else {
+        S.rows_demo = -1;
+        let lit = util::vec(widget.get("selection"));
+        // A project with one node has no second node to add to the set.
+        let want = if S.doc.len() > 1 { 2 } else { 1 };
+        check(lit.len() == selection::count(S) && lit.len() == want, "every selected node lights a row ({lit.len()} lit, {want} wanted)");
+        log::info("selftest rowsdemo: done");
+    }
+}
+
+// The menu a right click on a row opens: a node beside the tree, every row of
+// it naming a method the Editor's script declares. A typo in a scene is a row
+// that does nothing, and nothing else says so.
+fn rows_menu(widget: any) {
+    let named = widget.get("context").as_str();
+    check(named != "", "the outliner's tree names a context menu");
+    let menu = scene::get_node(SCENE_PANEL + "/" + named);
+    if !menu.is_valid() {
+        check(false, "and the scene holds it ({named})");
+        return;
+    }
+    let rows = menu.children();
+    check(rows.len() > 0, "with rows on it ({rows.len()} of them)");
+    let editor = scene::get_node("Editor");
+    let missing = 0;
+    for row in rows {
+        let handler = util::obj(row.get_component("widget")).get("on_click").as_str();
+        if handler == "" || !editor.has_method(handler) {
+            missing += 1;
+            log::warn("tree menu row {row.name()} calls nothing");
+        }
+    }
+    check(missing == 0, "and every row calls a method the editor declares");
+}
+
+// One row a node, the active one named and every selected one lit.
+fn rows_drawn(S: editor::State, widget: any, rows: any) {
+    check(rows.len() == S.doc.len(), "the outliner draws one row a node ({rows.len()} of {S.doc.len()})");
+    check(widget.get("multi_select").as_bool() == true, "its tree holds many rows at once");
+    let lit = util::vec(widget.get("selection"));
+    check(lit.len() == selection::count(S), "every selected node is lit ({lit.len()} of {selection::count(S)})");
+    check(widget.get("text").as_str() == "", "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
+    // The node knows a row by its string: two alike light and pick as one.
+    let seen = map();
+    let alike = 0;
+    for row in rows {
+        if seen.has(row.as_str()) {
+            alike += 1;
+        }
+        seen.set(row.as_str(), true);
+    }
+    check(alike == 0, "no two rows are the same string ({alike} repeat)");
+}
+
+// A pick as the pointer makes one: the tree announces it and the panel's
+// script answers, with nothing reading the node back.
+fn rows_picked(S: &mut editor::State, tree: Node, rows: any) {
+    let want = if S.sel == 0 && S.doc.len() > 1 { 1 } else { 0 };
+    S.rows_want = want;
+    ui::edit(tree, rows.at(want));
+}
+
+fn rows_answered(S: editor::State, widget: any, rows: any) {
+    let want = S.rows_want;
+    check(S.sel == want, "a picked row selects its node ({want} wanted, {S.sel} selected)");
+    // Lit from the selection before the pick, the row went back to the old
+    // node for a pass, and stayed there while nothing asked for another.
+    let lit = util::vec(widget.get("selection"));
+    check(lit.len() == 1 && lit.at(0).equals(rows.at(want)), "and the pass that answered it lights that row ({lit})");
+    check(rows.len() == S.doc.len(), "and the walk is the document's still");
+}
+
+// The search draws on the same node: fewer rows, every one of them a match.
+fn rows_narrowed(S: editor::State, rows: any) {
+    let query = S.rows_query;
+    let want = 0;
+    for node in S.doc {
+        if search::matches(query, "{node.get("name")} {model::node_type(node)}") {
+            want += 1;
+        }
+    }
+    // The query leaves fewer rows than the document has, unless it holds one.
+    let narrowed = want < S.doc.len() || S.doc.len() == 1;
+    check(rows.len() == want && narrowed, "a query narrows the same tree node ({rows.len()} of {S.doc.len()})");
+    let named = 0;
+    for row in rows {
+        if row.as_str().contains(query) {
+            named += 1;
+        }
+    }
+    check(named == rows.len(), "and every row it leaves is a match");
+}
+
+pub fn librarydemo(S: &mut editor::State) {
+    let root = S.game_root + "/";
+    let metal = map()
+        .with("id", "pbr_metal")
+        .with("kind", "material")
+        .with("name", "Brushed metal")
+        .with("file", "materials/metal.toml")
+        .with("needs", ["shaders/pbr_surface.wesl"]);
+    // A node with a 3D shape, so the material has somewhere to land.
+    let target: int? = nil;
+    for i in 0..S.doc.len() {
+        if S.doc[i].has("shape3d") && target.is_none() {
+            target = i;
+        }
+    }
+    if target.is_none() {
+        log::info("selftest librarydemo: no 3D node here, skipping");
+        return;
+    }
+    let at = target.unwrap();
+    // Which files the project already had, so the check below is that the
+    // library added one rather than wrote over one.
+    let before = named_under(S, "materials");
+    selection::only(S, at);
+    library::apply_material(S, metal);
+    let after = named_under(S, "materials");
+    check(after.len() == before.len() + 1, "placing a material adds a file");
+    let placed = util::obj(S.doc[at].get("shape3d")).get("material").as_str();
+    check(fs::exists(root + placed), "the node points at a file that is there");
+    check(placed.starts_with("materials/"), "under materials/: " + placed);
+    for rel in before {
+        check(rel != placed, "and never over a file the project already had");
+    }
+    check(mirror_resolves(S), "the mirror still resolves");
+    // A lighting setup is a scene, so placing one instances it.
+    let scenes_before = named_under(S, "scenes");
+    let was = S.doc.len();
+    library::place(S, map()
+        .with("id", "studio_light")
+        .with("kind", "scene")
+        .with("name", "Studio lights")
+        .with("file", "scenes/studio.toml"));
+    check(named_under(S, "scenes").len() == scenes_before.len() + 1, "placing a setup adds a scene");
+    // One row for the instance and one per node inside it: expanding a
+    // prefab puts its own rows in the document too.
+    check(S.doc.len() > was + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the instance back");
+    // The material assignment goes too: leaving the node pointing at a file
+    // this then removes is a shader the renderer relinks and cannot find.
+    shell::undo(S);
+    check(util::obj(S.doc[at].get("shape3d")).get("material").as_str() != placed, "undo takes the material off the node");
+    // The manifest and the dock agree: every entry is of a kind that has a
+    // chip, and names files that are there.
+    let chips: [str] = [];
+    for pair in library::kinds() {
+        chips.push(pair[0]);
+    }
+    let unknown = 0;
+    let absent = 0;
+    let manifest = toml::parse(fs::read("library/catalog.toml").or(""));
+    let listed = util::vec(util::obj(manifest).get("entries"));
+    for entry in listed {
+        let e = util::obj(entry);
+        if !util::contains(chips, e.get("kind").as_str()) {
+            unknown += 1;
+        }
+        for rel in util::vec(e.get("needs")) {
+            if !fs::exists("library/" + rel.as_str()) {
+                absent += 1;
+            }
+        }
+        if !fs::exists("library/" + e.get("file").as_str()) {
+            absent += 1;
+        }
+    }
+    check(listed.len() > 0, "the manifest lists entries");
+    check(unknown == 0, "every entry is of a kind the dock has a chip for");
+    check(absent == 0, "and every file it names is in the library");
+    // An addon lands whole at its own path, and placing it again changes
+    // nothing: a game requires it by that path, so a numbered copy would
+    // answer nobody.
+    let addon: any = nil;
+    for entry in listed {
+        let e = util::obj(entry);
+        if e.get("kind").as_str() == "addon" && addon.is_nil() {
+            addon = e;
+        }
+    }
+    if !addon.is_nil() {
+        let e = addon;
+        let dir = e.get("file").as_str();
+        // Anything a previous run left, so this run measures its own copy.
+        if fs::exists(root + dir) {
+            fs::remove(root + dir);
+        }
+        let top = dir.split("/")[0];
+        let had_top = fs::exists(root + top);
+        library::place(S, e);
+        let count = util::vec(fs::list(root + dir)).len();
+        check(count > 0, "placing {e.get("name")} copies its files in");
+        library::place(S, e);
+        check(util::vec(fs::list(root + dir)).len() == count, "placing it again adds nothing");
+        check(!fs::exists(root + dir + "_2"), "and numbers no copy");
+        let gone = if had_top { dir } else { top };
+        fs::remove(root + gone);
+        check(!fs::exists(root + dir), "and the project is left as it was");
+    }
+    // A sky is copied under skies/ and then only named, since the drop that
+    // would have copied it already happened.
+    let skies_before = named_under(S, "skies");
+    library::place(S, map()
+        .with("id", "sky_dusk")
+        .with("kind", "sky")
+        .with("name", "Dusk")
+        .with("file", "skies/dusk.png"));
+    check(named_under(S, "skies").len() == skies_before.len() + 1, "placing a sky adds an image");
+    let on_env = false;
+    for node in S.doc {
+        if util::obj(node.get("environment")).get("sky").as_str().starts_with("skies/") {
+            on_env = true;
+        }
+    }
+    check(on_env, "and names it on an environment");
+    shell::undo(S);
+    // A model is a prefab of primitives, so placing one instances it.
+    let models_before = named_under(S, "models");
+    let had = S.doc.len();
+    library::place(S, map()
+        .with("id", "model_tree")
+        .with("kind", "model")
+        .with("name", "Tree")
+        .with("file", "models/tree.toml"));
+    check(named_under(S, "models").len() == models_before.len() + 1, "placing a model adds a scene file");
+    check(S.doc.len() > had + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == had, "undo takes the model back");
+    for dir in ["skies", "models"] {
+        let keep = if dir == "skies" { skies_before } else { models_before };
+        for rel in named_under(S, dir) {
+            if !util::contains(keep, rel) {
+                fs::remove(root + rel);
+            }
+        }
+    }
+    // Only what this run placed: `install` numbers a name it finds taken, so
+    // nothing here can be a file the example owns.
+    for rel in named_under(S, "materials") {
+        if !util::contains(before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    for rel in named_under(S, "scenes") {
+        if !util::contains(scenes_before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    fs::remove(root + "shaders/pbr_surface.wesl");
+    log::info("selftest librarydemo: done");
+}
+
+/// The Pen over a `path2d`: anchors appended, a handle pulled, the loop
+/// closed, an anchor removed, and every step written back to the asset.
+pub fn pendemo(S: &mut editor::State) {
+    let was = S.doc.len();
+    pen::new_path(S);
+    check(S.doc.len() == was + 1, "a new path adds one node");
+    check(pen::editable(S), "and the Pen has something to edit");
+    let rel = pen::reference(S);
+    check(rel.ends_with(".toml"), "which is a path2d asset: " + rel);
+    check(count(S) == 0, "a fresh path has no points");
+    pen::add_anchor(S, 0.0, 0.0);
+    pen::add_anchor(S, 1.0, 0.0);
+    check(count(S) == 2, "two points on their own are a straight line");
+    pen::add_anchor(S, 1.0, 1.0);
+    // The pair is promoted to cubics and the segment appended: four control
+    // points for the first curve, three more for the second.
+    check(count(S) == 7, "a third anchor makes it cubic: " + "{count(S)}");
+    let anchor = pen::current(S).unwrap().points[3];
+    pen::move_point(S, 3, anchor[0] + 0.5, anchor[1], false);
+    let moved = pen::current(S).unwrap().points[3];
+    check(util::abs(moved[0] - (anchor[0] + 0.5)) < 1e-4, "an anchor moves where it is put");
+    check(!pen::current(S).unwrap().closed, "a path starts open");
+    pen::toggle_closed(S);
+    check(pen::current(S).unwrap().closed, "and closes");
+    check(count(S) == 9, "the closing segment brings two handles");
+    pen::toggle_closed(S);
+    check(!pen::current(S).unwrap().closed, "and opens again");
+    let before = count(S);
+    pen::remove_anchor(S, 3);
+    check(count(S) < before, "removing an anchor takes its handles with it");
+    check(mirror_resolves(S), "the mirror still resolves");
+    // Read as a file rather than through `assets`, which here is this
+    // module's own demo: the point is what landed on disk.
+    let saved = util::obj(toml::parse(fs::read(S.game_root + "/" + rel).or("")));
+    check(util::vec(saved.get("points")).len() == count(S), "and the asset on disk holds the same points");
+    fs::remove(S.game_root + "/" + rel);
+    log::info("selftest pendemo: done");
+}
+
+// How many points the path the Pen edits holds.
+fn count(S: &mut editor::State) -> int {
+    let path = pen::current(S);
+    if path.is_none() { 0 } else { path.unwrap().points.len() }
+}
+
+// How many instances the selected multimesh holds on its live node.
+fn instance_count(S: editor::State) -> int {
+    let found = model::live(S, S.sel);
+    if populate::component(model::selected_node(S)).is_none() || !found.is_valid() {
+        return -1;
+    }
+    render::instance_count(found)
+}
+
+/// The outliner's eye and lock: a click on either acts on that row's node
+/// alone and leaves the selection where it was.
+pub fn tree_marks(S: &mut editor::State) {
+    if S.doc.len() < 2 {
+        log::info("selftest marks: one node is too few to aim past the selection, skipped");
+        return;
+    }
+    shell::choose(S, 0);
+    let i = S.doc.len() - 1;
+    let node = S.doc[i];
+    let row = util::cells(["", node.get("name").as_str(), "", "", node.get("id").as_str(), left::row_marks(S, i)]);
+    let shown = !arrange::is_hidden(S, i);
+    left::mark_clicked(S, row, "eye");
+    check(arrange::is_hidden(S, i) == shown, "the eye hides {node.get("name")}");
+    check(left::row_marks(S, i).contains(icons::ui("eye-closed")), "and its row shows the eye closed");
+    check(S.sel == 0, "a mark picks nothing");
+    shell::undo(S);
+    check(arrange::is_hidden(S, i) != shown, "undo shows it again");
+    selection::set_locked(S, i, true);
+    check(left::row_marks(S, i).contains(icons::ui("lock")), "a locked row shows the lock");
+    left::mark_clicked(S, row, "lock");
+    check(!selection::is_locked(S, i), "the lock unlocks it");
+    check(!left::row_marks(S, i).contains(icons::ui("lock")), "and the lock goes");
+    log::info("selftest marks: done");
+}
+
+/// Populate: a grid, then a surface, written into the selected multimesh's
+/// asset, each one undo step. A scene with no multimesh skips itself.
+pub fn populate(S: &mut editor::State) {
+    let at = -1;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if at < 0 && populate::component(node).is_some() {
+            at = i;
+        }
+    }
+    if at < 0 {
+        log::info("selftest populate: no multimesh in this scene, skipped");
+        return;
+    }
+    shell::choose(S, at);
+    let before = instance_count(S);
+    check(before >= 0, "the multimesh resolves in the mirror ({before})");
+    S.populate.kind = render::POPULATE_GRID;
+    S.populate.columns = 3;
+    S.populate.rows = 2;
+    populate::apply(S);
+    check(instance_count(S) == 6, "a 3 by 2 grid writes six instances ({instance_count(S)})");
+    check(history::dirty(S), "populating marks the scene dirty");
+    check(mirror_resolves(S), "populating resolves every node in the mirror");
+    let surface = "";
+    for node in S.doc {
+        if surface == "" && (node.has("shape3d") || node.has("mesh")) {
+            surface = "/" + model::node_path(S.doc, node);
+        }
+    }
+    if surface != "" {
+        S.populate.kind = render::POPULATE_SURFACE;
+        S.populate.surface = surface;
+        S.populate.count = 20;
+        populate::apply(S);
+        check(instance_count(S) == 20, "twenty instances over {surface} ({instance_count(S)})");
+        shell::undo(S);
+        check(instance_count(S) == 6, "undo puts the grid back ({instance_count(S)})");
+    }
+    shell::undo(S);
+    check(instance_count(S) == before, "undo puts the asset back ({instance_count(S)})");
+    check(history::dirty(S) == false, "undo back to the load point is clean");
+    log::info("selftest populate: done");
+}
+
+/// Step the self-test `name` each frame from now until its own state says it
+/// finished: what takes frames to settle, the layout above all, is checked
+/// on the frames after. Nothing steps while no test is under way.
+pub fn stepping(S: &mut editor::State, name: str) {
+    if !util::contains(S.stepping, name) {
+        S.stepping.push(name);
+    }
+}
+
+/// A step of every self-test under way; one that finished drops out. On the
+/// start screen only its own test steps, and the rest wait for a project.
+pub fn step_all(S: &mut editor::State, start_screen: bool) {
+    let running = S.stepping;
+    S.stepping = [];
+    for name in running {
+        let here = name == "start_check";
+        if here != start_screen || step_one(S, name) {
+            S.stepping.push(name);
+        }
+    }
+}
+
+// One self-test's step, by name, answering whether it is still under way.
+fn step_one(S: &mut editor::State, name: str) -> bool {
+    if !under_way(S, name) {
+        return false;
+    }
+    if name == "camera_check" {
+        camera_check_step(S);
+    } else if name == "viewport_check" {
+        viewport_click_step(S);
+    } else if name == "reselect" {
+        reselect_step(S);
+    } else if name == "start_check" {
+        start_screen_step(S);
+    } else if name == "empty_note" {
+        empty_note_step(S);
+    } else if name == "phys_click" {
+        physics_click_step(S);
+    } else if name == "pick_check" {
+        pick_check_step(S);
+    } else if name == "gesture" {
+        gesture_step(S);
+    } else if name == "layout" {
+        layout_step(S);
+    } else if name == "session" {
+        session_step(S);
+    } else if name == "plugin" {
+        plugin_step(S);
+    } else if name == "profile" {
+        profile_step(S);
+    } else if name == "palette" {
+        palette_step(S);
+    } else if name == "settings" {
+        settings_step(S);
+    } else if name == "themewin" {
+        theme_edit_step(S);
+    } else if name == "window" {
+        sheet_close_step(S);
+    } else if name == "events" {
+        events_step(S);
+    } else if name == "rows" {
+        rows_step(S);
+    } else if name == "import" {
+        import_step(S);
+    } else if name == "pool_check" {
+        pool_check_step(S);
+    } else if name == "machine" {
+        statemachine::demo_step(S);
+    }
+    under_way(S, name)
+}
+
+// Whether the self-test `name` has more to do.
+fn under_way(S: editor::State, name: str) -> bool {
+    if name == "camera_check" {
+        S.camera_check.is_some()
+    } else if name == "viewport_check" {
+        S.viewport_check.is_some()
+    } else if name == "reselect" {
+        S.reselect.is_some()
+    } else if name == "start_check" {
+        S.start_check.is_some()
+    } else if name == "empty_note" {
+        S.empty_note.is_some()
+    } else if name == "phys_click" {
+        S.phys_click.is_some()
+    } else if name == "pick_check" {
+        S.pick_check.is_some()
+    } else if name == "gesture" {
+        S.gesture_demo >= 0
+    } else if name == "layout" {
+        S.layout_demo >= 0
+    } else if name == "session" {
+        S.session.demo.is_some()
+    } else if name == "plugin" {
+        S.plugin_demo >= 0
+    } else if name == "profile" {
+        S.profile_demo >= 0
+    } else if name == "palette" {
+        S.palette_demo >= 0
+    } else if name == "settings" {
+        S.settings.demo >= 0
+    } else if name == "themewin" {
+        S.themewin.demo >= 0
+    } else if name == "window" {
+        S.window.demo >= 0
+    } else if name == "events" {
+        S.events_demo >= 0
+    } else if name == "rows" {
+        S.rows_demo >= 0
+    } else if name == "import" {
+        S.import_demo >= 0
+    } else if name == "pool_check" {
+        S.pool_check.is_some()
+    } else if name == "machine" {
+        S.machine.demo >= 0
+    } else {
+        false
+    }
+}

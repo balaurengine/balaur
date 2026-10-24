@@ -1,0 +1,471 @@
+// Recorded play sessions: recording one, playing it back, and the dock that
+// shows what happened in it. `replay::*` is the engine side; this is the
+// editor's policy about where files go and how many are kept.
+
+use docks;
+use editor;
+use lint;
+use model;
+use selftest;
+use shell;
+use signals;
+use util;
+
+pub class SessionState {
+    recording: str,
+    loaded: str,
+    header: any,
+    first: int,
+    last: int,
+    lanes: [Lane],
+    at: int,
+    list: [Row2],
+    listed_at: float,
+    verify: bool,
+    demo: selftest::Demo?,
+}
+
+pub struct Opts7 {
+    scripts: str,
+    digest: bool,
+}
+
+pub struct Row2 {
+    name: str,
+    started: str,
+    ticks: int,
+    seconds: float,
+    reason: str,
+    stale: bool,
+}
+
+pub struct Lane {
+    id: str,
+    name: str,
+    marks: [Mark],
+}
+
+pub struct Mark {
+    tick: any,
+    label: str,
+}
+
+// How many sessions are kept per game before the oldest is pruned; a kept
+// one is renamed out of the ring. Set on the settings screen.
+fn ring_size() -> int {
+    let n = settings::get("editor/recordings/keep");
+    if n.is_nil() { 10 } else { util::f(n) as int }
+}
+
+pub fn state() -> SessionState {
+    SessionState {
+        // The file the running play session records into, "" when none.
+        recording: "",
+        // The file playback is reading, "" when none.
+        loaded: "",
+        header: nil,
+        first: 0,
+        last: 0,
+        // Lanes built once at load: each `#{ id, name, marks }`.
+        lanes: [],
+        // The tick the detail list describes.
+        at: 0,
+        // Cached listing of the sessions directory, and when it was read.
+        list: [],
+        listed_at: -1.0,
+        // Whether a recording hashes the world every tick, so a replay can
+        // say where it parted. Off by default: it walks every node per frame.
+        verify: false,
+        // Where `--state sessiondemo` has got to; `()` when it is not running.
+        demo: nil,
+    }
+}
+
+// Where this game's sessions live: in the per-user folder, one per project
+// name, so nothing lands in the project or its version control.
+pub fn dir(S: editor::State) -> str {
+    project::editor_data_directory() + "/recordings/" + S.game_name
+}
+
+// A fingerprint of the scripts the session is about to run, so a replay can
+// say when the code under it has changed. Mtimes rather than contents: the
+// question is "has this been edited since", and a stat answers it.
+pub fn fingerprint(S: editor::State) -> str {
+    let parts: [str] = [];
+    for node in S.doc {
+        let rel = model::script_rel(node);
+        if !rel.is_nil() {
+            let stamp = fs::modified_time(S.game_root + "/" + rel.as_str());
+            parts.push("{rel}:{stamp}");
+        }
+    }
+    parts.sort();
+    util::join(parts, ",")
+}
+
+// Start recording the play session that is about to run. Called before the
+// game's scripts attach: an `init` that opens a socket has to be inside the
+// recording, and one that takes an await token has to take the recorded id.
+pub fn start(S: &mut editor::State) {
+    let path = dir(S) + "/" + replay::recording_name() + ".blr";
+    let opts = Opts7 { scripts: fingerprint(S), digest: S.session.verify };
+    let why = replay::record(path, opts);
+    let ok = true;
+    if ok {
+        S.session.recording = path;
+        S.session.listed_at = -1.0;
+        signals::changed(S, "recordings");
+    } else {
+        log::warn("not recording this run: {why}");
+        S.session.recording = "";
+    }
+}
+
+// End everything the session machinery has open: the recording being written
+// and the one being played back. A rebuilt scene is no longer the world
+// either was about, so whoever rebuilds calls this first.
+pub fn end(S: &mut editor::State, reason: str) {
+    finish(S, reason);
+    release(S);
+}
+
+// Drop the loaded session. Nothing here rebuilds the scene: this is called
+// from the code that is about to.
+fn release(S: &mut editor::State) {
+    if S.session.loaded == "" {
+        return;
+    }
+    S.session.loaded = "";
+    S.session.lanes = [];
+    S.session.header = nil;
+    replay::unload();
+}
+
+// Close the recording, if one is open. `reason` is what the dock shows for
+// how the session ended: "stop", "reload" or "quit".
+pub fn finish(S: &mut editor::State, reason: str?) {
+    if S.session.recording == "" {
+        return;
+    }
+    S.session.recording = "";
+    S.session.listed_at = -1.0;
+    signals::changed(S, "recordings");
+    replay::stop(reason);
+    prune(S);
+}
+
+// Keep the newest few; a session renamed to `kept-*` is out of the ring.
+fn prune(S: editor::State) {
+    let names: [str] = [];
+    for entry in util::vec(fs::list(dir(S))) {
+        let name = util::obj(entry).get("name").as_str();
+        if name.ends_with(".blr") && !name.starts_with("kept-") {
+            names.push(name);
+        }
+    }
+    names.sort();
+    // Compared, not subtracted: a length is unsigned and the shortfall would
+    // underflow every time there are fewer sessions than the ring holds.
+    let ring = ring_size();
+    if names.len() <= ring {
+        return;
+    }
+    for i in 0..(names.len() - ring) {
+        fs::remove(dir(S) + "/" + names[i]);
+    }
+}
+
+// The sessions on disk, newest first, each with what the dock shows about it.
+// Re-read at most twice a second: the dock draws every frame, and this reads
+// the header of every file it lists.
+pub fn listing(S: &mut editor::State) -> [Row2] {
+    let now = engine::unix_time();
+    if S.session.listed_at >= 0.0 && now - S.session.listed_at < 0.5 {
+        return S.session.list;
+    }
+    S.session.listed_at = now;
+    let names: [str] = [];
+    for entry in util::vec(fs::list(dir(S))) {
+        let name = util::obj(entry).get("name").as_str();
+        if name.ends_with(".blr") {
+            names.push(name);
+        }
+    }
+    names.sort();
+    // Newest first, which is the one a bug was just seen in.
+    let rows: [Row2] = [];
+    let mine = fingerprint(S);
+    let i = names.len();
+    while i > 0 {
+        i -= 1;
+        rows.push(row(S, names[i], mine));
+    }
+    S.session.list = rows;
+    rows
+}
+
+// One row of the list. A file being written, or half-written by a run that
+// crashed, still lists — it just says so instead of showing counts.
+fn row(S: editor::State, name: str, mine: str) -> Row2 {
+    let head = replay::info(dir(S) + "/" + name);
+    let ok = true;
+    if !ok {
+        return Row2 { name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
+    }
+    let head = util::obj(head);
+    let first = head.get("first").as_int();
+    let last = head.get("last").as_int();
+    let recorded = head.get("scripts").as_str();
+    let matched6 = head.get("reason");
+    Row2 {
+        name: name,
+        started: head.get("started").as_str(),
+        ticks: head.get("frames").as_int(),
+        // Ticks are the fixed 60 Hz step, so seconds follow from the count.
+        seconds: util::f(last - first + 1) / 60.0,
+        reason: (if !matched6.is_nil() {
+            let r = matched6;
+            if r.kind() == "str" { r } else { "crashed" }
+        } else {
+            "crashed"
+        }).as_str(),
+        stale: recorded != "" && recorded != mine,
+    }
+}
+
+// Copy a session out of the editor's data directory and into the project, so
+// it can be attached to a bug report or handed to `balaur replay --verify`.
+pub fn export(S: editor::State, name: str) {
+    let text = fs::read(dir(S) + "/" + name);
+    if text.is_none() {
+        log::warn("{name} could not be read");
+        return;
+    }
+    let text = text.unwrap();
+    let out = S.game_root + "/" + name;
+    fs::write(out, text);
+    log::info("wrote " + out);
+}
+
+pub fn step(S: &mut editor::State) {
+    if S.session.loaded == "" {
+        return;
+    }
+    seek(S, replay::position() + 1);
+}
+
+// Put a session in front of the engine and start it. The mirror is rebuilt
+// first: the recording holds what the game was fed, not the world it started
+// from, and the same inputs into a different world are a different game.
+pub fn open(S: &mut editor::State, name: str) {
+    let path = dir(S) + "/" + name;
+    shell::stop_play(S);
+    let why = replay::load(path);
+    let ok = true;
+    if !ok {
+        log::warn("{name}: {why}");
+        return;
+    }
+    S.session.loaded = path;
+    S.session.header = replay::header();
+    let span = util::obj(replay::length());
+    S.session.first = span.get("first").as_int();
+    S.session.last = span.get("last").as_int();
+    S.session.at = S.session.first;
+    S.session.lanes = build_lanes();
+    // Loading puts the clock back to where the session started, so every
+    // cache that ages against `engine::unix_time()` now thinks it is fresh until
+    // the clock catches up.
+    S.sources = map();
+    S.listings = map();
+    S.session.listed_at = -1.0;
+    signals::changed(S, "recordings");
+    S.lint.at = -1.0;
+    lint::touched(S);
+    signals::changed(S, "problems");
+    warn_if_stale(S, name);
+    // Everything play does, because a replay that starts from a different
+    // world replays the same input into a different game. The mirror is built
+    // with every animation player held, and only this lets them run.
+    model::attach_game_scripts(S);
+    // Everything play does, this included: a replay whose cameras differ from
+    // the recording's is a different world from tick one.
+    model::hold_game_cameras(S, true);
+    S.playing = true;
+    signals::inspector(S);
+    signals::changed(S, "debugger");
+    docks::show(S, "recordings");
+    // Released on the replay's first frame, as play released the recording's.
+    S.release_at = S.frame + 1;
+    replay::play();
+}
+
+// A replay whose scripts have been edited since still plays; it just cannot
+// promise to reproduce what was seen.
+fn warn_if_stale(S: editor::State, name: str) {
+    let recorded = util::obj(S.session.header).get("scripts").as_str();
+    if recorded != "" && recorded != fingerprint(S) {
+        log::warn("{name}: the scripts have changed since this was recorded");
+    }
+}
+
+// One row per kind of thing that happens, built once because a session does
+// not change while it is loaded.
+fn build_lanes() -> [Lane] {
+    let lanes: [Lane] = [];
+    lanes.push(Lane { id: "keys", name: "Keys", marks: named_marks("input", "just_pressed") });
+    lanes.push(Lane { id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
+    lanes.push(Lane { id: "net", name: "Net", marks: event_marks(["net.request"]) });
+    lanes.push(Lane { id: "scene", name: "Scene", marks: event_marks(["node.add_child", "scene.free"]) });
+    // Warnings and worse as dots; the rest of the log is in the detail list
+    // for whichever tick the playhead is on.
+    lanes.push(Lane { id: "log", name: "Log", marks: log_marks(["warn", "error"]) });
+    lanes.push(Lane { id: "errors", name: "Errors", marks: error_marks() });
+    lanes
+}
+
+// Input edges come out of the recorded snapshot rather than an event: the
+// engine records what the frame was fed, and the key names are already in it.
+fn named_marks(source: str, key: str) -> [Mark] {
+    let out: [Mark] = [];
+    for mark in util::vec(replay::marks(source, key)) {
+        out.push(Mark { tick: mark.get("tick"), label: util::join(util::vec(mark.get("values")), " ") });
+    }
+    out
+}
+
+// The mouse buttons arrive as a flag per button, so the mark names the ones
+// that were true.
+fn index_marks(source: str, key: str) -> [Mark] {
+    let out: [Mark] = [];
+    for mark in util::vec(replay::marks(source, key)) {
+        let names: [str] = [];
+        let items1 = util::vec(mark.get("values"));
+        for i in 0..items1.len() {
+            let down = items1[i];
+            if down.as_bool() == true {
+                names.push("button {i}");
+            }
+        }
+        if names.len() > 0 {
+            out.push(Mark { tick: mark.get("tick"), label: util::join(names, " ") });
+        }
+    }
+    out
+}
+
+// Log lines at one of the given levels. A script that threw is logged as an
+// error, so this is also how a script error reaches a lane.
+fn log_marks(levels: [str]) -> [Mark] {
+    let out: [Mark] = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        if e.get("kind").as_str() != "log" {
+            continue;
+        }
+        let level = level_of(e);
+        for want in levels {
+            if want == level {
+                out.push(Mark { tick: e.get("tick"), label: e.get("label").as_str() });
+            }
+        }
+    }
+    out
+}
+
+fn level_of(e: any) -> str {
+    let got1 = util::obj(e.get("data")).get("level");
+    if got1.is_nil() { "info" } else { got1.as_str() }
+}
+
+// What went wrong and where a script stopped, on one row: the two things you
+// scan a session for after seeing a bug.
+fn error_marks() -> [Mark] {
+    let out: [Mark] = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        if e.get("kind").as_str() == "debug.pause" || (e.get("kind").as_str() == "log" && level_of(e) == "error") {
+            out.push(Mark { tick: e.get("tick"), label: e.get("label").as_str() });
+        }
+    }
+    out
+}
+
+fn event_marks(kinds: [str]) -> [Mark] {
+    let out: [Mark] = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        for kind in kinds {
+            if kind == e.get("kind").as_str() {
+                out.push(Mark { tick: e.get("tick"), label: e.get("label").as_str() });
+            }
+        }
+    }
+    out
+}
+
+// Stop playback and put the edited scene back. `stop_play` releases the
+// session on its way to rebuilding the mirror.
+pub fn close(S: &mut editor::State) {
+    shell::stop_play(S);
+}
+
+// Rename a session out of the ring that prunes the oldest.
+pub fn keep(S: &mut editor::State, name: str) {
+    fs::rename(dir(S) + "/" + name, dir(S) + "/kept-" + name);
+    S.session.listed_at = -1.0;
+    signals::changed(S, "recordings");
+    log::info("keeping " + name);
+}
+
+pub fn remove(S: &mut editor::State, name: str) {
+    fs::remove(dir(S) + "/" + name);
+    S.session.listed_at = -1.0;
+    signals::changed(S, "recordings");
+    log::info("deleted " + name);
+}
+
+pub fn loaded(S: editor::State) -> bool {
+    S.session.loaded != ""
+}
+
+// Whether recorded input is being fed into the snapshot the viewport tools
+// read. True while playing or seeking; a paused session hands the pointer
+// back, because nothing is fed and the engine is held.
+pub fn scrubbing(S: editor::State) -> bool {
+    loaded(S) && replay::state() != replay::STATE_PAUSED.as_str()
+}
+
+pub fn toggle_pause(S: editor::State) {
+    if replay::state() == replay::STATE_PAUSED.as_str() {
+        replay::play();
+    } else {
+        replay::pause();
+    }
+}
+
+// Seek to `tick`. Forward is the engine's; backward means rebuilding the
+// world and running from the session's start again, because a snapshot does
+// not yet cover nodes spawned or freed since.
+pub fn seek(S: &mut editor::State, tick: int) {
+    if S.session.loaded == "" {
+        return;
+    }
+    S.session.at = tick;
+    if replay::position() <= tick {
+        replay::seek(tick);
+        return;
+    }
+    let path = S.session.loaded;
+    let name = util::last_segment(path);
+    open(S, name);
+    replay::seek(tick);
+}
+
+// Follow the playhead while a session runs, so the detail list describes the
+// tick on screen.
+pub fn update(S: &mut editor::State) {
+    if S.session.loaded == "" {
+        return;
+    }
+    if replay::state() != replay::STATE_PAUSED.as_str() {
+        S.session.at = replay::position();
+    }
+}

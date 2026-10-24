@@ -1,0 +1,221 @@
+// The input overlay: the keys, buttons, actions and pointer the game is fed,
+// heard as they move by its panel (scripts/panels/inputview.bs), so a replay
+// shows its recording's input, and a fed frame shows what fed it.
+
+use editor;
+use manager;
+use pool;
+use style;
+use util;
+
+/// What marks an action's name among the keys held: the panel's `ACTION`.
+pub const ACTION: str = "action:";
+
+pub struct View7 {
+    shown: bool,
+    factor: float,
+    chips_x: float,
+    chips_y: float,
+}
+
+// The keys worth a chip; the rest of the key list is media and numpad keys.
+// The punctuation is here because a shortcut is built on it: `⇧⌘\` showed
+// its two modifiers and nothing to press with them.
+fn KEYS() -> [str] {
+    [
+        "KeyA",
+        "KeyB",
+        "KeyC",
+        "KeyD",
+        "KeyE",
+        "KeyF",
+        "KeyG",
+        "KeyH",
+        "KeyI",
+        "KeyJ",
+        "KeyK",
+        "KeyL",
+        "KeyM",
+        "KeyN",
+        "KeyO",
+        "KeyP",
+        "KeyQ",
+        "KeyR",
+        "KeyS",
+        "KeyT",
+        "KeyU",
+        "KeyV",
+        "KeyW",
+        "KeyX",
+        "KeyY",
+        "KeyZ",
+        "Digit0",
+        "Digit1",
+        "Digit2",
+        "Digit3",
+        "Digit4",
+        "Digit5",
+        "Digit6",
+        "Digit7",
+        "Digit8",
+        "Digit9",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10",
+        "F11",
+        "F12",
+        "Space",
+        "Enter",
+        "Escape",
+        "Tab",
+        "Backspace",
+        "Delete",
+        "Home",
+        "End",
+        "PageUp",
+        "PageDown",
+        "Insert",
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Backslash",
+        "Slash",
+        "Comma",
+        "Period",
+        "Semicolon",
+        "Quote",
+        "BracketLeft",
+        "BracketRight",
+        "Minus",
+        "Equal",
+        "Backquote",
+        "ShiftLeft",
+        "ShiftRight",
+        "ControlLeft",
+        "ControlRight",
+        "AltLeft",
+        "AltRight",
+        "MetaLeft",
+        "MetaRight",
+    ]
+}
+
+pub fn state() -> any {
+    map()
+}
+
+fn key_label(key: str) -> str {
+    if key == "ShiftLeft" {
+        "Shift"
+    } else if key == "ShiftRight" {
+        "Shift"
+    } else if key == "ControlLeft" {
+        "Ctrl"
+    } else if key == "ControlRight" {
+        "Ctrl"
+    } else if key == "AltLeft" {
+        "Alt"
+    } else if key == "AltRight" {
+        "Alt"
+    } else if key == "MetaLeft" {
+        "Cmd"
+    } else if key == "MetaRight" {
+        "Cmd"
+    } else if key == "Backslash" {
+        "\\"
+    } else if key == "Slash" {
+        "/"
+    } else if key == "Comma" {
+        ","
+    } else if key == "Period" {
+        "."
+    } else if key == "Semicolon" {
+        ";"
+    } else if key == "Quote" {
+        "'"
+    } else if key == "BracketLeft" {
+        "["
+    } else if key == "BracketRight" {
+        "]"
+    } else if key == "Minus" {
+        "-"
+    } else if key == "Equal" {
+        "="
+    } else if key == "Backquote" {
+        "`"
+    } else if key == "PageUp" {
+        "Page up"
+    } else if key == "PageDown" {
+        "Page down"
+    } else {
+        let skip = if key.starts_with("Key") {
+            3
+        } else if key.starts_with("Digit") || key.starts_with("Arrow") {
+            5
+        } else {
+            0
+        };
+        key.slice(skip, key.len())
+    }
+}
+
+/// What the overlay needs to place itself: whether it is up, how many window
+/// pixels a design pixel is, and where its chips sit, under the viewport
+/// where there is one. The start screen lays out none and focus mode gives
+/// the code the window, so in both they go by the window instead.
+pub fn view(S: editor::State) -> View7 {
+    let v = S.viewport;
+    let sh_1 = ui::window_size();
+    let sh = sh_1.at(1);
+    let staged = !manager::showing(S) && !S.focus && util::f(v.w) > 0.0;
+    let vx = if staged { util::f(v.x) } else { 0.0 };
+    let vy = if staged { util::f(v.y) } else { 0.0 };
+    let vh = if staged { util::f(v.h) } else { sh };
+    let dpi_2 = render::camera_pose();
+    let dpi = dpi_2.at(7);
+    View7 { shown: S.show_input, factor: dpi.as_float() * S.ui_scale, chips_x: vx + 130.0, chips_y: vy + vh.as_float() - 46.0 }
+}
+
+/// A key's chip, or "" for a key worth none: the rest of the key list is
+/// media and numpad keys.
+pub fn chip_of(key: str) -> str {
+    if chip_of_any_0(key, KEYS()) { key_label(key) } else { "" }
+}
+
+fn chip_of_any_0(key: str, items: [str]) -> bool {
+    for known in items {
+        if known == key {
+            return true;
+        }
+    }
+    false
+}
+
+/// Put a chip a name on the overlay's row: a key or a button held, an action
+/// pressed, each in the look it had.
+pub fn fill_chips(S: editor::State, names: [any]) {
+    let k = S.theme;
+    let out: [any] = [];
+    for name in names {
+        let action = name.starts_with(ACTION);
+        out.push(map()
+            .with("kind", "button")
+            .with("text", if action { name.slice(ACTION.len(), name.len()) } else { name })
+            .with("height", 30)
+            .with("font_size", style::MD)
+            .with("font_weight", 700)
+            .with("interactive", false)
+            .with("fill", (if action { k.get("bg_control") } else { k.get("primary_fill") }).as_str())
+            .with("stroke", (if action { k.get("primary_text") } else { "" }).as_str())
+            .with("text_color", (if action { k.get("primary_text") } else { k.get("text_on_primary") }).as_str()));
+    }
+    pool::strip(S, "Editor/InputView/Chips", out);
+}

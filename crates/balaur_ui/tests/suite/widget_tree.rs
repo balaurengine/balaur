@@ -70,14 +70,17 @@ fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
 /// an ancestor, and the click has to find it there.
 #[test]
 fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
-    let script = "pub fn init(this) {\n    this.hits = 0;\n}\n\
-                  pub fn on_go(this) {\n    this.hits += 1;\n}\n\
-                  pub fn hits(this) {\n    this.hits\n}\n";
+    let script = "pub struct Owner { node: Node, hits: int }
+impl Owner {
+    pub fn on_go() { self.hits += 1; }
+    pub fn hits() -> int { self.hits }
+}
+";
     let (_dir, mut app) = app_with_script(script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
         .unwrap();
     let column = add_child_widget(
         &app,
@@ -103,6 +106,59 @@ fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
         hits,
         Some(balaur_script::Value::Int(1)),
         "the button's own node has no script, so the click belongs to the owner's"
+    );
+}
+
+/// A panel's one script answers every control under it through
+/// `on_widget_event`, with no handler named on any of them.
+#[test]
+fn a_panel_script_hears_every_control_under_it_through_on_widget_event() {
+    let script = "pub struct Panel { node: Node, heard: int, last: str }
+impl Panel {
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        self.heard += 1;
+        self.last = \"{event} {node.name()}\";
+    }
+    pub fn last() -> str { self.last }
+    pub fn heard() -> int { self.heard }
+}
+";
+    let (_dir, mut app) = app_with_script(script);
+    let root = app.engine.root();
+    let panel = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Panel", root);
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur::node_id_of(panel), "scripts/paint.bs")
+        .unwrap();
+    let column = add_child_widget(
+        &app,
+        panel,
+        "Column",
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 height = 80.0 }.into(),
+    );
+    let go = add_child_widget(
+        &app,
+        column,
+        "Go",
+        &toml::toml! { kind = "button" text = "Go" }.into(),
+    );
+    let stop = add_child_widget(
+        &app,
+        column,
+        "Stop",
+        &toml::toml! { kind = "button" text = "Stop" }.into(),
+    );
+    app.tick(1.0 / 60.0);
+    let last = || host.call_on(balaur::node_id_of(panel), "last", &[]);
+    assert!(balaur_ui::click(&app.engine, go, false));
+    app.tick(1.0 / 60.0);
+    assert_eq!(last(), Some(balaur_script::Value::Str("click Go".into())));
+    assert!(balaur_ui::click(&app.engine, stop, false));
+    app.tick(1.0 / 60.0);
+    assert_eq!(last(), Some(balaur_script::Value::Str("click Stop".into())));
+    assert_eq!(
+        host.call_on(balaur::node_id_of(panel), "heard", &[]),
+        Some(balaur_script::Value::Int(2)),
+        "one call a click, and none for the column the clicks passed through"
     );
 }
 

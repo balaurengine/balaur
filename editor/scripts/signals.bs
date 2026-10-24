@@ -1,0 +1,214 @@
+// What the Editor node tells the panels, as events they listen for. Each is
+// emitted once however many edits a frame makes: the guard is cleared when
+// the Editor hears its own event, at the next pump.
+
+use center;
+use chrome;
+use editor;
+use layout;
+use lint;
+use session;
+use util;
+use viewport;
+
+const OUTLINE: str = "outline_changed";
+const INSPECTOR: str = "inspector_changed";
+const DOCKS: str = "docks_changed";
+const PLAY: str = "play_frame";
+const CHROME: str = "chrome_changed";
+const STATUS: str = "status_changed";
+const RAIL: str = "rail_changed";
+const STAGE: str = "stage_changed";
+
+/// What a panel showing one thing of the Editor's listens for, as
+/// `<what>_changed`: the Problems list, the Docs page, the files, the library,
+/// the tile brush, the state machine, the recordings and the debugger.
+fn panels() -> [str] {
+    [
+        "problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger",
+        "sheet", "picker", "manager", "textedit", "plugins", "inputview",
+        "code", "complete", "refactor", "timeline", "weights", "bonemap",
+    ]
+}
+
+/// Have the Editor hear its own words, which is what clears the guard. Here
+/// rather than in editor.bs, where `events` names the Events view's module.
+pub fn hear_own(editor: Node) {
+    for name in [OUTLINE, INSPECTOR, DOCKS, PLAY, CHROME, STATUS, RAIL, STAGE] {
+        events::listen(editor, name, editor);
+    }
+    for what in panels() {
+        events::listen(editor, "{what}_changed", editor);
+    }
+}
+
+/// Have the Editor hear when one of the shell's boxes moved, which lays the
+/// shell out again.
+pub fn hear_boxes(S: editor::State, editor: Node) {
+    for id in layout::watched() {
+        let found = layout::box_node(S, id);
+        if !util::is_nil(found) {
+            events::listen(editor, "resized", found);
+        }
+    }
+}
+
+/// Have the Editor hear what the engine says from no node: a project file
+/// reloaded, a script stopped or let go, a paste no field took, files
+/// dropped, and what the pointer did, which is when the viewport's tools
+/// look at it.
+pub fn hear_engine(editor: Node) {
+    for word in [
+        "assets_reloaded", "debugger_stopped", "pasted",
+        "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
+        "files_dropped",
+    ] {
+        events::listen(editor, word);
+    }
+}
+
+/// Clear the guard on `name`, as the Editor hears it back.
+pub fn heard(S: &mut editor::State, name: str) {
+    S.told.set(name, false);
+}
+
+fn tell(S: &mut editor::State, name: str) {
+    let held = S.told.get(name);
+    if !held.is_nil() && held.as_bool() {
+        return;
+    }
+    S.told.set(name, true);
+    scene::get_node("Editor").emit(name, nil);
+}
+
+/// The document, the selection, a lock or a warning moved: what a panel
+/// showing the document's outline listens for.
+pub fn outline(S: &mut editor::State) {
+    tell(S, OUTLINE);
+    bars(S);
+}
+
+/// What the Inspector's form is built from beside the outline moved: the
+/// workspace, the tool, play, the polygon being edited, the clip, the doc tab
+/// or the screen's class. Called wherever one is written, so a write that
+/// leaves it as it was says nothing.
+pub fn inspector(S: &mut editor::State) {
+    let polygon: any = S.polygon;
+    let key: any = [
+        S.workspace, S.tool, S.playing, polygon, "{S.clip}",
+        S.shader_rel, S.doctab, S.compact, S.touchscreen,
+    ];
+    if key == S.inspector_key {
+        return;
+    }
+    S.inspector_key = key;
+    tell(S, INSPECTOR);
+    bars(S);
+}
+
+/// A frame of play: every live value the Inspector and the state machine
+/// show may have moved.
+pub fn playing_frame(S: &mut editor::State) {
+    tell(S, INSPECTOR);
+    tell(S, PLAY);
+    bars(S);
+}
+
+/// What a dock's tab row and its panel are built from moved: which panels
+/// each dock holds and shows, a dock's width, the workspace (which names the
+/// outline's tab), the screen's class, the Problems count, a plugin's dock,
+/// and whether a recording is open, which the Recordings tab gives way to.
+/// Called wherever one is written; a write that leaves the key says nothing.
+pub fn docks(S: &mut editor::State) {
+    let counts = lint::counts(S);
+    // The text, not the map: a key holding `S.docks` itself is the map it is
+    // compared against, and never differs from it.
+    let key: any = [
+        "{S.docks}", S.layout.left.w, S.layout.right.w, S.layout.bottom.w,
+        S.workspace, S.compact, counts._0 + counts._1, S.registry.panels.len(),
+        session::loaded(S),
+    ];
+    if key == S.docks_key {
+        return;
+    }
+    S.docks_key = key;
+    tell(S, DOCKS);
+    bars(S);
+}
+
+/// Whether what the viewport's lines are drawn from beside the outline and
+/// the Inspector's words moved: the tools' hover, a drag, the box select.
+/// Asked after the pointer did something, and true whenever a drag is under
+/// way or the pointer is over the stage, where a tool's lines follow it.
+pub fn overlays_moved(S: &mut editor::State, over: bool) -> bool {
+    let hot: any = viewport::hot_part(S);
+    let marquee: any = S.gizmo.marquee;
+    let rig: any = S.rig.hover;
+    let pen: any = S.pen.hover;
+    let tile: any = S.tiles.hover;
+    let anchor: any = S.tiles.anchor;
+    let polygon: any = S.polygon.hover;
+    // Their text: a hover the state keeps as a map is the one the last key
+    // held, and never differs from it.
+    let key: any = "{[hot, marquee, rig, pen, tile, anchor, polygon]}";
+    let moving = S.gizmo.drag.is_some() || S.camera_drag >= 0;
+    if !over && !moving && key == S.overlays_key {
+        return false;
+    }
+    S.overlays_key = key;
+    true
+}
+
+/// What one panel shows moved, `what` being one of `panels()`: emitted as
+/// `<what>_changed`, once a frame.
+pub fn changed(S: &mut editor::State, what: str) {
+    tell(S, "{what}_changed");
+    bars(S);
+}
+
+/// The top bar, the status strip, the rail and the stage chrome are built
+/// from what the other words cover and a little besides, so each of those
+/// asks after both; each says only when its own key moved. Called where the
+/// little besides is written.
+pub fn bars(S: &mut editor::State) {
+    chrome(S);
+    status(S);
+    rail(S);
+    stage(S);
+}
+
+fn stage(S: &mut editor::State) {
+    let key: any = center::stage_key(S);
+    if key == S.stage_key {
+        return;
+    }
+    S.stage_key = key;
+    tell(S, STAGE);
+}
+
+fn rail(S: &mut editor::State) {
+    let key: any = center::rail_key(S);
+    if key == S.rail_key {
+        return;
+    }
+    S.rail_key = key;
+    tell(S, RAIL);
+}
+
+fn chrome(S: &mut editor::State) {
+    let key: any = chrome::key(S);
+    if key == S.chrome_key {
+        return;
+    }
+    S.chrome_key = key;
+    tell(S, CHROME);
+}
+
+fn status(S: &mut editor::State) {
+    let key: any = chrome::status_key(S);
+    if key == S.status_key {
+        return;
+    }
+    S.status_key = key;
+    tell(S, STATUS);
+}

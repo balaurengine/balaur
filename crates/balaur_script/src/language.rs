@@ -17,6 +17,14 @@ pub trait ScriptCompiler {
 
     /// Compile one source file. `rel` is the project-relative path, for errors.
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>>;
+
+    /// The engine functions the scripts compiled here call, one line each
+    /// with the types they were checked against, sorted; a pack carries them
+    /// so the runtime that loads it can say which it lacks or types
+    /// otherwise. Empty for a backend that checks at load.
+    fn api(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// The running script system, as the engine and its plugins see it.
@@ -53,8 +61,7 @@ pub trait ScriptHost<C: ?Sized> {
     ///
     /// Each `Value` is a map in the component schema's own vocabulary:
     /// `type` and `default`, plus whatever of `min`, `max`, `step`,
-    /// `options`, `asset`, `help` and `order` was written. Those first two
-    /// are reserved words in Rune, so a script quotes them as keys. A script that
+    /// `options`, `asset`, `help` and `order` was written. A script that
     /// wrote a bare default gets one built for it, so every reader sees one
     /// shape and an inspector reaches for the editor it already has.
     ///
@@ -284,6 +291,14 @@ pub trait ScriptHost<C: ?Sized> {
     /// Let the paused script go on. Nothing paused, nothing to do.
     fn resume(&self, mode: StepMode) {
         let _ = mode;
+    }
+
+    /// The editor tooling for the script at `path`, when a language this host
+    /// runs answers for it: what `balaur lsp` and the editor's `script`
+    /// module ask.
+    fn tools_for(&self, path: &str) -> Option<&dyn crate::LanguageTools> {
+        let _ = path;
+        None
     }
 
     /// Downcast to the concrete backend, for code written against one language

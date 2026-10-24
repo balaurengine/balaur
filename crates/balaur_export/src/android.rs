@@ -584,7 +584,7 @@ fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<PathBu
 /// and the payload under its own roots.
 fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
     let mut zip = zip::ZipWriter::new(std::fs::File::create(module)?);
-    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+    let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default());
 
@@ -604,8 +604,10 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
     }
     let resources: Vec<String> = linked
         .file_names()
+        .collect::<zip::result::ZipResult<Vec<_>>>()?
+        .into_iter()
         .filter(|name| name.starts_with("res/"))
-        .map(str::to_string)
+        .map(std::borrow::Cow::into_owned)
         .collect();
     for name in resources {
         let mut entry = linked.by_name(&name)?;
@@ -637,7 +639,7 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
         let stored = Path::new(&name)
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("so"));
-        let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+        let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
             .compression_method(if stored {
                 zip::CompressionMethod::Stored
             } else {
@@ -931,7 +933,7 @@ mod tests {
         let linked = dir.path().join("proto.apk");
         {
             let mut zip = zip::ZipWriter::new(std::fs::File::create(&linked).unwrap());
-            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
             for (name, body) in [
                 ("AndroidManifest.xml", &b"proto"[..]),
                 ("resources.pb", &b"table"[..]),
@@ -952,7 +954,10 @@ mod tests {
         super::write_module(&module, &linked, &layout).unwrap();
 
         let zip = zip::ZipArchive::new(std::fs::File::open(&module).unwrap()).unwrap();
-        let mut names: Vec<&str> = zip.file_names().collect();
+        let mut names: Vec<String> = zip
+            .file_names()
+            .map(|name| name.unwrap().into_owned())
+            .collect();
         names.sort_unstable();
         assert_eq!(
             names,

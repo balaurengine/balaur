@@ -35,7 +35,7 @@ window that shows every control the theme dresses.
   two seconds from a thread, the screen's `userInterfaceStyle` on iOS, the
   configuration's `ui_mode_night` on Android and `prefers-color-scheme` in a
   browser. `crates/balaur_render/src/appearance.rs` holds all six.
-- `editor/scripts/theme.rn` finds a theme, merges it over its base, and hands
+- `editor/scripts/theme.bs` finds a theme, merges it over its base, and hands
   the document to two readers: `ui::set_theme` for the `ui::*` calls, and
   each of the four root nodes (`Editor/Shell`, `Manager`, `Picker`, `Sheet`)
   as an inline `theme` table. An asset property already takes a table and
@@ -58,7 +58,7 @@ window that shows every control the theme dresses.
 
 ## The theme window
 
-`editor/scripts/themewin.rn`, a node sheet like Settings. Settings' theme
+`editor/scripts/themewin.bs`, a node sheet like Settings. Settings' theme
 row has an Edit button, the mark menu has Theme, and the palette has
 "Edit theme…".
 

@@ -1,0 +1,953 @@
+//! The host side: runs a compiled module on wasmi, on wasmtime (`wasmtime`
+//! feature) or in the browser's own engine (`web` feature, on wasm32).
+//!
+//! Script state lives on the host as [`Object`]s; a method is called with its
+//! fields and hands them back, so a reload is a new instance plus a copy of
+//! each object's fields by name.
+
+mod anys;
+mod debugger;
+mod engine;
+mod host;
+#[cfg(native)]
+mod native_engine;
+mod profile;
+mod reentry;
+mod stepping;
+mod values;
+#[cfg(feature = "wasmi")]
+mod wasmi_engine;
+#[cfg(jit)]
+mod wasmtime_engine;
+#[cfg(all(target_arch = "wasm32", feature = "web"))]
+mod web_engine;
+
+pub use debugger::{Command, Debugger, Frame, Paused, StopReason};
+pub use engine::EngineKind;
+pub use host::{Bound, HostFns};
+pub use reentry::Reentry;
+pub use stepping::Step;
+pub use values::Value;
+
+use crate::{Compiled, FnInfo, Literal, Meta, Ty, show, words};
+use engine::{Raw, Setup, Shared, Wasm};
+use std::cell::{RefCell, RefMut};
+use std::rc::Rc;
+use std::sync::Arc;
+use values::{Reader, decode, has_heap, rd32, slots, width, zero};
+
+/// Keep what an engine compiles to machine code in `dir` between runs, so a
+/// script compiles once rather than on every load. The first call wins; a
+/// build with no such engine ignores it.
+pub fn cache_compiled_in(dir: &std::path::Path) {
+    #[cfg(jit)]
+    wasmtime_engine::cache_in(dir.to_path_buf());
+    #[cfg(not(jit))]
+    let _ = dir;
+}
+
+/// Opens the native build of a game's scripts an export made (`crate::c`,
+/// compiled for the device) and runs each module it has from there from now
+/// on; how many modules it holds.
+///
+/// # Errors
+/// A library that does not open, or one built for another runtime.
+#[cfg(native)]
+pub fn load_native(path: &std::path::Path) -> Result<usize, String> {
+    native_engine::load(path)
+}
+
+/// Whether any native build is loaded: its modules are whole files, so a
+/// host builds its scripts whole to run them from it.
+#[cfg(native)]
+#[must_use]
+pub fn native_loaded() -> bool {
+    native_engine::any()
+}
+
+/// Whether a loaded native build has `wasm`.
+#[cfg(native)]
+#[must_use]
+pub fn has_native(wasm: &[u8]) -> bool {
+    native_engine::find(wasm).is_some()
+}
+
+/// A failure while running: a trap, with the script line when it is known.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunError {
+    pub msg: String,
+    pub line: Option<u32>,
+}
+
+impl std::fmt::Display for RunError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.line {
+            Some(l) => write!(f, "line {l}: {}", self.msg),
+            None => f.write_str(&self.msg),
+        }
+    }
+}
+
+impl std::error::Error for RunError {}
+
+fn fail<T>(msg: impl Into<String>) -> Result<T, RunError> {
+    Err(RunError {
+        msg: msg.into(),
+        line: None,
+    })
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Limits {
+    /// Instructions one call may run before it traps; the browser's engine has none.
+    pub fuel: Option<u64>,
+    pub memory_bytes: Option<usize>,
+    pub engine: EngineKind,
+}
+
+/// A struct value held by the host: its fields, owning their strings and arrays.
+#[derive(Debug)]
+pub struct Object {
+    ty: String,
+    raw: Vec<Raw>,
+}
+
+impl Object {
+    pub fn type_name(&self) -> &str {
+        &self.ty
+    }
+}
+
+/// One run of an `async fn`, started by the host.
+#[derive(Debug)]
+pub struct Task {
+    key: String,
+    frame: u32,
+    waiting: Option<i64>,
+    done: bool,
+}
+
+impl Task {
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+}
+
+struct Live<'a>(&'a dyn Wasm);
+
+impl Reader for Live<'_> {
+    fn bytes(&self, at: usize, len: usize) -> Vec<u8> {
+        self.0.read(at, len)
+    }
+}
+
+pub struct Runtime {
+    wasm: Box<dyn Wasm>,
+    host: Shared,
+    meta: Arc<Meta>,
+    limits: Limits,
+    parked_call: Option<stepping::ParkedCall>,
+    error_stop: Option<Paused>,
+    /// A [`Reentry`]'s: a call inside another call of the same module, which
+    /// neither refuels nor resets the shadow stack under it.
+    nested: bool,
+}
+
+impl Runtime {
+    pub fn new(compiled: &Compiled, host: HostFns, limits: Limits) -> Result<Runtime, RunError> {
+        let meta = Arc::new(compiled.meta.clone());
+        let state = Rc::new(RefCell::new(
+            host::HostState::new(meta.clone(), host).map_err(|msg| RunError { msg, line: None })?,
+        ));
+        let setup = Setup {
+            wasm: &compiled.wasm,
+            meta: &meta,
+            host: state.clone(),
+            fuel: limits.fuel,
+            memory_bytes: limits.memory_bytes,
+            key: &compiled.key,
+            linked: &compiled.linked,
+        };
+        let wasm = engine::instantiate(limits.engine, setup)
+            .map_err(|msg| RunError { msg, line: None })?;
+        let mut rt = Runtime {
+            wasm,
+            host: state,
+            meta,
+            limits,
+            parked_call: None,
+            error_stop: None,
+            nested: false,
+        };
+        rt.arm_profile()?;
+        Ok(rt)
+    }
+
+    pub fn meta(&self) -> &Meta {
+        &self.meta
+    }
+
+    pub fn debugger(&mut self) -> RefMut<'_, Debugger> {
+        RefMut::map(self.host.borrow_mut(), |h| &mut h.debugger)
+    }
+
+    /// Objects allocated in the module and not yet freed: a leak shows here.
+    pub fn live(&mut self) -> i32 {
+        self.wasm.global(words::LIVE).unwrap_or(-1)
+    }
+
+    /// The module's linear memory, in bytes: it grows only when the free lists run dry.
+    pub fn memory_bytes(&self) -> usize {
+        self.wasm.memory_len()
+    }
+
+    pub fn now(&self) -> f64 {
+        self.host.borrow().now
+    }
+
+    /// Moves the host clock on and resolves every async call that is due.
+    pub fn advance(&mut self, dt: f64) {
+        let mut h = self.host.borrow_mut();
+        h.now += dt;
+        let now = h.now;
+        let due: Vec<i64> = h
+            .timers
+            .iter()
+            .filter(|(_, (t, _))| *t <= now + 1e-9)
+            .map(|(k, _)| *k)
+            .collect();
+        for k in due {
+            if let Some((_, v)) = h.timers.remove(&k) {
+                h.resolved.insert(k, v);
+            }
+        }
+    }
+
+    /// The engine the next [`Runtime::reload`] instantiates on: a debugger
+    /// moves a file to one that can park a call.
+    pub fn set_engine(&mut self, engine: EngineKind) {
+        self.limits.engine = engine;
+    }
+
+    /// What a script awaiting the engine's `token` expects it to resolve to;
+    /// `None` when nothing here awaits it.
+    pub fn awaits(&self, token: u64) -> Option<Ty> {
+        self.host
+            .borrow()
+            .tokens
+            .get(&token)
+            .map(|(_, ty)| ty.clone())
+    }
+
+    /// Resolves the engine's `token` to `value`: the task awaiting it runs on
+    /// at its next [`Runtime::poll`]. False when nothing here awaits it.
+    pub fn wake(&mut self, token: u64, value: Value) -> bool {
+        let mut h = self.host.borrow_mut();
+        let Some((handle, _)) = h.tokens.remove(&token) else {
+            return false;
+        };
+        h.resolved.insert(handle, value);
+        true
+    }
+
+    /// Ends `task` where it stands and frees its frame. What its locals held
+    /// is not released: a cancelled task leaks its strings and arrays.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "taking the task is what keeps it from being polled again"
+    )]
+    pub fn cancel(&mut self, task: Task) -> Result<(), RunError> {
+        let Task {
+            frame,
+            waiting,
+            done,
+            ..
+        } = task;
+        if done {
+            return Ok(());
+        }
+        let mut h = self.host.borrow_mut();
+        if let Some(handle) = waiting {
+            h.resolved.remove(&handle);
+            h.heap_awaits.remove(&handle);
+            h.tokens.retain(|_, (awaiting, _)| *awaiting != handle);
+        }
+        drop(h);
+        self.invoke(words::FREE, &[Raw::I32(frame as i32)], 0)?;
+        Ok(())
+    }
+
+    /// A new `ty`: fields from `init`, then each field's declared default, then empty.
+    pub fn object(&mut self, ty: &str, init: &[(&str, Value)]) -> Result<Object, RunError> {
+        if self.meta.is_class(ty) {
+            return fail(format!(
+                "`{ty}` is a class: a script's own object is a struct, which may hold one"
+            ));
+        }
+        let fields = self
+            .meta
+            .fields(ty)
+            .ok_or(RunError {
+                msg: format!("no struct `{ty}`"),
+                line: None,
+            })?
+            .to_vec();
+        let defaults = self.meta.defaults(ty).to_vec();
+        let mut raw = vec![];
+        for (n, t) in &fields {
+            let given = init.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone());
+            let declared = defaults
+                .iter()
+                .find(|(k, _, _)| k == n)
+                .map(|(_, _, l)| literal(l));
+            match given.or(declared) {
+                Some(v) => raw.extend(self.encode(t, &v)?),
+                None => raw.extend(self.default_of(t)?),
+            }
+        }
+        Ok(Object { ty: ty.into(), raw })
+    }
+
+    pub fn get(&mut self, obj: &Object, field: &str) -> Option<Value> {
+        let (off, t) = self.field_at(&obj.ty, field)?;
+        let n = width(&self.meta, &t);
+        Some(decode(
+            &self.meta,
+            &Live(&*self.wasm),
+            &t,
+            &obj.raw[off..off + n],
+        ))
+    }
+
+    /// Every field of `obj`, by name.
+    pub fn fields(&mut self, obj: &Object) -> Vec<(String, Value)> {
+        let ty = Ty::Struct(obj.ty.clone());
+        match decode(&self.meta, &Live(&*self.wasm), &ty, &obj.raw) {
+            Value::Struct(_, fields) => fields,
+            _ => vec![],
+        }
+    }
+
+    pub fn set(&mut self, obj: &mut Object, field: &str, v: &Value) -> Result<(), RunError> {
+        let (off, t) = self.field_at(&obj.ty, field).ok_or(RunError {
+            msg: format!("no field `{field}`"),
+            line: None,
+        })?;
+        let new = self.encode(&t, v)?;
+        let old: Vec<Raw> = obj.raw.splice(off..off + new.len(), new).collect();
+        self.release(&t, &old);
+        Ok(())
+    }
+
+    // Taking the object is the point: once released, its fields must not be read.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn drop_object(&mut self, obj: Object) {
+        let ty = Ty::Struct(obj.ty.clone());
+        self.release(&ty, &obj.raw);
+    }
+
+    /// A second holder of `obj`, for a call into it while another runs: the
+    /// same fields, each class it holds counted once more, so the copy keeps
+    /// them whatever the running call does. `None` when it holds a string, a
+    /// list or an `any`, which the running call may free under the copy.
+    /// [`Runtime::drop_object`] lets go of it.
+    pub fn share(&mut self, obj: &Object) -> Option<Object> {
+        let plan = self.share_plan(&obj.ty)?;
+        for &k in plan.iter() {
+            let p = obj.raw[k].i32();
+            if p != 0 {
+                let n = rd32(&Live(&*self.wasm), p as usize);
+                self.wasm.write(p as usize, &(n + 1).to_le_bytes());
+            }
+        }
+        Some(Object {
+            ty: obj.ty.clone(),
+            raw: obj.raw.clone(),
+        })
+    }
+
+    // The class slots of a `ty`, or nil when it holds other heap values: a
+    // walk of its fields the first time, and a lookup on every call after.
+    fn share_plan(&self, ty: &str) -> Option<Rc<[usize]>> {
+        if let Some(plan) = self.host.borrow().shares.get(ty) {
+            return plan.clone();
+        }
+        let slots = slots(&self.meta, &Ty::Struct(ty.to_string()));
+        let classes = |h: &Ty| matches!(h, Ty::Struct(c) if self.meta.is_class(c));
+        let plan = slots
+            .iter()
+            .all(|(_, h)| h.as_ref().is_none_or(classes))
+            .then(|| {
+                let heap = slots.iter().enumerate().filter(|(_, (_, h))| h.is_some());
+                heap.map(|(k, _)| k).collect::<Rc<[usize]>>()
+            });
+        self.host
+            .borrow_mut()
+            .shares
+            .insert(ty.to_string(), plan.clone());
+        plan
+    }
+
+    /// Calls a free function.
+    pub fn call(&mut self, key: &str, args: &[Value]) -> Result<Value, RunError> {
+        let info = self.meta.function(key).cloned().ok_or(RunError {
+            msg: format!("no function `{key}`"),
+            line: None,
+        })?;
+        if info.owner.is_some() || info.is_async {
+            return fail(format!(
+                "`{key}` is a method or async; use `call_method` or `start`"
+            ));
+        }
+        let mut a = vec![];
+        for (t, v) in info.params.iter().zip(args) {
+            a.extend(self.encode(t, v)?);
+        }
+        let out = self.invoke(key, &a, width(&self.meta, &info.ret))?;
+        Ok(self.take(&info.ret, &out))
+    }
+
+    /// Calls `Struct.method` on `obj`, which comes back with whatever the method changed.
+    pub fn call_method(
+        &mut self,
+        obj: &mut Object,
+        method: &str,
+        args: &[Value],
+    ) -> Result<Value, RunError> {
+        let meta = self.meta.clone();
+        let info = meta.method(&obj.ty, method).ok_or_else(|| RunError {
+            msg: format!("no method `{}.{method}`", obj.ty),
+            line: None,
+        })?;
+        self.call_info(obj, info, args)
+    }
+
+    /// [`Runtime::call_method`] for a caller that looked the method up
+    /// already, in this module's [`Meta`].
+    pub fn call_info(
+        &mut self,
+        obj: &mut Object,
+        info: &FnInfo,
+        args: &[Value],
+    ) -> Result<Value, RunError> {
+        let mut a = obj.raw.clone();
+        for (t, v) in info.params.iter().zip(args) {
+            a.extend(self.encode(t, v)?);
+        }
+        let nself = obj.raw.len();
+        let ret = width(&self.meta, &info.ret);
+        let out = self.invoke(&info.key, &a, nself + ret)?;
+        obj.raw.copy_from_slice(&out[..nself]);
+        Ok(self.take(&info.ret, &out[nself..]))
+    }
+
+    /// Starts `key` (`fn` or `Struct.method`); [`Runtime::poll`] runs it.
+    pub fn start(&mut self, key: &str, args: &[Value]) -> Result<Task, RunError> {
+        let info = self.meta.function(key).cloned().ok_or(RunError {
+            msg: format!("no function `{key}`"),
+            line: None,
+        })?;
+        if !info.is_async {
+            return fail(format!("`{key}` is not async"));
+        }
+        let frame = self.alloc(info.frame_size)?;
+        let mut a = vec![Raw::I32(frame as i32)];
+        for (t, v) in info.params.iter().zip(args) {
+            a.extend(self.encode(t, v)?);
+        }
+        self.invoke(&format!("{key}{}", words::START), &a, 0)?;
+        Ok(Task {
+            key: key.into(),
+            frame,
+            waiting: None,
+            done: false,
+        })
+    }
+
+    /// Runs `task` up to its next `await`, if what it waits for has resolved;
+    /// `Some(value)` once it has finished.
+    pub fn poll(
+        &mut self,
+        task: &mut Task,
+        obj: Option<&mut Object>,
+    ) -> Result<Option<Value>, RunError> {
+        let Some(call) = self.poll_call(task, obj.as_deref())? else {
+            return Ok(None);
+        };
+        let out = self.invoke(&call.name, &call.args, call.results)?;
+        self.polled(task, obj, &call.ret, &out)
+    }
+
+    // What polling `task` calls; `None` while what it waits for is pending.
+    fn poll_call(
+        &self,
+        task: &Task,
+        obj: Option<&Object>,
+    ) -> Result<Option<stepping::Call>, RunError> {
+        if task.done {
+            return fail("the task has finished");
+        }
+        if task
+            .waiting
+            .is_some_and(|h| !self.host.borrow().resolved.contains_key(&h))
+        {
+            return Ok(None);
+        }
+        let info = self.meta.function(&task.key).ok_or(RunError {
+            msg: format!("no function `{}`", task.key),
+            line: None,
+        })?;
+        let mut args = vec![Raw::I32(task.frame as i32)];
+        let nself = obj.map_or(0, |o| o.raw.len());
+        if let Some(o) = obj {
+            args.extend(o.raw.iter().copied());
+        }
+        Ok(Some(stepping::Call {
+            name: format!("{}{}", task.key, words::POLL),
+            args,
+            results: 1 + nself,
+            ret: info.ret.clone(),
+        }))
+    }
+
+    // A poll's results: the status, then `self` handed back.
+    fn polled(
+        &mut self,
+        task: &mut Task,
+        obj: Option<&mut Object>,
+        ret: &Ty,
+        out: &[Raw],
+    ) -> Result<Option<Value>, RunError> {
+        if let Some(o) = obj {
+            o.raw = out[1..].to_vec();
+        }
+        if let Some(h) = task.waiting.take() {
+            self.host.borrow_mut().resolved.remove(&h);
+        }
+        match out[0] {
+            Raw::I64(0) => {
+                task.done = true;
+                let raw: Vec<Raw> = slots(&self.meta, ret)
+                    .iter()
+                    .enumerate()
+                    .map(|(j, (s, _))| {
+                        slot_at(&Live(&*self.wasm), *s, task.frame as usize + 8 + 8 * j)
+                    })
+                    .collect();
+                let v = self.take(ret, &raw);
+                self.invoke(words::FREE, &[Raw::I32(task.frame as i32)], 0)?;
+                Ok(Some(v))
+            }
+            Raw::I64(h) => {
+                task.waiting = Some(h);
+                Ok(None)
+            }
+            _ => fail("internal: a poll returned no status"),
+        }
+    }
+
+    /// Swaps in `next` and carries each object across by field name: a field
+    /// that kept its name and type keeps its value, a new one starts from its
+    /// default. Running tasks do not survive a reload.
+    pub fn reload(
+        &mut self,
+        next: &Compiled,
+        host: HostFns,
+        objects: &mut [&mut Object],
+    ) -> Result<Vec<Vec<String>>, RunError> {
+        let mut fresh = Runtime::new(next, host, self.limits)?;
+        fresh.host.borrow_mut().now = self.now();
+        let mut kept_all = vec![];
+        let mut replacements = vec![];
+        for obj in objects.iter() {
+            let old_fields = self.meta.fields(&obj.ty).unwrap_or(&[]).to_vec();
+            let carried: Vec<(String, Value)> = self
+                .fields(obj)
+                .into_iter()
+                .filter(|(n, _)| {
+                    let t = old_fields
+                        .iter()
+                        .find(|(k, _)| k == n)
+                        .map(|(_, t)| t.clone());
+                    fresh
+                        .meta
+                        .fields(&obj.ty)
+                        .unwrap_or(&[])
+                        .iter()
+                        .any(|(k, kt)| k == n && Some(kt) == t.as_ref())
+                })
+                .collect();
+            let init: Vec<(&str, Value)> = carried
+                .iter()
+                .map(|(n, v)| (n.as_str(), v.clone()))
+                .collect();
+            replacements.push(fresh.object(&obj.ty, &init)?);
+            kept_all.push(carried.into_iter().map(|(n, _)| n).collect());
+        }
+        // Nothing changes until every object has its replacement.
+        for (obj, replacement) in objects.iter_mut().zip(replacements) {
+            let ty = Ty::Struct(obj.ty.clone());
+            self.release(&ty, &obj.raw);
+            obj.raw = replacement.raw;
+        }
+        *self = fresh;
+        Ok(kept_all)
+    }
+
+    fn field_at(&self, ty: &str, field: &str) -> Option<(usize, Ty)> {
+        let mut off = 0;
+        for (n, t) in self.meta.fields(ty)? {
+            if n == field {
+                return Some((off, t.clone()));
+            }
+            off += width(&self.meta, t);
+        }
+        None
+    }
+
+    fn alloc(&mut self, n: u32) -> Result<u32, RunError> {
+        let p = self.invoke(words::ALLOC, &[Raw::I32(n as i32)], 1)?[0].i32() as u32;
+        self.wasm.write(p as usize, &vec![0; n as usize]);
+        Ok(p)
+    }
+
+    fn invoke(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, RunError> {
+        // A parked call owns the shadow stack until it goes on.
+        if self.parked_call.is_some() {
+            return fail("the script is stopped at a breakpoint");
+        }
+        self.error_stop = None;
+        self.refuel();
+        self.sync_debugger();
+        self.wasm
+            .call(name, args, results)
+            .map_err(|msg| self.trapped(msg))
+    }
+
+    // A trapped call: why, on what line, and in a debug build the stack it
+    // died with, before the shadow stack is reset for the next call.
+    fn trapped(&mut self, msg: String) -> RunError {
+        let msg = self.trap_message(msg);
+        let line = self.trap_line();
+        if self.meta.debug {
+            self.error_stop = self.stack_at_trap();
+        }
+        if !self.nested && self.wasm.has_func(words::DBG_RESET) {
+            let _ = self.wasm.call(words::DBG_RESET, &[], 0);
+        }
+        RunError { msg, line }
+    }
+
+    // A call's fuel: the engine's own, or the module's counter when it meters
+    // itself (a browser's engine has none).
+    fn refuel(&mut self) {
+        if self.nested {
+            return;
+        }
+        if let Some(fuel) = self.limits.fuel {
+            self.wasm.set_fuel(fuel);
+        }
+        if self.meta.metered {
+            let left = self
+                .limits
+                .fuel
+                .map_or(i32::MAX, |f| i32::try_from(f).unwrap_or(i32::MAX));
+            self.wasm.set_global(words::FUEL, left);
+        }
+    }
+
+    // A metered module traps with nothing to say why; its counter does.
+    fn trap_message(&mut self, msg: String) -> String {
+        if self.meta.metered && self.wasm.global(words::FUEL).is_some_and(|f| f < 0) {
+            "all fuel consumed".into()
+        } else {
+            msg
+        }
+    }
+
+    // Debug builds: the breakpoint table and the stepping flag, before running.
+    fn sync_debugger(&mut self) {
+        if !self.meta.debug {
+            return;
+        }
+        let Some((table, flags)) = self.host.borrow_mut().debugger.take_table() else {
+            return;
+        };
+        let at = self.wasm.global(words::DBG_BREAKS).unwrap_or(0) as u32 as usize;
+        self.wasm.write(at, &table);
+        self.wasm.set_global(words::DBG_FLAGS, flags);
+    }
+
+    fn trap_line(&mut self) -> Option<u32> {
+        let stack = self.shadow()?;
+        self.host.borrow().debugger.trap_line(&stack)
+    }
+
+    fn stack_at_trap(&mut self) -> Option<Paused> {
+        let stack = self.shadow()?;
+        let paused =
+            self.host
+                .borrow()
+                .debugger
+                .snapshot(&Live(&*self.wasm), &stack, StopReason::Error);
+        Some(paused)
+    }
+
+    fn shadow(&mut self) -> Option<Vec<debugger::Shadow>> {
+        if !self.meta.debug {
+            return None;
+        }
+        let (base, top) = (
+            self.wasm.global(words::DBG_BASE)?,
+            self.wasm.global(words::DBG_SP)?,
+        );
+        Some(debugger::shadow_stack(
+            &Live(&*self.wasm),
+            base as u32,
+            top as u32,
+        ))
+    }
+
+    /// Where the last call that trapped died, in a debug build: its stack,
+    /// with each frame's variables as of its last stop or call. Taken once.
+    pub fn error_stop(&mut self) -> Option<Paused> {
+        self.error_stop.take()
+    }
+
+    // The module's own copy of `v`: strings and arrays are allocated in it.
+    fn encode(&mut self, ty: &Ty, v: &Value) -> Result<Vec<Raw>, RunError> {
+        Ok(match (ty, v) {
+            (Ty::Str, Value::Str(s)) => {
+                let p = self.alloc(8 + s.len() as u32)?;
+                let mut b = 1i32.to_le_bytes().to_vec();
+                b.extend((s.len() as u32).to_le_bytes());
+                b.extend(s.as_bytes());
+                self.wasm.write(p as usize, &b);
+                vec![Raw::I32(p as i32)]
+            }
+            (Ty::Array(et), Value::Array(items)) => {
+                let esz = 8 * width(&self.meta, et);
+                let data = if items.is_empty() {
+                    0
+                } else {
+                    self.alloc((items.len() * esz) as u32)?
+                };
+                for (i, it) in items.iter().enumerate() {
+                    let b: Vec<u8> = self
+                        .encode(et, it)?
+                        .into_iter()
+                        .flat_map(Raw::bytes)
+                        .collect();
+                    self.wasm.write(data as usize + i * esz, &b);
+                }
+                let h = self.alloc(16)?;
+                let mut b = 1i32.to_le_bytes().to_vec();
+                for x in [items.len() as u32, items.len() as u32, data] {
+                    b.extend(x.to_le_bytes());
+                }
+                self.wasm.write(h as usize, &b);
+                vec![Raw::I32(h as i32)]
+            }
+            (Ty::Any, v) => {
+                let cell = values::any_cell(v, |t, v| {
+                    Ok::<u32, RunError>(self.encode(t, v)?[0].i32() as u32)
+                })?;
+                let Some((tag, payload)) = cell else {
+                    return Ok(vec![Raw::I32(0)]);
+                };
+                let p = self.alloc(crate::anys::CELL as u32)?;
+                self.wasm
+                    .write(p as usize, &values::cell_bytes(tag, payload));
+                vec![Raw::I32(p as i32)]
+            }
+            (Ty::Optional(_), Value::Void) => values::zero(&self.meta, ty),
+            (Ty::Optional(t), v) => {
+                let mut raw = self.encode(t, v)?;
+                raw.push(Raw::I32(1));
+                raw
+            }
+            (Ty::Struct(s), Value::Struct(_, fields)) => {
+                let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
+                let mut raw = vec![];
+                let defaults = self.meta.defaults(s).to_vec();
+                for (n, t) in &decl {
+                    let declared = defaults
+                        .iter()
+                        .find(|(k, _, _)| k == n)
+                        .map(|(_, _, l)| literal(l));
+                    match fields
+                        .iter()
+                        .find(|(k, _)| k == n)
+                        .map(|(_, v)| v.clone())
+                        .or(declared)
+                    {
+                        Some(fv) => raw.extend(self.encode(t, &fv)?),
+                        None => raw.extend(self.default_of(t)?),
+                    }
+                }
+                if self.meta.is_class(s) {
+                    return Ok(vec![self.object_of(s, &raw)?]);
+                }
+                raw
+            }
+            _ => values::encode_plain(&self.meta, ty, v).map_err(|_| RunError {
+                msg: format!("{v:?} is not a {}", show(ty)),
+                line: None,
+            })?,
+        })
+    }
+
+    // A class object holding `raw`, counted once for its holder.
+    fn object_of(&mut self, s: &str, raw: &[Raw]) -> Result<Raw, RunError> {
+        let p = self.alloc(values::object_size(&self.meta, s) as u32)?;
+        let mut b = 1i32.to_le_bytes().to_vec();
+        b.extend([0; 4]);
+        b.extend(raw.iter().flat_map(|r| r.bytes()));
+        self.wasm.write(p as usize, &b);
+        Ok(Raw::I32(p as i32))
+    }
+
+    fn default_of(&mut self, ty: &Ty) -> Result<Vec<Raw>, RunError> {
+        match ty {
+            Ty::Str => self.encode(ty, &Value::Str(String::new())),
+            Ty::Array(_) => self.encode(ty, &Value::Array(vec![])),
+            // A class is never null: a field of one starts as its defaults.
+            Ty::Struct(s) if self.meta.is_class(s) => {
+                self.encode(ty, &Value::Struct(s.clone(), vec![]))
+            }
+            Ty::Struct(s) if has_heap(&self.meta, ty) => {
+                let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
+                let mut raw = vec![];
+                for (_, t) in &decl {
+                    raw.extend(self.default_of(t)?);
+                }
+                Ok(raw)
+            }
+            _ => Ok(zero(&self.meta, ty)),
+        }
+    }
+
+    // Reads a returned value and gives its references back.
+    fn take(&mut self, ty: &Ty, raw: &[Raw]) -> Value {
+        let v = decode(&self.meta, &Live(&*self.wasm), ty, raw);
+        if has_heap(&self.meta, ty) {
+            self.release(ty, raw);
+        }
+        v
+    }
+
+    fn release(&mut self, ty: &Ty, raw: &[Raw]) {
+        for part in self.release_plan(ty).iter() {
+            let r = raw[part.slot];
+            match &part.dec {
+                Some(name) => {
+                    let _ = self.invoke(name, &[r], 0);
+                }
+                // No release export for the type: nothing in the module keeps one, so
+                // the host made it; strings and plain arrays have no children to release.
+                None => self.release_flat(&part.ty, r.i32()),
+            }
+        }
+    }
+
+    // What letting go of a `ty` releases, slot by slot: worked out once per
+    // struct, since the host lets go of a script's copy after every call.
+    fn release_plan(&mut self, ty: &Ty) -> Rc<[host::Release]> {
+        let key = match ty {
+            Ty::Struct(name) => Some(name),
+            _ => None,
+        };
+        if let Some(plan) = key.and_then(|k| self.host.borrow().releases.get(k).cloned()) {
+            return plan;
+        }
+        let plan: Rc<[host::Release]> = slots(&self.meta, ty)
+            .into_iter()
+            .enumerate()
+            .filter_map(|(slot, (_, heap))| {
+                let ty = heap?;
+                let name = format!("{}{}", words::DEC, show(&ty));
+                let dec = self.wasm.has_func(&name).then_some(name);
+                Some(host::Release { slot, ty, dec })
+            })
+            .collect();
+        if let Some(k) = key {
+            self.host
+                .borrow_mut()
+                .releases
+                .insert(k.clone(), plan.clone());
+        }
+        plan
+    }
+
+    fn release_flat(&mut self, ty: &Ty, p: i32) {
+        if p == 0 {
+            return;
+        }
+        if let Ty::Struct(s) = ty {
+            let live = Live(&*self.wasm);
+            if rd32(&live, p as usize) != 1 {
+                // Someone else holds it too: one count less.
+                let n = rd32(&live, p as usize) as i32;
+                if n > 1 {
+                    self.wasm.write(p as usize, &(n - 1).to_le_bytes());
+                }
+                return;
+            }
+            let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
+            let mut at = p as usize + values::OBJ_HEADER;
+            let mut fields = vec![];
+            for (_, t) in &decl {
+                let raw: Vec<Raw> = slots(&self.meta, t)
+                    .iter()
+                    .enumerate()
+                    .map(|(j, (sl, _))| slot_at(&live, *sl, at + 8 * j))
+                    .collect();
+                at += 8 * raw.len();
+                fields.push((t.clone(), raw));
+            }
+            for (t, raw) in fields {
+                self.release(&t, &raw);
+            }
+            let _ = self.invoke(words::FREE, &[Raw::I32(p)], 0);
+            return;
+        }
+        if let Ty::Array(et) = ty {
+            let live = Live(&*self.wasm);
+            let (len, data) = (rd32(&live, p as usize + 4), rd32(&live, p as usize + 12));
+            let esz = 8 * width(&self.meta, et) as u32;
+            let elements: Vec<Vec<Raw>> = (0..len)
+                .map(|i| {
+                    slots(&self.meta, et)
+                        .iter()
+                        .enumerate()
+                        .map(|(j, (s, _))| slot_at(&live, *s, (data + i * esz) as usize + 8 * j))
+                        .collect()
+                })
+                .collect();
+            for raw in elements {
+                self.release(et, &raw);
+            }
+            if data != 0 {
+                let _ = self.invoke(words::FREE, &[Raw::I32(data as i32)], 0);
+            }
+        }
+        let _ = self.invoke(words::FREE, &[Raw::I32(p)], 0);
+    }
+}
+
+fn slot_at(m: &(impl Reader + ?Sized), s: crate::Slot, at: usize) -> Raw {
+    match s {
+        crate::Slot::I64 => Raw::I64(values::rd64(m, at) as i64),
+        crate::Slot::F64 => Raw::F64(f64::from_bits(values::rd64(m, at))),
+        crate::Slot::I32 => Raw::I32(rd32(m, at) as i32),
+    }
+}
+
+fn literal(l: &Literal) -> Value {
+    match l {
+        Literal::Int(v) => Value::Int(*v),
+        Literal::Float(v) => Value::Float(*v),
+        Literal::Bool(v) => Value::Bool(*v),
+        Literal::Str(v) => Value::Str(v.clone()),
+    }
+}

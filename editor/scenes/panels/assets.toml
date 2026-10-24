@@ -1,0 +1,141 @@
+# The Assets tab: the project's files as cards, where the browser is, its
+# verbs and a search. One script answers them; the files are the Editor's.
+
+[[nodes]]
+id = "panel"
+name = "Assets"
+script = { source = "scripts/panels/assets.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "tools"
+name = "Tools"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+role = "toolbar_dock"
+align_items = "center"
+gap = [6, 6]
+
+[[nodes]]
+id = "up"
+name = "Up"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "↑"
+tooltip = "Up one folder"
+visible = false
+
+[[nodes]]
+id = "where"
+name = "Where"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+text = "res://"
+
+# The breadcrumb's place while a card is being renamed.
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "tools"
+[nodes.widget]
+kind = "text_field"
+role = "input_dock"
+text = ""
+placeholder = "new name"
+width = 180
+visible = false
+
+[[nodes]]
+id = "gap"
+name = "Gap"
+parent = "tools"
+[nodes.widget]
+kind = "row"
+interactive = false
+grow = 1
+
+[[nodes]]
+id = "count"
+name = "Count"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+text = ""
+
+# One button, two jobs: an import to start, or the one running to stop.
+[[nodes]]
+id = "import"
+name = "Import"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "import"
+tooltip = "Bring in a model, a sprite or a level"
+
+[[nodes]]
+id = "folder"
+name = "Folder"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "folder"
+tooltip = "Make a folder here"
+
+[[nodes]]
+id = "rename"
+name = "Rename"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock_quiet"
+text = "rename"
+tooltip = "Select an item first"
+
+[[nodes]]
+id = "delete"
+name = "Delete"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock_quiet"
+text = "delete"
+tooltip = "Select an item first"
+
+[[nodes]]
+id = "search"
+name = "Search"
+parent = "tools"
+[nodes.widget]
+kind = "text_field"
+role = "input_dock"
+text = ""
+placeholder = "Search"
+width = 140
+
+# The cards: a dragged one let go over the viewport places its file there.
+[[nodes]]
+id = "cards"
+name = "Cards"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+grid_columns = "repeat(6, 1fr)"
+draggable = true
+
+[nodes.widget.touch]
+row_height = 33

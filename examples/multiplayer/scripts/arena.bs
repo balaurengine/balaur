@@ -1,0 +1,101 @@
+// Every machine runs this the same way: each tick moves every ship by what
+// its slot pressed, read back with `rollback::input`. Only a machine's own
+// input comes from its own keys, or from a fixed pattern under `-- auto`.
+
+pub struct Arena {
+    node: Node,
+    auto: bool,
+}
+
+// What a slot pressed this tick, an axis each way.
+pub struct Keys {
+    x: float,
+    y: float,
+}
+
+const SPEED: float = 3.0;
+
+const REPORT_EVERY: int = 300;
+
+// Where an `auto` run stops by itself.
+const AUTO_TICKS: int = 900;
+
+impl Arena {
+    pub fn init() {
+        self.auto = false;
+        for arg in engine::args() {
+            if arg == "auto" {
+                self.auto = true;
+            }
+        }
+        render::set_background(0.06, 0.07, 0.09);
+        render::set_camera_2d(0.0, 0.0, 120.0);
+        let me = multiplayer::local_player().or(0);
+        let text = "You are player {me + 1}. The arrow keys move your square.";
+        self.node.get_node("Hud").patch_component("widget", map().with("text", text));
+    }
+
+    pub fn fixed_update(dt: float) {
+        if multiplayer::state() != multiplayer::STATE_PLAYING {
+            return;
+        }
+        let tick = multiplayer::tick();
+        if self.auto {
+            multiplayer::set_input(autopilot(tick));
+        } else {
+            multiplayer::set_input(keys());
+        }
+        for player in multiplayer::players() {
+            let slot = player.get("slot").as_int();
+            let pressed = rollback::input(slot);
+            if pressed.kind() == "map" {
+                let ship = self.node.get_node("Ship{slot}");
+                let at = ship.transform.position;
+                let x = at.x + pressed.x.as_float() * SPEED * dt;
+                let y = at.y + pressed.y.as_float() * SPEED * dt;
+                ship.transform.position = [x, y, 0.0];
+            }
+        }
+        if tick % REPORT_EVERY == 0 && !rollback::is_resimulating() {
+            log::info("played {tick} ticks");
+            if self.auto && tick >= AUTO_TICKS {
+                engine::quit(0);
+            }
+        }
+    }
+
+    pub fn on_multiplayer_event(e: any) {
+        let kind = e.get("kind");
+        if kind == multiplayer::EVENT_DESYNC {
+            let tick = e.get("tick");
+            log::error("the machines disagree from tick {tick}");
+        } else if kind == multiplayer::EVENT_LEFT {
+            let name = e.get("name");
+            log::info("{name} left; their square stays where it is");
+        } else if kind == multiplayer::EVENT_CLOSED {
+            let reason = e.get("reason");
+            log::info("the match ended: {reason}");
+            if self.auto {
+                engine::quit(0);
+            }
+        }
+    }
+}
+
+fn keys() -> Keys {
+    Keys { x: input::action_value("move_x"), y: input::action_value("move_y") }
+}
+
+// A square walk, each player a quarter turn behind the other.
+fn autopilot(tick: int) -> Keys {
+    let side = (tick / 90 + multiplayer::local_player().or(0)) % 4;
+    if side == 0 {
+        Keys { x: 1.0, y: 0.0 }
+    } else if side == 1 {
+        Keys { x: 0.0, y: 1.0 }
+    } else if side == 2 {
+        Keys { x: -1.0, y: 0.0 }
+    } else {
+        Keys { x: 0.0, y: -1.0 }
+    }
+}

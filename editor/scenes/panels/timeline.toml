@@ -1,0 +1,190 @@
+# The Timeline tab: the clip's keys over time, a lane a track, with the ruler
+# they are read against, the playhead and the scrubber under them. One script
+# fills it from the Editor, which owns the clip, and answers its verbs.
+
+[[nodes]]
+id = "panel"
+name = "Timeline"
+script = { source = "scripts/panels/timeline.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 2]
+visible = false
+
+# What the player is missing, and the verb that gives it a clip.
+[[nodes]]
+id = "missing"
+name = "Missing"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+gap = [12, 12]
+align_items = "center"
+height = 30
+padding = [12, 0, 12, 0]
+visible = false
+
+[[nodes]]
+id = "missing_says"
+name = "Says"
+parent = "missing"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+text = ""
+
+[[nodes]]
+id = "create"
+name = "Create"
+parent = "missing"
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "Create clip"
+
+[[nodes]]
+id = "body"
+name = "Body"
+parent = "panel"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = [0, 2]
+
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = [4, 4]
+align_items = "center"
+padding = [8, 0, 8, 0]
+
+[[nodes]]
+id = "add"
+name = "AddKey"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "chip"
+checked = true
+text = "Key"
+tooltip = "Insert keyframe at playhead (or press K)"
+
+[[nodes]]
+id = "delete"
+name = "DeleteKey"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "− Key"
+tooltip = "Delete keyframe at playhead"
+
+[[nodes]]
+id = "gap"
+name = "Gap"
+parent = "head"
+[nodes.widget]
+kind = "row"
+grow = 1
+interactive = false
+
+[[nodes]]
+id = "clip"
+name = "Clip"
+parent = "head"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+[[nodes]]
+id = "time"
+name = "Time"
+parent = "head"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+# The ticks along the top, placed by time.
+[[nodes]]
+id = "ruler"
+name = "Ruler"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 20
+interactive = false
+
+# The lanes, with a rule per tick and the playhead straight down through them.
+[[nodes]]
+id = "lanes"
+name = "Lanes"
+parent = "body"
+[nodes.widget]
+kind = "column"
+grow = 1
+
+[[nodes]]
+id = "rules"
+name = "Rules"
+parent = "lanes"
+[nodes.widget]
+kind = "row"
+absolute = true
+inset = [0.0, 0.0, 0.0, 0.0]
+interactive = false
+
+[[nodes]]
+id = "playhead"
+name = "Playhead"
+parent = "lanes"
+[nodes.widget]
+kind = "row"
+absolute = true
+width = 2
+fill = "primary_text"
+interactive = false
+
+[[nodes]]
+id = "tracks_scroll"
+name = "Scroll"
+parent = "lanes"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "tracks"
+name = "Tracks"
+parent = "tracks_scroll"
+[nodes.widget]
+kind = "column"
+
+# The scrubber, spanning exactly the lane column.
+[[nodes]]
+id = "scrub_row"
+name = "ScrubRow"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 20
+
+[[nodes]]
+id = "scrub"
+name = "Scrub"
+parent = "scrub_row"
+[nodes.widget]
+kind = "slider"
+value = 0.0
+min = 0.0
+max = 1.0

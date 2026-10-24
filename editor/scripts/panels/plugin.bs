@@ -1,0 +1,63 @@
+// A plugin dock's one script, on the subtree the editor made for it: the
+// plugin fills it on these words and after its own controls, and never draws.
+
+pub struct Plugin {
+    node: Node,
+}
+
+// The node is `Plugin_<id>`: the id is the dock's, as it registered it.
+fn id_of(node: Node) -> str {
+    node.name().slice("Plugin_".len(), node.name().len())
+}
+
+impl Plugin {
+    pub fn init() {
+        let editor = scene::get_node("Editor");
+        for word in ["plugins_changed", "outline_changed", "inspector_changed", "debugger_changed"] {
+            events::listen(self.node, word, editor);
+        }
+        events::listen(self.node, "saved");
+        events::listen(self.node, "assets_reloaded");
+    }
+
+    pub fn on_plugins_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_inspector_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_debugger_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_saved(_count: any) {
+        self.refresh();
+    }
+
+    pub fn on_assets_reloaded(_generation: any) {
+        self.refresh();
+    }
+
+    /// A control's own handler ran first; what it changed shows now.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" || event == "change" || event == "submit" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows: on a word, and from the dock once it is visible,
+    /// which may be before `init`: a host made during the Editor's own call
+    /// starts once that call is over.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        scene::get_node("Editor").call("plugin_fill", id_of(self.node));
+    }
+}

@@ -15,7 +15,7 @@ parent = "n_scene"
 process = "always"
 
 [nodes.script]
-source = "scripts/driver.rn"
+source = "scripts/driver.bs"
 
 [nodes.script.props]
 # Set when the manual's picture or clip is being taken; empty for a normal run.

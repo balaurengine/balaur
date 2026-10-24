@@ -139,3 +139,25 @@ fn bindings_forward_through_references_and_boxes() {
     let by_ref: &mut dyn Bindings<Host> = &mut *boxed;
     by_ref.function("via_ref", |_: &Host, ()| Ok(()));
 }
+
+#[test]
+fn taking_an_argument_moves_it_and_leaves_nil() {
+    let table = Value::Map(vec![("height".into(), Value::Int(24))]);
+    let mut args = [Value::Str("name".into()), table.clone()];
+    let (name, opts) = <(String, Option<Value>)>::take_args(&mut args).unwrap();
+    assert_eq!(name, "name");
+    assert_eq!(opts, Some(table));
+    assert_eq!(args, [Value::Nil, Value::Nil]);
+}
+
+#[test]
+fn taking_reads_what_borrowing_reads() {
+    let mut args = [Value::Int(3), Value::Nil, Value::Bool(true)];
+    let taken = <(i64, Option<String>, bool)>::take_args(&mut args).unwrap();
+    assert_eq!(taken, (3, None, true));
+    let err = String::take_arg(Some(&mut Value::Int(1))).unwrap_err();
+    assert!(
+        err.to_string().contains("expected string, got int"),
+        "{err}"
+    );
+}

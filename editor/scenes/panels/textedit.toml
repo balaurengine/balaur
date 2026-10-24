@@ -1,0 +1,24 @@
+# Editing a text node where it is drawn: one field over the point that was
+# double-clicked. Enter keeps what was typed; leaving the field drops it.
+
+[[nodes]]
+id = "textedit"
+name = "TextEdit"
+script = { source = "scripts/panels/textedit.bs" }
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+anchor = "top_left"
+padding = [8, 4, 8, 4]
+layer = "shell"
+visible = false
+
+[[nodes]]
+id = "field"
+name = "Field"
+parent = "textedit"
+[nodes.widget]
+kind = "text_field"
+role = "input_form"
+text = ""

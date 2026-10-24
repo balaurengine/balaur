@@ -1,0 +1,92 @@
+// The Debugger tab's one script: it shows the stop the Editor heard from the
+// engine, or what to do while there is none, and answers the steps, pause,
+// break on error and a frame picked in the stack.
+
+pub struct Debugger {
+    node: Node,
+    editor: Node,
+}
+
+pub struct Shown3 {
+    visible: any,
+    text: any,
+}
+
+fn STEPS() -> [str] {
+    ["continue", "over", "into", "out"]
+}
+
+impl Debugger {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "debugger_changed", self.editor);
+        events::listen(self.node, "outline_changed", self.editor);
+    }
+
+    /// A script stopped or went on, play started or stopped, or a frame was
+    /// picked.
+    pub fn on_debugger_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// The theme moved, which inks the stack.
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" {
+            return;
+        }
+        let name = node.name();
+        if on_widget_event_any_0(name, STEPS()) {
+            self.editor.call("debugger_step", name);
+        } else if name == "Pause" {
+            self.editor.call("debugger_pause");
+        } else if name == "BreakOnError" {
+            self.editor.call("debugger_break_on_error");
+            self.refresh();
+        } else if name == "Stack" {
+            self.editor.call("debugger_frame", node.get_component("widget", "text"));
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("debugger_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        let tools = self.node.get_node("Tools");
+        tools.get_node("Pause").patch_component("widget", map().with("visible", view.get("can_pause")));
+        let items1 = STEPS();
+        for n in 0..items1.len() {
+            let step = items1[n];
+            let shown = Shown3 { visible: view.get("stopped"), text: nil };
+            if view.get("stopped").as_bool() {
+                shown.text = view.get("steps").at(n);
+            }
+            tools.get_node(step).patch_component("widget", shown);
+        }
+        tools.get_node("Where").patch_component("widget", map().with("text", view.get("where")));
+        tools.get_node("Threw").patch_component("widget", map().with("visible", view.get("threw").as_str() != "").with("text", view.get("threw")));
+        tools.get_node("BreakOnError").patch_component("widget", map().with("checked", view.get("break_on_error")));
+        self.node.get_node("Stack").patch_component("widget", map()
+            .with("visible", view.get("stopped"))
+            .with("options", view.get("frames"))
+            .with("text", view.get("picked")));
+    }
+}
+
+fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+    for step in items {
+        if step == name {
+            return true;
+        }
+    }
+    false
+}

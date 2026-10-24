@@ -7,6 +7,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 use crate::widget::theme::weight_of;
 
 /// A label: its text inside the padding the layout kept round it.
@@ -18,43 +19,15 @@ pub(crate) fn label(
     style: &crate::widget::theme::Style,
 ) {
     let widget = &at.arena[index].widget;
-    let (wrap, truncate) = (widget.wrap, widget.width > 0.0);
-    let (align, elided) = (
-        widget.text_align.clone(),
-        widget.egui.show_tooltip_when_elided,
-    );
     let pad = crate::widget::arrange::padding_of(widget, style);
     let mut inset = (pad.taken() != egui::Vec2::ZERO).then(|| {
         let rect = pad.inside(ui.max_rect());
         ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()))
     });
     let text_ui = inset.as_mut().unwrap_or(ui);
-    if !shaped_label(text_ui, at, index, caption, color, font) {
-        let mut label = egui::Label::new(crate::widget::theme::rich(
-            caption,
-            font,
-            color,
-            at.slant(index),
-            &widget.text_look,
-        ));
-        // A stated width is a column, so the text is cut to it rather
-        // than run past into whatever sits beside it. Without one,
-        // `extend` is the old behaviour: one line, however wide.
-        label = if wrap {
-            label.wrap()
-        } else if truncate {
-            label.truncate()
-        } else {
-            label.extend()
-        }
-        .show_tooltip_when_elided(elided);
-        text_ui.with_layout(
-            egui::Layout::top_down(crate::widget::layer::across(&align)),
-            |ui| {
-                ui.add(label);
-            },
-        );
-    }
+    // The shaper is made before the first pass draws, so a label always has
+    // it: a pass that binds the fonts draws nothing.
+    shaped_label(text_ui, at, index, caption, color, font);
     if let Some(inset) = inset {
         ui.advance_cursor_after_rect(pad.around(inset.min_rect()));
     }
@@ -163,9 +136,12 @@ fn label_width(
     assigned: f32,
     room: f32,
 ) -> (Option<f32>, Option<f32>) {
+    // A truncating caption's column is whatever it was given: a stretched
+    // child of a squeezed column has no `grow` and still has to be cut
+    // (a language's name in a card two to a phone's row, 2026-10-20).
     let boxed = if widget.width > 0.0 {
         widget.width
-    } else if widget.grow > 0.0 {
+    } else if widget.grow > 0.0 || widget.truncate {
         assigned
     } else {
         0.0
@@ -191,8 +167,7 @@ fn label_width(
     (width, column)
 }
 
-/// Draw a label through the shaper. Answers false when the shaper is not
-/// up yet, so the caller may fall back to egui's own text.
+/// Draw a label through the shaper; nothing while the shaper is not up.
 pub(crate) fn shaped_label(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -200,9 +175,9 @@ pub(crate) fn shaped_label(
     caption: &str,
     color: egui::Color32,
     font: &egui::FontId,
-) -> bool {
+) {
     let Some(state) = balaur_text::state(at.eng) else {
-        return false;
+        return;
     };
     let look = at.look(index);
     let style = &look.style;
@@ -261,8 +236,7 @@ pub(crate) fn shaped_label(
             .token(crate::vocabulary::tokens::PRIMARY_TEXT)
             .unwrap_or(ui.visuals().hyperlink_color)
     });
-    balaur_text::paint(
-        ui.painter(),
+    Brush::of(ui).glyphs(
         texture,
         &shaped,
         origin,
@@ -276,7 +250,7 @@ pub(crate) fn shaped_label(
     }
     for picture in &shaped.pictures {
         if let Ok(handle) = crate::images::texture_of(at.eng, ui.ctx(), &picture.path) {
-            ui.painter().image(
+            Brush::of(ui).picture(
                 handle.id(),
                 picture.rect.translate(origin.to_vec2()),
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
@@ -289,7 +263,6 @@ pub(crate) fn shaped_label(
         crate::widget::theme::tip(&response, caption);
     }
     ui.set_clip_rect(held);
-    true
 }
 
 /// Whether a truncating label was cut short, which the whole line shaped with
@@ -412,7 +385,7 @@ fn selecting(
                 .rect
                 .translate(origin.to_vec2())
                 .expand2(vec2(0.0, 2.0));
-            ui.painter().rect_filled(box_, 0.0, fill);
+            Brush::of(ui).fill(box_, 0.0, fill);
         }
     }
     // The platform's copy key, which is what `ui::shortcut` spells `cmd+c`.
@@ -449,8 +422,7 @@ fn underline(
     let mut run: Option<(u16, egui::Rect)> = None;
     let draw = |(_, box_): (u16, egui::Rect)| {
         let y = box_.max.y + 1.0;
-        ui.painter()
-            .hline(box_.min.x..=box_.max.x, y, egui::Stroke::new(1.0, color));
+        Brush::of(ui).hline(box_.min.x..=box_.max.x, y, egui::Stroke::new(1.0, color));
     };
     for quad in &shaped.quads {
         let box_ = quad.rect.translate(origin.to_vec2());
@@ -574,7 +546,7 @@ fn edit(
     let mut slanted = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
         let shown = if secret {
             std::iter::repeat_n(
-                egui::epaint::text::PASSWORD_REPLACEMENT_CHAR,
+                crate::widget::paint::PASSWORD_CHAR,
                 text.as_str().chars().count(),
             )
             .collect()
@@ -659,7 +631,7 @@ fn edit(
 
 /// The chord a `submit_key` names, or `None` for egui's own Enter.
 fn chord_of(text: &str) -> Option<egui::KeyboardShortcut> {
-    let (modifiers, key) = crate::immediate::chord(text)?;
+    let (modifiers, key) = crate::chord::chord(text)?;
     Some(egui::KeyboardShortcut::new(modifiers, key))
 }
 

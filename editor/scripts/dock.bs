@@ -1,0 +1,1219 @@
+// What the bottom dock's panels are built from: each tab is a scene with its
+// own script, and these are the views and verbs it asks the Editor for.
+
+use anim;
+use defs;
+use dropin;
+use editor;
+use icons;
+use importer;
+use inspector;
+use model;
+use pool;
+use search;
+use session;
+use shell;
+use signals;
+use util;
+use viewport;
+
+/// The log as the Output panel last filtered it, and the lines made of it:
+/// kept so a frame that logged nothing redoes none of it.
+pub class Built {
+    mark: str,
+    rows: [any],
+    hidden: int,
+    theme: any,
+    items: [str],
+}
+
+pub struct OutputView {
+    items: [str],
+    says: str,
+}
+
+/// A card's mark and the theme token it is inked with.
+pub struct AssetLook {
+    icon: str,
+    ink: str,
+}
+
+pub class AssetsState {
+    dir: str,
+    sel: str,
+    renaming: bool,
+    cards: any,
+    shown: Shown,
+}
+
+/// The cards the Assets panel shows, and the path and kind of each.
+pub struct Shown {
+    items: [str],
+    paths: [str],
+    dirs: [bool],
+}
+
+pub struct AssetsView {
+    dir: str,
+    where: str,
+    renaming: bool,
+    name: str,
+    count: str,
+    importing: bool,
+    import_text: str,
+    import_tip: str,
+    folder_text: str,
+    chosen: bool,
+    items: [str],
+    picked: str,
+}
+
+pub struct DebuggerView {
+    stopped: bool,
+    can_pause: bool,
+    steps: [str],
+    where: str,
+    threw: str,
+    break_on_error: bool,
+    frames: [str],
+    picked: str,
+}
+
+pub struct ProblemsView {
+    items: [str],
+    says: str,
+}
+
+pub struct RecordingsFill {
+    verify: bool,
+    count: int,
+}
+
+pub struct R2 {
+    name: str,
+}
+
+pub struct MeterView {
+    titles: [str],
+    widths: [str],
+    items: [str],
+    says: str,
+    headline: str,
+    scripts: bool,
+}
+
+/// A stage or a span, and what it cost the last frame.
+struct Cost {
+    name: str,
+    ms: float,
+}
+
+// What the last frame cost, against the budget: the Profiler's headline, in
+// the tab row because the panel's body is the table it fills.
+fn frame_hint() -> str {
+    let found = engine::timings();
+    if found.is_none() {
+        return "no timings yet";
+    }
+    let timings = found.unwrap();
+    let stage_ms = timings.frame * 1000.0;
+    let wall_ms = timings.wall * 1000.0;
+    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
+    let steps = timings.fixed_steps;
+    let plural = if steps == 1 { "" } else { "s" };
+    let line = "{util::fixed(frame_ms, 2)} ms of {util::fixed(BUDGET_MS, 1)} · {steps} step{plural}";
+    if frame_ms > BUDGET_MS {
+        line += " · {util::fixed(1000.0 / frame_ms, 1)} fps";
+    }
+    line
+}
+
+// What the frame draws, and how big the last export was where the row is wide
+// enough to say both. A tab row cannot scroll, so a line too long is a line
+// cut off mid-word.
+fn cost_hint(S: editor::State, room: float) -> str {
+    let stats = render::stats();
+    let line = "{stats.draws as int} draws · {stats.triangles as int} triangles · {bytes(stats.texture_bytes)} in {stats.textures as int} textures";
+    if room > 560.0 {
+        line += " · pack {pack_size(S)}";
+    }
+    line
+}
+
+// How loud an entry is, so `error` and `warn` stop looking identical.
+fn severity(level: any) -> int {
+    if level.as_str() == "error" {
+        3
+    } else if level.as_str() == "warn" {
+        2
+    } else if level.as_str() == "info" {
+        1
+    } else {
+        0
+    }
+}
+
+fn floor_of(level: str) -> int {
+    if level == "warn" {
+        2
+    } else if level == "error" {
+        3
+    } else {
+        0
+    }
+}
+
+// The rows the level and the filter leave, and how many they took away.
+// Filtering lowercases every message, so it is redone only when the log, the
+// level or the filter has actually moved.
+fn filtered(S: &mut editor::State) -> Built {
+    // `since` hands back only what was logged after the cursor, so a frame
+    // that logged nothing costs one call rather than the whole buffer.
+    let news = log::since(S.log_cursor);
+    S.log_cursor = news.cursor.as_int();
+    let mark = "{S.log_level}|{S.log_query}";
+    if S.log_cache.is_some() && S.log_cache.unwrap().mark == mark && news.entries.len() == 0 && news.missed.as_int() == 0 {
+        return S.log_cache.unwrap();
+    }
+    // The buffer holds 500; asking for 60 threw away most of the session.
+    let entries = util::vec(log::recent(500));
+    let floor = floor_of(S.log_level);
+    let query = S.log_query.to_lower();
+    let rows: [any] = [];
+    let hidden = 0;
+    for entry in entries {
+        let matches = query == "" || entry.message.as_str().to_lower().contains(query) || entry.tag.as_str().to_lower().contains(query);
+        if severity(entry.level) < floor || !matches {
+            hidden += 1;
+            continue;
+        }
+        rows.push(entry);
+    }
+    let built = Built { mark: mark, rows: rows, hidden: hidden, theme: nil, items: [] };
+    S.log_cache = built;
+    built
+}
+
+/// What the Output panel shows for a level and a search: the log's lines,
+/// and what to say when there are none.
+pub fn output_view(S: &mut editor::State, level: str, query: str) -> OutputView {
+    S.log_level = level;
+    S.log_query = query;
+    let k = S.theme;
+    let shown = filtered(S);
+    // The lines are made once for the rows the filter kept, and again only for
+    // new ones or a new theme.
+    if shown.theme != k {
+        shown.items = log_lines(shown.rows, k);
+        shown.theme = k;
+    }
+    let says = if shown.rows.len() > 0 {
+        ""
+    } else if shown.hidden > 0 {
+        "{shown.hidden} entries hidden by the filter"
+    } else {
+        "nothing logged yet"
+    };
+    OutputView { items: shown.items, says: says }
+}
+
+/// The Output panel's "clear".
+pub fn output_clear(S: &mut editor::State) {
+    log::clear();
+    S.log_cache = nil;
+}
+
+// One `list` row a log entry: its mark, the time, tag and message, its ink.
+fn log_lines(rows: [any], k: any) -> [str] {
+    let items: [str] = [];
+    for entry in rows {
+        let level = entry.level.as_str();
+        let tag = entry.tag.as_str();
+        let tint = k.text_muted.as_str();
+        let marker = " ";
+        if level == "error" {
+            tint = k.danger_text.as_str();
+            marker = "×";
+        } else if level == "warn" {
+            tint = k.warning_text.as_str();
+            marker = "!";
+        } else if tag == "env" {
+            tint = k.secondary_text.as_str();
+        }
+        let short = if tag.len() > 9 { tag.slice(0, 9) } else { tag };
+        let time = util::fixed(util::f(entry.time), 1);
+        let line = util::repeat(" ", util::imax(0, 6 - time.len())) + time;
+        items.push(util::row(marker, "{line}s  {short}  {entry.message.as_str()}", "", tint));
+    }
+    items
+}
+
+// Icon and ink by extension, so a directory of assets reads at a glance. The
+// tile is one fill for every card; only the mark is typed.
+fn asset_look(name: str, is_dir: bool) -> AssetLook {
+    if is_dir {
+        return AssetLook { icon: icons::panel("assets"), ink: "text_muted" };
+    }
+    if name.ends_with(".bs") {
+        return AssetLook { icon: icons::ui("scriptfile"), ink: "secondary_text" };
+    }
+    if name.ends_with(".toml") {
+        return AssetLook { icon: icons::panel("scene"), ink: "primary_text" };
+    }
+    if importer::kind_of(name) == "texture" {
+        return AssetLook { icon: icons::workspace(defs::WORKSPACE_UI), ink: "primary_text" };
+    }
+    return AssetLook { icon: icons::ui("dot"), ink: "text_subtle" };
+}
+
+// Opening a file means the thing the editor can actually do with it: jump to
+// the node running a script, or open a scene. Anything else just selects.
+fn open_asset(S: &mut editor::State, rel: str) {
+    if rel.ends_with(".toml") && rel.starts_with("scenes/") {
+        if S.scene_rel != rel {
+            model::open_scene(S, rel);
+        }
+        return;
+    }
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if model::script_rel(node).as_str() == rel {
+            shell::choose(S, i);
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
+            return;
+        }
+    }
+    log::info("{rel} is not attached to any node");
+}
+
+fn parent_dir(dir: str) -> str {
+    let parts = dir.split("/");
+    if parts.len() <= 1 {
+        return "";
+    }
+    parts.pop();
+    util::join(parts, "/")
+}
+
+/// The Assets dock's own state, hung on `S.assets`. `sel` is the card acted
+/// on by rename and delete; `renaming` swaps the breadcrumb for a field.
+pub fn assets_state() -> AssetsState {
+    AssetsState { dir: "", sel: "", renaming: false, cards: map(), shown: Shown { items: [], paths: [], dirs: [] } }
+}
+
+fn asset_path(S: editor::State, rel: str) -> str {
+    S.game_root + "/" + rel
+}
+
+pub fn new_folder(S: &mut editor::State) {
+    let base = if S.assets.dir == "" { "new-folder" } else { "{S.assets.dir}/new-folder" };
+    let name = base;
+    let n = 2;
+    while fs::exists(asset_path(S, name)) {
+        name = "{base}-{n}";
+        n += 1;
+    }
+    fs::create_directory(asset_path(S, name));
+    model::forget(S, nil);
+    S.assets.sel = name;
+    signals::changed(S, "assets");
+    log::info("made res://{name}");
+}
+
+pub fn rename_asset(S: &mut editor::State, name: str) {
+    S.assets.renaming = false;
+    if name == "" || name.contains("/") {
+        log::warn("a name cannot be empty or contain a slash");
+        return;
+    }
+    let from = S.assets.sel;
+    let to = if S.assets.dir == "" { name } else { "{S.assets.dir}/{name}" };
+    if from == to {
+        return;
+    }
+    if fs::exists(asset_path(S, to)) {
+        log::warn("res://{to} already exists");
+        return;
+    }
+    // The engine moves the file and rewrites every `.toml` naming it.
+    let rewritten = assets::rename(asset_path(S, from), asset_path(S, to));
+    model::forget(S, nil);
+    S.assets.sel = to;
+    signals::changed(S, "assets");
+    log::info("renamed res://{from} to res://{to}; {rewritten.len()} file(s) updated");
+}
+
+pub fn delete_asset(S: &mut editor::State) {
+    let rel = S.assets.sel;
+    if fs::remove(asset_path(S, rel)) {
+        log::info("deleted res://{rel}");
+    } else {
+        log::warn("res://{rel} was not there");
+    }
+    model::forget(S, nil);
+    S.assets.sel = "";
+    signals::changed(S, "assets");
+}
+
+/// What the Assets panel shows for a search: where the browser is, its cards
+/// and the verbs' state. The cards are kept, so a pick names its file.
+pub fn assets_view(S: &mut editor::State, query: str) -> AssetsView {
+    let k = S.theme;
+    let dir = S.assets.dir;
+    let files: [any] = [];
+    for f in model::list(S, dir) {
+        if search::matches(query, f.name.as_str()) {
+            files.push(f);
+        }
+    }
+    // One string a card: the mark, the name, the path it opens and its ink.
+    let items: [str] = [];
+    let paths: [str] = [];
+    let dirs: [bool] = [];
+    let cards = map();
+    let picked = "";
+    for f in files {
+        let name = f.name.as_str();
+        let is_dir = f.is_dir.as_bool();
+        let rel = if dir == "" { name } else { "{dir}/{name}" };
+        let look = asset_look(name, is_dir);
+        let item = util::row(look.icon, name, rel, k.get(look.ink).as_str());
+        if rel == S.assets.sel {
+            picked = item;
+        }
+        if !is_dir {
+            cards.set(item, rel);
+        }
+        items.push(item);
+        paths.push(rel);
+        dirs.push(is_dir);
+    }
+    S.assets.cards = cards;
+    S.assets.shown = Shown { items: items, paths: paths, dirs: dirs };
+    let importing = dropin::in_flight(S) > 0;
+    AssetsView {
+        dir: dir,
+        // A project-relative path: the absolute one is this machine's, and
+        // lands in every screenshot.
+        where: "res://{dir}",
+        renaming: S.assets.renaming,
+        name: util::last_segment(S.assets.sel),
+        count: "{files.len()} items",
+        importing: importing,
+        import_text: icons::panel("import") + (if importing { " cancel" } else { " import" }),
+        import_tip: if importing {
+            "Stop the import after the file it is writing"
+        } else {
+            "Bring in a model, a sprite or a level"
+        },
+        folder_text: icons::ui("add") + " folder",
+        chosen: S.assets.sel != "",
+        items: items,
+        picked: picked,
+    }
+}
+
+/// A card clicked: the first click selects it, a second opens it.
+pub fn assets_pick(S: &mut editor::State, row: str) {
+    let shown = S.assets.shown;
+    for n in 0..shown.items.len() {
+        if shown.items[n] != row {
+            continue;
+        }
+        let rel = shown.paths[n];
+        if rel == S.assets.sel {
+            if shown.dirs[n] {
+                S.assets.dir = rel;
+                S.assets.sel = "";
+            } else {
+                open_asset(S, rel);
+            }
+        } else {
+            S.assets.sel = rel;
+            S.assets.renaming = false;
+        }
+        signals::changed(S, "assets");
+        return;
+    }
+}
+
+/// The strip's verbs, by the name of the button pressed; `rename_to` is the
+/// new name submitted.
+pub fn assets_verb(S: &mut editor::State, verb: str, value: str) {
+    let chosen = S.assets.sel != "";
+    if verb == "Up" {
+        S.assets.dir = parent_dir(S.assets.dir);
+    } else if verb == "Import" {
+        // Asks and imports: a dialog on a desktop, the page's own chooser in
+        // a tab, and the same reports either way.
+        if dropin::in_flight(S) > 0 {
+            import::cancel();
+        } else {
+            import::choose();
+        }
+    } else if verb == "Folder" {
+        new_folder(S);
+    } else if verb == "Rename" && chosen {
+        S.assets.renaming = !S.assets.renaming;
+    } else if verb == "Delete" && chosen {
+        delete_asset(S);
+    } else if verb == "rename_to" {
+        rename_asset(S, value);
+    }
+    signals::changed(S, "assets");
+}
+
+/// A card dragged out of the Assets panel and let go: over the viewport, the
+/// file is placed where the pointer is; anywhere else, nothing happens.
+pub fn drop_card(S: &mut editor::State, card: any) -> bool {
+    let rel = S.assets.cards.get(card.as_str());
+    if rel.is_nil() {
+        return false;
+    }
+    let at = input::mouse_position();
+    if !viewport::owns_pointer(S, at.x / S.ui_scale, at.y / S.ui_scale) {
+        return false;
+    }
+    dropin::place_file(S, rel.as_str())
+}
+
+// Keyframe timeline over the engine's clip (scripts/anim.bs is the adapter):
+// scrubbing seeks the engine's player, so the viewport shows the engine's pose.
+const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
+
+const NAME_W: float = 150.0;
+
+/// Fill the Timeline tab: what the player is missing, or the clip's ruler,
+/// rules, lanes and keys placed by time against the tab's width, the playhead
+/// and the scrubber. What its script asks for when any of them moved.
+pub fn timeline_fill(S: &mut editor::State) {
+    let k = S.theme;
+    let node = anim::player(S).node;
+    let found = anim::definition(S);
+    if found.is_nil() {
+        let missing = if anim::component(node).is_nil() {
+            node.name.as_str() + " has no clip"
+        } else {
+            "{node.name.as_str()}: clip '{anim::clip_name(node)}' is not in its library"
+        };
+        util::fill(TIMELINE + "/Missing", map().with("visible", true));
+        util::fill(TIMELINE + "/Missing/Says", map().with("text", missing));
+        util::fill(TIMELINE + "/Missing/Create", map().with("icon", icons::ui("add")));
+        util::fill(TIMELINE + "/Body", map().with("visible", false));
+        return;
+    }
+    let def = found;
+    util::fill(TIMELINE + "/Missing", map().with("visible", false));
+    util::fill(TIMELINE + "/Body", map().with("visible", true));
+    let length = util::max(anim::length(def), 1e-4);
+    let tracks = anim::tracks(def);
+    let lane_x = NAME_W + 14.0;
+    let lane_w = util::max(120.0, width_of(TIMELINE) - lane_x - 24.0);
+    let name = anim::clip_name(node);
+    util::fill(TIMELINE + "/Body/Head/AddKey", map().with("icon", icons::ui("add")));
+    let library = anim::library_path(node);
+    let clip = if name == "" { "unnamed" } else { name };
+    let place = if library.is_none() { "inline" } else { library.unwrap() };
+    util::fill(TIMELINE + "/Body/Head/Clip", map().with("text", "{clip} · {place}"));
+    util::fill(TIMELINE + "/Body/Head/Time", map().with("text", "{util::fixed(S.anim.time, 2)} / {util::fixed(anim::length(def), 2)} s"));
+    // The ruler carries the scale the lanes are read against: a label and a
+    // rule per tick straight down through the lanes.
+    let step = tick_step(length);
+    let ticks: [any] = [];
+    let rules: [any] = [];
+    let t = 0.0;
+    while t <= length + 1e-4 {
+        let x = lane_at(lane_x, length, lane_w, t);
+        ticks.push(map()
+            .with("kind", "label")
+            .with("role", "text_code_quiet")
+            .with("font_size", 11)
+            .with("absolute", true)
+            .with("inset", [x, 2.0, -1.0, -1.0])
+            .with("text", util::fixed(t, 2)));
+        rules.push(map()
+            .with("kind", "row")
+            .with("absolute", true)
+            .with("inset", [x, 0.0, -1.0, 0.0])
+            .with("width", 1)
+            .with("fill", "border_default")
+            .with("interactive", false));
+        t += step;
+    }
+    pool::strip(S, TIMELINE + "/Body/Ruler", ticks);
+    pool::strip(S, TIMELINE + "/Body/Lanes/Rules", rules);
+    util::fill(TIMELINE + "/Body/Lanes/Playhead", map()
+        .with("inset", [lane_at(lane_x, length, lane_w, util::min(S.anim.time, length)) - 1.0, 0.0, -1.0, 0.0]));
+    let rows: [any] = [];
+    for index in 0..tracks.len() {
+        let track = tracks[index];
+        let color = (if index % 2 == 0 { k.primary_text } else { k.secondary_text }).as_str();
+        let keys: [any] = [];
+        for key in util::vec(track.keys) {
+            let when = util::f(key.time);
+            let before = when <= S.anim.time + 1e-4;
+            // A key is its mark: filled once the playhead has passed it.
+            keys.push(map()
+                .with("kind", "button")
+                .with("role", "chip_quiet")
+                .with("text", if before { "●" } else { "○" })
+                .with("font_size", 13)
+                .with("padding", 0)
+                .with("text_color", color)
+                .with("absolute", true)
+                .with("inset", [(when / length) * lane_w - 6.0, 2.0, -1.0, -1.0])
+                .with("tooltip", "{util::fixed(when, 2)} s")
+                .with("on", "handle")
+                .with("data", map().with("fn", timeline_fill_on_1).with("when", when)));
+        }
+        rows.push(map()
+            .with("full", true)
+            .with("height", LANE_H)
+            .with("controls", [
+                map()
+                    .with("kind", "row")
+                    .with("width", NAME_W)
+                    .with("gap", [6, 6])
+                    .with("align_items", "center")
+                    .with("padding", [8, 0, 0, 0])
+                    .with("controls", [
+                        map().with("kind", "row").with("width", 6).with("height", 6).with("corner_radius", 3).with("fill", color),
+                        map()
+                            .with("kind", "label")
+                            .with("corner_radius", 0)
+                            .with("role", "text_code")
+                            .with("font_size", 11)
+                            .with("text", anim::track_label(track)),
+                    ]),
+                map()
+                    .with("kind", "row")
+                    .with("width", lane_w)
+                    .with("controls", keys)
+                    .with("height", LANE_H)
+                    .with("margin", [14, 0, 0, 0]),
+            ]));
+    }
+    pool::sync(S, TIMELINE + "/Body/Lanes/Scroll/Tracks", rows, 0.0, false);
+    util::fill(TIMELINE + "/Body/ScrubRow", map().with("padding", [8.0 + lane_x, 0.0, 0.0, 0.0]));
+    util::fill(TIMELINE + "/Body/ScrubRow/Scrub", map().with("width", lane_w).with("value", S.anim.time).with("max", anim::length(def)));
+}
+
+// Where time `t` lands across a lane `lane_w` wide that starts at `lane_x`.
+fn lane_at(lane_x: float, length: float, lane_w: float, t: float) -> float {
+    8.0 + lane_x + (t / length) * lane_w
+}
+
+// How wide the node at `path` was drawn, or a guess before it has been.
+fn width_of(path: str) -> float {
+    let rect = ui::widget_rect(scene::get_node(path));
+    if rect.is_none() { 800.0 } else { rect.unwrap().width }
+}
+
+fn timeline_fill_on_1(S: &mut editor::State, data: any, _0: any) {
+    anim::seek(S, data.when.as_float());
+}
+
+/// The Timeline tab's verbs, by the name of the button pressed.
+pub fn timeline_verb(S: &mut editor::State, verb: str) {
+    if verb == "AddKey" {
+        anim::add_key(S, S.anim.time);
+    } else if verb == "DeleteKey" {
+        anim::delete_key_at(S, S.anim.time);
+    } else if verb == "Create" {
+        anim::ensure_clip(S);
+    }
+    signals::changed(S, "timeline");
+}
+
+const LANE_H: float = 26.0;
+
+// A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
+fn tick_step(length: float) -> float {
+    for step in [0.25, 0.5, 1.0, 2.0, 5.0, 10.0] {
+        if length / step <= 8.0 {
+            return step;
+        }
+    }
+    length / 8.0
+}
+
+// A local as one line; a table is its JSON, cut short.
+fn value_text(v: any) -> str {
+    if v.kind() == "map" || v.kind() == "list" {
+        let text = json::encode(v);
+        if text.len() > 96 { text.slice(0, 93) + "…" } else { text }
+    } else if v.kind() == "str" {
+        v.as_str()
+    } else {
+        "{v}"
+    }
+}
+
+/// What the Debugger panel shows: the stop and its stack while a script is
+/// stopped, and what to do while none is. The stack's rows are kept, so a
+/// pick names its frame.
+pub fn debugger_view(S: &mut editor::State) -> DebuggerView {
+    let k = S.theme;
+    let p = S.debug.paused;
+    let on = debugger::break_on_error();
+    if p.kind() != "map" {
+        S.debug.rows = [];
+        S.debug.owners = [];
+        let where = if S.playing {
+            "running · click a line number in the script to set a breakpoint"
+        } else {
+            "set breakpoints in the script gutter, then run the scene"
+        };
+        return DebuggerView {
+            stopped: false,
+            can_pause: S.playing,
+            steps: [],
+            where: where,
+            threw: "",
+            break_on_error: on,
+            frames: [],
+            picked: "",
+        };
+    }
+    // A frame is a row, and its locals are rows a tab deeper. The caret is the
+    // tree's own, so nothing here folds.
+    let items: [str] = [];
+    let owners: [int] = [];
+    let frames = util::vec(p.frames);
+    for i in 0..frames.len() {
+        let frame = frames[i];
+        let site = "{shell::script_rel(S, frame.path.as_str())}:{frame.line}";
+        // A recursion stacks frames that read alike; the depth keeps them apart.
+        items.push(util::cells([icons::ui("step-into"), frame.function.as_str(), site, k.text_default.as_str(), "{i}"]));
+        owners.push(i);
+        for name in util::keys_sorted(frame.locals) {
+            items.push("\t" + util::cells(["", name, value_text(frame.locals.get(name)), k.text_muted.as_str(), "{i}/{name}"]));
+            owners.push(i);
+        }
+    }
+    let picked = "";
+    for n in 0..owners.len() {
+        let owner = owners[n];
+        if owner == S.debug.frame && picked == "" {
+            picked = items[n];
+        }
+    }
+    S.debug.rows = items;
+    S.debug.owners = owners;
+    DebuggerView {
+        stopped: true,
+        can_pause: false,
+        steps: [
+            "▶ Continue",
+            icons::ui("step-over") + " Over",
+            icons::ui("step-into") + " Into",
+            icons::ui("step-out") + " Out",
+        ],
+        where: "{p.reason.as_str()} · {S.debug.paused_rel}:{p.line}",
+        threw: p.message.as_str(),
+        break_on_error: on,
+        frames: items,
+        picked: picked,
+    }
+}
+
+/// A step pressed, by the name of its button.
+pub fn debugger_step(S: &mut editor::State, step: str) {
+    let mode = if step == "over" {
+        debugger::STEP_OVER
+    } else if step == "into" {
+        debugger::STEP_INTO
+    } else if step == "out" {
+        debugger::STEP_OUT
+    } else {
+        debugger::CONTINUE
+    };
+    shell::resume(S, mode);
+}
+
+/// A row of the stack picked: the frame it is, or is a local of.
+pub fn debugger_frame(S: &mut editor::State, row: str) {
+    let rows = S.debug.rows;
+    for n in 0..rows.len() {
+        if rows[n] == row {
+            S.debug.frame = S.debug.owners[n];
+            signals::changed(S, "debugger");
+            return;
+        }
+    }
+}
+
+// Problems: every finding the last sweep produced, worst first, each row a
+// file and a line the click opens at.
+// The findings in the order the list shows them: the errors first.
+fn problem_rows(S: editor::State) -> [any] {
+    let rows: [any] = [];
+    for f in S.lint.found {
+        if f.severity.as_str() == "error" {
+            rows.push(f);
+        }
+    }
+    for f in S.lint.found {
+        if f.severity.as_str() != "error" {
+            rows.push(f);
+        }
+    }
+    rows
+}
+
+fn problem_line(f: any, k: any) -> str {
+    let bad = f.severity.as_str() == "error";
+    let file = f.file.as_str();
+    let at = if f.line.as_int() > 0 { "{file}:{f.line.as_int()}" } else { file };
+    let tint = if bad { k.danger_text } else { k.warning_text };
+    util::row(if bad { "×" } else { "!" }, "{at}  {f.message.as_str()}", "", tint.as_str())
+}
+
+/// What the Problems panel shows: a line a finding, and what to say when
+/// there are none.
+pub fn problems_view(S: editor::State) -> ProblemsView {
+    let items: [str] = [];
+    for f in problem_rows(S) {
+        items.push(problem_line(f, S.theme));
+    }
+    let says = if items.len() > 0 {
+        ""
+    } else if S.lint.at < 0.0 {
+        "not checked yet"
+    } else {
+        "no problems"
+    };
+    ProblemsView { items: items, says: says }
+}
+
+/// The Problems panel picked the line written `picked`: open what it names.
+pub fn problems_pick(S: &mut editor::State, picked: str) {
+    for f in problem_rows(S) {
+        if problem_line(f, S.theme) == picked {
+            open_at(S, f);
+            return;
+        }
+    }
+}
+
+// Select the node whose script this is and show it, so a click lands on the
+// code rather than on a file name.
+fn open_at(S: &mut editor::State, f: any) {
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if model::script_rel(node).as_str() == f.file.as_str() {
+            shell::choose(S, i);
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
+            return;
+        }
+    }
+    S.doctab = "scene";
+    signals::inspector(S);
+}
+
+// The Recordings tab while one is open: the replay's transport and lanes.
+const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
+
+const LANE_NAME_W: float = 120.0;
+
+/// Fill the recording lanes: the transport and scrubber, where the replay
+/// parted from the recording, a lane a kind of event with its marks placed by
+/// tick against the tab's width, and everything recorded at the playhead.
+pub fn lanes_fill(S: editor::State) {
+    let k = S.theme;
+    let split = replay::divergence_tick();
+    let first = S.session.first;
+    let last = S.session.last;
+    let span = util::max(1.0, (last - first) as float);
+    let lane_w = util::max(120.0, width_of(LANES) - LANE_NAME_W - 60.0);
+    let playing = replay::state() == replay::STATE_PLAYING;
+    util::fill(LANES + "/Head/Play", map().with("text", if playing { "⏸ Pause" } else { "▶ Play" }));
+    // Before the first frame is fed the position is one tick short of the
+    // session's start, which is off the near end of the ruler.
+    let at = util::max(0.0, (replay::position() - first) as float);
+    util::fill(LANES + "/Head/Scrub", map().with("value", at).with("max", span));
+    util::fill(LANES + "/Head/At", map().with("text", "{replay::position()} / {last}"));
+    // A divergence is information, not a failure: the replay ran, and this is
+    // the tick at which it stopped reproducing what was recorded.
+    let parted = if split.is_some() { "parted from the recording at tick {split.unwrap().tick}" } else { "" };
+    util::fill(LANES + "/Parted", map().with("visible", parted != "").with("text", parted));
+    let rows: [any] = [];
+    for lane in S.session.lanes {
+        let marks: [any] = [];
+        for mark in lane.marks {
+            let tick = mark.tick;
+            let x = util::clamp(((tick - first) as float) / span, 0.0, 1.0) * (lane_w - 6.0);
+            marks.push(map()
+                .with("kind", "button")
+                .with("role", "chip_quiet")
+                .with("text", "▮")
+                .with("font_size", 9)
+                .with("padding", 0)
+                .with("absolute", true)
+                .with("inset", [x, -1.0, -1.0, -1.0])
+                .with("text_color", if tick <= replay::position() { k.primary_text } else { k.border_default })
+                .with("tooltip", "{tick}: {mark.label}")
+                .with("on", "handle")
+                .with("data", map().with("fn", lanes_fill_on_2).with("tick", tick)));
+        }
+        rows.push(map()
+            .with("full", true)
+            .with("height", 20)
+            .with("controls", [
+                map()
+                    .with("kind", "label")
+                    .with("width", LANE_NAME_W - 12.0)
+                    .with("padding", [8, 0, 0, 0])
+                    .with("role", "text_code_quiet")
+                    .with("font_size", 11)
+                    .with("text", lane.name),
+                map()
+                    .with("kind", "row")
+                    .with("width", lane_w)
+                    .with("controls", marks)
+                    .with("height", 20),
+            ]));
+    }
+    // Everything recorded at the tick the playhead is on, in the order it
+    // happened.
+    for e in replay::events(S.session.at, S.session.at) {
+        rows.push(map()
+            .with("full", true)
+            .with("height", 20)
+            .with("controls", [
+                map()
+                    .with("kind", "label")
+                    .with("padding", [8, 0, 0, 0])
+                    .with("role", "text_code_quiet")
+                    .with("font_size", 11)
+                    .with("text", "{e.tick}"),
+                map()
+                    .with("kind", "label")
+                    .with("role", "text_code_quiet")
+                    .with("font_size", 11)
+                    .with("text", e.kind),
+                map()
+                    .with("kind", "label")
+                    .with("role", "text_code")
+                    .with("font_size", 11)
+                    .with("text", e.label),
+            ]));
+    }
+    pool::sync(S, LANES + "/Scroll/Rows", rows, 0.0, false);
+}
+
+fn lanes_fill_on_2(S: &mut editor::State, data: any, _0: any) {
+    session::seek(S, data.tick.as_int());
+}
+
+/// The lanes' transport, by the name of the button pressed.
+pub fn lanes_verb(S: &mut editor::State, verb: str) {
+    if verb == "Play" {
+        session::toggle_pause(S);
+    } else if verb == "Step" {
+        session::step(S);
+    } else {
+        session::close(S);
+    }
+    signals::changed(S, "recordings");
+}
+
+/// The scrubber, at `t` ticks into the recording.
+pub fn lanes_seek(S: &mut editor::State, t: float) {
+    session::seek(S, S.session.first + (t as int));
+    signals::changed(S, "recordings");
+}
+
+// The Recordings panel's rows, under its own scroll; the dock hides the panel
+// while a recording is open, and the lanes take its room.
+const RECORDINGS: str = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column";
+
+/// Every recording this game has made, newest first, as a row each. "Keep"
+/// renames one out of the ring that prunes the oldest, so a session worth
+/// returning to survives the next ten runs.
+pub fn recordings_fill(S: &mut editor::State) -> RecordingsFill {
+    let rows = session::listing(S);
+    let specs: [any] = [];
+    for r in rows {
+        specs.push(map().with("full", true).with("height", 24).with("slot_role", "layout_actions").with("controls", session_row(S, r)));
+    }
+    pool::sync(S, RECORDINGS, specs, 0.0, false);
+    RecordingsFill { verify: S.session.verify, count: rows.len() }
+}
+
+/// The Recordings panel's verify switch.
+pub fn recordings_verify(S: &mut editor::State) {
+    S.session.verify = !S.session.verify;
+    signals::changed(S, "recordings");
+}
+
+// One recording: the verb that plays it, what it is, and the three that keep,
+// copy or drop it.
+fn session_row(S: editor::State, r: session::Row2) -> [any] {
+    let out = [
+        map()
+            .with("kind", "button")
+            .with("role", "action_form_primary")
+            .with("text", "▶")
+            .with("tooltip", "Replay this recording")
+            .with("on", "handle")
+            .with("data", map().with("fn", session_row_on_3).with("r", r)),
+        map().with("kind", "label").with("role", "text_code").with("text", if r.started == "" { r.name } else { r.started }),
+        map()
+            .with("kind", "label")
+            .with("role", "text_caption")
+            .with("text", "{r.ticks} ticks · {util::fixed(r.seconds, 1)}s"),
+    ];
+    // How it ended, and whether its code has moved on since.
+    if r.reason != "stop" {
+        out.push(map().with("kind", "label").with("role", "note_danger").with("text", r.reason));
+    }
+    if r.stale {
+        out.push(map().with("kind", "label").with("role", "note_warning").with("text", "scripts changed"));
+    }
+    out.push(map().with("kind", "row").with("grow", 1));
+    out.push(map()
+        .with("kind", "button")
+        .with("role", "action_form")
+        .with("text", "delete")
+        .with("on", "handle")
+        .with("data", map().with("fn", session_row_on_4).with("r", r)));
+    out.push(map()
+        .with("kind", "button")
+        .with("role", "action_form")
+        .with("text", "copy to project")
+        .with("tooltip", "Copy into the project, for a bug report or `balaur replay`")
+        .with("on", "handle")
+        .with("data", map().with("fn", session_row_on_5).with("r", r)));
+    if !r.name.starts_with("kept-") {
+        out.push(map()
+            .with("kind", "button")
+            .with("role", "action_form")
+            .with("text", "keep")
+            .with("tooltip", "Never prune this one")
+            .with("on", "handle")
+            .with("data", map().with("fn", session_row_on_6).with("r", r)));
+    }
+    out
+}
+
+fn session_row_on_3(S: &mut editor::State, data: any, _0: any) {
+    let r: session::Row2 = data.r;
+    session::open(S, r.name);
+}
+
+fn session_row_on_4(S: &mut editor::State, data: any, _0: any) {
+    let r: session::Row2 = data.r;
+    session::remove(S, r.name);
+}
+
+fn session_row_on_5(S: &mut editor::State, data: any, _0: any) {
+    let r: session::Row2 = data.r;
+    session::export(S, r.name);
+}
+
+fn session_row_on_6(S: &mut editor::State, data: any, _0: any) {
+    let r: session::Row2 = data.r;
+    session::keep(S, r.name);
+}
+
+// What one 60 Hz frame costs, as a bar per stage against that budget. The
+// editor's own frame is what is measured while it is idle; press Play and it
+// becomes the game's, which is the number anyone actually wants.
+const BUDGET_MS: float = 16.667;
+
+/// What a live meter shows, `what` being `profiler` or `cost`: its table,
+/// its headline, and what to say when there is nothing to measure.
+pub fn meter_view(S: editor::State, what: str) -> MeterView {
+    let k = S.theme;
+    if what == "cost" {
+        return cost_view(S, k);
+    }
+    let scripts = S.script_profiling;
+    let titles = ["what", "cost>", "share of a frame"];
+    let widths = ["2", "1", "2"];
+    let found = engine::timings();
+    if found.is_none() {
+        return MeterView { titles: titles, widths: widths, items: [], says: "no timings yet", headline: frame_hint(), scripts: scripts };
+    }
+    let timings = found.unwrap();
+    let items: [str] = [];
+    let stages: any = timings.stages;
+    cost_rows(items, k, stages, "stage");
+    let spans = util::obj(timings.spans);
+    if spans.len() > 0 {
+        cost_rows(items, k, spans, "span");
+    }
+    if scripts {
+        script_rows(items, k);
+    }
+    MeterView { titles: titles, widths: widths, items: items, says: "", headline: frame_hint(), scripts: scripts }
+}
+
+/// The Profiler's "scripts": count what each script costs, or stop. Either
+/// way every script is rebuilt between frames, with counters or without.
+pub fn profiler_scripts(S: &mut editor::State) {
+    let on = !S.script_profiling;
+    S.script_profiling = on;
+    engine::set_script_profiling(on);
+}
+
+/// What each script and each of the dearest functions cost the last frame,
+/// dearest first, against the dearest of them rather than against the budget:
+/// the unit is statements run.
+///
+/// Statements rather than milliseconds: the same frame runs the same
+/// statements on every machine, so a number that moved is a change in what
+/// a script does. Re-armed after reading, so a row is one frame's work.
+fn script_rows(items: [str], k: any) {
+    let costs = engine::script_costs();
+    let worst = if costs.len() == 0 { 0.0 } else { costs[0].instructions as float };
+    for row in costs {
+        let count = row.instructions as float;
+        let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
+        items.push(util::cells([row.path, "{row.instructions} st", bar(share), k.secondary_text.as_str()]));
+    }
+    // Each function's own statements under its file's rows, a handler the
+    // pool calls by name among them.
+    let functions = engine::function_costs();
+    let top = if functions.len() == 0 { 0.0 } else { functions[0].instructions as float };
+    for n in 0..util::imin(functions.len(), FUNCTION_ROWS) {
+        let row = functions[n];
+        let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
+        items.push(util::cells([
+            row.function,
+            "{row.instructions} st · {row.calls} calls",
+            bar(share),
+            k.text_muted.as_str(),
+        ]));
+    }
+    engine::set_script_profiling(true);
+}
+
+/// How many of the dearest functions the Profiler lists under the scripts.
+const FUNCTION_ROWS: int = 12;
+
+/// A share as blocks, which reads at a glance where a number has to be read.
+/// Twelve cells, so one is about eight percent: twenty overran the Cost
+/// dock's column, which is a fifth of the dock.
+///
+/// Filled blocks and nothing else: a track drawn in the light block reads as
+/// noise down a column of them.
+fn bar(share: float) -> str {
+    util::repeat("█", (util::clamp(share, 0.0, 1.0) * 12.0) as int)
+}
+
+// Worst first, by a selection pass: the list is eight rows long.
+fn by_cost(table: any) -> [Cost] {
+    let left: [Cost] = [];
+    for name in table.keys() {
+        left.push(Cost { name: name, ms: util::f(table.get(name)) * 1000.0 });
+    }
+    let out: [Cost] = [];
+    while left.len() > 0 {
+        let worst = 0;
+        let i = 1;
+        while i < left.len() {
+            if left[i].ms > left[worst].ms {
+                worst = i;
+            }
+            i += 1;
+        }
+        out.push(left.remove(worst));
+    }
+    out
+}
+
+// One row per entry, worst first, with a bar as its share of the budget: a
+// number needs reading, a bar does not.
+fn cost_rows(items: [str], k: any, table: any, kind: str) {
+    for row in by_cost(table) {
+        let tint = (if row.ms > BUDGET_MS * 0.5 {
+            k.primary_text
+        } else if kind == "span" {
+            k.secondary_text
+        } else {
+            k.text_muted
+        }).as_str();
+        items.push(util::cells([
+            row.name,
+            util::fixed(row.ms, 3) + " ms",
+            bar(row.ms / BUDGET_MS),
+            tint,
+        ]));
+    }
+}
+
+/// Bytes as the unit a person reads them in.
+fn bytes(n: float) -> str {
+    if n < 1024.0 {
+        return "{n as int} B";
+    }
+    if n < 1048576.0 {
+        return util::fixed(n / 1024.0, 1) + " KB";
+    }
+    util::fixed(n / 1048576.0, 1) + " MB"
+}
+
+/// Nodes by triangles, worst first: the same selection pass `by_cost` uses,
+/// on a frame's node list, which is short.
+fn by_triangles(rows: [render::NodeCost]) -> [render::NodeCost] {
+    let left: [render::NodeCost] = [];
+    for row in rows {
+        left.push(row);
+    }
+    let out: [render::NodeCost] = [];
+    while left.len() > 0 {
+        let worst = 0;
+        for i in 1..left.len() {
+            if left[i].triangles > left[worst].triangles {
+                worst = i;
+            }
+        }
+        out.push(left.remove(worst));
+    }
+    out
+}
+
+/// What the frame draws, per node: the other half of the Profiler, beside the
+/// milliseconds. `render.stats` counts it from the scene, so a headless run
+/// reports the same triangles a windowed one does.
+fn cost_view(S: editor::State, k: any) -> MeterView {
+    let titles = ["node", "triangles>", "textures>", "copies>", "share of the worst"];
+    let widths = ["2", "1", "1", "0.7", "1.6"];
+    let nodes = by_triangles(render::stats().nodes);
+    let headline = cost_hint(S, 1000.0);
+    if nodes.len() == 0 {
+        return MeterView { titles: titles, widths: widths, items: [], says: "nothing is drawing", headline: headline, scripts: false };
+    }
+    let worst = util::max(nodes[0].triangles, 1.0);
+    let items: [str] = [];
+    for row in nodes {
+        let copies = row.copies as int;
+        items.push(util::cells([
+            util::leaf(row.node),
+            "{row.triangles as int} tri",
+            bytes(row.texture_bytes),
+            if copies > 1 { "x{copies}" } else { "" },
+            bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
+            k.text_muted.as_str(),
+        ]));
+    }
+    MeterView { titles: titles, widths: widths, items: items, says: "", headline: headline, scripts: false }
+}
+
+/// How big the last export was, or a line saying none has been made. The
+/// pack is what a player downloads, so it belongs beside the frame's cost.
+fn pack_size(S: editor::State) -> str {
+    let out = export::output("web");
+    if !fs::exists(out) {
+        return "not exported yet";
+    }
+    let total = 0;
+    for entry in util::vec(fs::list(out)) {
+        if !entry.is_dir.as_bool() {
+            total += 1;
+        }
+    }
+    "{total} file(s) at {util::leaf(out)}"
+}

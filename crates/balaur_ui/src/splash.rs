@@ -1,6 +1,7 @@
 //! The `[application] splash`: a picture over everything for the first
 //! seconds of engine time, on every target, while the scene loads behind it.
 
+use crate::widget::paint::Brush;
 use balaur_core::Engine;
 use egui::{Color32, Rect, pos2};
 
@@ -43,11 +44,11 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // A layer painter rather than an area: an area sizes itself invisibly
     // on its first frame, and the first frame is the one a splash is for.
     let rect = ctx.viewport_rect();
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Tooltip,
-        egui::Id::new("balaur-splash"),
-    ));
-    painter.rect_filled(rect, 0.0, Color32::BLACK);
+    let painter = Brush::layer(
+        ctx,
+        egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("balaur-splash")),
+    );
+    painter.fill(rect, 0.0, Color32::BLACK);
     let Ok(texture) = crate::images::texture_of(eng, ctx, &path) else {
         return;
     };
@@ -58,7 +59,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         .min(1.0);
     let size = native * scale;
     let min = rect.center() - size / 2.0;
-    painter.image(
+    painter.picture(
         texture.id(),
         Rect::from_min_size(min, size),
         Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
@@ -78,13 +79,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let left = rect.center().x - width / 2.0;
     let top = (min.y + size.y + 24.0).min(rect.bottom() - 32.0);
     let bar = Rect::from_min_size(pos2(left, top), egui::vec2(width, HEIGHT));
-    painter.rect_filled(bar, HEIGHT / 2.0, track);
+    painter.fill(bar, HEIGHT / 2.0, track);
     let filled = width * progress.clamp(0.0, 1.0);
     // Nothing drawn for nothing done: a rounded rect a pixel wide is a dot,
     // which reads as a little progress rather than none.
     if filled >= 1.0 {
         let done = Rect::from_min_size(bar.min, egui::vec2(filled, HEIGHT));
-        painter.rect_filled(done, HEIGHT / 2.0, accent);
+        painter.fill(done, HEIGHT / 2.0, accent);
     }
     let lettered = eng
         .try_resource::<crate::UiState>()

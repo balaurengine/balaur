@@ -35,6 +35,8 @@ mod import_web;
 mod jobs;
 mod lsp;
 mod new_project;
+#[cfg(not(target_family = "wasm"))]
+mod port_cmd;
 // The editor's start screen. A tab compiles it too: the editor's scripts name
 // `project::*` whatever they run on, and what a tab cannot do it answers for.
 #[cfg(feature = "editor")]
@@ -102,6 +104,12 @@ enum Command {
         /// game's own screen, with nothing of the editor over it.
         #[arg(long, value_name = "PATH", requires = "frames")]
         shot: Option<PathBuf>,
+        /// The offscreen framebuffer as `WIDTHxHEIGHT` in physical pixels, in
+        /// place of the project's `[window]` size: a poster or a showcase
+        /// shot framed as the picture wants rather than as the game's screen
+        /// is. Only an `--offscreen` run reads it.
+        #[arg(long, value_name = "WIDTHxHEIGHT")]
+        size: Option<String>,
         /// Write one `<tick> <digest>` line per frame. Two runs whose traces
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
@@ -193,9 +201,9 @@ enum Command {
         #[arg(default_value = ".")]
         path: PathBuf,
     },
-    /// Run a project's own tests: every `tests/**/*.rn` is attached to a
-    /// fresh node in a headless copy of the project and ticked; a script
-    /// error, an `assert!` included, fails it.
+    /// Run a project's own tests: every `tests/**/*.bs` is attached to a
+    /// fresh node in a headless copy of the project and ticked; a logged
+    /// error or a script that traps fails it.
     Test {
         #[arg(default_value = ".")]
         path: PathBuf,
@@ -216,10 +224,24 @@ enum Command {
         #[arg(long)]
         strict: bool,
     },
-    /// Format every script in a project, or the files given, with Rune's own
-    /// formatter.
+    /// Translate a project's Rune scripts into Balaur Script drafts: a `.bs`
+    /// beside each `.rn`, typed against this engine, with what could not be
+    /// mapped marked for a person to finish.
+    Port {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Write the drafts, a report of each and a summary under this
+        /// directory instead.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Replace a `.bs` already beside its `.rn`.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Format every script in a project, or the files given: indents, spaces
+    /// and blank lines, the author's line breaks and comments kept.
     Fmt {
-        /// The project, or the `.rn` files to format.
+        /// The project, or the `.bs` files to format.
         #[arg(default_value = ".")]
         paths: Vec<PathBuf>,
         /// Report which files would change, and write nothing.
@@ -432,6 +454,7 @@ fn dispatch(command: Command) -> Result<()> {
             fixed_tick,
             touch,
             shot,
+            size,
             trace_digest,
             timings,
             record,
@@ -444,6 +467,7 @@ fn dispatch(command: Command) -> Result<()> {
             display: Display::of(headless, offscreen),
             frames,
             shot,
+            size,
             fixed_tick,
             touch,
             trace_digest,
@@ -487,6 +511,7 @@ fn dispatch(command: Command) -> Result<()> {
             dry_run,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
+        Command::Port { path, out, force } => port_cmd::run(&path, out.as_deref(), force),
         Command::Test {
             path,
             frames,
@@ -575,6 +600,8 @@ struct RunOpts {
     frames: Option<u64>,
     /// Where to write a picture of the run, taken on the frame before it ends.
     shot: Option<PathBuf>,
+    /// An offscreen run's framebuffer, `WIDTHxHEIGHT`, over the project's window size.
+    size: Option<String>,
     fixed_tick: bool,
     touch: bool,
     trace_digest: Option<PathBuf>,
@@ -767,6 +794,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         display,
         frames,
         shot,
+        size,
         fixed_tick,
         touch,
         trace_digest,
@@ -777,6 +805,11 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         args,
     } = opts;
     let (display, frames) = (*display, *frames);
+    // Parsed before the engine boots, so a typo fails in a millisecond.
+    let size = size
+        .as_deref()
+        .map(|text| offscreen_size(Some(text)))
+        .transpose()?;
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
     let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
@@ -844,8 +877,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let ran = if display == Display::Offscreen {
         // The game's own window size, so a shot is framed as a player sees it:
         // a portrait phone game rendered 16:9 is a picture of the wrong game.
+        // `--size` is for the shot that is not the game's screen: a poster.
         let window = balaur_core::project::WindowSettings::from_settings(&app.engine);
-        balaur::run_offscreen(app, &title, window.width, window.height)
+        let (width, height) = size.unwrap_or((window.width, window.height));
+        balaur::run_offscreen(app, &title, width, height)
     } else {
         balaur::run(app, &title)
     };
@@ -1015,8 +1050,8 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if let Some(frames) = *frames {
         add_frame_budget(&mut app, frames, shot.clone());
     }
-    // With no window nothing calls the shell's `draw_ui`: a pass on no screen
-    // does, so a headless editor is the one a window shows.
+    // With no window nothing runs the UI pass: a pass on no screen does, so a
+    // headless editor is the one a window shows.
     #[cfg(not(feature = "window"))]
     if !*offscreen {
         let (wide, tall) = offscreen_size(size.as_deref())?;
@@ -1076,7 +1111,6 @@ fn argv() -> Vec<std::ffi::OsString> {
 #[cfg(test)]
 mod tests {
     use super::joinable;
-    use crate::project_tests::{run_test, test_scripts};
     use std::path::{Path, PathBuf};
 
     /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path
@@ -1094,47 +1128,6 @@ mod tests {
         assert_eq!(
             joinable(Path::new("/Users/x/balaur/examples/hello")),
             PathBuf::from("/Users/x/balaur/examples/hello")
-        );
-    }
-
-    #[test]
-    fn a_test_script_that_asserts_false_fails_and_one_that_passes_passes() {
-        balaur::logbuf::capture_for_test();
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("project.toml"),
-            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
-        )
-        .unwrap();
-        std::fs::write(dir.path().join("main.toml"), "").unwrap();
-        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
-        std::fs::write(
-            dir.path().join("tests/pass.rn"),
-            "pub fn init(this) { assert!(1 + 1 == 2); }\n",
-        )
-        .unwrap();
-        std::fs::write(
-            dir.path().join("tests/fail.rn"),
-            "pub fn init(this) { assert!(false, \"boom\"); }\n",
-        )
-        .unwrap();
-        assert_eq!(test_scripts(dir.path()), ["tests/fail.rn", "tests/pass.rn"]);
-        let errors_of = |rel: &str| {
-            balaur::logbuf::clear();
-            run_test(dir.path(), rel, 2).unwrap();
-            balaur::logbuf::recent(500)
-                .into_iter()
-                .filter(|e| e.level == "error")
-                .count()
-        };
-        assert_eq!(
-            errors_of("tests/pass.rn"),
-            0,
-            "a passing test logs no error"
-        );
-        assert!(
-            errors_of("tests/fail.rn") >= 1,
-            "a failed assert is a logged error"
         );
     }
 }

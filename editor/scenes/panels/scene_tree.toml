@@ -1,0 +1,199 @@
+# The Scene tab: the document's nodes as a tree, with a search and a filter
+# above it. One script answers every control here; the Editor node owns the
+# document it shows and is told what was picked.
+
+[[nodes]]
+id = "panel"
+name = "SceneTree"
+script = { source = "scripts/panels/scene_tree.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+# The search, and the "+" that adds a child to the selection beside it.
+[[nodes]]
+id = "find"
+name = "Find"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+gap = [4, 0]
+
+[[nodes]]
+id = "search"
+name = "Search"
+parent = "find"
+[nodes.widget]
+kind = "text_field"
+role = "input_dock"
+text = ""
+placeholder = "Search"
+grow = 1
+
+[[nodes]]
+id = "add"
+name = "Add"
+parent = "find"
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+text = ""
+tooltip = "Add child node"
+width = 24
+
+# Each option but the first is a component tag the engine already carries,
+# so a plugin's component is found by the tags it declared.
+[[nodes]]
+id = "facet"
+name = "Facet"
+parent = "panel"
+[nodes.widget]
+kind = "dropdown"
+role = "choice"
+text = "All nodes"
+options = ["All nodes", "3D", "2D", "Physics", "Rendering", "UI", "Script"]
+
+# What a filter that left nothing says instead of an empty tree.
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+visible = false
+
+[[nodes]]
+id = "tree"
+name = "Tree"
+parent = "panel"
+[nodes.widget]
+kind = "tree"
+grow = 1
+# The row a click landed on, which the script reads once and clears.
+text = ""
+multi_select = true
+row_height = 23
+# A right click or a long press picks the row it lands on and opens these.
+context = "tree_menu"
+# The eye and the lock a row draws at its right; the Editor answers them.
+on_mark = "tree_mark"
+
+[nodes.widget.touch]
+row_height = 33
+
+# The node actions, on a menu that draws no button of its own. Each row calls
+# a method on the Editor node's script, which acts on the selection the click
+# just made.
+[[nodes]]
+id = "tree_menu"
+name = "tree_menu"
+parent = "panel"
+[nodes.widget]
+kind = "menu"
+text = ""
+visible = false
+
+[[nodes]]
+id = "tree_add"
+name = "TreeAdd"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Add child"
+on_click = "tree_add_child"
+
+[[nodes]]
+id = "tree_change"
+name = "TreeChange"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Change type…"
+on_click = "tree_change_type"
+
+[[nodes]]
+id = "tree_up"
+name = "TreeUp"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Move up"
+on_click = "tree_move_up"
+
+[[nodes]]
+id = "tree_down"
+name = "TreeDown"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Move down"
+on_click = "tree_move_down"
+
+[[nodes]]
+id = "tree_rename"
+name = "TreeRename"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Rename"
+on_click = "tree_rename"
+
+[[nodes]]
+id = "tree_script"
+name = "TreeScript"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Attach script"
+on_click = "tree_attach_script"
+
+[[nodes]]
+id = "tree_duplicate"
+name = "TreeDuplicate"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Duplicate"
+on_click = "tree_duplicate"
+
+[[nodes]]
+id = "tree_hidden"
+name = "TreeHidden"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Hide or show"
+on_click = "tree_toggle_hidden"
+
+[[nodes]]
+id = "tree_locked"
+name = "TreeLocked"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Lock or unlock"
+on_click = "tree_toggle_locked"
+
+[[nodes]]
+id = "tree_delete"
+name = "TreeDelete"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Delete"
+on_click = "tree_delete"

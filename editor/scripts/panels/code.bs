@@ -1,0 +1,99 @@
+// The code sheet's one script: it shows the file the Editor says is open,
+// hands it what is typed, where the caret went and which gutter line was
+// clicked, and writes the text again only when the buffer changed under it.
+
+pub struct Code {
+    node: Node,
+    editor: Node,
+    path: str,
+    rev: int,
+}
+
+impl Code {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        self.path = "";
+        self.rev = -1;
+        for word in [
+            "code_changed",
+            "outline_changed",
+            "inspector_changed",
+            "chrome_changed",
+            "stage_changed",
+            "problems_changed",
+            "debugger_changed",
+        ] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_code_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_inspector_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_chrome_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_problems_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_debugger_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if node.name() != "Editor" {
+            return;
+        }
+        if event == "change" {
+            self.editor.call("code_typed", value);
+        } else if event == "caret" {
+            self.editor.call("code_caret", value);
+        } else if event == "gutter" {
+            self.editor.call("code_gutter", value);
+        }
+    }
+
+    fn refresh() {
+        let view = self.editor.call("code_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")));
+        if !view.get("shown").as_bool() {
+            return;
+        }
+        self.node.get_node("Note").patch_component("widget", map().with("visible", view.get("note").as_str() != "").with("text", view.get("note")));
+        let scroll = self.node.get_node("Scroll");
+        scroll.patch_component("widget", map().with("visible", view.get("note").as_str() == ""));
+        if view.get("note").as_str() != "" {
+            return;
+        }
+        let look = view.get("look");
+        // The text only when the buffer moved under the editor: what is typed is
+        // the widget's own, and writing it back would put the caret at the end.
+        if view.get("path").as_str() != self.path || view.get("rev").as_int() != self.rev {
+            look.set("text", view.get("text"));
+            self.path = view.get("path").as_str();
+            self.rev = view.get("rev").as_int();
+        }
+        scroll.get_node("Editor").patch_component("widget", look);
+        if view.get("scroll_to").as_float() >= 0.0 {
+            scroll.patch_component("widget", map().with("scroll_offset", [0.0, view.get("scroll_to")]));
+        }
+    }
+}

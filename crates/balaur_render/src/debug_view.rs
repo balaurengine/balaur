@@ -77,7 +77,7 @@ pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_debug_view", &[], "", "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back."),
         ("debug_view", &[], "", "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is."),
-        ("debug_views", &[], "", "Every channel name `set_debug_view` accepts, as a list."),
+        ("debug_views", &[], "-> [string]", "Every channel name `set_debug_view` accepts, as a list."),
         ("set_shader_preview", &[], "", "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back."),
         ("set_shader_probe", &[], "", "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later."),
         ("shader_probe", &[], "", "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet."),

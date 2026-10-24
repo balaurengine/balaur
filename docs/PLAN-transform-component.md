@@ -19,7 +19,7 @@
 - Its script API is methods on the node: `position()`,
   `set_position(x, y, z)`, `rotation_euler()`, `rotation_degrees()`, `scale()`
   (`balaur_core::node_api:47`).
-- The inspector's Transform rows are hand-written (`inspector.rn:184`) — the
+- The inspector's Transform rows are hand-written (`inspector.bs`) — the
   only section in the panel that is properties rather than commands and is not
   generated from a schema. They convert radians to degrees by hand.
 - `node_bundle!` gives every node a `Transform`, a `GlobalTransform`, an

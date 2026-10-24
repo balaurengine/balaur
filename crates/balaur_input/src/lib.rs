@@ -125,6 +125,16 @@ pub struct InputSnapshot {
     /// Uncommitted input-method text, kept until the editor commits or lets go.
     #[serde(default)]
     composing: String,
+    /// Whether a text field held the keyboard this frame, which keeps key
+    /// bindings from firing on what is typed. Recorded, so a replay derives
+    /// the same actions.
+    #[serde(default)]
+    keyboard_taken: bool,
+    /// Whether ⌘ rather than Ctrl is the command key; `None` for what the
+    /// build's platform says. A browser can only tell from its user agent,
+    /// so its backend says. A property of the machine, not of a frame.
+    #[serde(skip)]
+    command_is_meta: Option<bool>,
     /// Pointer and finger conversion. Skipped rather than defaulted: it is a
     /// project setting, not a frame of input, and a recording made under one
     /// setting replays under the setting it was recorded with because the
@@ -331,6 +341,27 @@ impl InputSnapshot {
     /// Files dropped onto the window this frame, in drop order.
     pub fn dropped_files(&self) -> &[String] {
         &self.dropped_files
+    }
+
+    /// Whether a text field holds the keyboard, as the window's UI reports it
+    /// each frame.
+    pub fn set_keyboard_taken(&mut self, taken: bool) {
+        self.keyboard_taken = taken;
+    }
+
+    pub const fn keyboard_taken(&self) -> bool {
+        self.keyboard_taken
+    }
+
+    /// Say which key `cmd` is, where the build's platform cannot know it.
+    pub fn set_command_is_meta(&mut self, meta: bool) {
+        self.command_is_meta = Some(meta);
+    }
+
+    /// Whether `cmd` in a binding is ⌘ (Apple platforms) rather than Ctrl.
+    pub fn command_is_meta(&self) -> bool {
+        self.command_is_meta
+            .unwrap_or(cfg!(target_vendor = "apple"))
     }
 
     pub fn key_event(&mut self, key: &str, pressed: bool) {
@@ -593,7 +624,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         ("key_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side."),
         ("key_just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
         ("key_just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
-        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner."),
+        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `#{ scale, x, y, pan_x, pan_y }`."),
         ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
         ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
         ("mouse_down", &[], "", "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down."),
@@ -673,10 +704,22 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// a desktop and a headless run answer the same as a still screen.
 fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("pinch", &[], "", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
-        ("pan", &[], "", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
+        ("pinch", &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
+        ("pan", &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
         ("swipe", &[], "", "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise."),
         ("long_press", &[], "", "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise."),
+    ]);
+    m.records(&[
+        (
+            "Pinch",
+            "{ scale: float?, x: float?, y: float? }",
+            "Two fingers moving apart or together since last frame, and the point between them; every field is nil with fewer than two fingers down.",
+        ),
+        (
+            "Pan",
+            "{ x: float, y: float }",
+            "The average movement of two or more fingers since last frame, in the same pixels as the mouse position.",
+        ),
     ]);
     m.function("pinch", |eng: &Engine, ()| {
         let Some(pinch) = eng.resource::<Gestures>().borrow().pinch() else {
@@ -783,7 +826,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
         ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),
         ("touches_just_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
-        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
+        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`."),
         ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
         ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
         ("composing", &[], "", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),

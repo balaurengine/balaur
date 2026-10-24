@@ -15,6 +15,15 @@ is the shaders: `shader_checks.rs` writes every engine shader as the GLSL ES
 3.10 a phone without Vulkan compiles, and kiss3d's suite does the same for its
 own. That a frame renders on a real phone is unproven, and needs hardware.
 
+## Scripts on iOS
+
+iOS runs no JIT. An iOS export translates the game's `.bs` scripts to C and
+compiles them with Xcode's clang into `Frameworks/BalaurScripts.framework`,
+for the device or the simulator the template targets; signing covers it with
+the app, and the scripts run as native code (`docs/PLAN-balaur-script.md`
+§7a). Without Xcode the export still works and the scripts run on the
+interpreter. Rune scripts are interpreted either way.
+
 ## The shell a phone has
 
 `engine.open_url` and the `open_url` binding action work on every desktop and,

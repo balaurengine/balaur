@@ -23,7 +23,7 @@ const DOCS: &[balaur_script::FnDoc] = &[
     (
         "host",
         &[],
-        "(options: map?)",
+        "(options: map?) -> map",
         "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout_seconds`, `name`, `token`.",
     ),
     (
@@ -35,13 +35,13 @@ const DOCS: &[balaur_script::FnDoc] = &[
     (
         "start",
         &[],
-        "()",
+        "() -> bool",
         "On a host, start with whoever is in rather than waiting for `players`; false when there is no lobby to start.",
     ),
     (
         "add_bot",
         &[],
-        "(name: string?)",
+        "(name: string?) -> int?",
         "On a host, a slot its own script plays with `set_input_for`; answers the slot, or nil when the lobby is full.",
     ),
     (
@@ -65,43 +65,43 @@ const DOCS: &[balaur_script::FnDoc] = &[
     (
         "players",
         &[],
-        "()",
+        "() -> [map]",
         "Every slot as `{ slot, name, bot, local, status }`, `status` as of the tick being simulated.",
     ),
     (
         "local_player",
         &[],
-        "()",
+        "() -> int?",
         "This machine's own slot, or nil before it has one.",
     ),
     (
         "role",
         &[],
-        "()",
+        "() -> string?",
         "`ROLE_HOST` or `ROLE_CLIENT`, or nil when idle.",
     ),
     (
         "state",
         &[],
-        "()",
+        "() -> string",
         "`STATE_IDLE`, `STATE_CONNECTING`, `STATE_LOBBY` or `STATE_PLAYING`.",
     ),
     (
         "tick",
         &[],
-        "()",
+        "() -> int",
         "The match tick being simulated; what a match branches on instead of `engine.tick`.",
     ),
     (
         "settled_tick",
         &[],
-        "()",
+        "() -> int",
         "The tick before which nothing can be rolled back any more.",
     ),
     (
         "stats",
         &[],
-        "(slot: int)",
+        "(slot: int) -> map?",
         "`{ rtt_ms, loss, bytes_in, bytes_out }` for the link a slot is reached over; nil for this machine's own. An observer: never simulate from it.",
     ),
 ];

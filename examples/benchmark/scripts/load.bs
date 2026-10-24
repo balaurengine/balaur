@@ -1,0 +1,108 @@
+// What a case is, and the load cases: N of one kind of node, made once, then
+// every frame measured while they sit there. Adding a load case is a single
+// entry in `cases_kinds.bs` or `cases_scripts.bs`.
+
+use world;
+
+/// One case, whichever kind: what the runner reads to build it, settle it and
+/// time it. Its functions are handed the case back, so what a closure would
+/// have held sits in its fields.
+pub class Case {
+    pub name: str,
+    /// `physics`, `load` or `nodes`: which of the runner's paths it takes.
+    pub kind: str,
+    pub dimensions: int,
+    pub count: int,
+    pub settle: int,
+    pub links: int,
+    /// Where to stand to watch it: a centre and a zoom in 2D, an eye and a
+    /// target in 3D; empty for the default view.
+    pub view: [float],
+    /// The script every made node carries, for the script shapes; empty for
+    /// a case measured without one.
+    pub script: str,
+    /// A kind case's one component, its parameters and its spacing.
+    pub component: str,
+    pub params: any,
+    pub pitch: float,
+    /// Where a placed case puts its bodies, when it works them out up front.
+    pub spots: [Vec3],
+    /// The order a deleting node case frees in.
+    pub order: str,
+    pub setup: fn(world::World, Case),
+    /// Builds the `i`th thing: a body for a physics case, a node for a load
+    /// case.
+    pub place: fn(world::World, Case, int),
+    pub link: fn(world::World, Case, int),
+    pub after: fn(world::World, Case),
+    /// The per-tick work a case wants; most want none.
+    pub step: fn(world::World, Case, int),
+    /// Whatever a case counts for itself, for its report.
+    pub extra: fn(world::World, Case) -> any,
+    pub iterations: int,
+    pub repeats: int,
+    /// The frame stages a node case's loop lands in.
+    pub stages: [str],
+    pub prepare: fn(world::World, Case),
+    pub run: fn(world::World, Case),
+}
+
+/// A case that does nothing yet: every function a no-op, ten thousand of
+/// nothing in 2D. The case modules fill in what theirs does.
+pub fn blank(name: str, kind: str) -> Case {
+    Case {
+        name: name,
+        kind: kind,
+        dimensions: 2,
+        count: 10000,
+        settle: 0,
+        links: 0,
+        view: [],
+        script: "",
+        component: "",
+        params: nil,
+        pitch: 0.0,
+        spots: [],
+        order: "",
+        setup: nothing,
+        place: none_at,
+        link: none_at,
+        after: nothing,
+        step: none_at,
+        extra: no_extra,
+        iterations: 0,
+        repeats: 0,
+        stages: [],
+        prepare: nothing,
+        run: nothing,
+    }
+}
+
+fn nothing(w: world::World, c: Case) {}
+
+fn none_at(w: world::World, c: Case, i: int) {}
+
+fn no_extra(w: world::World, c: Case) -> any {
+    map()
+}
+
+/// A load case: `count` of whatever `place` makes.
+pub fn case(name: str, count: int, place: fn(world::World, Case, int)) -> Case {
+    let c = blank(name, "load");
+    c.count = count;
+    c.place = place;
+    c
+}
+
+/// A node with one component, which is most of what a kind case is.
+pub fn with(w: world::World, i: int, pitch: float, component: str, params: any) -> Node {
+    let node = world::plain(w, i);
+    let at = world::grid(i, 20000, pitch);
+    if w.dimensions == 2 {
+        node.transform.position = [at.x, at.y, 0.0];
+    } else {
+        node.transform.position = [at.x, 0.0, at.y];
+    }
+    node.set_component(component, params);
+    node
+}

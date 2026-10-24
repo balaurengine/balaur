@@ -1,0 +1,135 @@
+# The Debugger tab: pause while running, the four steps and where it stopped
+# while stopped, and the call stack with each frame's locals a level in. One
+# script answers them; the stop is the engine's, heard as `debugger_stopped`.
+
+[[nodes]]
+id = "panel"
+name = "Debugger"
+script = { source = "scripts/panels/debugger.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "tools"
+name = "Tools"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+role = "toolbar_dock"
+align_items = "center"
+gap = [6, 6]
+height = 30
+
+# Nothing stops on the click: the next line a script runs is where.
+[[nodes]]
+id = "pause"
+name = "Pause"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_primary"
+text = "⏸ Pause"
+tooltip = "F6"
+visible = false
+
+# The steps, each named for the step mode it resumes in.
+[[nodes]]
+id = "continue"
+name = "continue"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_primary"
+text = "▶ Continue"
+tooltip = "F5"
+visible = false
+
+[[nodes]]
+id = "over"
+name = "over"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_primary"
+text = "Over"
+tooltip = "F10"
+visible = false
+
+[[nodes]]
+id = "into"
+name = "into"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_primary"
+text = "Into"
+tooltip = "F11"
+visible = false
+
+[[nodes]]
+id = "out"
+name = "out"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_primary"
+text = "Out"
+tooltip = "⇧F11"
+visible = false
+
+# Where it stopped and why while stopped; what to do while not.
+[[nodes]]
+id = "where"
+name = "Where"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+text = ""
+
+[[nodes]]
+id = "threw"
+name = "Threw"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_caption_primary"
+text = ""
+visible = false
+
+[[nodes]]
+id = "gap"
+name = "Gap"
+parent = "tools"
+[nodes.widget]
+kind = "row"
+interactive = false
+grow = 1
+
+[[nodes]]
+id = "break"
+name = "BreakOnError"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "break on error"
+tooltip = "Stop at the line a script throws on, instead of logging it"
+
+[[nodes]]
+id = "stack"
+name = "Stack"
+parent = "panel"
+[nodes.widget]
+kind = "tree"
+grow = 1
+text = ""
+font_family = "mono"
+visible = false
+
+[nodes.widget.touch]
+row_height = 33

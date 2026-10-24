@@ -9,7 +9,7 @@ name = "Platformer rig"
 id = "rig_platformer_player"
 name = "Player"
 parent = "rig_platformer"
-script = { source = "scripts/platformer_rig.rn" }
+script = { source = "scripts/platformer_rig.bs" }
 
 [nodes.transform]
 position = [0, 0, 0]

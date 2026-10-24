@@ -266,10 +266,18 @@ fn a_node_is_not_json_data() {
 }
 
 #[test]
-fn malformed_json_is_an_error_rather_than_a_crash() {
+fn malformed_text_parses_to_nil_rather_than_failing_the_call() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    assert!(call(&app.engine, "json", "parse", &[Value::Str("{".into())]).is_err());
+    let bad = [Value::Str("{".into())];
+    assert_eq!(
+        call(&app.engine, "json", "parse", &bad).unwrap(),
+        Value::Nil
+    );
+    assert_eq!(
+        call(&app.engine, "toml", "parse", &bad).unwrap(),
+        Value::Nil
+    );
 }
 
 #[test]

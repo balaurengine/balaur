@@ -254,7 +254,7 @@ the node itself, and `tabs(S, host, id, names)`, `pages(S, host, id, groups)`,
 `tree(S, id, value, opts)`, `field(S, label, value, opts)`,
 `section(title)`, `empty(text)`, `files(S, id, opts)`, `game_data(S)` and
 `save_prefs(S)` are what a row is made of. The editor's own User data dock
-(`editor/plugins/userdata.rn`) is `files` over the game's user data
+(`editor/plugins/userdata.bs`) is `files` over the game's user data
 directory, which is the generic half of the Data tab. A plugin adds a dock
 tab, a floating window (`windows`), a palette command or an inspector section
 the same way the Gamend one does; the manual's "Extending the editor" is the
@@ -354,8 +354,8 @@ no server dependency and can start now.
   - **E3b, built.** `S.kit` in the editor (`tabs`, `pages`, `tree`,
     `field`, `section`, `empty`, `files`), the header, the sub-tabs, and
     Overview and Activity on them, with `args` and `reply` kept per row and
-    `clear_activity`. `editor/plugins/counter.rn` is on the kit as the
-    worked example, and `editor/plugins/userdata.rn` is the generic User
+    `clear_activity`. `editor/plugins/counter.bs` is on the kit as the
+    worked example, and `editor/plugins/userdata.bs` is the generic User
     data dock. Every verb answers a row on the dock's own node since
     2026-09-22; the dock draws nothing.
   - **E3c, built.** The `[gamend]` settings, `configure()` reading them,

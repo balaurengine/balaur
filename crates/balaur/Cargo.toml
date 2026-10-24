@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
@@ -53,10 +53,21 @@ svg = ["balaur_core/svg"]
 physics2d = ["balaur_physics/physics2d"]
 # The 3D physics world: `physics3d.*`, its components and presets.
 physics3d = ["balaur_physics/physics3d"]
-# The Rune compiler and the WESL shader linker: a dev run, a pack carrying
-# sources, the editor and `balaur check`. A template leaves it off and draws
-# with the shaders an export linked into the pack.
-compile = ["balaur_script_rune/compile", "balaur_render/compile"]
+# The WESL shader linker and the `.bs` to C translator: a dev run, the editor
+# and an export. A template leaves it off and draws with the shaders an export
+# linked into the pack.
+compile = ["balaur_render/compile", "balaur_script_bs?/c"]
+# Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi
+# or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi,
+# about 11 MB; not on the web or iOS), `bs-web` on the page's own engine.
+bs = ["bs-backend", "balaur_script_bs?/wasmi", "balaur_script_bs?/native"]
+# The interpreter alone: what the web editor's module adds beside `bs-web` so a
+# debugger can park a call.
+bs-wasmi = ["bs-backend", "balaur_script_bs?/wasmi"]
+bs-jit = ["bs-backend", "balaur_script_bs?/wasmtime"]
+bs-web = ["bs-backend", "balaur_script_bs?/web"]
+# What those three share; on its own it has no engine to run a script on.
+bs-backend = ["dep:balaur_script_bs"]
 # egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
 # emoji fonts, 1.35 MiB. The editor has them; a game falls back to its own
 # faces and the one balaur_text carries.
@@ -66,7 +77,7 @@ fallback-fonts = ["balaur_ui/fallback-fonts"]
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
-balaur_script_rune.workspace = true
+balaur_script_bs = { workspace = true, optional = true }
 balaur_physics = { workspace = true, default-features = false }
 balaur_animation.workspace = true
 balaur_render.workspace = true

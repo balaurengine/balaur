@@ -150,7 +150,7 @@ name = "Main"
 id = "n_world"
 name = "World"
 parent = "n_main"
-script = { source = "scripts/tour.rn" }
+script = { source = "scripts/tour.bs" }
 
 [[nodes]]
 id = "n_camera"
@@ -429,7 +429,7 @@ source = "#title"
 id = "n_painted"
 name = "Painted"
 parent = "n_world"
-script = { source = "scripts/breathe.rn" }
+script = { source = "scripts/breathe.bs" }
 
 [nodes.transform]
 position = [2.4, 0.2, -48]

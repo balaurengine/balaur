@@ -1,0 +1,102 @@
+// The Assets tab's one script: it fills the cards and the strip over them
+// from what the Editor, which owns the files, hands it, and answers both.
+
+pub struct Assets {
+    node: Node,
+    query: str,
+    renaming: bool,
+    editor: Node,
+}
+
+pub struct Field2 {
+    visible: any,
+    text: any,
+}
+
+fn VERBS() -> [str] {
+    ["Up", "Import", "Folder", "Rename", "Delete"]
+}
+
+impl Assets {
+    pub fn init() {
+        self.query = "";
+        self.renaming = false;
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "assets_changed", self.editor);
+        events::listen(self.node, "outline_changed", self.editor);
+    }
+
+    /// A file was made, moved or reloaded, a card picked or an import moved on.
+    pub fn on_assets_changed(_change: any) {
+        self.refresh();
+    }
+
+    /// The theme moved, which inks the cards.
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        let name = node.name();
+        if name == "Search" && event == "change" {
+            self.query = value.as_str();
+            self.refresh();
+        } else if name == "Cards" && event == "click" {
+            // A second click on the selected card reports the same row, and that
+            // is the one that opens it, so the click is heard rather than a change.
+            self.editor.call("assets_pick", node.get_component("widget", "text"));
+        } else if name == "Cards" && event == "drop" {
+            self.editor.call("assets_dropped", value);
+        } else if name == "Name" && event == "submit" {
+            self.editor.call("assets_verb", "rename_to", value);
+        } else if event == "click" && on_widget_event_any_0(name, VERBS()) {
+            self.editor.call("assets_verb", name, "");
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        // A hidden browser lists nothing: it is filled again when it shows.
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("assets_view", self.query);
+        if !(view.kind() == "map") {
+            return;
+        }
+        let tools = self.node.get_node("Tools");
+        tools.get_node("Up").patch_component("widget", map().with("visible", view.get("dir").as_str() != ""));
+        tools.get_node("Where").patch_component("widget", map().with("visible", !view.get("renaming").as_bool()).with("text", view.get("where")));
+        // The field's text only as it opens: a refresh while it is up would take
+        // the typing back.
+        let field = Field2 { visible: view.get("renaming"), text: nil };
+        if view.get("renaming") && !self.renaming {
+            field.text = view.get("name");
+        }
+        self.renaming = view.get("renaming").as_bool();
+        tools.get_node("Name").patch_component("widget", field);
+        tools.get_node("Count").patch_component("widget", map().with("text", view.get("count")));
+        tools.get_node("Import").patch_component("widget", map()
+            .with("text", view.get("import_text"))
+            .with("tooltip", view.get("import_tip"))
+            .with("checked", view.get("importing")));
+        tools.get_node("Folder").patch_component("widget", map().with("text", view.get("folder_text")));
+        tools.get_node("Rename").patch_component("widget", map()
+            .with("role", if view.get("chosen").as_bool() { "action_dock" } else { "action_dock_quiet" })
+            .with("tooltip", if view.get("chosen").as_bool() { "Rename the selected item" } else { "Select an item first" }));
+        tools.get_node("Delete").patch_component("widget", map()
+            .with("role", if view.get("chosen").as_bool() { "action_dock_danger" } else { "action_dock_quiet" })
+            .with("tooltip", if view.get("chosen").as_bool() { "Delete the selected item" } else { "Select an item first" }));
+        self.node.get_node("Cards").patch_component("widget", map().with("options", view.get("items")).with("text", view.get("picked")));
+    }
+}
+
+fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+    for verb in items {
+        if verb == name {
+            return true;
+        }
+    }
+    false
+}

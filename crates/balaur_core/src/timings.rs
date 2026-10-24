@@ -276,7 +276,16 @@ pub struct TimingLog {
     wall_worst: Duration,
     stage_totals: [Duration; 8],
     stage_worst: [Duration; 8],
-    spans: Vec<(String, Duration, Duration)>,
+    spans: Vec<SpanTotal>,
+}
+
+/// One span's totals over a run. `calls` is what tells a pass that runs twice
+/// a frame from one that costs twice as much.
+struct SpanTotal {
+    name: String,
+    total: Duration,
+    worst: Duration,
+    calls: u64,
 }
 
 impl TimingLog {
@@ -292,25 +301,32 @@ impl TimingLog {
             self.stage_worst[i] = self.stage_worst[i].max(*stage);
         }
         for (name, elapsed) in &timings.spans {
-            match self.spans.iter_mut().find(|(n, _, _)| n == name.as_str()) {
+            match self.spans.iter_mut().find(|s| s.name == name.as_str()) {
                 Some(slot) => {
-                    slot.1 += *elapsed;
-                    slot.2 = slot.2.max(*elapsed);
+                    slot.total += *elapsed;
+                    slot.worst = slot.worst.max(*elapsed);
+                    slot.calls += 1;
                 }
-                None => self.spans.push((name.to_string(), *elapsed, *elapsed)),
+                None => self.spans.push(SpanTotal {
+                    name: name.to_string(),
+                    total: *elapsed,
+                    worst: *elapsed,
+                    calls: 1,
+                }),
             }
         }
     }
 
     /// The table `--timings` prints: mean, worst and the mean's share of a
-    /// 60 Hz frame, per stage and per span, ordered by cost.
+    /// 60 Hz frame, per stage and per span, ordered by cost, and how many
+    /// times a frame each span ran.
     #[must_use]
     pub fn report(&self) -> String {
         if self.frames == 0 {
             return String::from("no frames ran, so there is nothing to report\n");
         }
         let frames = u32::try_from(self.frames).unwrap_or(u32::MAX);
-        let mut rows: Vec<(String, Duration, Duration)> = STAGE_NAMES
+        let mut rows: Vec<(String, Duration, Duration, String)> = STAGE_NAMES
             .iter()
             .enumerate()
             .map(|(i, name)| {
@@ -318,27 +334,35 @@ impl TimingLog {
                     (*name).to_string(),
                     self.stage_totals[i] / frames,
                     self.stage_worst[i],
+                    String::new(),
                 )
             })
             .collect();
         rows.sort_by_key(|row| std::cmp::Reverse(row.1));
-        for (name, total, worst) in &self.spans {
-            rows.push((format!("  {name}"), *total / frames, *worst));
+        for span in &self.spans {
+            let calls = span.calls as f64 / self.frames as f64;
+            rows.push((
+                format!("  {}", span.name),
+                span.total / frames,
+                span.worst,
+                format!("{calls:.2}"),
+            ));
         }
         let width = rows.iter().map(|r| r.0.len()).max().unwrap_or(0).max(6);
         let mut out = format!(
-            "\n{:width$}  {:>9}  {:>9}  {:>9}\n",
-            "stage", "mean", "worst", "of frame"
+            "\n{:width$}  {:>9}  {:>9}  {:>9}  {:>7}\n",
+            "stage", "mean", "worst", "of frame", "a frame"
         );
-        for (name, mean, worst) in &rows {
-            let _ = writeln!(
-                out,
-                "{:width$}  {:>9}  {:>9}  {:>8.1}%",
+        for (name, mean, worst, calls) in &rows {
+            let line = format!(
+                "{:width$}  {:>9}  {:>9}  {:>8.1}%  {:>7}",
                 name,
                 millis(*mean),
                 millis(*worst),
                 100.0 * Timings::share(*mean),
+                calls,
             );
+            let _ = writeln!(out, "{}", line.trim_end());
         }
         let _ = writeln!(
             out,

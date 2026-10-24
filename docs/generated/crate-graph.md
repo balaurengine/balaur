@@ -14,6 +14,7 @@ graph TD
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
   balaur_browser[balaur_browser]
+  balaur_bs[balaur_bs]
   balaur_cfg[balaur_cfg]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
@@ -26,9 +27,10 @@ graph TD
   balaur_physics[balaur_physics]
   balaur_platform[balaur_platform]
   balaur_plugin[balaur_plugin]
+  balaur_port[balaur_port]
   balaur_render[balaur_render]
   balaur_script[balaur_script]
-  balaur_script_rune[balaur_script_rune]
+  balaur_script_bs[balaur_script_bs]
   balaur_testkit[balaur_testkit]
   balaur_text[balaur_text]
   balaur_ui[balaur_ui]
@@ -48,7 +50,7 @@ graph TD
   balaur --> balaur_plugin
   balaur --> balaur_render
   balaur --> balaur_script
-  balaur --> balaur_script_rune
+  balaur --> balaur_script_bs
   balaur --> balaur_ui
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
@@ -66,7 +68,6 @@ graph TD
   balaur_bench --> balaur
   balaur_bench --> balaur_core
   balaur_bench --> balaur_script
-  balaur_bench --> balaur_script_rune
   balaur_bench --> balaur_ui
   balaur_browser --> balaur_core
   balaur_browser --> balaur_plugin
@@ -76,6 +77,7 @@ graph TD
   balaur_cli --> balaur_export
   balaur_cli --> balaur_import
   balaur_cli --> balaur_plugin
+  balaur_cli --> balaur_port
   balaur_cli --> balaur_script
   balaur_core --> balaur_script
   balaur_export --> balaur
@@ -90,7 +92,6 @@ graph TD
   balaur_http --> balaur_script
   balaur_import --> balaur
   balaur_import --> balaur_core
-  balaur_import --> balaur_plugin
   balaur_import --> balaur_render
   balaur_import --> balaur_text
   balaur_input --> balaur_core
@@ -115,8 +116,9 @@ graph TD
   balaur_render --> balaur_script
   balaur_render --> balaur_text
   balaur_render --> balaur_ui
-  balaur_script_rune --> balaur_core
-  balaur_script_rune --> balaur_script
+  balaur_script_bs --> balaur_bs
+  balaur_script_bs --> balaur_core
+  balaur_script_bs --> balaur_script
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core

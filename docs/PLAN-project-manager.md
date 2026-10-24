@@ -2,6 +2,7 @@
 > the screen, a double-clicked bundle lands there too, `project.*` and
 > `release.*` are the modules behind it, the palette reaches it from inside a
 > project, and `--state test:manager` checks all of it. What is left is §8.
+> The Godot import it describes was removed with the importer on 2026-10-23.
 
 # Plan: project manager
 
@@ -14,7 +15,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
 
 - `balaur edit <path>` boots the editor project with
   `config.script_args = [game, states]` (`crates/balaur_cli/src/main.rs`,
-  `edit_project`). `editor/scripts/model.rn::load` reads `engine::args()[0]`
+  `edit_project`). `editor/scripts/model.bs::load` reads `engine::args()[0]`
   and loads that project. `ExportPlugin` and `ImportPlugin` are built with the
   game path, and `file_api::add_root(game)` adds it as a root. One process is
   one project.
@@ -24,13 +25,13 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
 - `balaur new <path> [--template id]` (`new_project.rs`) copies
   `editor/library/templates/{empty,platformer,viewer}` with `{{name}}`
   substituted. The Library dock lists the templates but can only copy the
-  command to the clipboard (`library.rn`, `templates()`).
+  command to the clipboard (`library.bs`, `templates()`).
 - The web editor has the other half already: `web.rs` exports
   `list_projects`, `open_project`, `delete_project`, `import_project_pack`,
   `import_project_files`, `download_project`, and the website's
   `src/pages/editor.tsx` draws the list. Native has none of it.
 - Editor preferences persist at `project::editor_data_directory() + "/editor.toml"`
-  (`editor/scripts/settings.rn`), which is `<data dir>/balaur/`, beside
+  (`editor/scripts/settings.bs`), which is `<data dir>/balaur/`, beside
   `projects.toml` and `recordings/<project name>/`.
 - No folder picker: `ui` has `modal` and `window`. `rfd` is already in the
   tree as a dependency of kiss3d.
@@ -58,7 +59,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
      later tick as `on_pick_folder(path)` through `rfd`, native only.
    - Godot import is `project::create(path, "empty")` followed by
      `import::file(project_godot)`, which already handles `project.godot`.
-2. **A `manager` start state.** With it, `shell.rn` draws one screen instead
+2. **A `manager` start state.** With it, `shell.bs` draws one screen instead
    of the docks: the recent list (name, path, last opened, a badge on a
    missing one), New (name, template, parent folder, defaulting to the
    directory the bundle uses today), Open a folder, Import a Godot project,
@@ -66,7 +67,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
    `--state manager` is how a test and a screenshot reach it.
 3. **A bare launch opens the manager.** `argv()` stops scaffolding
    `~/Balaur`: with no arguments the binary runs the editor project with
-   `script_args = ["", "manager"]`, and `model.rn::load` skips the project
+   `script_args = ["", "manager"]`, and `model.bs::load` skips the project
    when the root is empty. `balaur edit <path>` is unchanged. The bundle, the
    Windows binary and the Linux one all start the same way.
 4. **Open and New from inside the editor.** Three palette commands (`Open
@@ -74,7 +75,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
    document asks to save first, then `project::open` relaunches.
 5. **Tests and shots.** A headless selftest under `--state manager`: create
    from `empty` into a temp dir, assert `project.toml`, assert one recent
-   row, forget it, assert none. A `showcase.rn` shot named `manager` for the
+   row, forget it, assert none. A `showcase.bs` shot named `manager` for the
    manual and the getting-started page, and one at 390 by 844 under
    `--touch` for the responsive record.
 6. **Docs.** Getting started's Download section becomes: open the app, the

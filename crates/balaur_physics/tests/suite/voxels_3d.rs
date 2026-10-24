@@ -3,7 +3,6 @@
 
 use balaur_physics::PhysicsState3d;
 use balaur_physics::rapier3d::math::IVector;
-use balaur_script::Value;
 
 use crate::boot::{self, Booted};
 
@@ -35,7 +34,7 @@ cells = [[0, 0, 0]]
 [[nodes]]
 id = "n_world"
 name = "World"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [[nodes]]
 id = "n_a"
@@ -69,17 +68,17 @@ transform = { position = [0.0, 10.0, 0.0] }
 fn a_3d_voxel_grid_resizes_crops_and_joins_its_neighbour() {
     let mut b = boot::project(
         GRIDS,
-        r#"pub fn init(this) {
-    let a = this.node.get_node("A").collider3d;
-    a.combine_voxels(this.node.get_node("B"));
-    let cropped = this.node.get_node("Cropped").collider3d;
-    cropped.crop_voxels(0, 0, 0, 1, 0, 0);
-    let alone = this.node.get_node("Alone").collider3d;
-    alone.set_voxel_size(0.5, 0.5, 0.25);
-}
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.get_node("A").collider3d.combine_voxels(self.node.get_node("B"));
+        self.node.get_node("Cropped").collider3d.crop_voxels(0, 0, 0, 1, 0, 0);
+        self.node.get_node("Alone").collider3d.set_voxel_size(0.5, 0.5, 0.25);
+    }
 
-pub fn probe(this) {
-    this.node.get_node("Alone").collider3d.voxel_size()
+    pub fn probe() -> any {
+        self.node.get_node("Alone").collider3d.voxel_size()
+    }
 }
 "#,
     );
@@ -106,7 +105,7 @@ pub fn probe(this) {
     );
     assert!(state_at("World/Cropped", 0).is_some_and(|s| !s.is_empty()));
     assert_eq!(
-        b.call(b.node("World"), "probe"),
-        Value::Vec3([0.5, 0.5, 0.25])
+        boot::vector(&b.call(b.node("World"), "probe")),
+        [0.5, 0.5, 0.25]
     );
 }

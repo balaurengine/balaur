@@ -26,7 +26,7 @@
   draws them again with `collider2d` rectangles by hand
   (`examples/angrynerds`).
 - 2D lights and `occluder2d` are built; a wall of fifty tiles casts no shadow.
-- The Tiles tool (`editor/scripts/tiles.rn`): a palette dock cut from the
+- The Tiles tool (`editor/scripts/tiles.bs`): a palette dock cut from the
   tileset, left-drag paints, right-drag erases, a Rectangle mode, a layer as a
   sibling map, every stroke through `history`. No autotile, no bucket, line,
   eyedropper or stamp.
@@ -44,7 +44,7 @@ Three constraints the code imposes on everything below:
    per-cell flip, animation and iso/hex placement are all outside what it
    can say.
 3. **The editor deep-copies the whole document per undo step**
-   (`editor/scripts/history.rn:12`), and a stroke rewrites the whole `cells`
+   (`editor/scripts/history.bs`), and a stroke rewrites the whole `cells`
    value and rebuilds the whole mesh. A 200 × 200 map is 40 000 ids. Chunking
    is what makes the tool usable past a toy, not a later optimisation.
 
@@ -290,7 +290,7 @@ centre is where the editor already puts a full-height editing surface, and a
   `sprite_sheet` a non-grid set names.
 
 Edits go through `assets::load` / `assets::save`, which is how the inspector
-already edits an asset (`editor/scripts/inspector.rn:957`).
+already edits an asset (`editor/scripts/inspector.bs`).
 
 **The resolver is called, never reimplemented.** The tool asks the engine
 through a `tiles::` script module — pure functions over a tileset definition

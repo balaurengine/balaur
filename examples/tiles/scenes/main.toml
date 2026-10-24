@@ -25,7 +25,7 @@ friction = 0.6
 id = "n_crate"
 name = "Crate"
 parent = "n_main"
-script = { source = "scripts/drop.rn" }
+script = { source = "scripts/drop.bs" }
 
 [nodes.transform]
 position = [3.5, 1.0, 0.0]

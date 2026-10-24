@@ -1,0 +1,45 @@
+// The text edit field's one script: up where a text node was double-clicked,
+// it hands what is typed to the Editor, Enter keeps it, and a blur drops it.
+
+pub struct Textedit {
+    node: Node,
+    editor: Node,
+    open: bool,
+}
+
+impl Textedit {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        self.open = false;
+        events::listen(self.node, "textedit_changed", self.editor);
+    }
+
+    pub fn on_textedit_changed(_change: any) {
+        let view = self.editor.call("textedit_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        let field = self.node.get_node("Field");
+        if view.get("open") && !self.open {
+            self.node.patch_component("widget", map().with("visible", true).with("x", view.get("x")).with("y", view.get("y")));
+            field.patch_component("widget", map().with("text", view.get("text")).with("width", view.get("w").as_float() - 20.0));
+            ui::set_focus(field);
+        } else if !view.get("open").as_bool() {
+            self.node.patch_component("widget", map().with("visible", false));
+        }
+        self.open = view.get("open").as_bool();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if node.name() != "Field" {
+            return;
+        }
+        if event == "change" {
+            self.editor.call("textedit_typed", value);
+        } else if event == "submit" {
+            self.editor.call("textedit_submit", value);
+        } else if event == "blur" {
+            self.editor.call("textedit_close");
+        }
+    }
+}

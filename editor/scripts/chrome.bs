@@ -1,0 +1,711 @@
+// The one bar across the top — brand, workspaces, the open documents, and the
+// transport, command and theme controls — and the status strip the bottom
+// dock carries at its foot, which is all of it once minimised.
+
+use defs;
+use docks;
+use dropin;
+use editor;
+use history;
+use icons;
+use layout;
+use manager;
+use menu;
+use model;
+use pool;
+use session;
+use shell;
+use theme;
+use util;
+
+/// The mark and the name at the head of the bar.
+pub struct Brand {
+    logo: str,
+    name: str,
+}
+
+/// A control's centre in design px.
+pub struct Spot {
+    x: float,
+    y: float,
+}
+
+pub struct FillImports {
+    shown: bool,
+    bar: bool,
+    value: float,
+    until: float,
+}
+
+// What the head sheet keeps inside its edge, plus the row's own first step.
+const PAD_X: float = 7.0;
+
+// The brand mark, and the name beside it when there is room.
+const MARK_W: float = 24.0;
+
+const NAME_W: float = 52.0;
+
+// The transport's three buttons: 26 px each on 3 px spacing, in an 87 px block.
+const BUTTON_PITCH: float = 29.0;
+
+const BLOCK_W: float = 87.0;
+
+// The theme switch and the command pill at the bar's right end.
+const THEME_W: float = 26.0;
+
+// The play triangle fills its em box where the pause bars and the stop square
+// sit inside theirs, so at one font size the three do not read as one set.
+const PLAY_SIZE: float = 11.0;
+
+const STEP_SIZE: float = 16.0;
+
+const CMD_W: float = 118.0;
+
+const CMD_W_COMPACT: float = 26.0;
+
+// The dock plate under the dark mark: the mark's own dark ink, #14181d.
+fn DARK_PLATE() -> [float] {
+    [0.078, 0.094, 0.114]
+}
+
+// One document tab, as the showcase's pointer estimates it.
+const TAB_W: float = 104.0;
+
+// The bar's own row, a step shorter in a small window.
+fn row_h(S: editor::State) -> float {
+    if S.touchscreen { 33.0 } else if S.compact { 26.0 } else { 30.0 }
+}
+
+/// The tabs sit a little inside the bar where a cursor drives them. Under a
+/// finger everything in the bar is one height, so no two of them disagree.
+fn tab_h(S: editor::State) -> float {
+    if S.touchscreen { row_h(S) } else { row_h(S) - 4.0 }
+}
+
+/// An icon-only control is square, and states it: left to itself a button is
+/// as wide as its glyph plus the theme's side padding, which is a different
+/// width per glyph and squeezes the glyph off centre in a stated box.
+fn icon_w(S: editor::State) -> float {
+    row_h(S)
+}
+
+// Here rather than in editor.bs, whose own `window` module hides the engine's.
+// A dark system gets the light-inked mark on a dark plate.
+pub fn set_app_icon(dark: bool) {
+    if dark {
+        window::set_app_icon("assets/balaur-logo-dark.png", map().with("plate", DARK_PLATE()));
+    } else {
+        window::set_app_icon("assets/balaur-logo.png");
+    }
+}
+
+// The edited project's mark, when it ships one, else balaur's. A project
+// that brought its own logo gets its own name beside it too.
+fn brand_logo(S: editor::State) -> str {
+    let named = declared_icon(S);
+    if named != "" && fs::exists(S.game_root + "/" + named) {
+        return S.game_root + "/" + named;
+    }
+    for rel in ["icon.png", "assets/icon.png", "assets/logo.png"] {
+        if fs::exists(S.game_root + "/" + rel) {
+            return S.game_root + "/" + rel;
+        }
+    }
+    ""
+}
+
+// `[application] icon`, or "" for a project that names none.
+fn declared_icon(S: editor::State) -> str {
+    let text = fs::read(S.game_root + "/project.toml");
+    if text.is_none() {
+        return "";
+    }
+    toml::parse(text.unwrap()).get("application").get("icon").as_str()
+}
+
+// Answered once per session: whether the project ships a mark is up to five disk
+// reads, and the bar asked for them on every frame it drew.
+fn brand(S: &mut editor::State) -> Brand {
+    if S.brand.is_some() {
+        return S.brand.unwrap();
+    }
+    let logo = brand_logo(S);
+    let found = if logo == "" {
+        Brand { logo: "assets/balaur-logo.png", name: "Balaur" }
+    } else {
+        Brand { logo: logo, name: S.game_name }
+    };
+    S.brand = found;
+    found
+}
+
+fn plural(n: int, word: str) -> str {
+    if n == 1 { word } else { word + "s" }
+}
+
+// Where the first workspace pill starts, after the brand.
+fn workspaces_x(S: editor::State) -> float {
+    let name = if S.compact { 0.0 } else { 3.0 + NAME_W };
+    S.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 8.0
+}
+
+/// Where one workspace pill's centre lands in the bar, in design px, so the
+/// showcase's drawn cursor can be put on the pill its verb presses.
+pub fn workspace_spot(S: editor::State, id: str) -> Spot {
+    let bar: any = S.layout.bar;
+    let per = layout::workspace_w(S);
+    let slot = 0;
+    let items1 = defs::workspaces();
+    for i in 0..items1.len() {
+        let p = items1[i];
+        if p.id == id {
+            slot = i;
+        }
+    }
+    let found = strip_spot(S, slot);
+    if found.is_some() {
+        let spot = found.unwrap();
+        return spot;
+    }
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return Spot { x: workspaces_x(S) + ((slot as float) + 0.5) * per, y: bar.get("y").as_float() + bar.get("h").as_float() / 2.0 };
+}
+
+/// Where a document tab's centre lands: the scene's, then the script's.
+pub fn doc_spot(S: editor::State, id: str) -> Spot {
+    let bar: any = S.layout.bar;
+    let per = layout::workspace_w(S);
+    let first = workspaces_x(S) + (defs::workspaces().len() as float) * per + 12.0;
+    let slot = if id == "script" { 1.0 } else { 0.0 };
+    let found = strip_spot(S, defs::workspaces().len() + (slot as int));
+    if found.is_some() {
+        let spot = found.unwrap();
+        return spot;
+    }
+    return Spot { x: first + slot * (TAB_W + 4.0) + TAB_W / 2.0, y: bar.get("y").as_float() + bar.get("h").as_float() / 2.0 };
+}
+
+/// Where the Focus chip sits, so the showcase's drawn cursor lands on the
+/// control its verb presses. The strip runs workspaces, documents, split,
+/// focus, the spring, then the transport, so it is two slots back.
+pub fn focus_spot(S: editor::State) -> Spot {
+    let bar: any = S.layout.bar;
+    let found = strip_spot(S, transport_slot(S) - 2);
+    if found.is_some() {
+        let spot = found.unwrap();
+        return spot;
+    }
+    return Spot { x: bar.get("x").as_float() + bar.get("w").as_float() / 2.0, y: bar.get("y").as_float() + bar.get("h").as_float() / 2.0 };
+}
+
+/// Where one of the transport's three buttons sits: play, pause, stop.
+pub fn transport_spot(S: editor::State, n: int) -> Spot {
+    let bar: any = S.layout.bar;
+    let found = strip_spot(S, transport_slot(S) + n);
+    if found.is_some() {
+        let spot = found.unwrap();
+        return spot;
+    }
+    let cmd = if S.compact { CMD_W_COMPACT } else { CMD_W };
+    let block = (bar.get("x") + bar.get("w")).as_float() - PAD_X - THEME_W - 4.0 - cmd - 6.0 - BLOCK_W;
+    return Spot { x: block + 14.0 + (n as float) * BUTTON_PITCH, y: bar.get("y").as_float() + bar.get("h").as_float() / 2.0 };
+}
+
+// The transport comes after the workspaces, the open documents, the split, the
+// focus and the spring that pushes the right end over.
+fn transport_slot(S: editor::State) -> int {
+    defs::workspaces().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 3
+}
+
+/// The centre of the strip's `slot`-th control, in design px, from the node it
+/// was drawn on; `None` until it has drawn, when a caller estimates instead.
+fn strip_spot(S: editor::State, slot: int) -> Spot? {
+    let strip = scene::get_node(STRIP_NODE);
+    if !strip.is_valid() {
+        return nil;
+    }
+    let kids = strip.children();
+    if slot < 0 || slot >= kids.len() {
+        return nil;
+    }
+    let rect = ui::widget_rect(kids[slot]);
+    if rect.is_none() {
+        return nil;
+    }
+    let box = rect.unwrap();
+    Spot { x: box.x + box.width / 2.0, y: box.y + box.height / 2.0 }
+}
+
+// The strip beside the brand, which every control past it lives on.
+const STRIP_NODE: str = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip";
+
+const BRAND_NODE: str = "Editor/Shell/Head/HeadRow/Brand";
+
+const STATUS_NODE: str = "Editor/Shell/Body/Centre/Bottom/Status";
+
+/// The brand: the project's mark and name on the menu node the scene lays
+/// out, the menu's rows under it, and the strip. What the bar's script asks
+/// for on `chrome_changed`.
+pub fn fill(S: &mut editor::State) {
+    // The start screen has the window to itself, and no project to name.
+    if manager::showing(S) {
+        return;
+    }
+    let k = S.theme;
+    let mark = brand(S);
+    let node = scene::get_node(BRAND_NODE);
+    if node.is_valid() {
+        node.patch_component("widget", map()
+            .with("image", mark.logo)
+            .with("text", mark.name)
+            .with("trailing", icons::ui("caret-down"))
+            .with("height", row_h(S) - 4.0)
+            .with("showing", S.menu_open));
+    }
+    let menu_at = menu_key(S);
+    if pool::strip_due(S, BRAND_NODE, menu_at) {
+        pool::strip_keyed(S, BRAND_NODE, menu_at, menu::rows(S));
+    }
+    let strip_at = strip_key(S, k);
+    if pool::strip_due(S, STRIP_NODE, strip_at) {
+        pool::strip_keyed(S, STRIP_NODE, strip_at, bar_controls(S, k));
+    }
+}
+
+/// What the whole bar is built from, which `signals::chrome` compares.
+pub fn key(S: &mut editor::State) -> [any] {
+    [menu_key(S), strip_key(S, S.theme), S.menu_open, S.game_name, manager::showing(S)]
+}
+
+// The menu lists every panel, ticked where it is open, under the names the
+// Outline's among them changes.
+fn menu_key(S: &mut editor::State) -> [any] {
+    [
+        S.workspace,
+        "{S.docks}",
+        docks::name(S, "outline"),
+        S.registry.panels.len(),
+    ]
+}
+
+// What the strip is built from: the workspace and the toggles beside it, the
+// open documents and whether they are saved, the transport, and the theme.
+fn strip_key(S: editor::State, k: any) -> [any] {
+    let replaying = session::loaded(S);
+    let paused = if replaying {
+        replay::state() == replay::STATE_PAUSED.as_str()
+    } else {
+        S.playing && physics::is_paused()
+    };
+    [
+        S.workspace,
+        S.compact,
+        S.split,
+        S.focus,
+        S.touchscreen,
+        S.sel,
+        S.doc_rev,
+        S.playing,
+        replaying,
+        paused,
+        S.theme_rev,
+        S.scene_rel,
+        history::dirty(S),
+        S.script_open,
+        "{S.script_dirty}",
+        S.events_open,
+        S.doctab,
+    ]
+}
+
+// Everything on the bar past the brand, in the order it reads: the workspaces,
+// the open documents, then the split, and the right end after a spring.
+fn bar_controls(S: editor::State, k: any) -> [any] {
+    let h = tab_h(S);
+    let out: [any] = [];
+    for p in defs::workspaces() {
+        let id = p.id;
+        out.push(map()
+            .with("kind", "button")
+            .with("height", h)
+            .with("role", "tab_workspace")
+            .with("checked", S.workspace == id)
+            .with("text", if S.compact { "" } else { p.name })
+            .with("icon", p.icon)
+            .with("tooltip", p.name)
+            .with("on", "handle")
+            .with("data", map().with("fn", bar_controls_on_2).with("id", id)));
+    }
+    for entry in doc_controls(S, k, h) {
+        out.push(entry);
+    }
+    out.push(map()
+        .with("kind", "button")
+        .with("height", h)
+        .with("icon", icons::ui("split"))
+        .with("role", "tab_workspace")
+        .with("checked", S.split)
+        .with("text", if S.compact { "" } else { "Split" })
+        .with("tooltip", "Show the code and the viewport at once (⌘\\)")
+        .with("on", "handle")
+        .with("data", map().with("fn", bar_controls_on_3)));
+    // Beside the split, because the two are the same question: how much of the
+    // window the code is worth.
+    let can_focus = S.focus || shell::focus_target(S);
+    out.push(map()
+        .with("kind", "button")
+        .with("height", h)
+        .with("icon", icons::ui(if S.focus { "unfocus" } else { "focus" }))
+        .with("role", "tab_workspace")
+        .with("checked", S.focus)
+        .with("text", if S.compact { "" } else { "Focus" })
+        .with("enabled", can_focus)
+        .with("tooltip", if S.focus {
+            "Put the docks back (⇧⌘\\)"
+        } else if can_focus {
+            "Give the code the whole window (⇧⌘\\)"
+        } else {
+            "The selection has no script to focus"
+        })
+        .with("on", "handle")
+        .with("data", map().with("fn", bar_controls_on_4)));
+    // The spring: what is after it sits against the bar's right edge.
+    out.push(map().with("kind", "row").with("grow", 1));
+    for entry in transport_controls(S) {
+        out.push(entry);
+    }
+    out.push(map()
+        .with("kind", "button")
+        .with("height", row_h(S))
+        .with("width", icon_w(S))
+        .with("padding", 0)
+        .with("role", "item_bar")
+        .with("text", "")
+        .with("icon", if k.get("dark").as_bool() { icons::ui("dark") } else { icons::ui("light") })
+        .with("tooltip", "Toggle theme")
+        .with("on", "handle")
+        .with("data", map().with("fn", bar_controls_on_5)));
+    let named = !S.compact;
+    out.push(map()
+        .with("kind", "button")
+        .with("height", row_h(S))
+        .with("role", "item_bar")
+        .with("width", if named { 0.0 } else { icon_w(S) })
+        .with("padding", if named { -1.0 } else { 0.0 })
+        .with("text", if named { "Run a command" } else { "" })
+        .with("icon", icons::ui("search"))
+        .with("tooltip", "⌘K")
+        .with("on", "handle")
+        .with("data", map().with("fn", bar_controls_on_6)));
+    out
+}
+
+fn bar_controls_on_2(S: &mut editor::State, data: any, _0: any) {
+    let id: str = data.id;
+    shell::set_workspace(S, id);
+}
+
+fn bar_controls_on_3(S: &mut editor::State, data: any, _0: any) {
+    shell::toggle_split(S);
+}
+
+fn bar_controls_on_4(S: &mut editor::State, data: any, _0: any) {
+    shell::toggle_focus(S);
+}
+
+fn bar_controls_on_5(S: &mut editor::State, data: any, _0: any) {
+    theme::toggle(S);
+}
+
+fn bar_controls_on_6(S: &mut editor::State, data: any, _0: any) {
+    shell::open_palette(S, "");
+}
+
+// The open documents: the scene, always; the selection's script and the event
+// bindings while they are open. Only the last two close.
+fn doc_controls(S: editor::State, k: any, h: float) -> [any] {
+    let node = model::selected_node(S);
+    let out: [any] = [];
+    let scene = util::last_segment(S.scene_rel) + (if history::dirty(S) { " ●" } else { "" });
+    for entry in doc_tab(S, "scene", icons::panel("scene"), scene, false, h) {
+        out.push(entry);
+    }
+    if S.script_open {
+        let matched1 = model::script_rel(node);
+        let label = if !matched1.is_nil() {
+            let script = matched1;
+            let dirty = S.script_dirty.has(S.game_root + "/" + script.as_str());
+            util::last_segment(script.as_str()) + (if dirty { " ●" } else { "" })
+        } else {
+            "no script"
+        };
+        for entry in doc_tab(S, "script", icons::ui("scriptfile"), label, true, h) {
+            out.push(entry);
+        }
+    }
+    if S.events_open {
+        for entry in doc_tab(S, "events", icons::ui("events"), "bindings", true, h) {
+            out.push(entry);
+        }
+    }
+    out
+}
+
+// One tab: the label, and the close mark beside it when it closes.
+fn doc_tab(S: editor::State, id: str, icon: str, label: str, closable: bool, h: float) -> [any] {
+    let active = S.doctab == id;
+    let role = "tab_workspace";
+    // Built by pushing: a `[` after an `if` block is read as indexing it.
+    let inner: [any] = [];
+    inner.push(map()
+        .with("kind", "button")
+        .with("height", h)
+        .with("text", label)
+        .with("icon", icon)
+        .with("role", role)
+        .with("checked", active)
+        .with("corner_radius", 0)
+        .with("fill", "none")
+        .with("padding", [7, -1, 7, -1])
+        .with("on", "handle")
+        .with("data", map().with("fn", doc_tab_on_7).with("id", id)));
+    if closable {
+        inner.push(map()
+            .with("kind", "button")
+            .with("height", h)
+            .with("width", 13)
+            .with("padding", 0)
+            .with("text", "")
+            .with("icon", icons::ui("close"))
+            .with("role", role)
+            .with("checked", active)
+            .with("corner_radius", 0)
+            .with("fill", "none")
+            .with("tooltip", "Close")
+            .with("on", "handle")
+            .with("data", map().with("fn", doc_tab_on_8).with("id", id)));
+    }
+    inner.push(map().with("kind", "row").with("width", 5));
+    // One tile: the row carries the fill and the corners, and the halves
+    // inside it paint nothing.
+    let out: [any] = [];
+    out.push(map()
+        .with("height", h)
+        .with("corner_radius", 4)
+        .with("controls", inner)
+        .with("fill", if active { "primary_bg" } else { "none" }));
+    out
+}
+
+fn doc_tab_on_7(S: &mut editor::State, data: any, _0: any) {
+    let id: str = data.id;
+    shell::open_doc(S, id);
+}
+
+fn doc_tab_on_8(S: &mut editor::State, data: any, _0: any) {
+    let id: str = data.id;
+    shell::close_doc(S, id);
+}
+
+// Play, pause and stop; the last two are off until something runs.
+fn transport_controls(S: editor::State) -> [any] {
+    let replaying = session::loaded(S);
+    let running = S.playing || replaying;
+    let paused = if replaying {
+        replay::state() == replay::STATE_PAUSED.as_str()
+    } else {
+        S.playing && (physics::is_paused())
+    };
+    [
+        map()
+            .with("kind", "button")
+            .with("text", "")
+            .with("icon", icons::ui("play"))
+            .with("height", row_h(S))
+            .with("width", icon_w(S))
+            .with("padding", 0)
+            .with("icon_size", PLAY_SIZE)
+            .with("role", "icon_action_primary")
+            .with("checked", S.playing)
+            .with("tooltip", if S.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" })
+            .with("on", "handle")
+            .with("data", map().with("fn", transport_controls_on_9)),
+        map()
+            .with("kind", "button")
+            .with("text", "")
+            .with("icon", icons::ui("pause"))
+            .with("enabled", running)
+            .with("height", row_h(S))
+            .with("width", icon_w(S))
+            .with("padding", 0)
+            .with("icon_size", STEP_SIZE)
+            .with("role", "icon_action_primary")
+            .with("checked", paused)
+            .with("tooltip", if !running {
+                "Run the scene first"
+            } else if replaying {
+                "Pause playback"
+            } else {
+                "Pause simulation"
+            })
+            .with("on", "handle")
+            .with("data", map().with("fn", transport_controls_on_10).with("replaying", replaying)),
+        map()
+            .with("kind", "button")
+            .with("text", "")
+            .with("icon", icons::ui("stop"))
+            .with("enabled", running)
+            .with("height", row_h(S))
+            .with("width", icon_w(S))
+            .with("padding", 0)
+            .with("icon_size", STEP_SIZE)
+            .with("role", "icon_action_primary")
+            .with("tooltip", if running { "Stop" } else { "Nothing is running" })
+            .with("on", "handle")
+            .with("data", map().with("fn", transport_controls_on_11).with("replaying", replaying)),
+    ]
+}
+
+fn transport_controls_on_9(S: &mut editor::State, data: any, _0: any) {
+    shell::toggle_play(S);
+}
+
+fn transport_controls_on_10(S: &mut editor::State, data: any, _0: any) {
+    let replaying: bool = data.replaying;
+    if replaying {
+        session::toggle_pause(S);
+    } else {
+        physics::set_paused(!physics::is_paused());
+    }
+}
+
+fn transport_controls_on_11(S: &mut editor::State, data: any, _0: any) {
+    let replaying: bool = data.replaying;
+    if replaying {
+        session::close(S);
+    } else {
+        shell::stop_play(S);
+    }
+}
+
+/// The status strip: what the editor is doing, how big the scene is, and the
+/// workspace and tool in hand. `room` is the width it has; `trailing` draws
+/// whatever the dock wants at the far right, which minimised is the handle
+/// that reopens it.
+/// The status strip's controls. The scene owns the row; this says what goes
+/// in it, so the theme dresses the labels rather than the call site.
+// Every import of the batch, top right under the bar: one line each, and one
+// bar for the lot of them. It takes no pointer: a root over the viewport would
+// swallow clicks meant for the scene.
+const IMPORTS: str = "Editor/Imports";
+
+/// Fill the import list's lines and say what its bar and its clock read: what
+/// the list's script asks for when an import reported.
+pub fn fill_imports(S: &mut editor::State) -> FillImports {
+    dropin::sweep(S);
+    let k = S.theme;
+    let lines: [any] = [];
+    for source in S.jobs.keys() {
+        let job = S.jobs.get(source);
+        let name = job.name.as_str();
+        let done = job.done.as_int();
+        let files = job.files.as_int();
+        let line = if job.over.as_str() == "" {
+            if files > 0 { "{name} {done}/{files}" } else { name }
+        } else {
+            "{name} {job.over.as_str()} · {done} {plural(done, "file")}"
+        };
+        lines.push(map().with("kind", "label").with("role", "text_note").with("text", line).with("text_color", k.text_muted));
+    }
+    pool::strip(S, IMPORTS + "/Lines", lines);
+    let totals = dropin::job_totals(S);
+    FillImports {
+        shown: lines.len() > 0,
+        bar: totals.files > 0,
+        value: if totals.files > 0 { (totals.done as float) / (totals.files as float) } else { 0.0 },
+        until: dropin::kept_until(S),
+    }
+}
+
+/// The status strip, what its script asks for on `status_changed`.
+pub fn fill_status(S: &mut editor::State) {
+    let at = status_key(S);
+    if pool::strip_due(S, STATUS_NODE, at) {
+        pool::strip_keyed(S, STATUS_NODE, at, status_controls(S, S.theme, S.layout.bottom.w.as_float()));
+    }
+}
+
+/// What the strip is built from: `status_mode` carries the pause, the play,
+/// the frame rate while playing and an import in flight; `doc_rev` stands
+/// for the node and script counts.
+pub fn status_key(S: editor::State) -> [any] {
+    [status_mode(S), S.playing, S.theme_rev, S.layout.bottom.w, S.doc_rev, S.workspace, S.tool]
+}
+
+fn status_mode(S: editor::State) -> str {
+    if S.debug.paused.kind() == "map" {
+        return "paused · {S.debug.paused_rel}:{S.debug.paused.line}";
+    }
+    if S.playing {
+        let recording = if S.session.recording != "" { "recording · " } else { "" };
+        return "playing · {recording}{S.fps as int} fps";
+    }
+    // An import in flight is the state, and no more than that: which files
+    // and how far along are the toast's, which draws them in one pass.
+    if dropin::in_flight(S) > 0 {
+        return "importing";
+    }
+    "editing"
+}
+
+fn status_controls(S: editor::State, k: any, room: float) -> [any] {
+    let stopped = S.debug.paused.kind() == "map";
+    let lamp = (if stopped {
+        k.get("primary_text")
+    } else if S.playing {
+        k.get("success_text")
+    } else {
+        k.get("text_subtle")
+    }).as_str();
+    let out = [
+        map().with("kind", "row").with("width", 6).with("corner_radius", 0),
+        map().with("kind", "row").with("width", 5).with("height", 5).with("corner_radius", 3).with("fill", lamp),
+        map()
+            .with("kind", "label")
+            .with("corner_radius", 0)
+            .with("text", status_mode(S))
+            .with("role", "text_caption")
+            .with("text_color", k.get("text_muted").as_str()),
+    ];
+    // Narrow: the columns go one at a time rather than running together.
+    if room > 300.0 {
+        let nodes_scripts_1 = model::stats(S);
+        let nodes = nodes_scripts_1._0;
+        let scripts = nodes_scripts_1._1;
+        out.push(map()
+            .with("kind", "label")
+            .with("corner_radius", 0)
+            .with("text", "{nodes} {plural(nodes.as_int(), "node")} · {scripts} {plural(scripts.as_int(), "script")}")
+            .with("role", "text_caption")
+            .with("text_color", k.get("text_subtle").as_str()));
+    }
+    if room > 560.0 {
+        out.push(map()
+            .with("kind", "label")
+            .with("corner_radius", 0)
+            .with("text", "kiss3d · wgpu")
+            .with("role", "text_caption")
+            .with("text_color", k.get("text_subtle").as_str()));
+    }
+    out.push(map().with("kind", "row").with("corner_radius", 0).with("grow", 1));
+    if room > 420.0 {
+        out.push(map()
+            .with("kind", "label")
+            .with("corner_radius", 0)
+            .with("text", "{defs::workspace_name(S.workspace)} · {defs::tool_name(S.tool)}")
+            .with("role", "text_caption")
+            .with("text_color", k.get("text_subtle").as_str()));
+    }
+    out.push(map().with("kind", "row").with("width", 6).with("corner_radius", 0));
+    out
+}

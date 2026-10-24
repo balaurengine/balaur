@@ -19,9 +19,9 @@ where a node has no class.
 | Add and remove a component, from a schema, at run time and in the inspector | `components::add:686`, `remove:763`, `model::add_component:1122` |
 | Scenes are a **forest**: an empty `parent` puts a node at the top level | `project.rs:891` |
 | Reparent keeping the world pose, with the new local transform computed | `scene::reparent:565`, script `node.set_parent` |
-| Undo over whole documents, so any restructure is one `history::record` away | `editor/scripts/history.rn:11` |
+| Undo over whole documents, so any restructure is one `history::record` away | `editor/scripts/history.bs` |
 | A node's displayed "type" derived from its components | `model::node_type:275` |
-| A context menu on every tree row | `editor/scripts/left.rn:92` |
+| A context menu on every tree row | `editor/scripts/left.bs` |
 | Ear-clip triangulation, CPU and platform-identical | `core::triangulate`, script `geometry2d.triangulate` |
 | Union, difference, intersection over 2D outlines | `core::geometry2d:126`, script `geometry2d.*` |
 | The exact outline a 2D primitive fills from | `primitive::Flat::outline:364` |
@@ -156,7 +156,7 @@ already works. No engine concept called "conversion" is added.
 
 **The mesh is the currency.** Every 2D conversion produces the same thing: a
 list of `[x, y]` positions in the node's space, plus triangles. That is the
-inline `mesh` table the Polygon tool already edits (`polygon.rn:65`), the
+inline `mesh` table the Polygon tool already edits (`polygon.bs`), the
 asset `collider2d.mesh` takes for `trimesh` / `convex_hull` / `polyline`,
 and the one `occluder2d.mesh` takes. So the surface is three verbs over one
 noun:
@@ -273,13 +273,13 @@ branch on a typo in an unrelated node.
 | --- | --- | --- |
 | `components::remove` skips an absent component | `components.rs:763` | Phase 0 |
 | `ComponentDef::owns`, enforced by `add` and `patch` | `components.rs` | Phase 0 |
-| The reparent helper: move a subtree, keep the order topological | `model.rn` | Phase 1 |
-| "Reparent to…" over a node dropdown, and "Move to top level" | `left.rn`, `model.rn` | Phase 1 |
+| The reparent helper: move a subtree, keep the order topological | `model.bs` | Phase 1 |
+| "Reparent to…" over a node dropdown, and "Move to top level" | `left.bs`, `model.bs` | Phase 1 |
 | "Make scene root" | tree menu, palette | Phase 1 |
 | `ui::drag_source` and `ui::drop_zone` | `widget_layout.rs`, over egui 0.29's `dnd_*` | Phase 2 |
-| Dragging a row onto a row to reparent, and onto a seam to reorder | `left.rn` | Phase 2 |
+| Dragging a row onto a row to reparent, and onto a seam to reorder | `left.bs` | Phase 2 |
 | "Save branch as scene…", "Make local" | tree menu, palette | Phase 3 |
-| An extracted branch carries the `[[assets]]` blocks its `#id`s name | `model.rn` | Phase 3 |
+| An extracted branch carries the `[[assets]]` blocks its `#id`s name | `model.bs` | Phase 3 |
 | `render.outline_points(node)`, local space, any node | `light.rs` | Phase 4 |
 | "Fit collider to what is drawn" | `convert.rn` | Phase 4 |
 | Alpha trace | `docs/PLAN-editor.md` §6 | Its plan, not this one |
@@ -287,7 +287,7 @@ branch on a typo in an unrelated node.
 | "Convert to polygon" from `sprite` | `convert.rn` | Phase 5 |
 | `render.built_mesh` for `boolean2d` | `boolean.rs:249`'s twin | Phase 6 |
 | "Bake" on `boolean2d` and `boolean3d` | `convert.rn` | Phase 6 |
-| A Convert submenu in the tree row's context menu, built from `can(node)` | `left.rn:92` | With each phase |
+| A Convert submenu in the tree row's context menu, built from `can(node)` | `left.bs` | With each phase |
 
 Three questions that looked open and are not. Recording the answers so they
 are not reopened:
@@ -303,7 +303,7 @@ are not reopened:
 2. **Inline mesh or file: inline, with a way out.** The Polygon tool edits
    an inline `mesh` table and that keeps a traced outline diffable in the
    scene file. A traced character is hundreds of points, so the inspector's
-   existing "promote to a file" asset row (`inspector.rn:583`) is the
+   existing "promote to a file" asset row (`inspector.bs`) is the
    escape, not a second default.
 3. **What happens to a baked boolean's operands: they stay, and they stay
    hidden — but only if the bake says so.** `boolean.rs:426` hides operands
@@ -323,7 +323,7 @@ are not reopened:
 | Recording what a node was converted from | `presets.rs:1` is explicit that a node does not remember the recipe that made it, and an engine that records "this was a sprite" has to defend the claim forever |
 | Converting a `widget` to anything, or anything to a `widget` | A widget is laid out by the UI pass and drawn on its own surface; there is no geometry in common |
 | Polygon → sprite | The inverse throws away the polygon and cannot rebuild the quad's region or sheet. A node wanting a sprite adds one |
-| Godot's "Change Type" as a dialog | It is the Add component palette, already reachable at `inspector.rn:1185` |
+| Godot's "Change Type" as a dialog | It is the Add component palette, already reachable at `inspector.bs` |
 
 ## 6. Phases
 
@@ -375,7 +375,7 @@ Above that, one behavioural test per verb:
   drew.
 
 Drag and drop is the one piece with no headless assertion — a drag is a
-gesture, and `selftest.rn`'s named states drive the editor rather than the
+gesture, and `selftest.bs`'s named states drive the editor rather than the
 mouse. Its safety net is that it calls the same helper the menu verbs do, so
 everything it can get wrong is already covered above.
 
@@ -392,7 +392,7 @@ bigger. One did — see phase 2.
 | --- | --- | --- | --- |
 | 0. Registry fix | Small | 47 `ComponentDef` sites gain `owns`, mechanically — every one already writes `expects` beside it. The logic is ~30 lines in `components.rs` | Low. Wide, shallow diff across every crate that registers a component; the thing to not regress is `remove_present` at node teardown |
 | 1. Reparent, top level, scene root | Small–Medium | The subtree move that keeps document order topological, not the `parent` key. `scene::reparent` does the arithmetic and `has_ancestor:218` is the cycle guard | Medium, and it is the ordering invariant: get it wrong and the scene fails to load rather than looking odd. It is also the one invariant nothing currently checks |
-| 2. Drag and drop | Medium | **The only engine-side UI work in the plan.** Two new `ui::` bindings over egui's `dnd_*`, then the tree row as source, target and seam. The verbs underneath are phase 1's | Medium. New API surface in `balaur_ui`, and the one piece with no headless test — `selftest.rn` drives states, not a mouse |
+| 2. Drag and drop | Medium | **The only engine-side UI work in the plan.** Two new `ui::` bindings over egui's `dnd_*`, then the tree row as source, target and seam. The verbs underneath are phase 1's | Medium. New API surface in `balaur_ui`, and the one piece with no headless test — `selftest.bs` drives states, not a mouse |
 | 3. Save branch as scene, make local | Medium | Rewriting ids and parents out and back, plus walking asset-typed properties to carry `#id` blocks across | **Highest.** The `[[assets]]` scoping (`enter_scene_scope:459`) is settled in §3 but it is still the fiddliest code here, and a branch that silently loses an asset is the failure that looks like a rendering bug |
 | 4. `outline_points`, fit collider and occluder, shape → polygon | Small | One script binding over two functions that already exist (`light.rs:394,443`), plus `convert.rn` | Low. The occluder is nearly free — left empty it already derives |
 | 5. Sprite → polygon | Medium–Large | **Mostly not this plan's.** The alpha tracer belongs to `docs/PLAN-editor.md` §6 and is the bulk: an outline walk, a simplify pass, platform-identical `f32` per `docs/DETERMINISM.md`. The conversion on top is small | Medium, and it is the tracer's |

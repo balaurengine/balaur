@@ -1,10 +1,9 @@
-//! `balaur import`: a model, a sprite, a level or a Godot project brought
-//! into a project as the files the editor edits.
+//! `balaur import`: a model, a sprite or a level brought into a project as
+//! the files the editor edits.
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 pub mod atlas;
-mod godot;
 mod ldtk;
 #[cfg(test)]
 mod scene_check;
@@ -104,8 +103,6 @@ enum Route {
     Model,
     /// A `.tmx` or `.ldtk`, which names the files around it.
     Level,
-    /// A Godot project or one scene of one, which walks the whole project.
-    Godot,
 }
 
 /// Where a name is imported by, decided before anything is read: a flag that
@@ -116,7 +113,6 @@ fn route(name: &Path, layers: &[String]) -> Result<Route> {
         "aseprite" | "ase" => Route::Sprite,
         "gif" => Route::Gif,
         "tmx" | "ldtk" => Route::Level,
-        "godot" | "tscn" | "tres" => Route::Godot,
         _ if !layers.is_empty() => {
             anyhow::bail!("--layer picks layers of an .aseprite file; {extension} has none")
         }
@@ -127,12 +123,8 @@ fn route(name: &Path, layers: &[String]) -> Result<Route> {
 /// Extensions an importer reads, as [`import_file`] routes them.
 ///
 /// The list lives here and nowhere else: a second copy in the editor is how a
-/// `.tscn` came to be readable by `balaur import` and refused by a drop.
-/// `.tres` is not here -- one on its own is a resource a scene names, not a
-/// thing to import.
-const CLAIMED: &[&str] = &[
-    "glb", "gltf", "aseprite", "ase", "gif", "tmx", "ldtk", "godot", "tscn",
-];
+/// format came to be readable by `balaur import` and refused by a drop.
+const CLAIMED: &[&str] = &["glb", "gltf", "aseprite", "ase", "gif", "tmx", "ldtk"];
 
 /// Whether an importer reads this name, by extension.
 #[must_use]
@@ -150,8 +142,7 @@ pub fn claimed() -> &'static [&'static str] {
 ///
 /// A model and a sprite can: [`plan_bytes`] reads one and answers what it will
 /// write. A level cannot, because it walks the folder it sits in as it goes,
-/// so a caller has to give it one long call. A project walks too, and is
-/// [`ProjectWalk`] instead.
+/// so a caller has to give it one long call.
 #[must_use]
 pub fn slices(name: &str) -> bool {
     matches!(
@@ -160,96 +151,31 @@ pub fn slices(name: &str) -> bool {
     )
 }
 
-/// Whether this name is a whole Godot project, which [`ProjectWalk`] steps.
-#[must_use]
-pub fn walks(name: &str) -> bool {
-    extension_of(Path::new(name)) == "godot"
-}
-
-/// A Godot project import in flight, a file at a time.
-///
-/// The one import that has no plan: what it writes is found by walking the
-/// project, and a project holds thousands of files. So it is counted off by
-/// the files it reads rather than the ones it writes, and a caller under a
-/// tick steps it as it does a [`Plan`].
-pub struct ProjectWalk(godot::walk::Walk);
-
-impl ProjectWalk {
-    /// Convert the project's settings, and read the lookups every file after
-    /// them needs. Nothing else is read here.
-    ///
-    /// # Errors
-    /// If `project.godot` cannot be read, or says something this cannot map.
-    pub fn begin(file: &Path, project: &Path) -> Result<Self> {
-        Ok(Self(godot::walk::Walk::begin(file, project)?))
-    }
-
-    /// How many files it will read, for a caller counting progress.
-    #[must_use]
-    pub fn files(&self) -> usize {
-        self.0.files()
-    }
-
-    /// The project-relative path [`ProjectWalk::read_next`] would read now, or
-    /// `None` when there are none left.
-    #[must_use]
-    pub fn peek(&self) -> Option<&str> {
-        self.0.peek()
-    }
-
-    /// Read one file, convert it, and say whether any are left.
-    ///
-    /// A scene that will not convert is a note in the report rather than an
-    /// error: one bad scene in a thousand does not stop the other files.
-    ///
-    /// # Errors
-    /// If a file cannot be read or written.
-    pub fn read_next(&mut self) -> Result<Progress> {
-        self.0.step()?;
-        Ok(if self.0.peek().is_some() {
-            Progress::More
-        } else {
-            Progress::Done
-        })
-    }
-
-    /// The shim, the report, and what the whole walk wrote.
-    ///
-    /// # Errors
-    /// If the report cannot be written.
-    pub fn finish(self) -> Result<Imported> {
-        self.0.finish()
-    }
-}
-
 /// `balaur import <file>`: by extension, a model or a sprite.
 pub fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<Imported> {
-    match route(file, layers)? {
-        // A level and a Godot project are read from where they sit: both
-        // walk a directory rather than taking one file.
-        Route::Level => import_level(file, &mut ProjectSink::new(project)),
-        Route::Godot => import_from_godot(file, project),
-        // A model or a sprite: read here, and routed again by name inside.
-        _ => {
-            let fs = files::default_backend();
-            let name = file
-                .file_name()
-                .and_then(|n| n.to_str())
-                .context("the file has no name")?;
-            let bytes = fs
-                .read(file)
-                .with_context(|| format!("reading {}", file.display()))?;
-            // Whatever a `.gltf` names beside itself is beside the file it
-            // was read from.
-            let directory = file.parent().map(Path::to_path_buf).unwrap_or_default();
-            let side = |uri: &str| -> Result<Vec<u8>> {
-                let path = directory.join(uri);
-                fs.read(&path)
-                    .with_context(|| format!("reading {}", path.display()))
-            };
-            import_bytes(name, &bytes, &mut ProjectSink::new(project), &side, layers)
-        }
+    // A level is read from where it sits: it walks a directory rather than
+    // taking one file.
+    if let Route::Level = route(file, layers)? {
+        return import_level(file, &mut ProjectSink::new(project));
     }
+    // A model or a sprite: read here, and routed again by name inside.
+    let fs = files::default_backend();
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .context("the file has no name")?;
+    let bytes = fs
+        .read(file)
+        .with_context(|| format!("reading {}", file.display()))?;
+    // Whatever a `.gltf` names beside itself is beside the file it
+    // was read from.
+    let directory = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    let side = |uri: &str| -> Result<Vec<u8>> {
+        let path = directory.join(uri);
+        fs.read(&path)
+            .with_context(|| format!("reading {}", path.display()))
+    };
+    import_bytes(name, &bytes, &mut ProjectSink::new(project), &side, layers)
 }
 
 /// One file an import is going to write, and where its bytes come from.
@@ -376,7 +302,7 @@ pub fn plan_bytes(
             plan_sheet(&stem, &frames, false)
         }
         Route::Model => plan_model(name, bytes, side),
-        Route::Level | Route::Godot => anyhow::bail!(
+        Route::Level => anyhow::bail!(
             "{name} names the files around it, so it is imported from the folder it sits in \
              rather than from bytes"
         ),
@@ -440,25 +366,6 @@ fn import_level(file: &Path, sink: &mut dyn Sink) -> Result<Imported> {
         if imported.layers == 1 { "" } else { "s" }
     );
     Ok(out)
-}
-
-/// `balaur import project.godot --project game`: the settings, every scene,
-/// the files they name, and a report of what did not carry. A `.tscn` is one
-/// scene of it.
-fn import_from_godot(file: &Path, project: &Path) -> Result<Imported> {
-    let extension = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    match extension.as_str() {
-        "godot" => crate::godot::walk::import_project(file, project),
-        "tscn" => crate::godot::files::import_scene(file, project),
-        _ => anyhow::bail!(
-            "a .{extension} on its own is not read yet; `balaur import project.godot` converts the \
-             resources its scenes use"
-        ),
-    }
 }
 
 /// The name an imported file's outputs share: its stem, lowercased, with

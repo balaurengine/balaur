@@ -1,0 +1,1159 @@
+// The theme window: every colour, role and kind the worn theme holds, each
+// drawn as itself, with the keys of the one picked listed under it. A bundled
+// theme is read-only; a copy of it in the person's themes folder edits live.
+
+use editor;
+use inspector;
+use pool;
+use settings;
+use style;
+use theme;
+use util;
+use window;
+
+pub class ThemewinState {
+    page: str,
+    path: [str],
+    table: str,
+    own: any,
+    dirty: bool,
+    pairs: [any],
+    said: str,
+    demo: int,
+    test: Test,
+}
+
+/// What `--state themeeditdemo` keeps to put back: the preferences file as it
+/// was, and the theme it made.
+pub struct Test {
+    kept: str?,
+    name: str,
+}
+
+const ID: str = "theme";
+
+// What a role with no fill of its own is drawn on, for its contrast.
+const GROUND: str = "bg_panel";
+
+fn PAGES() -> [str] {
+    ["colors", "sizes", "text", "controls", "boxes", "layout", "kinds", "problems"]
+}
+
+// The tables under a role that replace it in a state, and the class one.
+fn STATES() -> [str] {
+    ["hover", "active", "focus", "disabled", "checked", "touch"]
+}
+
+// Every key a role or a kind may state, in the order its rows list them.
+fn KEYS() -> [str] {
+    [
+        "fill",
+        "text_color",
+        "stroke",
+        "icon_color",
+        "icon_fill",
+        "font_family",
+        "font_size",
+        "font_weight",
+        "text_align",
+        "height",
+        "width",
+        "corner_radius",
+        "padding",
+        "padding_x",
+        "padding_y",
+        "gap",
+        "stroke_width",
+    ]
+}
+
+fn COLOR_KEYS() -> [str] {
+    ["fill", "text_color", "stroke", "icon_color", "icon_fill"]
+}
+
+// The keys a size's name may stand in for a number on.
+fn SIZE_KEYS() -> [str] {
+    [
+        "font_size",
+        "height",
+        "width",
+        "corner_radius",
+        "padding",
+        "padding_x",
+        "padding_y",
+        "gap",
+        "stroke_width",
+    ]
+}
+
+// The colours a theme states, which every other token is worked out from.
+fn SOURCES() -> [str] {
+    ["background", "foreground", "primary", "secondary", "success", "warning", "danger"]
+}
+
+// Under this the pages go above the rows rather than beside them.
+const STACK_BELOW: float = 520.0;
+
+pub fn state() -> ThemewinState {
+    ThemewinState {
+        page: "colors",
+        // The table picked: `["roles", "tab"]` or a kind's `["panel"]`, and
+        // which of its state tables, "" for the role itself.
+        path: [],
+        table: "",
+        // The person's theme as its file holds it, unmerged; nothing while a
+        // bundled theme is worn, which is what makes the window read-only.
+        own: nil,
+        dirty: false,
+        // Every role's ink on its fill, for the worn document.
+        pairs: [],
+        said: "",
+        // Where `--state themeeditdemo` has got to; -1 when it is not running.
+        demo: -1,
+        test: Test { kept: nil, name: "" },
+    }
+}
+
+pub fn open(S: &mut editor::State) {
+    window::show(S, ID);
+    load_own(S);
+}
+
+/// Open on a page with one entry picked, for a screenshot or a self-test.
+pub fn open_at(S: &mut editor::State, page: str, path: [str]) {
+    open(S);
+    S.themewin.page = page;
+    S.themewin.path = path;
+    S.themewin.table = "";
+}
+
+pub fn editable(S: editor::State) -> bool {
+    !S.themewin.own.is_nil()
+}
+
+fn load_own(S: &mut editor::State) {
+    let name = S.theme.get("name").as_str();
+    let own = if theme::is_bundled(name) { nil } else { theme::own_half(name, S.theme.get("half").as_str()) };
+    S.themewin.own = own;
+    S.themewin.dirty = false;
+    S.themewin.pairs = ui::contrast_pairs(S.theme.doc, GROUND);
+}
+
+/// Fill the sheet: what its script asks for when Theme is up.
+pub fn fill(S: &mut editor::State) {
+    let k = S.theme;
+    let stacked = ui::window_size().x < STACK_BELOW;
+    let hosts = window::sheet_form(S, ID, "Theme", save_button(S));
+    if hosts.is_none() {
+        return;
+    }
+    let hosts = hosts.unwrap();
+    pool::strip(S, hosts.side_rows, if stacked { [] } else { side_controls(S) });
+    util::fill(hosts.side, map().with("visible", !stacked));
+    let specs = form_specs(S);
+    if stacked {
+        specs.insert(0, page_picker(S));
+    }
+    pool::sync(S, hosts.form, specs, label_w(S), stacked);
+}
+
+fn label_w(S: editor::State) -> float {
+    util::clamp((window::inner_w(S) - 210.0) * 0.28, 120.0, 220.0)
+}
+
+// Save, beside the close, while there is an edit to save.
+fn save_button(S: editor::State) -> [any] {
+    if !S.themewin.dirty {
+        return [];
+    }
+    return [
+        map()
+            .with("kind", "button")
+            .with("role", "action_form_primary")
+            .with("text", "Save")
+            .with("on", "handle")
+            .with("data", map().with("fn", save_button_on_0)),
+    ];
+}
+
+fn save_button_on_0(S: &mut editor::State, data: any, _0: any) {
+    save(S);
+}
+
+fn page_title(S: editor::State, page: str) -> str {
+    let n = if page == "colors" {
+        S.theme.get("colors").len()
+    } else if page == "sizes" {
+        S.theme.get("sizes").len()
+    } else if page == "problems" {
+        problems(S).len()
+    } else if page == "kinds" {
+        kind_names(S.theme.get("doc")).len()
+    } else {
+        role_names(S.theme.get("doc"), page).len()
+    };
+    let word = page.slice(0, 1).to_upper() + page.slice(1, page.len());
+    "{word}  {n}"
+}
+
+fn side_controls(S: editor::State) -> [any] {
+    let out: [any] = [];
+    for name in PAGES() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let page = name;
+        let on = S.themewin.page == page;
+        out.push(map()
+            .with("kind", "button")
+            .with("text", page_title(S, page))
+            .with("role", "item_sidebar")
+            .with("checked", on)
+            .with("on", "handle")
+            .with("data", map().with("fn", side_controls_on_1).with("page", page)));
+    }
+    out
+}
+
+fn side_controls_on_1(S: &mut editor::State, data: any, _0: any) {
+    let page: str = data.page;
+    S.themewin.page = page;
+}
+
+fn page_picker(S: editor::State) -> any {
+    map()
+        .with("full", true)
+        .with("height", style::row_h(S))
+        .with("controls", [
+            map()
+                .with("kind", "dropdown")
+                .with("role", "choice_form")
+                .with("grow", 1)
+                .with("text", S.themewin.page)
+                .with("options", PAGES())
+                .with("on", "handle")
+                .with("data", map().with("fn", page_picker_on_2)),
+        ])
+}
+
+fn page_picker_on_2(S: &mut editor::State, data: any, picked: any) {
+    S.themewin.page = picked.as_str();
+}
+
+/// Which page a role belongs on, by the component its name starts with.
+pub fn page_of(name: str) -> str {
+    let component = name.split("_")[0];
+    if component == "text" {
+        "text"
+    } else if component == "note" || component == "sheet" || component == "header" || component == "toolbar" {
+        "boxes"
+    } else if component == "layout" || component == "list" {
+        "layout"
+    } else {
+        "controls"
+    }
+}
+
+fn sorted_keys(table: any) -> [str] {
+    let out: [str] = [];
+    for key in table.keys() {
+        out.push(key);
+    }
+    out.sort();
+    out
+}
+
+fn role_names(doc: any, page: str) -> [str] {
+    let roles = util::obj(doc.roles);
+    let out: [str] = [];
+    for name in sorted_keys(roles) {
+        if page_of(name) == page {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// The kind tables: every table a document holds beside its colours and roles.
+fn kind_names(doc: any) -> [str] {
+    let out: [str] = [];
+    for key in sorted_keys(doc) {
+        if key != "colors" && key != "sizes" && key != "roles" && doc.get(key).kind() == "map" {
+            out.push(key);
+        }
+    }
+    out
+}
+
+fn problems(S: editor::State) -> [any] {
+    let out: [any] = [];
+    for pair in util::vec(S.themewin.pairs) {
+        if pair.ratio.as_float() < pair.need.as_float() {
+            out.push(pair);
+        }
+    }
+    out
+}
+
+fn form_specs(S: editor::State) -> [any] {
+    let doc = S.theme.get("doc");
+    let out = head_specs(S);
+    let page = S.themewin.page;
+    if page == "colors" {
+        color_specs(S, doc, out);
+    } else if page == "sizes" {
+        size_specs(S, doc, out);
+    } else if page == "problems" {
+        problem_specs(S, out);
+    } else if page == "kinds" {
+        for name in kind_names(doc) {
+            entry_specs(S, doc, [name], out);
+        }
+    } else {
+        for name in role_names(doc, page) {
+            entry_specs(S, doc, ["roles", name], out);
+        }
+    }
+    out
+}
+
+fn head_specs(S: editor::State) -> [any] {
+    let h = style::row_h(S);
+    let name = S.theme.get("name").as_str();
+    let own: any = S.themewin.own;
+    let mine = editable(S);
+    let controls = [
+        map()
+            .with("kind", "dropdown")
+            .with("role", "choice_form")
+            .with("width", 180)
+            .with("text", name)
+            .with("options", theme::names())
+            .with("tooltip", "The theme the editor uses")
+            .with("on", "handle")
+            .with("data", map().with("fn", head_specs_on_3)),
+    ];
+    if mine {
+        controls.push(map()
+            .with("kind", "dropdown")
+            .with("role", "choice_form")
+            .with("width", 150)
+            .with("text", "based on " + theme::base_of(own))
+            .with("options", theme::BUNDLED())
+            .with("tooltip", "The bundled theme every key this one leaves out comes from")
+            .with("on", "handle")
+            .with("data", map().with("fn", head_specs_on_4)));
+    }
+    controls.push(map().with("kind", "row").with("grow", 1));
+    controls.push(map()
+        .with("kind", "button")
+        .with("role", "action_form_primary")
+        .with("text", "Duplicate")
+        .with("tooltip", "Copy this theme into your themes folder and use the copy")
+        .with("on", "handle")
+        .with("data", map().with("fn", head_specs_on_5)));
+    if mine && S.themewin.dirty {
+        controls.push(map()
+            .with("kind", "button")
+            .with("role", "action_form")
+            .with("text", "Revert")
+            .with("tooltip", "Drop the edits since the last save")
+            .with("on", "handle")
+            .with("data", map().with("fn", head_specs_on_6)));
+    }
+    if mine {
+        controls.push(map()
+            .with("kind", "button")
+            .with("role", "action_form_danger")
+            .with("text", "Delete")
+            .with("tooltip", "Remove this theme's folder and go back to its base")
+            .with("on", "handle")
+            .with("data", map().with("fn", head_specs_on_7)));
+    }
+    let out = [map().with("full", true).with("height", h).with("slot_role", "layout_actions").with("controls", controls)];
+    if mine {
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("controls", [
+                map()
+                    .with("kind", "text_field")
+                    .with("role", "input_form")
+                    .with("grow", 1)
+                    .with("text", name)
+                    .with("tooltip", "Enter renames the folder")
+                    .with("on_submit", "handle_submit")
+                    .with("data", map().with("submit", head_specs_on_8)),
+            ])
+            .with("label", "name"));
+    }
+    let tail = if S.themewin.dirty { "  ·  unsaved" } else { "" };
+    out.push(note_spec(if mine {
+        "themes/{name}/{S.theme.get("half")}.toml in the editor's data folder  ·  states only what differs from {theme::base_of(own)}{tail}"
+    } else {
+        "Bundled with the editor, so it is read-only. Duplicate it to change a color or a role."
+    }));
+    if S.themewin.said != "" {
+        out.push(note_spec(S.themewin.said));
+    }
+    out
+}
+
+fn head_specs_on_3(S: &mut editor::State, data: any, picked: any) {
+    choose(S, picked.as_str());
+}
+
+fn head_specs_on_4(S: &mut editor::State, data: any, picked: any) {
+    rebase(S, picked);
+}
+
+fn head_specs_on_5(S: &mut editor::State, data: any, _0: any) {
+    duplicate(S);
+}
+
+fn head_specs_on_6(S: &mut editor::State, data: any, _0: any) {
+    revert(S);
+}
+
+fn head_specs_on_7(S: &mut editor::State, data: any, _0: any) {
+    remove(S);
+}
+
+fn head_specs_on_8(S: &mut editor::State, data: any, text: any) {
+    rename(S, text);
+}
+
+fn note_spec(text: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 0)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_caption")
+                .with("grow", 1)
+                .with("wrap", true)
+                .with("text", text),
+        ])
+}
+
+fn color_specs(S: editor::State, doc: any, out: [any]) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let stated = util::obj(doc.colors);
+    let colors = S.theme.colors;
+    let ground = if colors.get(GROUND).is_nil() { "#000000" } else { colors.get(GROUND).as_str() };
+    let names = SOURCES();
+    for token in sorted_keys(colors) {
+        if !util::contains(SOURCES(), token) {
+            names.push(token);
+        }
+    }
+    for name in names {
+        let hex = if colors.get(name).is_nil() { "#000000" } else { colors.get(name).as_str() };
+        // A stated token reads as the theme's own; a derived one is quieter.
+        let own = stated.has(name);
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map()
+                    .with("kind", "color_picker")
+                    .with("width", 34)
+                    .with("picked_color", rgba_of(hex))
+                    .with("enabled", mine)
+                    .with("on", "handle")
+                    .with("data", map().with("fn", color_specs_on_11).with("name", name)),
+                map()
+                    .with("kind", "text_field")
+                    .with("role", "input_form")
+                    .with("width", 96)
+                    .with("text", hex)
+                    .with("enabled", mine)
+                    .with("on_submit", "handle_submit")
+                    .with("data", map().with("submit", color_specs_on_12).with("name", name)),
+                map()
+                    .with("kind", "label")
+                    .with("role", "text_caption")
+                    .with("grow", 1)
+                    .with("text", if is_hex(hex) && is_hex(ground) {
+                        let derived = if own { "" } else { "derived  ·  " };
+                        "{derived}{util::fixed(ui::contrast(hex, ground), 2)}:1 on {GROUND}"
+                    } else {
+                        ""
+                    }),
+            ])
+            .with("label", name)
+            .with("label_role", if own { "text_label" } else { "text_caption" }));
+    }
+}
+
+fn color_specs_on_11(S: &mut editor::State, data: any, rgba: any) {
+    edit(S, ["colors"], data.name.as_str(), util::to_hex(rgba_list(rgba)));
+}
+
+// A picked colour, as the four numbers `to_hex` reads.
+fn rgba_list(rgba: any) -> [float] {
+    [util::f(rgba[0]), util::f(rgba[1]), util::f(rgba[2]), if rgba.len() > 3 { util::f(rgba[3]) } else { 1.0 }]
+}
+
+fn color_specs_on_12(S: &mut editor::State, data: any, text: any) {
+    edit_hex(S, data.name.as_str(), text.as_str());
+}
+
+fn size_specs(S: editor::State, doc: any, out: [any]) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let stated = util::obj(doc.sizes);
+    for name in sorted_keys(S.theme.sizes) {
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map()
+                    .with("kind", "number_field")
+                    .with("role", "input_number")
+                    .with("width", 96)
+                    .with("value", util::f(S.theme.get("sizes").get(name)))
+                    .with("min", 0.0)
+                    .with("max", 200.0)
+                    .with("drag_speed", 1.0)
+                    .with("enabled", mine)
+                    .with("on", "handle")
+                    .with("data", map().with("fn", size_specs_on_13).with("name", name)),
+            ])
+            .with("label", name)
+            .with("label_role", if stated.has(name) { "text_label" } else { "text_caption" }));
+    }
+}
+
+fn size_specs_on_13(S: &mut editor::State, data: any, v: any) {
+    edit(S, ["sizes"], data.name.as_str(), whole(v));
+}
+
+fn rgba_of(hex: str) -> [float] {
+    let c = util::hex_to_rgb(hex);
+    [c.r, c.g, c.b, 1.0]
+}
+
+fn is_hex(text: str) -> bool {
+    if text.len() != 7 || !text.starts_with("#") {
+        return false;
+    }
+    for c in text.slice(1, text.len()).chars() {
+        if !"0123456789abcdefABCDEF".contains(c) {
+            return false;
+        }
+    }
+    true
+}
+
+fn edit_hex(S: &mut editor::State, name: str, text: str) {
+    if is_hex(text) {
+        edit(S, ["colors"], name, text.to_lower());
+    } else {
+        S.themewin.said = "'{text}' is not a #rrggbb color";
+    }
+}
+
+fn table_at(doc: any, path: [str]) -> any {
+    let t = util::obj(doc);
+    for part in path {
+        if !(t.has(part) && t.get(part).kind() == "map") {
+            return map();
+        }
+        t = t.get(part);
+    }
+    t
+}
+
+fn same_path(a: [str], b: [str]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+    }
+    true
+}
+
+fn pick(S: &mut editor::State, path: [str]) {
+    let again = same_path(S.themewin.path, path);
+    let next = if again { [] } else { path };
+    S.themewin.path = next;
+    S.themewin.table = "";
+}
+
+fn height_of(S: editor::State, t: any) -> float {
+    let h = style::row_h(S);
+    let own = style::px(S, t.get("height").as_float());
+    util::max(h, own + 4.0)
+}
+
+/// What a table states in a line: a layout role's air, or a kind's frame.
+fn summary(t: any) -> str {
+    let out = "";
+    for key in KEYS() {
+        if t.has(key) && !(t.get(key).kind() == "map") {
+            let part = "{key} {t.get(key)}";
+            out = if out == "" { part } else { out + "  ·  " + part };
+        }
+    }
+    if out == "" { "nothing stated" } else { out }
+}
+
+/// The entry drawn as itself: a text role as a label in it, a control or a
+/// box as a button wearing it, and layout as the numbers it states.
+fn sample(S: editor::State, name: str, path: [str], t: any) -> any {
+    let page = if path.len() == 2 { page_of(name) } else { "kinds" };
+    if page == "layout" || page == "kinds" {
+        return map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", summary(t));
+    }
+    if page == "text" {
+        return map().with("kind", "label").with("role", name).with("grow", 1).with("text", name);
+    }
+    map().with("kind", "button").with("role", name).with("width", 200).with("text", name).with("on", "handle").with("data", map().with("fn", sample_on_14).with("path", path))
+}
+
+fn sample_on_14(S: &mut editor::State, data: any, _0: any) {
+    let path: [str] = data.path;
+    pick(S, path);
+}
+
+fn entry_specs(S: editor::State, doc: any, path: [str], out: [any]) {
+    let name = path[path.len() - 1];
+    let t = table_at(doc, path);
+    let picked = same_path(S.themewin.path, path);
+    out.push(map()
+        .with("full", false)
+        .with("height", height_of(S, t))
+        .with("slot_role", "layout_actions")
+        .with("controls", [
+            sample(S, name, path, t),
+            map()
+                .with("kind", "button")
+                .with("role", "chip")
+                .with("checked", picked)
+                .with("text", if picked { "editing" } else { "edit" })
+                .with("on", "handle")
+                .with("data", map().with("fn", entry_specs_on_15).with("path", path)),
+        ])
+        .with("label", name));
+    if picked {
+        inspector_specs(S, doc, path, out);
+    }
+}
+
+fn entry_specs_on_15(S: &mut editor::State, data: any, _0: any) {
+    let path: [str] = data.path;
+    pick(S, path);
+}
+
+fn state_chips(S: editor::State, t: any) -> [any] {
+    let bare = S.themewin.table == "";
+    let chips = [
+        map()
+            .with("kind", "button")
+            .with("role", "chip")
+            .with("checked", bare)
+            .with("text", "role")
+            .with("on", "handle")
+            .with("data", map().with("fn", state_chips_on_16)),
+    ];
+    for name in STATES() {
+        let word = name;
+        let there = t.has(word) && t.get(word).kind() == "map";
+        let on = S.themewin.table == word;
+        chips.push(map()
+            .with("kind", "button")
+            .with("role", if there || on { "chip" } else { "chip_quiet" })
+            .with("checked", on)
+            .with("text", if there { word } else { "+ " + word })
+            .with("tooltip", if there { "Edit the table this state uses" } else { "Nothing stated for this state yet" })
+            .with("on", "handle")
+            .with("data", map().with("fn", state_chips_on_17).with("word", word)));
+    }
+    chips
+}
+
+fn state_chips_on_16(S: &mut editor::State, data: any, _0: any) {
+    S.themewin.table = "";
+}
+
+fn state_chips_on_17(S: &mut editor::State, data: any, _0: any) {
+    let word: str = data.word;
+    S.themewin.table = word;
+}
+
+fn inspector_specs(S: editor::State, doc: any, path: [str], out: [any]) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let role_t = table_at(doc, path);
+    out.push(map()
+        .with("full", false)
+        .with("height", h)
+        .with("slot_role", "layout_actions")
+        .with("controls", state_chips(S, role_t))
+        .with("label", "  table"));
+    let at = inspector_specs_collect_18(path);
+    if S.themewin.table != "" {
+        at.push(S.themewin.table);
+    }
+    let t = table_at(doc, at);
+    let own_t = table_at(S.themewin.own, at);
+    let missing: [str] = [];
+    for key in KEYS() {
+        if t.has(key) && !(t.get(key).kind() == "map") {
+            out.push(key_spec(S, doc, at, key, t.get(key), own_t.has(key), mine));
+        } else {
+            missing.push(key);
+        }
+    }
+    if mine && missing.len() > 0 {
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("controls", [
+                map()
+                    .with("kind", "dropdown")
+                    .with("role", "choice_form")
+                    .with("width", 200)
+                    .with("text", "add a key…")
+                    .with("options", missing)
+                    .with("on", "handle")
+                    .with("data", map().with("fn", inspector_specs_on_19).with("at", at)),
+            ])
+            .with("label", "  add"));
+    }
+    if path.len() == 2 {
+        let who = if S.themewin.table == "" { path[1] } else { path[1] + "." + S.themewin.table };
+        for pair in util::vec(S.themewin.pairs) {
+            if pair.role.as_str() == who {
+                let verdict = if pair.ratio.as_float() >= pair.need.as_float() { "reads at AA" } else { "needs {pair.need}" };
+                out.push(note_spec("{pair.ink.as_str()} on {pair.fill.as_str()}: {util::fixed(pair.ratio.as_float(), 2)}:1, {verdict}"));
+            }
+        }
+    }
+}
+
+fn inspector_specs_collect_18(items: [str]) -> [str] {
+    let out: [str] = [];
+    for item in items {
+        out.push(item);
+    }
+    out
+}
+
+fn inspector_specs_on_19(S: &mut editor::State, data: any, picked: any) {
+    let at: [str] = data.at;
+    edit(S, at, picked.as_str(), default_of(picked));
+}
+
+fn key_spec(S: editor::State, doc: any, at: [str], key: str, value: any, stated: bool, mine: bool) -> any {
+    let controls = control_for(S, doc, at, key, value, mine);
+    if mine && stated {
+        controls.push(map()
+            .with("kind", "button")
+            .with("role", "chip_quiet")
+            .with("text", "×")
+            .with("tooltip", "Back to the base theme's value")
+            .with("on", "handle")
+            .with("data", map().with("fn", key_spec_on_20).with("at", at).with("key", key)));
+    }
+    // A key this theme states reads as its own; one it leaves to its base is
+    // quieter, so what the file says stands out from what it inherits.
+    map()
+        .with("full", false)
+        .with("height", h_of(S))
+        .with("slot_role", "layout_actions")
+        .with("controls", controls)
+        .with("label", "  " + key)
+        .with("label_role", if stated || !mine { "text_label" } else { "text_caption" })
+}
+
+fn key_spec_on_20(S: &mut editor::State, data: any, _0: any) {
+    let at: [str] = data.at;
+    let key: str = data.key;
+    clear(S, at, key);
+}
+
+fn h_of(S: editor::State) -> float {
+    style::row_h(S)
+}
+
+fn words_of(S: editor::State, key: str, value: any) -> [str] {
+    if key == "font_family" {
+        ["ui", "heading", "mono", "icon"]
+    } else if key == "text_align" {
+        ["start", "center", "end"]
+    } else if value.kind() == "str" && words_of_any_21(key, SIZE_KEYS()) {
+        let names = sorted_keys(S.theme.get("sizes"));
+        if key == "corner_radius" {
+            names.push("full");
+        }
+        names
+    } else {
+        []
+    }
+}
+
+fn words_of_any_21(key: str, items: [str]) -> bool {
+    for k in items {
+        if k == key {
+            return true;
+        }
+    }
+    false
+}
+
+fn control_for(S: editor::State, doc: any, at: [str], key: str, value: any, mine: bool) -> [any] {
+    if control_for_any_22(key, COLOR_KEYS()) {
+        let got1 = S.theme.get("colors").get(value);
+        let hex = if got1.is_nil() { value } else { got1 };
+        let options = sorted_keys(S.theme.get("colors"));
+        return [
+            map()
+                .with("kind", "color_picker")
+                .with("width", 34)
+                .with("picked_color", rgba_of((if is_hex(hex.as_str()) { hex } else { "#000000" }).as_str()))
+                .with("enabled", mine)
+                .with("on", "handle")
+                .with("data", map().with("fn", control_for_on_23).with("at", at).with("key", key)),
+            map()
+                .with("kind", "dropdown")
+                .with("role", "choice_form")
+                .with("grow", 1)
+                .with("text", "{value}")
+                .with("options", options)
+                .with("enabled", mine)
+                .with("on", "handle")
+                .with("data", map().with("fn", control_for_on_24).with("at", at).with("key", key)),
+        ];
+    }
+    let words = words_of(S, key, value);
+    if words.len() > 0 {
+        return [
+            map()
+                .with("kind", "dropdown")
+                .with("role", "choice_form")
+                .with("grow", 1)
+                .with("text", "{value}")
+                .with("options", words)
+                .with("enabled", mine)
+                .with("on", "handle")
+                .with("data", map().with("fn", control_for_on_25).with("at", at).with("key", key)),
+        ];
+    }
+    if value.kind() == "int" || value.kind() == "float" {
+        return [
+            map()
+                .with("kind", "number_field")
+                .with("role", "input_number")
+                .with("grow", 1)
+                .with("value", util::f(value))
+                .with("min", 0.0)
+                .with("max", 2000.0)
+                .with("drag_speed", 1.0)
+                .with("enabled", mine)
+                .with("on", "handle")
+                .with("data", map().with("fn", control_for_on_26).with("at", at).with("key", key)),
+        ];
+    }
+    let typed = [
+        map()
+            .with("kind", "text_field")
+            .with("role", "input_form")
+            .with("grow", 1)
+            .with("text", "{value}")
+            .with("enabled", mine)
+            .with("on_submit", "handle_submit")
+            .with("data", map().with("submit", control_for_on_27).with("at", at).with("key", key)),
+    ];
+    typed
+}
+
+fn control_for_any_22(key: str, items: [str]) -> bool {
+    for c in items {
+        if c == key {
+            return true;
+        }
+    }
+    false
+}
+
+fn control_for_on_23(S: &mut editor::State, data: any, rgba: any) {
+    let at: [str] = data.at;
+    edit(S, at, data.key.as_str(), util::to_hex(rgba_list(rgba)));
+}
+
+fn control_for_on_24(S: &mut editor::State, data: any, picked: any) {
+    let at: [str] = data.at;
+    let key: str = data.key;
+    edit(S, at, key, picked);
+}
+
+fn control_for_on_25(S: &mut editor::State, data: any, picked: any) {
+    let at: [str] = data.at;
+    let key: str = data.key;
+    edit(S, at, key, picked);
+}
+
+fn control_for_on_26(S: &mut editor::State, data: any, v: any) {
+    let at: [str] = data.at;
+    let key: str = data.key;
+    edit(S, at, key, whole(v));
+}
+
+fn control_for_on_27(S: &mut editor::State, data: any, text: any) {
+    let at: [str] = data.at;
+    let key: str = data.key;
+    edit(S, at, key, text);
+}
+
+/// A number as a file would spell it: whole ones without the `.0`.
+fn whole(v: any) -> any {
+    let n = util::f(v);
+    let out: any = n;
+    if ((n as int) as float) == n {
+        out = n as int;
+    }
+    out
+}
+
+fn default_of(key: any) -> any {
+    if default_of_any_28(key, COLOR_KEYS()) {
+        return if key.as_str() == "text_color" { "text_default" } else { "bg_panel" };
+    }
+    if key.as_str() == "font_family" {
+        return "ui";
+    }
+    if key.as_str() == "text_align" {
+        return "start";
+    }
+    if key.as_str() == "font_weight" {
+        return 700;
+    }
+    if key.as_str() == "font_size" { "font_size" } else { 0 }
+}
+
+fn default_of_any_28(key: any, items: [str]) -> bool {
+    for c in items {
+        if c == key.as_str() {
+            return true;
+        }
+    }
+    false
+}
+
+fn problem_specs(S: editor::State, out: [any]) {
+    let found = problems(S);
+    if found.len() == 0 {
+        out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold."));
+        return;
+    }
+    let h = style::row_h(S);
+    for pair in found {
+        let parts = pair.role.as_str().split(".");
+        let name = parts[0];
+        let table = if parts.len() > 1 { parts[1] } else { "" };
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map()
+                    .with("kind", "label")
+                    .with("role", "text_caption")
+                    .with("grow", 1)
+                    .with("text", "{pair.ink.as_str()} on {pair.fill.as_str()}: {util::fixed(pair.ratio.as_float(), 2)}:1, needs {pair.need}"),
+                map()
+                    .with("kind", "button")
+                    .with("role", "chip")
+                    .with("text", "edit")
+                    .with("on", "handle")
+                    .with("data", map().with("fn", problem_specs_on_29).with("name", name).with("table", table)),
+            ])
+            .with("label", pair.get("role").as_str()));
+    }
+}
+
+fn problem_specs_on_29(S: &mut editor::State, data: any, _0: any) {
+    let name: str = data.name;
+    let table: str = data.table;
+    show_role(S, name, table);
+}
+
+/// Turn to the page a role is on, picked, at one of its state tables.
+pub fn show_role(S: &mut editor::State, name: str, table: str) {
+    S.themewin.page = page_of(name);
+    S.themewin.path = ["roles", name];
+    S.themewin.table = table;
+}
+
+/// Write one key of the person's theme and wear the result. A bundled theme
+/// has no `own`, so nothing is written.
+pub fn edit(S: &mut editor::State, path: [str], key: str, value: any) {
+    let own: any = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let t: any = own;
+    for part in path {
+        if !(t.has(part) && t.get(part).kind() == "map") {
+            t.set(part, map());
+        }
+        t = t.get(part);
+    }
+    t.set(key, value);
+    changed(S);
+}
+
+fn clear(S: &mut editor::State, path: [str], key: str) {
+    let own: any = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let t = table_at(own, path);
+    if t.has(key) {
+        t.remove(key);
+    }
+    changed(S);
+}
+
+fn changed(S: &mut editor::State) {
+    S.themewin.dirty = true;
+    S.themewin.said = "";
+    let own: any = S.themewin.own;
+    let doc = theme::merge(theme::bundled(theme::base_of(own), S.theme.get("half").as_str()), own);
+    theme::wear(S, S.theme.get("name").as_str(), doc);
+    let pairs = ui::contrast_pairs(doc, GROUND);
+    S.themewin.pairs = pairs;
+}
+
+fn rebase(S: &mut editor::State, picked: any) {
+    let own: any = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    own.set("base", picked);
+    changed(S);
+}
+
+/// Wear another theme, remembered as the setting.
+pub fn choose(S: &mut editor::State, name: str) {
+    settings::set(theme::SETTING, name);
+    settings::commit_prefs(S);
+    theme::use_named(S, name);
+    load_own(S);
+    S.themewin.said = "";
+}
+
+/// Write the worn half of the person's theme: only what differs from the same
+/// half of its base, under the base it names.
+pub fn save(S: &mut editor::State) {
+    let own: any = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let half = S.theme.get("half").as_str();
+    let base_name = theme::base_of(own);
+    let base = theme::bundled(base_name, half);
+    let out = theme::diff(base, theme::merge(base, own));
+    out.set("type", "widget_theme");
+    out.set("base", base_name);
+    fs::create_directory(theme::folder_of(S.theme.get("name").as_str()));
+    fs::write(theme::path_of(S.theme.get("name").as_str(), half), toml::encode(out));
+    S.themewin.own = out;
+    S.themewin.dirty = false;
+    S.themewin.said = "Saved themes/{S.theme.get("name")}/{half}.toml";
+}
+
+fn revert(S: &mut editor::State) {
+    theme::reload(S);
+    load_own(S);
+    S.themewin.said = "";
+}
+
+/// A name for a copy nobody has used: `balaur-custom`, then `balaur-custom-2`.
+fn fresh_name(from: str) -> str {
+    let stem = if theme::is_bundled(from) { from + "-custom" } else { from + "-copy" };
+    let taken = theme::names();
+    let name = stem;
+    let n = 2;
+    while fresh_name_any_30(name, taken) {
+        name = "{stem}-{n}";
+        n += 1;
+    }
+    name
+}
+
+fn fresh_name_any_30(name: str, items: [any]) -> bool {
+    for x in items {
+        if x.as_str() == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// Copy the worn theme into the themes folder and wear the copy. A bundled one
+/// becomes a folder whose worn half names it as its base and nothing else.
+pub fn duplicate(S: &mut editor::State) -> str {
+    let from = S.theme.get("name").as_str();
+    let name = fresh_name(from);
+    fs::create_directory(theme::folder_of(name));
+    for half in theme::HALVES() {
+        let copy = if !theme::is_bundled(from) {
+            theme::read(from, half)
+        } else if half == S.theme.half.as_str() {
+            map().with("base", from)
+        } else {
+            nil
+        };
+        if copy.kind() == "map" {
+            copy.set("type", "widget_theme");
+            fs::write(theme::path_of(name, half), toml::encode(copy));
+        }
+    }
+    choose(S, name);
+    S.themewin.said = "Duplicated " + from + " as " + name;
+    name
+}
+
+fn rename(S: &mut editor::State, text: any) {
+    let old = S.theme.get("name").as_str();
+    let name = text.trim();
+    let bad = name == "" || name.contains("/") || name.contains(".");
+    if bad || theme::is_bundled(name) || rename_any_31(name, theme::names()) {
+        S.themewin.said = "'{text}' is not a name a new theme folder can take";
+        return;
+    }
+    if S.themewin.dirty {
+        save(S);
+    }
+    fs::rename(theme::folder_of(old), theme::folder_of(name));
+    choose(S, name);
+    S.themewin.said = "Renamed " + old + " to " + name;
+}
+
+fn rename_any_31(name: str, items: [any]) -> bool {
+    for x in items {
+        if x.as_str() == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// Remove the worn theme's folder, both halves, and go back to its base.
+pub fn remove(S: &mut editor::State) {
+    let own: any = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let back = theme::base_of(own);
+    fs::remove(theme::folder_of(S.theme.get("name").as_str()));
+    choose(S, back);
+}

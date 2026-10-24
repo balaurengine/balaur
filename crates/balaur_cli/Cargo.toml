@@ -14,7 +14,7 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor", "bs", "bs-jit"]
 # rapier's solver on rayon. The plain web runtime leaves it off: rayon blocks
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]
@@ -48,9 +48,15 @@ import = ["dep:balaur_import", "balaur/svg"]
 # scripts call, a browser tab's editor entry points, and egui's bundled faces.
 # A game template leaves it off.
 editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
-# The Rune compiler and the WESL shader linker. Off, the build runs only packs
-# exported without `--keep-sources`, drawing with the shaders the export linked.
+# The WESL shader linker and the `.bs` to C translator. Off, the build draws
+# with the shaders an export linked into the pack.
 compile = ["balaur/compile"]
+# Balaur Script (`.bs`), on wasmi; `bs-jit` runs it on wasmtime where a JIT
+# may run, `bs-web` on the browser's own engine.
+bs = ["balaur/bs"]
+bs-wasmi = ["balaur/bs-wasmi"]
+bs-jit = ["balaur/bs-jit"]
+bs-web = ["balaur/bs-web"]
 # `http.*` for scripts. Off, the build drops ureq and its TLS stack.
 http = ["balaur/http"]
 # `websocket.*` for scripts, and the websocket `Transport`.
@@ -87,6 +93,9 @@ tracing.workspace = true
 # Template download and self-update; the web build has neither, so wasm
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# `balaur port`: a project's Rune scripts as Balaur Script drafts, for a
+# project written before the engine ran Balaur Script alone.
+balaur_port.workspace = true
 # Reads the edited game's `project.toml` to hand its `[input]` to the engine.
 toml.workspace = true
 ureq.workspace = true
@@ -104,7 +113,7 @@ version = "0.17"
 optional = true
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # Rayon's workers as Web Workers, for the shared-memory template only: the
 # pool a browser cannot build through `std::thread`. `no-bundler` because the
@@ -131,6 +140,10 @@ web-sys = { version = "0.3.106", features = [
     "DomStringList",
     "Event",
     "EventTarget",
+    # `balaur-project-kept`, the page's word that files are kept, with the
+    # paths that changed (src/web_store.rs).
+    "CustomEvent",
+    "CustomEventInit",
     "IdbDatabase",
     "IdbFactory",
     "IdbKeyRange",
@@ -150,7 +163,7 @@ console_error_panic_hook = "0.1"
 # A web bundle exported from a tab: the pack zipped beside the glue and the
 # module (src/web_export.rs). `toml` reads the name off the manifest, which is
 # all a browser has to name the file it hands back.
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 toml.workspace = true
 
 [dev-dependencies]

@@ -1,7 +1,7 @@
 //! What the editor is told is off about a physics node: a body nothing
 //! collides with, a soft body the node cannot draw bent, and a write refused.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::warnings::{NodeWarning, warnings};
 
 use crate::LOG;
@@ -31,7 +31,7 @@ name = "Root"
 {nodes}"#
     );
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
     app.tick(1.0 / 60.0);

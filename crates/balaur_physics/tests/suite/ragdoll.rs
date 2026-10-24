@@ -3,7 +3,7 @@
 //! Everything here goes through the scene and the script seam, because that
 //! is what an editor button and a game's own `fall over` both reach for.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::App;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, GlobalTransform};
@@ -14,7 +14,7 @@ use crate::LOG;
 const RIG: &str = r#"[[nodes]]
 id = "n_rig"
 name = "Rig"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [[nodes]]
 id = "n_hip"
@@ -62,15 +62,15 @@ fn run(scene: &str, script: &str, frames: usize) -> (App, Vec<String>) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }
-    let errors = balaur_core::logbuf::recent(80)
+    let errors = balaur_core::logbuf::recent(500)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -106,7 +106,11 @@ fn global_y(app: &App, entity: Entity) -> f32 {
 fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0 }); }",
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
+}
+"#,
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -141,7 +145,11 @@ fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
 fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
+        r"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map()); }
+}
+",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -154,7 +162,11 @@ fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
 fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0 }); }",
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
+}
+"#,
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -174,17 +186,20 @@ fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
 fn ragdoll_blend_turns_it_on_partway_through() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{ influence: 0.0 });
-    this.ticks = 0;
-}
-
-pub fn update(this, dt) {
-    this.ticks += 1;
-    if this.ticks == 30 {
-        this.node.ragdoll.set_ragdoll_influence(1.0);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn init() {
+        physics2d::ragdoll(self.node, map().with("influence", 0.0));
     }
-}",
+
+    fn update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 30 {
+            self.node.ragdoll.set_ragdoll_influence(1.0);
+        }
+    }
+}
+"#,
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -202,7 +217,11 @@ fn a_limp_rig_starts_from_the_pose_it_was_built_in() {
     // turn their shapes, never the bones they hand back.
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
+        r"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map()); }
+}
+",
         1,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -221,17 +240,20 @@ fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
     // limp for half a second, then the blend returns and they must too.
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{ influence: 1.0 });
-    this.ticks = 0;
-}
-
-pub fn update(this, dt) {
-    this.ticks += 1;
-    if this.ticks == 30 {
-        this.node.ragdoll.set_ragdoll_influence(0.0);
+        r#"pub struct S { node: Node, ticks: int }
+impl S {
+    fn init() {
+        physics2d::ragdoll(self.node, map().with("influence", 1.0));
     }
-}",
+
+    fn update(dt: float) {
+        self.ticks += 1;
+        if self.ticks == 30 {
+            self.node.ragdoll.set_ragdoll_influence(0.0);
+        }
+    }
+}
+"#,
         60,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -252,7 +274,11 @@ pub fn update(this, dt) {
 fn a_rollback_to_a_limp_tick_gets_back_up_the_same_way() {
     let (mut app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 1.0 }); }",
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map().with("influence", 1.0)); }
+}
+"#,
         29,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -280,9 +306,13 @@ fn a_node_with_no_bones_says_so_rather_than_building_nothing() {
         r#"[[nodes]]
 id = "n"
 name = "Plain"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 "#,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
+        r"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map()); }
+}
+",
         2,
     );
     assert!(
@@ -295,14 +325,18 @@ script = { source = "scripts/s.rn" }
 fn a_ragdoll_carries_the_body_shape_and_joint_options_it_was_built_with() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{
-        influence: 0.0, shape: "rectangle", restitution: 0.3, collision_layer: [2],
-        linear_damping: 0.5, gravity_scale: 0.25, continuous_collision: true,
-        articulation: true, collide_connected: true, drive: "motors", stiffness: 40.0,
-        axes: [#{ axis: physics2d::AXIS_ROTATION, limits: [-0.5, 0.5] }],
-    });
-}"#,
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        physics2d::ragdoll(self.node, map()
+            .with("influence", 0.0).with("shape", "rectangle").with("restitution", 0.3)
+            .with("collision_layer", [2]).with("linear_damping", 0.5).with("gravity_scale", 0.25)
+            .with("continuous_collision", true).with("articulation", true)
+            .with("collide_connected", true).with("drive", "motors").with("stiffness", 40.0)
+            .with("axes", [map().with("axis", physics2d::AXIS_ROTATION).with("limits", [-0.5, 0.5])]));
+    }
+}
+"#,
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -374,9 +408,13 @@ fn a_ragdoll_carries_the_body_shape_and_joint_options_it_was_built_with() {
 fn a_follow_drive_holds_a_limp_rig_on_its_bones() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{ drive: "follow", follow: #{ kind: "pid" } });
-}"#,
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        physics2d::ragdoll(self.node, map().with("drive", "follow").with("follow", map().with("kind", "pid")));
+    }
+}
+"#,
         60,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -410,7 +448,11 @@ fn a_ragdoll_joint_measures_its_angle_from_the_built_pose() {
     );
     let (app, errors) = run(
         &rig,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0, gravity_scale: 0.0 }); }",
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0).with("gravity_scale", 0.0)); }
+}
+"#,
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");

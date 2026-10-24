@@ -61,8 +61,9 @@ fn a_keep_glob_protects_an_asset_nothing_names() {
 fn a_path_in_a_script_literal_counts_as_a_reference() {
     let mut pack = two_textures();
     pack.scripts.insert(
-        "player.rn".to_string(),
-        b"pub fn init(node) { node.set_texture(\"art/spare.png\"); }".to_vec(),
+        "player.bs".to_string(),
+        b"pub struct P { node: Node }\nimpl P { fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
+            .to_vec(),
     );
     assert!(pack.unreferenced(&[]).is_empty());
 }
@@ -80,7 +81,7 @@ fn a_picture_the_manifest_names_survives_a_strip() {
 fn a_script_that_is_bytecode_leaves_the_walk_alone() {
     let mut pack = two_textures();
     pack.scripts
-        .insert("player.rn".to_string(), vec![0xff, 0xfe, 0x00, 0x01]);
+        .insert("player.bs".to_string(), vec![0xff, 0xfe, 0x00, 0x01]);
     assert_eq!(pack.unreferenced(&[]), vec!["art/spare.png"]);
 }
 
@@ -148,14 +149,14 @@ fn a_fnt_descriptor_is_an_extension_a_pack_ships() {
 #[test]
 fn the_reports_section_bytes_add_up_to_the_encoded_pack() {
     let mut pack = two_textures();
-    pack.scripts.insert("player.rn".to_string(), vec![7; 100]);
+    pack.scripts.insert("player.bs".to_string(), vec![7; 100]);
     let report = pack.report();
     assert_eq!(report.total, pack.encode().len());
     assert_eq!(
         report.sections.iter().map(|s| s.bytes).sum::<usize>(),
         report.total
     );
-    assert_eq!(report.sections.len(), 4);
+    assert_eq!(report.sections.len(), 5);
 }
 
 #[test]
@@ -183,6 +184,7 @@ fn the_reports_display_names_every_section_and_the_unreferenced_count() {
         "scenes",
         "scripts",
         "assets",
+        "api",
         "png",
         "art/hero.png",
     ] {
@@ -217,16 +219,12 @@ fn print_a_real_report() {
         manifest: std::fs::read_to_string(root.join("editor/project.toml")).unwrap(),
         ..Pack::default()
     };
-    for entry in std::fs::read_dir(root.join("editor/scripts")).unwrap() {
-        let p = entry.unwrap().path();
-        let name = format!("scripts/{}", p.file_name().unwrap().to_string_lossy());
-        pack.scripts.insert(name, std::fs::read(&p).unwrap());
+    for (rel, p) in files_under(&root.join("editor"), "scripts") {
+        pack.scripts.insert(rel, std::fs::read(&p).unwrap());
     }
-    for entry in std::fs::read_dir(root.join("editor/scenes")).unwrap() {
-        let p = entry.unwrap().path();
-        let name = format!("scenes/{}", p.file_name().unwrap().to_string_lossy());
+    for (rel, p) in files_under(&root.join("editor"), "scenes") {
         pack.scenes
-            .insert(name, std::fs::read_to_string(&p).unwrap());
+            .insert(rel, std::fs::read_to_string(&p).unwrap());
     }
     for (dir, prefix) in [("editor/fonts", "fonts"), ("editor/assets", "assets")] {
         for entry in std::fs::read_dir(root.join(dir)).unwrap() {
@@ -236,4 +234,25 @@ fn print_a_real_report() {
         }
     }
     println!("----8<----\n{}\n---->8----", pack.report());
+}
+
+/// Every file under `base/dir`, at any depth, by its path from `base`: the
+/// editor keeps a panel's scene and script a folder down. A dotfile is the
+/// file manager's, not the project's.
+fn files_under(base: &std::path::Path, dir: &str) -> Vec<(String, std::path::PathBuf)> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(base.join(dir)).unwrap() {
+        let p = entry.unwrap().path();
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        let rel = format!("{dir}/{name}");
+        if p.is_dir() {
+            out.extend(files_under(base, &rel));
+        } else {
+            out.push((rel, p));
+        }
+    }
+    out
 }

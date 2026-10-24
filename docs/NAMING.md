@@ -129,7 +129,7 @@ Recorded so each stops being cited as precedent for the next.
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
 | `Flat` / `Solid` | A word-pair that already says which dimension it is, in one file. Suffixing `Solid` alone would orphan `Flat` and make the pair read less consistently, not more |
 | `PostPass::Material` beside `Material3d` | A screen-space post pass is not a surface material and carries no dimension; the 3D asset took the suffix, which is what separates them (N1) |
-| The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.rn` instead |
+| The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.bs` instead |
 | The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | Godot 4's class names throughout, a deliberate affordance for Godot users; one table, `model::display_types` |
 | `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
 | `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
@@ -396,7 +396,7 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Sheet frame, an int | `frame` | Godot |
 | Pixels in one world unit | `pixels_per_unit` | Unity |
 | Text layout | `text_align`, `font_family`, `bitmap_font`, `max_width`, `line_height`, `letter_spacing`, `markup` | CSS, Godot |
-| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y`; `shadow_offset` in the immediate API | Godot |
+| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y` | Godot |
 | Text shaping | `font_style` (`normal`, `italic`, `oblique`), `font_stretch`, `underline` (`single`, `double`), `strikethrough`, `overline`, `line_break`, `truncate`, `truncate_at`, `max_lines`, `hinting`, `tab_width` | CSS, cosmic-text |
 | 3D text | `billboard`, `double_sided`, `depth_test` | Godot |
 | Particles | `particles2d`, `particles3d` with `billboard` | Godot |

@@ -144,6 +144,7 @@ fn a_pack_carries_the_index() {
         assets: [("art/hero.png".to_string(), b"packed".to_vec())]
             .into_iter()
             .collect(),
+        api: Vec::new(),
     };
     // A packed run reads nothing from the directory the pack was built in.
     let app = app_in(std::path::Path::new("/nowhere"), Some(pack));

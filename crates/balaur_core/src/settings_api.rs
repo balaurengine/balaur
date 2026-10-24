@@ -30,19 +30,24 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.",
     );
+    m.records(&[(
+        "Setting",
+        "{ path: string, category: string, label: string, scope: string, applies_now: bool, spec: map }",
+        "A defined setting: where it lives, how a settings screen files and labels it, which file it is written to and its spec.",
+    )]);
     m.describe(&[
-        ("all", &[], "()", "Every defined setting as `{ path, scope, spec }`, in definition order."),
-        ("get", &[], "(path: string)", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
-        ("base", &[], "(path: string)", "What the file says, ignoring every override: what a settings screen edits."),
-        ("tags", &[], "()", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
-        ("known_tags", &[], "()", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
-        ("overrides", &[], "(path: string)", "The tags this project holds an override for at `path`, in tag order."),
-        ("clear", &[], "(path: string)", "Forget one value, so the next write drops the key: how an override is removed."),
-        ("revision", &[], "()", "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame."),
-        ("set", &[], "(path: string, value: any)", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
+        ("all", &[], "() -> [Setting]", "Every defined setting as `{ path, scope, spec }`, in definition order."),
+        ("get", &[], "(path: string) -> any", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
+        ("base", &[], "(path: string) -> any", "What the file says, ignoring every override: what a settings screen edits."),
+        ("tags", &[], "() -> [string]", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
+        ("known_tags", &[], "() -> [string]", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
+        ("overrides", &[], "(path: string) -> [string]", "The tags this project holds an override for at `path`, in tag order."),
+        ("clear", &[], "(path: string) -> ()", "Forget one value, so the next write drops the key: how an override is removed."),
+        ("revision", &[], "() -> int", "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame."),
+        ("set", &[], "(path: string, value: any) -> ()", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
         ("define", &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
-        ("merge_toml", &[], "(text: string)", "Read values out of a TOML text, folding them onto what is already loaded."),
-        ("to_toml", &[], "(scope: string, existing: string)", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
+        ("merge_toml", &[], "(text: string) -> ()", "Read values out of a TOML text, folding them onto what is already loaded."),
+        ("to_toml", &[], "(scope: string, existing: string) -> string", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
     ]);
     m.function("all", |eng: &Engine, (): ()| {
         let registry = settings::all(eng);

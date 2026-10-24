@@ -1,0 +1,15 @@
+// The same property, read as the whole table: the spelling `component_read`
+// replaced, kept so the pair prices it.
+
+pub struct ComponentTable {
+    node: Node,
+    seen: float,
+}
+
+impl ComponentTable {
+    fn update(dt: float) {
+        let radius = self.node.get_component("shape2d").get("radius");
+        self.seen = if radius.kind() == "float" { radius.as_float() } else { 0.0 };
+        self.node.patch_component("shape2d", map().with("radius", self.seen));
+    }
+}

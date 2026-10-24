@@ -250,12 +250,13 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.rn"),
-        "pub fn init(this) {\n    render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\");\n}\n",
+        dir.path().join("scripts/s.bs"),
+        "pub struct N { node: Node }\n\
+         impl N {\n    fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();

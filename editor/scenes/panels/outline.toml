@@ -1,0 +1,25 @@
+# The left dock's second tab: what the workspace lists beside the tree, the
+# project's scenes, its Rune modules, the bodies, the clips or the widgets.
+# One script answers the list; the Editor builds its rows and runs a pick.
+
+[[nodes]]
+id = "panel"
+name = "Outline"
+script = { source = "scripts/panels/outline.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+visible = false
+
+[[nodes]]
+id = "list"
+name = "List"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+
+[nodes.widget.touch]
+row_height = 33

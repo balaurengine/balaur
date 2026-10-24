@@ -1,12 +1,14 @@
 //! The kinds that hold a number between two ends: the slider, the number
-//! field and the progress bar, each egui's own widget with the options the
-//! `widget` component states.
+//! field and the progress bar.
 
 use egui::{Color32, pos2, vec2};
 
 use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
+use crate::widget::drag::{DragNumber, Spelling};
 use crate::widget::layer::{Edit, Painting};
+use crate::widget::paint::{self, Brush};
+use crate::widget::slide::{Clamping, Scale, Slide};
 use crate::widget::theme::rich;
 
 /// How much of a `number_field`'s box its two arrows take, gap included.
@@ -38,55 +40,55 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ui.available_width().min(160.0)
     };
     // The shown number sits after the track inside the same box.
-    let shown = value_room(ui.painter(), widget);
+    let shown = value_room(&Brush::of(ui), widget);
     ui.spacing_mut().slider_width = (length - shown).max(16.0);
-    let mut slider = egui::Slider::new(&mut value, low..=high)
-        .show_value(o.show_value)
-        .logarithmic(o.logarithmic)
-        .smart_aim(o.smart_aim)
-        .trailing_fill(o.trailing_fill)
-        .update_while_editing(o.update_while_editing)
-        .clamping(match o.clamp.as_str() {
-            w::EDITS => egui::SliderClamping::Edits,
-            w::NEVER => egui::SliderClamping::Never,
-            _ => egui::SliderClamping::Always,
-        });
-    if upright {
-        slider = slider.vertical();
+    let decimals = usize::try_from(o.decimals).ok();
+    let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
+    let mut number = f64::from(value);
+    let response = Slide {
+        value: &mut number,
+        range: f64::from(low)..=f64::from(high),
+        scale: Scale {
+            logarithmic: o.logarithmic,
+            smallest_positive: if o.smallest_positive > 0.0 {
+                f64::from(o.smallest_positive)
+            } else {
+                1e-6
+            },
+            largest_finite: if o.largest_finite > 0.0 {
+                f64::from(o.largest_finite)
+            } else {
+                f64::INFINITY
+            },
+        },
+        clamping: match o.clamp.as_str() {
+            w::EDITS => Clamping::Edits,
+            w::NEVER => Clamping::Never,
+            _ => Clamping::Always,
+        },
+        smart_aim: o.smart_aim,
+        show_value: o.show_value,
+        upright,
+        prefix: &prefix,
+        suffix: &suffix,
+        step: (widget.step > 0.0).then(|| f64::from(widget.step)),
+        drag_speed: (o.drag_speed > 0.0).then(|| f64::from(o.drag_speed)),
+        min_decimals: decimals.unwrap_or(0),
+        max_decimals: decimals,
+        spelling: Spelling::of(&o.number_format),
+        trailing_fill: Some(o.trailing_fill),
+        handle: if o.handle == w::RECT {
+            Some(o.handle_aspect)
+        } else {
+            match ui.style().visuals.handle_shape {
+                egui::style::HandleShape::Rect { aspect_ratio } => Some(aspect_ratio),
+                egui::style::HandleShape::Circle => None,
+            }
+        },
+        update_while_editing: o.update_while_editing,
     }
-    if widget.step > 0.0 {
-        slider = slider.step_by(f64::from(widget.step));
-    }
-    if o.smallest_positive > 0.0 {
-        slider = slider.smallest_positive(f64::from(o.smallest_positive));
-    }
-    if o.largest_finite > 0.0 {
-        slider = slider.largest_finite(f64::from(o.largest_finite));
-    }
-    if o.drag_speed > 0.0 {
-        slider = slider.drag_value_speed(f64::from(o.drag_speed));
-    }
-    if let Ok(decimals) = usize::try_from(o.decimals) {
-        slider = slider.fixed_decimals(decimals);
-    }
-    if o.handle == w::RECT {
-        slider = slider.handle_shape(egui::style::HandleShape::Rect {
-            aspect_ratio: o.handle_aspect,
-        });
-    }
-    if !o.prefix.is_empty() {
-        slider = slider.prefix(format!("{} ", o.prefix));
-    }
-    if !widget.suffix.is_empty() {
-        slider = slider.suffix(format!(" {}", widget.suffix));
-    }
-    slider = match o.number_format.as_str() {
-        w::BINARY => slider.binary(1, false),
-        w::OCTAL => slider.octal(1, false),
-        w::HEX => slider.hexadecimal(1, false, false),
-        _ => slider,
-    };
-    let response = ui.add(slider);
+    .show(ui);
+    value = number as f32;
     if response.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
     }
@@ -99,7 +101,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// What a `slider`'s shown number takes along it, the space before it
 /// included: its widest end with `prefix` and `suffix` across, a control's
 /// height down. Nothing where it shows none.
-pub(crate) fn value_room(painter: &egui::Painter, widget: &crate::widget::node::Widget) -> f32 {
+pub(crate) fn value_room(painter: &Brush, widget: &crate::widget::node::Widget) -> f32 {
     let o = &widget.egui;
     if !o.show_value {
         return 0.0;
@@ -124,7 +126,7 @@ pub(crate) fn value_room(painter: &egui::Painter, widget: &crate::widget::node::
         .into_iter()
         .map(|text| {
             let font = egui::TextStyle::Body.resolve(&style);
-            painter.layout_no_wrap(text, font, Color32::WHITE).size().x
+            painter.line_of(text, font, Color32::WHITE).size().x
         })
         .fold(0.0, f32::max)
         + pieces * spacing.icon_spacing;
@@ -151,32 +153,29 @@ pub(crate) fn drag_value(
     let widget = &placed.widget;
     let mut value = widget.value;
     let o = &widget.egui;
-    let mut drag = egui::DragValue::new(&mut value).update_while_editing(o.update_while_editing);
-    // The letter a vector row puts before each number, which is the one thing
-    // a drag value shows that is not the number itself.
-    if !o.prefix.is_empty() {
-        drag = drag.prefix(format!("{} ", o.prefix));
-    }
-    if !widget.suffix.is_empty() {
-        drag = drag.suffix(format!(" {}", widget.suffix));
-    }
     let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
-    if bounded {
-        drag = drag
-            .range(widget.min..=widget.max)
-            .clamp_existing_to_range(o.clamp_existing);
-    }
-    if o.drag_speed > 0.0 {
-        drag = drag.speed(o.drag_speed);
-    }
-    if let Ok(decimals) = usize::try_from(o.decimals) {
-        drag = drag.fixed_decimals(decimals);
-    }
-    drag = match o.number_format.as_str() {
-        w::BINARY => drag.binary(1, false),
-        w::OCTAL => drag.octal(1, false),
-        w::HEX => drag.hexadecimal(1, false, false),
-        _ => drag,
+    let decimals = usize::try_from(o.decimals).ok();
+    let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
+    let mut number = f64::from(value);
+    let drag = DragNumber {
+        value: &mut number,
+        speed: if o.drag_speed > 0.0 {
+            f64::from(o.drag_speed)
+        } else {
+            1.0
+        },
+        range: if bounded {
+            f64::from(widget.min)..=f64::from(widget.max)
+        } else {
+            f64::NEG_INFINITY..=f64::INFINITY
+        },
+        clamp_existing: bounded && o.clamp_existing,
+        prefix: &prefix,
+        suffix: &suffix,
+        min_decimals: decimals.unwrap_or(0),
+        max_decimals: decimals,
+        spelling: Spelling::of(&o.number_format),
+        update_while_editing: o.update_while_editing,
     };
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
     if want.x > 0.0 {
@@ -207,16 +206,15 @@ pub(crate) fn drag_value(
             egui::Rect::from_min_max(full.min, pos2(steps.left() - 4.0, full.top() + high));
         let inner = ui.put(number, drag);
         let each = (high - 1.0) / 2.0;
-        let mark = |glyph: &str| egui::Button::new(egui::RichText::new(glyph).size(each - 2.0));
         let up = egui::Rect::from_min_size(steps.min, vec2(wide, each));
         let down = egui::Rect::from_min_size(
             pos2(steps.left(), steps.top() + each + 1.0),
             vec2(wide, each),
         );
-        if ui.put(up, mark("⏶")).clicked() {
+        if arrow(ui, up, "⏶", each - 2.0) {
             stepped = Some(1.0);
         }
-        if ui.put(down, mark("⏷")).clicked() {
+        if arrow(ui, down, "⏷", each - 2.0) {
             stepped = Some(-1.0);
         }
         ui.advance_cursor_after_rect(egui::Rect::from_min_size(
@@ -225,6 +223,7 @@ pub(crate) fn drag_value(
         ));
         inner
     });
+    value = number as f32;
     if let Some(way) = stepped {
         let step = if widget.step > 0.0 { widget.step } else { 1.0 };
         let moved = value + way * step;
@@ -242,6 +241,122 @@ pub(crate) fn drag_value(
     if response.inner.drag_stopped() || response.inner.lost_focus() {
         at.edits.push((placed.entity, Edit::Committed(value)));
     }
+}
+
+/// A bar's track and its fill to `fraction`, with egui's shimmer and
+/// spinner while `animate` holds and it is short of full.
+fn paint_bar(
+    ui: &egui::Ui,
+    outer: egui::Rect,
+    fraction: f32,
+    style: &crate::widget::theme::Style,
+    animate: bool,
+) {
+    // Animated while short of full: egui is asked for the next pass, which a
+    // sleeping loop hears through its repaint callback.
+    let animate = animate && fraction < 1.0;
+    if animate {
+        ui.ctx().request_repaint();
+    }
+    let visuals = ui.visuals().clone();
+    let half = outer.height() / 2.0;
+    let radius = style.radius.map_or_else(
+        || egui::CornerRadius::from(half),
+        |radius| egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
+    );
+    let painter = Brush::of(ui);
+    painter.fill(outer, radius, visuals.extreme_bg_color);
+    let least = 2.0 * f32::from(radius.sw.max(radius.nw)).min(half);
+    let filled = egui::Rect::from_min_size(
+        outer.min,
+        vec2((outer.width() * fraction).max(least), outer.height()),
+    );
+    let shade = if animate {
+        let time = ui.input(|i| i.time);
+        egui::lerp(0.7..=1.0, libm::cos(time).abs()) as f32
+    } else {
+        1.0
+    };
+    let fill = style.fill.unwrap_or(visuals.selection.bg_fill);
+    painter.fill(
+        filled,
+        radius,
+        Color32::from(egui::Rgba::from(fill) * shade),
+    );
+    if animate && style.radius.is_none() {
+        let time = ui.input(|i| i.time);
+        let start = time * std::f64::consts::TAU;
+        let end = start + 240f64.to_radians() * libm::sin(time);
+        let reach = half - 2.0;
+        let points: Vec<egui::Pos2> = (0..20)
+            .map(|i| {
+                let angle = egui::lerp(start..=end, f64::from(i) / 20.0);
+                let (sin, cos) = (libm::sin(angle), libm::cos(angle));
+                filled.right_center() + reach * vec2(cos as f32, sin as f32) + vec2(-half, 0.0)
+            })
+            .collect();
+        painter.add(paint::line(
+            points,
+            egui::Stroke::new(2.0, visuals.text_color()),
+        ));
+    }
+}
+
+/// The words before and after the number, a space between each and it.
+fn affixes(prefix: &str, suffix: &str) -> (String, String) {
+    let before = if prefix.is_empty() {
+        String::new()
+    } else {
+        format!("{prefix} ")
+    };
+    let after = if suffix.is_empty() {
+        String::new()
+    } else {
+        format!(" {suffix}")
+    };
+    (before, after)
+}
+
+/// One of a `number_field`'s two steps: a glyph in `rect` that lights up
+/// under the pointer, true on the pass it was clicked.
+fn arrow(ui: &mut egui::Ui, rect: egui::Rect, glyph: &str, size: f32) -> bool {
+    // Put as egui puts a button: centred on the rect, and as tall as a
+    // control even where the rect is shorter, so the pair overlaps.
+    let response = ui.put(rect, |ui: &mut egui::Ui| {
+        crate::widget::button::sensor(
+            ui,
+            egui::Vec2::ZERO,
+            egui::Sense::click(),
+            egui::WidgetType::Button,
+            glyph,
+        )
+    });
+    if ui.is_rect_visible(response.rect) {
+        let look = ui.style().interact(&response);
+        let painter = Brush::of(ui);
+        painter.plate(
+            response.rect.expand(look.expansion),
+            look.corner_radius,
+            look.weak_bg_fill,
+            look.bg_stroke,
+            egui::StrokeKind::Inside,
+        );
+        // In the field's own face, at the arrow's size, as egui sized a
+        // button's text under the field's font.
+        let family = ui
+            .style()
+            .override_font_id
+            .as_ref()
+            .map_or(egui::FontFamily::Proportional, |font| font.family.clone());
+        painter.text(
+            response.rect.center(),
+            egui::Align2::CENTER_CENTER,
+            glyph,
+            egui::FontId::new(size, family),
+            look.text_color(),
+        );
+    }
+    response.clicked()
 }
 
 /// A bar filled to `value`, with the caption over it.
@@ -264,33 +379,52 @@ pub(crate) fn progress(
     } else {
         ui.fonts_mut(|f| f.row_height(font)) + ui.spacing().button_padding.y * 2.0
     };
-    // egui repaints an animated bar while it is on screen and short of full,
-    // which a sleeping loop hears through its repaint callback.
-    let mut bar = egui::ProgressBar::new(fraction)
-        .desired_width(if want.x > 0.0 {
-            want.x
-        } else {
-            ui.available_width().min(160.0)
-        })
-        .desired_height(height)
-        .animate(widget.egui.animate);
+    let width = if want.x > 0.0 {
+        want.x
+    } else {
+        ui.available_width().min(160.0)
+    };
+    let (outer, response) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
+    let shown = if widget.egui.show_percentage {
+        Some(format!("{}%", (fraction * 100.0) as usize))
+    } else {
+        (!caption.is_empty()).then(|| caption.to_owned())
+    };
+    let enabled = ui.is_enabled();
+    response.widget_info(|| {
+        let mut info = match &shown {
+            Some(text) if !widget.egui.show_percentage => {
+                egui::WidgetInfo::labeled(egui::WidgetType::ProgressIndicator, enabled, text)
+            }
+            _ => egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator),
+        };
+        info.value = Some((f64::from(fraction) * 100.0).floor());
+        info
+    });
+    if !ui.is_rect_visible(outer) {
+        return;
+    }
     let style = at.style_of(widget);
-    if let Some(fill) = style.fill {
-        bar = bar.fill(fill);
-    }
-    if let Some(radius) = style.radius {
-        bar = bar.corner_radius(egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8));
-    }
-    if widget.egui.show_percentage {
-        bar = bar.show_percentage();
-    } else if !caption.is_empty() {
-        bar = bar.text(rich(
-            caption,
-            font,
-            color,
-            at.slant(index),
-            &widget.text_look,
-        ));
-    }
-    ui.add(bar);
+    paint_bar(ui, outer, fraction, &style, widget.egui.animate);
+    let Some(text) = shown else {
+        return;
+    };
+    let text = if widget.egui.show_percentage {
+        egui::WidgetText::from(text)
+    } else {
+        egui::WidgetText::from(rich(&text, font, color, at.slant(index), &widget.text_look))
+    };
+    let galley = text.into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Button,
+    );
+    let place = outer.left_center() - vec2(0.0, galley.size().y / 2.0)
+        + vec2(ui.spacing().item_spacing.x, 0.0);
+    let visuals = ui.visuals();
+    let ink = visuals
+        .override_text_color
+        .unwrap_or(visuals.selection.stroke.color);
+    Brush::clipped(ui, outer).galley(place, galley, ink);
 }

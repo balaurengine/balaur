@@ -1,0 +1,94 @@
+// A worked example of an editor plugin, and the editor's own check that the
+// plugin seam holds: how many nodes carry a script, as a dock tab, a palette
+// command, a floating window and a start-up state that asserts the count.
+
+pub struct Counter {
+    node: Node,
+    // What the last count found; -1 before anyone asked.
+    shown: int = -1,
+}
+
+const ASK: str = "run “Count scripted nodes” from the palette";
+
+// The Editor, whose methods are what a plugin reaches the editor through.
+fn editor() -> Node {
+    scene::get_node("Editor")
+}
+
+// How many rows of the document carry a script.
+fn scripted() -> int {
+    let n = 0;
+    for row in editor().call("document") {
+        if row.has("script") {
+            n += 1;
+        }
+    }
+    n
+}
+
+impl Counter {
+    /// What this plugin adds, each entry naming the method that answers it.
+    /// Every list is optional.
+    pub fn register() -> any {
+        map()
+            .with("panels", [map().with("id", "counter").with("title", "Counter").with("draw", "panel")])
+            .with("dialogs", [map().with("id", "counter-window").with("title", "Counter").with("rows", "dialog")])
+            .with("commands", [map().with("title", "Count scripted nodes").with("icon", "Σ").with("shortcut", "").with("run", "count")])
+            .with("inspector_sections", ["section"])
+            .with("startup_states", map().with("test:plugin_docks", "selftest"))
+    }
+
+    pub fn count(payload: any) {
+        self.shown = scripted();
+        log::info("{self.shown} scripted nodes");
+        editor().call("kit_changed");
+    }
+
+    /// The dock: `payload.host` is the node the editor made for it, and the
+    /// kit's rows are what fill it.
+    pub fn panel(payload: any) {
+        let ed = editor();
+        let specs = [ed.call("kit_heading", "Scripted nodes")];
+        if self.shown < 0 {
+            specs.push(ed.call("kit_empty", ASK));
+        } else {
+            specs.push(ed.call("kit_field", "nodes", "{self.shown}", map().with("copy", true)));
+        }
+        ed.call("kit_rows", payload.host, "body", specs);
+    }
+
+    /// The floating window's rows: the editor makes the window, its title and
+    /// its close, and fills it with these when the plugin says it moved.
+    pub fn dialog(payload: any) -> any {
+        let said = if self.shown < 0 { ASK } else { "{self.shown} scripted nodes" };
+        [map().with("full", true).with("controls", [map().with("kind", "label").with("role", "text_caption").with("wrap", true).with("text", said)])]
+    }
+
+    /// An inspector section: the rows it adds after the built-in ones.
+    pub fn section(payload: any) -> any {
+        if self.shown < 0 {
+            return [];
+        }
+        return [map().with("full", true).with("controls", [map().with("kind", "label").with("role", "text_note").with("text", "counter: {self.shown}")])];
+    }
+
+    /// `--state test:plugin_docks`: the plugin seam, asserted the way the
+    /// editor's own self-tests are. `log::error` is what fails the run.
+    pub fn selftest(payload: any) {
+        let expected = scripted();
+        self.count(nil);
+        if self.shown == expected {
+            log::info("selftest ok: a plugin keeps its own state ({expected})");
+        } else {
+            log::error("selftest FAILED: a plugin's state did not stick");
+        }
+        let loaded = editor().call("plugins").len();
+        if loaded > 0 {
+            log::info("selftest ok: the registry lists {loaded} plugin(s)");
+        } else {
+            log::error("selftest FAILED: the registry lists no plugin");
+        }
+        editor().call("kit_open_dialog", "counter-window");
+        log::info("selftest plugin: done");
+    }
+}

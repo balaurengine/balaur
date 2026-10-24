@@ -5,7 +5,7 @@
 [[nodes]]
 id = "n_tour"
 name = "Tour"
-script = { source = "scripts/tour.rn" }
+script = { source = "scripts/tour.bs" }
 
 [[nodes]]
 id = "title"

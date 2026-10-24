@@ -606,7 +606,7 @@ pub(crate) fn build_core_settings(eng: &Engine) {
             r#"
 name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
-script_language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
+script_language = { type = "enum", default = "bs", options = ["bs"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
 asset_source = { type = "enum", default = "files", options = ["files", "embedded", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
 splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }

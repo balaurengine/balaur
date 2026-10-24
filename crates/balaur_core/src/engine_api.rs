@@ -15,8 +15,8 @@ use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
     assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
     dark_mode, device_id, encoding_base64, encoding_from_base64, environment, focused, hash_sha256,
-    hash_sha256_text, log_clear, log_error, log_file, log_info, log_recent, log_since, log_warn,
-    platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
+    hash_sha256_text, log_clear, log_error, log_file, log_info, log_print, log_recent, log_since,
+    log_warn, platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
     strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
@@ -456,6 +456,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "log",
+        name: "print",
+        call: log_print,
+    },
+    EngineOp {
+        module: "log",
         name: "recent",
         call: log_recent,
     },
@@ -840,8 +845,12 @@ fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
-    host.reload(text(args, 0)?)?;
-    Ok(Value::Nil)
+    // A file that does not compile is the answer, not a failure of the call:
+    // the tool that saved it says what broke and carries on.
+    Ok(match host.reload(text(args, 0)?) {
+        Ok(()) => Value::text(""),
+        Err(err) => Value::text(format!("{err:#}")),
+    })
 }
 
 fn root(eng: &Engine, _: &[Value]) -> Result<Value> {

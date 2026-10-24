@@ -1,0 +1,40 @@
+# The State machine tab: the machine's header, then a row a state and a row a
+# transition, an open one with its fields under it. One script answers them;
+# the rows are made by the Editor, which owns the machine's file.
+
+[[nodes]]
+id = "panel"
+name = "StateMachine"
+script = { source = "scripts/panels/statemachine.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "chrome"
+name = "Chrome"
+parent = "panel"
+[nodes.widget]
+kind = "column"
+role = "layout_toolbar"
+
+[[nodes]]
+id = "rows"
+name = "Rows"
+parent = "panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "column"
+name = "Column"
+parent = "rows"
+[nodes.widget]
+kind = "column"
+role = "list_dock"
+grow = 1

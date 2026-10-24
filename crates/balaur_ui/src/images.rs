@@ -1,18 +1,12 @@
-//! Images in the widget layer: reading a project file as an egui texture,
-//! drawing all or one region of it, and the button an atlas palette clicks.
+//! Images in the widget layer: a project file as an egui texture, and the
+//! part of it a region names.
 
 use balaur_core::Engine;
-use egui::{Color32, Sense, Stroke, StrokeKind, pos2, vec2};
+use egui::{pos2, vec2};
 
 use crate::UiState;
-use crate::bridge::with_ui;
-use crate::immediate::{DEFAULT_RADIUS, Opts, pill_radius};
-use crate::vocabulary::keys as k;
 
 /// A project image as an egui texture, cached by path.
-///
-/// Shared with the `image` widget kind, which draws into a `Ui` of its own
-/// rather than the bridge's, so the loading cannot live inside `with_ui`.
 ///
 /// # Errors
 /// When the file cannot be read or is not an image this build decodes.
@@ -89,20 +83,10 @@ fn options(settings: &toml::Table) -> egui::TextureOptions {
     }
 }
 
-/// What part of an image to draw, as egui's unit texture coordinates, and
-/// what its drawn shape should be.
-///
-/// `region` is in the file's own pixels — the shape a tile set is authored
-/// in — so a caller says `[16, 0, 16, 16]` for the second tile of a 16 px
-/// sheet rather than doing the division itself. A region outside the image
-/// is clamped rather than refused: an atlas whose last row is short would
-/// otherwise cost the frame.
-fn image_uv(native: egui::Vec2, opts: &Opts) -> (egui::Rect, egui::Vec2) {
-    region_uv(native, opts.rect(k::REGION).unwrap_or_default())
-}
-
-/// [`image_uv`] for a region already read: `[x, y, w, h]` in the picture's
-/// pixels, the whole picture where the size is zero.
+/// The part of a picture `[x, y, w, h]` names, in the picture's own pixels,
+/// as egui's unit rect and the size it is drawn at; the whole picture where
+/// the size is zero. A region outside the picture is clamped rather than
+/// refused: an atlas whose last row is short would otherwise cost the frame.
 pub(crate) fn region_uv(native: egui::Vec2, [x, y, w, h]: [f32; 4]) -> (egui::Rect, egui::Vec2) {
     let full = egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
     if native.x <= 0.0 || native.y <= 0.0 || w <= 0.0 || h <= 0.0 {
@@ -117,118 +101,4 @@ pub(crate) fn region_uv(native: egui::Vec2, [x, y, w, h]: [f32; 4]) -> (egui::Re
         ((y + h) / native.y).clamp(0.0, 1.0),
     );
     (egui::Rect::from_min_max(min, max), vec2(w, h))
-}
-
-/// The size an image is drawn at: what `width` and `height` ask for, one of
-/// them keeping the aspect of the other, or the region's own pixels.
-fn image_size(native: egui::Vec2, opts: &Opts) -> egui::Vec2 {
-    let aspect = if native.y > 0.0 {
-        native.x / native.y
-    } else {
-        1.0
-    };
-    let w = opts.px(k::WIDTH, 0.0);
-    let h = opts.px(k::HEIGHT, 0.0);
-    if w > 0.0 && h > 0.0 {
-        vec2(w, h)
-    } else if h > 0.0 {
-        vec2(h * aspect, h)
-    } else if w > 0.0 {
-        vec2(w, w / aspect)
-    } else {
-        native
-    }
-}
-
-/// Draw a PNG from the project (cached as an egui texture by path).
-pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
-    with_ui(|ui| {
-        let texture = texture_of(eng, &ui.ctx().clone(), path)?;
-        let (uv, drawn) = image_uv(native_size(eng, path, &texture), opts);
-        let size = image_size(drawn, opts);
-        let radius = opts.px(k::CORNER_RADIUS, DEFAULT_RADIUS);
-        let padding = opts.px(k::PADDING, 0.0);
-        if let Some(bg) = opts.opt_color(k::FILL) {
-            // Backing plate (e.g. white circle behind a logo) with padding.
-            let total = size + vec2(padding * 2.0, padding * 2.0);
-            let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
-            ui.painter().rect_filled(
-                rect,
-                if radius > 0.0 {
-                    pill_radius((radius + padding) * 2.0)
-                } else {
-                    pill_radius(total.y)
-                },
-                bg,
-            );
-            let inner = egui::Rect::from_center_size(rect.center(), size);
-            let mut img = egui::Image::new((texture.id(), size)).uv(uv);
-            if radius > 0.0 {
-                img = img.corner_radius(pill_radius(radius * 2.0));
-            }
-            img.paint_at(ui, inner);
-            return Ok(());
-        }
-        let mut img = egui::Image::new((texture.id(), size)).uv(uv);
-        if radius > 0.0 {
-            img = img.corner_radius(pill_radius(radius * 2.0));
-        }
-        ui.add(img);
-        Ok(())
-    })
-}
-
-/// A picture that answers a click: one tile of an atlas in a palette, a
-/// thumbnail in a browser.
-///
-/// Every option [`draw_image`] takes, plus `selected`, which draws the
-/// accent border a chosen tile needs. An image that cannot be read draws its
-/// frame and nothing inside it, so a broken atlas leaves a grid of empty
-/// cells to click rather than taking the panel down.
-pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<bool> {
-    with_ui(|ui| {
-        let texture = texture_of(eng, &ui.ctx().clone(), path).ok();
-        let native = texture
-            .as_ref()
-            .map_or_else(|| vec2(1.0, 1.0), |texture| native_size(eng, path, texture));
-        let (uv, drawn) = image_uv(native, opts);
-        let size = image_size(drawn, opts);
-        let padding = opts.px(k::PADDING, 2.0);
-        let total = size + vec2(padding * 2.0, padding * 2.0);
-        let (rect, response) = ui.allocate_exact_size(total, Sense::click());
-        let corner = pill_radius(opts.px(k::CORNER_RADIUS, DEFAULT_RADIUS) * 2.0);
-        let selected = opts.boolean(k::SELECTED, false);
-        if let Some(fill) = opts.opt_color(k::FILL) {
-            ui.painter().rect_filled(rect, corner, fill);
-        }
-        if let Some(texture) = &texture {
-            let inner = egui::Rect::from_center_size(rect.center(), size);
-            egui::Image::new((texture.id(), size))
-                .uv(uv)
-                .paint_at(ui, inner);
-        }
-        // The chosen tile keeps its border; hovering only previews one, so
-        // the two never draw at once and the accent means one thing.
-        let border = if selected {
-            opts.opt_color(k::STROKE)
-        } else if response.hovered() {
-            opts.in_state(true, false).opt_color(k::STROKE)
-        } else {
-            None
-        };
-        if let Some(color) = border {
-            ui.painter().rect(
-                rect,
-                corner,
-                Color32::TRANSPARENT,
-                Stroke::new(if selected { 2.0 } else { 1.0 }, color),
-                StrokeKind::Inside,
-            );
-        }
-        if let Some(text) = opts.str(k::TOOLTIP) {
-            crate::widget::theme::tip(&response, text);
-        }
-        crate::immediate::layout::attach_menus(eng, &response, opts);
-        Ok(response.clicked())
-    })
 }

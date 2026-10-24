@@ -138,9 +138,9 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     std::fs::write(
-        dir.path().join("scripts/t.rn"),
+        dir.path().join("scripts/t.bs"),
         r#"
-        fn has(list, item) {
+        fn has(list: [str], item: str) -> bool {
             for x in list {
                 if x == item {
                     return true;
@@ -149,41 +149,57 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             false
         }
 
-        pub fn init(this) {
-            let tags = scene::component_tags("collider2d");
-            assert!(has(tags, "2d"), "collider2d should be tagged 2d");
-            assert!(has(tags, "physics"), "collider2d should be tagged physics");
-            assert!(scene::component_tags("nope") is Tuple, "unknown component has no tags");
+        pub struct T { node: Node, done: int, failed: bool }
 
-            let names = scene::presets();
-            assert!(has(names, "rigid_body2d"), "rigid_body2d missing");
-            assert!(has(names, "static_body2d"), "static_body2d missing");
-            // Both dimensions are marked (D5): there is no bare `rigid_body`.
-            assert!(has(names, "rigid_body3d"), "rigid_body3d missing");
-            assert!(has(names, "static_body3d"), "static_body3d missing");
-            assert!(!has(names, "rigid_body"), "the unmarked 3D name is gone");
-            assert!(has(names, "sprite2d"), "sprite2d missing");
+        impl T {
+            fn init() {
+                let tags = scene::component_tags("collider2d").unwrap();
+                self.check(has(tags, "2d"), "collider2d should be tagged 2d");
+                self.check(has(tags, "physics"), "collider2d should be tagged physics");
+                self.check(scene::component_tags("nope").is_none(), "unknown component has no tags");
 
-            let info = scene::preset_info("rigid_body2d");
-            assert!(!(info is Tuple), "no info for rigid_body2d");
-            assert!(info.components.len() == 2, "rigid_body2d adds two components");
-            assert!(info.description != "", "a preset needs a description");
-            // Each part's own properties, which is what makes the preset mean
-            // something: a rigid body is a dynamic one.
-            assert!(info.parts.body2d.kind == "dynamic", "the body part carries its kind");
-            assert!(info.parts.collider2d.len() == 0, "a part with no properties is an empty table");
+                let names = scene::presets();
+                self.check(has(names, "rigid_body2d"), "rigid_body2d missing");
+                self.check(has(names, "static_body2d"), "static_body2d missing");
+                // Both dimensions are marked (D5): there is no bare `rigid_body`.
+                self.check(has(names, "rigid_body3d"), "rigid_body3d missing");
+                self.check(has(names, "static_body3d"), "static_body3d missing");
+                self.check(!has(names, "rigid_body"), "the unmarked 3D name is gone");
+                self.check(has(names, "sprite2d"), "sprite2d missing");
 
-            // Applying one puts the components on the node, and nothing records
-            // that a preset was used.
-            let n = scene::root().add_child("Thing");
-            scene::apply_preset(n, "rigid_body2d");
-            let present = n.component_names();
-            assert!(has(present, "body2d"), "body2d not applied");
-            assert!(has(present, "collider2d"), "collider2d not applied");
-            assert!(n.get_component("body2d").kind == "dynamic", "wrong body kind");
+                let found = scene::preset_info("rigid_body2d");
+                self.check(found.is_some(), "no info for rigid_body2d");
+                if found.is_some() {
+                    let info = found.unwrap();
+                    self.check(info.components.len() == 2, "rigid_body2d adds two components");
+                    self.check(info.description != "", "a preset needs a description");
+                    // Each part's own properties, which is what makes the preset mean
+                    // something: a rigid body is a dynamic one.
+                    self.check(info.parts.get("body2d").get("kind").as_str() == "dynamic", "the body part carries its kind");
+                    self.check(info.parts.get("collider2d").len() == 0, "a part with no properties is an empty table");
+                }
 
-            assert!(scene::warnings(n).len() == 0, "nothing should warn here");
-            this.done = 1;
+                // Applying one puts the components on the node, and nothing records
+                // that a preset was used.
+                let n = scene::root().add_child("Thing");
+                scene::apply_preset(n, "rigid_body2d");
+                let present = n.component_names();
+                self.check(has(present, "body2d"), "body2d not applied");
+                self.check(has(present, "collider2d"), "collider2d not applied");
+                self.check(n.get_component("body2d", "kind").as_str() == "dynamic", "wrong body kind");
+
+                self.check(scene::warnings(n).len() == 0, "nothing should warn here");
+                if !self.failed {
+                    self.done = 1;
+                }
+            }
+
+            fn check(ok: bool, what: str) {
+                if !ok {
+                    self.failed = true;
+                    log::error("failed: {what}");
+                }
+            }
         }
         "#,
     )
@@ -197,11 +213,12 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     app.engine
         .script_host()
         .unwrap()
-        .attach(balaur::node_id_of(entity), "scripts/t.rn")
+        .attach(balaur::node_id_of(entity), "scripts/t.bs")
         .unwrap();
+    let host = app.engine.script_host().unwrap();
     assert_eq!(
-        balaur::script_rune::rune_of(&app.engine).number_field(entity, "done"),
-        Some(1.0),
+        host.script_field(balaur::node_id_of(entity), "done"),
+        Some(balaur_script::Value::Int(1)),
         "the script did not run to its end: {:#?}",
         balaur::logbuf::recent(10)
     );

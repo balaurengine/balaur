@@ -69,15 +69,15 @@ pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
         "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.",
     );
     m.describe(&[
-        ("set_breakpoints", &[], "(path: string, lines: [int])", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
-        ("breakpoints", &[], "(path: string)", "The lines one file's breakpoints landed on."),
-        ("stop_location", &[], "()", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."),
+        ("set_breakpoints", &[], "(path: string, lines: [int]) -> [int]", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
+        ("breakpoints", &[], "(path: string) -> [int]", "The lines one file's breakpoints landed on."),
+        ("stop_location", &[], "() -> map?", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is. A script hears each change with `events::listen(this.node, \"debugger_stopped\")`, as `on_debugger_stopped(stop)`, rather than asking every frame."),
         ("resume", &[], "(mode: string?)", "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
         ("set_break_on_error", &[], "(on: bool)", "Stop where a script throws instead of logging it and moving on; off by default."),
-        ("break_on_error", &[], "()", "Whether a script that throws stops rather than being logged."),
+        ("break_on_error", &[], "() -> bool", "Whether a script that throws stops rather than being logged."),
         ("request_break", &[], "()", "Ask to stop at the next line any script runs; nothing is stopped yet when it returns."),
         ("set_scope", &[], "(node: node?)", "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree."),
-        ("scope", &[], "()", "The node whose subtree a pause holds still, or nil when a pause stops the whole tree."),
+        ("scope", &[], "() -> node?", "The node whose subtree a pause holds still, or nil when a pause stops the whole tree."),
     ]);
     for d in DEBUGGER_OPS {
         m.function_raw(d.name, Box::new(d.call));
@@ -148,6 +148,7 @@ fn resume(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(other) => return Err(anyhow!("resume takes a step mode, got {other:?}")),
     };
     host(eng)?.resume(mode);
+    crate::events::resumed(eng);
     Ok(Value::Nil)
 }
 

@@ -6,7 +6,7 @@ id = "n_arena"
 name = "Arena"
 
 [nodes.script]
-source = "scripts/arena.rn"
+source = "scripts/arena.bs"
 
 [[nodes]]
 id = "n_ship0"

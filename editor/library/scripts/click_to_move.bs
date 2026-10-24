@@ -1,0 +1,60 @@
+// Click the ground, walk there. The click is the mouse ray against the plane
+// the character already stands on, so a flat level needs no navmesh to point
+// at and nothing has to be baked first.
+
+pub struct ClickToMove {
+    node: Node,
+    pub speed: float = 4.0,
+    pub gravity: float = 24.0,
+    pub arrive: float = 0.15,
+    goal_x: float,
+    goal_z: float,
+    walking: bool,
+    vy: float,
+}
+
+impl ClickToMove {
+    fn update(dt: float) {
+        if !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
+            return;
+        }
+        // Origin then direction: ox, oy, oz, dx, dy, dz.
+        let ray = render::mouse_ray();
+        let oy = ray[1];
+        let dy = ray[4];
+        // A ray running along the plane never meets it, and one pointing
+        // above the horizon meets it behind the camera.
+        if dy > -1e-4 {
+            return;
+        }
+        let feet = self.node.transform.global_position().y;
+        let t = (feet - oy) / dy;
+        if t <= 0.0 {
+            return;
+        }
+        self.goal_x = ray[0] + ray[3] * t;
+        self.goal_z = ray[2] + ray[5] * t;
+        self.walking = true;
+    }
+
+    fn fixed_update(dt: float) {
+        if self.node.character3d.is_on_floor() {
+            self.vy = 0.0;
+        } else {
+            self.vy -= self.gravity * dt;
+        }
+        let here = self.node.transform.global_position();
+        let toward_x = self.goal_x - here.x;
+        let toward_z = self.goal_z - here.z;
+        let far = math::sqrt(toward_x * toward_x + toward_z * toward_z);
+        if !self.walking || far < self.arrive {
+            self.walking = false;
+            self.node.character3d.move_character(0.0, self.vy * dt, 0.0);
+            return;
+        }
+        // Normalised by the distance left, so the last step does not
+        // overshoot into a walk that never settles.
+        let step = self.speed * dt / far;
+        self.node.character3d.move_character(toward_x * step, self.vy * dt, toward_z * step);
+    }
+}

@@ -424,7 +424,7 @@ fill = "primary_fill"
 stroke = "border_default"
 stroke_width = 1.0
 corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
-padding = 8.0
+padding = 8.0                    # or per side, [left, top, right, bottom]
 gap = 4.0
 font_size = "font_size_large"
 text_color = "text_on_primary"
@@ -432,6 +432,7 @@ icon_color = "text_on_primary"
 font_family = "ui"               # ui, heading, mono or icon
 font_weight = 700
 text_align = "center"            # start, center or end
+cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on

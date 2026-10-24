@@ -46,6 +46,7 @@ use crate::vocabulary::tokens as t;
 use crate::vocabulary::weights;
 use crate::vocabulary::words as w;
 use crate::widget::node::{Widget, rgba_color};
+use crate::widget::paint::{self, Brush};
 use egui::Color32;
 
 /// Where the pointer is, as far as one widget is concerned.
@@ -104,7 +105,12 @@ pub struct Style {
     /// which for a button is "as round as its text is tall".
     pub radius: Option<f32>,
     pub padding: Option<f32>,
+    /// `padding` written per side, `[left, top, right, bottom]`, as a widget
+    /// writes its own: a screen's gutter is wider than its top.
+    pub padding_sides: Option<[f32; 4]>,
     pub stroke_width: Option<f32>,
+    /// The outline in dashes rather than whole.
+    pub dashed: Option<bool>,
     /// A project-relative picture drawn as the kind's background instead of
     /// `fill`, stretched by `slice`.
     pub image: Option<String>,
@@ -118,6 +124,10 @@ pub struct Style {
     pub plate: Option<Color32>,
     /// Where a control's content sits across it: `left` for a row, else centred.
     pub align: Option<String>,
+    /// The pointer over the widget while it is live, a `cursor` word: a
+    /// hand on every control, the way the web shows one. A node's own
+    /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
+    pub cursor: Option<String>,
     pub font_size: Option<f32>,
     /// Which of the theme's families, by the names `font_family` offers.
     pub font: Option<String>,
@@ -178,6 +188,7 @@ impl Style {
     pub fn paint_only(&self) -> Self {
         Self {
             padding: None,
+            padding_sides: None,
             padding_x: None,
             padding_y: None,
             height: None,
@@ -204,12 +215,15 @@ impl Style {
             stroke: self.stroke.or(base.stroke),
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
+            padding_sides: self.padding_sides.or(base.padding_sides),
             stroke_width: self.stroke_width.or(base.stroke_width),
+            dashed: self.dashed.or(base.dashed),
             image: self.image.clone().or_else(|| base.image.clone()),
             slice,
             text_color: self.text_color.or(base.text_color),
             plate: self.plate.or(base.plate),
             align: self.align.clone().or_else(|| base.align.clone()),
+            cursor: self.cursor.clone().or_else(|| base.cursor.clone()),
             font_size: self.font_size.or(base.font_size),
             font: self.font.clone().or_else(|| base.font.clone()),
             weight: self.weight.or(base.weight),
@@ -433,6 +447,19 @@ pub(crate) fn pass_is_touch() -> bool {
     })
 }
 
+/// The wash a control takes under the pointer when its theme dresses no state
+/// of its own: painted over whatever is already there, so a fill the caller
+/// chose still reads as the fill it chose. Light on a dark theme, dark on a
+/// light one.
+pub(crate) fn wash(ui: &egui::Ui, held: bool) -> Color32 {
+    let alpha = if held { 30 } else { 18 };
+    if ui.visuals().dark_mode {
+        Color32::from_white_alpha(alpha)
+    } else {
+        Color32::from_black_alpha(alpha)
+    }
+}
+
 /// A tooltip a cursor gets by resting and a finger gets by holding.
 ///
 /// Touch has no hover: a finger that lands is a click, and egui hides a
@@ -510,7 +537,12 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         stroke: colour(k::STROKE),
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
+        padding_sides: body
+            .get(k::PADDING)
+            .filter(|value| value.is_array())
+            .map(|value| four_of(Some(value))),
         stroke_width: number(k::STROKE_WIDTH),
+        dashed: body.get(k::DASHED).and_then(toml::Value::as_bool),
         image: body
             .get(k::IMAGE)
             .and_then(toml::Value::as_str)
@@ -522,6 +554,11 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         align: body
             .get(k::TEXT_ALIGN)
             .and_then(toml::Value::as_str)
+            .map(str::to_string),
+        cursor: body
+            .get(k::CURSOR)
+            .and_then(toml::Value::as_str)
+            .filter(|word| !word.is_empty())
             .map(str::to_string),
         font_size: number(k::FONT_SIZE),
         font: body
@@ -686,7 +723,7 @@ fill = "primary_fill"
 stroke = "border_default"
 stroke_width = 1.0
 corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
-padding = 8.0
+padding = 8.0                    # or per side, [left, top, right, bottom]
 gap = 4.0
 font_size = "font_size_large"
 text_color = "text_on_primary"
@@ -694,6 +731,7 @@ icon_color = "text_on_primary"
 font_family = "ui"               # ui, heading, mono or icon
 font_weight = 700
 text_align = "center"            # start, center or end
+cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on
@@ -779,6 +817,11 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     if let Some(fill) = style.fill {
         visuals.extreme_bg_color = fill;
     }
+    // The frame a focused `text_field` wears: egui draws it in the selection
+    // stroke, so a role's `focus` table reaches it there.
+    if let Some(stroke) = style.focus.as_deref().and_then(edge) {
+        visuals.selection.stroke = stroke;
+    }
     visuals.override_text_color = Some(ink);
 }
 
@@ -791,6 +834,7 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     let bordered = border.iter().any(|side| *side > 0.0);
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
+        && !widget.dashed
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && !bordered
@@ -804,6 +848,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     if !widget.stroke.is_empty() {
         style.stroke = theme.token(&widget.stroke);
     }
+    if widget.dashed {
+        style.dashed = Some(true);
+    }
     if !widget.icon_color.is_empty() {
         style.icon_color = theme.token(&widget.icon_color);
     }
@@ -816,6 +863,27 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     Rc::new(style)
 }
 
+/// A fill and its outline in dashes along the inside of its edge: six on,
+/// five off, as a guide over a picture is drawn.
+fn dashed_frame(
+    rect: egui::Rect,
+    radius: egui::CornerRadius,
+    fill: Color32,
+    stroke: egui::Stroke,
+) -> crate::widget::paint::Shape {
+    let edge = rect.shrink(stroke.width / 2.0);
+    let path = [
+        edge.left_top(),
+        edge.right_top(),
+        edge.right_bottom(),
+        edge.left_bottom(),
+        edge.left_top(),
+    ];
+    let mut shapes = vec![paint::filled(rect, radius, fill)];
+    shapes.extend(paint::dashed(&path, stroke, 6.0, 5.0));
+    paint::group(shapes)
+}
+
 /// A frame's fill and outline over `rect`. The outline is the style's stroke
 /// at `stroke_width`, unless the widget states a `border`: then it fills that
 /// band, side by side, which is the band the layout kept clear.
@@ -824,25 +892,27 @@ pub(crate) fn frame_shape(
     radius: egui::CornerRadius,
     fill: Color32,
     style: &Style,
-) -> egui::Shape {
-    use egui::epaint::RectShape;
+) -> crate::widget::paint::Shape {
     let Some(color) = style.stroke else {
-        return RectShape::filled(rect, radius, fill).into();
+        return paint::filled(rect, radius, fill);
     };
     let [left, top, right, bottom] = match style.border {
         Some(sides) => sides,
         None => [style.stroke_px(); 4],
     };
     #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
+    if left == top && top == right && right == bottom && style.dashed == Some(true) {
+        return dashed_frame(rect, radius, fill, egui::Stroke::new(left, color));
+    }
+    #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
     if left == top && top == right && right == bottom {
-        return RectShape::new(
+        return paint::rect(
             rect,
             radius,
             fill,
             egui::Stroke::new(left, color),
             egui::StrokeKind::Inside,
-        )
-        .into();
+        );
     }
     // Sides of different widths: egui strokes all four alike, so each band is
     // its own strip, square at the corners.
@@ -852,14 +922,14 @@ pub(crate) fn frame_shape(
         egui::Rect::from_min_max(egui::pos2(rect.max.x - right, rect.min.y), rect.max),
         egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.max.y - bottom), rect.max),
     ];
-    let mut shapes = vec![RectShape::filled(rect, radius, fill).into()];
+    let mut shapes = vec![paint::filled(rect, radius, fill)];
     shapes.extend(
         strips
             .into_iter()
             .filter(egui::Rect::is_positive)
-            .map(|strip| RectShape::filled(strip, 0.0, color).into()),
+            .map(|strip| paint::filled(strip, 0.0, color)),
     );
-    egui::Shape::Vec(shapes)
+    paint::group(shapes)
 }
 
 /// The near-white a caption takes when neither the widget nor its theme says.
@@ -943,7 +1013,7 @@ pub(crate) fn rich(
 /// One unwrapped line laid out for the painter, slanted where [`slanted`]
 /// says; painted later in the ink the caller picks.
 pub(crate) fn galley(
-    painter: &egui::Painter,
+    painter: &Brush,
     text: &str,
     font: &egui::FontId,
     slant: bool,
@@ -956,7 +1026,7 @@ pub(crate) fn galley(
     for section in &mut job.sections {
         section.format.italics = slant;
     }
-    painter.layout_job(job)
+    painter.job(job)
 }
 
 /// The weight a widget draws at, the theme answering for one left regular.

@@ -10,6 +10,7 @@ use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{Style, WidgetTheme};
 
 /// What a row view paints its parts with, past the ink and the face every
@@ -39,8 +40,8 @@ impl Ink {
         Self {
             on: named(k::ROW_SELECTED, ui.visuals().selection.bg_fill),
             on_color: named(k::ROW_SELECTED_TEXT, ui.visuals().selection.stroke.color),
-            hover: named(k::ROW_HOVER, crate::immediate::wash(ui, false)),
-            active: named(k::ROW_ACTIVE, crate::immediate::wash(ui, true)),
+            hover: named(k::ROW_HOVER, crate::widget::theme::wash(ui, false)),
+            active: named(k::ROW_ACTIVE, crate::widget::theme::wash(ui, true)),
             stripe: named(k::ROW_STRIPE, ui.visuals().faint_bg_color),
             head: named(k::TABLE_HEADER, ui.visuals().faint_bg_color),
             rule: named(k::TABLE_RULE, weak.gamma_multiply(0.5)),
@@ -65,14 +66,14 @@ pub(super) fn shows(color: Color32) -> bool {
 /// kinds have always had.
 pub(super) fn backdrop(ui: &egui::Ui, at: &Painting<'_>, style: &Style, rect: Rect) {
     if let Some(path) = style.image.as_ref() {
-        let plate = ui.painter().add(egui::Shape::Noop);
+        let plate = Brush::of(ui).slot();
         crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, rect);
         return;
     }
     if style.fill.is_none() && style.stroke.is_none() {
         return;
     }
-    ui.painter().add(crate::widget::theme::frame_shape(
+    Brush::of(ui).add(crate::widget::theme::frame_shape(
         rect,
         egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
         style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -546,7 +547,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     let radius = egui::CornerRadius::same((step * 0.2) as u8);
     // Reserved, painted once the caret has had its say: the caret is a hit of
     // its own, and a row that went dark under it would blink as it was aimed at.
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let mut at = rect.min.x;
     if r.depth > 0 {
         guides(ui, rect.min, step, r.trail, r.ink.guide);
@@ -559,7 +560,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         let caret = ui.interact(box_, ui.id().with(("caret", r.slot)), Sense::click());
         hit.folded = caret.clicked();
         hit.folded_hovered = caret.hovered();
-        ui.painter().text(
+        Brush::of(ui).text(
             box_.center(),
             egui::Align2::CENTER_CENTER,
             if r.shut { "\u{25b8}" } else { "\u{25be}" },
@@ -582,13 +583,12 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         None
     };
     if let Some(fill) = lit {
-        ui.painter()
-            .set(plate, egui::epaint::RectShape::filled(rect, radius, fill));
+        Brush::of(ui).set(plate, paint::filled(rect, radius, fill));
     }
     // A picked row still answers the pointer: the wash goes over the fill that
     // says it is picked rather than instead of it.
     if chosen && over {
-        ui.painter().rect_filled(rect, radius, r.ink.wash(held));
+        Brush::of(ui).fill(rect, radius, r.ink.wash(held));
     }
     let (icon, label, trailing, tint) = fields(r.item);
     let ink = if chosen {
@@ -600,7 +600,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         // The icon field is a glyph from the project's icon face, not a
         // character in the UI one.
         let mark = egui::FontId::new(r.font.size, crate::theme::family("icon"));
-        let drawn = ui.painter().text(
+        let drawn = Brush::of(ui).text(
             pos2(at, rect.center().y),
             egui::Align2::LEFT_CENTER,
             icon,
@@ -609,7 +609,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         );
         at += drawn.width() + step * 0.25;
     }
-    ui.painter().text(
+    Brush::of(ui).text(
         pos2(at, rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
@@ -638,7 +638,7 @@ fn draw_right(
     (trailing, ink): (&str, Color32),
 ) -> Option<String> {
     if !trailing.is_empty() {
-        ui.painter().text(
+        Brush::of(ui).text(
             pos2(
                 rect.max.x - r.row_h * (marks.len() as f32 + 0.3),
                 rect.center().y,
@@ -682,7 +682,7 @@ fn mark_landing(ui: &egui::Ui, rect: Rect, side: Side, ink: Color32) {
     let stroke = Stroke::new(2.0, ink);
     match side {
         Side::Into => {
-            ui.painter().rect_stroke(
+            Brush::of(ui).outline(
                 rect,
                 egui::CornerRadius::same(3),
                 stroke,
@@ -690,12 +690,10 @@ fn mark_landing(ui: &egui::Ui, rect: Rect, side: Side, ink: Color32) {
             );
         }
         Side::Before => {
-            ui.painter()
-                .line_segment([rect.left_top(), rect.right_top()], stroke);
+            Brush::of(ui).segment([rect.left_top(), rect.right_top()], stroke);
         }
         Side::After => {
-            ui.painter()
-                .line_segment([rect.left_bottom(), rect.right_bottom()], stroke);
+            Brush::of(ui).segment([rect.left_bottom(), rect.right_bottom()], stroke);
         }
     }
 }
@@ -805,12 +803,10 @@ fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool], ink: Color
     for level in 0..own {
         let x = head.x + (level as f32 + 0.5) * step;
         if pipe == Some(level) {
-            ui.painter()
-                .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
+            Brush::of(ui).segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
         }
         // The dash leads in: from the pipe, or from where one would be.
-        ui.painter()
-            .line_segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
+        Brush::of(ui).segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
     }
 }
 
@@ -894,8 +890,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
         Color32::TRANSPARENT
     };
     let sheet = c.sheet;
-    ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(5), fill);
+    Brush::of(ui).fill(rect, egui::CornerRadius::same(5), fill);
     let mut head = rect.top() + 6.0;
     // A list that names a `sheet` reads the icon field as `x,y,w,h` in that
     // picture's own pixels, which is how an atlas picker shows its tiles.
@@ -906,7 +901,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
             pos2(rect.center().x, head + edge / 2.0),
             egui::Vec2::splat(edge),
         );
-        ui.painter().image(sheet.id(), face, uv, Color32::WHITE);
+        Brush::of(ui).picture(sheet.id(), face, uv, Color32::WHITE);
         head += edge + 4.0;
     } else if !icon.is_empty() {
         // The project's icon face, at the card's own size rather than the
@@ -915,21 +910,21 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
             (size.y * 0.44).min(size.x * 0.42),
             crate::theme::family("icon"),
         );
-        let galley = ui.painter().layout_no_wrap(icon.to_owned(), mark, color);
-        ui.painter().galley(
+        let galley = Brush::of(ui).line_of(icon.to_owned(), mark, color);
+        Brush::of(ui).galley(
             pos2(rect.center().x - galley.size().x / 2.0, head),
             galley.clone(),
             color,
         );
         head += galley.size().y + 4.0;
     }
-    let text = ui.painter().layout(
+    let text = Brush::of(ui).wrapped(
         label.to_owned(),
         font.clone(),
         color,
         (size.x - 8.0).max(8.0),
     );
-    ui.painter().galley(
+    Brush::of(ui).galley(
         pos2(rect.center().x - text.size().x / 2.0, head),
         text,
         color,
@@ -984,10 +979,10 @@ fn ghost(ui: &egui::Ui, item: &str, pointer: egui::Pos2, drag: &Carry<'_>, ink: 
     let (_, label, _, tint) = fields(item);
     let color = tint.unwrap_or(drag.color);
     let layer = egui::LayerId::new(egui::Order::Tooltip, drag.id.with("ghost"));
-    let over = ui.ctx().layer_painter(layer);
-    let text = over.layout_no_wrap(label.to_owned(), drag.font.clone(), color);
+    let over = Brush::layer(ui.ctx(), layer);
+    let text = over.line_of(label.to_owned(), drag.font.clone(), color);
     let rect = Rect::from_min_size(pointer + egui::vec2(14.0, 10.0), text.size()).expand(5.0);
-    over.rect_filled(rect, egui::CornerRadius::same(5), ink.on);
+    over.fill(rect, egui::CornerRadius::same(5), ink.on);
     over.galley(rect.min + egui::vec2(5.0, 5.0), text, color);
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
 }

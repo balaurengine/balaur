@@ -47,7 +47,7 @@ outer_angle_degrees = 50
 id = "n_stand"
 name = "Stand"
 parent = "n_world"
-script = { source = "scripts/turntable.rn" }
+script = { source = "scripts/turntable.bs" }
 
 [nodes.transform]
 position = [0, 0, 0]

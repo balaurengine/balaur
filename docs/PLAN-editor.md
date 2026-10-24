@@ -4,7 +4,7 @@
 > `ui::color`, `script::functions`, `script::shared` and `render::pick_ray`.
 > Plugins load from `editor/plugins/`, `<game>/editor/` and each
 > `<game>/addons/<name>/editor/`, with
-> `editor/plugins/counter.rn` as the worked example the e2e suite runs. What
+> `editor/plugins/counter.bs` as the worked example the e2e suite runs. What
 > is left is below; see [generated/](generated/) for what the code does.
 
 # Plan: the editor after the port
@@ -92,7 +92,7 @@ self-test.
 
 ### Tilemap editor — built, 2026-09-05
 
-The Scene workspace has a Tiles tool (`editor/scripts/tiles.rn`, `test:tiles`).
+The Scene workspace has a Tiles tool (`editor/scripts/tiles.bs`, `test:tiles`).
 The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
 left-drag paints it, right-drag erases, and a Rectangle mode fills between
 two corners. A layer is a sibling `tilemap` node: the Add layer button
@@ -118,7 +118,7 @@ which `origin` on the map replaces in that plan's step 2.
 ### Populate — built, 2026-09-26
 
 Godot's MultiMesh › Populate Surface, as a sheet over the selected
-`multimesh3d` or `multimesh2d` (`editor/scripts/populate.rn`,
+`multimesh3d` or `multimesh2d` (`editor/scripts/populate.bs`,
 `test:populate`). It opens from the button on the component's section and
 from the command palette. It lays instances over a surface node's
 triangles, picked by area and standing on each normal, or as a row, a ring
@@ -151,7 +151,7 @@ against that list. What is there now:
 - **The Rig tool** — a chain grown by clicking, picking in 2D and 3D, Reset
   and Overwrite Rest Pose — and the Polygon tool's Points, Polygons, UV and
   Weights modes with a brush.
-- **A weight table** (`editor/scripts/weights.rn`, the Weights dock,
+- **A weight table** (`editor/scripts/weights.bs`, the Weights dock,
   `test:weights`). Spine's Weights view: the picked vertices, one editable
   number per bone, a per-vertex sum that goes red when it is not one, and
   Bind, Unbind, Normalise, Auto (weights by the square of the distance to
@@ -181,7 +181,7 @@ against that list. What is there now:
 - **Deform keys.** The Points mode edits the offset rather than the mesh
   while the Animate workspace is armed, and the Deform row keys them on
   `polygon/deform` at the playhead.
-- **A bone map** (`editor/scripts/bonemap.rn`, the Bone map dock,
+- **A bone map** (`editor/scripts/bonemap.bs`, the Bone map dock,
   `test:bone_map`). Godot's BoneMap panel: the canonical humanoid against the
   rig's own bones, a guess by name that ignores case, separators and an
   exporter's prefix, and a `bone_map` asset written out for

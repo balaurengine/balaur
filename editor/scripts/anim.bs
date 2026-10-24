@@ -1,0 +1,600 @@
+// The Animation workspace's adapter between the scene document and the engine's
+// `assets` / `animation` modules: scrubbing seeks the engine, nothing here
+// samples. The clip belongs to the player (`player`), keyed by node path.
+
+use editor;
+use history;
+use model;
+use signals;
+use util;
+
+/// The animation timeline's own state, hung on `S.anim`.
+pub class AnimState {
+    time: float,
+    rebind: bool,
+}
+
+/// The library the Timeline edits, cached for the player at `index`: what
+/// the component named (`source`), the document it holds, the file it was
+/// read from, and whether an edit has not been written back yet.
+pub class Clip {
+    index: int,
+    source: any,
+    doc: any,
+    path: str?,
+    dirty: bool,
+}
+
+/// The player's document node, its live node and its doc index.
+pub struct Player {
+    node: any,
+    found: Node,
+    index: int,
+}
+
+pub fn state() -> AnimState {
+    AnimState { time: 0.0, rebind: false }
+}
+
+// The asset type `balaur_animation` registers, written into the document so a
+// promoted file declares what it is.
+const CLIP_TYPE: str = "animation_library";
+// The group a library document holds its named clips under. The engine finds
+// an entry one level down whatever the group is called; the editor has to
+// pick one to write.
+const GROUP: str = "clips";
+// How close two key times have to be to count as the same key: half a frame
+// at 24 fps, which is the grain a person scrubbing can actually hit.
+const SAME_TIME: float = 0.021;
+// A hand-edited file can name a parent that names it back.
+const MAX_DEPTH: int = 256;
+
+/// The `animation` component as authored in the document, or nil.
+pub fn component(node: any) -> any {
+    let comp = node.animation;
+    if comp.kind() == "map" { comp } else { nil }
+}
+
+/// Doc index of the node whose clip the Timeline edits: the selection when
+/// it carries `animation`, else its nearest ancestor that does, else the
+/// selection itself (the node a new clip would be created on).
+pub fn player_index(S: editor::State) -> int {
+    let i = S.sel;
+    // Nothing selected: no clip is being edited, and -1 is not an index.
+    if i < 0 {
+        return i;
+    }
+    for _i in 0..MAX_DEPTH {
+        if i >= S.doc.len() {
+            break;
+        }
+        let node = S.doc[i];
+        if !component(node).is_nil() {
+            return i;
+        }
+        let parent = model::index_of_id(S.doc, node.parent.as_str());
+        if node.parent.as_str() == "" || parent.is_none() {
+            break;
+        }
+        i = parent.unwrap();
+    }
+    S.sel
+}
+
+pub fn player(S: editor::State) -> Player {
+    let i = player_index(S);
+    if i < 0 {
+        return Player { node: map().with("name", "").with("id", ""), found: nil, index: i };
+    }
+    Player { node: S.doc[i], found: model::live(S, i), index: i }
+}
+
+/// The selection's node path relative to the player: what a track's
+/// `target` says. Empty when the selection is the player.
+pub fn target_path(S: editor::State, player_i: int) -> str {
+    if player_i == S.sel || S.sel < 0 {
+        return "";
+    }
+    let names: [str] = [];
+    let node = S.doc[S.sel];
+    for _i in 0..MAX_DEPTH {
+        if node.is_nil() || node.id.as_str() == S.doc[player_i].id.as_str() {
+            break;
+        }
+        names.insert(0, node.name.as_str());
+        node = model::by_id(S.doc, node.parent.as_str());
+    }
+    util::join(names, "/")
+}
+
+/// The clip the Timeline edits: the one the scene starts. An empty name means
+/// the library reference is itself the clip, which is what a single-clip file
+/// and an anonymous inline table each are.
+pub fn clip_name(node: any) -> str {
+    let comp = component(node);
+    if comp.is_nil() {
+        return "";
+    }
+    let name = comp.autoplay;
+    if name.kind() == "str" { name.as_str() } else { "" }
+}
+
+/// Where the library lives, for display: a path, or nil when it is inline.
+pub fn library_path(node: any) -> str? {
+    let comp = component(node);
+    if comp.is_nil() {
+        return nil;
+    }
+    let library = comp.library;
+    if library.kind() == "str" && library.as_str() != "" { library.as_str() } else { nil }
+}
+
+// The named entry inside a library document, by the engine's own rule: a
+// top-level table of that name, or one a single level down.
+fn entry_of(doc: any, name: str) -> any {
+    if name == "" {
+        return doc;
+    }
+    let entry = doc.get(name);
+    if entry.kind() == "map" {
+        return entry;
+    }
+    for key in doc.keys() {
+        let group = doc.get(key);
+        if group.kind() == "map" && group.get(name).kind() == "map" {
+            return group.get(name);
+        }
+    }
+    nil
+}
+
+fn same(a: any, b: any) -> bool {
+    a.kind() == b.kind() && (a.kind() == "map" || a.kind() == "str") && a == b
+}
+
+fn library_of(comp: any) -> any {
+    let library = comp.library;
+    if library.is_nil() { "" } else { library }
+}
+
+fn cache(S: &mut editor::State, index: int, source: any, doc: any, path: str?) {
+    S.clip = Clip { index: index, source: source, doc: doc, path: path, dirty: false };
+    signals::inspector(S);
+}
+
+/// The library document for the player, cached on `S.clip`, or nil. Inline
+/// it *is* the scene document's own table; external it is written back by
+/// `save`.
+pub fn document(S: &mut editor::State) -> any {
+    let p = player(S);
+    let comp = component(p.node);
+    if comp.is_nil() {
+        return nil;
+    }
+    let library = library_of(comp);
+    if S.clip.is_some() {
+        let cached = S.clip.unwrap();
+        if cached.index == p.index && same(cached.source, library) {
+            return cached.doc;
+        }
+    }
+    if library.kind() == "map" {
+        cache(S, p.index, library, library, nil);
+        return library;
+    }
+    if library.kind() == "str" && library.as_str() != "" {
+        let path = library.as_str();
+        let loaded = assets::load(util::engine_path(S.game_root, path));
+        if loaded.kind() != "map" {
+            log::warn("clip {path}: {loaded}");
+            // Cached as a failure so the warning is printed once rather than
+            // once a frame.
+            cache(S, p.index, library, nil, path);
+            return nil;
+        }
+        cache(S, p.index, library, loaded, path);
+        return loaded;
+    }
+    cache(S, p.index, library, nil, nil);
+    nil
+}
+
+/// Every clip the player's library holds, by name: the entries one level
+/// down, as the engine finds them.
+pub fn clip_names(S: &mut editor::State) -> [str] {
+    let out: [str] = [];
+    let doc = document(S);
+    if doc.is_nil() {
+        return out;
+    }
+    for key in doc.keys() {
+        let group = doc.get(key);
+        if group.kind() != "map" {
+            continue;
+        }
+        for name in group.keys() {
+            if group.get(name).kind() == "map" {
+                out.push(name);
+            }
+        }
+    }
+    out
+}
+
+/// The clip definition under edit: length, loop, tracks; nil for none.
+pub fn definition(S: &mut editor::State) -> any {
+    let doc = document(S);
+    if doc.is_nil() { nil } else { entry_of(doc, clip_name(S.doc[player_index(S)])) }
+}
+
+pub fn tracks(def: any) -> any {
+    let tracks = def.tracks;
+    if tracks.kind() == "list" { tracks } else { [] }
+}
+
+/// A lane's name: the property, prefixed by the node it drives when that is
+/// not the player itself.
+pub fn track_label(track: any) -> str {
+    let property = if track.property.is_nil() { "call" } else { track.property.as_str() };
+    let target = track.target.as_str();
+    if target == "" { property } else { "{target} · {property}" }
+}
+
+pub fn length(def: any) -> float {
+    let held = def.length;
+    util::max(if held.is_nil() { 2.0 } else { held.as_float() }, 0.001)
+}
+
+pub fn key_count(def: any) -> int {
+    let n = 0;
+    for track in tracks(def) {
+        n += util::vec(track.keys).len();
+    }
+    n
+}
+
+fn component_params(comp: any, library: any) -> any {
+    let speed = comp.speed_scale;
+    map()
+        .with("library", library)
+        .with("autoplay", comp.autoplay.as_str())
+        .with("speed_scale", if speed.is_nil() { 1.0 } else { speed.as_float() })
+        .with("root_node", comp.root_node.as_str())
+}
+
+/// Put the edited clip in front of the engine and hold it at the playhead:
+/// `animation::add_clip` hands over the editor's in-memory table, edits
+/// included.
+pub fn arm(S: &mut editor::State) {
+    let p = player(S);
+    let comp = component(p.node);
+    if comp.is_nil() {
+        cache(S, p.index, "", nil, nil);
+        return;
+    }
+    if !p.found.is_valid() {
+        // Nothing live to push the clip to. The document still reads, so
+        // the Timeline shows it; filling the cache is what stops the
+        // re-arm loop.
+        document(S);
+        return;
+    }
+    let library = library_of(comp);
+    if library.kind() == "str" && library.as_str() != "" {
+        library = util::engine_path(S.game_root, library.as_str());
+    }
+    p.found.set_component("animation", component_params(comp, library));
+    let def = definition(S);
+    if def.is_nil() {
+        return;
+    }
+    let name = clip_name(p.node);
+    p.found.animation.add_clip(name, def);
+    // While the scene is running it is the game's transport, not the editor's:
+    // restarting the clip to show the playhead would be the editor animating
+    // over the thing it is supposed to be previewing.
+    if S.playing {
+        return;
+    }
+    p.found.animation.play(name);
+    p.found.animation.pause();
+    p.found.animation.seek(S.anim.time);
+}
+
+/// The clip changed: the scene needs saving, an external clip needs writing,
+/// and the engine needs the new table.
+pub fn touch(S: &mut editor::State) {
+    if S.clip.is_some() {
+        let clip = S.clip.unwrap();
+        clip.dirty = true;
+    }
+    arm(S);
+    signals::changed(S, "timeline");
+}
+
+/// Create an inline clip on the player, named after it. With no player above
+/// the selection, the selection becomes one.
+pub fn ensure_clip(S: &mut editor::State) -> any {
+    let node = S.doc[player_index(S)];
+    if !component(node).is_nil() {
+        return definition(S);
+    }
+    history::record(S, "create clip", nil);
+    let name = node.name.as_str().to_lower();
+    let clips = map().with(name, map().with("length", 2.0).with("loop_mode", animation::LOOP_LINEAR));
+    let library = map().with("type", CLIP_TYPE).with(GROUP, clips);
+    node.set("animation", map().with("library", library).with("autoplay", name).with("speed_scale", 1.0).with("root_node", ""));
+    S.clip = nil;
+    signals::inspector(S);
+    signals::changed(S, "timeline");
+    arm(S);
+    log::info("created clip '{name}' on {node.name}");
+    definition(S)
+}
+
+fn track_for(def: any, property: str, target: str) -> any {
+    for track in tracks(def) {
+        if track.target.as_str() == target && track.property.as_str() == property {
+            return track;
+        }
+    }
+    let track = map().with("property", property).with("interpolation", animation::INTERPOLATION_LINEAR).with("keys", []);
+    if target != "" {
+        track.set("target", target);
+    }
+    if def.tracks.kind() != "list" {
+        def.set("tracks", []);
+    }
+    def.tracks.push(track);
+    track
+}
+
+fn put_key(track: any, t: float, value: any) {
+    let key = map().with("time", t).with("value", value);
+    let keys = util::vec(track.keys);
+    let out: [any] = [];
+    let placed = false;
+    for i in 0..keys.len() {
+        let old = keys.at(i);
+        let kt = old.time.as_float();
+        if !placed && util::abs(kt - t) < SAME_TIME {
+            out.push(key);
+            placed = true;
+            continue;
+        }
+        if !placed && kt > t {
+            out.push(key);
+            placed = true;
+        }
+        out.push(old);
+    }
+    if !placed {
+        out.push(key);
+    }
+    track.set("keys", out);
+}
+
+/// Insert (or replace) a key at `t` from the selection's current transform,
+/// on the player's clip, addressed by path. A bone keys its rotation alone:
+/// its position is its rest, and a key there would tear the rig.
+pub fn add_key(S: &mut editor::State, t: float) {
+    let def = ensure_clip(S);
+    let node = model::selected_node(S);
+    let found = model::live(S, S.sel);
+    if !found.is_valid() {
+        // A key is a snapshot of the live node, so there has to be one.
+        log::warn("{node.name}: no live node to read a transform from");
+        return;
+    }
+    let player_i = player_index(S);
+    if def.is_nil() {
+        log::warn("{node.name}: the library has no clip called '{clip_name(S.doc[player_i])}'");
+        return;
+    }
+    history::record(S, "insert keyframe", nil);
+    let target = target_path(S, player_i);
+    put_key(track_for(def, animation::PROPERTY_ROTATION_EULER, target), t, util::xyz(found.transform.rotation_euler));
+    if !node.has("bone2d") && !node.has("bone3d") {
+        put_key(track_for(def, animation::PROPERTY_POSITION, target), t, util::xyz(found.transform.position));
+    }
+    if t > length(def) {
+        def.set("length", t);
+    }
+    touch(S);
+    log::info("key at {seconds(t)}s ({key_count(def)} keys)");
+}
+
+// A time to two places, as a log line gives one.
+fn seconds(t: float) -> str {
+    let hundredths = math::round(t * 100.0) as int;
+    let frac = hundredths % 100;
+    "{hundredths / 100}.{if frac < 10 { "0" } else { "" }}{frac}"
+}
+
+/// Insert (or replace) a key on one named property of the selection, for a
+/// tool that keys something a transform snapshot does not cover: the Polygon
+/// tool's `polygon/deform` is the first.
+pub fn key_property(S: &mut editor::State, t: float, property: str, value: any) {
+    let def = ensure_clip(S);
+    let player_i = player_index(S);
+    if def.is_nil() {
+        log::warn("the library has no clip called '{clip_name(S.doc[player_i])}'");
+        return;
+    }
+    history::record(S, "key {property}", nil);
+    put_key(track_for(def, property, target_path(S, player_i)), t, value);
+    if t > length(def) {
+        def.set("length", t);
+    }
+    touch(S);
+    log::info("{property} keyed at {seconds(t)}s");
+}
+
+/// Delete the selection's keys at the playhead; other nodes' lanes keep theirs.
+pub fn delete_key_at(S: &mut editor::State, t: float) {
+    let def = definition(S);
+    if def.is_nil() {
+        return;
+    }
+    history::record(S, "delete keyframe", nil);
+    let target = target_path(S, player_index(S));
+    let kept: [any] = [];
+    for track in tracks(def) {
+        let keys: [any] = [];
+        for key in util::vec(track.keys) {
+            if track.target.as_str() != target || util::abs(key.time.as_float() - t) >= 0.05 {
+                keys.push(key);
+            }
+        }
+        track.set("keys", keys);
+        // A track with no keys is not a track: the engine rejects one, so
+        // the editor never writes one.
+        if keys.len() > 0 {
+            kept.push(track);
+        }
+    }
+    if kept.len() > 0 {
+        def.set("tracks", kept);
+    } else {
+        def.remove("tracks");
+    }
+    touch(S);
+}
+
+/// Move the playhead. The engine poses the node; the editor samples nothing.
+pub fn seek(S: &mut editor::State, t: float) {
+    S.anim.time = t;
+    signals::changed(S, "timeline");
+    let p = player(S);
+    if p.found.is_valid() && !component(p.node).is_nil() {
+        p.found.animation.seek(t);
+    }
+}
+
+/// Inline to external: the same table, in a file of its own.
+pub fn promote(S: &mut editor::State) {
+    let p = player(S);
+    let comp = component(p.node);
+    let doc = document(S);
+    if comp.is_nil() || doc.is_nil() {
+        return;
+    }
+    history::record(S, "save clip as file", nil);
+    if library_of(comp).kind() != "map" {
+        log::warn("this clip is already a file");
+        return;
+    }
+    let rel = "animations/" + p.node.name.as_str().to_lower() + ".toml";
+    doc.set("type", CLIP_TYPE);
+    fs::write(util::engine_path(S.game_root, rel), toml::encode(doc));
+    assets::reload(util::engine_path(S.game_root, rel));
+    comp.set("library", rel);
+    S.clip = nil;
+    signals::inspector(S);
+    arm(S);
+    log::info("saved " + rel + " (undo detaches it; the file stays)");
+}
+
+/// External to inline: a private copy of the document, owned by this node.
+pub fn make_inline(S: &mut editor::State) {
+    let p = player(S);
+    let comp = component(p.node);
+    let rel = library_path(p.node);
+    if comp.is_nil() || rel.is_none() {
+        log::warn("this clip is already embedded");
+        return;
+    }
+    history::record(S, "embed clip", nil);
+    let copy = assets::duplicate(util::engine_path(S.game_root, rel.unwrap()));
+    if copy.kind() != "map" {
+        log::warn("cannot embed {rel.unwrap()}: {copy}");
+        return;
+    }
+    // A reference to one entry brings back that entry alone, so it is wrapped
+    // back into a library under the name it was addressed by, which is also
+    // the name `autoplay` now has to carry.
+    let parts = rel.unwrap().split_once("#");
+    if parts.len() == 2 {
+        copy = map().with(GROUP, map().with(parts[1], copy));
+        comp.set("autoplay", parts[1]);
+    }
+    copy.set("type", CLIP_TYPE);
+    comp.set("library", copy);
+    S.clip = nil;
+    signals::inspector(S);
+    arm(S);
+    log::info("clip is now embedded in {p.node.name}");
+}
+
+/// Write an external clip back to its file. An inline clip is saved with the
+/// scene, so there is nothing separate to write.
+pub fn save(S: &mut editor::State) {
+    if S.clip.is_none() {
+        return;
+    }
+    let clip = S.clip.unwrap();
+    if clip.path.is_none() || clip.doc.is_nil() || !clip.dirty {
+        return;
+    }
+    let path = clip.path.unwrap();
+    fs::write(util::engine_path(S.game_root, path), toml::encode(clip.doc));
+    assets::reload(util::engine_path(S.game_root, path));
+    clip.dirty = false;
+    log::info("saved " + path);
+}
+
+/// After a mirror rebuild, re-apply each animated `library` as an absolute
+/// path: game-relative references do not resolve in the editor's engine.
+pub fn rebind(S: &mut editor::State) {
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        let comp = component(node);
+        let found = model::live(S, i);
+        let rel = library_path(node);
+        if found.is_valid() && !comp.is_nil() && rel.is_some() {
+            found.set_component("animation", component_params(comp, util::engine_path(S.game_root, rel.unwrap())));
+            if !S.playing {
+                found.animation.pause();
+            }
+        }
+    }
+}
+
+/// Let the mirrored players run again (F5). `arm` paused them; the mirror is
+/// built paused so the edited scene does not animate under the inspector.
+pub fn resume_all(S: editor::State) {
+    for i in 0..S.doc.len() {
+        let found = model::live(S, i);
+        if found.is_valid() && !component(S.doc[i]).is_nil() {
+            found.animation.resume();
+        }
+    }
+}
+
+/// The engine advances every player itself. All the editor does per frame is
+/// follow the playhead while the scene runs, and re-arm when the selection
+/// moves to another player.
+pub fn update(S: &mut editor::State) {
+    if S.anim.rebind {
+        S.anim.rebind = false;
+        rebind(S);
+    }
+    let player_i = player_index(S);
+    if S.playing {
+        let p = player(S);
+        if p.found.is_valid() && !component(p.node).is_nil() {
+            S.anim.time = p.found.animation.time();
+        }
+        return;
+    }
+    let stale = S.clip.is_none() || S.clip.unwrap().index != player_i;
+    if stale {
+        // The cache is about to be replaced, so an external clip edited but
+        // not yet written goes to its file now rather than being dropped.
+        save(S);
+        S.clip = nil;
+        signals::inspector(S);
+        signals::changed(S, "timeline");
+        arm(S);
+    }
+}

@@ -1,0 +1,20 @@
+// The User data dock: the files the open game keeps for its player, saves and
+// prefs among them, opened as structures and edited in place. What a game
+// played here writes lands in the same folder as the game run on its own.
+
+pub struct Userdata {
+    node: Node,
+}
+
+impl Userdata {
+    pub fn register() -> any {
+        map().with("panels", [map().with("id", "userdata").with("title", "User data").with("tall", true).with("draw", "draw")])
+    }
+
+    /// Filled when its dock shows, and again on a word: a save the game wrote
+    /// while the editor watches is one of them, so it shows without a click.
+    pub fn draw(payload: any) {
+        let editor = scene::get_node("Editor");
+        editor.call("kit_rows", payload.host, "body", editor.call("kit_files", "userdata", map()));
+    }
+}

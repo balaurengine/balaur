@@ -5,6 +5,8 @@
 //! its own process.
 
 mod app_events;
+mod bs;
+mod bs_host;
 mod components;
 mod dap;
 mod digest_cover;

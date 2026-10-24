@@ -1,0 +1,14 @@
+// One property read and one written, the seam a control or a tweak crosses.
+
+pub struct ComponentRead {
+    node: Node,
+    seen: float,
+}
+
+impl ComponentRead {
+    fn update(dt: float) {
+        let held = self.node.get_component("shape2d", "radius");
+        self.seen = if held.kind() == "float" { held.as_float() } else { 0.0 };
+        self.node.patch_component("shape2d", map().with("radius", self.seen));
+    }
+}

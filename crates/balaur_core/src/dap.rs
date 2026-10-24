@@ -29,7 +29,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -56,6 +56,20 @@ const LOG_SCAN: usize = 64;
 /// The largest `Content-Length` a client may claim. The header is one line of
 /// text on a socket, and the buffer is allocated before anything is read.
 const MAX_MESSAGE: usize = 16 * 1024 * 1024;
+
+/// Messages queued for a client that has not read them yet, past which its
+/// Debug Console lines are dropped: a client that stops reading costs a
+/// counted gap in its log, never a stalled frame.
+const MAX_BACKLOG: usize = 256;
+
+/// One client's way out: what the game hands its writer thread, and how many
+/// of those the thread has not put on the wire yet.
+struct Wire {
+    tx: Sender<Vec<u8>>,
+    backlog: Arc<AtomicUsize>,
+}
+
+type Outbox = Arc<Mutex<Option<Wire>>>;
 
 /// Install the server and start listening. Port 0 takes any free port, which
 /// the returned handle reports.
@@ -86,6 +100,7 @@ pub fn serve(app: &mut App, port: u16) -> Result<Server> {
         stop: None,
         reported_lines: Vec::new(),
         log_cursor: 0.0,
+        dropped: 0,
     }));
     let pump = Rc::clone(&session);
     app.add_system(Stage::First, move |eng, _| pump.borrow_mut().pump(eng));
@@ -148,7 +163,7 @@ impl Server {
 fn accept_loop(
     listener: TcpListener,
     requests: &Sender<Json>,
-    out: &Arc<Mutex<Option<TcpStream>>>,
+    out: &Outbox,
     connected: &Arc<AtomicBool>,
 ) {
     let (requests, out, connected) = (requests.clone(), Arc::clone(out), Arc::clone(connected));
@@ -158,7 +173,7 @@ fn accept_loop(
                 continue;
             };
             *out.lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(stream);
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(write_loop(stream));
             connected.store(true, Ordering::Relaxed);
             read_messages(reader, &requests);
             connected.store(false, Ordering::Relaxed);
@@ -166,6 +181,25 @@ fn accept_loop(
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         }
     });
+}
+
+/// The writer thread for one connection: it alone blocks on the socket, so
+/// a client that reads slowly never stalls the frame. It ends when the
+/// connection does or its sender is dropped.
+fn write_loop(mut stream: TcpStream) -> Wire {
+    let (tx, rx) = channel::<Vec<u8>>();
+    let backlog = Arc::new(AtomicUsize::new(0));
+    let left = Arc::clone(&backlog);
+    std::thread::spawn(move || {
+        for bytes in rx {
+            if let Err(err) = stream.write_all(&bytes) {
+                tracing::debug!("debug adapter write: {err}");
+                return;
+            }
+            left.fetch_sub(1, Ordering::Relaxed);
+        }
+    });
+    Wire { tx, backlog }
 }
 
 /// Read `Content-Length` framed JSON off one connection until it closes.
@@ -259,7 +293,7 @@ impl Stop {
 /// The adapter's own state, touched only from the frame loop.
 struct Session {
     inbox: Receiver<Json>,
-    out: Arc<Mutex<Option<TcpStream>>>,
+    out: Outbox,
     connected: Arc<AtomicBool>,
     /// The project root incoming source paths are made relative to.
     root: PathBuf,
@@ -274,6 +308,8 @@ struct Session {
     reported_lines: Vec<(String, Vec<usize>)>,
     /// Timestamp of the last log line forwarded to the Debug Console.
     log_cursor: f64,
+    /// Debug Console lines dropped while the client was behind, owed a note.
+    dropped: usize,
 }
 
 impl Session {
@@ -295,20 +331,28 @@ impl Session {
         self.forward_logs();
     }
 
-    fn send(&mut self, mut message: JsonMap<String, Json>) {
-        self.seq += 1;
-        message.insert("seq".into(), json!(self.seq));
-        let body = Json::Object(message).to_string();
-        let mut guard = self
+    /// Queue `message` for the client's writer thread. A `droppable` one,
+    /// a Debug Console line, is counted and dropped instead while the client
+    /// is far behind.
+    fn send(&mut self, mut message: JsonMap<String, Json>, droppable: bool) {
+        let guard = self
             .out
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Some(stream) = guard.as_mut() else {
+        let Some(wire) = guard.as_ref() else {
             return;
         };
+        if droppable && wire.backlog.load(Ordering::Relaxed) >= MAX_BACKLOG {
+            self.dropped += 1;
+            return;
+        }
+        self.seq += 1;
+        message.insert("seq".into(), json!(self.seq));
+        let body = Json::Object(message).to_string();
         let framed = format!("Content-Length: {}\r\n\r\n{body}", body.len());
-        if let Err(err) = stream.write_all(framed.as_bytes()) {
-            tracing::debug!("debug adapter write: {err}");
+        wire.backlog.fetch_add(1, Ordering::Relaxed);
+        if wire.tx.send(framed.into_bytes()).is_err() {
+            wire.backlog.fetch_sub(1, Ordering::Relaxed);
         }
     }
 
@@ -317,7 +361,7 @@ impl Session {
         message.insert("type".into(), json!("event"));
         message.insert("event".into(), json!(name));
         message.insert("body".into(), body);
-        self.send(message);
+        self.send(message, name == "output");
     }
 
     fn respond(&mut self, request: &Json, body: Result<Json, String>) {
@@ -337,7 +381,7 @@ impl Session {
                 message.insert("message".into(), json!(reason));
             }
         }
-        self.send(message);
+        self.send(message, false);
     }
 
     fn dispatch(&mut self, eng: &Engine, request: &Json) {
@@ -621,6 +665,21 @@ impl Session {
 
     /// Put the engine's log through to the client's Debug Console.
     fn forward_logs(&mut self) {
+        if self.dropped > 0 && self.behind() < MAX_BACKLOG / 2 {
+            let note = format!(
+                "[debug adapter] {} log lines dropped: the debugger fell behind\n",
+                self.dropped
+            );
+            self.dropped = 0;
+            let mut message = JsonMap::new();
+            message.insert("type".into(), json!("event"));
+            message.insert("event".into(), json!("output"));
+            message.insert(
+                "body".into(),
+                json!({ "category": "console", "output": note }),
+            );
+            self.send(message, false);
+        }
         let fresh: Vec<crate::logbuf::LogEntry> = crate::logbuf::recent(LOG_SCAN)
             .into_iter()
             .filter(|entry| entry.time > self.log_cursor)
@@ -639,6 +698,15 @@ impl Session {
                 }),
             );
         }
+    }
+
+    /// Messages the client's writer thread has not sent yet.
+    fn behind(&self) -> usize {
+        self.out
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map_or(0, |w| w.backlog.load(Ordering::Relaxed))
     }
 
     /// The host's key for a path the client named: project-relative, with

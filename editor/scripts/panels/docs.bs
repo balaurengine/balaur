@@ -1,0 +1,60 @@
+// The Docs tab's one script: it shows the module the Editor says is picked,
+// filtered by its own search, and tells the Editor a new pick.
+
+pub struct Docs {
+    node: Node,
+    query: str,
+    editor: Node,
+}
+
+impl Docs {
+    pub fn init() {
+        self.query = "";
+        self.editor = scene::get_node("Editor");
+        for word in ["docs_changed", "outline_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_docs_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "change" {
+            return;
+        }
+        let name = node.name();
+        if name == "Module" {
+            self.editor.call("docs_pick", value);
+        } else if name == "Search" {
+            self.query = value.as_str();
+        } else {
+            return;
+        }
+        self.refresh();
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        let view = self.editor.call("docs_view", self.query);
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("Tools/Module").patch_component("widget", map()
+            .with("options", view.get("modules"))
+            .with("text", view.get("pick")));
+        self.node.get_node("List").patch_component("widget", map().with("options", view.get("items")));
+        self.node.get_node("Nothing").patch_component("widget", map()
+            .with("visible", view.get("says").as_str() != "")
+            .with("text", view.get("says")));
+    }
+}

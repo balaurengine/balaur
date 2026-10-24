@@ -9,6 +9,11 @@ use crate::value::{CallbackId, FromArgs, IntoValue, Value};
 /// parameter so this crate depends on nothing.
 pub type BoundFn<C> = Box<dyn Fn(&C, &[Value]) -> Result<Value>>;
 
+/// An entry point that may move its arguments out of their slots, which the
+/// backend built for this one call. Every typed binding is one, so a table or
+/// a string an argument carries crosses the seam once.
+pub type OwnedFn<C> = Box<dyn Fn(&C, &mut [Value]) -> Result<Value>>;
+
 /// A named group of bindings — `physics`, `render`, `ui`.
 ///
 /// Object-safe on purpose. The typed `function` sugar lives in [`BindingsExt`],
@@ -16,6 +21,15 @@ pub type BoundFn<C> = Box<dyn Fn(&C, &[Value]) -> Result<Value>>;
 /// `&mut dyn Bindings<C>` impossible, and gdext already proved where that leads.
 pub trait Bindings<C: ?Sized> {
     fn function_raw(&mut self, name: &str, f: BoundFn<C>);
+    /// `function_raw` for an entry point that takes its arguments. A backend
+    /// that builds the slots for each call hands them over; this default
+    /// copies them first, which is what reading them borrowed cost anyway.
+    fn function_owned(&mut self, name: &str, f: OwnedFn<C>)
+    where
+        C: 'static,
+    {
+        self.function_raw(name, Box::new(move |ctx, args| f(ctx, &mut args.to_vec())));
+    }
     fn constant(&mut self, name: &str, value: Value);
     /// The argument and return types of `name`, as Rust spells them, for the
     /// generated reference. A backend that keeps no API record ignores it.
@@ -29,7 +43,16 @@ pub trait Bindings<C: ?Sized> {
     /// documentation. `scripts/api_lints.py` fails the build for a registered
     /// function with no entry here.
     fn describe(&mut self, _entries: &[FnDoc]) {}
+    /// The shapes this module's functions hand back, so a typed script reads
+    /// `rect.width` rather than asking a table for it.
+    fn records(&mut self, _entries: &[RecordDoc]) {}
 }
+
+/// A table a function hands back, with fixed fields: its name, its fields
+/// as a signature spells them, `"{ x: float, y: float, label: string? }"`,
+/// and one line saying what it is. A signature names it by that name,
+/// `"(node: node) -> Rect"`, or another module's as `"ui::Rect"`.
+pub type RecordDoc = (&'static str, &'static str, &'static str);
 
 /// One function's reference entry: its name, the components it reads or
 /// writes (empty when it acts on none), its script-facing signature, and one
@@ -37,10 +60,11 @@ pub trait Bindings<C: ?Sized> {
 ///
 /// The signature is `""` for anything registered through
 /// [`BindingsExt::function`], which records the real argument and return types
-/// itself. Spell one out only where a function is registered through
-/// [`Bindings::function_raw`] and so has no types to read: write what a script
-/// passes, `"(path: string, recursive: bool)"` and `"bool"`, or `"()"` for
-/// nothing.
+/// itself, or only a result, `"-> Rect"`, where that is a `Value` holding a
+/// [`RecordDoc`]. Spell one out where a function is registered through
+/// [`Bindings::function_raw`] and so has no types to read: what a script
+/// passes and gets, `"(path: string, recursive: bool) -> bool"`; with no `->`
+/// it gives nothing back.
 pub type FnDoc = (
     &'static str,
     &'static [&'static str],
@@ -55,11 +79,12 @@ pub trait BindingsExt<C: ?Sized>: Bindings<C> {
         A: FromArgs + 'static,
         R: IntoValue + 'static,
         F: Fn(&C, A) -> Result<R> + 'static,
+        C: 'static,
     {
-        self.function_raw(
+        self.function_owned(
             name,
             Box::new(move |ctx, args| {
-                let typed = A::from_args(args)?;
+                let typed = A::take_args(args)?;
                 Ok(f(ctx, typed)?.into_value())
             }),
         );
@@ -107,6 +132,12 @@ macro_rules! forward_bindings {
             fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
                 (**self).function_raw(name, f);
             }
+            fn function_owned(&mut self, name: &str, f: OwnedFn<C>)
+            where
+                C: 'static,
+            {
+                (**self).function_owned(name, f);
+            }
             fn constant(&mut self, name: &str, value: Value) {
                 (**self).constant(name, value);
             }
@@ -118,6 +149,9 @@ macro_rules! forward_bindings {
             }
             fn describe(&mut self, entries: &[FnDoc]) {
                 (**self).describe(entries);
+            }
+            fn records(&mut self, entries: &[RecordDoc]) {
+                (**self).records(entries);
             }
         }
     )*};

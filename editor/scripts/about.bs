@@ -1,0 +1,180 @@
+// The About sheet: which build this is, the line it follows, and whether that
+// line has moved on. The check and the install are the Engine tab's own, so
+// the sheet and the start screen say the same thing.
+
+use editor;
+use inspector;
+use manager;
+use pool;
+use util;
+use window;
+
+const SHEET: str = "about";
+
+const SITE: str = "https://balaurengine.org";
+
+const SOURCE: str = "https://github.com/balaurengine/balaur";
+
+const LABEL_W: float = 96.0;
+
+/// Show the sheet. Opening it is asking, so the feed is read once here unless
+/// the start screen already read it.
+pub fn open(S: &mut editor::State) {
+    window::show(S, SHEET);
+    if !S.manager.asked && !manager::in_tab() {
+        manager::check(S);
+    }
+}
+
+/// Fill the sheet: what its script asks for when About is up.
+pub fn fill(S: &mut editor::State) {
+    let hosts = window::sheet_form(S, SHEET, "About Balaur", []);
+    if util::is_nil(hosts) {
+        return;
+    }
+    let hosts = hosts.unwrap();
+    pool::sync(S, hosts.form, specs(S), LABEL_W, false);
+}
+
+/// Every row the sheet shows: which build this is, the line it follows, and
+/// where to read more.
+fn specs(S: editor::State) -> [any] {
+    let mine = util::obj(release::installed());
+    let out = [
+        map()
+            .with("full", true)
+            .with("height", 56)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map()
+                    .with("kind", "panel")
+                    .with("role", "sheet_logo")
+                    .with("controls", [
+                        map().with("kind", "image").with("image", manager::LOGO).with("width", 44),
+                    ]),
+                map()
+                    .with("kind", "column")
+                    .with("role", "layout_about")
+                    .with("controls", [
+                        map().with("kind", "label").with("role", "text_title").with("text", "Balaur " + mine.get("version").as_str()),
+                        map().with("kind", "label").with("role", "text_caption").with("text", manager::build_line(mine)),
+                    ]),
+            ]),
+    ];
+    fact(out, "Version", mine.get("version").as_str());
+    fact(out, "Build", (if mine.get("source").as_bool() == true { "from a checkout" } else { mine.get("id") }).as_str());
+    fact(out, "Channel", (if mine.get("channel").as_str() == "" { "none" } else { mine.get("channel") }).as_str());
+    fact(out, "Platform", engine::target().os.as_str());
+    fact(out, "License", "MIT");
+    // A tab runs the build the page served it, so it has no line to follow.
+    if !manager::in_tab() {
+        update_rows(S, mine, out);
+    }
+    out.push(map()
+        .with("full", true)
+        .with("height", 30)
+        .with("slot_role", "layout_actions")
+        .with("controls", [
+            link("balaurengine.org", SITE),
+            link("Source", SOURCE),
+        ]));
+    out
+}
+
+// One label and its value, the value in the monospace a build id reads in.
+fn fact(out: [any], name: str, value: str) {
+    out.push(map()
+        .with("full", false)
+        .with("height", 22)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_code")
+                .with("grow", 1)
+                .with("text", value),
+        ])
+        .with("label", name));
+}
+
+fn link(text: str, url: str) -> any {
+    map()
+        .with("kind", "button")
+        .with("role", "chip")
+        .with("text", text)
+        .with("tooltip", url)
+        .with("on", "handle")
+        .with("data", map().with("fn", link_on_0).with("url", url))
+}
+
+fn link_on_0(S: any, data: any, _0: any) {
+    let url: str = data.url;
+    engine::open_url(url);
+}
+
+// Where this build's line stands, the press that asks again, and the newest
+// release on it when there is one to move to; then what the check said and
+// how far an install has got.
+fn update_rows(S: editor::State, mine: any, out: [any]) {
+    let k = S.theme;
+    // A source build follows no line; the nightly is what it is nearest to.
+    let line = if mine.get("channel").as_str() == "" { "nightly" } else { mine.get("channel") };
+    let newest = manager::newest_on(S, line.as_str());
+    let fresh = newest.get("order").as_str() == "newer";
+    let controls: [any] = [
+        map()
+            .with("kind", "label")
+            .with("role", "text_code")
+            .with("font_size", 11)
+            .with("grow", 1)
+            .with("text", line.as_str() + ": " + manager::standing(S, line.as_str()))
+            .with("text_color", (if fresh { k.get("success_text") } else { k.get("text_subtle") }).as_str()),
+    ];
+    // Up to date already says it; only a release to move to gets a press.
+    if newest.get("id").as_str() != "" && newest.get("order").as_str() != "same" {
+        let press = manager::press_spec(S, newest, mine);
+        if press.kind() == "map" {
+            controls.push(press);
+        }
+    }
+    controls.push(map()
+        .with("kind", "button")
+        .with("role", "action_form")
+        .with("text", if S.manager.reading { "Checking" } else { "Check" })
+        .with("on", "handle")
+        .with("data", map().with("fn", update_rows_on_1)));
+    out.push(map().with("full", true).with("height", 30).with("slot_role", "layout_actions").with("controls", controls));
+    if mine.get("held").as_str() != "" {
+        out.push(say(mine.get("held").as_str(), k.get("text_subtle").as_str()));
+    }
+    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
+    if said != "" {
+        out.push(say(said, (if S.manager.failed != "" { k.get("warning_text") } else { k.get("text_subtle") }).as_str()));
+    }
+    if manager::installing(S) {
+        out.push(map()
+            .with("full", true)
+            .with("height", 22)
+            .with("slot_role", "layout_actions")
+            .with("controls", manager::progress_controls(S)));
+    }
+}
+
+fn update_rows_on_1(S: &mut editor::State, data: any, _0: any) {
+    manager::check(S);
+}
+
+fn say(text: str, ink: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 0)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_code_quiet")
+                .with("font_size", 11)
+                .with("grow", 1)
+                .with("wrap", true)
+                .with("text", text)
+                .with("text_color", ink),
+        ])
+}

@@ -8,7 +8,7 @@ const SCENE: &str = r#"
 [[nodes]]
 id = "n_camera"
 name = "Camera"
-script = { source = "scenes/shoot.rn" }
+script = { source = "scenes/shoot.bs" }
 "#;
 
 #[test]
@@ -22,8 +22,9 @@ fn a_screenshot_in_a_run_with_no_renderer_says_it_failed() {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
     std::fs::write(
-        dir.path().join("scenes/shoot.rn"),
-        "pub fn init(this) { render::screenshot(\"shots/one.png\"); }\n",
+        dir.path().join("scenes/shoot.bs"),
+        "pub struct Shoot { node: Node }\n\
+         impl Shoot { fn init() { render::screenshot(\"shots/one.png\"); } }\n",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());

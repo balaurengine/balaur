@@ -1,0 +1,103 @@
+# The Recordings tab while one is open: its transport and scrubber, where the
+# replay parted from the recording, a lane a kind of event with a mark a tick,
+# and everything recorded at the playhead. One script fills and answers it.
+
+[[nodes]]
+id = "panel"
+name = "Lanes"
+script = { source = "scripts/panels/lanes.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = [4, 4]
+align_items = "center"
+padding = [8, 0, 8, 0]
+
+[[nodes]]
+id = "play"
+name = "Play"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "▶ Play"
+
+[[nodes]]
+id = "step"
+name = "Step"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "⇥"
+tooltip = "One recorded tick forward"
+
+[[nodes]]
+id = "stop"
+name = "Stop"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "■"
+tooltip = "Back to the edited scene"
+
+[[nodes]]
+id = "scrub"
+name = "Scrub"
+parent = "head"
+[nodes.widget]
+kind = "slider"
+value = 0.0
+min = 0.0
+max = 1.0
+grow = 1
+
+[[nodes]]
+id = "at"
+name = "At"
+parent = "head"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+[[nodes]]
+id = "parted"
+name = "Parted"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_caption_primary"
+text = ""
+padding = [8, 0, 8, 0]
+visible = false
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "rows"
+name = "Rows"
+parent = "scroll"
+[nodes.widget]
+kind = "column"
+gap = [0, 2]

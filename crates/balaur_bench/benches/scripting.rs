@@ -3,23 +3,26 @@
 //! The interesting number is per node per frame: a game's budget is 16.6 ms,
 //! and `update` runs on every scripted node in it. Everything here is headless.
 
-use balaur_bench::{Backend, Project, app, attach_many};
+use balaur_bench::{Backend, Project, app, attach_many, script};
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt};
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
+/// A map a script builds, three keys.
+const MAP: &str = "map().with(\"x\", 1.0).with(\"y\", 2.0).with(\"name\", \"widget\")";
+
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {
     match (backend, body) {
-        (Backend::Rune, Body::Empty) => {
-            "pub fn init(this) {}\npub fn update(this, dt) {}\n".into()
-        }
-        (Backend::Rune, Body::State) => {
-            "pub fn init(this) { this.n = 0.0; }\npub fn update(this, dt) { this.n = this.n + dt; }\n".into()
-        }
-        (Backend::Rune, Body::NodeApi) => {
-            "pub fn init(this) {}\npub fn update(this, dt) { this.node.transform.translate(dt, 0.0, 0.0); }\n".into()
-        }
+        (Backend::Bs, Body::Empty) => script("", "    fn init() {}\n    fn update(dt: float) {}"),
+        (Backend::Bs, Body::State) => script(
+            ", n: float",
+            "    fn init() { self.n = 0.0; }\n    fn update(dt: float) { self.n = self.n + dt; }",
+        ),
+        (Backend::Bs, Body::NodeApi) => script(
+            "",
+            "    fn init() {}\n    fn update(dt: float) { self.node.transform.translate(dt, 0.0, 0.0); }",
+        ),
     }
 }
 
@@ -65,8 +68,8 @@ fn update_across_nodes(c: &mut Criterion) {
     group.finish();
 }
 
-/// The other per-frame path over every node: `draw_ui` reaches every scripted
-/// node in the editor, and in a real scene most of them never declare it.
+/// A hook called on every scripted node, as `on_hot_reload` is: what
+/// `call_all` costs where the scripts declare it and where most do not.
 fn call_all_across_nodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("call_all");
     let count = 1000usize;
@@ -74,15 +77,15 @@ fn call_all_across_nodes(c: &mut Criterion) {
         group.throughput(Throughput::Elements(count as u64));
         for backend in Backend::ALL {
             let body = match (backend, declared) {
-                (Backend::Rune, true) => "pub fn init(this) {}\npub fn draw_ui(this) {}\n",
-                (Backend::Rune, false) => "pub fn init(this) {}\n",
+                (Backend::Bs, true) => script("", "    fn init() {}\n    fn on_hot_reload() {}"),
+                (Backend::Bs, false) => script("", "    fn init() {}"),
             };
-            let project = Project::new(backend, body).unwrap();
+            let project = Project::new(backend, &body).unwrap();
             let app = app(backend, &project).unwrap();
             attach_many(&app, backend, count).unwrap();
             let host = app.engine.script_host().unwrap();
             group.bench_function(BenchmarkId::new(backend.name(), name), |b| {
-                b.iter(|| host.call_all("draw_ui"));
+                b.iter(|| host.call_all("on_hot_reload"));
             });
         }
     }
@@ -94,11 +97,12 @@ fn binding_call(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_call");
     for backend in Backend::ALL {
         let body = match backend {
-            Backend::Rune => {
-                "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1, 2.0, \"three\"); }\n"
-            }
+            Backend::Bs => script(
+                "",
+                "    fn update(dt: float) { bench::noop(1, 2.0, \"three\"); }",
+            ),
         };
-        let project = Project::new(backend, body).unwrap();
+        let project = Project::new(backend, &body).unwrap();
         let mut app = app(backend, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
@@ -114,7 +118,7 @@ fn binding_call(c: &mut Criterion) {
     group.finish();
 }
 
-/// First attach: compiling the script and, for Rune, building the context.
+/// First attach: compiling the script and instancing it.
 ///
 /// Separated from the per-node cost because they are different problems. This
 /// one is paid once per script file, and again on every hot reload.
@@ -157,11 +161,11 @@ fn attach_more(c: &mut Criterion) {
     group.finish();
 }
 
-/// Compiling a second script once the context exists.
+/// Compiling a second script once the first has.
 ///
-/// Splits `attach_first` in two: if this is cheap, the cost there is building
-/// the language context and is paid once at startup. If it is expensive, every
-/// hot reload pays it, which is a very different problem.
+/// Splits `attach_first` in two: if this is cheap, the cost there is paid once
+/// at startup. If it is expensive, every hot reload pays it, which is a very
+/// different problem.
 fn compile_second_script(c: &mut Criterion) {
     let mut group = c.benchmark_group("compile_second_script");
     for backend in Backend::ALL {
@@ -196,24 +200,24 @@ fn compile_second_script(c: &mut Criterion) {
 fn binding_arg_shapes(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_arg");
     // A scalar and a table: the two shapes the seam converts differently.
-    let shapes: [(&str, &str); 2] = [
-        ("int", "42"),
-        ("map", "#{x: 1.0, y: 2.0, name: \"widget\"}"),
-    ];
+    let shapes: [(&str, &str); 2] = [("int", "42"), ("map", MAP)];
     // A literal is rebuilt by the script on every call, so those numbers are
     // allocation plus conversion. `map_reused` passes one built up front, which
     // isolates what crossing the seam actually costs.
-    let reused: [(&str, &str); 1] = [("map_reused", "this.opts")];
+    let reused: [(&str, &str); 1] = [("map_reused", "self.opts")];
     for (name, arg) in shapes.into_iter().chain(reused) {
         for backend in Backend::ALL {
             let setup = if name == "map_reused" {
-                "this.opts = #{x: 1.0, y: 2.0, name: \"widget\"};"
+                format!("self.opts = {MAP};")
             } else {
-                ""
+                String::new()
             };
             let body = match backend {
-                Backend::Rune => format!(
-                    "pub fn init(this) {{ {setup} }}\npub fn update(this, dt) {{ bench::take({arg}); }}\n"
+                Backend::Bs => script(
+                    ", opts: any",
+                    &format!(
+                        "    fn init() {{ {setup} }}\n    fn update(dt: float) {{ bench::take({arg}); }}"
+                    ),
                 ),
             };
             let project = Project::new(backend, &body).unwrap();
@@ -222,6 +226,7 @@ fn binding_arg_shapes(c: &mut Criterion) {
                 let mut m = app.script_module("bench").unwrap();
                 let m: &mut dyn Bindings<Engine> = &mut *m;
                 m.function_raw("take", Box::new(|_, _| Ok(balaur_script::Value::Nil)));
+                m.describe(&[("take", &[], "(value: any)", "Takes a value, does nothing.")]);
             }
             attach_many(&app, backend, 1).unwrap();
             let host = app.engine.script_host().unwrap();

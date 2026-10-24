@@ -1,0 +1,130 @@
+# The Library tab: a chip a kind, then that kind's cards, or the templates as
+# a table a row of which copies the command. One script answers them all.
+
+[[nodes]]
+id = "panel"
+name = "Library"
+script = { source = "scripts/panels/library.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+# A chip a kind, named for the kind it filters by.
+[[nodes]]
+id = "kinds"
+name = "Kinds"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+role = "toolbar_dock"
+align_items = "center"
+gap = [6, 6]
+
+[[nodes]]
+id = "material"
+name = "material"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Materials"
+
+[[nodes]]
+id = "sky"
+name = "sky"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Skies"
+
+[[nodes]]
+id = "model"
+name = "model"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Models"
+
+[[nodes]]
+id = "scene"
+name = "scene"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Lighting"
+
+[[nodes]]
+id = "rig"
+name = "rig"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Rigs"
+
+[[nodes]]
+id = "addon"
+name = "addon"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Addons"
+
+[[nodes]]
+id = "template"
+name = "template"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Templates"
+
+# What the kind holds nothing of, or what a template row does.
+[[nodes]]
+id = "note"
+name = "Note"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false
+
+[[nodes]]
+id = "cards"
+name = "Cards"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+grid_columns = "repeat(5, 1fr)"
+
+[nodes.widget.touch]
+row_height = 33
+
+# The templates: a name, what it makes, and the command a click copies.
+[[nodes]]
+id = "table"
+name = "Table"
+parent = "panel"
+[nodes.widget]
+kind = "table"
+grow = 1
+text = ""
+visible = false
+sortable = true
+row_height = 18
+font_family = "mono"
+titles = ["template", "what it makes", "the command it is made with"]
+widths = ["1", "1.6", "2"]
+
+[nodes.widget.touch]
+row_height = 33

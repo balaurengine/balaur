@@ -20,27 +20,27 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| A selection set: `S.sels` ordered, `S.sel` its head | `editor/scripts/selection.rn` |
-| Move, rotate and scale gizmos in 3D and 2D, snapping, the tool rail | `gizmo.rn`, `gizmo2d.rn`, `viewport.rn`, `defs::tools` |
-| Undo with labels, dirty tracking | `history.rn` |
-| The palette, and every command as a script | `palette.rn` |
+| A selection set: `S.sels` ordered, `S.sel` its head | `editor/scripts/selection.bs` |
+| Move, rotate and scale gizmos in 3D and 2D, snapping, the tool rail | `gizmo.bs`, `gizmo2d.bs`, `viewport.bs`, `defs::tools` |
+| Undo with labels, dirty tracking | `history.bs` |
+| The palette, and every command as a script | `palette.bs` |
 | Duplicate, reparent keeping the world pose, open the prefab | `model::duplicate_selected`, `node.reparent` |
 | Node `visible`, `z_index`, `tags` | `balaur_core` |
-| One search rule for every list, and the tree filtering by it | `search.rn`, `left.rn` |
+| One search rule for every list, and the tree filtering by it | `search.bs`, `left.bs` |
 | Files dropped on the window | `input.dropped_files` |
 | A `.glb` brought in as models, a scene and clips | `balaur import` |
-| A colour editor, sliders, dropdowns and folds in the inspector | `ui`, `inspector.rn` |
+| A colour editor, sliders, dropdowns and folds in the inspector | `ui`, `inspector.bs` |
 | Component presets and tags | `scene.presets`, `apply_preset` |
-| The Polygon tool, which already edits a mesh in the viewport | `polygon.rn` |
-| The Tiles tool: a palette dock, paint and erase, rectangle fill, layers as sibling maps | `tiles.rn`, `ui.image_button` |
-| The Export sheet, off the frame with progress | `export_api.rs`, `exporter.rn` |
+| The Polygon tool, which already edits a mesh in the viewport | `polygon.bs` |
+| The Tiles tool: a palette dock, paint and erase, rectangle fill, layers as sibling maps | `tiles.bs`, `ui.image_button` |
+| The Export sheet, off the frame with progress | `export_api.rs`, `exporter.bs` |
 | Wireframe, normals and UV materials in the fork | `kiss3d::builtin::{wireframe, normals_material, uvs_material}` |
 | Timings per system, and a profiler dock | `engine.timings` |
-| The editor's own self-test with named states | `selftest.rn`, `--state` |
+| The editor's own self-test with named states | `selftest.bs`, `--state` |
 
 Built since, in the order below: the selection set, group, align, distribute,
 hide, lock and isolate; the outliner's facet chips; drag-in through
-`dropin.rn` and a new `import.*` script module; light and camera gizmos, a
+`dropin.bs` and a new `import.*` script module; light and camera gizmos, a
 view-mode chip and four camera bookmarks; the Pen; the material panel over
 `render.material_params`; the Events view; the Cost dock over `render.stats`;
 and `editor/library`.
@@ -78,7 +78,7 @@ node, open or closed, and a lock at the right of a locked one. A click on
 either acts on that node alone and leaves the selection as it was.
 
 **The outliner filters with the search everyone else uses.** A field at the
-top of the tree using `search.rn`, plus a component filter chip — cameras,
+top of the tree using `search.bs`, plus a component filter chip — cameras,
 lights, meshes, scripts — built from `scene.component_types`.
 
 **A dropped file becomes a node.** An image drops as a `sprite` at the
@@ -86,12 +86,12 @@ pointer in 2D or a textured `plane` in 3D and is copied under `art/`; a
 `.glb` runs `balaur import` and instantiates the result; a `.wesl` becomes a
 material; an `.hdr` sets the environment's sky; a `.toml` scene instantiates
 as a prefab; a font lands under `fonts/`. The rule is one function per
-extension in a `dropin.rn` module, and every one goes through `history`.
+extension in a `dropin.bs` module, and every one goes through `history`.
 
 **Gizmos for lights and cameras.** A camera draws its frustum and gets a
 "look through" command; a light draws its kind — an arrow, a sphere at its
 radius, a cone with both angles — with the radius and cones draggable. Both
-are `gizmo.rn` handlers like the transform ones.
+are `gizmo.bs` handlers like the transform ones.
 
 **View modes are the fork's materials applied to the mirror.** Shaded,
 wireframe, normals, UVs, unlit, and overdraw once `render.stats` exists, as
@@ -156,14 +156,14 @@ library. A Gamend-hosted catalogue with the same manifest is
 All eight built, 2026-09-07, in this order, with the engine work each stood on
 built beside it.
 
-1. **Selection.** *Built.* `selection.rn`, `arrange.rn`, box select in both
+1. **Selection.** *Built.* `selection.bs`, `arrange.bs`, box select in both
    viewports, a gizmo drag over the set. The `test:selection` state asserts a two-node
    align and its undo.
-2. **Finding and dropping.** *Built.* Facet chips in `left.rn`, `dropin.rn`,
+2. **Finding and dropping.** *Built.* Facet chips in `left.bs`, `dropin.bs`,
    and `import_api.rs` for the seam `balaur import` never had. `test:drop`.
 3. **Seeing.** *Built.* `overlays::lights3d`, the view-mode chip and four
-   camera bookmarks in `center.rn`, over `light3d` and `environment`.
-4. **Pen.** *Built.* `pen.rn`, over `path2d`. Two engine defects came out of
+   camera bookmarks in `center.bs`, over `light3d` and `environment`.
+4. **Pen.** *Built.* `pen.bs`, over `path2d`. Two engine defects came out of
    it: an empty path did not parse, and an inline asset table was registered
    as the type its schema named rather than the one it declared, so a polyline
    naming an inlined `path2d` was read as a mesh.
@@ -171,14 +171,14 @@ built beside it.
    the inspector's material rows, which resolve an inline material too, with a
    shader picker and the `@if` flags as toggles. No preview sphere.
 6. **Events.** *Built.* `bindings.rs`, `states.rs`, `variables.rs` and the
-   hook dispatch in `balaur::interact`; `events.rn` authors them. `test:events`.
+   hook dispatch in `balaur::interact`; `events.bs` authors them. `test:events`.
 7. **Cost.** *Built.* `render.stats` and the Cost dock.
 8. **Library.** *Built.* `editor/library`, the dock, and
    `balaur new --template`. `test:library`.
 
 ## 4. What CI can prove, and what it cannot
 
-- Every command runs headless in `selftest.rn` on every example, as the
+- Every command runs headless in `selftest.bs` on every example, as the
   editor's tests do today; a `--state` per new surface joins
   `scripts/uiaudit.sh` and `docs/EDITOR-SCREENS.md`.
 - Drag-in is a function per extension with a test per extension, no window.

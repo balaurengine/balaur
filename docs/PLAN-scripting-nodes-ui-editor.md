@@ -23,7 +23,7 @@ tracks and prefab overrides use, but no script can reach it. So the natural
 `node.set_component("widget", #{ text: "Score 5" })` also resets the label's
 anchor, offset and font size. `examples/angrynerds/scripts/game.rn:62-72`
 works around it with a read-modify-write helper, and the shell code in
-flight (`editor/scripts/layout.rn`, `size`) does the same dance.
+flight (`editor/scripts/layout.bs`, `size`) does the same dance.
 
 **Shape.** One entry in `NODE_OPS`, `patch_component`, calling
 `components::patch`; `patch` beside `get`, `set`, `has` and `remove` in the
@@ -44,7 +44,7 @@ bool, int, float, vec2, vec3, colour, else string. A string cannot say it
 names a node or an asset, a number has no range or step, an enum is
 impossible, there is no help line, and declaration order is lost because a
 Rune object keeps none (`inspect.rs:291-295`). The inspector fakes a spec
-from the default to reach its editors (`editor/scripts/inspector.rn:276-286`).
+from the default to reach its editors (`editor/scripts/inspector.bs`).
 
 **Shape.** Beside the bare form, a value that is an object carrying `type`
 is a spec, in the component schema's own vocabulary:
@@ -68,7 +68,7 @@ attach; `attach_with_props` writes the spec's `default`. `ScriptHost::exports`
 keeps its signature: the `Value` per name is the spec map, with a bare
 default lifted into `#{ type, default }` so every reader sees one shape. The
 inspector's `prop_row` already dispatches on `spec["type"]`
-(`inspector.rn:706-725`), so an exported node path gets the picker, an enum
+(`inspector.bs`), so an exported node path gets the picker, an enum
 the dropdown and an asset the reference row with no editor change; `order`
 sorts the rows the way settings already do. `#[export]`
 (`docs/PLAN-scripting.md`) stays the phase after: it lowers to this table.
@@ -78,7 +78,7 @@ Status: **done** — a spec table beside the bare default, validated against the
 ### 1.3 `on_hot_reload` is never dispatched
 
 **Now.** `ARCHITECTURE.md:137` and `:252` name a `on_hot_reload` hook for
-migrating state shapes, and `editor/scripts/editor.rn:355` defines one, but
+migrating state shapes, and `editor/scripts/editor.bs` defines one, but
 `RuneHost::reload` (`crates/balaur_script_rune/src/lib.rs:797-824`) swaps the
 unit, refreshes the required module, and calls nothing. No instance has ever
 been told its code changed.
@@ -98,7 +98,7 @@ scanning each source line and needs its `(`...`)` on that same line. A
 signature broken over two lines is invisible to `script::functions`, to
 `script::require` (`lib.rs:850-881`), to the editor's hooks panel
 (`editor/scripts/highlight.rn`), and to plugin loading, which then reports
-"no register(); skipped" (`editor/scripts/plugins.rn:71-87`). Worse, `invoke`
+"no register(); skipped" (`editor/scripts/plugins.bs`). Worse, `invoke`
 decides whether to run through the breakpoint executor by finding the
 function in that list (`pause.rs:45-53`): one it cannot find is treated as
 async and runs with its breakpoints ignored. Separately, `trampoline`
@@ -246,7 +246,7 @@ Status: **partly done** — the walk returns before doing anything when a scene 
 ### 4.1 Saving keeps the document whole
 
 **Now.** `model::load` keeps only the `nodes` array of the parsed scene
-(`editor/scripts/model.rn:559-562`), `save` writes `#{ nodes }` back through
+(`editor/scripts/model.bs`), `save` writes `#{ nodes }` back through
 `toml.encode` (`:761-766`), and `open_scene` and the mirror do the same
 (`:939-950`, `:643`). Three things are lost on the first save: every comment
 (every example scene has some), key order, and any top-level table,
@@ -271,11 +271,11 @@ Status: **done** — `toml.patch` keeps comments and unmodelled tables, and the 
 ### 4.2 Addressing the mirror
 
 **Now.** `build_mirror` resolves every document row to a live node by its
-name path (`model.rn:647-655`), and `find_node` answers the first sibling
+name path (`model.bs`), and `find_node` answers the first sibling
 with that name (`scene.rs:92-113`); two siblings sharing a name map to one
 live node, and the inspector edits the wrong one. Every edit deep-copies the
-document into history (`history.rn:12`) and every undo rebuilds the whole
-mirror with a physics clear (`shell.rn:25-44`).
+document into history (`history.bs`) and every undo rebuilds the whole
+mirror with a physics clear (`shell.bs`).
 
 **Shape.** Address by `StableId`: the engine stamps one on every node it
 instantiates and prefixes instance ids (`project.rs:398-399`), and every
@@ -292,8 +292,8 @@ Status: **partly done** — the mirror resolves by stable id through `scene.node
 
 | What | Where | Shape |
 |---|---|---|
-| In the Interface workspace the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.rn:206-234`, `editor.rn:207-209` | inset the widget surface by the HUD band, or draw the pills in the tab row |
-| D7 and D17 in `docs/EDITOR-SCREENS.md` are fixed in code (`dock.rn:14-41` hint table, `:132-138` padded columns) but still listed open; D10, D14 and D15 still stand | `docs/EDITOR-SCREENS.md` §8 | mark them, and re-capture |
+| In the Interface workspace the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.bs`, `editor.bs` | inset the widget surface by the HUD band, or draw the pills in the tab row |
+| D7 and D17 in `docs/EDITOR-SCREENS.md` are fixed in code (`dock.bs` hint table, `:132-138` padded columns) but still listed open; D10, D14 and D15 still stand | `docs/EDITOR-SCREENS.md` §8 | mark them, and re-capture |
 
 Status: open.
 

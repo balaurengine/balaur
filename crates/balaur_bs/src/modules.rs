@@ -1,0 +1,755 @@
+// `use util;`: another `.bs` file linked into this one when it compiles. Its
+// items take the name `util::item`, and a private function a name no script
+// can write, so only what it makes `pub` is reached from outside.
+
+use crate::Error;
+use crate::ast::{Block, Expr, ExprKind, Part, Pos, Program, StmtKind, Ty};
+use crate::parse;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+/// What a `use` finds: `(from, name)` to the used file's key and source.
+pub type Find = dyn Fn(&str, &str) -> Option<(String, String)>;
+
+/// Finds a module for a file, or `None` when there is no such file.
+#[derive(Clone)]
+pub struct Modules(pub Rc<Find>);
+
+impl std::fmt::Debug for Modules {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Modules")
+    }
+}
+
+/// Each module file read for its declarations, and where each `use` led,
+/// kept across compiles: every unit reads the declarations of the modules it
+/// uses, and the scripts of a game use the same ones. What owns it says when
+/// a file changed ([`Parsed::forget`]).
+#[derive(Clone, Default)]
+pub struct Parsed(Rc<RefCell<Cache>>);
+
+#[derive(Default)]
+struct Cache {
+    files: HashMap<String, Declared>,
+    /// Each `use` read so far, by the folder it was written in and its path.
+    found: HashMap<(String, String), String>,
+}
+
+struct Declared {
+    /// The source it was read from: compared, which is faster than a hash.
+    source: Rc<str>,
+    program: Rc<Program>,
+    /// What it declares, by hash: a unit built against it stays good while
+    /// this does.
+    hash: u64,
+}
+
+impl std::fmt::Debug for Parsed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Parsed")
+    }
+}
+
+impl Parsed {
+    /// What `source`, the file at `key`, declares, by hash: its structs,
+    /// constants and what its functions take and give, not their bodies.
+    ///
+    /// # Errors
+    /// A file that does not parse.
+    pub fn declarations(&self, key: &str, source: &str) -> Result<u64, Error> {
+        Ok(self.get(key, source)?.1)
+    }
+
+    /// What the file at `key` declared when last read, by hash, if it was.
+    #[must_use]
+    pub fn known(&self, key: &str) -> Option<u64> {
+        self.0.borrow().files.get(key).map(|d| d.hash)
+    }
+
+    /// The file at `key` changed, or was made or removed: its declarations
+    /// are read again, and every `use` found again.
+    pub fn forget(&self, key: &str) {
+        let mut cache = self.0.borrow_mut();
+        cache.files.remove(key);
+        cache.found.clear();
+    }
+
+    fn cached(&self, key: &str) -> Option<Rc<Program>> {
+        self.0.borrow().files.get(key).map(|d| d.program.clone())
+    }
+
+    fn get(&self, key: &str, source: &str) -> Result<(Rc<Program>, u64), Error> {
+        if let Some(d) = self.0.borrow().files.get(key)
+            && *d.source == *source
+        {
+            return Ok((d.program.clone(), d.hash));
+        }
+        let mut m = parse::parse(source).map_err(|e| in_file(&e, key))?;
+        for f in &mut m.fns {
+            f.body = Block::default();
+        }
+        let hash = declared_hash(&m);
+        let program = Rc::new(m);
+        self.0.borrow_mut().files.insert(
+            key.to_string(),
+            Declared {
+                source: source.into(),
+                program: program.clone(),
+                hash,
+            },
+        );
+        Ok((program, hash))
+    }
+}
+
+// What a bodiless program declares, positions left out: moving a function
+// changes no caller.
+fn declared_hash(m: &Program) -> u64 {
+    use std::fmt::Write as _;
+    let without_pos = |s: String| -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut rest = s.as_str();
+        while let Some(at) = rest.find("pos: Pos {") {
+            out.push_str(&rest[..at]);
+            rest = rest[at..].split_once('}').map_or("", |(_, r)| r);
+        }
+        out.push_str(rest);
+        out
+    };
+    let mut text = String::new();
+    for (n, fields) in &m.structs {
+        let _ = write!(text, "struct {n}");
+        for f in fields {
+            let default = f
+                .default
+                .as_ref()
+                .map(|d| without_pos(format!("{:?}", d.kind)));
+            let _ = write!(text, " {} {:?} {} {default:?};", f.name, f.ty, f.public);
+        }
+        text.push('\n');
+    }
+    let _ = writeln!(text, "classes {:?}", m.classes);
+    for f in &m.fns {
+        let _ = write!(text, "fn {} {} {}", f.key(), f.public, f.is_async);
+        for p in &f.params {
+            let _ = write!(text, " {} {:?} {};", p.name, p.ty, p.by_ref);
+        }
+        let _ = writeln!(text, " -> {:?}", f.ret);
+    }
+    for x in &m.externs {
+        let _ = write!(text, "extern {} {}", x.name, x.is_async);
+        for p in &x.params {
+            let _ = write!(text, " {:?};", p.ty);
+        }
+        let _ = writeln!(text, " -> {:?}", x.ret);
+    }
+    for (n, e) in &m.consts {
+        let _ = writeln!(text, "const {n} {}", without_pos(format!("{:?}", e.kind)));
+    }
+    for (u, _) in &m.uses {
+        let _ = writeln!(text, "use {u}");
+    }
+    crate::fnv(text.as_bytes(), 0x6c62_272e_07bb_0142)
+}
+
+/// Every module `root` uses, and each one's, merged into it; the keys of the
+/// files that went in. Modules may use each other in a circle, and the root
+/// itself: a module's `editor::boot` is then the root's `boot`.
+/// `bodies` false links each module's declarations only, for a unit: what
+/// its functions take and give, its structs and constants.
+pub(crate) fn link(
+    root: &mut Program,
+    from: &str,
+    modules: Option<&Modules>,
+    bodies: bool,
+    parsed: Option<&Parsed>,
+) -> Result<Vec<String>, Error> {
+    let mut linked = Linker {
+        modules,
+        bodies,
+        parsed,
+        root: from.to_string(),
+        made: Made::of(root),
+        done: vec![],
+        stack: vec![],
+        out: Program::default(),
+        deferred: vec![],
+        typed_only: false,
+    };
+    let uses = std::mem::take(&mut root.uses);
+    let own = linked.visit(from, &uses)?;
+    if !own.is_empty() {
+        unalias(root, &own, &linked.made);
+    }
+    // A unit reads a module its modules use only when what they declare
+    // names one of its types.
+    loop {
+        let wanted = linked.wanted();
+        let next: Vec<Deferred> = linked
+            .deferred
+            .iter()
+            .filter(|d| wanted.contains(&d.name) && !linked.done.iter().any(|(k, _)| *k == d.key))
+            .cloned()
+            .collect();
+        if next.is_empty() {
+            break;
+        }
+        for d in next {
+            linked.typed_only = true;
+            linked.add(&d.name, d.key, None, d.pos)?;
+            linked.typed_only = false;
+        }
+    }
+    let keys = linked.done.iter().map(|(k, _)| k.clone()).collect();
+    let mut out = linked.out;
+    root.linked.append(&mut out.linked);
+    root.structs.append(&mut out.structs);
+    root.classes.append(&mut out.classes);
+    root.fns.append(&mut out.fns);
+    root.consts.append(&mut out.consts);
+    root.origin.append(&mut out.origin);
+    for x in out.externs {
+        if !root.externs.iter().any(|e| e.name == x.name) {
+            root.externs.push(x);
+        }
+    }
+    Ok(keys)
+}
+
+struct Linker<'a> {
+    modules: Option<&'a Modules>,
+    bodies: bool,
+    parsed: Option<&'a Parsed>,
+    root: String,
+    /// Each file linked so far, and the name it goes by.
+    done: Vec<(String, String)>,
+    /// The files being linked, outermost first, and their names.
+    stack: Vec<(String, String)>,
+    /// What the root file declares, which is all a module's name for it reaches.
+    made: Made,
+    out: Program,
+    /// Declarations only: the files the linked modules use, not linked yet.
+    deferred: Vec<Deferred>,
+    /// Linking a module only for its types: its structs, their methods and
+    /// its constants, all that a file that does not `use` it can reach of it.
+    typed_only: bool,
+}
+
+/// A module a linked module uses, found but not linked.
+#[derive(Clone)]
+struct Deferred {
+    name: String,
+    key: String,
+    pos: Pos,
+}
+
+fn in_file(e: &Error, key: &str) -> Error {
+    Error {
+        pos: e.pos,
+        msg: format!("in {key}: {}", e.msg),
+    }
+}
+
+impl Linker<'_> {
+    // Links what `from` uses; answers the names `from` calls the root file by.
+    fn visit(&mut self, from: &str, uses: &[(String, Pos)]) -> Result<Vec<String>, Error> {
+        let mut aliases = vec![];
+        for (path, pos) in uses {
+            let name = path.rsplit("::").next().unwrap_or(path).to_string();
+            let Some((key, source)) = self.find(from, path) else {
+                let file = path.replace("::", "/");
+                return Err(Error {
+                    pos: *pos,
+                    msg: format!("no module `{path}`: no `{file}.bs` beside this file or above it"),
+                });
+            };
+            if key == self.root {
+                if !aliases.contains(&name) {
+                    aliases.push(name);
+                }
+                continue;
+            }
+            self.add(&name, key, source.as_deref(), *pos)?;
+        }
+        Ok(aliases)
+    }
+
+    // Where `path`, used in `from`, leads, and the file's source when it was
+    // read just now. Declarations only, a file found before is not read
+    // again: its declarations are kept.
+    fn find(&self, from: &str, path: &str) -> Option<(String, Option<String>)> {
+        let Some(parsed) = self.parsed.filter(|_| !self.bodies) else {
+            return self
+                .modules
+                .and_then(|m| (m.0)(from, path))
+                .map(|(k, s)| (k, Some(s)));
+        };
+        let at = (
+            from.rsplit_once('/').map_or("", |(d, _)| d).to_string(),
+            path.to_string(),
+        );
+        if let Some(key) = parsed.0.borrow().found.get(&at) {
+            return Some((key.clone(), None));
+        }
+        let (key, source) = self.modules.and_then(|m| (m.0)(from, path))?;
+        // One that does not parse is read again, to say why.
+        if parsed.get(&key, &source).is_err() {
+            return Some((key, Some(source)));
+        }
+        parsed.0.borrow_mut().found.insert(at, key.clone());
+        Some((key, None))
+    }
+
+    // The module at `key`: read from `source`, or the declarations kept.
+    fn program(&self, key: &str, source: Option<&str>) -> Result<Program, Error> {
+        let parsed = self.parsed.filter(|_| !self.bodies);
+        match (parsed, source) {
+            (Some(parsed), Some(source)) => Ok((*parsed.get(key, source)?.0).clone()),
+            (Some(parsed), None) => parsed.cached(key).map(|p| (*p).clone()).ok_or(Error {
+                pos: Pos::default(),
+                msg: format!("internal: {key} was found but not kept"),
+            }),
+            (None, Some(source)) => parse::parse(source).map_err(|e| in_file(&e, key)),
+            (None, None) => Err(Error {
+                pos: Pos::default(),
+                msg: format!("internal: no source for {key}"),
+            }),
+        }
+    }
+
+    // Links the module at `key`, used as `name`, unless it is already.
+    fn add(
+        &mut self,
+        name: &str,
+        key: String,
+        source: Option<&str>,
+        pos: Pos,
+    ) -> Result<(), Error> {
+        let name = name.to_string();
+        {
+            let seen = self.stack.iter().chain(&self.done);
+            if let Some((_, other)) = seen.clone().find(|(k, _)| *k == key) {
+                if *other != name {
+                    return Err(Error {
+                        pos,
+                        msg: format!("`{key}` is used as both `{other}` and `{name}`"),
+                    });
+                }
+                // Being linked by a visit further out, or linked already.
+                return Ok(());
+            }
+            if let Some((other, _)) = seen.into_iter().find(|(_, n)| *n == name) {
+                return Err(Error {
+                    pos,
+                    msg: format!("`{name}` names both `{other}` and `{key}`"),
+                });
+            }
+        }
+        {
+            let mut m = self.program(&key, source)?;
+            if !self.bodies {
+                for f in &mut m.fns {
+                    f.body = Block::default();
+                }
+            }
+            if self.typed_only {
+                m.fns.retain(|f| f.owner.is_some());
+                m.externs.clear();
+            }
+            let inner = std::mem::take(&mut m.uses);
+            let calls_root = if self.bodies {
+                self.stack.push((key.clone(), name.clone()));
+                let calls = self.visit(&key, &inner)?;
+                self.stack.pop();
+                calls
+            } else {
+                self.defer(&key, &inner)
+            };
+            prefix(&mut m, &name, &key);
+            // Only in the files that use the root: another's `events::listen`
+            // is the engine's even when the root is `events.bs`.
+            if !calls_root.is_empty() {
+                unalias(&mut m, &calls_root, &self.made);
+            }
+            self.done.push((key, name.clone()));
+            self.out.linked.push(name);
+            self.out.structs.append(&mut m.structs);
+            self.out.classes.append(&mut m.classes);
+            self.out.fns.append(&mut m.fns);
+            self.out.consts.append(&mut m.consts);
+            self.out.externs.append(&mut m.externs);
+            self.out.origin.append(&mut m.origin);
+        }
+        Ok(())
+    }
+
+    // A module's uses, for a unit: kept for later, but for the names the
+    // module calls the root file by, which it answers.
+    fn defer(&mut self, from: &str, uses: &[(String, Pos)]) -> Vec<String> {
+        let mut aliases = vec![];
+        for (path, pos) in uses {
+            let name = path.rsplit("::").next().unwrap_or(path).to_string();
+            // One the module cannot find, or read, is its own unit's error.
+            let Some((key, None)) = self.find(from, path) else {
+                continue;
+            };
+            if key == self.root {
+                if !aliases.contains(&name) {
+                    aliases.push(name);
+                }
+            } else if !self.deferred.iter().any(|d| d.key == key) {
+                self.deferred.push(Deferred {
+                    name,
+                    key,
+                    pos: *pos,
+                });
+            }
+        }
+        aliases
+    }
+
+    // The module names the linked declarations' types are prefixed with.
+    fn wanted(&self) -> HashSet<String> {
+        fn walk(t: &Ty, out: &mut HashSet<String>) {
+            match t {
+                Ty::Struct(s) => {
+                    if let Some((m, _)) = s.split_once("::") {
+                        out.insert(m.to_string());
+                    }
+                }
+                Ty::Array(e) | Ty::Optional(e) => walk(e, out),
+                Ty::Fn(params, ret, _) => {
+                    for p in params {
+                        walk(p, out);
+                    }
+                    walk(ret, out);
+                }
+                _ => {}
+            }
+        }
+        let mut out = HashSet::new();
+        for (_, fields) in &self.out.structs {
+            for f in fields {
+                walk(&f.ty, &mut out);
+            }
+        }
+        for f in &self.out.fns {
+            for p in &f.params {
+                walk(&p.ty, &mut out);
+            }
+            walk(&f.ret, &mut out);
+        }
+        for x in &self.out.externs {
+            for p in &x.params {
+                walk(&p.ty, &mut out);
+            }
+            walk(&x.ret, &mut out);
+        }
+        out
+    }
+}
+
+/// How a module's names change as it is linked.
+trait Rename {
+    /// A function called by this name.
+    fn func(&self, n: &str) -> Option<String>;
+    /// A name read as a value: a constant, or a function.
+    fn value(&self, n: &str) -> Option<String>;
+    fn strukt(&self, n: &str) -> Option<String>;
+
+    fn ty(&self, t: &mut Ty) {
+        match t {
+            Ty::Struct(s) => {
+                if let Some(full) = self.strukt(s) {
+                    *s = full;
+                }
+            }
+            Ty::Array(e) | Ty::Optional(e) => self.ty(e),
+            Ty::Fn(params, ret, _) => {
+                for p in params {
+                    self.ty(p);
+                }
+                self.ty(ret);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// What a module's items are called from outside it.
+struct Names {
+    prefix: String,
+    public_fns: HashSet<String>,
+    private_fns: HashSet<String>,
+    structs: HashSet<String>,
+    consts: HashSet<String>,
+}
+
+impl Rename for Names {
+    fn func(&self, n: &str) -> Option<String> {
+        if self.public_fns.contains(n) {
+            Some(format!("{}::{n}", self.prefix))
+        } else if self.private_fns.contains(n) {
+            // `#` is no character a script can write.
+            Some(format!("{}::#{n}", self.prefix))
+        } else {
+            None
+        }
+    }
+    fn value(&self, n: &str) -> Option<String> {
+        if self.consts.contains(n) {
+            Some(format!("{}::{n}", self.prefix))
+        } else {
+            self.func(n)
+        }
+    }
+    fn strukt(&self, n: &str) -> Option<String> {
+        self.structs
+            .contains(n)
+            .then(|| format!("{}::{n}", self.prefix))
+    }
+}
+
+/// What a root function or constant is called from a module, a name no
+/// script writes, so no local of the same name can stand in front of it.
+pub(crate) const ROOT: &str = "#root";
+
+/// The root file's own functions, constants and structs.
+struct Made {
+    values: HashSet<String>,
+    structs: HashSet<String>,
+}
+
+impl Made {
+    fn of(root: &Program) -> Self {
+        let fns = root
+            .fns
+            .iter()
+            .filter(|f| f.owner.is_none())
+            .map(|f| f.name.clone());
+        Made {
+            values: fns
+                .chain(root.consts.iter().map(|(n, _)| n.clone()))
+                .collect(),
+            structs: root.structs.iter().map(|(n, _)| n.clone()).collect(),
+        }
+    }
+}
+
+/// The names a module calls the root file by: `editor::boot` is the root's
+/// `#root::boot`, and `editor::State` its `State`. A name the root does not
+/// declare stays as written, for the engine module of that name.
+struct Unalias<'a>(&'a [String], &'a Made);
+
+impl Unalias<'_> {
+    fn bare(&self, n: &str) -> Option<String> {
+        self.0
+            .iter()
+            .find_map(|a| n.strip_prefix(a.as_str())?.strip_prefix("::"))
+            .map(str::to_string)
+    }
+}
+
+impl Rename for Unalias<'_> {
+    fn func(&self, n: &str) -> Option<String> {
+        self.bare(n)
+            .filter(|b| self.1.values.contains(b))
+            .map(|b| format!("{ROOT}::{b}"))
+    }
+    fn value(&self, n: &str) -> Option<String> {
+        self.func(n)
+    }
+    fn strukt(&self, n: &str) -> Option<String> {
+        self.bare(n).filter(|b| self.1.structs.contains(b))
+    }
+}
+
+fn unalias(prog: &mut Program, aliases: &[String], made: &Made) {
+    let names = Unalias(aliases, made);
+    for (_, fields) in &mut prog.structs {
+        for f in fields {
+            names.ty(&mut f.ty);
+            if let Some(d) = &mut f.default {
+                expr(&names, &mut vec![], d);
+            }
+        }
+    }
+    for (_, e) in &mut prog.consts {
+        expr(&names, &mut vec![], e);
+    }
+    for f in &mut prog.fns {
+        let mut scope: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+        for p in &mut f.params {
+            names.ty(&mut p.ty);
+        }
+        names.ty(&mut f.ret);
+        block(&names, &mut scope, &mut f.body);
+    }
+}
+
+fn prefix(m: &mut Program, name: &str, key: &str) {
+    let free = m.fns.iter().filter(|f| f.owner.is_none());
+    let (public, private): (Vec<_>, Vec<_>) = free.partition(|f| f.public);
+    let names = Names {
+        prefix: name.to_string(),
+        public_fns: public.iter().map(|f| f.name.clone()).collect(),
+        private_fns: private.iter().map(|f| f.name.clone()).collect(),
+        structs: m.structs.iter().map(|(n, _)| n.clone()).collect(),
+        consts: m.consts.iter().map(|(n, _)| n.clone()).collect(),
+    };
+    for (n, fields) in &mut m.structs {
+        for f in fields {
+            names.ty(&mut f.ty);
+            if let Some(d) = &mut f.default {
+                expr(&names, &mut vec![], d);
+            }
+        }
+        *n = format!("{name}::{n}");
+    }
+    for n in &mut m.classes {
+        *n = format!("{name}::{n}");
+    }
+    for (n, e) in &mut m.consts {
+        expr(&names, &mut vec![], e);
+        *n = format!("{name}::{n}");
+    }
+    for f in &mut m.fns {
+        match &mut f.owner {
+            Some(o) => *o = format!("{name}::{o}"),
+            None => f.name = names.func(&f.name).unwrap_or_else(|| f.name.clone()),
+        }
+        let mut scope: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+        for p in &mut f.params {
+            names.ty(&mut p.ty);
+        }
+        names.ty(&mut f.ret);
+        block(&names, &mut scope, &mut f.body);
+        m.origin.push((f.key(), key.to_string()));
+    }
+    for x in &mut m.externs {
+        for p in &mut x.params {
+            names.ty(&mut p.ty);
+        }
+        names.ty(&mut x.ret);
+    }
+}
+
+fn block(n: &dyn Rename, scope: &mut Vec<String>, b: &mut Block) {
+    let mark = scope.len();
+    for s in &mut b.stmts {
+        match &mut s.kind {
+            StmtKind::Let { name, ty, init } => {
+                expr(n, scope, init);
+                if let Some(t) = ty {
+                    n.ty(t);
+                }
+                scope.push(name.clone());
+            }
+            StmtKind::Assign { target, value, .. } => {
+                expr(n, scope, target);
+                expr(n, scope, value);
+            }
+            StmtKind::Expr(e) | StmtKind::Return(Some(e)) => expr(n, scope, e),
+            StmtKind::While { cond, body } => {
+                expr(n, scope, cond);
+                block(n, scope, body);
+            }
+            StmtKind::Loop(body) => block(n, scope, body),
+            StmtKind::ForRange {
+                var,
+                from,
+                to,
+                body,
+            } => {
+                expr(n, scope, from);
+                expr(n, scope, to);
+                scope.push(var.clone());
+                block(n, scope, body);
+                scope.pop();
+            }
+            StmtKind::ForEach { var, items, body } => {
+                expr(n, scope, items);
+                scope.push(var.clone());
+                block(n, scope, body);
+                scope.pop();
+            }
+            StmtKind::Return(None) | StmtKind::Break | StmtKind::Continue => {}
+        }
+    }
+    if let Some(t) = &mut b.tail {
+        expr(n, scope, t);
+    }
+    scope.truncate(mark);
+}
+
+fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
+    let local = |scope: &Vec<String>, v: &str| scope.iter().any(|s| s == v);
+    match &mut e.kind {
+        ExprKind::Call(name, args) => {
+            if !local(scope, name)
+                && let Some(full) = n.func(name)
+            {
+                *name = full;
+            }
+            for a in args {
+                expr(n, scope, a);
+            }
+        }
+        ExprKind::Var(v) if !local(scope, v) => {
+            if let Some(full) = n.value(v) {
+                *v = full;
+            }
+        }
+        ExprKind::StructLit(s, fields) => {
+            if let Some(full) = n.strukt(s) {
+                *s = full;
+            }
+            for (_, f) in fields {
+                expr(n, scope, f);
+            }
+        }
+        ExprKind::Cast(a, t) => {
+            expr(n, scope, a);
+            n.ty(t);
+        }
+        ExprKind::Interp(parts) => {
+            for p in parts {
+                if let Part::Value(v) = p {
+                    expr(n, scope, v);
+                }
+            }
+        }
+        ExprKind::Bin(_, a, b) | ExprKind::Index(a, b) | ExprKind::ArrayRepeat(a, b) => {
+            expr(n, scope, a);
+            expr(n, scope, b);
+        }
+        ExprKind::Unary(_, a) | ExprKind::Field(a, _) | ExprKind::Await(a) => expr(n, scope, a),
+        ExprKind::Method(base, _, args) => {
+            expr(n, scope, base);
+            for a in args {
+                expr(n, scope, a);
+            }
+        }
+        ExprKind::ArrayLit(items) => {
+            for i in items {
+                expr(n, scope, i);
+            }
+        }
+        ExprKind::If(c, then, els) => {
+            expr(n, scope, c);
+            block(n, scope, then);
+            if let Some(b) = els {
+                block(n, scope, b);
+            }
+        }
+        ExprKind::Resumed(t, _) => n.ty(t),
+        ExprKind::Int(_)
+        | ExprKind::Float(_)
+        | ExprKind::Bool(_)
+        | ExprKind::Str(_)
+        | ExprKind::Nil
+        | ExprKind::Var(_)
+        | ExprKind::SelfRef => {}
+    }
+}

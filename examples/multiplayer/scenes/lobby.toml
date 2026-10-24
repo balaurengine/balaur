@@ -6,7 +6,7 @@ id = "n_lobby"
 name = "Lobby"
 
 [nodes.script]
-source = "scripts/lobby.rn"
+source = "scripts/lobby.bs"
 
 [[nodes]]
 id = "sheet"

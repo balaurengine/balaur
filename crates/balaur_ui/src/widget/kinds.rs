@@ -14,6 +14,7 @@ use crate::widget::arrange::{
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{Pointer, Style, WidgetState, rich};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
@@ -29,21 +30,101 @@ pub(crate) fn check(
     let slant = at.slant(index);
     let placed = &at.arena[index];
     let widget = &placed.widget;
-    let mut on = widget.checked;
     let label = rich(caption, font, color, slant, &widget.text_look);
-    let response =
-        ui.add(egui::Checkbox::new(&mut on, label).indeterminate(widget.egui.indeterminate));
+    let response = tick_box(
+        ui,
+        label,
+        (widget.checked, widget.egui.indeterminate),
+        caption,
+    );
     if response.clicked() {
         at.clicked.push(placed.entity);
     }
     if at.focused == Some(placed.entity) {
-        ui.painter().rect_stroke(
+        Brush::of(ui).outline(
             response.rect.expand(2.0),
             4.0,
             Stroke::new(2.0, color),
             egui::StrokeKind::Outside,
         );
     }
+}
+
+/// A box, its tick and its caption, sized and coloured as egui's checkbox:
+/// the box `icon_width` across, the tick `icon_width_inner`, the caption
+/// `icon_spacing` after it, and the box's look the state the pointer leaves.
+fn tick_box(
+    ui: &mut egui::Ui,
+    label: egui::RichText,
+    (on, either): (bool, bool),
+    caption: &str,
+) -> egui::Response {
+    let spacing = ui.spacing().clone();
+    let side = spacing.icon_width;
+    let text = (!caption.is_empty()).then(|| {
+        egui::WidgetText::from(label).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::TextStyle::Button,
+        )
+    });
+    let tall = side.max(spacing.interact_size.y);
+    let wide = text
+        .as_ref()
+        .map_or(side, |text| side + spacing.icon_spacing + text.size().x);
+    let want = vec2(
+        wide.max(spacing.interact_size.y),
+        text.as_ref().map_or(tall, |text| tall.max(text.size().y)),
+    );
+    let (id, rect) = ui.allocate_space(want);
+    let response = ui.interact(rect, id, Sense::click());
+    let enabled = ui.is_enabled();
+    response.widget_info(|| {
+        if either {
+            egui::WidgetInfo::labeled(egui::WidgetType::Checkbox, enabled, caption)
+        } else {
+            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, enabled, on, caption)
+        }
+    });
+    if !ui.is_rect_visible(rect) {
+        return response;
+    }
+    let look = ui.style().interact(&response);
+    let frame = egui::Rect::from_center_size(
+        pos2(rect.left() + side / 2.0, rect.center().y),
+        egui::Vec2::splat(side),
+    );
+    let mark =
+        egui::Rect::from_center_size(frame.center(), egui::Vec2::splat(spacing.icon_width_inner));
+    let painter = Brush::of(ui);
+    painter.plate(
+        frame,
+        look.corner_radius,
+        look.bg_fill,
+        look.bg_stroke,
+        egui::StrokeKind::Inside,
+    );
+    if either {
+        painter.hline(mark.x_range(), mark.center().y, look.fg_stroke);
+    } else if on {
+        painter.line(
+            vec![
+                pos2(mark.left(), mark.center().y),
+                pos2(mark.center().x, mark.bottom()),
+                pos2(mark.right(), mark.top()),
+            ],
+            look.fg_stroke,
+        );
+    }
+    if let Some(text) = text {
+        let at = pos2(
+            frame.right() + spacing.icon_spacing,
+            rect.center().y - text.size().y / 2.0,
+        );
+        painter.galley(at, text, look.text_color());
+    }
+    response
 }
 
 /// An on/off switch: a track the theme fills and a knob at one end of it.
@@ -69,15 +150,14 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let knob = dressed
         .text_color
         .unwrap_or(crate::widget::theme::DEFAULT_INK);
-    ui.painter().rect_filled(rect, height / 2.0, track);
+    Brush::of(ui).fill(rect, height / 2.0, track);
     let inset = height / 2.0;
     let x = if on {
         rect.max.x - inset
     } else {
         rect.min.x + inset
     };
-    ui.painter()
-        .circle_filled(pos2(x, rect.center().y), height * 0.34, knob);
+    Brush::of(ui).disc(pos2(x, rect.center().y), height * 0.34, knob);
 }
 
 /// One of the widget's `options`, chosen from a list that drops down.
@@ -94,35 +174,62 @@ pub(crate) fn dropdown(
     let entity = placed.entity;
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
     let mut chosen = widget.text.clone();
-    let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity)).selected_text(rich(
-        chosen.as_str(),
-        font,
-        color,
-        slant,
-        &widget.text_look,
-    ));
-    if want.x > 0.0 {
-        combo = combo.width(want.x);
-    }
-    if widget.egui.list_height > 0.0 {
-        combo = combo.height(widget.egui.list_height);
-    }
-    if widget.wrap {
-        combo = combo.wrap();
+    let picked = rich(chosen.as_str(), font, color, slant, &widget.text_look);
+    let fold = if widget.wrap {
+        egui::TextWrapMode::Wrap
     } else if widget.truncate {
-        combo = combo.truncate();
-    }
-    if widget.keep_open {
-        combo = combo.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
-    }
-    let up = combo
-        .show_ui(ui, |ui| {
-            for option in &widget.options {
-                let label = rich(option.as_str(), font, color, slant, &widget.text_look);
-                ui.selectable_value(&mut chosen, option.clone(), label);
-            }
+        egui::TextWrapMode::Truncate
+    } else {
+        ui.wrap_mode()
+    };
+    let id = ui.make_persistent_id(("balaur-dropdown", entity));
+    let popup = id.with("popup");
+    let open = egui::Popup::is_id_open(ui.ctx(), popup);
+    let width = (want.x > 0.0).then_some(want.x);
+    let button = ui
+        .horizontal(|ui| {
+            let response = picker(ui, id, open, picked, (fold, width));
+            let enabled = ui.is_enabled();
+            response.widget_info(|| {
+                let mut info = egui::WidgetInfo::new(egui::WidgetType::ComboBox);
+                info.enabled = enabled;
+                info.current_text_value = Some(widget.text.to_string());
+                info
+            });
+            response
         })
-        .inner
+        .inner;
+    let height = if widget.egui.list_height > 0.0 {
+        widget.egui.list_height
+    } else {
+        ui.spacing().combo_height
+    };
+    let close = if widget.keep_open {
+        egui::PopupCloseBehavior::CloseOnClickOutside
+    } else {
+        egui::PopupCloseBehavior::CloseOnClick
+    };
+    let up = egui::Popup::menu(&button)
+        .id(popup)
+        .width(button.rect.width())
+        .close_behavior(close)
+        .show(|ui| {
+            ui.set_min_width(ui.available_width());
+            egui::ScrollArea::vertical()
+                .max_height(height)
+                .show(ui, |ui| {
+                    // A narrow button would wrap its rows early; they run
+                    // as wide as they are.
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                    for option in &widget.options {
+                        let label = rich(option.as_str(), font, color, slant, &widget.text_look);
+                        let on = chosen == *option;
+                        if crate::widget::button::text_button(ui, label, Some(on)).clicked() {
+                            chosen = option.clone();
+                        }
+                    }
+                });
+        })
         .is_some();
     if up {
         at.shown.push(entity);
@@ -132,17 +239,86 @@ pub(crate) fn dropdown(
     }
 }
 
-/// A file being edited, with the gutter and the colouring `ui::code_editor`
-/// draws: Godot's `CodeEdit` as a node.
-///
-/// The kind is the same call a script makes, given the widget's own values
-/// instead of an options table, so there is one editor and one highlighter.
+/// A dropdown's button, sized and painted as egui's combo box: the picked
+/// text, a downward triangle at the far edge, at least `width` or the
+/// spacing's `combo_width` across, in the look the pointer leaves or the open
+/// look while the list shows.
+fn picker(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    open: bool,
+    picked: egui::RichText,
+    (fold, width): (egui::TextWrapMode, Option<f32>),
+) -> egui::Response {
+    let plate = Brush::of(ui).slot();
+    let spacing = ui.spacing().clone();
+    let margin = spacing.button_padding;
+    let mut outer = ui.available_rect_before_wrap();
+    outer.set_height(outer.height().max(spacing.interact_size.y));
+    let mut inner_ui = ui.new_child(egui::UiBuilder::new().max_rect(outer.shrink2(margin)));
+    let mark = egui::Vec2::splat(spacing.icon_width);
+    let least = width.unwrap_or(spacing.combo_width) - 2.0 * margin.x;
+    let room = if fold == egui::TextWrapMode::Extend {
+        f32::INFINITY
+    } else {
+        inner_ui.available_width() - spacing.icon_spacing - mark.x
+    };
+    let galley = egui::WidgetText::from(picked).into_galley(
+        &inner_ui,
+        Some(fold),
+        room,
+        egui::TextStyle::Button,
+    );
+    let wide = (galley.size().x + spacing.icon_spacing + mark.x).max(least);
+    let tall = galley.size().y.max(mark.y);
+    let (_, slot) = inner_ui.allocate_space(vec2(wide, tall));
+    let mut rect = inner_ui.min_rect().expand2(margin);
+    rect.set_height(rect.height().max(spacing.interact_size.y));
+    let response = ui.interact(rect, id, Sense::click());
+    if ui.is_rect_visible(rect) {
+        let look = if open {
+            &ui.visuals().widgets.open
+        } else {
+            ui.style().interact(&response)
+        };
+        Brush::of(ui).set(
+            plate,
+            paint::rect(
+                rect.expand(look.expansion),
+                look.corner_radius,
+                look.weak_bg_fill,
+                look.bg_stroke,
+                egui::StrokeKind::Inside,
+            ),
+        );
+        let icon = egui::Align2::RIGHT_CENTER
+            .align_size_within_rect(mark, slot)
+            .expand(look.expansion);
+        let arrow = Rect::from_center_size(
+            icon.center(),
+            vec2(icon.width() * 0.7, icon.height() * 0.45),
+        );
+        Brush::of(ui).add(paint::polygon(
+            vec![arrow.left_top(), arrow.right_top(), arrow.center_bottom()],
+            look.fg_stroke.color,
+            Stroke::NONE,
+        ));
+        let at = egui::Align2::LEFT_CENTER
+            .align_size_within_rect(galley.size(), slot)
+            .min;
+        Brush::of(ui).galley(at, galley, look.text_color());
+    }
+    ui.advance_cursor_after_rect(rect);
+    response
+}
+
+/// A file being edited, with its gutter and its colouring: Godot's `CodeEdit`
+/// as a node.
 pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
     let id = format!("balaur-code-{}", entity.to_bits());
-    let opts = crate::immediate::code::code_opts(&widget, &at.theme);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -158,29 +334,38 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             },
         ),
     )));
-    crate::bridge::push(&mut inner);
-    let edited = crate::immediate::code::code_editor(at.eng, &id, &widget.text, &opts);
-    crate::bridge::pop();
-    match edited {
-        Ok((text, changed, hit, _)) => {
-            if changed {
-                at.edits.push((entity, Edit::Text(text)));
-            }
-            // The line alone: what a click on the gutter means is the script's
-            // to decide, as a breakpoint in one editor and a value in another.
-            if let Some(line) = hit {
-                at.edits.push((entity, Edit::Gutter(line)));
-            }
-        }
-        Err(err) => warn_code(&err),
+    let look = crate::widget::code::CodeLook {
+        widget: &widget,
+        theme: &at.theme,
+    };
+    let (text, changed, hit, caret) =
+        crate::widget::code::code_editor(at.eng, &mut inner, &id, &look);
+    if changed {
+        at.edits.push((entity, Edit::Text(text)));
+    }
+    if let Some(caret) = caret.filter(|c| moved_caret(entity, c.index)) {
+        at.edits
+            .push((entity, Edit::Caret(caret.x, caret.y, caret.index)));
+    }
+    // The line alone: what a click on the gutter means is the script's to
+    // decide, as a breakpoint in one editor and a value in another.
+    if let Some(line) = hit {
+        at.edits.push((entity, Edit::Gutter(line)));
     }
     let used = inner.min_rect().size();
     record_measure(entity, used);
     ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
 }
 
-fn warn_code(err: &anyhow::Error) {
-    tracing::warn!("code widget: {err:#}");
+thread_local! {
+    /// Where each `code` widget's caret was last said to be, so `caret` is
+    /// emitted when it moves rather than every pass it is drawn.
+    static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
+        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+}
+
+fn moved_caret(entity: balaur_core::hecs::Entity, index: usize) -> bool {
+    CARETS.with(|carets| carets.borrow_mut().insert(entity.to_bits().get(), index) != Some(index))
 }
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
@@ -229,13 +414,11 @@ pub(crate) fn menu(
     let label = rich(caption, font, color, slant, &look);
     // What `Ui::menu_button` does, with the placement this node asked for:
     // the same button and the same menu popup, which is all that call is.
-    let response = ui.button(label);
+    let response = crate::widget::button::text_button(ui, label, None);
     let rows = |ui: &mut egui::Ui| {
         for option in &options {
-            if ui
-                .button(rich(option.as_str(), font, color, slant, &look))
-                .clicked()
-            {
+            let row = rich(option.as_str(), font, color, slant, &look);
+            if crate::widget::button::text_button(ui, row, None).clicked() {
                 picked = Some(option.to_string());
                 ui.close();
             }
@@ -432,19 +615,43 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
         ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
     let o = &widget.egui;
-    let mut rule =
-        egui::Separator::default().spacing(if o.spacing >= 0.0 { o.spacing } else { 6.0 });
-    rule = match widget.axis.as_str() {
-        w::HORIZONTAL => rule.horizontal(),
-        w::VERTICAL => rule.vertical(),
-        _ => rule,
+    let spacing = if o.spacing >= 0.0 { o.spacing } else { 6.0 };
+    let across = match widget.axis.as_str() {
+        w::HORIZONTAL => true,
+        w::VERTICAL => false,
+        _ => !ui.layout().main_dir().is_horizontal(),
     };
-    if o.overhang > 0.0 {
-        rule = rule.grow(o.overhang);
-    } else if o.overhang < 0.0 {
-        rule = rule.shrink(-o.overhang);
+    let room = if ui.is_sizing_pass() {
+        egui::Vec2::ZERO
+    } else {
+        ui.available_size_before_wrap()
+    };
+    let size = if across {
+        vec2(room.x, spacing)
+    } else {
+        vec2(spacing, room.y)
+    };
+    let (rect, response) = ui.allocate_at_least(size, Sense::hover());
+    response.widget_info(|| egui::WidgetInfo::new(egui::WidgetType::Other));
+    if !ui.is_rect_visible(rect) {
+        return;
     }
-    ui.add(rule);
+    let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+    // An overhang past the box below zero pulls the line in from both ends.
+    let grow = o.overhang;
+    if across {
+        Brush::of(ui).hline(
+            (rect.left() - grow)..=(rect.right() + grow),
+            rect.center().y,
+            stroke,
+        );
+    } else {
+        Brush::of(ui).vline(
+            rect.center().x,
+            (rect.top() - grow)..=(rect.bottom() + grow),
+            stroke,
+        );
+    }
 }
 
 /// A header that shows or hides the children under it. The header is a
@@ -468,7 +675,7 @@ pub(crate) fn fold(
         return;
     }
     let top = strip.max.y + ui.spacing().item_spacing.y;
-    let frame = ui.painter().add(egui::Shape::Noop);
+    let frame = Brush::of(ui).slot();
     let pad = style
         .body
         .as_deref()
@@ -522,7 +729,7 @@ fn fold_header(
     let mark = font.size;
     let slant = at.slant(index);
     let galley = (!caption.is_empty())
-        .then(|| crate::widget::theme::galley(ui.painter(), caption, font, slant));
+        .then(|| crate::widget::theme::galley(&Brush::of(ui), caption, font, slant));
     let words = galley.as_ref().map_or(0.0, |galley| galley.size().x + gap);
     let sizes: Vec<egui::Vec2> = {
         let mut measure = Measure::new(at.eng, at.arena, ui);
@@ -537,7 +744,7 @@ fn fold_header(
         .map_or(mark, |galley| galley.size().y.max(mark));
     let tall = sizes.iter().fold(line, |most, size| most.max(size.y));
     let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
-    let frame = ui.painter().add(egui::Shape::Noop);
+    let frame = Brush::of(ui).slot();
     // Sensed before the bar's children are drawn, so theirs sit on top.
     let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
     if header.clicked() {
@@ -561,8 +768,7 @@ fn fold_header(
     let mut across = arrow.max.x + gap;
     if let Some(galley) = galley {
         let height = galley.size().y;
-        ui.painter()
-            .galley(pos2(across, middle - height / 2.0), galley, ink);
+        Brush::of(ui).galley(pos2(across, middle - height / 2.0), galley, ink);
         across += words;
     }
     for (child, size) in bar.iter().zip(sizes) {
@@ -571,7 +777,7 @@ fn fold_header(
         across = rect.max.x + gap;
     }
     if state.focused && style.focus.is_none() {
-        ui.painter().rect_stroke(
+        Brush::of(ui).outline(
             strip.expand(2.0),
             4.0,
             Stroke::new(2.0, ink),
@@ -593,12 +799,11 @@ fn fold_arrow(
     let texture = picture.and_then(|path| crate::images::texture_of(eng, ui.ctx(), path).ok());
     if let Some(texture) = texture {
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-        ui.painter()
-            .image(texture.id(), rect, whole, Color32::WHITE);
+        Brush::of(ui).picture(texture.id(), rect, whole, Color32::WHITE);
         return;
     }
     let mark = if open { "▾" } else { "▸" };
-    ui.painter().text(
+    Brush::of(ui).text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         mark,
@@ -609,7 +814,7 @@ fn fold_arrow(
 
 /// A style's frame over `rect`, into the slot reserved for it before what
 /// sits on it was drawn: its nine-patch, or its fill and outline.
-fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Style, rect: Rect) {
+fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &Style, rect: Rect) {
     if let Some(path) = style.image.as_ref() {
         nine_patch_plate(ui, eng, slot, path, style.slice, rect);
         return;
@@ -622,7 +827,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Styl
     } else {
         style.radius.unwrap_or(0.0)
     };
-    ui.painter().set(
+    Brush::of(ui).set(
         slot,
         crate::widget::theme::frame_shape(
             rect,
@@ -733,7 +938,7 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     );
     // The frame first, under everything the stack holds, as a container's is.
     if style.fill.is_some() || style.stroke.is_some() {
-        ui.painter().add(crate::widget::theme::frame_shape(
+        Brush::of(ui).add(crate::widget::theme::frame_shape(
             outer,
             egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -835,7 +1040,7 @@ pub(crate) fn nine_patch(
     native: egui::Vec2,
     rect: Rect,
     slice: [f32; 4],
-) -> Vec<egui::Shape> {
+) -> Vec<crate::widget::paint::Shape> {
     nine_patch_tinted(texture, native, rect, slice, Color32::WHITE)
 }
 
@@ -846,7 +1051,7 @@ pub(crate) fn nine_patch_tinted(
     rect: Rect,
     slice: [f32; 4],
     tint: Color32,
-) -> Vec<egui::Shape> {
+) -> Vec<crate::widget::paint::Shape> {
     let [left, top, right, bottom] = slice;
     let xs = [
         rect.min.x,
@@ -882,7 +1087,7 @@ pub(crate) fn nine_patch_tinted(
             }
             let uv =
                 Rect::from_min_max(pos2(us[column], vs[row]), pos2(us[column + 1], vs[row + 1]));
-            shapes.push(egui::Shape::image(texture, piece, uv, tint));
+            shapes.push(paint::picture(texture, piece, uv, tint));
         }
     }
     shapes
@@ -893,7 +1098,7 @@ pub(crate) fn nine_patch_tinted(
 pub(crate) fn nine_patch_plate(
     ui: &egui::Ui,
     eng: &Engine,
-    plate: egui::layers::ShapeIdx,
+    plate: crate::widget::paint::Slot,
     path: &str,
     slice: [f32; 4],
     rect: Rect,
@@ -902,7 +1107,7 @@ pub(crate) fn nine_patch_plate(
     if let Ok(texture) = crate::images::texture_of(eng, &ctx, path) {
         let native = crate::images::native_size(eng, path, &texture);
         let shapes = nine_patch(texture.id(), native, rect, slice);
-        ui.painter().set(plate, egui::Shape::Vec(shapes));
+        Brush::of(ui).set(plate, paint::group(shapes));
     }
 }
 

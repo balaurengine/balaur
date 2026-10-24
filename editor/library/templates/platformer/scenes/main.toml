@@ -38,7 +38,7 @@ size = [24, 1.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/player.rn" }
+script = { source = "scripts/player.bs" }
 
 [nodes.transform]
 position = [0, 0, 0]

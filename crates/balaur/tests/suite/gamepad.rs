@@ -28,11 +28,11 @@ name = "Game"
 id = "n"
 name = "Runner"
 parent = "root"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 "#,
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.rn"), script).unwrap();
+    std::fs::write(dir.join("scripts").join("s.bs"), script).unwrap();
 }
 
 fn booted(dir: &std::path::Path) -> App {
@@ -47,7 +47,12 @@ fn runner(app: &App) -> balaur_core::hecs::Entity {
 }
 
 fn field(app: &App, name: &str) -> Option<f64> {
-    balaur::script_rune::rune_of(&app.engine).number_field(runner(app), name)
+    let host = app.engine.script_host().expect("a script host");
+    match host.script_field(balaur_core::node_id_of(runner(app)), name)? {
+        balaur_script::Value::Int(n) => Some(n as f64),
+        balaur_script::Value::Num(n) => Some(n),
+        other => panic!("{name} is {other:?}"),
+    }
 }
 
 fn position(app: &App) -> [f32; 3] {
@@ -56,7 +61,7 @@ fn position(app: &App) -> [f32; 3] {
     t.position.to_array()
 }
 
-/// Run `ticks` frames and require the script to have reached `this.done = 1`.
+/// Run `ticks` frames and require the script to have reached `self.done = 1`.
 fn run_to_done(app: &mut App, ticks: usize) {
     for _ in 0..ticks {
         app.tick(DEFAULT_FIXED_DT);
@@ -70,59 +75,70 @@ fn run_to_done(app: &mut App, ticks: usize) {
 }
 
 const VERBS: &str = r#"
-pub fn init(this) { this.tick = 0; this.done = 0; }
+fn near(a: float, b: float) -> bool { math::abs(a - b) < 1e-4 }
 
-fn near(a, b) { math::abs(a - b) < 1e-4 }
+pub struct Runner { node: Node, tick: int, done: int, failed: bool }
 
-pub fn update(this, dt) {
-    this.tick += 1;
-    let pad = 7;
-    if this.tick == 1 {
-        input::feed_gamepad(pad, #{
-            name: "Fed Pad", os_name: "Fed OS", guid: "0300aabb", vendor: 1, product: 2,
-            mapping: input::GAMEPAD_MAPPING_SDL, rumble: true,
-            buttons: #{ south: true, left_trigger: 0.3 },
-            axes: #{ left_x: 0.1, right_x: 1.0 },
-            power: #{ state: input::GAMEPAD_POWER_ON_BATTERY, level: 0.5 },
-            touches: [#{ id: 1, x: 0.25, y: 0.75 }],
-        });
-    } else if this.tick == 2 {
-        let pads = input::gamepads();
-        assert!(pads.len() == 1 && pads[0] == pad, "the fed pad is listed by its id");
-        assert!(input::gamepad_name(pad) == "Fed Pad");
-        let south = input::GAMEPAD_BUTTON_SOUTH;
-        assert!(input::gamepad_down(pad, south) && input::gamepad_just_pressed(pad, south));
-        assert!(input::gamepad_repeated(pad, south), "a press is a repeat");
-        let trigger = input::GAMEPAD_BUTTON_LEFT_TRIGGER;
-        assert!(!input::gamepad_down(pad, trigger), "under the press threshold");
-        assert!(near(input::gamepad_pressure(pad, trigger), 0.3));
-        assert!(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_LEFT_X), 0.0), "inside the deadzone");
-        assert!(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_RIGHT_X), 1.0));
-        let info = input::gamepad_info(pad);
-        assert!(info["guid"] == "0300aabb" && info["vendor"] == 1 && info["product"] == 2);
-        assert!(info["os_name"] == "Fed OS" && info["mapping"] == "sdl");
-        let power = input::gamepad_power(pad);
-        assert!(power["state"] == "on_battery" && near(power["level"], 0.5));
-        assert!(near(input::gamepad_touches(pad)[0]["x"], 0.25));
-        assert!(input::gamepad_can_rumble(pad));
-        input::feed_gamepad(pad, #{ buttons: #{ south: false } });
-    } else if this.tick == 3 {
-        let south = input::GAMEPAD_BUTTON_SOUTH;
-        assert!(input::gamepad_just_released(pad, south) && !input::gamepad_down(pad, south));
-        input::feed_gamepad(pad, #{ buttons: #{ east: true } });
-        input::feed_gamepad(pad, #{ buttons: #{ east: false } });
-    } else if this.tick == 4 {
-        let east = input::GAMEPAD_BUTTON_EAST;
-        assert!(input::gamepad_just_pressed(pad, east), "a tap between frames presses");
-        assert!(input::gamepad_just_released(pad, east), "and releases");
-        assert!(!input::gamepad_down(pad, east));
-        input::feed_gamepad(pad, #{ connected: false });
-    } else if this.tick == 5 {
-        assert!(input::gamepads().len() == 0, "unplugged");
-        assert!(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad));
-        let power = input::gamepad_power(pad);
-        assert!(power["state"] == "unknown" && near(power["level"], -1.0), "neutral");
-        this.done = 1;
+impl Runner {
+    fn update(dt: float) {
+        self.tick += 1;
+        let pad = 7;
+        if self.tick == 1 {
+            input::feed_gamepad(pad, map()
+                .with("name", "Fed Pad").with("os_name", "Fed OS").with("guid", "0300aabb")
+                .with("vendor", 1).with("product", 2)
+                .with("mapping", input::GAMEPAD_MAPPING_SDL).with("rumble", true)
+                .with("buttons", map().with("south", true).with("left_trigger", 0.3))
+                .with("axes", map().with("left_x", 0.1).with("right_x", 1.0))
+                .with("power", map().with("state", input::GAMEPAD_POWER_ON_BATTERY).with("level", 0.5))
+                .with("touches", [map().with("id", 1).with("x", 0.25).with("y", 0.75)]));
+        } else if self.tick == 2 {
+            let pads = input::gamepads();
+            self.check(pads.len() == 1 && pads.at(0).as_int() == pad, "the fed pad is listed by its id");
+            self.check(input::gamepad_name(pad) == "Fed Pad", "its name");
+            let south = input::GAMEPAD_BUTTON_SOUTH;
+            self.check(input::gamepad_down(pad, south) && input::gamepad_just_pressed(pad, south), "south down");
+            self.check(input::gamepad_repeated(pad, south), "a press is a repeat");
+            let trigger = input::GAMEPAD_BUTTON_LEFT_TRIGGER;
+            self.check(!input::gamepad_down(pad, trigger), "under the press threshold");
+            self.check(near(input::gamepad_pressure(pad, trigger), 0.3), "trigger pressure");
+            self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_LEFT_X), 0.0), "inside the deadzone");
+            self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_RIGHT_X), 1.0), "right x");
+            let info = input::gamepad_info(pad);
+            self.check(info.get("guid").as_str() == "0300aabb" && info.get("vendor").as_int() == 1 && info.get("product").as_int() == 2, "info ids");
+            self.check(info.get("os_name").as_str() == "Fed OS" && info.get("mapping").as_str() == "sdl", "info names");
+            let power = input::gamepad_power(pad);
+            self.check(power.get("state").as_str() == "on_battery" && near(power.get("level").as_float(), 0.5), "power");
+            self.check(near(input::gamepad_touches(pad).at(0).get("x").as_float(), 0.25), "touch x");
+            self.check(input::gamepad_can_rumble(pad), "can rumble");
+            input::feed_gamepad(pad, map().with("buttons", map().with("south", false)));
+        } else if self.tick == 3 {
+            let south = input::GAMEPAD_BUTTON_SOUTH;
+            self.check(input::gamepad_just_released(pad, south) && !input::gamepad_down(pad, south), "south released");
+            input::feed_gamepad(pad, map().with("buttons", map().with("east", true)));
+            input::feed_gamepad(pad, map().with("buttons", map().with("east", false)));
+        } else if self.tick == 4 {
+            let east = input::GAMEPAD_BUTTON_EAST;
+            self.check(input::gamepad_just_pressed(pad, east), "a tap between frames presses");
+            self.check(input::gamepad_just_released(pad, east), "and releases");
+            self.check(!input::gamepad_down(pad, east), "east up");
+            input::feed_gamepad(pad, map().with("connected", false));
+        } else if self.tick == 5 {
+            self.check(input::gamepads().len() == 0, "unplugged");
+            self.check(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad), "no name, no rumble");
+            let power = input::gamepad_power(pad);
+            self.check(power.get("state").as_str() == "unknown" && near(power.get("level").as_float(), -1.0), "neutral");
+            if !self.failed {
+                self.done = 1;
+            }
+        }
+    }
+
+    fn check(ok: bool, what: str) {
+        if !ok {
+            self.failed = true;
+            log::error("failed: {what}");
+        }
     }
 }
 "#;
@@ -136,30 +152,35 @@ fn a_fed_pad_reads_through_every_verb_and_answers_neutrally_once_gone() {
 }
 
 const RUMBLE: &str = r#"
-pub fn init(this) {
-    this.tick = 0; this.started = 0; this.refused = 1; this.finished = 0; this.finished_at = 0;
-}
+pub struct Runner { node: Node, tick: int, started: int, refused: int, finished: int, finished_at: int }
 
-pub fn update(this, dt) {
-    this.tick += 1;
-    if this.tick == 1 {
-        input::feed_gamepad(7, #{ rumble: true });
-        input::feed_gamepad(8, #{ rumble: false });
-    } else if this.tick == 2 {
-        let shaped = #{ strong: 0.02, weak: 0.5, duration: 0.09, attack: 0.03, pulse: 0.04, gap: 0.01 };
-        if input::gamepad_rumble(7, shaped) { this.started = this.tick; }
-        if input::gamepad_rumble(8, #{}) { this.refused = 0; }
-    } else if this.tick == 20 {
-        input::gamepad_rumble(7, #{ duration: 1.0, position: [3.0, 0.0, 0.0], falloff: "linear" });
-        input::gamepad_set_listener(7, [0.0, 0.0, 0.0]);
-    } else if this.tick == 21 {
-        input::gamepad_stop_rumble(7);
+impl Runner {
+    fn init() {
+        self.refused = 1;
     }
-}
 
-pub fn on_gamepad_rumble_finished(this, pad) {
-    this.finished += 1;
-    this.finished_at = this.tick;
+    fn update(dt: float) {
+        self.tick += 1;
+        if self.tick == 1 {
+            input::feed_gamepad(7, map().with("rumble", true));
+            input::feed_gamepad(8, map().with("rumble", false));
+        } else if self.tick == 2 {
+            let shaped = map().with("strong", 0.02).with("weak", 0.5).with("duration", 0.09)
+                .with("attack", 0.03).with("pulse", 0.04).with("gap", 0.01);
+            if input::gamepad_rumble(7, shaped) { self.started = self.tick; }
+            if input::gamepad_rumble(8, map()) { self.refused = 0; }
+        } else if self.tick == 20 {
+            input::gamepad_rumble(7, map().with("duration", 1.0).with("position", [3.0, 0.0, 0.0]).with("falloff", "linear"));
+            input::gamepad_set_listener(7, [0.0, 0.0, 0.0]);
+        } else if self.tick == 21 {
+            input::gamepad_stop_rumble(7);
+        }
+    }
+
+    pub fn on_gamepad_rumble_finished(pad: int) {
+        self.finished += 1;
+        self.finished_at = self.tick;
+    }
 }
 "#;
 
@@ -219,7 +240,7 @@ fn trigger_down(app: &App) -> bool {
 fn the_project_s_numbers_shape_every_pad() {
     let dir = tempfile::tempdir().unwrap();
     let input = "[input]\ngamepad_deadzone = 0.5\ngamepad_press = 0.9\ngamepad_release = 0.2\n";
-    project(dir.path(), input, "pub fn init(this) {}\n");
+    project(dir.path(), input, "pub struct Runner { node: Node }\n");
     let mut app = booted(dir.path());
     let trigger = balaur::input::PAD_BUTTON_NAMES
         .iter()
@@ -251,15 +272,19 @@ fn the_project_s_numbers_shape_every_pad() {
 const ACTIONS: &str = "[input.actions]\njump = [\"gamepad:south\"]\nmove_x = [\"axis:left_x\"]\n";
 
 const PLAYER: &str = r#"
-pub fn fixed_update(this, dt) {
-    this.node.transform.translate(input::action_value("move_x") * dt, 0.0, 0.0);
-    if input::action_just_pressed("jump") {
-        input::gamepad_rumble(7, #{ duration: 0.05 });
-    }
-}
+pub struct Runner { node: Node }
 
-pub fn on_gamepad_rumble_finished(this, pad) {
-    this.node.transform.translate(0.0, 1.0, 0.0);
+impl Runner {
+    fn fixed_update(dt: float) {
+        self.node.transform.translate(input::action_value("move_x") * dt, 0.0, 0.0);
+        if input::action_just_pressed("jump") {
+            input::gamepad_rumble(7, map().with("duration", 0.05));
+        }
+    }
+
+    pub fn on_gamepad_rumble_finished(pad: int) {
+        self.node.transform.translate(0.0, 1.0, 0.0);
+    }
 }
 "#;
 

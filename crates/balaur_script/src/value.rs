@@ -38,9 +38,9 @@ pub enum Value {
     Map(Vec<(String, Value)>),
     /// Several return values, not a list of one.
     ///
-    /// Lua and Rune both let a function return more than one thing, and
-    /// `local text, changed = ui.text_field(...)` is how the widgets are meant
-    /// to read. A tuple return becomes this; a `Vec` still becomes a `List`.
+    /// A binding may hand back more than one thing, as a widget hands back
+    /// its text and whether it changed. A tuple return becomes this; a `Vec`
+    /// still becomes a `List`.
     Many(Vec<Value>),
 }
 
@@ -79,12 +79,25 @@ impl Value {
 /// One positional argument.
 pub trait FromArg: Sized {
     fn from_arg(v: Option<&Value>) -> Result<Self>;
+
+    /// The same, moving the value out of its slot and leaving `Nil` there:
+    /// what a binding reads when the backend built the slots for this one
+    /// call, so a string or a table crosses once rather than being copied
+    /// again on this side.
+    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
+        Self::from_arg(v.map(|v| &*v))
+    }
 }
 
 /// A whole argument list. Implemented for scalars (one argument) and for
 /// tuples (one argument each, positionally).
 pub trait FromArgs: Sized {
     fn from_args(args: &[Value]) -> Result<Self>;
+
+    /// [`FromArg::take_arg`] for each argument.
+    fn take_args(args: &mut [Value]) -> Result<Self> {
+        Self::from_args(args)
+    }
 }
 
 /// A Rust value a script can hold.
@@ -156,6 +169,17 @@ impl FromArg for String {
             other => Err(want(other, "string")),
         }
     }
+    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
+        match v {
+            Some(slot) if matches!(slot, Value::Str(_)) => {
+                match std::mem::replace(slot, Value::Nil) {
+                    Value::Str(s) => Ok(s),
+                    other => Err(want(Some(&other), "string")),
+                }
+            }
+            other => Err(want(other.map(|v| &*v), "string")),
+        }
+    }
 }
 
 /// A call-scoped script function, resolved by the backend that registered it.
@@ -188,6 +212,9 @@ impl FromArg for Value {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         Ok(v.cloned().unwrap_or(Value::Nil))
     }
+    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
+        Ok(v.map_or(Value::Nil, |v| std::mem::replace(v, Value::Nil)))
+    }
 }
 
 /// A missing or nil argument is `None`; anything else must convert.
@@ -196,6 +223,12 @@ impl<T: FromArg> FromArg for Option<T> {
         match v {
             None | Some(Value::Nil) => Ok(None),
             some => T::from_arg(some).map(Some),
+        }
+    }
+    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
+        match v {
+            None | Some(Value::Nil) => Ok(None),
+            some => T::take_arg(some).map(Some),
         }
     }
 }
@@ -252,6 +285,7 @@ macro_rules! scalar_args {
     ($($t:ty),*) => { $(
         impl FromArgs for $t {
             fn from_args(args: &[Value]) -> Result<Self> { Self::from_arg(args.first()) }
+            fn take_args(args: &mut [Value]) -> Result<Self> { Self::take_arg(args.first_mut()) }
         }
     )* };
 }
@@ -263,6 +297,9 @@ impl<T: FromArg> FromArgs for Option<T> {
     fn from_args(args: &[Value]) -> Result<Self> {
         Self::from_arg(args.first())
     }
+    fn take_args(args: &mut [Value]) -> Result<Self> {
+        Self::take_arg(args.first_mut())
+    }
 }
 
 /// Tuples map positionally: element `n` reads argument `n`.
@@ -271,6 +308,9 @@ macro_rules! tuple_args {
         impl<$($name: FromArg),+> FromArgs for ($($name,)+) {
             fn from_args(args: &[Value]) -> Result<Self> {
                 Ok(($($name::from_arg(args.get($n))?,)+))
+            }
+            fn take_args(args: &mut [Value]) -> Result<Self> {
+                Ok(($($name::take_arg(args.get_mut($n))?,)+))
             }
         }
         impl<$($name: IntoValue),+> IntoValue for ($($name,)+) {

@@ -1,0 +1,47 @@
+// The Bone map tab's one script: the Editor fills it when the map or the
+// selection moved, and it hands back the verbs. A row's own buttons pick,
+// open and empty it.
+
+pub struct Bonemap {
+    node: Node,
+    editor: Node,
+}
+
+fn VERBS() -> [str] {
+    ["guess", "clear", "save"]
+}
+
+impl Bonemap {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        for word in ["bonemap_changed", "outline_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_bonemap_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" {
+            for verb in VERBS() {
+                if node.name() == verb {
+                    self.editor.call("bonemap_verb", verb);
+                }
+            }
+        }
+    }
+
+    /// Fill what shows: on a word, and from the dock once it is visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        self.editor.call("bonemap_fill");
+    }
+}

@@ -1,0 +1,49 @@
+// The recording lanes' one script: the Editor fills them as the replay moves
+// and when the room did, and it hands back the transport and the scrubber.
+// A mark's own dot seeks to its tick.
+
+pub struct Lanes {
+    node: Node,
+    editor: Node,
+}
+
+impl Lanes {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        for word in ["recordings_changed", "play_frame"] {
+            events::listen(self.node, word, self.editor);
+        }
+        events::listen(self.node, "resized", self.node);
+    }
+
+    pub fn on_recordings_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_play_frame(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_resized(_box: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        let name = node.name();
+        if name == "Scrub" && event == "change" {
+            self.editor.call("lanes_seek", value);
+        } else if event == "click" && (name == "Play" || name == "Step" || name == "Stop") {
+            self.editor.call("lanes_verb", name);
+        } else if event == "click" {
+            self.refresh();
+        }
+    }
+
+    /// Fill what shows: on a word, and from the dock once it is visible.
+    pub fn refresh() {
+        if self.node.get_component("widget", "visible").as_bool() == false {
+            return;
+        }
+        self.editor.call("lanes_fill");
+    }
+}

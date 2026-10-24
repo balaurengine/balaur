@@ -1,0 +1,50 @@
+// The Problems tab's one script: it fills its list when the check's findings
+// move, and hands the Editor a pick to open.
+
+pub struct Problems {
+    node: Node,
+    editor: Node,
+}
+
+impl Problems {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        for word in ["problems_changed", "outline_changed"] {
+            events::listen(self.node, word, self.editor);
+        }
+    }
+
+    pub fn on_problems_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_outline_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "change" || node.name() != "List" {
+            return;
+        }
+        let row = node.get_component("widget", "text");
+        node.patch_component("widget", map().with("text", ""));
+        if row.as_str() != "" {
+            self.editor.call("problems_pick", row);
+        }
+    }
+
+    /// Fill what shows from the Editor's answer: on a word that it moved, and
+    /// from the dock once it has made this panel visible.
+    pub fn refresh() {
+        let view = self.editor.call("problems_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("List").patch_component("widget", map()
+            .with("options", view.get("items"))
+            .with("visible", view.get("items").len() > 0));
+        self.node.get_node("Nothing").patch_component("widget", map()
+            .with("visible", view.get("says").as_str() != "")
+            .with("text", view.get("says")));
+    }
+}

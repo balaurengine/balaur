@@ -148,7 +148,7 @@ its body by `ScrollArea::show_rows` as the other two do, rather than by the
   list 200 pixels tall drew one row 200 pixels high.
 
 The last of it, and not this row's: the editor's outliner cannot act on
-`on_move` yet, because `model.rn` has no reparent -- only `move_sibling`
+`on_move` yet, because `model.bs` has no reparent -- only `move_sibling`
 within one parent. That is document surgery with a transform question in it
 (Godot asks whether to keep the world pose), so it belongs to the editor's
 own plan rather than here.

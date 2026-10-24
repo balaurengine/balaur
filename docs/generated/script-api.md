@@ -4,271 +4,612 @@
 
 Every module, function and constant a script can reach. Read from a booted
 engine rather than the source, so derived constants are included and this
-cannot drift from what scripts actually see.
+cannot drift from what scripts actually see. A node's own operations are
+the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
-| Module | Functions | Constants | Declared by |
-| --- | ---: | ---: | --- |
-| [`animation`](#animation) | 20 | 80 | the engine |
-| [`apple`](#apple) | 20 | 25 | the engine |
-| [`assets`](#assets) | 11 | 0 | the engine |
-| [`audio`](#audio) | 23 | 1 | the engine |
-| [`browser`](#browser) | 8 | 0 | the engine |
-| [`debugger`](#debugger) | 9 | 4 | the engine |
-| [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 28 | 0 | the engine |
-| [`events`](#events) | 6 | 0 | the engine |
-| [`export`](#export) | 6 | 0 | the engine |
-| [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 19 | 9 | the engine |
-| [`geometry2d`](#geometry2d) | 12 | 0 | the engine |
-| [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
-| [`hash`](#hash) | 2 | 0 | the engine |
-| [`http`](#http) | 2 | 5 | the engine |
-| [`import`](#import) | 7 | 0 | the engine |
-| [`input`](#input) | 53 | 188 | the engine |
-| [`json`](#json) | 2 | 0 | the engine |
-| [`log`](#log) | 7 | 0 | the engine |
-| [`math`](#math) | 24 | 3 | the engine |
-| [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
-| [`node`](#node) | 56 | 0 | the engine |
-| [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 132 | 113 | the engine |
-| [`physics3d`](#physics3d) | 142 | 120 | the engine |
-| [`platform`](#platform) | 11 | 7 | the engine |
-| [`project`](#project) | 13 | 0 | the engine |
-| [`random`](#random) | 5 | 0 | the engine |
-| [`regex`](#regex) | 6 | 0 | the engine |
-| [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 70 | 46 | the engine |
-| [`replay`](#replay) | 17 | 4 | the engine |
-| [`rollback`](#rollback) | 2 | 0 | the engine |
-| [`save`](#save) | 6 | 0 | the engine |
-| [`scene`](#scene) | 22 | 0 | the engine |
-| [`script`](#script) | 19 | 0 | the engine |
-| [`settings`](#settings) | 12 | 0 | the engine |
-| [`skeleton`](#skeleton) | 3 | 0 | the engine |
-| [`strings`](#strings) | 6 | 0 | the engine |
-| [`task`](#task) | 3 | 0 | the engine |
-| [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 73 | 68 | the engine |
-| [`websocket`](#websocket) | 4 | 9 | the engine |
-| [`window`](#window) | 8 | 0 | the engine |
+| Module | Functions | Constants |
+| --- | ---: | ---: |
+| [`animation`](#animation) | 20 | 80 |
+| [`apple`](#apple) | 20 | 25 |
+| [`assets`](#assets) | 11 | 0 |
+| [`audio`](#audio) | 23 | 1 |
+| [`browser`](#browser) | 8 | 0 |
+| [`debugger`](#debugger) | 9 | 4 |
+| [`encoding`](#encoding) | 2 | 0 |
+| [`engine`](#engine) | 28 | 0 |
+| [`events`](#events) | 6 | 0 |
+| [`export`](#export) | 6 | 0 |
+| [`fs`](#fs) | 9 | 0 |
+| [`gamend`](#gamend) | 19 | 9 |
+| [`geometry2d`](#geometry2d) | 12 | 0 |
+| [`geometry3d`](#geometry3d) | 6 | 0 |
+| [`hash`](#hash) | 2 | 0 |
+| [`http`](#http) | 2 | 5 |
+| [`import`](#import) | 7 | 0 |
+| [`input`](#input) | 53 | 188 |
+| [`json`](#json) | 2 | 0 |
+| [`log`](#log) | 8 | 0 |
+| [`math`](#math) | 24 | 3 |
+| [`multiplayer`](#multiplayer) | 14 | 18 |
+| [`node`](#node) | 57 | 0 |
+| [`physics`](#physics) | 14 | 0 |
+| [`physics2d`](#physics2d) | 132 | 113 |
+| [`physics3d`](#physics3d) | 142 | 120 |
+| [`platform`](#platform) | 11 | 7 |
+| [`project`](#project) | 13 | 0 |
+| [`random`](#random) | 5 | 0 |
+| [`regex`](#regex) | 6 | 0 |
+| [`release`](#release) | 5 | 0 |
+| [`render`](#render) | 73 | 46 |
+| [`replay`](#replay) | 17 | 4 |
+| [`rollback`](#rollback) | 2 | 0 |
+| [`save`](#save) | 6 | 0 |
+| [`scene`](#scene) | 22 | 0 |
+| [`script`](#script) | 15 | 0 |
+| [`settings`](#settings) | 12 | 0 |
+| [`skeleton`](#skeleton) | 3 | 0 |
+| [`strings`](#strings) | 6 | 0 |
+| [`task`](#task) | 3 | 0 |
+| [`toml`](#toml) | 3 | 0 |
+| [`ui`](#ui) | 33 | 68 |
+| [`websocket`](#websocket) | 4 | 9 |
+| [`window`](#window) | 8 | 0 |
 
 ## `animation`
 
-**Functions:** `add_clip`, `current_clip`, `current_state`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
+Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.
+
+| Function | Signature |
+| --- | --- |
+| `add_clip` | `(Node, str, any)` |
+| `current_clip` | `(Node) -> str?` |
+| `current_state` | `(Node) -> any` |
+| `ease_names` | `() -> [str]` |
+| `is_playing` | `(Node) -> bool` |
+| `is_tween_running` | `(any) -> bool` |
+| `jump` | `(Node, str)` |
+| `just_finished` | `(Node) -> str?` |
+| `pause` | `(Node)` |
+| `play` | `(Node, str, any)` |
+| `queue` | `(Node, str)` |
+| `resume` | `(Node)` |
+| `seek` | `(Node, float)` |
+| `set_condition` | `(Node, str, bool)` |
+| `stop` | `(any)` |
+| `time` | `(Node) -> float` |
+| `travel` | `(Node, str)` |
+| `tween` | `(Node, any) -> int` |
+| `tween_value` | `(any, any, float, str?) -> int` |
+| `tween_value_of` | `(any) -> float` |
 
 **Constants** (80):
 
 | Name | Value |
 | --- | --- |
-| `ADVANCE_MODE_AUTO` | `auto` |
-| `ADVANCE_MODE_DISABLED` | `disabled` |
-| `ADVANCE_MODE_ENABLED` | `enabled` |
-| `EASE_IN_BACK` | `in_back` |
-| `EASE_IN_BOUNCE` | `in_bounce` |
-| `EASE_IN_CIRC` | `in_circ` |
-| `EASE_IN_CUBIC` | `in_cubic` |
-| `EASE_IN_ELASTIC` | `in_elastic` |
-| `EASE_IN_EXPO` | `in_expo` |
-| `EASE_IN_OUT_BACK` | `in_out_back` |
-| `EASE_IN_OUT_BOUNCE` | `in_out_bounce` |
-| `EASE_IN_OUT_CIRC` | `in_out_circ` |
-| `EASE_IN_OUT_CUBIC` | `in_out_cubic` |
-| `EASE_IN_OUT_ELASTIC` | `in_out_elastic` |
-| `EASE_IN_OUT_EXPO` | `in_out_expo` |
-| `EASE_IN_OUT_QUAD` | `in_out_quad` |
-| `EASE_IN_OUT_QUART` | `in_out_quart` |
-| `EASE_IN_OUT_QUINT` | `in_out_quint` |
-| `EASE_IN_OUT_SINE` | `in_out_sine` |
-| `EASE_IN_OUT_SPRING` | `in_out_spring` |
-| `EASE_IN_QUAD` | `in_quad` |
-| `EASE_IN_QUART` | `in_quart` |
-| `EASE_IN_QUINT` | `in_quint` |
-| `EASE_IN_SINE` | `in_sine` |
+| `ADVANCE_MODE_AUTO` | `"auto"` |
+| `ADVANCE_MODE_DISABLED` | `"disabled"` |
+| `ADVANCE_MODE_ENABLED` | `"enabled"` |
+| `EASE_IN_BACK` | `"in_back"` |
+| `EASE_IN_BOUNCE` | `"in_bounce"` |
+| `EASE_IN_CIRC` | `"in_circ"` |
+| `EASE_IN_CUBIC` | `"in_cubic"` |
+| `EASE_IN_ELASTIC` | `"in_elastic"` |
+| `EASE_IN_EXPO` | `"in_expo"` |
+| `EASE_IN_OUT_BACK` | `"in_out_back"` |
+| `EASE_IN_OUT_BOUNCE` | `"in_out_bounce"` |
+| `EASE_IN_OUT_CIRC` | `"in_out_circ"` |
+| `EASE_IN_OUT_CUBIC` | `"in_out_cubic"` |
+| `EASE_IN_OUT_ELASTIC` | `"in_out_elastic"` |
+| `EASE_IN_OUT_EXPO` | `"in_out_expo"` |
+| `EASE_IN_OUT_QUAD` | `"in_out_quad"` |
+| `EASE_IN_OUT_QUART` | `"in_out_quart"` |
+| `EASE_IN_OUT_QUINT` | `"in_out_quint"` |
+| `EASE_IN_OUT_SINE` | `"in_out_sine"` |
+| `EASE_IN_OUT_SPRING` | `"in_out_spring"` |
+| `EASE_IN_QUAD` | `"in_quad"` |
+| `EASE_IN_QUART` | `"in_quart"` |
+| `EASE_IN_QUINT` | `"in_quint"` |
+| `EASE_IN_SINE` | `"in_sine"` |
 
 …and 56 more.
 
 ## `apple`
 
-**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `listen`, `listen_for_cloud_changes`, `listen_for_invites`, `listen_for_urls`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`
+Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.
+
+| Function | Signature |
+| --- | --- |
+| `access_point` | `(any, any) -> bool` |
+| `authenticated` | `() -> any` |
+| `available` | `() -> any` |
+| `cancel_notification` | `(any) -> any` |
+| `credential_state` | `(any, any, any) -> any` |
+| `entitlements` | `(any, any) -> any` |
+| `finish_purchase` | `(any, any, any) -> any` |
+| `identity` | `(any, any) -> any` |
+| `listen` | `(any, any) -> any` |
+| `listen_for_cloud_changes` | `() -> any` |
+| `listen_for_invites` | `() -> any` |
+| `listen_for_urls` | `() -> any` |
+| `notify` | `(any, any, any) -> any` |
+| `products` | `(any, any, any) -> any` |
+| `purchase` | `(any, any, any) -> any` |
+| `register_for_push` | `() -> any` |
+| `request_notifications` | `(any, any) -> any` |
+| `restore_purchases` | `(any, any) -> any` |
+| `show_dashboard` | `(any, any) -> int` |
+| `sign_in` | `(any, any) -> any` |
 
 **Constants** (25):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_CANCELLED` | `cancelled` |
-| `EVENT_CLOUD_CHANGED` | `cloud_changed` |
-| `EVENT_CREDENTIAL_STATE` | `credential_state` |
-| `EVENT_DASHBOARD_CLOSED` | `dashboard_closed` |
-| `EVENT_ENTITLEMENTS` | `entitlements` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_FINISHED` | `finished` |
-| `EVENT_IDENTITY` | `identity` |
-| `EVENT_INVITE_ACCEPTED` | `invite_accepted` |
-| `EVENT_MATCH_REQUESTED` | `match_requested` |
-| `EVENT_NOTIFICATIONS` | `notifications` |
-| `EVENT_NOTIFICATION_OPENED` | `notification_opened` |
-| `EVENT_NOTIFICATION_RECEIVED` | `notification_received` |
-| `EVENT_PENDING` | `pending` |
-| `EVENT_PRODUCTS` | `products` |
-| `EVENT_PURCHASED` | `purchased` |
-| `EVENT_PUSH_FAILED` | `push_failed` |
-| `EVENT_PUSH_RECEIVED` | `push_received` |
-| `EVENT_PUSH_TOKEN` | `push_token` |
-| `EVENT_RESTORED` | `restored` |
-| `EVENT_SCHEDULED` | `scheduled` |
-| `EVENT_SIGNED_IN` | `signed_in` |
-| `EVENT_TRANSACTION` | `transaction` |
-| `EVENT_UNSUPPORTED` | `unsupported` |
+| `EVENT_CANCELLED` | `"cancelled"` |
+| `EVENT_CLOUD_CHANGED` | `"cloud_changed"` |
+| `EVENT_CREDENTIAL_STATE` | `"credential_state"` |
+| `EVENT_DASHBOARD_CLOSED` | `"dashboard_closed"` |
+| `EVENT_ENTITLEMENTS` | `"entitlements"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_FINISHED` | `"finished"` |
+| `EVENT_IDENTITY` | `"identity"` |
+| `EVENT_INVITE_ACCEPTED` | `"invite_accepted"` |
+| `EVENT_MATCH_REQUESTED` | `"match_requested"` |
+| `EVENT_NOTIFICATIONS` | `"notifications"` |
+| `EVENT_NOTIFICATION_OPENED` | `"notification_opened"` |
+| `EVENT_NOTIFICATION_RECEIVED` | `"notification_received"` |
+| `EVENT_PENDING` | `"pending"` |
+| `EVENT_PRODUCTS` | `"products"` |
+| `EVENT_PURCHASED` | `"purchased"` |
+| `EVENT_PUSH_FAILED` | `"push_failed"` |
+| `EVENT_PUSH_RECEIVED` | `"push_received"` |
+| `EVENT_PUSH_TOKEN` | `"push_token"` |
+| `EVENT_RESTORED` | `"restored"` |
+| `EVENT_SCHEDULED` | `"scheduled"` |
+| `EVENT_SIGNED_IN` | `"signed_in"` |
+| `EVENT_TRANSACTION` | `"transaction"` |
+| `EVENT_UNSUPPORTED` | `"unsupported"` |
 
 …and 1 more.
 
 ## `assets`
 
-**Functions:** `assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`
+Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.
+
+| Function | Signature |
+| --- | --- |
+| `assign_id` | `(str) -> str` |
+| `directory` | `(str) -> str` |
+| `duplicate` | `(str) -> any` |
+| `exists` | `(str) -> bool` |
+| `id` | `(str) -> str?` |
+| `invalidate` | `()` |
+| `load` | `(str) -> any` |
+| `path` | `(str) -> str` |
+| `reload` | `(str)` |
+| `rename` | `(str, str) -> [str]` |
+| `save` | `(str, any)` |
 
 ## `audio`
 
-**Functions:** `bus_limit`, `bus_volume_linear`, `buses`, `cues`, `device_ready`, `devices`, `distance_gain`, `emitter_position`, `is_playing`, `listener_position`, `pan`, `play`, `play_cue`, `seek`, `set_bus_volume_linear`, `set_emitter_position`, `set_listener_position`, `set_pitch_scale`, `set_volume_linear`, `skip`, `stop`, `stop_all`, `stop_playback`
+Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
+
+| Function | Signature |
+| --- | --- |
+| `bus_limit` | `(str) -> any` |
+| `bus_volume_linear` | `(str) -> float` |
+| `buses` | `() -> [str]` |
+| `cues` | `() -> [str]` |
+| `device_ready` | `() -> bool` |
+| `devices` | `() -> any` |
+| `distance_gain` | `(int) -> float?` |
+| `emitter_position` | `(int) -> Vec3?` |
+| `is_playing` | `(int) -> bool` |
+| `listener_position` | `() -> Vec3` |
+| `pan` | `(int) -> float?` |
+| `play` | `(Node) -> int` |
+| `play_cue` | `(str, any) -> int?` |
+| `seek` | `(Node, float)` |
+| `set_bus_volume_linear` | `(str, float)` |
+| `set_emitter_position` | `(int, any, any, any)` |
+| `set_listener_position` | `(any, any, any)` |
+| `set_pitch_scale` | `(int, float)` |
+| `set_volume_linear` | `(int, float)` |
+| `skip` | `(Node)` |
+| `stop` | `(Node)` |
+| `stop_all` | `()` |
+| `stop_playback` | `(int)` |
 
 **Constants** (1):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_FINISHED` | `finished` |
+| `EVENT_FINISHED` | `"finished"` |
 
 ## `browser`
 
-**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `stop_listening`, `user_agent`, `visible`
+The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.
+
+| Function | Signature |
+| --- | --- |
+| `hardware_concurrency` | `() -> int?` |
+| `listen` | `(Node, any)` |
+| `location` | `() -> str?` |
+| `messages` | `() -> [any]` |
+| `post_message` | `(any) -> bool` |
+| `stop_listening` | `(Node)` |
+| `user_agent` | `() -> str?` |
+| `visible` | `() -> bool` |
 
 ## `debugger`
 
-**Functions:** `break_on_error`, `breakpoints`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`, `stop_location`
+Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.
+
+| Function | Signature |
+| --- | --- |
+| `break_on_error` | `() -> bool` |
+| `breakpoints` | `(str) -> [int]` |
+| `request_break` | `()` |
+| `resume` | `(str?)` |
+| `scope` | `() -> Node` |
+| `set_break_on_error` | `(bool)` |
+| `set_breakpoints` | `(str, [int]) -> [int]` |
+| `set_scope` | `(Node?)` |
+| `stop_location` | `() -> any` |
 
 **Constants** (4):
 
 | Name | Value |
 | --- | --- |
-| `CONTINUE` | `continue` |
-| `STEP_INTO` | `into` |
-| `STEP_OUT` | `out` |
-| `STEP_OVER` | `over` |
+| `CONTINUE` | `"continue"` |
+| `STEP_INTO` | `"into"` |
+| `STEP_OUT` | `"out"` |
+| `STEP_OVER` | `"over"` |
 
 ## `encoding`
 
-**Functions:** `base64`, `from_base64`
+Bytes to base64 text and back.
+
+| Function | Signature |
+| --- | --- |
+| `base64` | `(any) -> str` |
+| `from_base64` | `(str) -> any` |
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `function_costs`, `has_plugin`, `open_url`, `paused`, `plugin_version`, `plugins`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_script_profiling`, `set_time_scale`, `target`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_directory`, `user_data_directory_of`
+The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.
+
+| Function | Signature |
+| --- | --- |
+| `args` | `() -> [str]` |
+| `dark_mode` | `() -> bool` |
+| `delta` | `() -> float` |
+| `device_id` | `() -> str` |
+| `environment` | `(str) -> str?` |
+| `focused` | `() -> bool` |
+| `function_costs` | `() -> [engine::FunctionCost]` |
+| `has_plugin` | `(str) -> bool` |
+| `open_url` | `(str)` |
+| `paused` | `() -> bool` |
+| `plugin_version` | `(str) -> str?` |
+| `plugins` | `() -> [str]` |
+| `quit` | `(int?)` |
+| `reload_script` | `(str) -> str` |
+| `reveal` | `(str)` |
+| `script_costs` | `() -> [engine::ScriptCost]` |
+| `set_paused` | `(bool)` |
+| `set_script_profiling` | `(bool)` |
+| `set_time_scale` | `(float)` |
+| `target` | `() -> engine::Target` |
+| `tick` | `() -> int` |
+| `tick_hz` | `() -> int` |
+| `time` | `() -> float` |
+| `time_scale` | `() -> float` |
+| `timings` | `() -> engine::Timings?` |
+| `unix_time` | `() -> float` |
+| `user_data_directory` | `() -> str` |
+| `user_data_directory_of` | `(str) -> str` |
 
 ## `events`
 
-**Functions:** `emit`, `emitted`, `emitted_from`, `listen`, `next`, `stop_listening`
+Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.
+
+| Function | Signature |
+| --- | --- |
+| `emit` | `(str, any)` |
+| `emitted` | `(str) -> any` |
+| `emitted_from` | `(Node, str) -> any` |
+| `listen` | `(Node, str, Node?)` |
+| `next` | `(str, Node?) -> int` |
+| `stop_listening` | `(Node, str, Node?)` |
 
 ## `export`
 
-**Functions:** `listen`, `output`, `preview`, `running_count`, `start`, `targets`
+Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.
+
+| Function | Signature |
+| --- | --- |
+| `listen` | `(Node, any)` |
+| `output` | `(str) -> str` |
+| `preview` | `(str, str) -> export::Preview?` |
+| `running_count` | `() -> int` |
+| `start` | `(str, any) -> bool` |
+| `targets` | `() -> [export::Target]` |
 
 ## `fs`
 
-**Functions:** `copy`, `create_directory`, `exists`, `list`, `modified_time`, `read`, `remove`, `rename`, `write`
+Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.
+
+| Function | Signature |
+| --- | --- |
+| `copy` | `(str, str)` |
+| `create_directory` | `(str)` |
+| `exists` | `(str) -> bool` |
+| `list` | `(str) -> [fs::Entry]` |
+| `modified_time` | `(str) -> float?` |
+| `read` | `(str) -> str?` |
+| `remove` | `(str) -> bool` |
+| `rename` | `(str, str)` |
+| `write` | `(str, str)` |
 
 ## `gamend`
 
-**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `server`, `session`
+The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.
+
+| Function | Signature |
+| --- | --- |
+| `activity` | `() -> [gamend::Entry]` |
+| `call_hook` | `(int, str, str, any) -> int` |
+| `clear_activity` | `()` |
+| `close` | `(int) -> bool` |
+| `configure` | `(str?) -> str` |
+| `connect` | `(any, any) -> int` |
+| `connection` | `() -> gamend::Connection` |
+| `interrupt` | `(int) -> bool` |
+| `join` | `(int, str, any) -> int` |
+| `leave` | `(int, str) -> int` |
+| `login` | `(any, any, any) -> int` |
+| `push` | `(int, str, str, any) -> int` |
+| `register` | `(any, any, any) -> int` |
+| `reply` | `(int) -> any` |
+| `rest` | `(any, str, str, any) -> any` |
+| `restore` | `(any) -> bool` |
+| `run_id` | `() -> str` |
+| `server` | `() -> gamend::Server` |
+| `session` | `() -> gamend::Session?` |
 
 **Constants** (9):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_CLOSED` | `closed` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_LOGIN` | `login` |
-| `EVENT_MESSAGE` | `message` |
-| `EVENT_OPEN` | `open` |
-| `EVENT_RECONNECTING` | `reconnecting` |
-| `EVENT_REOPENED` | `reopened` |
-| `EVENT_REPLY` | `reply` |
-| `EVENT_REST` | `rest` |
+| `EVENT_CLOSED` | `"closed"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_LOGIN` | `"login"` |
+| `EVENT_MESSAGE` | `"message"` |
+| `EVENT_OPEN` | `"open"` |
+| `EVENT_RECONNECTING` | `"reconnecting"` |
+| `EVENT_REOPENED` | `"reopened"` |
+| `EVENT_REPLY` | `"reply"` |
+| `EVENT_REST` | `"rest"` |
 
 ## `geometry2d`
 
-**Functions:** `area`, `contains`, `convex_decomposition`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `reverse_difference`, `segments_intersect`, `symmetric_difference`, `triangulate`, `union`
+Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.
+
+| Function | Signature |
+| --- | --- |
+| `area` | `(any) -> float` |
+| `contains` | `(any, any) -> bool` |
+| `convex_decomposition` | `(any, any) -> any` |
+| `convex_hull` | `(any) -> any` |
+| `difference` | `(any, any, any) -> any` |
+| `intersection` | `(any, any, any) -> any` |
+| `is_clockwise` | `(any) -> bool` |
+| `reverse_difference` | `(any, any, any) -> any` |
+| `segments_intersect` | `(any, any, any, any) -> Vec2` |
+| `symmetric_difference` | `(any, any, any) -> any` |
+| `triangulate` | `(any) -> [[int]]` |
+| `union` | `(any, any, any) -> any` |
 
 ## `geometry3d`
 
-**Functions:** `convex_decomposition`, `convex_hull`, `intersect`, `pieces`, `split`, `voxelize`
+Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.
+
+| Function | Signature |
+| --- | --- |
+| `convex_decomposition` | `(any, any) -> [any]` |
+| `convex_hull` | `(any) -> any` |
+| `intersect` | `(any, any) -> any` |
+| `pieces` | `(any) -> [any]` |
+| `split` | `(any, any) -> [any]` |
+| `voxelize` | `(any, any) -> any` |
 
 ## `hash`
 
-**Functions:** `sha256`, `sha256_text`
+SHA-256 content hashes of files and strings.
+
+| Function | Signature |
+| --- | --- |
+| `sha256` | `(str) -> str` |
+| `sha256_text` | `(str) -> str` |
 
 ## `http`
 
-**Functions:** `cancel`, `request`
+HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
+
+| Function | Signature |
+| --- | --- |
+| `cancel` | `(int) -> any` |
+| `request` | `(any, any, any) -> int` |
 
 **Constants** (5):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_CANCELLED` | `cancelled` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_PROGRESS` | `progress` |
-| `EVENT_RESPONSE` | `response` |
-| `EVENT_UPLOAD` | `upload` |
+| `EVENT_CANCELLED` | `"cancelled"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_PROGRESS` | `"progress"` |
+| `EVENT_RESPONSE` | `"response"` |
+| `EVENT_UPLOAD` | `"upload"` |
 
 ## `import`
 
-**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running_count`, `start`
+Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.
+
+| Function | Signature |
+| --- | --- |
+| `cancel` | `()` |
+| `choose` | `() -> bool` |
+| `file` | `(str) -> any` |
+| `handles` | `(str) -> bool` |
+| `listen` | `(Node, any)` |
+| `running_count` | `() -> int` |
+| `start` | `(str, str?) -> bool` |
 
 ## `input`
 
-**Functions:** `action_down`, `action_just_pressed`, `action_just_released`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_gamepad`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_info`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_power`, `gamepad_pressure`, `gamepad_repeated`, `gamepad_rumble`, `gamepad_set_listener`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `key_down`, `key_just_pressed`, `key_just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_down`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_just_ended`, `touches_just_started`, `typed`, `vibrate`
+One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.
+
+| Function | Signature |
+| --- | --- |
+| `action_down` | `(str) -> bool` |
+| `action_just_pressed` | `(str) -> bool` |
+| `action_just_released` | `(str) -> bool` |
+| `action_value` | `(str) -> float` |
+| `actions` | `() -> any` |
+| `bind` | `(str, any)` |
+| `bindings` | `(str) -> any` |
+| `composing` | `() -> any` |
+| `dropped_files` | `() -> any` |
+| `feed_action` | `(str, float)` |
+| `feed_gamepad` | `(int, any)` |
+| `feed_key` | `(str, bool)` |
+| `feed_mouse` | `(float, float)` |
+| `feed_mouse_button` | `(int, bool)` |
+| `feed_scroll` | `(float, float)` |
+| `feed_touch` | `(int, float, float, str)` |
+| `gamepad_acceleration` | `(int) -> any` |
+| `gamepad_axis` | `(int, str) -> float` |
+| `gamepad_can_rumble` | `(int) -> bool` |
+| `gamepad_down` | `(int, str) -> bool` |
+| `gamepad_gyro` | `(int) -> any` |
+| `gamepad_info` | `(int) -> any` |
+| `gamepad_just_pressed` | `(int, str) -> bool` |
+| `gamepad_just_released` | `(int, str) -> bool` |
+| `gamepad_name` | `(int) -> str` |
+| `gamepad_power` | `(int) -> any` |
+| `gamepad_pressure` | `(int, str) -> float` |
+| `gamepad_repeated` | `(int, str) -> bool` |
+| `gamepad_rumble` | `(int, any) -> bool` |
+| `gamepad_set_listener` | `(int, any)` |
+| `gamepad_stop_rumble` | `(int)` |
+| `gamepad_touches` | `(int) -> any` |
+| `gamepads` | `() -> any` |
+| `key_down` | `(str) -> bool` |
+| `key_just_pressed` | `(str) -> bool` |
+| `key_just_released` | `(str) -> bool` |
+| `keyboard_height` | `() -> any` |
+| `long_press` | `() -> any` |
+| `mouse_delta` | `() -> Vec2` |
+| `mouse_down` | `(int) -> bool` |
+| `mouse_just_pressed` | `(int) -> bool` |
+| `mouse_just_released` | `(int) -> bool` |
+| `mouse_position` | `() -> Vec2` |
+| `pan` | `() -> input::Pan` |
+| `pinch` | `() -> input::Pinch` |
+| `reset_bindings` | `()` |
+| `scroll_delta` | `() -> Vec2` |
+| `swipe` | `() -> any` |
+| `touches` | `() -> any` |
+| `touches_just_ended` | `() -> any` |
+| `touches_just_started` | `() -> any` |
+| `typed` | `() -> any` |
+| `vibrate` | `(float)` |
 
 **Constants** (188):
 
 | Name | Value |
 | --- | --- |
-| `GAMEPAD_AXIS_LEFT_TRIGGER` | `left_trigger` |
-| `GAMEPAD_AXIS_LEFT_X` | `left_x` |
-| `GAMEPAD_AXIS_LEFT_Y` | `left_y` |
-| `GAMEPAD_AXIS_RIGHT_TRIGGER` | `right_trigger` |
-| `GAMEPAD_AXIS_RIGHT_X` | `right_x` |
-| `GAMEPAD_AXIS_RIGHT_Y` | `right_y` |
-| `GAMEPAD_BUTTON_BACK` | `back` |
-| `GAMEPAD_BUTTON_C` | `c` |
-| `GAMEPAD_BUTTON_DPAD_DOWN` | `dpad_down` |
-| `GAMEPAD_BUTTON_DPAD_LEFT` | `dpad_left` |
-| `GAMEPAD_BUTTON_DPAD_RIGHT` | `dpad_right` |
-| `GAMEPAD_BUTTON_DPAD_UP` | `dpad_up` |
-| `GAMEPAD_BUTTON_EAST` | `east` |
-| `GAMEPAD_BUTTON_GUIDE` | `guide` |
-| `GAMEPAD_BUTTON_LEFT_SHOULDER` | `left_shoulder` |
-| `GAMEPAD_BUTTON_LEFT_STICK` | `left_stick` |
-| `GAMEPAD_BUTTON_LEFT_TRIGGER` | `left_trigger` |
-| `GAMEPAD_BUTTON_NORTH` | `north` |
-| `GAMEPAD_BUTTON_RIGHT_SHOULDER` | `right_shoulder` |
-| `GAMEPAD_BUTTON_RIGHT_STICK` | `right_stick` |
-| `GAMEPAD_BUTTON_RIGHT_TRIGGER` | `right_trigger` |
-| `GAMEPAD_BUTTON_SOUTH` | `south` |
-| `GAMEPAD_BUTTON_START` | `start` |
-| `GAMEPAD_BUTTON_WEST` | `west` |
+| `GAMEPAD_AXIS_LEFT_TRIGGER` | `"left_trigger"` |
+| `GAMEPAD_AXIS_LEFT_X` | `"left_x"` |
+| `GAMEPAD_AXIS_LEFT_Y` | `"left_y"` |
+| `GAMEPAD_AXIS_RIGHT_TRIGGER` | `"right_trigger"` |
+| `GAMEPAD_AXIS_RIGHT_X` | `"right_x"` |
+| `GAMEPAD_AXIS_RIGHT_Y` | `"right_y"` |
+| `GAMEPAD_BUTTON_BACK` | `"back"` |
+| `GAMEPAD_BUTTON_C` | `"c"` |
+| `GAMEPAD_BUTTON_DPAD_DOWN` | `"dpad_down"` |
+| `GAMEPAD_BUTTON_DPAD_LEFT` | `"dpad_left"` |
+| `GAMEPAD_BUTTON_DPAD_RIGHT` | `"dpad_right"` |
+| `GAMEPAD_BUTTON_DPAD_UP` | `"dpad_up"` |
+| `GAMEPAD_BUTTON_EAST` | `"east"` |
+| `GAMEPAD_BUTTON_GUIDE` | `"guide"` |
+| `GAMEPAD_BUTTON_LEFT_SHOULDER` | `"left_shoulder"` |
+| `GAMEPAD_BUTTON_LEFT_STICK` | `"left_stick"` |
+| `GAMEPAD_BUTTON_LEFT_TRIGGER` | `"left_trigger"` |
+| `GAMEPAD_BUTTON_NORTH` | `"north"` |
+| `GAMEPAD_BUTTON_RIGHT_SHOULDER` | `"right_shoulder"` |
+| `GAMEPAD_BUTTON_RIGHT_STICK` | `"right_stick"` |
+| `GAMEPAD_BUTTON_RIGHT_TRIGGER` | `"right_trigger"` |
+| `GAMEPAD_BUTTON_SOUTH` | `"south"` |
+| `GAMEPAD_BUTTON_START` | `"start"` |
+| `GAMEPAD_BUTTON_WEST` | `"west"` |
 
 …and 164 more.
 
 ## `json`
 
-**Functions:** `encode`, `parse`
+JSON text to and from script values. Its `null` keeps nil through a round trip.
+
+| Function | Signature |
+| --- | --- |
+| `encode` | `(any) -> str` |
+| `parse` | `(str) -> any` |
 
 ## `log`
 
-**Functions:** `clear`, `error`, `file`, `info`, `recent`, `since`, `warn`
+The `info`, `warn` and `error` levels a script writes at, and the buffer behind them. Lines go through the engine's own `tracing` stream.
+
+| Function | Signature |
+| --- | --- |
+| `clear` | `()` |
+| `error` | `(str)` |
+| `file` | `() -> str?` |
+| `info` | `(str)` |
+| `print` | `(str)` |
+| `recent` | `(int?) -> [log::Entry]` |
+| `since` | `(int?) -> log::Batch` |
+| `warn` | `(str)` |
 
 ## `math`
 
-**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `to_degrees`, `to_radians`
+Deterministic float maths backed by pure-Rust `libm`: the same inputs give the same bits on every platform.
+
+| Function | Signature |
+| --- | --- |
+| `abs` | `(float) -> float` |
+| `acos` | `(float) -> float` |
+| `asin` | `(float) -> float` |
+| `atan` | `(float, float?) -> float` |
+| `atan2` | `(float, float) -> float` |
+| `ceil` | `(float) -> float` |
+| `clamp` | `(float, float, float) -> float` |
+| `cos` | `(float) -> float` |
+| `cosh` | `(float) -> float` |
+| `exp` | `(float) -> float` |
+| `floor` | `(float) -> float` |
+| `log` | `(float, float?) -> float` |
+| `log10` | `(float) -> float` |
+| `max` | `(float, float) -> float` |
+| `min` | `(float, float) -> float` |
+| `pow` | `(float, float) -> float` |
+| `round` | `(float) -> float` |
+| `sin` | `(float) -> float` |
+| `sinh` | `(float) -> float` |
+| `sqrt` | `(float) -> float` |
+| `tan` | `(float) -> float` |
+| `tanh` | `(float) -> float` |
+| `to_degrees` | `(float) -> float` |
+| `to_radians` | `(float) -> float` |
 
 **Constants** (3):
 
@@ -280,279 +621,957 @@ cannot drift from what scripts actually see.
 
 ## `multiplayer`
 
-**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled_tick`, `start`, `state`, `stats`, `tick`
+Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.
+
+| Function | Signature |
+| --- | --- |
+| `add_bot` | `(str?) -> int?` |
+| `host` | `(any) -> any` |
+| `join` | `(str, any)` |
+| `leave` | `()` |
+| `local_player` | `() -> int?` |
+| `players` | `() -> [any]` |
+| `role` | `() -> str?` |
+| `set_input` | `(any)` |
+| `set_input_for` | `(int, any)` |
+| `settled_tick` | `() -> int` |
+| `start` | `() -> bool` |
+| `state` | `() -> str` |
+| `stats` | `(int) -> any` |
+| `tick` | `() -> int` |
 
 **Constants** (18):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_CLOSED` | `closed` |
-| `EVENT_CONNECTED` | `connected` |
-| `EVENT_DESYNC` | `desync` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_JOINED` | `joined` |
-| `EVENT_LEFT` | `left` |
-| `EVENT_STARTED` | `started` |
-| `ROLE_CLIENT` | `client` |
-| `ROLE_HOST` | `host` |
-| `STATE_CONNECTING` | `connecting` |
-| `STATE_IDLE` | `idle` |
-| `STATE_LOBBY` | `lobby` |
-| `STATE_PLAYING` | `playing` |
-| `STATUS_ABSENT` | `absent` |
-| `STATUS_PRESENT` | `present` |
-| `TAG_LOCAL` | `local` |
-| `TRANSPORT_WEBSOCKET` | `websocket` |
-| `TRANSPORT_WEBTRANSPORT` | `webtransport` |
+| `EVENT_CLOSED` | `"closed"` |
+| `EVENT_CONNECTED` | `"connected"` |
+| `EVENT_DESYNC` | `"desync"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_JOINED` | `"joined"` |
+| `EVENT_LEFT` | `"left"` |
+| `EVENT_STARTED` | `"started"` |
+| `ROLE_CLIENT` | `"client"` |
+| `ROLE_HOST` | `"host"` |
+| `STATE_CONNECTING` | `"connecting"` |
+| `STATE_IDLE` | `"idle"` |
+| `STATE_LOBBY` | `"lobby"` |
+| `STATE_PLAYING` | `"playing"` |
+| `STATUS_ABSENT` | `"absent"` |
+| `STATUS_PRESENT` | `"present"` |
+| `TAG_LOCAL` | `"local"` |
+| `TRANSPORT_WEBSOCKET` | `"websocket"` |
+| `TRANSPORT_WEBTRANSPORT` | `"webtransport"` |
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `effective_material`, `effective_tint`, `effective_z_index`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_state`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `visible_in_tree`, `z_index`
+What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `this.node.get_node("Arm")`.
+
+| Function | Signature |
+| --- | --- |
+| `add_child` | `(Node, str) -> Node` |
+| `add_tag` | `(Node, str)` |
+| `attach_script` | `(Node, str, any)` |
+| `call` | `(Node, str, any, any, any, any) -> any` |
+| `call_async` | `(Node, str, any, any, any, any) -> int` |
+| `children` | `(Node) -> [Node]` |
+| `component_names` | `(Node) -> [str]` |
+| `descendants` | `(Node) -> [Node]` |
+| `detach_script` | `(Node)` |
+| `effective_material` | `(Node) -> str` |
+| `effective_tint` | `(Node) -> Color` |
+| `effective_z_index` | `(Node) -> int` |
+| `emit` | `(Node, str, any)` |
+| `get_component` | `(Node, str, str?) -> any` |
+| `get_node` | `(Node, str) -> Node` |
+| `global_position` | `(Node) -> Vec3` |
+| `global_rotation_euler` | `(Node) -> Vec3` |
+| `global_scale` | `(Node) -> Vec3` |
+| `has_component` | `(Node, str) -> bool` |
+| `has_method` | `(Node, str) -> bool` |
+| `has_tag` | `(Node, str) -> bool` |
+| `interpolate` | `(Node) -> bool` |
+| `is_valid` | `(Node) -> bool` |
+| `material` | `(Node) -> str` |
+| `name` | `(Node) -> str` |
+| `parent` | `(Node) -> Node` |
+| `patch_component` | `(Node, str, any)` |
+| `path` | `(Node) -> str` |
+| `process` | `(Node) -> str` |
+| `queue_free` | `(Node)` |
+| `remove_component` | `(Node, str)` |
+| `remove_tag` | `(Node, str)` |
+| `reset_interpolation` | `(Node)` |
+| `script_field` | `(Node, str) -> any` |
+| `script_path` | `(Node) -> str` |
+| `set_component` | `(Node, str, any)` |
+| `set_interpolate` | `(Node, bool)` |
+| `set_material` | `(Node, str)` |
+| `set_name` | `(Node, str)` |
+| `set_parent` | `(Node, Node)` |
+| `set_process` | `(Node, str)` |
+| `set_sibling_index` | `(Node, int)` |
+| `set_state` | `(Node, str)` |
+| `set_tint` | `(Node, float, float, float, float)` |
+| `set_visible` | `(Node, bool)` |
+| `set_z_index` | `(Node, int)` |
+| `sibling_index` | `(Node) -> int` |
+| `stable_id` | `(Node) -> str` |
+| `state` | `(Node) -> str` |
+| `tags` | `(Node) -> [str]` |
+| `ticking` | `(Node) -> bool` |
+| `tint` | `(Node) -> Color` |
+| `translate` | `(Node, float, float, float)` |
+| `try_set_component` | `(Node, str, any) -> bool` |
+| `visible` | `(Node) -> bool` |
+| `visible_in_tree` | `(Node) -> bool` |
+| `z_index` | `(Node) -> int` |
 
 ## `physics`
 
-**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `set_debug_draw`, `set_paused`, `set_ragdoll_influence`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
+What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.
+
+| Function | Signature |
+| --- | --- |
+| `clear` | `()` |
+| `counters` | `() -> any` |
+| `debug_draw` | `() -> any` |
+| `is_paused` | `() -> bool` |
+| `quarantined` | `() -> any` |
+| `set_debug_draw` | `(any)` |
+| `set_paused` | `(bool)` |
+| `set_ragdoll_influence` | `(Node, float)` |
+| `set_sleeping_allowed` | `(bool)` |
+| `set_threads` | `(int)` |
+| `set_tuning` | `(any)` |
+| `sleeping_allowed` | `() -> bool` |
+| `threads` | `() -> int` |
+| `tuning` | `() -> any` |
 
 ## `physics2d`
 
-**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_particle_force`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `broad_phase_aabb`, `closest_point`, `closest_points`, `collider_mass`, `collider_mass_properties`, `collider_mesh`, `collider_volume`, `collision_aabb`, `combine_voxels`, `constant_force`, `constant_torque`, `contacts`, `crop_voxels`, `cut_softbody`, `detach_particle`, `distance`, `effective_angular_inertia`, `effective_dominance`, `effective_mass`, `gravity`, `handles`, `has_pending_tears`, `heightfield_hole`, `intersects`, `is_ccd_active`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_force`, `joint_state`, `kinetic_energy`, `linear_velocity`, `local_center_of_mass`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `pose_in_body`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_follow`, `reset_plasticity`, `reset_softbody_forces`, `set_angular_velocity`, `set_cell_tear_resistance`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_edge_tear_resistance`, `set_gravity`, `set_heightfield_hole`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_damaged`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `set_voxel_size`, `shapecast`, `sleep`, `softbody_area`, `softbody_attachments`, `softbody_boundary`, `softbody_cell`, `softbody_cells`, `softbody_center`, `softbody_contacts`, `softbody_crossing`, `softbody_edge`, `softbody_edges`, `softbody_mass`, `softbody_particle`, `softbody_particle_radius`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume_pieces`, `solve_ik`, `swept_aabb`, `tear_cell`, `tear_edge`, `tear_softbody`, `teleport`, `time_of_impact`, `time_since_can_sleep`, `total_inertia`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `voxel_size`, `wake_all`, `wake_softbody`, `wake_up`, `world_center_of_mass`
+The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.
+
+| Function | Signature |
+| --- | --- |
+| `aabb` | `(Node) -> [float]` |
+| `active_bodies` | `() -> [Node]` |
+| `add_constant_force` | `(Node, float, float)` |
+| `add_constant_force_at_point` | `(Node, float, float, float, float)` |
+| `add_constant_torque` | `(Node, float)` |
+| `add_particle_force` | `(Node, int, any)` |
+| `add_softbody_force` | `(Node, any)` |
+| `angular_velocity` | `(Node) -> float` |
+| `apply_force` | `(Node, float, float)` |
+| `apply_force_at_point` | `(Node, float, float, float, float)` |
+| `apply_impulse` | `(Node, float, float)` |
+| `apply_impulse_at_point` | `(Node, float, float, float, float)` |
+| `apply_particle_impulse` | `(Node, int, any)` |
+| `apply_softbody_impulse` | `(Node, any)` |
+| `apply_softbody_impulse_at` | `(Node, any, any, any)` |
+| `apply_softbody_radial_impulse` | `(Node, any, any, any)` |
+| `apply_torque` | `(Node, float)` |
+| `apply_torque_impulse` | `(Node, float)` |
+| `attach_particle` | `(Node, int, Node)` |
+| `bodies` | `() -> [Node]` |
+| `broad_phase_aabb` | `(Node) -> [float]` |
+| `closest_point` | `(any) -> any` |
+| `closest_points` | `(Node, Node) -> any` |
+| `collider_mass` | `(Node) -> float` |
+| `collider_mass_properties` | `(Node) -> any` |
+| `collider_mesh` | `(Node) -> any` |
+| `collider_volume` | `(Node) -> float` |
+| `collision_aabb` | `(Node) -> [float]` |
+| `combine_voxels` | `(Node, Node)` |
+| `constant_force` | `(Node) -> Vec2` |
+| `constant_torque` | `(Node) -> float` |
+| `contacts` | `(Node) -> any` |
+| `crop_voxels` | `(Node, int, int, int, int)` |
+| `cut_softbody` | `(Node, any) -> any` |
+| `detach_particle` | `(Node, int) -> bool` |
+| `distance` | `(Node, Node) -> float` |
+| `effective_angular_inertia` | `(Node) -> float` |
+| `effective_dominance` | `(Node) -> float` |
+| `effective_mass` | `(Node) -> any` |
+| `gravity` | `() -> Vec2` |
+| `handles` | `(Node) -> any` |
+| `has_pending_tears` | `(Node) -> bool` |
+| `heightfield_hole` | `(Node, int) -> bool` |
+| `intersects` | `(Node, Node) -> bool` |
+| `is_ccd_active` | `(Node) -> bool` |
+| `is_moving` | `(Node) -> bool` |
+| `is_on_floor` | `(Node) -> bool` |
+| `is_sleeping` | `(Node) -> bool` |
+| `joint_force` | `(Node) -> any` |
+| `joint_state` | `(Node) -> any` |
+| `kinetic_energy` | `(Node) -> float` |
+| `linear_velocity` | `(Node) -> Vec2` |
+| `local_center_of_mass` | `(Node) -> any` |
+| `max_contact_impulse` | `(Node) -> float` |
+| `move_character` | `(Node, float, float) -> any` |
+| `next_position` | `(Node) -> any` |
+| `overlap_aabb` | `(any) -> [Node]` |
+| `overlap_point` | `(any) -> [Node]` |
+| `overlap_shape` | `(any) -> [Node]` |
+| `overlaps` | `(Node) -> [Node]` |
+| `pin_particle` | `(Node, int)` |
+| `pose_in_body` | `(Node) -> any` |
+| `potential_energy` | `(Node) -> float` |
+| `predict_position` | `(Node, float) -> any` |
+| `predict_position_with_forces` | `(Node, float) -> any` |
+| `ragdoll` | `(Node, any) -> any` |
+| `raycast` | `(any) -> any` |
+| `raycast_all` | `(any) -> [any]` |
+| `remove_joint` | `(Node)` |
+| `reset_follow` | `(Node)` |
+| `reset_plasticity` | `(Node)` |
+| `reset_softbody_forces` | `(Node)` |
+| `set_angular_velocity` | `(Node, float)` |
+| `set_cell_tear_resistance` | `(Node, int, float)` |
+| `set_collider` | `(Node, any)` |
+| `set_constant_force` | `(Node, float, float)` |
+| `set_constant_torque` | `(Node, float)` |
+| `set_edge_tear_resistance` | `(Node, int, float)` |
+| `set_gravity` | `(float, float)` |
+| `set_heightfield_hole` | `(Node, int, bool)` |
+| `set_joint_limits` | `(Node, str, float, float)` |
+| `set_linear_velocity` | `(Node, float, float)` |
+| `set_motor_position` | `(Node, str, float, float, float)` |
+| `set_motor_velocity` | `(Node, str, float, float)` |
+| `set_particle_damaged` | `(Node, int, bool)` |
+| `set_particle_position` | `(Node, int, any)` |
+| `set_particle_target` | `(Node, int, any)` |
+| `set_particle_velocity` | `(Node, int, any)` |
+| `set_softbody` | `(Node, any)` |
+| `set_voxel` | `(Node, int, int, bool)` |
+| `set_voxel_size` | `(Node, float, float)` |
+| `shapecast` | `(any) -> any` |
+| `sleep` | `(Node)` |
+| `softbody_area` | `(Node) -> float` |
+| `softbody_attachments` | `(Node) -> any` |
+| `softbody_boundary` | `(Node) -> [[int]]` |
+| `softbody_cell` | `(Node, int) -> any` |
+| `softbody_cells` | `(Node) -> [[int]]` |
+| `softbody_center` | `(Node) -> any` |
+| `softbody_contacts` | `(Node) -> any` |
+| `softbody_crossing` | `(Node, any) -> any` |
+| `softbody_edge` | `(Node, int) -> any` |
+| `softbody_edges` | `(Node) -> [[int]]` |
+| `softbody_mass` | `(Node) -> float` |
+| `softbody_particle` | `(Node, int) -> any` |
+| `softbody_particle_radius` | `(Node) -> float` |
+| `softbody_particles` | `(Node) -> int` |
+| `softbody_position` | `(Node, int) -> Vec2` |
+| `softbody_rest_area` | `(Node) -> float` |
+| `softbody_sleeping` | `(Node) -> bool` |
+| `softbody_stress` | `(Node) -> [float]` |
+| `softbody_velocity` | `(Node, int) -> Vec2` |
+| `softbody_volume_pieces` | `(Node) -> [any]` |
+| `solve_ik` | `(Node, float, float, any)` |
+| `swept_aabb` | `(Node) -> [float]` |
+| `tear_cell` | `(Node, int)` |
+| `tear_edge` | `(Node, int)` |
+| `tear_softbody` | `(Node, any, any) -> any` |
+| `teleport` | `(Node, float, float, any)` |
+| `time_of_impact` | `(Node, Node, any) -> any` |
+| `time_since_can_sleep` | `(Node) -> float` |
+| `total_inertia` | `(Node) -> float` |
+| `total_mass` | `(Node) -> float` |
+| `unpin_particle` | `(Node, int)` |
+| `velocity_at_point` | `(Node, float, float) -> Vec2` |
+| `voxel` | `(Node, int, int) -> bool` |
+| `voxel_at` | `(Node, float, float) -> [int]` |
+| `voxel_size` | `(Node) -> any` |
+| `wake_all` | `()` |
+| `wake_softbody` | `(Node)` |
+| `wake_up` | `(Node)` |
+| `world_center_of_mass` | `(Node) -> any` |
 
 **Constants** (113):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_ROTATION` | `rotation` |
-| `AXIS_X` | `x` |
-| `AXIS_Y` | `y` |
-| `BIND_CELLS` | `cells` |
-| `BIND_NEAREST` | `nearest` |
-| `BIND_PARTICLES` | `particles` |
-| `BODY_DYNAMIC` | `dynamic` |
-| `BODY_KINEMATIC` | `kinematic` |
-| `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
-| `BODY_STATIC` | `static` |
-| `CELL_COROTATIONAL` | `corotational` |
-| `CELL_NEO_HOOKEAN` | `neo_hookean` |
-| `CELL_VOLUME` | `volume` |
-| `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
-| `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
-| `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
-| `COLLIDE_KINEMATIC_KINEMATIC` | `kinematic_kinematic` |
-| `COLLIDE_KINEMATIC_STATIC` | `kinematic_static` |
-| `COLLIDE_STATIC_STATIC` | `static_static` |
-| `COMBINE_AVERAGE` | `average` |
-| `COMBINE_CLAMPED_SUM` | `clamped_sum` |
-| `COMBINE_GEOMETRIC_MEAN` | `geometric_mean` |
-| `COMBINE_MAX` | `max` |
-| `COMBINE_MIN` | `min` |
+| `AXIS_ROTATION` | `"rotation"` |
+| `AXIS_X` | `"x"` |
+| `AXIS_Y` | `"y"` |
+| `BIND_CELLS` | `"cells"` |
+| `BIND_NEAREST` | `"nearest"` |
+| `BIND_PARTICLES` | `"particles"` |
+| `BODY_DYNAMIC` | `"dynamic"` |
+| `BODY_KINEMATIC` | `"kinematic"` |
+| `BODY_KINEMATIC_VELOCITY` | `"kinematic_velocity"` |
+| `BODY_STATIC` | `"static"` |
+| `CELL_COROTATIONAL` | `"corotational"` |
+| `CELL_NEO_HOOKEAN` | `"neo_hookean"` |
+| `CELL_VOLUME` | `"volume"` |
+| `COLLIDE_DYNAMIC_DYNAMIC` | `"dynamic_dynamic"` |
+| `COLLIDE_DYNAMIC_KINEMATIC` | `"dynamic_kinematic"` |
+| `COLLIDE_DYNAMIC_STATIC` | `"dynamic_static"` |
+| `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
+| `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
+| `COLLIDE_STATIC_STATIC` | `"static_static"` |
+| `COMBINE_AVERAGE` | `"average"` |
+| `COMBINE_CLAMPED_SUM` | `"clamped_sum"` |
+| `COMBINE_GEOMETRIC_MEAN` | `"geometric_mean"` |
+| `COMBINE_MAX` | `"max"` |
+| `COMBINE_MIN` | `"min"` |
 
 …and 89 more.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_particle_force`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `broad_phase_aabb`, `closest_point`, `closest_points`, `collider_mass`, `collider_mass_properties`, `collider_mesh`, `collider_volume`, `collision_aabb`, `combine_voxels`, `constant_force`, `constant_torque`, `contacts`, `crop_voxels`, `cut_softbody`, `detach_particle`, `distance`, `effective_angular_inertia`, `effective_dominance`, `effective_mass`, `gravity`, `handles`, `has_pending_tears`, `heightfield_hole`, `intersects`, `is_ccd_active`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_force`, `joint_state`, `kinetic_energy`, `linear_velocity`, `local_center_of_mass`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `pose_in_body`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_follow`, `reset_plasticity`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_cell_tear_resistance`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_edge_tear_resistance`, `set_engine_force`, `set_gravity`, `set_heightfield_hole`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_damaged`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `set_voxel_size`, `set_wheel_rotation`, `shapecast`, `sleep`, `softbody_attachments`, `softbody_boundary`, `softbody_cell`, `softbody_cells`, `softbody_center`, `softbody_contacts`, `softbody_crossing`, `softbody_dihedral`, `softbody_dihedrals`, `softbody_edge`, `softbody_edges`, `softbody_mass`, `softbody_particle`, `softbody_particle_radius`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `softbody_volume_pieces`, `solve_ik`, `speed`, `swept_aabb`, `tear_cell`, `tear_edge`, `tear_softbody`, `teleport`, `time_of_impact`, `time_since_can_sleep`, `total_inertia`, `total_inertia_rotation`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `voxel_size`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`, `world_center_of_mass`
+The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.
+
+| Function | Signature |
+| --- | --- |
+| `aabb` | `(Node) -> [float]` |
+| `active_bodies` | `() -> [Node]` |
+| `add_constant_force` | `(Node, float, float, float)` |
+| `add_constant_force_at_point` | `(Node, float, float, float, float, float, float)` |
+| `add_constant_torque` | `(Node, float, float, float)` |
+| `add_particle_force` | `(Node, int, any)` |
+| `add_softbody_force` | `(Node, any)` |
+| `angular_velocity` | `(Node) -> Vec3` |
+| `apply_force` | `(Node, float, float, float)` |
+| `apply_force_at_point` | `(Node, float, float, float, float, float, float)` |
+| `apply_impulse` | `(Node, float, float, float)` |
+| `apply_impulse_at_point` | `(Node, float, float, float, float, float, float)` |
+| `apply_particle_impulse` | `(Node, int, any)` |
+| `apply_softbody_impulse` | `(Node, any)` |
+| `apply_softbody_impulse_at` | `(Node, any, any, any)` |
+| `apply_softbody_radial_impulse` | `(Node, any, any, any)` |
+| `apply_torque` | `(Node, float, float, float)` |
+| `apply_torque_impulse` | `(Node, float, float, float)` |
+| `attach_particle` | `(Node, int, Node)` |
+| `bodies` | `() -> [Node]` |
+| `broad_phase_aabb` | `(Node) -> [float]` |
+| `closest_point` | `(any) -> any` |
+| `closest_points` | `(Node, Node) -> any` |
+| `collider_mass` | `(Node) -> float` |
+| `collider_mass_properties` | `(Node) -> any` |
+| `collider_mesh` | `(Node) -> any` |
+| `collider_volume` | `(Node) -> float` |
+| `collision_aabb` | `(Node) -> [float]` |
+| `combine_voxels` | `(Node, Node)` |
+| `constant_force` | `(Node) -> Vec3` |
+| `constant_torque` | `(Node) -> Vec3` |
+| `contacts` | `(Node) -> any` |
+| `crop_voxels` | `(Node, int, int, int, int, int, int)` |
+| `cut_softbody` | `(Node, any) -> any` |
+| `detach_particle` | `(Node, int) -> bool` |
+| `distance` | `(Node, Node) -> float` |
+| `effective_angular_inertia` | `(Node) -> any` |
+| `effective_dominance` | `(Node) -> float` |
+| `effective_mass` | `(Node) -> any` |
+| `gravity` | `() -> Vec3` |
+| `handles` | `(Node) -> any` |
+| `has_pending_tears` | `(Node) -> bool` |
+| `heightfield_hole` | `(Node, int, int) -> bool` |
+| `intersects` | `(Node, Node) -> bool` |
+| `is_ccd_active` | `(Node) -> bool` |
+| `is_moving` | `(Node) -> bool` |
+| `is_on_floor` | `(Node) -> bool` |
+| `is_sleeping` | `(Node) -> bool` |
+| `joint_force` | `(Node) -> any` |
+| `joint_state` | `(Node) -> any` |
+| `kinetic_energy` | `(Node) -> float` |
+| `linear_velocity` | `(Node) -> Vec3` |
+| `local_center_of_mass` | `(Node) -> any` |
+| `max_contact_impulse` | `(Node) -> float` |
+| `move_character` | `(Node, float, float, float) -> any` |
+| `next_position` | `(Node) -> any` |
+| `overlap_aabb` | `(any) -> [Node]` |
+| `overlap_point` | `(any) -> [Node]` |
+| `overlap_shape` | `(any) -> [Node]` |
+| `overlaps` | `(Node) -> [Node]` |
+| `pin_particle` | `(Node, int)` |
+| `pose_in_body` | `(Node) -> any` |
+| `potential_energy` | `(Node) -> float` |
+| `predict_position` | `(Node, float) -> any` |
+| `predict_position_with_forces` | `(Node, float) -> any` |
+| `ragdoll` | `(Node, any) -> any` |
+| `raycast` | `(any) -> any` |
+| `raycast_all` | `(any) -> [any]` |
+| `remove_joint` | `(Node)` |
+| `reset_follow` | `(Node)` |
+| `reset_plasticity` | `(Node)` |
+| `reset_softbody_forces` | `(Node)` |
+| `set_angular_velocity` | `(Node, float, float, float)` |
+| `set_brake` | `(Node, float)` |
+| `set_cell_tear_resistance` | `(Node, int, float)` |
+| `set_collider` | `(Node, any)` |
+| `set_constant_force` | `(Node, float, float, float)` |
+| `set_constant_torque` | `(Node, float, float, float)` |
+| `set_edge_tear_resistance` | `(Node, int, float)` |
+| `set_engine_force` | `(Node, float)` |
+| `set_gravity` | `(float, float, float)` |
+| `set_heightfield_hole` | `(Node, int, int, bool)` |
+| `set_joint_limits` | `(Node, str, float, float)` |
+| `set_linear_velocity` | `(Node, float, float, float)` |
+| `set_motor_position` | `(Node, str, float, float, float)` |
+| `set_motor_velocity` | `(Node, str, float, float)` |
+| `set_particle_damaged` | `(Node, int, bool)` |
+| `set_particle_position` | `(Node, int, any)` |
+| `set_particle_target` | `(Node, int, any)` |
+| `set_particle_velocity` | `(Node, int, any)` |
+| `set_softbody` | `(Node, any)` |
+| `set_steering` | `(Node, float)` |
+| `set_voxel` | `(Node, int, int, int, bool)` |
+| `set_voxel_size` | `(Node, float, float, float)` |
+| `set_wheel_rotation` | `(Node, float)` |
+| `shapecast` | `(any) -> any` |
+| `sleep` | `(Node)` |
+| `softbody_attachments` | `(Node) -> any` |
+| `softbody_boundary` | `(Node) -> [[int]]` |
+| `softbody_cell` | `(Node, int) -> any` |
+| `softbody_cells` | `(Node) -> [[int]]` |
+| `softbody_center` | `(Node) -> any` |
+| `softbody_contacts` | `(Node) -> any` |
+| `softbody_crossing` | `(Node, any) -> any` |
+| `softbody_dihedral` | `(Node, int) -> any` |
+| `softbody_dihedrals` | `(Node) -> [[int]]` |
+| `softbody_edge` | `(Node, int) -> any` |
+| `softbody_edges` | `(Node) -> [[int]]` |
+| `softbody_mass` | `(Node) -> float` |
+| `softbody_particle` | `(Node, int) -> any` |
+| `softbody_particle_radius` | `(Node) -> float` |
+| `softbody_particles` | `(Node) -> int` |
+| `softbody_position` | `(Node, int) -> Vec3` |
+| `softbody_rest_volume` | `(Node) -> float` |
+| `softbody_sleeping` | `(Node) -> bool` |
+| `softbody_stress` | `(Node) -> [float]` |
+| `softbody_velocity` | `(Node, int) -> Vec3` |
+| `softbody_volume` | `(Node) -> float` |
+| `softbody_volume_pieces` | `(Node) -> [any]` |
+| `solve_ik` | `(Node, float, float, float, any)` |
+| `speed` | `(Node) -> float` |
+| `swept_aabb` | `(Node) -> [float]` |
+| `tear_cell` | `(Node, int)` |
+| `tear_edge` | `(Node, int)` |
+| `tear_softbody` | `(Node, any, any) -> any` |
+| `teleport` | `(Node, float, float, float, any)` |
+| `time_of_impact` | `(Node, Node, any) -> any` |
+| `time_since_can_sleep` | `(Node) -> float` |
+| `total_inertia` | `(Node) -> any` |
+| `total_inertia_rotation` | `(Node) -> any` |
+| `total_mass` | `(Node) -> float` |
+| `unpin_particle` | `(Node, int)` |
+| `vehicle_speed` | `(Node) -> float` |
+| `velocity_at_point` | `(Node, float, float, float) -> Vec3` |
+| `voxel` | `(Node, int, int, int) -> bool` |
+| `voxel_at` | `(Node, float, float, float) -> [int]` |
+| `voxel_size` | `(Node) -> any` |
+| `wake_all` | `()` |
+| `wake_softbody` | `(Node)` |
+| `wake_up` | `(Node)` |
+| `wheel_state` | `(Node) -> any` |
+| `world_center_of_mass` | `(Node) -> any` |
 
 **Constants** (120):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_NEGATIVE_X` | `-x` |
-| `AXIS_NEGATIVE_Y` | `-y` |
-| `AXIS_NEGATIVE_Z` | `-z` |
-| `AXIS_ROTATION_X` | `rotation_x` |
-| `AXIS_ROTATION_Y` | `rotation_y` |
-| `AXIS_ROTATION_Z` | `rotation_z` |
-| `AXIS_X` | `x` |
-| `AXIS_Y` | `y` |
-| `AXIS_Z` | `z` |
-| `BIND_CELLS` | `cells` |
-| `BIND_NEAREST` | `nearest` |
-| `BIND_PARTICLES` | `particles` |
-| `BODY_DYNAMIC` | `dynamic` |
-| `BODY_KINEMATIC` | `kinematic` |
-| `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
-| `BODY_STATIC` | `static` |
-| `CELL_COROTATIONAL` | `corotational` |
-| `CELL_NEO_HOOKEAN` | `neo_hookean` |
-| `CELL_VOLUME` | `volume` |
-| `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
-| `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
-| `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
-| `COLLIDE_KINEMATIC_KINEMATIC` | `kinematic_kinematic` |
-| `COLLIDE_KINEMATIC_STATIC` | `kinematic_static` |
+| `AXIS_NEGATIVE_X` | `"-x"` |
+| `AXIS_NEGATIVE_Y` | `"-y"` |
+| `AXIS_NEGATIVE_Z` | `"-z"` |
+| `AXIS_ROTATION_X` | `"rotation_x"` |
+| `AXIS_ROTATION_Y` | `"rotation_y"` |
+| `AXIS_ROTATION_Z` | `"rotation_z"` |
+| `AXIS_X` | `"x"` |
+| `AXIS_Y` | `"y"` |
+| `AXIS_Z` | `"z"` |
+| `BIND_CELLS` | `"cells"` |
+| `BIND_NEAREST` | `"nearest"` |
+| `BIND_PARTICLES` | `"particles"` |
+| `BODY_DYNAMIC` | `"dynamic"` |
+| `BODY_KINEMATIC` | `"kinematic"` |
+| `BODY_KINEMATIC_VELOCITY` | `"kinematic_velocity"` |
+| `BODY_STATIC` | `"static"` |
+| `CELL_COROTATIONAL` | `"corotational"` |
+| `CELL_NEO_HOOKEAN` | `"neo_hookean"` |
+| `CELL_VOLUME` | `"volume"` |
+| `COLLIDE_DYNAMIC_DYNAMIC` | `"dynamic_dynamic"` |
+| `COLLIDE_DYNAMIC_KINEMATIC` | `"dynamic_kinematic"` |
+| `COLLIDE_DYNAMIC_STATIC` | `"dynamic_static"` |
+| `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
+| `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
 
 …and 96 more.
 
 ## `platform`
 
-**Functions:** `backend`, `cloud_read`, `cloud_write`, `player`, `progress`, `scores`, `set_presence`, `sign_in`, `signed_in`, `submit_score`, `unlock`
+Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.
+
+| Function | Signature |
+| --- | --- |
+| `backend` | `() -> any` |
+| `cloud_read` | `(any, any, any) -> any` |
+| `cloud_write` | `(any, any, any, any) -> any` |
+| `player` | `() -> any` |
+| `progress` | `(any, any, any, any) -> any` |
+| `scores` | `(any, any, any) -> any` |
+| `set_presence` | `(any, any, any) -> any` |
+| `sign_in` | `(any, any) -> any` |
+| `signed_in` | `() -> any` |
+| `submit_score` | `(any, any, any, any) -> any` |
+| `unlock` | `(any, any, any) -> any` |
 
 **Constants** (7):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_DONE` | `done` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_READ` | `read` |
-| `EVENT_SCORES` | `scores` |
-| `EVENT_SIGNED_IN` | `signed_in` |
-| `EVENT_SIGNED_OUT` | `signed_out` |
-| `EVENT_UNSUPPORTED` | `unsupported` |
+| `EVENT_DONE` | `"done"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_READ` | `"read"` |
+| `EVENT_SCORES` | `"scores"` |
+| `EVENT_SIGNED_IN` | `"signed_in"` |
+| `EVENT_SIGNED_OUT` | `"signed_out"` |
+| `EVENT_UNSUPPORTED` | `"unsupported"` |
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `editor_data_directory`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_directory`, `recent`, `templates`, `use_data`, `version`
+The projects this machine has opened, the templates a new one starts from, and the folder picker the OS provides. What the editor's start screen is made of.
+
+| Function | Signature |
+| --- | --- |
+| `copy_example` | `(str, str) -> project::Project` |
+| `create` | `(str, str) -> project::Project` |
+| `editor_data_directory` | `() -> str` |
+| `examples` | `() -> [project::Example]` |
+| `forget` | `(str)` |
+| `home` | `() -> str` |
+| `in_tab` | `() -> bool` |
+| `open` | `(str) -> project::Opened` |
+| `pick_directory` | `() -> str?` |
+| `recent` | `() -> [project::Recent]` |
+| `templates` | `() -> [project::Template]` |
+| `use_data` | `(str?) -> str?` |
+| `version` | `() -> str` |
 
 ## `random`
 
-**Functions:** `float`, `int`, `range`, `seed`, `uuid`
+The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.
+
+| Function | Signature |
+| --- | --- |
+| `float` | `() -> float` |
+| `int` | `(int, int) -> int` |
+| `range` | `(float, float) -> float` |
+| `seed` | `(int)` |
+| `uuid` | `() -> str` |
 
 ## `regex`
 
-**Functions:** `escape`, `matches`, `replace`, `search`, `search_all`, `split`
+Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.
+
+| Function | Signature |
+| --- | --- |
+| `escape` | `(str) -> str` |
+| `matches` | `(str, str) -> bool` |
+| `replace` | `(str, str, str, bool?) -> str` |
+| `search` | `(str, str) -> any` |
+| `search_all` | `(str, str) -> [any]` |
+| `split` | `(str, str) -> [str]` |
 
 ## `release`
 
-**Functions:** `channels`, `check`, `install`, `installed`, `listen`
+Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.
+
+| Function | Signature |
+| --- | --- |
+| `channels` | `() -> [str]` |
+| `check` | `() -> bool` |
+| `install` | `(str, str, any) -> bool` |
+| `installed` | `() -> release::Build` |
+| `listen` | `(Node, any)` |
 
 ## `render`
 
-**Functions:** `bounds`, `buffer`, `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `instance_color`, `instance_count`, `instance_custom_data`, `instance_region`, `instance_transform`, `instances`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `populate`, `screenshot`, `set_background`, `set_box`, `set_buffer`, `set_camera`, `set_camera_2d`, `set_cell`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_instance_color`, `set_instance_count`, `set_instance_custom_data`, `set_instance_region`, `set_instance_transform`, `set_instances`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `set_visible_instance_count`, `shader_probe`, `snap_aov`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`, `visible_instance_count`
+What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.
+
+| Function | Signature |
+| --- | --- |
+| `begin_retained` | `(str)` |
+| `bounds` | `(Node) -> [Vec3]?` |
+| `buffer` | `(Node) -> any` |
+| `built_mesh` | `(Node) -> any` |
+| `camera_2d` | `() -> Vec3` |
+| `camera_matrix` | `() -> [float]` |
+| `camera_pose` | `() -> [float]` |
+| `cell` | `(Node, int, int) -> int` |
+| `check_material` | `(str) -> [script::Diagnostic]` |
+| `clear_retained` | `(str)` |
+| `debug_view` | `() -> str` |
+| `debug_views` | `() -> [str]` |
+| `draw_arc_2d` | `(float, float, float, float, float, float?, any, any)` |
+| `draw_box` | `(float, float, float, float, float, float, any)` |
+| `draw_capsule` | `(float, float, float, float, float, any)` |
+| `draw_circle_2d` | `(float, float, float, any, any)` |
+| `draw_line_2d` | `(float, float, float, float, float, float, float, float?, any)` |
+| `draw_line_3d` | `(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)` |
+| `draw_lines` | `(any)` |
+| `draw_polygon_2d` | `(any, any, any)` |
+| `draw_polyline_2d` | `(any, float?, any, any)` |
+| `draw_rect_2d` | `(float, float, float, float, any, any)` |
+| `draw_sphere` | `(float, float, float, float, any)` |
+| `draw_text_2d` | `(float, float, str, any)` |
+| `draw_text_3d` | `(float, float, float, str, any)` |
+| `draw_texture_2d` | `(str, float, float, float, float, any, any)` |
+| `end_retained` | `()` |
+| `instance_color` | `(Node, int) -> any` |
+| `instance_count` | `(Node) -> int` |
+| `instance_custom_data` | `(Node, int) -> any` |
+| `instance_region` | `(Node, int) -> any` |
+| `instance_transform` | `(Node, int) -> any` |
+| `instances` | `(Node) -> any` |
+| `is_on_screen` | `(Node) -> bool` |
+| `material_params` | `(str) -> [render::Param]` |
+| `mouse_ray` | `() -> [float]` |
+| `mouse_world_2d` | `() -> Vec2` |
+| `outline` | `(Node) -> [float]` |
+| `pick_ray` | `(float, float, float, float, float, float) -> Node` |
+| `pick_ray_at` | `(float, float, float, float, float, float) -> render::Hit?` |
+| `populate` | `(Node, any) -> any` |
+| `screenshot` | `(str)` |
+| `set_background` | `(float, float, float)` |
+| `set_box` | `(Node, float, float, float)` |
+| `set_buffer` | `(Node, any)` |
+| `set_camera` | `(float, float, float, float, float, float)` |
+| `set_camera_2d` | `(float, float, float)` |
+| `set_cell` | `(Node, int, int, int)` |
+| `set_debug_view` | `(str)` |
+| `set_grid` | `(bool, float?, int?, int?)` |
+| `set_grid_colors` | `(float, float, float, float, float, float)` |
+| `set_instance_color` | `(Node, int, any)` |
+| `set_instance_count` | `(Node, int)` |
+| `set_instance_custom_data` | `(Node, int, any)` |
+| `set_instance_region` | `(Node, int, any, any)` |
+| `set_instance_transform` | `(Node, int, any)` |
+| `set_instances` | `(Node, any)` |
+| `set_rectangle` | `(Node, float, float)` |
+| `set_shader_preview` | `(str, int)` |
+| `set_shader_probe` | `(float, float)` |
+| `set_sphere` | `(Node, float)` |
+| `set_terrain` | `(Node, int, int, int)` |
+| `set_visible_instance_count` | `(Node, int)` |
+| `shader_probe` | `() -> any` |
+| `snap_aov` | `(str, str)` |
+| `stats` | `() -> render::Stats` |
+| `terrain` | `(Node, int, int) -> int` |
+| `text_size` | `(str, any) -> Vec2` |
+| `texture_pixels_per_unit` | `(str) -> float` |
+| `texture_size` | `(str) -> [int]` |
+| `tile_data` | `(Node, int, int) -> any` |
+| `trace_texture` | `(str, any) -> [[Vec2]]` |
+| `visible_instance_count` | `(Node) -> int` |
 
 **Constants** (46):
 
 | Name | Value |
 | --- | --- |
-| `ALIGN_CENTER` | `center` |
-| `ALIGN_END` | `end` |
-| `ALIGN_START` | `start` |
-| `ALPHA_BLEND` | `blend` |
-| `ALPHA_MASK` | `mask` |
-| `ALPHA_OPAQUE` | `opaque` |
-| `ALPHA_PREMULTIPLIED` | `premultiplied` |
-| `AOV_CAMERA_NORMALS` | `camera_normals` |
-| `AOV_DEPTH` | `depth` |
-| `AOV_NORMALS` | `normals` |
-| `AOV_SEGMENTATION` | `segmentation` |
-| `FOG_EXPONENTIAL` | `exponential` |
-| `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
-| `FOG_LINEAR` | `linear` |
-| `FOG_NONE` | `none` |
-| `FONT_ITALIC` | `italic` |
-| `FONT_NORMAL` | `normal` |
-| `LIGHT_DIRECTIONAL` | `directional` |
-| `LIGHT_POINT` | `point` |
-| `LIGHT_SPOT` | `spot` |
-| `POPULATE_GRID` | `grid` |
-| `POPULATE_RING` | `ring` |
-| `POPULATE_ROW` | `row` |
-| `POPULATE_SURFACE` | `surface` |
+| `ALIGN_CENTER` | `"center"` |
+| `ALIGN_END` | `"end"` |
+| `ALIGN_START` | `"start"` |
+| `ALPHA_BLEND` | `"blend"` |
+| `ALPHA_MASK` | `"mask"` |
+| `ALPHA_OPAQUE` | `"opaque"` |
+| `ALPHA_PREMULTIPLIED` | `"premultiplied"` |
+| `AOV_CAMERA_NORMALS` | `"camera_normals"` |
+| `AOV_DEPTH` | `"depth"` |
+| `AOV_NORMALS` | `"normals"` |
+| `AOV_SEGMENTATION` | `"segmentation"` |
+| `FOG_EXPONENTIAL` | `"exponential"` |
+| `FOG_EXPONENTIAL_SQUARED` | `"exponential_squared"` |
+| `FOG_LINEAR` | `"linear"` |
+| `FOG_NONE` | `"none"` |
+| `FONT_ITALIC` | `"italic"` |
+| `FONT_NORMAL` | `"normal"` |
+| `LIGHT_DIRECTIONAL` | `"directional"` |
+| `LIGHT_POINT` | `"point"` |
+| `LIGHT_SPOT` | `"spot"` |
+| `POPULATE_GRID` | `"grid"` |
+| `POPULATE_RING` | `"ring"` |
+| `POPULATE_ROW` | `"row"` |
+| `POPULATE_SURFACE` | `"surface"` |
 
 …and 22 more.
 
 ## `replay`
 
-**Functions:** `divergence_tick`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `recording_name`, `seek`, `state`, `stop`, `unload`
+Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.
+
+| Function | Signature |
+| --- | --- |
+| `divergence_tick` | `() -> replay::Divergence?` |
+| `events` | `(int, int) -> [replay::Event]` |
+| `header` | `() -> replay::Header?` |
+| `info` | `(str) -> replay::Header` |
+| `length` | `() -> replay::Length?` |
+| `load` | `(str) -> replay::Header` |
+| `marks` | `(str, str?) -> [replay::Mark]` |
+| `pause` | `()` |
+| `play` | `()` |
+| `position` | `() -> int` |
+| `record` | `(str, any) -> str` |
+| `recording` | `() -> str?` |
+| `recording_name` | `() -> str` |
+| `seek` | `(int)` |
+| `state` | `() -> str` |
+| `stop` | `(str?) -> str?` |
+| `unload` | `()` |
 
 **Constants** (4):
 
 | Name | Value |
 | --- | --- |
-| `STATE_PAUSED` | `paused` |
-| `STATE_PLAYING` | `playing` |
-| `STATE_SEEKING` | `seeking` |
-| `STATE_STOPPED` | `stopped` |
+| `STATE_PAUSED` | `"paused"` |
+| `STATE_PLAYING` | `"playing"` |
+| `STATE_SEEKING` | `"seeking"` |
+| `STATE_STOPPED` | `"stopped"` |
 
 ## `rollback`
 
-**Functions:** `input`, `is_resimulating`
+Rollback netcode from a script's side. `input` reads this tick's input, real or predicted; `is_resimulating` is true when a tick runs again after a late input.
+
+| Function | Signature |
+| --- | --- |
+| `input` | `(int) -> any` |
+| `is_resimulating` | `() -> bool` |
 
 ## `save`
 
-**Functions:** `directory`, `read`, `remove`, `slots`, `version`, `write`
+Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.
+
+| Function | Signature |
+| --- | --- |
+| `directory` | `() -> str` |
+| `read` | `(str) -> any` |
+| `remove` | `(str)` |
+| `slots` | `() -> [str]` |
+| `version` | `() -> int` |
+| `write` | `(str, any)` |
 
 ## `scene`
 
-**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `switch`, `tagged`, `variable`, `variables`, `warnings`, `with_component`
+The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.
+
+| Function | Signature |
+| --- | --- |
+| `apply_preset` | `(Node, str)` |
+| `bindable_events` | `(Node?) -> [str]` |
+| `binding_actions` | `() -> [str]` |
+| `component_expects` | `(str) -> [str]?` |
+| `component_properties` | `(str, any) -> any` |
+| `component_schema` | `(str) -> any` |
+| `component_tags` | `(str) -> [str]?` |
+| `component_types` | `() -> [str]` |
+| `get_node` | `(str) -> Node` |
+| `instantiate` | `(str, Node?, any)` |
+| `node_by_id` | `(str, Node?) -> Node` |
+| `preset_info` | `(str) -> scene::Preset?` |
+| `presets` | `() -> [str]` |
+| `root` | `() -> Node` |
+| `set_variable` | `(str, any)` |
+| `source` | `(str) -> str?` |
+| `switch` | `(str, any)` |
+| `tagged` | `(str) -> [Node]` |
+| `variable` | `(str) -> any` |
+| `variables` | `() -> [scene::Variable]` |
+| `warnings` | `(Node) -> [scene::Warning]` |
+| `with_component` | `(str) -> [Node]` |
 
 ## `script`
 
-**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `store`, `stored`, `symbols`
+What a tool asks about a script file, and state no node owns.
+
+| Function | Signature |
+| --- | --- |
+| `api` | `() -> any` |
+| `check` | `(str, str) -> [script::Diagnostic]` |
+| `complete` | `(str, str, int, int) -> [script::Completion]` |
+| `definition` | `(str, str, int, int) -> script::Place?` |
+| `exports` | `(str) -> any` |
+| `find` | `(str, str, str) -> [script::Place]` |
+| `format` | `(str, str) -> str` |
+| `hover` | `(str, str, int, int) -> script::Hover?` |
+| `references` | `(str, str, str) -> [script::Place]` |
+| `rename` | `(str, str, str, str) -> [script::Edit]` |
+| `replace` | `(str, str, str, str) -> [script::Edit]` |
+| `signature` | `(str, str, int, int) -> script::Signature?` |
+| `store` | `(str, any)` |
+| `stored` | `(str) -> any` |
+| `symbols` | `(str, str) -> [script::Symbol]` |
 
 ## `settings`
 
-**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `merge_toml`, `overrides`, `revision`, `set`, `tags`, `to_toml`
+Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.
+
+| Function | Signature |
+| --- | --- |
+| `all` | `() -> [settings::Setting]` |
+| `base` | `(str) -> any` |
+| `clear` | `(str)` |
+| `define` | `(str, any)` |
+| `get` | `(str) -> any` |
+| `known_tags` | `() -> [str]` |
+| `merge_toml` | `(str)` |
+| `overrides` | `(str) -> [str]` |
+| `revision` | `() -> int` |
+| `set` | `(str, any)` |
+| `tags` | `() -> [str]` |
+| `to_toml` | `(str, str) -> str` |
 
 ## `skeleton`
 
-**Functions:** `apply_rest`, `bones`, `overwrite_rest`
+Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.
+
+| Function | Signature |
+| --- | --- |
+| `apply_rest` | `(Node)` |
+| `bones` | `(Node) -> [Node]` |
+| `overwrite_rest` | `(Node)` |
 
 ## `strings`
 
-**Functions:** `locale`, `locales`, `set_locale`, `set_root`, `system_locale`, `tr`
+Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.
+
+| Function | Signature |
+| --- | --- |
+| `locale` | `() -> str` |
+| `locales` | `() -> [str]` |
+| `set_locale` | `(str)` |
+| `set_root` | `(str)` |
+| `system_locale` | `() -> str?` |
+| `tr` | `(str, any) -> str` |
 
 ## `task`
 
-**Functions:** `frames`, `seconds`, `wait`
+Waiting inside an async method: `init` and event handlers may await; `update` is synchronous.
+
+| Function | Signature |
+| --- | --- |
+| `frames` | `(int)` |
+| `seconds` | `(float)` |
+| `wait` | `(int) -> any` |
 
 ## `toml`
 
-**Functions:** `encode`, `parse`, `patch`
+TOML text to and from script tables, the format of scene files, asset definitions and component properties.
+
+| Function | Signature |
+| --- | --- |
+| `encode` | `(any) -> str` |
+| `parse` | `(str) -> any` |
+| `patch` | `(str, any) -> str` |
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `edit`, `fill_rows`, `fill_strip`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `takes_pointer_at`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
+What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.
+
+| Function | Signature |
+| --- | --- |
+| `activate_focused` | `()` |
+| `click` | `(Node, any) -> bool` |
+| `complete_theme` | `(any) -> any` |
+| `contrast` | `(str, str) -> float` |
+| `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
+| `edit` | `(Node, any) -> bool` |
+| `fill_rows` | `(str, any, any, bool) -> bool` |
+| `fill_strip` | `(str, any) -> bool` |
+| `finish_loading` | `()` |
+| `focus_next` | `()` |
+| `focus_previous` | `()` |
+| `focused_widget` | `() -> Node` |
+| `height_class` | `() -> str` |
+| `pasted_text` | `() -> str` |
+| `request_repaint` | `(any)` |
+| `reread` | `(Node) -> bool` |
+| `scale` | `() -> float` |
+| `set_clipboard` | `(str)` |
+| `set_focus` | `(Node)` |
+| `set_keyboard_navigation` | `(bool)` |
+| `set_lazy` | `(bool)` |
+| `set_load_progress` | `(float, str?)` |
+| `set_scale` | `(float)` |
+| `set_theme` | `(any)` |
+| `set_widget_layer` | `(bool, float?, float?, float?, float?)` |
+| `set_widget_surface` | `(str, bool, float?, float?, float?, float?)` |
+| `tab_rect` | `(Node) -> ui::Rect?` |
+| `takes_pointer_at` | `(float, float) -> bool` |
+| `wants_keyboard` | `() -> bool` |
+| `wants_pointer` | `() -> bool` |
+| `widget_rect` | `(Node) -> ui::Rect?` |
+| `width_class` | `() -> str` |
+| `window_size` | `() -> Vec2` |
 
 **Constants** (68):
 
 | Name | Value |
 | --- | --- |
-| `ALIGN_BASELINE` | `baseline` |
-| `ALIGN_CENTER` | `center` |
-| `ALIGN_END` | `end` |
-| `ALIGN_START` | `start` |
-| `ALIGN_STRETCH` | `stretch` |
-| `ANCHOR_BOTTOM_LEFT` | `bottom_left` |
-| `ANCHOR_BOTTOM_RIGHT` | `bottom_right` |
-| `ANCHOR_CENTER` | `center` |
-| `ANCHOR_CENTER_BOTTOM` | `center_bottom` |
-| `ANCHOR_CENTER_LEFT` | `center_left` |
-| `ANCHOR_CENTER_RIGHT` | `center_right` |
-| `ANCHOR_CENTER_TOP` | `center_top` |
-| `ANCHOR_FILL` | `fill` |
-| `ANCHOR_FILL_ACROSS` | `fill_across` |
-| `ANCHOR_FILL_BOTTOM` | `fill_bottom` |
-| `ANCHOR_FILL_DOWN` | `fill_down` |
-| `ANCHOR_FILL_LEFT` | `fill_left` |
-| `ANCHOR_FILL_RIGHT` | `fill_right` |
-| `ANCHOR_FILL_TOP` | `fill_top` |
-| `ANCHOR_TOP_LEFT` | `top_left` |
-| `ANCHOR_TOP_RIGHT` | `top_right` |
-| `FONT_HEADING` | `heading` |
-| `FONT_MONO` | `mono` |
-| `FONT_STYLE_ITALIC` | `italic` |
+| `ALIGN_BASELINE` | `"baseline"` |
+| `ALIGN_CENTER` | `"center"` |
+| `ALIGN_END` | `"end"` |
+| `ALIGN_START` | `"start"` |
+| `ALIGN_STRETCH` | `"stretch"` |
+| `ANCHOR_BOTTOM_LEFT` | `"bottom_left"` |
+| `ANCHOR_BOTTOM_RIGHT` | `"bottom_right"` |
+| `ANCHOR_CENTER` | `"center"` |
+| `ANCHOR_CENTER_BOTTOM` | `"center_bottom"` |
+| `ANCHOR_CENTER_LEFT` | `"center_left"` |
+| `ANCHOR_CENTER_RIGHT` | `"center_right"` |
+| `ANCHOR_CENTER_TOP` | `"center_top"` |
+| `ANCHOR_FILL` | `"fill"` |
+| `ANCHOR_FILL_ACROSS` | `"fill_across"` |
+| `ANCHOR_FILL_BOTTOM` | `"fill_bottom"` |
+| `ANCHOR_FILL_DOWN` | `"fill_down"` |
+| `ANCHOR_FILL_LEFT` | `"fill_left"` |
+| `ANCHOR_FILL_RIGHT` | `"fill_right"` |
+| `ANCHOR_FILL_TOP` | `"fill_top"` |
+| `ANCHOR_TOP_LEFT` | `"top_left"` |
+| `ANCHOR_TOP_RIGHT` | `"top_right"` |
+| `FONT_HEADING` | `"heading"` |
+| `FONT_MONO` | `"mono"` |
+| `FONT_STYLE_ITALIC` | `"italic"` |
 
 …and 44 more.
 
 ## `websocket`
 
-**Functions:** `close`, `connect`, `send`, `state`
+A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.
+
+| Function | Signature |
+| --- | --- |
+| `close` | `(int) -> any` |
+| `connect` | `(any, str, any) -> any` |
+| `send` | `(int, any) -> any` |
+| `state` | `(int) -> any` |
 
 **Constants** (9):
 
 | Name | Value |
 | --- | --- |
-| `EVENT_BINARY` | `binary` |
-| `EVENT_CLOSED` | `closed` |
-| `EVENT_ERROR` | `error` |
-| `EVENT_MESSAGE` | `message` |
-| `EVENT_OPEN` | `open` |
-| `STATE_CLOSED` | `closed` |
-| `STATE_CLOSING` | `closing` |
-| `STATE_CONNECTING` | `connecting` |
-| `STATE_OPEN` | `open` |
+| `EVENT_BINARY` | `"binary"` |
+| `EVENT_CLOSED` | `"closed"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_MESSAGE` | `"message"` |
+| `EVENT_OPEN` | `"open"` |
+| `STATE_CLOSED` | `"closed"` |
+| `STATE_CLOSING` | `"closing"` |
+| `STATE_CONNECTING` | `"connecting"` |
+| `STATE_OPEN` | `"open"` |
 
 ## `window`
 
-**Functions:** `refresh_rate`, `safe_area`, `set_app_icon`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_keep_awake`, `set_window_mode`
+The OS window and the display under it: mode, cursor, app icon, keep-awake, the safe area and the refresh rate.
+
+| Function | Signature |
+| --- | --- |
+| `refresh_rate` | `() -> float` |
+| `safe_area` | `() -> any` |
+| `set_app_icon` | `(str, any)` |
+| `set_cursor_grab` | `(bool)` |
+| `set_cursor_hidden` | `(bool)` |
+| `set_fullscreen` | `(bool)` |
+| `set_keep_awake` | `(bool)` |
+| `set_window_mode` | `(str)` |
 

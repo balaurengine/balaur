@@ -1,6 +1,6 @@
 {
-  "name": "Rune",
-  "scopeName": "source.rune",
+  "name": "Balaur Script",
+  "scopeName": "source.bs",
   "patterns": [
     {
       "comment": "boxed slice literal",

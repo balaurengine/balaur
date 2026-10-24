@@ -39,7 +39,7 @@ Built, and load-bearing here:
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
 | Export as a library with the network stack, the prompt and the cache left to the caller, so an editor can link it | `balaur_export::{Options, ObtainTemplate, default_roots}` |
 | The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
-| A settings sheet grouped by category and searchable; a command palette every editor verb goes through | `editor/scripts/settings.rn`, `palette.rn` |
+| A settings sheet grouped by category and searchable; a command palette every editor verb goes through | `editor/scripts/settings.bs`, `palette.bs` |
 | Work off the frame that lands on a tick, so a minutes-long job can report progress without blocking a draw | `ExternalIo`, `balaur_core::handler`, `docs/PLAN-deploy.md` "Progress is an event" |
 
 Missing:
@@ -65,7 +65,7 @@ Missing:
   flags. `docs/PLAN-web-editor.md` §5 question 4 already names "a
   developer's own GitHub Actions" as the build service a browser cannot be.
 - **No Export button.** The `export` pill in the Session dock copies a
-  replay into the project (`session.rn:187`). No script module reaches
+  replay into the project (`session.bs`). No script module reaches
   `balaur_export`; `docs/PLAN-editor.md` §4 lists `engine::export(root)` as
   "CLI only". Nothing can open a folder: there is no `reveal` or `open_url`
   host function (`docs/PLAN-2d-games.md` defers it to deploy; it lands

@@ -71,9 +71,14 @@ fn a_delete_carries_the_body_it_was_given() {
     let url = echo_body();
     let source = format!(
         r#"
-pub async fn init(this) {{
-    let r = task::wait(http::request("{url}", #{{ method: "DELETE", body: "ids=7" }})).await;
-    log::info(`delete-echo ${{r["status"]}} ${{r["body"]}}`);
+pub struct S {{ node: Node }}
+impl S {{
+    async fn init() {{
+        let r = await task::wait(http::request("{url}", map().with("method", "DELETE").with("body", "ids=7")));
+        let status = r.get("status");
+        let body = r.get("body");
+        log::info("delete-echo {{status}} {{body}}");
+    }}
 }}
 "#
     );
@@ -93,15 +98,22 @@ fn a_script_awaits_a_request_and_takes_another_through_a_named_handler() {
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
     let source = format!(
         r#"
-pub async fn init(this) {{
-    let r = task::wait(http::request("{awaited}")).await;
-    log::info(format!("named-await {{}} {{}}", r["status"], r["body"]));
-    this.request = http::request(this.node, "{handled}", #{{ on_response: "on_login" }});
-}}
+pub struct S {{ node: Node, request: int }}
+impl S {{
+    async fn init() {{
+        let r = await task::wait(http::request("{awaited}"));
+        let status = r.get("status");
+        let body = r.get("body");
+        log::info("named-await {{status}} {{body}}");
+        self.request = http::request(self.node, "{handled}", map().with("on_response", "on_login"));
+    }}
 
-pub fn on_login(this, r) {{
-    if r["request"] == this.request {{
-        log::info(format!("named-http {{}} {{}}", r["status"], r["body"]));
+    pub fn on_login(r: any) {{
+        if r.get("request").as_int() == self.request {{
+            let status = r.get("status");
+            let body = r.get("body");
+            log::info("named-http {{status}} {{body}}");
+        }}
     }}
 }}
 "#
@@ -111,7 +123,7 @@ pub fn on_login(this, r) {{
 
 /// The same two paths through the default handler name.
 #[test]
-fn a_rune_script_awaits_a_request_and_takes_another_through_on_response() {
+fn a_script_awaits_a_request_and_takes_another_through_on_response() {
     if !e2e_enabled() {
         return;
     }
@@ -121,18 +133,28 @@ fn a_rune_script_awaits_a_request_and_takes_another_through_on_response() {
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
     let source = format!(
         r#"
-pub async fn init(this) {{
-    let r = task::wait(http::request("{awaited}")).await;
-    log::info(`rune-await ${{r["status"]}} ${{r["body"]}}`);
-    this.request = http::request(this.node, "{handled}");
-}}
+pub struct S {{ node: Node, request: int }}
+impl S {{
+    async fn init() {{
+        let r = await task::wait(http::request("{awaited}"));
+        let status = r.get("status");
+        let body = r.get("body");
+        log::info("default-await {{status}} {{body}}");
+        self.request = http::request(self.node, "{handled}");
+    }}
 
-pub fn on_response(this, r) {{
-    if r["request"] == this.request {{
-        log::info(`rune-http ${{r["status"]}} ${{r["body"]}}`);
+    pub fn on_response(r: any) {{
+        if r.get("request").as_int() == self.request {{
+            let status = r.get("status");
+            let body = r.get("body");
+            log::info("default-http {{status}} {{body}}");
+        }}
     }}
 }}
 "#
     );
-    run_until(&source, &["rune-await 200 raven", "rune-http 200 rhino"]);
+    run_until(
+        &source,
+        &["default-await 200 raven", "default-http 200 rhino"],
+    );
 }

@@ -225,7 +225,7 @@ fn a_body_held_awake_keeps_its_sleep_thresholds() {
 const SPINNER_3D: &str = r#"[[nodes]]
 id = "n_spinner"
 name = "Spinner"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.0, 0.5, 0.0], inertia = [1.0, 2.0, 3.0], inertia_rotation = [0.0, 0.5, 0.0], lock_translation = ["x"], initial_angular_velocity = [0.0, 0.0, 1.0] }
 collider3d = { kind = "sphere", radius = 0.5 }
 "#;
@@ -234,11 +234,14 @@ collider3d = { kind = "sphere", radius = 0.5 }
 fn the_body_readers_answer_what_rapier_works_out() {
     let booted = boot::project(
         SPINNER_3D,
-        r"pub fn probe(this) {
-    let b = this.node.body3d;
-    [b.is_ccd_active(), b.world_center_of_mass(), b.local_center_of_mass(), b.total_inertia(),
-     b.total_inertia_rotation(), b.effective_mass(), b.effective_angular_inertia(),
-     b.time_since_can_sleep(), b.predict_position(0.5), b.next_position(), true]
+        r"pub struct S { node: Node }
+impl S {
+    pub fn probe() -> [any] {
+        let n = self.node;
+        [n.body3d.is_ccd_active(), n.body3d.world_center_of_mass(), n.body3d.local_center_of_mass(), n.body3d.total_inertia(),
+         n.body3d.total_inertia_rotation(), n.body3d.effective_mass(), n.body3d.effective_angular_inertia(),
+         n.body3d.time_since_can_sleep(), n.body3d.predict_position(0.5), n.body3d.next_position(), true]
+    }
 }
 ",
     );
@@ -246,9 +249,9 @@ fn the_body_readers_answer_what_rapier_works_out() {
     let balaur_script::Value::List(found) = booted.call(spinner, "probe") else {
         panic!("the probe answered no list");
     };
-    let vec3 = |value: &balaur_script::Value| match value {
-        balaur_script::Value::Vec3(v) => *v,
-        other => panic!("not a vector: {other:?}"),
+    let vec3 = |value: &balaur_script::Value| {
+        let v = boot::vector(value);
+        [v[0] as f32, v[1] as f32, v[2] as f32]
     };
     let near = |a: [f32; 3], b: [f32; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-4);
     assert_eq!(found[10], balaur_script::Value::Bool(true), "the probe ran");
@@ -293,14 +296,17 @@ fn teleport_can_turn_a_body_too() {
         r#"[[nodes]]
 id = "n_crate"
 name = "Crate"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 collider3d = { kind = "box" }
 "#,
-        r"pub fn init(this) {
-    this.node.body3d.teleport(1.0, 2.0, 3.0, #{ rotation: [0.0, 0.5, 0.0] });
+        r#"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.body3d.teleport(1.0, 2.0, 3.0, map().with("rotation", [0.0, 0.5, 0.0]));
+    }
 }
-",
+"#,
     );
     booted.tick(1);
     let crate_node = booted.node("Crate");
@@ -324,19 +330,22 @@ fn the_2d_body_readers_answer_what_rapier_works_out() {
         r#"[[nodes]]
 id = "n_puck"
 name = "Puck"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.5, 0.0], inertia = 3.0, lock_translation = ["y"], initial_angular_velocity = 1.0 }
 collider2d = { kind = "circle", radius = 0.5 }
 "#,
-        r"pub fn init(this) {
-    this.node.body2d.add_constant_force(4.0, 0.0);
-}
+        r"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.body2d.add_constant_force(4.0, 0.0);
+    }
 
-pub fn probe(this) {
-    let b = this.node.body2d;
-    [b.is_ccd_active(), b.world_center_of_mass(), b.local_center_of_mass(), b.total_inertia(),
-     b.effective_mass(), b.effective_angular_inertia(), b.time_since_can_sleep(),
-     b.predict_position(0.5), b.predict_position_with_forces(0.5), true]
+    pub fn probe() -> [any] {
+        let n = self.node;
+        [n.body2d.is_ccd_active(), n.body2d.world_center_of_mass(), n.body2d.local_center_of_mass(), n.body2d.total_inertia(),
+         n.body2d.effective_mass(), n.body2d.effective_angular_inertia(), n.body2d.time_since_can_sleep(),
+         n.body2d.predict_position(0.5), n.body2d.predict_position_with_forces(0.5), true]
+    }
 }
 ",
     );
@@ -345,9 +354,9 @@ pub fn probe(this) {
     let balaur_script::Value::List(found) = booted.call(puck, "probe") else {
         panic!("the probe answered no list");
     };
-    let vec2 = |value: &balaur_script::Value| match value {
-        balaur_script::Value::Vec2(v) => *v,
-        other => panic!("not a vector: {other:?}"),
+    let vec2 = |value: &balaur_script::Value| {
+        let v = boot::vector(value);
+        [v[0] as f32, v[1] as f32]
     };
     assert_eq!(found[9], balaur_script::Value::Bool(true), "the probe ran");
     assert_eq!(found[0], balaur_script::Value::Bool(false));

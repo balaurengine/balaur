@@ -1,0 +1,33 @@
+// The menu's own script. Each button's `on_click` names a method here, and
+// the buttons say nothing about where they sit — the panel lays them out.
+
+pub struct Menu {
+    node: Node,
+    spinner: Node,
+}
+
+impl Menu {
+    fn init() {
+        self.spinner = scene::get_node("Main/World/Spinner");
+    }
+
+    pub fn on_faster() {
+        self.nudge(1.5);
+    }
+
+    pub fn on_slower() {
+        self.nudge(1.0 / 1.5);
+    }
+
+    pub fn on_reverse() {
+        if self.spinner.is_valid() {
+            self.spinner.call("reverse");
+        }
+    }
+
+    fn nudge(factor: float) {
+        if self.spinner.is_valid() {
+            self.spinner.call("scale_speed", factor);
+        }
+    }
+}

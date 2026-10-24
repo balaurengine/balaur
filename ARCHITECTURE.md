@@ -6,9 +6,9 @@ names.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  scripts (game code, and the editor itself)  .rn — Rune    │
+│  scripts (game code, and the editor itself)  .bs           │
 ├────────────────────────────────────────────────────────────┤
-│  balaur_script_rune: host, hot reload, mod files, debugger │
+│  balaur_script_bs: host, hot reload, `use` files, debugger │
 ├────────────────────────────────────────────────────────────┤
 │  balaur_script: the seam — Bindings, ScriptHost, Value.    │
 │  Traits only. No language; anyhow and serde.               │
@@ -85,7 +85,8 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 `balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
 `serde`, `smol_str`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
-`ScriptHost<Engine>`. Rune cost one crate and changed nothing else.
+`ScriptHost<Engine>`. Balaur Script (`balaur_bs`, `balaur_script_bs`) is the
+one backend; the Rune backend before it was one crate and went as one.
 
 - Operations are declared once in core (`node_api.rs` `NODE_OPS`,
   `engine_api.rs` `ENGINE_OPS`) and reach every language. A second language
@@ -114,27 +115,33 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - A scene inits its scripts children before parents, Godot's `_ready` order: a
   child can always reach its parent node, while a parent reading a child's
   script state is the one that would find nothing.
-- `language` in `project.toml` picks the language; absent means Rune, the one
-  this build ships.
+- `script_language` in `project.toml` names the language; absent means `bs`,
+  the one this build runs.
 
 ### Model
 
-- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `on_hot_reload`.
-  One instance per attached node, with `node` on it.
-- Free functions take the instance first (`pub fn update(this, dt)`) and mutate
-  it in place. `mod name;` pulls in `name.rn` beside the file — disk in a dev
-  run, pack when shipped.
+- A script is a `pub struct` with a `node: Node` field and an `impl` of its
+  methods: `init()`, `update(dt: float)`, `fixed_update(dt: float)`,
+  `on_free()`. One instance per attached node. A method reads its fields as
+  `self.x`; a call back into the same node while one of its methods runs is
+  lent a second holder of the struct, so state that call must see sits in a
+  `class` field.
+- `use name;` links `name.bs`, found beside the file or in a folder above it,
+  and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
+  struct is a module others use. Disk in a dev run, pack when shipped.
+- Each file compiles once, alone, as a unit; a script runs its own unit with
+  the units of every module it uses, in one memory, each made on its first
+  call (`docs/PLAN-bs-linking.md`). A debugger's probes, a profiler, the
+  browser and a native build compile the whole file with its modules in.
 
 ### Exported properties
 
-`pub fn exports() { #{ speed: 2.0 } }` declares what a scene may tune;
-`script.props` overrides only what it names.
+A `pub` field with a literal default (`pub speed: float = 2.0`) is what a
+scene may tune; `script.props` overrides only what it names.
 
-- At attach: `exports` once per file, defaults written, `props` over them, then
-  `init` — so `init` reads tuned values.
-- An unexported property is still written, and warns; dropping it would lose an
-  edit. `#[export] pub const` declares one beside its use, merged with
-  `exports()`; a name declared in both is an error.
+- At attach: the struct is made with its defaults, `props` written over them,
+  then `init` — so `init` reads tuned values.
+- A prop naming no field is dropped, and warns.
 - `props` is sparse: the inspector writes an override only where it differs, so
   changing a default reaches every node that never overrode it. The default's
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.
@@ -146,20 +153,9 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   it, the way an `asset` property names its asset type.
 - A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
   resolved the way one is, and a path naming nothing is nil in its place.
-- `script::require` hands back a module's `pub fn`s and its top-level `pub
-  const`s, so a shared constant is read where it is declared. A relative
-  path is looked up in the roots a host added before the project's own:
-  `balaur edit` runs with the editor as the project, and the game it plays
-  requires its own addons.
-- An addon's files are also native modules: `addons/<name>/<file>.rn` is
-  `<name>::<file>` in every script, with no `require`. Its `pub fn`s are
-  called by path and its `pub const`s read as constants, a `pub mod` block's
-  one segment deeper. Each function forwards to the file's current unit, so
-  a save reaches every caller. The context is built again when a root is
-  added or a saved addon changes what it exposes. A pack keeps the
-  signatures; a constant is already inside each unit that reads it. A path
-  clashing with an engine item is reported and left out
-  (`balaur_script_rune/src/mounts.rs`).
+- A module's constants are read where they are declared, and a save of it
+  rebuilds its unit, the units built against what it declares when that
+  changed, and reloads every script using it.
 
 ### Prefabs
 
@@ -191,10 +187,9 @@ the node's own, and the root's children become the node's.
 
 - The host watches the project (`notify`); on save the file recompiles. A
   compile error keeps the previous unit running, reported once.
-- Rune compiles to an immutable unit, so the new unit replaces the old,
-  instances keep their state, and the next call resolves against new code.
-  Save-to-live latency is the watcher's, a few milliseconds. `on_hot_reload`
-  migrates state shapes.
+- The new module replaces the old, and every instance of the file is carried
+  across by field name, so state survives a save; a field the new struct
+  dropped goes, one it added starts at its default.
 - Content reloads through the same watcher, sorted by extension exactly as
   `Pack::build` does. A `.toml` asset was parsed, so the cache forgets it; a
   texture, model, font, sound or `.wesl` is a source, so only the asset
@@ -214,12 +209,10 @@ Breakpoints, stepping and a call stack with locals, for scripts in the editor.
   `request_break`, `paused`, `resume(StepMode)` — so a backend without a
   debugger compiles unchanged. The `debugger` module exposes them plus `scope`
   and `set_scope`, so the dock is plain script.
-- Rune: a unit with breakpoints runs through `Vm::execute` + `VmExecution::step`;
-  one without keeps the plain call, so the no-debugger cost is unchanged. A
-  requested line lands on the next line with code, re-applied after a reload.
-  Step over/into/out compare frame depth and line. Locals are the frame's named
-  arguments — Rune keeps no other names. A breakpoint inside an async entry
-  point (`task::wait`) is let through: a future cannot be parked.
+- A file with breakpoints compiles with a probe per statement and runs
+  stepwise; one without keeps the plain module, so the no-debugger cost is
+  unchanged. A requested line lands on the next line with code, re-applied
+  after a reload. Step over/into/out compare frame depth and line.
 
 ### Components
 
@@ -241,10 +234,8 @@ and remove hooks.
   spec, so `min`, `options`, `asset` and `component` work at any depth. A
   nested spec may leave its `default` out and registration writes the type's
   zero in. A `map`'s `key` is `"string"` or `"int"`, and the file spells a
-  number key `"7"` either way. A `record` may name a script `class`, and the
-  host hands that script an instance of its own struct: the fork carries
-  `Value::struct_parts` and `Unit::new_struct` for it, because Rune keeps a
-  dynamic struct private to its crate.
+  number key `"7"` either way. A `record` is a struct a script reads as its
+  own type.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the
@@ -599,11 +590,8 @@ such a pack: the editor's, never a game template.
   `balaur_cli`. The template leaves out `editor` (the exporter, the project
   store, a tab's editor entry points), `compile` and `fallback-fonts` (egui's
   bundled faces, 1.35 MiB); the editor's module adds `import,editor`.
-- `compile` off gates the five calls into Rune's compiler, parser and
-  formatter, and turns off the fork's `macros`: `format!`, `println!` and
-  `assert!` are the stdlib's other way into the compiler, registered as
-  functions a context holds. Without both, LTO drops the parser and lowering.
-- `compile` off also drops the WESL linker. Every shader link goes through
+- `compile` off drops the `.bs` to C translator an iOS export uses, and the
+  WESL linker. Every shader link goes through
   `balaur_render::prelinked::cached`, keyed by what it links; an export runs
   each one the game can draw with (the engine's in every variant, each
   material morphed or not, in the transparency pass or not) and writes the
@@ -671,39 +659,25 @@ such a pack: the editor's, never a game template.
   macOS), and `--notarize` staples Apple's ticket.
 - The exporter sets the execute bits on its output: a template from a zip or an
   artifact store has lost them.
-- Rune resolves `input::key_just_pressed` at compile time, so `balaur::build_pack`
-  boots the app the game would boot and compiles through its host. A bare
-  `rune::Context` rejects every script that touches the engine.
+- A `.bs` script compiles against the engine's modules, so `balaur::build_pack`
+  boots the app the game would boot and compiles through its host.
 
 ### Tooling: one provider, two fronts
 
-The tooling in `balaur_script_rune` (`tooling.rs`, methods on `RuneHost`)
-answers *at this file, line and column: what completes, what is under the
-cursor, where it is defined, what this file's symbols are*. `balaur lsp` maps LSP methods onto it and the
-editor's `script` module calls the same verbs, so a script means one thing to
-both.
+`LanguageTools` on `BsHost`, over `balaur_bs::analysis`, answers *at this
+file, line and column: what completes, what is under the cursor, where it is
+defined, what this file's symbols are*. `balaur lsp` maps LSP methods onto it
+through `ScriptHost::tools_for`, and the editor's `script` module calls the
+same verbs, so a script means one thing to both.
 
-- Completions and hover text for `engine::`, `input::`, `node.`, a component
-  handle and a constant come off the same `ApiEntry` list `balaur api` prints.
-  The api lint that fails on an undocumented function is what keeps the popup
-  complete.
-- Rune's own language server is not reusable: `State` and its completion
-  helpers are `pub(super)`, and the only public item owns the stdin/stdout
-  loop and its own workspace. One piece is taken, `fmt`, which costs no new
-  dependency.
-- Rune's stdlib reaches completion through a fork patch that makes
-  `Context::iter_functions` and `ContextMeta` public and widens their feature
-  gate. Without it `"".len()` does not complete.
-- Rune offers no incremental parse, so what completes is decided from the text
-  around the caret: a table of cases, one test per row.
-- Rename and references are textual across the `mod` graph, because Rune 0.14
-  keeps no cross-file semantic index. A rename shows its list before writing.
-- Listing a file's functions by compiling a unit cost 50 ms per keystroke on a
-  1429-line script and answered with nothing mid-edit, so `declared_functions`
-  walks the `mod` graph as text. A completion is 1 ms after `::` and 3 ms on a
-  bare prefix.
-- A definition outside the project has no file to land in, so go-to opens the
-  reference page instead.
+- Completions and hover text for a module path, `self.`, a component handle
+  and a constant come off the `HostApi` a script compiles against, which
+  `balaur api` prints as `bs`.
+- Each request parses the buffer as it stands, `use`d files found from its
+  path, so an unsaved edit is what is answered for.
+- Rename and references stay inside the file asked about.
+- Formatting is `balaur_bs::fmt`, which `balaur fmt` and the editor's format
+  key call too.
 
 ## Game UI: widgets are nodes
 
@@ -895,26 +869,14 @@ sees half of one.
 
 Identical inputs produce bit-for-bit identical simulation on every platform.
 
-Rune fits: IEEE-754 doubles and 64-bit integers, `+ - * /` and `sqrt` exactly
-specified, a single-threaded interpreter with no codegen. Our fork lets an int
-meet a float as a float, the conversion exact, and makes values of different
-types unequal where upstream raises.
-
-The maths types (`balaur::Vec2`, `Vec3`, `Vec4`, `IVec2`, `IVec3`, `Quat`,
-`Transform2d`, `Transform3d`, `Color`) are glam's f64 and i64 types, bound
-from glam's source by `scripts/gen_glam_api.py`. They are value types, as
-Godot's are. Rune shares every value between the names that hold it, so the
-fork copies a type that answers its `COPY` protocol wherever one is bound or
-stored: `let`, `x = ..`, parameters, patterns, fields, indexes, literals and a
-native function's arguments. A field read is not copied, so `this.pos.x = 1`
-writes into `this.pos`. Strings and byte buffers are values the same way,
-copied only when a second name would share one, so a fresh string costs
-nothing. Arrays and tables stay shared, as Godot's are.
+Balaur Script fits: it compiles to WebAssembly, whose integer and float
+operations are exactly specified, the interpreter canonicalises NaNs, and the
+JIT, the native build and the interpreter run the same module. Its `Vec2`,
+`Vec3` and `Color` are values, copied where they are bound, as Godot's are.
 
 | Hazard | Status |
 | --- | --- |
-| `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`; Rune has no transcendentals, and our fork puts its `powf`/`powi` on libm (`crates/balaur_script_rune/tests/suite/pow.rs`) |
-| Object iteration order is the hash map's | **Done** — the fork keeps objects, `HashMap` and `HashSet` in insertion order, and hashes with `XxHash64` at a fixed seed. Upstream's `ahash` seeds from `getrandom` and its AES and software paths disagree |
+| `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`, and a script reaches transcendentals only through it |
 | A random source seeded from entropy | **Done** — `rng` is an engine-owned PCG32 with a fixed default seed |
 | Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `fixed_dt()`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
 
@@ -928,8 +890,8 @@ Engine-side:
 - Rendering and audio are pure observers; a headless run computes what a
   windowed run computes.
 - Transcendentals use `libm`, glam's included (`glamx/libm`,
-  `glamx/scalar-math`). `house_lints.py` fails a bare `.sin()` in Rust; the rune
-  fork closes the script side.
+  `glamx/scalar-math`). `house_lints.py` fails a bare `.sin()` in Rust; a
+  script has no other path to one.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - The solver threads on rayon wherever the default `parallel` feature builds,
   every native target: `tests/suite/threads.rs` asserts one thread and
@@ -1154,26 +1116,29 @@ replicates third-party components with no code in the plugin.
   authority = "owner", components = [...], mode = "on_change" }`) and
   signal-shaped in scripts. RPCs address a node by `StableId`, never by path.
 
-## UI: egui for scripts
+## UI: widget nodes, painted with egui
 
-`balaur_ui` exposes an immediate-mode `ui` module drawn with egui inside the
-kiss3d window; scripts implement `draw_ui`, run once per frame in the egui pass.
+A UI is `widget` components on scene nodes. `balaur_ui` lays each subtree out
+with taffy and paints it with egui inside the kiss3d window, once a pass. A
+script fills nodes and answers their events; it never draws. The `ui` module
+is what a script asks of the UI and tells it: where a node drew, focus, the
+scale, the theme, the clipboard, when the next pass runs and pooled rows.
 
-- The bridge keeps a stack of the `Ui` being built, so a script composes layouts
-  like Rust egui code.
-- Widgets take colors per call, so themes live in scripts and hot reload. Fonts
-  load from `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
+- A `widget_theme` asset dresses each kind and role. Fonts load from
+  `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
 - `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
   renderer's world text, so a label and a `text3d` share one font set.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).
-- `ui.code_editor` is an editable syntax-highlighted buffer, persistent per id.
+- The `code` kind is an editable syntax-highlighted buffer with a gutter.
+- [docs/PLAN-egui-as-painter.md](docs/PLAN-egui-as-painter.md) is what egui is
+  still used for, and what it is on its way to.
 
 ## The editor is a game
 
-`editor/` is a regular Balaur project: one node whose scripts draw the shell,
-over a tree of `widget` nodes the engine lays out and the scripts read back —
+`editor/` is a regular Balaur project: a tree of `widget` nodes the engine
+lays out, each panel a scene with one script that fills it —
 five personas, tabbed and resizable docks, the command palette as the single
 overlay, dark and light token sets.
 
@@ -1194,9 +1159,9 @@ overlay, dark and light token sets.
   translating in that face's plane, a rectangle at each face centre scaling
   along its normal, corner brackets scaling uniformly, and a rotation ball whose
   depth-biased rings win the pick over the face behind. Hit-testing and drag
-  math are screen-space script in `gizmo.rn`; the backend inhibits the orbit
+  math are screen-space script in `gizmo.bs`; the backend inhibits the orbit
   camera while the gizmo is hot.
-- The Animate persona edits an engine clip: `anim.rn` is an adapter over the
+- The Animate persona edits an engine clip: `anim.bs` is an adapter over the
   `assets` and `animation` modules, and the Timeline scrubs the node's actual
   player, so what is previewed is what ships. The clip lives inline
   (`[nodes.animation.library]`) or in `animations/<node>.toml`; **Save as file**
@@ -1206,8 +1171,8 @@ overlay, dark and light token sets.
 - The clip belongs to the *player* — the selection or its nearest ancestor
   carrying `animation` — so keying a bone writes a track on the character's
   clip, addressed by path.
-- `rig.rn` draws bones as Godot's diamonds and grows a chain by clicking;
-  `polygon.rn` turns Godot's UV window into four viewport modes (Points,
+- `rig.bs` draws bones as Godot's diamonds and grows a chain by clicking;
+  `polygon.bs` turns Godot's UV window into four viewport modes (Points,
   Polygons, UV, Weights). Every edit records history and then pushes the
   document's polygon onto the live node, so undo and the saved scene agree.
 - The editor's engine resolves files against the editor's own root, so
@@ -1218,9 +1183,8 @@ overlay, dark and light token sets.
 - The workspace patches `kiss3d` to `github.com/Ughuuu/kiss3d` (`balaur-hooks`):
   upstream v0.46.0 plus the opaque web canvas, IME events, a mid-pass screen
   copy for 2D materials and UIKit's safe area. The `rune` patch
-  (`balaurengine/rune`, `deterministic-pow`) is not temporary: it puts `powf`
-  and `powi` on `libm`, takes hashing off the platform, and adds VM breakpoints
-  and an instruction counter.
+  (`balaurengine/rune`, `deterministic-pow`) is left for `balaur port`, which
+  reads a `.rn` file with Rune's own parser to translate it to `.bs`.
 
 ## Input
 
@@ -1304,17 +1268,18 @@ fire = ["mouse:left"]
 ## Showcase: the manual's pictures are a test
 
 `scripts/showcase.sh` drives the editor offscreen with `--state`. A still is
-`shot=<png>` at frame 60; a clip is `show:<name>`, a sequence in `showcase.rn`
+`shot=<png>` at frame 60; a clip is `show:<name>`, a sequence in `showcase.bs`
 of the calls the UI would make plus the input a person would feed, captured by
 `frames=<dir>` and encoded at 30 fps. Offscreen frames advance on the fixed
 step, so a clip is the same clip every time.
 
 - Two phases: input is fed from `update`, before the game reads the snapshot;
-  anything a click on the chrome would do runs from `draw_ui`, after it. Driving
-  the editor from `update` rebuilt the scene under the game's own `update`.
+  anything a click on the chrome would do runs at the end of the Editor's
+  `update`, after it. Driving the editor from the start of `update` rebuilt the
+  scene under the game's own `update`.
 - Input goes through `input.feed_key`/`feed_mouse`/`feed_mouse_button`, which
   call the snapshot's own feeders, so a fed frame is indistinguishable from a
-  window's and the recorder records it. The pointer is drawn by `inputview.rn`
+  window's and the recorder records it. The pointer is drawn by `inputview.bs`
   from the snapshot rather than the OS cursor, for the same reason. egui never
   sees fed input, so a sequence puts the cursor on a control and calls the verb
   under it. The gizmo stands down while a sequence runs.

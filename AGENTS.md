@@ -91,7 +91,19 @@ commented-out code, a doc comment on a test whose name already says it, or
 three-plus lines defending a decision.
 
 `scripts/comment_lints.py` enforces the mechanical half across Rust, Rune,
-Python, shell, YAML and TOML; a plain-comment block over three lines fails CI.
+Balaur Script, Python, shell, YAML and TOML; a plain-comment block over three
+lines fails CI.
+
+## Balaur Script
+
+A line opening with `[` after a block **indexes the block's value**: a list
+closing a function after an `if` is the `if` indexed. Write `return [..];`.
+
+A `{` in a string starts an interpolation; `{{` and `}}` write braces.
+
+A host function's error **ends the whole script call**, and nothing catches
+it. Where a failure is expected the host answers nil or `false` instead
+(`toml::parse`, `node.try_set_component`), and the caller checks.
 
 ## Rune
 

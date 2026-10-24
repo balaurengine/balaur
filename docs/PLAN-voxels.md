@@ -140,7 +140,7 @@ that hides everything above a height so you can work inside a cave. Mirror
 across an axis is a third, and it is one line in the brush.
 
 **Undo is a diff, not a snapshot.** The editor's history deep-copies the
-whole document per step (`editor/scripts/history.rn:12`); a volume is not in
+whole document per step (`editor/scripts/history.bs`); a volume is not in
 the document and must never be copied into it. A voxel stroke records the
 cells it changed, before and after, as its own step kind. `docs/PLAN-tilemap.md`
 step 2 wants the same thing for chunked tile cells, so the step kind is built

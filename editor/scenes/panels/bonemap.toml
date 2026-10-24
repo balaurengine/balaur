@@ -1,0 +1,104 @@
+# The Bone map tab: the canonical skeleton against this rig's bones, a row a
+# canonical bone with the rig's bone it means, and the verbs that fill, empty
+# and write the map. One script fills it from the Editor and answers it.
+
+[[nodes]]
+id = "panel"
+name = "Bonemap"
+script = { source = "scripts/panels/bonemap.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+# What the map needs before there is anything to map.
+[[nodes]]
+id = "missing"
+name = "Missing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+text = "select a rig — a node with bones under it — to map its bones"
+padding = [12, 8, 12, 0]
+visible = false
+
+[[nodes]]
+id = "body"
+name = "Body"
+parent = "panel"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = [0, 4]
+
+[[nodes]]
+id = "verbs"
+name = "Verbs"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = [4, 4]
+align_items = "center"
+padding = [8, 0, 8, 0]
+
+[[nodes]]
+id = "count"
+name = "Count"
+parent = "verbs"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+[[nodes]]
+id = "guess"
+name = "guess"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "guess by name"
+tooltip = "Fill every row whose canonical name matches a bone, ignoring case and separators"
+
+[[nodes]]
+id = "clear"
+name = "clear"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "clear"
+tooltip = "Empty every row"
+
+[[nodes]]
+id = "save"
+name = "save"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "save"
+tooltip = "Write the map as a `bone_map` asset, for animation.play's `retarget`"
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "body"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "rows"
+name = "Rows"
+parent = "scroll"
+[nodes.widget]
+kind = "column"
+gap = [0, 1]
+padding = [8, 0, 8, 0]

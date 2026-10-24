@@ -1,0 +1,37 @@
+# The Tiles tab: the modes, the stamp, the terrains and the layers as rows of
+# chips, then the tile set's atlas as cards. One script answers them; the
+# rows are made by the Editor, which knows what the tilemap offers.
+
+[[nodes]]
+id = "panel"
+name = "Tiles"
+script = { source = "scripts/panels/tiles.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+# A column, because a mode may want more than one row of chips.
+[[nodes]]
+id = "chrome"
+name = "Chrome"
+parent = "panel"
+[nodes.widget]
+kind = "column"
+role = "layout_toolbar"
+
+[[nodes]]
+id = "cards"
+name = "Cards"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+grid_columns = "repeat(8, 1fr)"
+visible = false
+
+[nodes.widget.touch]
+row_height = 33

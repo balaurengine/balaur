@@ -63,7 +63,7 @@ wesl = { version = "0.6", features = ["eval"], optional = true }
 wasm-bindgen = "0.2.129"
 wasm-bindgen-futures = "0.4.79"
 js-sys = "0.3.106"
-web-sys = { version = "0.3.106", features = ["CssStyleDeclaration", "Document", "Element", "MediaQueryList", "Navigator", "VisualViewport", "Window"] }
+web-sys = { version = "0.3.106", features = ["AddEventListenerOptions", "CssStyleDeclaration", "Document", "Element", "Event", "EventTarget", "MediaQueryList", "Navigator", "VisualViewport", "Window"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }

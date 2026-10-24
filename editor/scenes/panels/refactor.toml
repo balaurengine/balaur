@@ -1,0 +1,95 @@
+# The refactor sheet: the name and what it becomes, then every place it is
+# and the verbs. One script hands each edit to the Editor.
+
+[[nodes]]
+id = "panel"
+name = "Refactor"
+script = { source = "scripts/panels/refactor.bs" }
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+absolute = true
+inset = [-1.0, 16.0, 20.0, -1.0]
+width = 420
+padding = [14, 12, 14, 12]
+gap = [0, 6]
+visible = false
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_heading"
+text = "RENAME"
+
+[[nodes]]
+id = "from"
+name = "From"
+parent = "panel"
+[nodes.widget]
+kind = "text_field"
+role = "input_form"
+text = ""
+placeholder = "name"
+
+[[nodes]]
+id = "to"
+name = "To"
+parent = "panel"
+[nodes.widget]
+kind = "text_field"
+role = "input_form"
+text = ""
+placeholder = "new name"
+
+[[nodes]]
+id = "count"
+name = "Count"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+[[nodes]]
+id = "hits"
+name = "Hits"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+text = ""
+height = 120
+row_height = 20
+font_family = "mono"
+
+[[nodes]]
+id = "verbs"
+name = "Verbs"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+gap = [6, 6]
+
+[[nodes]]
+id = "apply"
+name = "Apply"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "Apply"
+min_width = 70
+
+[[nodes]]
+id = "cancel"
+name = "Cancel"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "Cancel"
+min_width = 70

@@ -1,11 +1,11 @@
 # Plan: redesigning the editor shell
 
-> **Status:** Stage is standing (2026-09-03). Phases 1–2 are done — `layout.rn`
+> **Status:** Stage is standing (2026-09-03). Phases 1–2 are done — `layout.bs`
 > owns every rect, `viewport::owns_pointer` inverts the hit test, every panel
 > draws through `ui::overlay` as a sheet over a full-bleed scene, and
 > `test:layout` asserts nine invariants including that no two sheets overlap.
 > §5.1, §5.2, §5.3 and the plugin-window half of §5.5 came with it, and the
-> three panels are now one dock model (`docks.rn`). Phase 3 has started: the
+> three panels are now one dock model (`docks.bs`). Phase 3 has started: the
 > radius ladder and the inspector grid are done. §5.7 is done too:
 > `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `test:focus`. What is
 > left is below.
@@ -34,7 +34,7 @@ and is most of the defect list. It is not optional and it is not second.
 
 ### 4.1 A widget vocabulary
 
-`style.rn` holds the recurring *option objects* (`mono`, `heading`, `field`).
+`style.bs` holds the recurring *option objects* (`mono`, `heading`, `field`).
 What is missing is the layer above — the composites every panel re-spells, each
 found hand-built in four to six places:
 
@@ -122,9 +122,9 @@ second call reads that record back and clears it. One flag is new, `S.focus`,
 and only so the chip can light and the record can be dropped when a panel is
 opened under it. The hooks list stays: the file's symbols are what a reader
 is in the code for. Nothing else in the shell learns a state, because
-`layout.rn` hands a folded sheet's width back to the centre today, so the
+`layout.bs` hands a folded sheet's width back to the centre today, so the
 code pane widens by the rects it already computes. A box at zero width still
-took the row's gap beside it, so `layout.rn` hides the rail slot and the
+took the row's gap beside it, so `layout.bs` hides the rail slot and the
 hooks list outright and the pair reach the gutter, as the top bar does. The tool rail needs no rule at all: it is hidden whenever a
 document owns the centre.
 
@@ -186,6 +186,6 @@ The numbering is the original plan's; phases 1 and 2 are done.
   screens it has.
 - The 3D viewport's contents — grid, gizmo geometry, collider overlays. That
   is `render` work, not shell work.
-- The token palette. The ink-and-blue set in `theme.rn` matches the website
+- The token palette. The ink-and-blue set in `theme.bs` matches the website
   and is not in question; only the surfaces that misuse it are.
 - Free-floating, user-arranged panels. Sheets float; they do not move.

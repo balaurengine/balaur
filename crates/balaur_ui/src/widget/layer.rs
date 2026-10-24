@@ -11,13 +11,14 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
 use crate::widget::arrange::{
-    Axis, contain, hold_to, lay_out, padding_of, record_measure, record_rect, roll_measurements,
-    scroller, settle_rects, solved_of, tabs,
+    Axis, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, solved_of, tabs,
 };
 use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
 };
 use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
+use crate::widget::paint::{self, Brush};
 use crate::widget::theme::{
     Pointer, Style, WidgetState, WidgetTheme, face, rich, styled, theme_of,
 };
@@ -61,8 +62,7 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
     area.intersect(safe)
 }
 
-/// Draw every widget entity. Runs inside the frame's egui pass, after the
-/// scripts' `draw_ui`.
+/// Draw every widget entity. Runs inside the frame's egui pass.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
@@ -159,11 +159,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         draw_root(ctx, &mut painting, root, area, fade);
         toasts.drew(&placed[root]);
     }
-    // Published at the end of the draw, not the start of the next one: a
-    // script's `draw_ui` runs after this and reads this frame's rects.
-    settle_rects();
-    roll_measurements();
-    crate::widget::taffy::sweep(eng);
+    settle(eng, ctx);
     let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
@@ -179,6 +175,18 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::toast::clear(eng, &toasts.expired());
     let arrived = focus_moved(eng, was_focused, taking, &mut edits);
     crate::widget::input::record(eng, &clicked, edits, arrived);
+}
+
+/// What the draw leaves for the next one: this frame's rects published, at
+/// the end of the draw rather than the start of the next one, so a script
+/// reads them a frame behind at most; the boxes that moved and a paste no
+/// field took said.
+fn settle(eng: &Engine, ctx: &egui::Context) {
+    settle_rects();
+    crate::widget::arrange::report_resized(eng);
+    crate::widget::input::hear_paste(eng, ctx);
+    roll_measurements();
+    crate::widget::taffy::sweep(eng);
 }
 
 /// Draw one root into the area its surface gives it, and record where it
@@ -267,6 +275,11 @@ fn draw_root(
         }
         draw_one(ui, painting, root);
     };
+    // A root's first egui pass only measures it, so a rerun draws the scene
+    // in this frame instead of one bare frame of clear colour.
+    let first_pass = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .is_none();
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
@@ -284,6 +297,9 @@ fn draw_root(
     } else {
         root_area.show(ctx, |ui| fill(ui, painting)).response
     };
+    if first_pass {
+        ctx.request_discard("a widget root's first pass");
+    }
     painting.assigned = egui::Vec2::ZERO;
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
@@ -599,6 +615,9 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
+    /// Where a `code` widget's caret moved to: its point in design pixels,
+    /// and its index in characters.
+    Caret(f32, f32, usize),
     /// The pointer came over the widget, or left it.
     Entered,
     Left,
@@ -718,6 +737,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
             | w::PANEL
             | w::ROW
             | w::COLUMN
+            | w::INSPECTOR
             | w::GRID
             | w::STACK
             | w::FLOW
@@ -752,7 +772,14 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let look = at.look(index);
     let (color, font) = (look.ink, look.font.clone());
-    let (tooltip, cursor, entity) = (widget.tooltip.clone(), widget.cursor.clone(), placed.entity);
+    let (tooltip, entity) = (widget.tooltip.clone(), placed.entity);
+    // The pointer over it: the node's own word, else the theme's, none off.
+    let themed = look.style.cursor.as_deref();
+    let cursor = match (widget.cursor.is_empty(), widget.disabled) {
+        (false, _) => widget.cursor.clone(),
+        (true, true) => SmolStr::default(),
+        (true, false) => themed.map_or_else(SmolStr::default, SmolStr::new),
+    };
     let through = widget.pointer_through;
     if widget.disabled {
         ui.disable();
@@ -789,55 +816,12 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::IMAGE => image(ui, at, index),
         // Taffy placed a grid's and a flow's children like a row's.
         w::ROW | w::GRID | w::FLOW => contain(ui, at, index, Axis::Row),
-        w::COLUMN => contain(ui, at, index, Axis::Column),
+        w::COLUMN | w::INSPECTOR => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
         w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
         w::TABS => tabs(ui, at, index),
-        // The rect a script fills. The node owns the placement, the script
-        // owns everything inside it, and neither has to know the other.
-        w::DRAW => {
-            if widget.draw.is_empty() {
-                return;
-            }
-            let want = solved_of(widget, &at.style_of(widget), at.assigned);
-            let room = ui.max_rect();
-            let size = vec2(
-                if want.x > 0.0 { want.x } else { room.width() },
-                if want.y > 0.0 { want.y } else { room.height() },
-            );
-            let rect = egui::Rect::from_min_size(room.min, size);
-            let entity = placed.entity;
-            let target = widget.draw.clone();
-            // A row's body sits on the row's centre line, where `ui::align_right`
-            // puts its own run: a field and the dropdown after it are one line.
-            let layout = *ui.layout();
-            let layout = if layout.is_horizontal() {
-                layout.with_cross_align(egui::Align::Center)
-            } else {
-                layout
-            };
-            let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
-            inner.set_clip_rect(rect.intersect(ui.clip_rect()));
-            crate::bridge::scoped_named(
-                at.eng,
-                &mut inner,
-                balaur_core::node_id_of(entity),
-                &target,
-            );
-            // What the script painted, not the box it was handed: a hatch
-            // given the whole sheet would ask for it ever after.
-            let used = inner.min_rect().size();
-            record_measure(entity, used);
-            ui.advance_cursor_after_rect(egui::Rect::from_min_size(
-                rect.min,
-                vec2(
-                    if want.x > 0.0 { want.x } else { used.x },
-                    if want.y > 0.0 { want.y } else { used.y },
-                ),
-            ));
-        }
         _ => crate::widget::text::label(ui, at, index, (&caption, &font, color), &look.style),
     }
     tip(ui, entity, &tooltip);
@@ -999,7 +983,7 @@ fn panel(
     let style = at.style_of(widget);
     let pad = padding_of(widget, &style);
     let box_size = solved_of(widget, &at.style_of(widget), at.assigned);
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     // Top down whatever the parent runs: a caption in a centred row was
     // drawn halfway down the box, over the children placed under it.
@@ -1035,7 +1019,7 @@ fn panel(
     if let Some(path) = style.image.as_ref() {
         crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, background);
     } else {
-        ui.painter().set(
+        Brush::of(ui).set(
             plate,
             crate::widget::theme::frame_shape(
                 background,
@@ -1072,8 +1056,17 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             warn_once(&widget.source, &err);
             if !widget.egui.alt_text.is_empty() {
                 let look = at.look(index);
-                let words = egui::RichText::new(widget.egui.alt_text.as_str());
-                ui.label(words.font(look.font.clone()).color(look.ink));
+                let words = egui::RichText::new(widget.egui.alt_text.as_str())
+                    .font(look.font.clone())
+                    .color(look.ink);
+                let galley = egui::WidgetText::from(words).into_galley(
+                    ui,
+                    None,
+                    ui.available_width(),
+                    egui::TextStyle::Body,
+                );
+                let (rect, _) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
+                Brush::of(ui).galley(rect.min, galley, look.ink);
             }
             return;
         }
@@ -1091,11 +1084,11 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // stretches to the box.
         let (rect, response) = ui.allocate_exact_size(size, sense);
         if let Some(fill) = style.fill {
-            ui.painter().rect_filled(rect, 0.0, fill);
+            Brush::of(ui).fill(rect, 0.0, fill);
         }
         let shapes =
             crate::widget::kinds::nine_patch_tinted(texture.id(), native, rect, widget.slice, tint);
-        ui.painter().add(egui::Shape::Vec(shapes));
+        Brush::of(ui).add(paint::group(shapes));
         response.clicked()
     } else if widget.fit.is_empty() {
         let mut picture = picture_of(&texture, size, uv, o, &style);
@@ -1107,7 +1100,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let box_size = solved_of(widget, &style, at.assigned).max(size);
         let (rect, response) = ui.allocate_exact_size(box_size, sense);
         if let Some(fill) = style.fill {
-            ui.painter().rect_filled(rect, 0.0, fill);
+            Brush::of(ui).fill(rect, 0.0, fill);
         }
         let held = fitted(&widget.fit, rect, native);
         picture_of(&texture, held.size(), uv, o, &style).paint_at(ui, held);

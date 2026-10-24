@@ -40,7 +40,7 @@ pub(crate) fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Re
         }
     }
     if ran == 0 {
-        println!("no tests: put `.rn` files under tests/");
+        println!("no tests: put `.bs` files under tests/");
         return Ok(());
     }
     println!("{} passed, {failed} failed", ran - failed);
@@ -50,7 +50,7 @@ pub(crate) fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Re
     Ok(())
 }
 
-/// Every `.rn` under `tests/`, project-relative and sorted.
+/// Every `.bs` under `tests/`, project-relative and sorted.
 pub(crate) fn test_scripts(project_root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut dirs = vec![project_root.join("tests")];
@@ -62,7 +62,7 @@ pub(crate) fn test_scripts(project_root: &Path) -> Vec<String> {
             let path = entry.path();
             if path.is_dir() {
                 dirs.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
+            } else if path.extension().is_some_and(|e| e == "bs")
                 && let Ok(rel) = path.strip_prefix(project_root)
             {
                 out.push(rel.to_string_lossy().replace('\\', "/"));
@@ -87,4 +87,46 @@ pub(crate) fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()
         app.tick(balaur::fixed_dt());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{run_test, test_scripts};
+
+    #[test]
+    fn a_bs_test_fails_on_a_logged_error_or_a_trap() {
+        balaur::logbuf::capture_for_test();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        let test = |name: &str, body: &str| {
+            let source =
+                format!("pub struct T {{ node: Node }}\nimpl T {{ fn init() {{ {body} }} }}\n");
+            std::fs::write(dir.path().join(format!("tests/{name}.bs")), source).unwrap();
+        };
+        test("pass", "if 1 + 1 != 2 { log::error(\"sums\"); }");
+        test("said", "if 1 + 1 != 3 { log::error(\"not three\"); }");
+        test("trap", "let none: [int] = []; let x = none[1];");
+        std::fs::write(dir.path().join("tests/old.rn"), "pub fn init(this) {}\n").unwrap();
+        assert_eq!(
+            test_scripts(dir.path()),
+            ["tests/pass.bs", "tests/said.bs", "tests/trap.bs"]
+        );
+        let errors_of = |rel: &str| {
+            balaur::logbuf::clear();
+            run_test(dir.path(), rel, 2).unwrap();
+            balaur::logbuf::recent(500)
+                .into_iter()
+                .filter(|e| e.level == "error")
+                .count()
+        };
+        assert_eq!(errors_of("tests/pass.bs"), 0);
+        assert!(errors_of("tests/said.bs") >= 1, "a logged error fails it");
+        assert!(errors_of("tests/trap.bs") >= 1, "a trap fails it");
+    }
 }

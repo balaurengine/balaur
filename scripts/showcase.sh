@@ -63,7 +63,6 @@ milestones="
 0.2 editor_import
 0.2 import_async
 0.2 addon_completion
-0.2 godot_import
 0.2 concave_pieces
 0.2 concave_beam
 0.2 pause_states
@@ -96,8 +95,7 @@ img="$site/priv/static/img/manual"
 vid="$site/priv/static/video"
 work=target/showcase
 mkdir -p "$img" "$vid" "$work"
-# Where the editor keeps its own files. `convert:` reads a folder from here,
-# because it is the one directory outside a project the editor may reach.
+# Where the editor keeps its own files: a replay's recordings land here.
 case "$(uname -s)" in
   Darwin) data="$HOME/Library/Application Support/balaur/balaur-editor" ;;
   *) data="${XDG_DATA_HOME:-$HOME/.local/share}/balaur/balaur-editor" ;;
@@ -124,7 +122,7 @@ wanted() { # wanted <name>: true when the name and milestone filters allow it
 
 # Every file a sequence may write, scene files included: a save that lands on
 # the document re-serialises its TOML.
-edited=(examples/hello/scripts/spinner.rn examples/shaders/shaders/glow.wesl
+edited=(examples/hello/scripts/spinner.bs examples/shaders/shaders/glow.wesl
   examples/hello/scenes/main.toml examples/angrynerds/scenes/main.toml
   examples/rig/scenes/main.toml examples/shaders/scenes/main.toml)
 # Keyed by the whole path: every example's scene file is called main.toml,
@@ -195,26 +193,6 @@ import_clip() { # import_clip <name> <project> <frames> <state> <file>...
   shift 4
   clip "$name" "$project" "$frames" "imports:$(import_list "$@"),$state"
   import_clean "$project" "$@"
-}
-
-# The start screen converting another engine's project. GODOT_PROJECT names
-# the folder, and without one the take is skipped: no checkout carries it.
-godot_clip() { # godot_clip <name> <frames>
-  wanted "$1" || return 0
-  local src=${GODOT_PROJECT:-}
-  if [ -z "$src" ] || [ ! -f "$src/project.godot" ]; then
-    printf '%-22s clip   skipped: GODOT_PROJECT names no Godot project\n' "$1"
-    return 0
-  fi
-  # Copied into the editor's data directory, the one folder outside its own
-  # project that `convert:` may reach; the name is what the screen says.
-  local into="$data/$(basename "$src")"
-  rm -rf "$into" "$into-balaur"
-  mkdir -p "$into"
-  rsync -a --exclude .git --exclude .godot --exclude .cache --exclude 'store_*' \
-    --exclude export --exclude packs --exclude docs "$src/" "$into/"
-  clip "$1" examples/hello "$2" "manager,show:godot,convert:$into"
-  rm -rf "$into" "$into-balaur"
 }
 
 # A running project's own window, for an example whose subject is its screen
@@ -447,9 +425,6 @@ clip shader_preview    examples/shaders    1160 "show:shaders"
 clip script_focus      examples/hello      640  "show:focus"
 clip project_start     examples/hello      600  "show:manager"
 clip theme_editor      examples/hello      1040 "show:theme_editor"
-# The take ends part way: a project of this size is half a minute of importing,
-# and the clip runs at the rate it really goes rather than being sped up.
-godot_clip godot_import 840
 # Four files importing at once, the dock's list filling while the editor keeps
 # drawing: the whole point of the job that writes a few files a frame.
 import_clip import_async examples/angrynerds 620 "show:importing" \

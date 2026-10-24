@@ -1,0 +1,67 @@
+// The HUD's one script: the axes, the zoom and the folded bottom dock's
+// handle along the scene's foot, shown and read as the Editor says.
+
+pub struct Hud {
+    node: Node,
+    editor: Node,
+}
+
+impl Hud {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "stage_changed", self.editor);
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" {
+            return;
+        }
+        let matched1 = node.name();
+        let verb = if matched1 == "Out" {
+            "zoom_out"
+        } else if matched1 == "In" {
+            "zoom_in"
+        } else if matched1 == "Open" {
+            "open_bottom"
+        } else {
+            ""
+        };
+        if verb != "" {
+            self.editor.call("stage_verb", verb);
+        }
+    }
+
+    fn refresh() {
+        let view = self.editor.call("hud_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")).with("height", view.get("h")));
+        if !view.get("shown").as_bool() {
+            return;
+        }
+        let axes = self.node.get_node("Axes/Row");
+        axes.get_node("X").patch_component("widget", map().with("text_color", view.get("x_ink")));
+        axes.get_node("Y").patch_component("widget", map().with("text_color", view.get("y_ink")));
+        let zoom = self.node.get_node("Zoom/Row");
+        for name in ["Out", "In"] {
+            zoom.get_node(name).patch_component("widget", map()
+                .with("width", view.get("step"))
+                .with("height", view.get("step"))
+                .with("text_color", view.get("quiet_ink")));
+        }
+        zoom.get_node("In").patch_component("widget", map().with("icon", view.get("add_icon")));
+        zoom.get_node("Reading").patch_component("widget", map().with("text", view.get("zoom")));
+        let bottom = self.node.get_node("Bottom");
+        bottom.patch_component("widget", map().with("visible", view.get("bottom")));
+        bottom.get_node("Open").patch_component("widget", map()
+            .with("icon", view.get("bottom_icon"))
+            .with("width", view.get("step").as_float() + 6.0)
+            .with("height", view.get("step").as_float() + 6.0)
+            .with("text_color", view.get("quiet_ink")));
+    }
+}

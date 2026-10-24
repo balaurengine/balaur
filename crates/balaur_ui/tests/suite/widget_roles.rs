@@ -187,14 +187,14 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
         "Rest",
         toml::toml! { kind = "column" grow = 1.0 role = "wide" }.into(),
     );
-    // The page inside it: a `draw` is sized by what a script painted, which
-    // is what the start screen's body holds.
+    // The page inside it, growing into what is left, as the start screen's
+    // body does.
     let page = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Page", rest);
     balaur::components::add(
         &app.engine,
         page,
         "widget",
-        Some(&toml::toml! { kind = "draw" draw = "paint" grow = 1.0 }.into()),
+        Some(&toml::toml! { kind = "column" grow = 1.0 }.into()),
     )
     .unwrap();
     let ctx = egui::Context::default();

@@ -1,7 +1,7 @@
 //! The flags that stop a body catching on a seam between two faces, and the
 //! one-way platform that has to hold whichever side of a contact pair it is.
 
-use balaur::{AppConfig, standard_app};
+use balaur::standard_app;
 use balaur_core::App;
 use balaur_core::scene::{Transform, find_node};
 use balaur_physics::rapier2d::parry::shape::PolylineFlags;
@@ -25,8 +25,8 @@ fn run(scene: &str, script: &str, frames: u32) -> App {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
@@ -195,7 +195,7 @@ one_way = true
 id = "n_body_a"
 name = "BodyA"
 parent = "n_level"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [0.0, -2.0, 0.0]
@@ -211,7 +211,7 @@ radius = 0.3
 id = "n_body_b"
 name = "BodyB"
 parent = "n_level"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 
 [nodes.transform]
 position = [10.0, -2.0, 0.0]
@@ -237,8 +237,11 @@ size = [8.0, 0.2]
 one_way = true
 "#;
 
-const RISE: &str = r"pub fn init(this) {
-    this.node.body2d.set_linear_velocity(0.0, 15.0);
+const RISE: &str = r"pub struct S { node: Node }
+impl S {
+    fn init() {
+        self.node.body2d.set_linear_velocity(0.0, 15.0);
+    }
 }
 ";
 

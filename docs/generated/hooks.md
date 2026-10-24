@@ -2,10 +2,10 @@
 
 # Hooks
 
-The methods the engine calls on a node's script by name. Each takes the
-instance first, `pub fn update(this, dt)`, and a script declares only the
-ones it wants. What a component announces is listed with the component in
-[components.md](./components.md).
+The methods the engine calls on a node's script by name. Each is a method
+of the script's struct, `fn update(dt: float)`, and a script declares only
+the ones it wants. What a component announces is listed with the component
+in [components.md](./components.md).
 
 <table>
 <thead><tr><th>hook</th><th>when</th></tr></thead>
@@ -13,7 +13,6 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>init()</code></td><td>Once, when the script is attached and its scene has loaded.</td></tr>
 <tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while paused.</td></tr>
 <tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while paused.</td></tr>
-<tr><td><code>draw_ui()</code></td><td>Every UI pass, for immediate <code>ui::*</code> calls.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
 <tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>
@@ -32,6 +31,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
 <tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
+<tr><td><code>on_widget_event(event, node, value)</code></td><td>A widget at or under the node had an event (<code>click</code>, <code>change</code>, <code>submit</code> and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>

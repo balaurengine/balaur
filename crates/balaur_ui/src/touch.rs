@@ -1,0 +1,74 @@
+//! Drawing the touch controls `balaur_input` hit-tests.
+//!
+//! The split is the plan's: a control is a component so the tick can read it
+//! headless, and only its picture needs a window. Nothing here decides
+//! anything -- the placement and the pressed state were settled at the top of
+//! the tick, and this reads them back.
+//!
+//! Drawn under the widget tree, so a pause menu covers the stick rather than
+//! the stick floating over the menu.
+
+use balaur_core::Engine;
+use balaur_core::hecs::Entity;
+use balaur_input::{TouchButton, TouchStick};
+use egui::{Color32, Order, pos2};
+
+use crate::widget::paint::Brush;
+
+fn color(channels: [f32; 4]) -> Color32 {
+    let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    Color32::from_rgba_unmultiplied(
+        byte(channels[0]),
+        byte(channels[1]),
+        byte(channels[2]),
+        byte(channels[3]),
+    )
+}
+
+/// Paint every control in the scene. Called by the windowed backend after the
+/// widget pass, on the layer below it.
+pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
+    // A placement is physical pixels, because that is what a finger arrives
+    // in, and egui paints in points. One divide is the whole difference.
+    let per_point = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
+    let world = eng.world();
+    let mut buttons = world.query::<(Entity, &TouchButton)>();
+    let mut sticks = world.query::<(Entity, &TouchStick)>();
+    let mut painter = None;
+    for (_, button) in &mut buttons {
+        let Some((center, half)) = button.placement(eng) else {
+            continue;
+        };
+        let painter = painter.get_or_insert_with(|| layer(ctx));
+        let fill = color(if button.pressed {
+            button.pressed_color
+        } else {
+            button.color
+        });
+        let at = pos2(center.0 / per_point, center.1 / per_point);
+        if button.shape == balaur_input::touch_controls::Shape::Circle {
+            painter.disc(at, half.0.max(half.1) / per_point, fill);
+        } else {
+            let size = egui::vec2(half.0 * 2.0, half.1 * 2.0) / per_point;
+            painter.fill(egui::Rect::from_center_size(at, size), 8.0, fill);
+        }
+    }
+    for (_, stick) in &mut sticks {
+        let Some((base, knob)) = stick.placement(eng) else {
+            continue;
+        };
+        let painter = painter.get_or_insert_with(|| layer(ctx));
+        let centre = |c: (f32, f32)| pos2(c.0 / per_point, c.1 / per_point);
+        painter.disc(centre(base.0), base.1 / per_point, color(stick.color));
+        painter.disc(centre(knob.0), knob.1 / per_point, color(stick.knob_color));
+    }
+}
+
+/// One layer for every control, made only when there is something to put on
+/// it: an empty scene should not cost a layer per frame.
+fn layer(ctx: &egui::Context) -> Brush {
+    Brush::layer(
+        ctx,
+        egui::LayerId::new(Order::Background, egui::Id::new("balaur-touch-controls")),
+    )
+}

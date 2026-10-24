@@ -7,6 +7,9 @@
 /// The two hooks the engine calls by name, and the [`BINDABLE`] events whose
 /// rows run beside them.
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
+/// Called on the nearest script at or above a widget that had an event, so
+/// one panel script answers every control under it.
+pub const ON_WIDGET_EVENT: &str = "on_widget_event";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
 pub const VARIABLE_CHANGED: &str = "variable_changed";
 pub const STATE_CHANGED: &str = "state_changed";
@@ -47,7 +50,6 @@ pub const ON_LOCALE_CHANGED: &str = "on_locale_changed";
 pub const INIT: &str = "init";
 pub const UPDATE: &str = "update";
 pub const FIXED_UPDATE: &str = "fixed_update";
-pub const DRAW_UI: &str = "draw_ui";
 pub const ON_FREE: &str = "on_free";
 pub const ON_HOT_RELOAD: &str = "on_hot_reload";
 pub const DEFAULTS: &str = "defaults";
@@ -127,7 +129,6 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (INIT, "()", "Once, when the script is attached and its scene has loaded."),
     (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while paused."),
     (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while paused."),
-    (DRAW_UI, "()", "Every UI pass, for immediate `ui::*` calls."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
     (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),
@@ -146,6 +147,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
     ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
     ("on_resize", "(width, height)", "The window changed size, told to every node."),
+    (ON_WIDGET_EVENT, "(event, node, value)", "A widget at or under the node had an event (`click`, `change`, `submit` and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),

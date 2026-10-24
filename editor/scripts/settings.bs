@@ -1,0 +1,639 @@
+// The settings screen: every setting the engine, its plugins and this game
+// declare, grouped by the first segment of its path and searchable by any.
+
+use editor;
+use pool;
+use search;
+use shell;
+use signals;
+use style;
+use theme;
+use themewin;
+use util;
+use window;
+
+pub class SettingsState {
+    at: str,
+    dirty: bool,
+    compact: bool,
+    demo: int,
+    target: str,
+}
+
+// The search field this screen filters with; `crate::search` keys its own
+// buffer by the same id.
+const FIELD: str = "settings";
+
+pub fn state() -> SettingsState {
+    SettingsState {
+        // The category showing, "" until the first is picked.
+        at: "",
+        dirty: false,
+        // What `editor/appearance/compact` asks for, which the window width
+        // can only add to.
+        compact: false,
+        // Where `--state settingsdemo` has got to; -1 when it is not running.
+        demo: -1,
+        // The tag the header offers an override for, "" for none: one choice
+        // for the page, as Godot's "Override For", not a picker per row.
+        target: "",
+    }
+}
+
+// The search box's own buffer is the query: typing in it and a deep link
+// write the same text. Non-empty means the list is results, not categories.
+fn set_query(S: &mut editor::State, text: str) {
+    search::typed(S, FIELD, text);
+}
+
+pub fn query(S: editor::State) -> str {
+    search::query(S, FIELD)
+}
+
+// Open on a search, for a screenshot or a "configure this" link that knows
+// the word but not the page.
+pub fn open_search(S: &mut editor::State, query: str) {
+    open(S);
+    set_query(S, query);
+}
+
+// Open at a named category, for a screenshot or a deep link from a dock.
+pub fn open_at(S: &mut editor::State, category: str) {
+    open(S);
+    S.settings.at = category;
+}
+
+pub fn open(S: &mut editor::State) {
+    window::show(S, "settings");
+    load_files(S);
+}
+
+/// Read both settings files and apply what the editor acts on. Called at boot
+/// and again when the window opens, so a hand edit between the two is not
+/// silently reverted on the next write.
+pub fn load_files(S: &mut editor::State) {
+    // With no project open there is no manifest to read: a relative path off
+    // an empty root is a path outside every root there is.
+    if S.game_root != "" {
+        let manifest = fs::read(S.game_root + "/project.toml");
+        if manifest.is_some() {
+            settings::merge_toml(manifest.unwrap());
+        }
+    }
+    let prefs = fs::read(prefs_path());
+    if prefs.is_some() {
+        settings::merge_toml(prefs.unwrap());
+    }
+    apply(S);
+}
+
+// The editor's own settings are the person's, in the folder every project shares.
+pub fn prefs_path() -> str {
+    project::editor_data_directory() + "/editor.toml"
+}
+
+// Categories in definition order, project first: a game author looks for what
+// ships far more often than for what does not.
+fn categories() -> [str] {
+    let all = settings::all();
+    let seen: [str] = [];
+    for scope in ["project", "editor"] {
+        for def in all {
+            if def.scope == scope && !util::contains(seen, def.category) {
+                seen.push(def.category);
+            }
+        }
+    }
+    seen
+}
+
+// Where each category is listed: one with anything that ships is a project
+// one, and its editor-only rows follow under their own heading.
+fn scopes() -> any {
+    let out = map();
+    for def in settings::all() {
+        if def.scope == "project" || !out.has(def.category) {
+            out.set(def.category, def.scope);
+        }
+    }
+    out
+}
+
+fn scope_of(category: str) -> str {
+    let found = scopes().get(category);
+    if found.is_nil() { "project" } else { found.as_str() }
+}
+
+fn current(S: editor::State) -> str {
+    let all = categories();
+    if all.len() == 0 {
+        return "";
+    }
+    if util::contains(all, S.settings.at) {
+        return S.settings.at;
+    }
+    all[0]
+}
+
+// What the list shows: the search results when there is a query, otherwise
+// everything in the chosen category, project rows first and each in the
+// order it asks for.
+fn showing(S: editor::State) -> [settings::Setting] {
+    let query = query(S).to_lower();
+    let at = current(S);
+    let rows: [settings::Setting] = [];
+    for def in settings::all() {
+        let matches = if query == "" {
+            def.category == at
+        } else {
+            // The path and the help both, so "packet" finds `multiplayer/loss`
+            // by its sentence when its name does not say it.
+            def.path.to_lower().contains(query) || def.spec.help.as_str().to_lower().contains(query)
+        };
+        if matches {
+            // Slid in after every row that ranks the same or before, so equal
+            // ranks keep their definition order.
+            let at_rank = 0;
+            while at_rank < rows.len() && rank_of(rows[at_rank]) <= rank_of(def) {
+                at_rank += 1;
+            }
+            rows.insert(at_rank, def);
+        }
+    }
+    rows
+}
+
+// Project rows before editor ones, each in the order it asks for.
+fn rank_of(def: settings::Setting) -> float {
+    let tail = if def.scope == "editor" { 100000.0 } else { 0.0 };
+    tail + order_of(def)
+}
+
+fn order_of(def: settings::Setting) -> float {
+    let order = def.spec.order;
+    if order.is_nil() { 1000.0 } else { util::f(order) }
+}
+
+// `editor/appearance/theme` groups under "appearance"; `physics/gravity`
+// under nothing, since there is nothing between its category and its key.
+fn group_of(def: settings::Setting) -> str {
+    let parts = def.label.split("/");
+    if parts.len() < 2 { "" } else { parts[0] }
+}
+
+// The last segment: what a row is labelled inside its group.
+fn key_of(def: settings::Setting) -> str {
+    util::leaf(def.path)
+}
+
+// Write both files. Only the paths a scope defines are touched, so a comment
+// or an unrelated table in project.toml survives.
+pub fn commit(S: &mut editor::State) {
+    commit_project(S);
+    commit_prefs(S);
+    S.settings.dirty = false;
+}
+
+/// The game's half alone: what a choice made outside this screen saves.
+pub fn commit_project(S: editor::State) {
+    let path = S.game_root + "/project.toml";
+    fs::write(path, settings::to_toml("project", fs::read(path).or("")));
+}
+
+/// The editor's half alone: what a self-test can round-trip without rewriting
+/// the game's manifest.
+pub fn commit_prefs(S: editor::State) {
+    fs::write(prefs_path(), settings::to_toml("editor", fs::read(prefs_path()).or("")));
+}
+
+// Under this the list of categories goes above the rows rather than beside
+// them: two columns of 190 and a row's own controls do not fit a phone.
+const STACK_BELOW: float = 520.0;
+
+// The sidebar's own column, and the air between it and the rows. A row that
+// measured the whole sheet wrapped its help under the sidebar and ran past
+// the sheet's edge.
+const SIDEBAR_W: float = 190.0;
+
+const SIDEBAR_GAP: float = 20.0;
+
+/// What a settings row has across it: the sheet, less the sidebar where one
+/// is beside it.
+fn row_w(S: editor::State) -> float {
+    let inner = window::inner_w(S);
+    if ui::window_size().x < STACK_BELOW {
+        return inner;
+    }
+    util::max(inner - SIDEBAR_W - SIDEBAR_GAP, 160.0)
+}
+
+/// Fill the sheet: what its script asks for when Settings is up.
+pub fn fill(S: &mut editor::State) {
+    let k = S.theme;
+    let stacked = ui::window_size().x < STACK_BELOW;
+    let found = window::sheet_form(S, "settings", "Settings", save_button(S));
+    if found.is_none() {
+        return;
+    }
+    let hosts = found.unwrap();
+    // Built again only when what the rows show moved: every definition and
+    // value is behind `settings::revision`.
+    let key = [
+        settings::revision(),
+        query(S),
+        S.settings.at,
+        S.settings.target,
+        stacked,
+        S.touchscreen,
+    ];
+    // Narrow, the categories go above the rows rather than beside them: a
+    // sidebar and a column of settings leave neither enough room.
+    if pool::strip_due(S, hosts.side_rows, key) {
+        pool::strip_keyed(S, hosts.side_rows, key, if stacked { util::vec(nil) } else { side_controls(S, k) });
+    }
+    util::fill(hosts.side, map().with("visible", !stacked));
+    let w = label_w(S);
+    if pool::sync_due(S, hosts.form, key, w, stacked) {
+        let specs = form_specs(S, k);
+        if stacked {
+            specs.insert(0, picker_spec(S));
+        }
+        pool::sync_keyed(S, hosts.form, key, w, stacked, specs);
+    }
+}
+
+/// The label column a settings row keeps, and the picker a narrow sheet
+/// shows in place of its sidebar.
+fn label_w(S: editor::State) -> float {
+    util::clamp(row_w(S) * 0.42, 120.0, 260.0)
+}
+
+fn picker_spec(S: editor::State) -> any {
+    let picker = map()
+        .with("kind", "dropdown")
+        .with("role", "choice_form")
+        .with("grow", 1)
+        .with("text", current(S))
+        .with("options", categories());
+    map().with("full", true).with("height", style::row_h(S)).with("controls", [pool::on(picker, picker_spec_on_4, map())])
+}
+
+fn picker_spec_on_4(S: &mut editor::State, data: any, picked: any) {
+    set_query(S, "");
+    S.settings.at = picked.as_str();
+}
+
+// Save, beside the close, while there is something to save.
+fn save_button(S: editor::State) -> [any] {
+    if !S.settings.dirty {
+        return [];
+    }
+    let save = [
+        map()
+            .with("kind", "button")
+            .with("role", "action_form_primary")
+            .with("text", "Save")
+            .with("on", "handle")
+            .with("data", map().with("fn", save_button_on_5)),
+    ];
+    save
+}
+
+fn save_button_on_5(S: &mut editor::State, data: any, _0: any) {
+    commit(S);
+}
+
+/// The column down the left: the search box, and a row per category under
+/// the scope it belongs to.
+fn side_controls(S: editor::State, k: any) -> [any] {
+    let out = [search::control(S, FIELD, "Search", SIDEBAR_W)];
+    let scope = "";
+    let at = current(S);
+    let scopes = scopes();
+    for name in categories() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let category = name;
+        let got1 = scopes.get(category);
+        let here = if got1.is_nil() { "project" } else { got1.as_str() };
+        if here != scope {
+            scope = here;
+            out.push(map()
+                .with("kind", "label")
+                .with("role", "text_caption")
+                .with("text", if scope == "project" { "PROJECT" } else { "THIS EDITOR" }));
+        }
+        let on = query(S) == "" && category == at;
+        out.push(map()
+            .with("kind", "button")
+            .with("text", category)
+            .with("role", "item_sidebar")
+            .with("checked", on)
+            .with("on", "handle")
+            .with("data", map().with("fn", side_controls_on_6).with("category", category)));
+    }
+    out
+}
+
+fn side_controls_on_6(S: &mut editor::State, data: any, _0: any) {
+    let category: any = data.category;
+    set_query(S, "");
+    S.settings.at = category.as_str();
+}
+
+/// Every row the form shows: a note at its head, a heading per group, and a
+/// row per setting with its help under it.
+fn form_specs(S: editor::State, k: any) -> [any] {
+    let rows = showing(S);
+    let out: [any] = [];
+    let h = style::row_h(S);
+    if query(S) != "" {
+        out.push(note_spec("{rows.len()} matching \"{query(S)}\""));
+    } else if scope_of(current(S)) == "project" {
+        out.push(map()
+            .with("full", true)
+            .with("height", 34)
+            .with("controls", [
+                map()
+                    .with("kind", "label")
+                    .with("role", "text_caption")
+                    .with("grow", 1)
+                    .with("text", "Written to project.toml, and shipped with the game."),
+                target_control(S),
+            ])
+            .with("slot_role", "layout_actions"));
+    } else {
+        out.push(note_spec("Kept in this editor only, and never written to the project."));
+    }
+    if rows.len() == 0 {
+        out.push(note_spec(search::nothing_says(query(S))));
+        return out;
+    }
+    // Grouped by the middle of the path, in the order the first setting of
+    // each group asks for. A search result skips the headings: its rows show
+    // whole paths, and a heading would say the same thing.
+    let searching = query(S) != "";
+    let group = "";
+    let scope = scope_of(current(S));
+    for def in rows {
+        if !searching && def.scope != scope {
+            scope = def.scope;
+            group = "";
+            out.push(head_spec("THIS EDITOR"));
+        }
+        let here = group_of(def);
+        if !searching && here != group {
+            group = here;
+            if group != "" {
+                out.push(head_spec(group.to_upper()));
+            }
+        }
+        let path = def.path;
+        let controls = [editor_control(S, def, path)];
+        if path == theme::SETTING {
+            controls.push(map()
+                .with("kind", "button")
+                .with("role", "action_form_primary")
+                .with("text", "Edit…")
+                .with("tooltip", "Open the Theme dialog")
+                .with("on", "handle")
+                .with("data", map().with("fn", form_specs_on_7)));
+        }
+        out.push(map()
+            .with("full", false)
+            .with("height", h)
+            .with("controls", controls)
+            .with("slot_role", "layout_actions")
+            .with("label", if searching { path } else { key_of(def) }));
+        let help = def.spec.help.as_str();
+        if help != "" {
+            let tail = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
+            out.push(note_spec(help + tail));
+        }
+        for on in settings::overrides(path) {
+            let at = override_path(on, path);
+            out.push(map()
+                .with("full", false)
+                .with("height", h)
+                .with("controls", [
+                    editor_control(S, def, at),
+                    map()
+                        .with("kind", "button")
+                        .with("role", "chip_quiet")
+                        .with("text", "×")
+                        .with("tooltip", "Reset this override")
+                        .with("on", "handle")
+                        .with("data", map().with("fn", form_specs_on_8).with("at", at)),
+                ])
+                .with("slot_role", "layout_actions")
+                .with("label", "  on " + on));
+        }
+    }
+    out
+}
+
+fn form_specs_on_7(S: &mut editor::State, data: any, _0: any) {
+    themewin::open(S);
+}
+
+fn form_specs_on_8(S: &mut editor::State, data: any, _0: any) {
+    settings::clear(data.at.as_str());
+    S.settings.dirty = true;
+}
+
+/// A line of prose across both columns, and a group's heading.
+fn note_spec(text: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 0)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_caption")
+                .with("grow", 1)
+                .with("wrap", true)
+                .with("text", text),
+        ])
+}
+
+fn head_spec(text: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 24)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_caption")
+                .with("grow", 1)
+                .with("text", text),
+        ])
+}
+
+// The page's one override choice. The dropdown draws what it is handed, so the
+// prompt is its own text until a tag is picked.
+/// Which override a project setting is written to, or none.
+fn target_control(S: editor::State) -> any {
+    let options = ["none"];
+    for tag in settings::known_tags() {
+        options.push(tag);
+    }
+    map()
+        .with("kind", "dropdown")
+        .with("role", "choice_form")
+        .with("width", 170)
+        .with("text", if S.settings.target == "" { "override for…" } else { "override for " + S.settings.target })
+        .with("options", options)
+        .with("on", "handle")
+        .with("data", map().with("fn", target_control_on_9))
+}
+
+fn target_control_on_9(S: &mut editor::State, data: any, picked: any) {
+    S.settings.target = if picked.as_str() == "none" { "" } else { picked.as_str() };
+}
+
+fn override_path(tag: str, path: str) -> str {
+    "override/" + tag + "/" + path
+}
+
+// `base`, never `get`: the editor edits what the file says. A screen showing
+// the override this machine happened to match would write it onto the key it
+// overrides.
+/// The control one setting's row carries, by the schema's datatype.
+fn editor_control(S: editor::State, def: settings::Setting, path: str) -> any {
+    let spec = util::obj(def.spec);
+    let datatype = if spec.type.is_nil() { "string" } else { spec.type.as_str() };
+    let value = settings::base(path);
+    if datatype == "bool" {
+        return map()
+            .with("kind", "switch")
+            .with("role", "switch_form")
+            .with("checked", value.as_bool())
+            .with("on", "handle")
+            .with("data", map().with("fn", editor_control_on_10).with("path", path));
+    }
+    if datatype == "enum" {
+        // The person's own themes are folders, so the list is read, not declared.
+        let named = path == theme::SETTING;
+        return map()
+            .with("kind", "dropdown")
+            .with("role", "choice_form")
+            .with("grow", 1)
+            .with("text", if value.kind() == "str" { value.as_str() } else { "" })
+            .with("options", if named { theme::names() } else { util::vec(spec.options) })
+            .with("on", "handle")
+            .with("data", map().with("fn", editor_control_on_11).with("path", path));
+    }
+    if datatype == "int" || datatype == "float" {
+        let low = util::f(spec.min);
+        let high = if !spec.max.is_nil() { util::f(spec.max) } else if datatype == "int" { 1000000.0 } else { 1.0 };
+        // A setting declared with no default reads as nil; the control starts
+        // at its floor instead.
+        let now = if value.is_nil() { low } else { util::f(value) };
+        let whole = datatype == "int";
+        return map()
+            .with("kind", "number_field")
+            .with("role", "input_number")
+            .with("grow", 1)
+            .with("value", now)
+            .with("min", low)
+            .with("max", high)
+            .with("drag_speed", if whole { 1.0 } else { 0.01 })
+            .with("on", "handle")
+            .with("data", map().with("fn", editor_control_on_12).with("path", path).with("whole", whole));
+    }
+    // Everything else reads and writes as text, a comma-separated list
+    // included: a row of its own per entry would be a page per setting.
+    let shown = if datatype == "list" {
+        commas(value)
+    } else if value.kind() == "str" {
+        value.as_str()
+    } else if value.is_nil() {
+        ""
+    } else {
+        "{value}"
+    };
+    map()
+        .with("kind", "text_field")
+        .with("role", "input_form")
+        .with("grow", 1)
+        .with("text", shown)
+        .with("on_submit", "handle_submit")
+        .with("data", map().with("submit", editor_control_on_13).with("path", path).with("datatype", datatype))
+}
+
+fn editor_control_on_10(S: &mut editor::State, data: any, on: any) {
+    write(S, data.path.as_str(), on);
+}
+
+fn editor_control_on_11(S: &mut editor::State, data: any, picked: any) {
+    write(S, data.path.as_str(), picked);
+}
+
+fn editor_control_on_12(S: &mut editor::State, data: any, v: any) {
+    if data.whole.as_bool() {
+        write(S, data.path.as_str(), math::round(v.as_float()) as int);
+    } else {
+        write(S, data.path.as_str(), v);
+    }
+}
+
+fn editor_control_on_13(S: &mut editor::State, data: any, text: any) {
+    if data.datatype.as_str() == "list" {
+        write(S, data.path.as_str(), split_commas(text.as_str()));
+    } else {
+        write(S, data.path.as_str(), text);
+    }
+}
+
+// A list as one line, and back.
+fn commas(value: any) -> str {
+    let out = "";
+    for item in util::vec(value) {
+        if out != "" {
+            out += ", ";
+        }
+        out += "{item}";
+    }
+    out
+}
+
+fn split_commas(text: str) -> [str] {
+    let out: [str] = [];
+    for part in text.split(",") {
+        let item = part.trim();
+        if item != "" {
+            out.push(item);
+        }
+    }
+    out
+}
+
+pub fn write(S: &mut editor::State, path: str, value: any) {
+    settings::set(path, value);
+    S.settings.dirty = true;
+    apply(S);
+    window::changed(S);
+}
+
+// Editor settings take effect as they change, not on save: a theme you have
+// to save to see is a theme you cannot preview.
+pub fn apply(S: &mut editor::State) {
+    let theme_name = settings::get(theme::SETTING);
+    if theme_name.kind() == "str" {
+        theme::use_named(S, theme_name.as_str());
+    }
+    let scale = settings::get("editor/appearance/ui_scale");
+    if !(scale.is_nil()) {
+        shell::ask_ui_scale(S, util::f(scale));
+    }
+    // Kept apart from `S.compact`, which the window width also writes: the
+    // setting forces compact on, it never forces it off.
+    let compact = settings::get("editor/appearance/compact");
+    if compact.kind() == "bool" {
+        S.settings.compact = compact.as_bool();
+    }
+    let verify = settings::get("editor/recordings/verify");
+    if verify.kind() == "bool" {
+        S.session.verify = verify.as_bool();
+        signals::changed(S, "recordings");
+    }
+}

@@ -1,0 +1,562 @@
+//! What a plugin fills its dock with. A plugin cannot `use` the editor's
+//! modules, so each verb is an Editor method it calls by name: `kit_rows`,
+//! `kit_field` and the rest in editor.bs.
+
+// A verb answers a row rather than drawing one: the pool writes the rows onto
+// the subtree the editor made for the dock. A plugin's control says
+// `on: "relay"`, `data: { to, method }`, and gets `method(data, value)`.
+
+use editor;
+use pool;
+use settings;
+use signals;
+use util;
+
+/// The deepest a file browser walks below its root.
+const FOLDER_DEPTH: int = 3;
+
+/// The most of a text file shown inline, in characters.
+const TEXT_SHOWN: int = 4000;
+
+/// How far one level of a tree is indented, in spaces: a row's label is a
+/// node, and the pool gives every row the same label column.
+const INDENT: str = "  ";
+
+/// The label column every kit row keeps.
+const LABEL_W: float = 140.0;
+
+/// A plugin's word that what its docks and dialogs show moved: they fill
+/// again on it, as the editor's own panels do on theirs.
+pub fn changed(S: &mut editor::State) {
+    signals::changed(S, "plugins");
+}
+
+/// Put a plugin's dialog up, by the id it registered it under.
+pub fn open_dialog(S: &mut editor::State, id: str) {
+    S.registry.open.set(id, true);
+    changed(S);
+}
+
+/// Hand a plugin control's edit to the method its `data` names on the node
+/// it names: what `on: "relay"` means.
+pub fn relay(data: any, value: any) {
+    let to = data.to.as_node();
+    if to.is_valid() {
+        to.call(data.method.as_str(), data, value);
+    }
+}
+
+/// Point `save::` at the game's own user data directory, and let `fs` reach
+/// it, so a game played here and the same game run alone keep one set of
+/// saves, and the User data dock can open them.
+pub fn adopt_game_data(S: editor::State) {
+    if S.game_root == "" {
+        project::use_data(nil);
+        return;
+    }
+    project::use_data(game_name(S));
+}
+
+/// The user data directory the open game has when it runs on its own.
+pub fn game_data(S: editor::State) -> str {
+    if S.game_root == "" {
+        return engine::user_data_directory();
+    }
+    engine::user_data_directory_of(game_name(S))
+}
+
+fn game_name(S: editor::State) -> str {
+    let text = fs::read(S.game_root + "/project.toml");
+    if text.is_none() {
+        return "";
+    }
+    toml::parse(text.unwrap()).get("application").get("name").as_str()
+}
+
+/// What a verb remembers between frames: open tabs, open branches, drafts.
+fn memory(S: &mut editor::State) -> any {
+    if S.kit_state.is_nil() {
+        S.kit_state = map();
+    }
+    S.kit_state
+}
+
+fn option(opts: any, key: str, fallback: any) -> any {
+    let found = opts.get(key);
+    if found.is_nil() { fallback } else { found }
+}
+
+// Where each name a plugin uses sits under its host. A name the table does
+// not know is the body, which is where rows belong.
+fn host_path(host: str, name: str) -> str {
+    if name == "head" {
+        return host + "/Head";
+    }
+    if name == "foot" {
+        return host + "/Foot";
+    }
+    if name == "side" {
+        return host + "/Split/Side/SideRows";
+    }
+    host + "/Split/Body/Rows"
+}
+
+/// A row of controls on a named part of the host: `head`, `foot`, or the
+/// `body` that everything else means.
+pub fn bar(S: editor::State, host: str, name: str, controls: any) {
+    pool::strip(S, host_path(host, name), controls);
+}
+
+/// Rows on a named part of the host. A spec is what `pool::sync` takes:
+/// `{ label, controls }`, or `full` for a row across both columns.
+pub fn rows(S: editor::State, host: str, name: str, specs: any) {
+    pool::sync(S, host_path(host, name), specs, LABEL_W, false);
+}
+
+/// The node itself, for a plugin that wants to `add_child` a shape the kit
+/// has no verb for, or to read a rect back.
+pub fn area(host: str, name: str) -> Node {
+    scene::get_node(host_path(host, name))
+}
+
+// A tab or a page button, which remembers itself picked per `id`.
+fn pick_button(S: &mut editor::State, id: str, name: str, role: str, on: bool) -> any {
+    let button = map().with("kind", "button").with("text", name).with("role", role).with("checked", on);
+    pool::on(button, picked, map().with("key", "tab:" + id).with("name", name))
+}
+
+fn picked(S: &mut editor::State, data: any, _value: any) {
+    memory(S).set(data.key.as_str(), data.name);
+    changed(S);
+}
+
+// The name remembered for `id`, while it is still one of `names`; the first
+// of them otherwise.
+fn current_of(S: &mut editor::State, id: str, names: [str]) -> str {
+    let held = memory(S).get("tab:" + id);
+    if held.kind() == "str" && util::contains(names, held.as_str()) { held.as_str() } else { names[0] }
+}
+
+/// Rows of tabs across the host's head, wrapped to the width there is;
+/// answers the one that is open, remembered per `id`.
+pub fn tabs(S: &mut editor::State, host: str, id: str, names: any) -> str {
+    let list: [str] = [];
+    for name in util::vec(names) {
+        list.push(name.as_str());
+    }
+    if list.len() == 0 {
+        return "";
+    }
+    let current = current_of(S, id, list);
+    let controls: [any] = [];
+    for name in list {
+        controls.push(pick_button(S, id, name, "chip", name == current));
+    }
+    bar(S, host, "head", controls);
+    memory(S).set("tab:" + id, current);
+    current
+}
+
+/// A list of pages down the host's sidebar, the way the settings screen is
+/// laid out: what a panel with many views and little height wants. `groups`
+/// is `[{ title, names }]`, and the answer is the page that is open, which
+/// the plugin then fills the body with.
+pub fn pages(S: &mut editor::State, host: str, id: str, groups: any) -> str {
+    let names: [str] = [];
+    for group in util::vec(groups) {
+        for name in util::vec(group.names) {
+            names.push(name.as_str());
+        }
+    }
+    if names.len() == 0 {
+        util::hide(host_path(host, "side"));
+        return "";
+    }
+    let current = current_of(S, id, names);
+    let controls: [any] = [];
+    for group in util::vec(groups) {
+        if group.title.as_str() != "" {
+            controls.push(map().with("kind", "label").with("role", "text_caption").with("text", group.title));
+        }
+        for name in util::vec(group.names) {
+            controls.push(pick_button(S, id, name.as_str(), "item_sidebar", name.as_str() == current));
+        }
+    }
+    bar(S, host, "side", controls);
+    util::fill(host + "/Split/Side", map().with("visible", true));
+    memory(S).set("tab:" + id, current);
+    current
+}
+
+/// A heading between groups of rows.
+pub fn heading(title: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 24)
+        .with("controls", [map().with("kind", "label").with("role", "action_section").with("text", title)])
+}
+
+/// What a panel says when it has nothing.
+pub fn empty(text: str) -> any {
+    map()
+        .with("full", true)
+        .with("height", 0)
+        .with("controls", [
+            map()
+                .with("kind", "label")
+                .with("role", "text_caption")
+                .with("grow", 1)
+                .with("wrap", true)
+                .with("text", text),
+        ])
+}
+
+/// Write the editor's own settings file, after a plugin set an editor-scope
+/// setting it wants kept.
+pub fn save_prefs(S: editor::State) {
+    settings::commit_prefs(S);
+}
+
+/// A labelled value. `mask` hides all but its ends until `show` is pressed,
+/// `copy` adds a copy mark (copying `copy_text` when given), and `role`
+/// dresses the value where the theme has a role for what it says.
+pub fn field(S: &mut editor::State, label: str, value: any, opts: any) -> any {
+    let text = shown(value);
+    let masked = option(opts, "mask", false).as_bool();
+    let key = "shown:" + label;
+    let revealed = memory(S).get(key).as_bool();
+    let controls: [any] = [
+        map()
+            .with("kind", "label")
+            .with("grow", 1)
+            .with("truncate", true)
+            .with("role", option(opts, "role", "text_caption"))
+            .with("text", if masked && !revealed { mask(text) } else { text }),
+    ];
+    if masked {
+        let button = map().with("kind", "button").with("role", "chip").with("text", if revealed { "hide" } else { "show" });
+        controls.push(pool::on(button, field_toggled, map().with("key", key)));
+    }
+    if option(opts, "copy", false).as_bool() {
+        let whole = option(opts, "copy_text", text);
+        let button = map().with("kind", "button").with("role", "chip").with("text", "copy");
+        controls.push(pool::on(button, field_copied, map().with("whole", whole)));
+    }
+    map().with("label", label).with("height", 22).with("slot_role", "layout_actions").with("controls", controls)
+}
+
+fn field_toggled(S: &mut editor::State, data: any, _value: any) {
+    let key = data.key.as_str();
+    let m = memory(S);
+    m.set(key, !m.get(key).as_bool());
+    changed(S);
+}
+
+fn field_copied(S: &mut editor::State, data: any, _value: any) {
+    ui::set_clipboard(data.whole.as_str());
+}
+
+fn mask(text: str) -> str {
+    let chars = text.chars();
+    if chars.len() <= 12 {
+        return "••••••••";
+    }
+    let head = "";
+    let tail = "";
+    for n in 0..4 {
+        head = head + chars[n];
+        tail = tail + chars[chars.len() - 4 + n];
+    }
+    head + "••••••••" + tail
+}
+
+/// The first `most` characters of a text, with a mark when it went on past
+/// them.
+fn head_of(text: str, most: int) -> str {
+    let chars = text.chars();
+    if chars.len() <= most {
+        return text;
+    }
+    let out = "";
+    for n in 0..most {
+        out = out + chars[n];
+    }
+    out + "…"
+}
+
+/// A value as text, the way a row shows it.
+fn shown(value: any) -> str {
+    if value.kind() == "str" {
+        return value.as_str();
+    }
+    if value.is_nil() {
+        return "nil";
+    }
+    if value.kind() == "map" || value.kind() == "list" {
+        return json::encode(value);
+    }
+    "{value}"
+}
+
+/// A value as rows: a map or a list opens and closes, a leaf shows in mono.
+/// With `edit`, a leaf is a field and Enter keeps what was typed: the value
+/// is changed in place and handed whole to `write`, `{ to, method }` naming
+/// the plugin's method that keeps it. Answers `{ specs, value, changed }`;
+/// the caller puts the specs on its host.
+pub fn tree(S: &mut editor::State, id: str, value: any, opts: any) -> any {
+    let none: [any] = [];
+    let out = map().with("specs", none).with("value", value).with("changed", false).with("write", option(opts, "write", nil));
+    let edit = option(opts, "edit", false).as_bool();
+    let label = option(opts, "label", "").as_str();
+    branch(S, out, id, [], label, value, edit, 0);
+    out
+}
+
+fn branch(S: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
+    if value.kind() == "map" || value.kind() == "list" {
+        container(S, out, path, keys, label, value, edit, depth);
+    } else {
+        leaf(out, keys, label, value, edit, depth);
+    }
+}
+
+fn container(S: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
+    let key = "open:" + path;
+    let held = memory(S).get(key);
+    let open = if held.is_nil() { depth == 0 } else { held.as_bool() };
+    let count = if value.kind() == "map" { "{value.len()} keys" } else { "{value.len()} items" };
+    let titled = label != "" || depth > 0;
+    if titled {
+        let button = map()
+            .with("kind", "button")
+            .with("role", "chip")
+            .with("text", indent(depth) + (if open { "▾ " } else { "▸ " }) + label);
+        out.specs.push(map()
+            .with("full", true)
+            .with("height", 22)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                pool::on(button, folded, map().with("key", key).with("open", open)),
+                map().with("kind", "label").with("role", "text_caption").with("text", count),
+            ]));
+    }
+    if !open {
+        return;
+    }
+    let inner = if titled { depth + 1 } else { depth };
+    if value.kind() == "map" {
+        for name in util::keys_sorted(value) {
+            branch(S, out, path + "/" + name, with(keys, name), name, value.get(name), edit, inner);
+        }
+    } else {
+        for n in 0..value.len() {
+            branch(S, out, path + "/{n}", with(keys, n), "{n}", value.at(n), edit, inner);
+        }
+    }
+}
+
+fn folded(S: &mut editor::State, data: any, _value: any) {
+    memory(S).set(data.key.as_str(), !data.open.as_bool());
+    changed(S);
+}
+
+// The keys down to a child, as a list of their own: a list shared between
+// siblings would end with the last one's key.
+fn with(keys: [any], key: any) -> [any] {
+    let out: [any] = [];
+    for k in keys {
+        out.push(k);
+    }
+    out.push(key);
+    out
+}
+
+// A row's own depth, as the spaces before its label: a pooled row's label is
+// a node in a column of them, so the text is what steps right.
+fn indent(depth: int) -> str {
+    util::repeat(INDENT, depth)
+}
+
+fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
+    let text = shown(value);
+    let control = if edit {
+        let field = map().with("kind", "text_field").with("role", "input_form").with("grow", 1).with("text", text);
+        pool::on_submit(field, typed, map().with("text", text).with("out", out).with("keys", keys).with("value", value))
+    } else {
+        map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("truncate", true).with("text", text)
+    };
+    out.specs.push(map().with("height", 22).with("controls", [control]).with("label", indent(depth) + label));
+}
+
+fn typed(S: &mut editor::State, data: any, now: any) {
+    if now.as_str() != data.text.as_str() {
+        let keys: [any] = data.keys;
+        put(data.out, keys, parsed(data.value, now.as_str()));
+    }
+}
+
+// An edited leaf, written into the whole value at its keys and the whole
+// handed to whatever keeps it.
+fn put(out: any, keys: [any], now: any) {
+    out.set("changed", true);
+    if keys.len() == 0 {
+        out.set("value", now);
+    } else {
+        let at = out.value;
+        for n in 0..keys.len() - 1 {
+            at = if keys[n].kind() == "int" { at.at(keys[n].as_int()) } else { at.get(keys[n].as_str()) };
+        }
+        let last = keys[keys.len() - 1];
+        if last.kind() == "int" {
+            at.put(last.as_int(), now);
+        } else {
+            at.set(last.as_str(), now);
+        }
+    }
+    let write = out.write;
+    if write.has("file") {
+        let path = write.file.as_str();
+        fs::write(path, if write.toml.as_bool() { toml::encode(out.value) } else { json::encode(out.value) });
+    } else if !write.is_nil() {
+        let to = write.to.as_node();
+        if to.is_valid() {
+            to.call(write.method.as_str(), out.value);
+        }
+    }
+}
+
+/// What was typed, as the kind of value it replaces: text stays text, and a
+/// number or a switch is read the way a TOML file would read it.
+fn parsed(was: any, typed: str) -> any {
+    if was.kind() == "str" {
+        return typed;
+    }
+    let doc = toml::parse("v = " + typed);
+    if doc.kind() == "map" && doc.has("v") {
+        return doc.v;
+    }
+    typed
+}
+
+/// Every file under a user data directory as rows, opened as a structure
+/// where it is TOML or JSON, edited in place and written back. `opts`:
+/// `root` (default this game's user data directory), `only` (file names to
+/// show), `edit`.
+pub fn files(S: &mut editor::State, id: str, opts: any) -> [any] {
+    let root = option(opts, "root", game_data(S)).as_str();
+    let only: [str] = [];
+    for name in util::vec(opts.only) {
+        only.push(name.as_str());
+    }
+    let reveal_root = map().with("kind", "button").with("role", "chip").with("text", "reveal");
+    let out = [
+        map()
+            .with("full", true)
+            .with("height", 24)
+            .with("slot_role", "layout_actions")
+            .with("controls", [
+                map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("truncate", true).with("text", short_path(root)),
+                pool::on(reveal_root, revealed, map().with("path", root)),
+            ]),
+    ];
+    let drawn = folder(S, id, root, "", only, option(opts, "edit", true).as_bool(), 0, out);
+    if drawn == 0 {
+        out.push(empty("nothing kept yet"));
+    }
+    out
+}
+
+fn revealed(S: &mut editor::State, data: any, _value: any) {
+    engine::reveal(data.path.as_str());
+}
+
+/// One directory's entries; answers how many files it put rows on.
+fn folder(S: &mut editor::State, id: str, dir: str, rel: str, only: [str], edit: bool, depth: int, out: [any]) -> int {
+    let drawn = 0;
+    for entry in util::vec(fs::list(dir)) {
+        let name = entry.name.as_str();
+        let path = dir + "/" + name;
+        let here = if rel == "" { name } else { rel + "/" + name };
+        if entry.is_dir.as_bool() {
+            if depth < FOLDER_DEPTH {
+                drawn += folder(S, id, path, here, only, edit, depth + 1, out);
+            }
+            continue;
+        }
+        if only.len() > 0 && !util::contains(only, name) {
+            continue;
+        }
+        file_rows(S, id + ":" + here, path, here, edit, out);
+        drawn += 1;
+    }
+    drawn
+}
+
+fn file_rows(S: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [any]) {
+    let key = "file:" + id;
+    let open = memory(S).get(key).as_bool();
+    let toggle = map().with("kind", "button").with("role", "chip").with("text", (if open { "▾ " } else { "▸ " }) + rel);
+    let controls = [pool::on(toggle, folded, map().with("key", key).with("open", open))];
+    let when = fs::modified_time(path);
+    if when.is_some() {
+        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", ago(engine::unix_time() - when.unwrap())));
+    }
+    let reveal = map().with("kind", "button").with("role", "chip").with("text", "reveal");
+    controls.push(pool::on(reveal, revealed, map().with("path", path)));
+    out.push(map().with("full", true).with("height", 24).with("controls", controls).with("slot_role", "layout_actions"));
+    if open {
+        document(S, id, path, edit, out);
+    }
+}
+
+/// A file opened: rows for TOML and JSON, its text otherwise.
+fn document(S: &mut editor::State, id: str, path: str, edit: bool, out: [any]) {
+    let text = fs::read(path);
+    if text.is_none() {
+        out.push(empty("cannot read this file"));
+        return;
+    }
+    let as_toml = path.ends_with(".toml");
+    if !as_toml && !path.ends_with(".json") {
+        out.push(empty(head_of(text.unwrap(), TEXT_SHOWN)));
+        return;
+    }
+    let value = if as_toml { toml::parse(text.unwrap()) } else { json::parse(text.unwrap()) };
+    if value.is_nil() {
+        out.push(map()
+            .with("full", true)
+            .with("height", 22)
+            .with("controls", [
+                map().with("kind", "label").with("role", "note_warning").with("grow", 1).with("wrap", true).with("text", "does not parse"),
+            ]));
+        return;
+    }
+    let keep = map().with("file", path).with("toml", as_toml);
+    for spec in util::vec(tree(S, id, value, map().with("edit", edit).with("write", keep)).specs) {
+        out.push(spec);
+    }
+}
+
+/// A path as a person reads it: under the home directory it starts with `~`,
+/// which also keeps a user name out of a screenshot.
+pub fn short_path(path: str) -> str {
+    let home = project::home();
+    if home != "" && path.starts_with(home + "/") {
+        return "~" + path.slice(home.len(), path.len());
+    }
+    path
+}
+
+/// Seconds as how long ago, in the unit a person reads it in.
+fn ago(seconds: float) -> str {
+    if seconds < 90.0 {
+        return "just now";
+    }
+    if seconds < 5400.0 {
+        return "{(seconds / 60.0) as int} min ago";
+    }
+    if seconds < 129600.0 {
+        return "{(seconds / 3600.0) as int} h ago";
+    }
+    "{(seconds / 86400.0) as int} days ago"
+}

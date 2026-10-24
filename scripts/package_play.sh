@@ -13,7 +13,7 @@ dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
 # The game runtime's features plus the importers and the editor, which is
 # the difference.
-EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor}
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor,bs-wasmi,bs-web}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }

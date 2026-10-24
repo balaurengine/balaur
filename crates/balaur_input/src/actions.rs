@@ -10,7 +10,11 @@
 //! [input.actions]
 //! jump = ["Space", "gamepad:south"]
 //! move_x = ["keys:KeyA,KeyD", "axis:left_x"]
+//! save = ["cmd+KeyS"]
 //! ```
+//!
+//! A key binding reads nothing while a text field holds the keyboard, so an
+//! action never fires from what someone is typing.
 
 use serde::Deserialize as _;
 use std::collections::BTreeMap;
@@ -42,6 +46,88 @@ pub(crate) enum Binding {
     Axis { name: String, half: Half },
     /// `"keys:KeyA,KeyD"`: two keys as one axis, the first negative.
     KeyPair(String, String),
+    /// `"cmd+shift+KeyS"`: a key with exactly these modifiers held. `cmd` is
+    /// the platform's command key, ⌘ on Apple platforms and Ctrl elsewhere,
+    /// where `ctrl` is the same key.
+    Chord(Chord),
+}
+
+/// The modifiers a [`Binding::Chord`] holds, besides its key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one switch a modifier, as a chord is written"
+)]
+pub(crate) struct Chord {
+    cmd: bool,
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    key: String,
+}
+
+impl Chord {
+    fn parse(text: &str) -> Result<Self, String> {
+        let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
+        let key = parts.pop().unwrap_or_default();
+        if !crate::is_known_key(key) {
+            return Err(format!("'{key}' is not a key name"));
+        }
+        let mut chord = Self {
+            cmd: false,
+            ctrl: false,
+            alt: false,
+            shift: false,
+            key: key.to_string(),
+        };
+        for part in parts {
+            let held = match part {
+                "cmd" => &mut chord.cmd,
+                "ctrl" => &mut chord.ctrl,
+                "alt" => &mut chord.alt,
+                "shift" => &mut chord.shift,
+                other => {
+                    return Err(format!(
+                        "'{other}' is not a modifier: cmd, ctrl, alt or shift"
+                    ));
+                }
+            };
+            *held = true;
+        }
+        Ok(chord)
+    }
+
+    /// Whether the key is down with exactly these modifiers, so `cmd+KeyZ`
+    /// stays quiet while `cmd+shift+KeyZ` is held.
+    fn held(&self, keys: &InputSnapshot) -> bool {
+        let (meta, control) = (keys.key_down("Meta"), keys.key_down("Control"));
+        let commands = if keys.command_is_meta() {
+            meta == self.cmd && control == self.ctrl
+        } else {
+            control == (self.cmd || self.ctrl) && !meta
+        };
+        commands
+            && keys.key_down("Alt") == self.alt
+            && keys.key_down("Shift") == self.shift
+            && (keys.key_down(&self.key) || keys.key_just_pressed(&self.key))
+    }
+
+    fn text(&self) -> String {
+        let mut text = String::new();
+        for (on, name) in [
+            (self.cmd, "cmd"),
+            (self.ctrl, "ctrl"),
+            (self.alt, "alt"),
+            (self.shift, "shift"),
+        ] {
+            if on {
+                text.push_str(name);
+                text.push('+');
+            }
+        }
+        text.push_str(&self.key);
+        text
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +141,9 @@ impl Binding {
     /// Parse one binding string, or say why it is not one.
     fn parse(text: &str) -> Result<Self, String> {
         let Some((kind, rest)) = text.split_once(':') else {
+            if text.contains('+') {
+                return Chord::parse(text).map(Self::Chord);
+            }
             return if crate::is_known_key(text) {
                 Ok(Self::Key(text.to_string()))
             } else {
@@ -114,9 +203,11 @@ impl Binding {
     /// its frame even when the release landed in it too, so a tap between two
     /// frames is an action's one-frame press rather than nothing.
     fn value(&self, keys: &InputSnapshot, pads: &GamepadState) -> f32 {
-        let key = |key: &str| keys.key_down(key) || keys.key_just_pressed(key);
+        let typing = keys.keyboard_taken();
+        let key = |key: &str| !typing && (keys.key_down(key) || keys.key_just_pressed(key));
         match self {
             Self::Key(name) => f32::from(u8::from(key(name))),
+            Self::Chord(chord) => f32::from(u8::from(!typing && chord.held(keys))),
             Self::Mouse(button) => f32::from(u8::from(
                 keys.mouse_down(*button) || keys.mouse_just_pressed(*button),
             )),
@@ -165,6 +256,7 @@ impl Binding {
                 Half::Negative => format!("axis:{name}-"),
             },
             Self::KeyPair(low, high) => format!("keys:{low},{high}"),
+            Self::Chord(chord) => chord.text(),
         }
     }
 }
@@ -641,9 +733,66 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{Binding, InputActions};
+    use crate::InputSnapshot;
+    use crate::gamepad::GamepadState;
 
     fn table(name: &str, key: &str) -> BTreeMap<String, Vec<Binding>> {
         BTreeMap::from([(name.to_string(), vec![Binding::parse(key).unwrap()])])
+    }
+
+    fn holding(keys: &[&str], command_is_meta: bool) -> InputSnapshot {
+        let mut input = InputSnapshot::default();
+        input.set_command_is_meta(command_is_meta);
+        for key in keys {
+            input.key_event(key, true);
+        }
+        input
+    }
+
+    fn fires(binding: &str, input: &InputSnapshot) -> bool {
+        Binding::parse(binding)
+            .unwrap()
+            .value(input, &GamepadState::default())
+            > 0.5
+    }
+
+    #[test]
+    fn a_chord_fires_with_exactly_its_modifiers() {
+        assert!(fires("cmd+KeyS", &holding(&["MetaLeft", "KeyS"], true)));
+        assert!(!fires(
+            "cmd+KeyS",
+            &holding(&["MetaLeft", "ShiftLeft", "KeyS"], true)
+        ));
+        assert!(fires(
+            "cmd+shift+KeyS",
+            &holding(&["MetaLeft", "ShiftLeft", "KeyS"], true)
+        ));
+        assert!(!fires("cmd+KeyS", &holding(&["KeyS"], true)));
+    }
+
+    #[test]
+    fn cmd_is_control_where_the_platform_has_no_command_key() {
+        assert!(fires("cmd+KeyZ", &holding(&["ControlLeft", "KeyZ"], false)));
+        assert!(!fires("cmd+KeyZ", &holding(&["ControlLeft", "KeyZ"], true)));
+        assert!(fires("ctrl+KeyZ", &holding(&["ControlLeft", "KeyZ"], true)));
+    }
+
+    #[test]
+    fn a_chord_reads_back_as_it_was_written() {
+        let binding = Binding::parse("cmd+shift+KeyS").unwrap();
+        assert_eq!(binding.text(), "cmd+shift+KeyS");
+        assert!(Binding::parse("hyper+KeyS").is_err());
+        assert!(Binding::parse("cmd+Nope").is_err());
+    }
+
+    #[test]
+    fn a_key_binding_reads_nothing_while_a_text_field_holds_the_keyboard() {
+        let mut input = holding(&["Delete", "MetaLeft", "KeyS"], true);
+        input.set_keyboard_taken(true);
+        assert!(!fires("Delete", &input), "typing deleted the selection");
+        assert!(!fires("cmd+KeyS", &input));
+        input.set_keyboard_taken(false);
+        assert!(fires("Delete", &input));
     }
 
     /// The editor declares a played game's table; resetting must not hand the

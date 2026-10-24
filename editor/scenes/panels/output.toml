@@ -1,0 +1,99 @@
+# The Output tab: the log, with its clear, its level and its search. One
+# script answers them; the log itself is the engine's, heard as `logged`.
+
+[[nodes]]
+id = "panel"
+name = "Output"
+script = { source = "scripts/panels/output.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "tools"
+name = "Tools"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+gap = [6, 0]
+height = 26
+
+[[nodes]]
+id = "clear"
+name = "Clear"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "clear"
+tooltip = "Empty the log buffer"
+
+# The level to show and above, each a button the script lights.
+[[nodes]]
+id = "error"
+name = "error"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "error"
+tooltip = "Show error and above"
+
+[[nodes]]
+id = "warn"
+name = "warn"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "warn"
+tooltip = "Show warn and above"
+
+[[nodes]]
+id = "all"
+name = "all"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "all"
+tooltip = "Show all and above"
+
+[[nodes]]
+id = "search"
+name = "Search"
+parent = "tools"
+[nodes.widget]
+kind = "text_field"
+role = "input_dock"
+text = ""
+placeholder = "Search"
+width = 130
+
+[[nodes]]
+id = "log"
+name = "Log"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+row_height = 18
+font_family = "mono"
+
+[nodes.widget.touch]
+row_height = 33
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false

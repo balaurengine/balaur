@@ -6,12 +6,10 @@ use balaur_core::{App, AppConfig, Engine};
 use balaur_plugin::{AbiTag, Fingerprint, library_suffix, load_extension, load_extensions_in};
 use balaur_script::{NodeId, Value};
 
+// No script backend: a bare app has no `.bs` host yet, so the tests that
+// call into a script wait on one (see their `ignore`).
 fn app_in(dir: &Path) -> App {
-    App::new(AppConfig {
-        script_backend: Some(balaur_script_rune::factory()),
-        ..AppConfig::bare(dir.to_path_buf())
-    })
-    .unwrap()
+    App::new(AppConfig::bare(dir.to_path_buf())).unwrap()
 }
 
 fn app() -> App {
@@ -54,10 +52,10 @@ fn greeter() -> PathBuf {
         .clone()
 }
 
-/// The greeter loaded into a fresh app, with `probe.rn` attached to a node.
+/// The greeter loaded into a fresh app, with `probe.bs` attached to a node.
 ///
-/// Rune runs code from files, not strings, so each test's expressions are
-/// `pub fn`s of that script and `call` runs one by name.
+/// A script runs from a file, not a string, so each test's expressions are
+/// methods of that script and `call` runs one by name.
 struct Loaded {
     app: App,
     _library: balaur_plugin::Extension,
@@ -68,7 +66,7 @@ struct Loaded {
 fn loaded(script: &str) -> Loaded {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
-    std::fs::write(dir.path().join("probe.rn"), script).unwrap();
+    std::fs::write(dir.path().join("probe.bs"), script).unwrap();
     let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&greeter()) }.expect("the extension should load");
     assert_eq!(extension.manifest().name, "greeter");
@@ -78,7 +76,7 @@ fn loaded(script: &str) -> Loaded {
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Probe", root);
     let probe = balaur_core::node_id_of(node);
     let host = app.engine.script_host().unwrap();
-    host.attach(probe, "probe.rn").unwrap();
+    host.attach(probe, "probe.bs").unwrap();
     Loaded {
         app,
         _library: extension,
@@ -88,7 +86,7 @@ fn loaded(script: &str) -> Loaded {
 }
 
 impl Loaded {
-    /// Run `pub fn name(this)` from `probe.rn` and hand back what it returned.
+    /// Run `name` from `probe.bs` and hand back what it returned.
     fn call(&self, name: &str) -> Value {
         self.app
             .engine
@@ -100,10 +98,14 @@ impl Loaded {
 }
 
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_declares_itself_into_a_running_app() {
     let probe = loaded(
-        "pub fn greet(this) { greeter::greet(\"world\") }\n\
-         pub fn version(this) { greeter::VERSION }\n",
+        "pub struct Probe { node: Node }\n\
+         impl Probe {\n\
+             pub fn greet() -> str { greeter::greet(\"world\") }\n\
+             pub fn version() -> str { greeter::VERSION }\n\
+         }\n",
     );
     assert_eq!(probe.call("greet"), Value::Str("hello, world".into()));
     assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
@@ -131,8 +133,12 @@ fn an_extension_declares_itself_into_a_running_app() {
 /// keying was made stable across compilations and the limitation is gone --
 /// delete the test rather than repair it.
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_cannot_reach_a_resource_the_host_inserted() {
-    let probe = loaded("pub fn root(this) { greeter::project_root() }\n");
+    let probe = loaded(
+        "pub struct Probe { node: Node }\n\
+         impl Probe { pub fn root() -> str { greeter::project_root() } }\n",
+    );
     assert_eq!(
         probe.call("root"),
         Value::Str("<not visible from the extension>".into()),
@@ -143,10 +149,14 @@ fn an_extension_cannot_reach_a_resource_the_host_inserted() {
 /// The extension owns state the engine now holds, which is the whole point of
 /// loading one rather than calling into it.
 #[test]
+#[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_owns_a_resource_the_engine_keeps() {
     let probe = loaded(
-        "pub fn greetings(this) { greeter::greetings() }\n\
-         pub fn greet(this) { greeter::greet(\"again\"); }\n",
+        "pub struct Probe { node: Node }\n\
+         impl Probe {\n\
+             pub fn greetings() -> int { greeter::greetings() }\n\
+             pub fn greet() { greeter::greet(\"again\"); }\n\
+         }\n",
     );
     assert_eq!(probe.call("greetings"), Value::Int(0));
     for _ in 0..3 {

@@ -7,6 +7,7 @@
 use crate::vocabulary::words as w;
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::node::Widget;
+use crate::widget::paint::{self, Brush};
 use balaur_core::hecs::Entity;
 use egui::{Color32, pos2, vec2};
 use rustc_hash::FxHashMap;
@@ -14,9 +15,9 @@ use smol_str::SmolStr;
 use std::cell::RefCell;
 
 thread_local! {
-    /// What each widget drew last frame. Only a `draw` node needs it now —
-    /// everything else the layer draws it can also measure, and a rect a
-    /// script fills is the one thing it can only remember.
+    /// What each widget drew last frame: a subtree off the clip carries its
+    /// size over without drawing, and a size that moved lays the tree out
+    /// again.
     static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// Where each widget was drawn, for a script that has to place something
@@ -26,6 +27,52 @@ thread_local! {
     /// page: the strip is painted inline and has no node to ask.
     static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    /// The box each listened-to widget was last said to have, for `resized`.
+    static REPORTED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+}
+
+/// Say `resized` from every widget someone listens to it on whose box moved
+/// since it was last said, and forget the ones nobody listens to any more.
+pub(crate) fn report_resized(eng: &balaur_core::Engine) {
+    let watched = balaur_core::events::listened_on(eng, crate::widget::input::RESIZED_EVENT);
+    REPORTED.with(|reported| {
+        let mut reported = reported.borrow_mut();
+        if watched.is_empty() {
+            reported.clear();
+            return;
+        }
+        reported.retain(|bits, _| watched.iter().any(|e| e.to_bits().get() == *bits));
+        for entity in watched {
+            let bits = entity.to_bits().get();
+            let now = drawn_at(entity).unwrap_or(egui::Rect::ZERO);
+            if reported.get(&bits) == Some(&now) {
+                continue;
+            }
+            // A node that never drew has nothing to say until it does.
+            if now == egui::Rect::ZERO && !reported.contains_key(&bits) {
+                continue;
+            }
+            reported.insert(bits, now);
+            balaur_core::events::emit_from(
+                eng,
+                entity,
+                crate::widget::input::RESIZED_EVENT,
+                rect_value(now),
+            );
+        }
+    });
+}
+
+/// A box as a script reads it, in design pixels.
+pub(crate) fn rect_value(r: egui::Rect) -> balaur_script::Value {
+    use crate::vocabulary::keys as k;
+    use balaur_script::Value;
+    Value::Map(vec![
+        (k::X.into(), Value::Num(f64::from(r.min.x))),
+        (k::Y.into(), Value::Num(f64::from(r.min.y))),
+        (k::WIDTH.into(), Value::Num(f64::from(r.width()))),
+        (k::HEIGHT.into(), Value::Num(f64::from(r.height()))),
+    ])
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.
@@ -51,9 +98,7 @@ pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     });
 }
 
-/// What a widget drew last frame. Only a `draw` node needs it: everything
-/// else the layer draws it can also measure ahead, and a rect a script fills
-/// is the one thing that can only be remembered.
+/// What a widget drew last frame, or zero for one that did not draw.
 pub(crate) fn measured_of(entity: Entity) -> egui::Vec2 {
     MEASURED.with(|m| {
         m.borrow()
@@ -67,8 +112,9 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
-    // A `draw` node's size comes from the script that filled it, not from any
-    // property, so this is the one layout input no component write announces.
+    // What a widget drew follows from more than its component: the fonts
+    // settling after the first passes, the scale. No write announces those,
+    // so a size that moved is what asks for the tree to be laid out again.
     if measured_of(entity) != size {
         crate::widget::arena::widget_changed(entity);
     }
@@ -138,9 +184,14 @@ pub(crate) fn padding_only(widget: &Widget, style: &crate::widget::theme::Style)
 /// The padding a style states, `fallback` across and down on the sides it
 /// leaves open.
 pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: egui::Vec2) -> Pad {
-    let across = style.padding_x.or(style.padding).unwrap_or(fallback.x);
-    let down = style.padding_y.or(style.padding).unwrap_or(fallback.y);
-    Pad::of([across, down, across, down])
+    let [left, top, right, bottom] = style.padding_sides.unwrap_or_else(|| {
+        let across = style.padding.unwrap_or(fallback.x);
+        let down = style.padding.unwrap_or(fallback.y);
+        [across, down, across, down]
+    });
+    let across = |side: f32| style.padding_x.unwrap_or(side);
+    let down = |side: f32| style.padding_y.unwrap_or(side);
+    Pad::of([across(left), down(top), across(right), down(bottom)])
 }
 
 /// The space inside a container's edge, per side.
@@ -223,7 +274,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The frame is painted under the box once the box is known, carrying the
     // look and no margin: `egui::Margin` is whole points, and the padding comes
     // off in floats instead.
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = Brush::of(ui).slot();
     {
         let frame_ui = &mut *ui;
         // The padding comes off the box in floats; the frame itself carries
@@ -282,7 +333,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let used = pad.around(inner_ui.min_rect());
         frame_ui.allocate_rect(used, egui::Sense::hover());
         if style.fill.is_some() || style.stroke.is_some() {
-            frame_ui.painter().set(
+            Brush::of(frame_ui).set(
                 plate,
                 crate::widget::theme::frame_shape(
                     used,
@@ -293,6 +344,45 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             );
         }
     }
+}
+
+/// One page's button on a `tabs` strip: the caption with a button's air,
+/// filled while it is the page showing and washed under the pointer.
+fn tab_head(
+    ui: &mut egui::Ui,
+    text: egui::RichText,
+    label: &str,
+    on: bool,
+    style: &crate::widget::theme::Style,
+) -> egui::Response {
+    let text = egui::WidgetText::from(text).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Button,
+    );
+    let plate = Brush::of(ui).slot();
+    let response = crate::widget::button::sensor(
+        ui,
+        text.size() + ui.spacing().button_padding * 2.0,
+        egui::Sense::click(),
+        egui::WidgetType::Button,
+        label,
+    );
+    let radius = egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8);
+    let fill = match (on, style.fill) {
+        (true, Some(fill)) => fill,
+        (true, None) => Color32::from_black_alpha(96),
+        (false, _) => Color32::TRANSPARENT,
+    };
+    Brush::of(ui).set(plate, paint::filled(response.rect, radius, fill));
+    if response.hovered() {
+        let held = response.is_pointer_button_down_on();
+        Brush::of(ui).fill(response.rect, radius, crate::widget::theme::wash(ui, held));
+    }
+    let at = response.rect.center() - text.size() / 2.0;
+    Brush::of(ui).galley(at, text, Color32::PLACEHOLDER);
+    response
 }
 
 /// A tab container: a strip of its children's names, then the one showing.
@@ -358,20 +448,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
-                let mut button = egui::Button::new(crate::widget::theme::rich(
+                let text = crate::widget::theme::rich(
                     label.as_str(),
                     &font,
                     color,
                     slant,
                     &widget.text_look,
-                ))
-                .corner_radius(egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8));
-                button = match (on, style.fill) {
-                    (true, Some(fill)) => button.fill(fill),
-                    (true, None) => button.fill(Color32::from_black_alpha(96)),
-                    (false, _) => button.fill(Color32::TRANSPARENT),
-                };
-                let response = ui.add(button);
+                );
+                let response = tab_head(ui, text, label.as_str(), on, &style);
                 TAB_HEADS.with(|m| {
                     m.borrow_mut()
                         .insert(heads[slot].to_bits().get(), response.rect);
@@ -501,7 +585,7 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let style = at.style_of(&widget);
     if style.fill.is_some() || style.stroke.is_some() {
         let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
-        ui.painter().add(crate::widget::theme::frame_shape(
+        Brush::of(ui).add(crate::widget::theme::frame_shape(
             ui.max_rect(),
             radius,
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -549,7 +633,14 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             ui.advance_cursor_after_rect(rect);
             continue;
         }
-        let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+        // Salted by the node: egui names an unsalted child after its parent
+        // alone, so two trees as deep as each other shared a caret's id.
+        let mut child_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt(("balaur-node", entity))
+                .max_rect(rect)
+                .layout(layout),
+        );
         // The box the solve gave this child, so a kind that sizes itself from
         // what it was handed — a slider's track, a dropdown's width — reads
         // the same number the layout decided.
@@ -557,11 +648,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         at.assigned = rect.size();
         draw_one(&mut child_ui, at, *child);
         at.assigned = restore;
-        // A `draw` node records what its script painted, from inside the
-        // draw; everything else is measured ahead and needs no record.
-        if at.arena[*child].widget.kind != w::DRAW {
-            record_measure(entity, child_ui.min_rect().size());
-        }
+        record_measure(entity, child_ui.min_rect().size());
         ui.advance_cursor_after_rect(rect);
         if grab > 0.0 && slot + 1 < children.len() {
             // Centred on the seam between this child and the next, so a grab

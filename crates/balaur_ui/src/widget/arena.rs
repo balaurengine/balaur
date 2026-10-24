@@ -145,6 +145,11 @@ pub(crate) fn widget_changed(entity: Entity) {
     });
 }
 
+/// Whether a widget was written since the last pass began, which owes one.
+pub(crate) fn has_dirty() -> bool {
+    DIRTY.with(|d| !d.borrow().is_empty())
+}
+
 pub(crate) fn stamp_now(eng: &Engine) -> (u64, u64) {
     use std::hash::{Hash as _, Hasher as _};
     // The locale is a whole-forest change and belongs here: a `text_key` is
@@ -409,9 +414,17 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
     let world = eng.world();
     let mut fold = |index: usize, one: &mut Placed| {
         let authored = one.authored_visible && roomed[index];
+        // A tree built this tick (a scene switch) has no propagated
+        // appearance yet: compose it, or every hidden node shows one frame.
         let (shown, alpha) = world
             .get::<&balaur_core::GlobalAppearance>(one.entity)
-            .map_or((true, 1.0), |a| (a.visible, a.tint.w.clamp(0.0, 1.0)));
+            .map_or_else(
+                |_| {
+                    let a = balaur_core::scene::composed_appearance(&world, one.entity);
+                    (a.visible, a.tint.w.clamp(0.0, 1.0))
+                },
+                |a| (a.visible, a.tint.w.clamp(0.0, 1.0)),
+            );
         // Drawn over, not laid out: a fade changes no size, so it is written
         // without marking the slot for the layout pass.
         one.alpha = alpha;

@@ -35,7 +35,7 @@ Built, and not built for this:
 | HTTP, websockets, Gamend, `engine.open_url`, `scene.instantiate`, `node.add_child`, `node.free`, `camera.current`, `sound`, `particles.emitting` | the respective modules |
 | Character controllers in 2D and 3D | `character2d`, `character3d` |
 | `exports()` spec tables: typed, ranged, ordered | `docs/PLAN-scripting-nodes-ui-editor.md` §1.2 |
-| An Events view and a hooks sheet that list the hooks a file declares | `editor/scripts/center.rn`, `highlight.rn` |
+| An Events view and a hooks sheet that list the hooks a file declares | `editor/scripts/center.bs`, `highlight.rn` |
 | Every input recorded, so a session replays bit for bit | `replay` |
 
 Missing:
@@ -202,7 +202,7 @@ Spline's event and action lists, and where each lands.
    `set_variable`, `on_variable_changed`, `[[nodes.bindings.rows]]` with twelve
    actions and a runner registry per plugin, and `scene.switch`.
    `examples/hello` opens a door on the third click with no script in it.
-4. **The Events view authors rows.** *Built.* `editor/scripts/events.rn`.
+4. **The Events view authors rows.** *Built.* `editor/scripts/events.bs`.
 5. **Rigs and modifiers.** *Built.* `follow` is a `modifier2d` and
    `modifier3d` kind with `lag` and `offset`, closing the same share of the
    gap per fixed tick so the path is the same at any frame rate; the node's

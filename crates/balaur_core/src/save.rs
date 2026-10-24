@@ -12,10 +12,20 @@
 //! ```
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result, bail};
 
 use crate::engine::Engine;
+
+/// How many slots were written or removed this run: a reader compares two
+/// values to learn whether a save moved, which is what `saved` says.
+static WRITES: AtomicU64 = AtomicU64::new(0);
+
+/// The running count of slot writes and removals, for [`crate::events::SAVED`].
+pub fn generation() -> u64 {
+    WRITES.load(Ordering::Relaxed)
+}
 
 /// What `project.toml` says about saves.
 ///
@@ -126,6 +136,7 @@ pub fn write(eng: &Engine, slot: &str, data: &balaur_script::Value) -> Result<()
     fs.sync(&temporary);
     fs.rename(&temporary, &path)
         .with_context(|| format!("replacing {}", path.display()))?;
+    WRITES.fetch_add(1, Ordering::Relaxed);
     Ok(())
 }
 
@@ -220,8 +231,11 @@ pub fn slots(eng: &Engine) -> Vec<String> {
 /// gone, and it is.
 pub fn remove(eng: &Engine, slot: &str) -> Result<()> {
     let path = path_of(eng, slot)?;
-    crate::files::backend(eng)
+    let removed = crate::files::backend(eng)
         .remove(&path)
-        .map(|_| ())
-        .with_context(|| format!("removing {}", path.display()))
+        .with_context(|| format!("removing {}", path.display()))?;
+    if removed {
+        WRITES.fetch_add(1, Ordering::Relaxed);
+    }
+    Ok(())
 }

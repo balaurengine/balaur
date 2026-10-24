@@ -1,0 +1,147 @@
+# The Weights tab: the picked vertices as a table, a column a bone, every
+# weight a number field, under the five verbs a rigger reaches for. One script
+# fills it from the Editor, which owns the polygon, and answers its verbs.
+
+[[nodes]]
+id = "panel"
+name = "Weights"
+script = { source = "scripts/panels/weights.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+# What a polygon needs before it has weights to show.
+[[nodes]]
+id = "missing"
+name = "Missing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+text = "select a polygon with bones — the inspector's Sync Bones to Polygon lists them"
+padding = [12, 8, 12, 0]
+visible = false
+
+[[nodes]]
+id = "body"
+name = "Body"
+parent = "panel"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = [0, 4]
+
+[[nodes]]
+id = "verbs"
+name = "Verbs"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = [4, 4]
+align_items = "center"
+padding = [8, 0, 8, 0]
+
+[[nodes]]
+id = "scope"
+name = "Scope"
+parent = "verbs"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+
+[[nodes]]
+id = "bind"
+name = "bind"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "bind"
+tooltip = "Give every listed vertex all of its weight to the bone picked in the inspector"
+
+[[nodes]]
+id = "unbind"
+name = "unbind"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "unbind"
+tooltip = "Take the listed vertices off every bone"
+
+[[nodes]]
+id = "normalize"
+name = "normalize"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "normalize"
+tooltip = "Scale each listed vertex's weights so they sum to one"
+
+[[nodes]]
+id = "auto"
+name = "auto"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "auto"
+tooltip = "Weight by distance to each bone's segment"
+
+[[nodes]]
+id = "smooth"
+name = "smooth"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "smooth"
+tooltip = "Average each listed vertex with the ones sharing an edge"
+
+[[nodes]]
+id = "all"
+name = "all"
+parent = "verbs"
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "all"
+tooltip = "List every vertex again"
+visible = false
+
+# The bone columns' heads, pooled: which bones there are is the polygon's.
+[[nodes]]
+id = "header"
+name = "Header"
+parent = "body"
+[nodes.widget]
+kind = "row"
+height = 20
+gap = [0, 0]
+align_items = "center"
+padding = [8, 0, 8, 0]
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "body"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "rows"
+name = "Rows"
+parent = "scroll"
+[nodes.widget]
+kind = "column"
+gap = [0, 1]
+padding = [8, 0, 8, 0]

@@ -226,7 +226,7 @@ Two things follow, in order:
 ## 4. The inspector says where a material came from
 
 Today the inspector draws an empty `material` property as empty, and
-`material_rows` in `editor/scripts/inspector.rn` returns early on an empty
+`material_rows` in `editor/scripts/inspector.bs` returns early on an empty
 reference. A node drawing an inherited material would look unstyled, and
 people would set it per node anyway, which is the habit the feature exists to
 break.

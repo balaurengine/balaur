@@ -1,52 +1,46 @@
-//! Immediate-mode UI for scripts, rendered with egui.
+//! Game and editor UI as scene nodes, painted with egui.
 //!
-//! The plugin exposes a `ui` module. Scripts implement a `draw_ui`
-//! lifecycle method; every frame the windowed backend calls [`run_pass`],
-//! which invokes `draw_ui` on every instance (in entity order) inside the
-//! frame's egui pass. The module's functions build panels and widgets
-//! against the pass's current `egui::Ui`, so a script composes interfaces
-//! exactly the way Rust egui code does:
-//!
-//! ```rune
-//! pub fn draw_ui(this) {
-//!     ui::top_panel("bar", #{ height: 56.0, fill: "#20242a" }, || {
-//!         if ui::button("Scene", #{ checked: true }) { /* ... */ }
-//!     });
-//! }
-//! ```
-//!
-//! Widgets take their colors per call (usually from a script-side token
-//! table), so entire themes live in scripts and hot reload with them.
+//! A UI is `widget` components on scene nodes: the widget layer lays each
+//! subtree out with taffy, shapes its text with `balaur_text` and paints it
+//! through egui once a pass. A script fills and answers nodes; it never
+//! draws. The plugin's `ui` module is what a script asks of the UI
+//! and tells it: where a node drew, focus, the scale, the theme, the
+//! clipboard, when the next pass runs, and the pooled rows a list is built
+//! from.
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
+mod api;
 mod bridge;
+mod chord;
 pub mod contrast;
 mod images;
-mod immediate;
 mod loading;
 mod pacing;
 pub mod palette;
 mod routing;
 mod splash;
 mod theme;
+mod touch;
 mod vocabulary;
 mod widget;
 
 use anyhow::Result;
 use balaur_core::Engine;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub use loading::Loading;
 pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
+pub use touch::draw_touch_controls;
 pub use widget::input::{
-    ACTIVATE_EVENT, BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT, CLOSED_EVENT,
-    COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT, GUTTER_EVENT,
-    LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT,
-    WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
+    ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
+    CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,
+    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT,
+    SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
 };
+pub use widget::inspector::reread;
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
@@ -66,9 +60,7 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 /// bar overflows and the icons stop matching; the zoom grows all three.
 pub const TOUCH_TARGET: f32 = 44.0;
 
-pub use immediate::{
-    ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS,
-};
+pub use api::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 /// Where this project puts the lines between the screen classes, and whether
 /// the reader's own text size counts. Read once, after the project has
@@ -194,8 +186,8 @@ pub struct UiState {
     /// The value each seeded field was last filled from, so a field re-seeds
     /// when its source changes but not while someone is typing into it.
     pub text_seeds: HashMap<String, String>,
-    /// Per `ui.code_editor`, the galley it last laid out and the hash of the
-    /// text and colours behind it. Highlighting a file is proportional to its
+    /// Per `code` node, the galley it last laid out and the hash of the text
+    /// and colours behind it. Highlighting a file is proportional to its
     /// length, and nothing about it changes on a frame that only moved a
     /// pointer.
     pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
@@ -203,7 +195,13 @@ pub struct UiState {
     /// at the same size when it fills or the text options change (a light
     /// theme does), and a galley from the old atlas draws the wrong glyphs.
     pub font_atlas: Option<FontAtlas>,
-    pub focused_once: HashSet<String>,
+    /// Text `ui::set_clipboard` asked for, handed to the platform by the next
+    /// pass: a script runs between passes, and only a pass holds the context.
+    pub clipboard: Option<String>,
+    /// The text the last pass saw pasted, empty when it saw none.
+    pub pasted: String,
+    /// Whether a widget held the keyboard when the last pass ended.
+    pub wants_keyboard: bool,
     /// A finger down on a `scroll` with a deadzone, until it lifts.
     pub scroll_drags: HashMap<u64, ScrollDrag>,
     /// A `scroll` still moving after the finger lifted: how fast, in points
@@ -259,7 +257,6 @@ pub fn forget_scene(eng: &Engine) {
     state.text_buffers.clear();
     state.text_seeds.clear();
     state.code_galleys.clear();
-    state.focused_once.clear();
     state.forget_egui = true;
 }
 
@@ -288,6 +285,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(widget::pool::PoolState::default());
+        reg.insert_resource(widget::inspector::InspectorState::default());
         reg.insert_resource(UiFocus::default());
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
@@ -300,7 +298,7 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        immediate::install_ui_api(reg)?;
+        api::install_ui_api(reg)?;
         widget::input::register(reg);
         widget::schema::register_widget_component(reg);
         widget::schema::register_widget_presets(reg)?;
@@ -360,8 +358,11 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             theme::load_fonts(ctx, &faces);
             balaur_text::shaper(eng);
             state.fonts_installed = true;
-            // A host that reruns the pass (`Context::will_discard`) draws
-            // this frame with the fonts bound.
+            // A host that reruns the pass draws this frame with the fonts
+            // bound; three passes, since a root's first pass only measures.
+            ctx.options_mut(|options| {
+                options.max_passes = std::num::NonZeroUsize::new(3).unwrap_or(options.max_passes);
+            });
             ctx.request_discard("fonts installed");
             drop(state);
             // The one thing this frame can still show: a splash is a picture
@@ -395,24 +396,37 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             config.changed = false;
         }
     }
-    let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
     widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
     apply_long_press(eng, ctx);
-    bridge::enter_pass(ctx, roles);
+    bridge::enter_pass(ctx);
     routing::pass_begins(eng);
-    // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
-    // `Foreground` — so what is on top does not depend on which ran first.
+    // An inspector's rows are nodes it fills, so they are filled before the
+    // layer reads the tree.
+    widget::inspector::refresh(eng);
     widget::layer::draw(eng, ctx);
-    if let Some(host) = eng.script_host() {
-        host.call_all(balaur_core::hooks::DRAW_UI);
-    }
-    // Over everything, scripts' overlays included, for as long as it lasts.
+    // Over everything, for as long as it lasts.
     splash::draw(eng, ctx);
+    {
+        let mut state = state.borrow_mut();
+        if let Some(text) = state.clipboard.take() {
+            ctx.copy_text(text);
+        }
+        state.pasted = ctx.input(|i| {
+            i.events
+                .iter()
+                .rev()
+                .find_map(|e| match e {
+                    egui::Event::Paste(text) => Some(text.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default()
+        });
+        state.wants_keyboard = ctx.egui_wants_keyboard_input();
+    }
     routing::pass_drew(eng, ctx);
     bridge::leave_pass();
-    pacing::mark_pass(eng);
     state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));
 }
 

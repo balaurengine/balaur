@@ -1,11 +1,19 @@
 # One node with the script, and the shell as `widget` nodes the engine lays
-# out for `layout.rn` to read back. They paint nothing and have their own
+# out for `layout.bs` to read back. They paint nothing and have their own
 # surface, so the rect a game's HUD is confined to never reaches them.
 
 [[nodes]]
 id = "n_editor"
 name = "Editor"
-script = { source = "scripts/editor.rn" }
+script = { source = "scripts/editor.bs" }
+
+# The viewport's lines: drawn on the words that what they show moved, and
+# kept until then. See scripts/panels/overlays.bs.
+[[nodes]]
+id = "viewport_lines"
+name = "ViewportLines"
+parent = "n_editor"
+script = { source = "scripts/panels/overlays.bs" }
 
 [[nodes]]
 id = "shell"
@@ -28,6 +36,7 @@ role = "layout_shell"
 id = "head"
 name = "Head"
 parent = "shell"
+script = { source = "scripts/panels/topbar.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -53,7 +62,7 @@ gap = [8, 8]
 align_items = "center"
 
 # The brand, the shell's one menu, then a strip: how many workspaces and
-# documents there are changes with what is open, so `chrome.rn` fills both.
+# documents there are changes with what is open, so `chrome.bs` fills both.
 [[nodes]]
 id = "brand"
 name = "Brand"
@@ -113,6 +122,7 @@ width = 236
 id = "left_sheet"
 name = "LeftSheet"
 parent = "left"
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -161,154 +171,20 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
+# The Scene tab, its own scene and script: see scenes/panels/scene_tree.toml.
 [[nodes]]
-id = "left_body"
-name = "LeftBody"
+id = "scene_tree"
+name = "SceneTree"
 parent = "left_sheet"
-[nodes.widget]
-kind = "draw"
-draw = "draw_dock_left"
+instance = "scenes/panels/scene_tree.toml"
 
+# The Outline tab, its own scene and script: see scenes/panels/outline.toml.
 [[nodes]]
-id = "left_tree"
-name = "LeftTree"
+id = "outline"
+name = "Outline"
 parent = "left_sheet"
-[nodes.widget]
-kind = "tree"
-grow = 1
-# A right click or a long press picks the row it lands on and opens these.
-context = "tree_menu"
-# The eye and the lock a row draws at its right.
-on_mark = "tree_mark"
+instance = "scenes/panels/outline.toml"
 
-[nodes.widget.touch]
-row_height = 33
-
-# The node actions, on a menu that draws no button of its own. Each row calls
-# a method on the Editor node's script, which acts on the selection the click
-# just made.
-[[nodes]]
-id = "tree_menu"
-name = "tree_menu"
-parent = "left_sheet"
-[nodes.widget]
-kind = "menu"
-text = ""
-visible = false
-
-[[nodes]]
-id = "tree_add"
-name = "TreeAdd"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Add child"
-on_click = "tree_add_child"
-
-[[nodes]]
-id = "tree_change"
-name = "TreeChange"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Change type…"
-on_click = "tree_change_type"
-
-[[nodes]]
-id = "tree_up"
-name = "TreeUp"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Move up"
-on_click = "tree_move_up"
-
-[[nodes]]
-id = "tree_down"
-name = "TreeDown"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Move down"
-on_click = "tree_move_down"
-
-[[nodes]]
-id = "tree_rename"
-name = "TreeRename"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Rename"
-on_click = "tree_rename"
-
-[[nodes]]
-id = "tree_script"
-name = "TreeScript"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Attach script"
-on_click = "tree_attach_script"
-
-[[nodes]]
-id = "tree_duplicate"
-name = "TreeDuplicate"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Duplicate"
-on_click = "tree_duplicate"
-
-[[nodes]]
-id = "tree_hidden"
-name = "TreeHidden"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Hide or show"
-on_click = "tree_toggle_hidden"
-
-[[nodes]]
-id = "tree_locked"
-name = "TreeLocked"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Lock or unlock"
-on_click = "tree_toggle_locked"
-
-[[nodes]]
-id = "tree_delete"
-name = "TreeDelete"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Delete"
-on_click = "tree_delete"
-
-[[nodes]]
-id = "left_outline"
-name = "LeftOutline"
-parent = "left_sheet"
-[nodes.widget]
-kind = "list"
-visible = false
-grow = 1
-
-# The tool rail down one side, and everything else beside it. The rail is a
-# column of the whole height so the dock below starts clear of it too.
-[nodes.widget.touch]
-row_height = 33
 # Where a plugin dock's own subtree goes on this side.
 [[nodes]]
 id = "left_plugins"
@@ -354,6 +230,7 @@ width = 288
 id = "right_sheet"
 name = "RightSheet"
 parent = "right"
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -402,38 +279,20 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
+# The Inspector, its own scene and script: see scenes/panels/inspector.toml.
 [[nodes]]
-id = "right_body"
-name = "RightBody"
+id = "inspector"
+name = "Inspector"
 parent = "right_sheet"
-[nodes.widget]
-kind = "draw"
-draw = "draw_dock_right"
-# Stated, not measured: a `draw` node with neither a size nor a `grow` takes
-# whatever is left, which is the whole sheet. `layout.rn` writes the real one.
-height = 96
+instance = "scenes/panels/inspector.toml"
 
+# The Import tab, its own scene and script: see scenes/panels/import.toml.
 [[nodes]]
-id = "right_scroll"
-name = "RightScroll"
+id = "import"
+name = "Import"
 parent = "right_sheet"
-[nodes.widget]
-kind = "scroll"
-axis = "vertical"
-grow = 1
+instance = "scenes/panels/import.toml"
 
-[[nodes]]
-id = "right_foot"
-name = "RightFoot"
-parent = "right_sheet"
-# One button, so a pooled row rather than a hatch.
-[nodes.widget]
-kind = "row"
-align_items = "center"
-height = 36
-
-# The Inspector's and Import's rows: a form whose fields change with the
-# selection, so `pool.rn` makes them and hides the spares.
 # Where a plugin dock's own subtree goes on this side.
 [[nodes]]
 id = "right_plugins"
@@ -445,20 +304,10 @@ visible = false
 grow = 1
 
 [[nodes]]
-id = "right_form"
-name = "RightForm"
-parent = "right_scroll"
-[nodes.widget]
-kind = "column"
-visible = false
-# No `grow`: inside a scroll there is no leftover to divide, so the column
-# takes what its rows measure and the bar makes up the difference.
-gap = [2, 2]
-
-[[nodes]]
 id = "railslot"
 name = "RailSlot"
 parent = "upper_row"
+script = { source = "scripts/panels/rail.bs" }
 [nodes.widget]
 kind = "column"
 width = 44
@@ -467,7 +316,7 @@ width = 44
 gap = [0, 0]
 
 # Where a folded left dock's handle goes, above the tools rather than beside
-# them; `layout.rn` gives it a height only when there is one to draw.
+# them; `layout.bs` gives it a height only when there is one to draw.
 [[nodes]]
 id = "railtop"
 name = "RailTop"
@@ -476,14 +325,37 @@ parent = "railslot"
 kind = "row"
 height = 0
 
+# The folded left dock's way back, on the rail's own sheet.
+[[nodes]]
+id = "rail_handle"
+name = "Handle"
+parent = "railtop"
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+visible = false
+
+[[nodes]]
+id = "rail_handle_open"
+name = "Open"
+parent = "rail_handle"
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""
+padding = 0
+
 # The rail is only as tall as its tools, so it takes the top of the slot
-# rather than the whole of it; `layout.rn` states the height.
+# rather than the whole of it; `layout.bs` states the height.
 [[nodes]]
 id = "rail"
 name = "Rail"
 parent = "railslot"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+role = "sheet"
+text = ""
 height = 42
 
 # The scene and the dock, stacked beside the rail.
@@ -496,6 +368,14 @@ kind = "column"
 interactive = false
 grow = 1
 gap = [12, 12]
+
+# The axis and zoom pills along the foot of the rail and the scene, over both:
+# see scenes/panels/hud.toml.
+[[nodes]]
+id = "hud"
+name = "Hud"
+parent = "upper_row"
+instance = "scenes/panels/hud.toml"
 
 [[nodes]]
 id = "upper"
@@ -511,6 +391,7 @@ gap = [12, 12]
 id = "bottom"
 name = "Bottom"
 parent = "centre"
+script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -558,154 +439,108 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
-# A panel's own chrome over the node it fills: the Assets path and verbs, the
-# Library's chips, the Tiles modes. A column, because a panel may keep more
-# than one row of them; whichever panel is up fills it.
+# Output, Problems and Docs, each its own scene and script: see
+# scenes/panels/output.toml, problems.toml and docs.toml.
 [[nodes]]
-id = "bottom_chrome"
-name = "BottomChrome"
+id = "output"
+name = "Output"
 parent = "bottom"
-[nodes.widget]
-kind = "column"
-role = "layout_toolbar"
-visible = false
+instance = "scenes/panels/output.toml"
 
 [[nodes]]
-id = "dockbody"
-name = "DockBody"
+id = "problems"
+name = "Problems"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_dock_bottom"
-grow = 1
-
-# A panel whose rows are nodes fills this instead of a `draw` view: the pool
-# makes them under the column, and the scroll is what a long list needs.
-[[nodes]]
-id = "bottom_rows"
-name = "BottomRows"
-parent = "bottom"
-[nodes.widget]
-kind = "scroll"
-axis = "vertical"
-visible = false
-grow = 1
+instance = "scenes/panels/problems.toml"
 
 [[nodes]]
-id = "bottom_rows_column"
-name = "BottomRowsColumn"
-parent = "bottom_rows"
-[nodes.widget]
-kind = "column"
-role = "list_dock"
-grow = 1
-
-# The log-shaped panels, as one node. `dock.rn` fills whichever is up and hides
-# it for the rest; the hatch above draws the tab row, so this sits under it.
-[[nodes]]
-id = "bottom_log"
-name = "BottomLog"
+id = "docs"
+name = "Docs"
 parent = "bottom"
-[nodes.widget]
-kind = "list"
-visible = false
-grow = 1
-row_height = 18
-font_family = "mono"
+instance = "scenes/panels/docs.toml"
 
-# The Debugger's call stack: frames, with each frame's locals a level in.
-[nodes.widget.touch]
-row_height = 33
+# The Profiler and the Cost tab, each its own scene, sharing one script that
+# samples while it shows: see scenes/panels/profiler.toml and cost.toml.
 [[nodes]]
-id = "bottom_tree"
-name = "BottomTree"
+id = "profiler"
+name = "Profiler"
 parent = "bottom"
-[nodes.widget]
-kind = "tree"
-visible = false
-grow = 1
-font_family = "mono"
-
-# Assets, Library and Tiles: three card grids, one node, filled in turns. Its
-# own `list` beside the log's, because a panel that forgot to state
-# `grid_columns` would inherit the shape of whichever drew last.
-[nodes.widget.touch]
-row_height = 33
-[[nodes]]
-id = "bottom_cards"
-name = "BottomCards"
-parent = "bottom"
-[nodes.widget]
-kind = "list"
-visible = false
-grow = 1
-grid_columns = "repeat(6, 1fr)"
-# A card dragged onto the viewport places its file there.
-draggable = true
-on_drop = "assets_dropped"
-
-# The Profiler and the Cost dock: named columns a drag resizes, over rows the
-# panels hand over whole. One node, as the log list is.
-[nodes.widget.touch]
-row_height = 33
-[[nodes]]
-id = "bottom_table"
-name = "BottomTable"
-parent = "bottom"
-[nodes.widget]
-kind = "table"
-visible = false
-grow = 1
-row_height = 18
-font_family = "mono"
-[nodes.widget.touch]
-row_height = 33
-
-# The four views that genuinely paint: lanes with a transport, and two
-# painting tools where the pointer is the input. A node each, so the scene
-# names every view and a reader can see which of them draw.
-[[nodes]]
-id = "bottom_timeline"
-name = "BottomTimeline"
-parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_timeline"
-visible = false
-grow = 1
+instance = "scenes/panels/profiler.toml"
 
 [[nodes]]
-id = "bottom_recordings"
-name = "BottomRecordings"
+id = "cost"
+name = "Cost"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_recordings"
-visible = false
-grow = 1
+instance = "scenes/panels/cost.toml"
+
+# The file browser, the library, the tile palette, the state machine, the
+# recordings list and the debugger, each its own scene and script: see the
+# files of the same names under scenes/panels/.
+[[nodes]]
+id = "assets"
+name = "Assets"
+parent = "bottom"
+instance = "scenes/panels/assets.toml"
 
 [[nodes]]
-id = "bottom_weights"
-name = "BottomWeights"
+id = "library"
+name = "Library"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_weights"
-visible = false
-grow = 1
+instance = "scenes/panels/library.toml"
 
 [[nodes]]
-id = "bottom_bonemap"
-name = "BottomBonemap"
+id = "tiles"
+name = "Tiles"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_bonemap"
-visible = false
-grow = 1
+instance = "scenes/panels/tiles.toml"
+
+[[nodes]]
+id = "statemachine"
+name = "StateMachine"
+parent = "bottom"
+instance = "scenes/panels/statemachine.toml"
+
+[[nodes]]
+id = "recordings"
+name = "Recordings"
+parent = "bottom"
+instance = "scenes/panels/recordings.toml"
+
+[[nodes]]
+id = "debugger"
+name = "Debugger"
+parent = "bottom"
+instance = "scenes/panels/debugger.toml"
+
+# The Timeline tab, an open recording's lanes, the Weights table and the
+# Bone map, each its own scene: see scenes/panels/timeline.toml, lanes.toml,
+# weights.toml and bonemap.toml.
+[[nodes]]
+id = "timeline"
+name = "Timeline"
+parent = "bottom"
+instance = "scenes/panels/timeline.toml"
+
+[[nodes]]
+id = "lanes"
+name = "Lanes"
+parent = "bottom"
+instance = "scenes/panels/lanes.toml"
+
+[[nodes]]
+id = "weights"
+name = "Weights"
+parent = "bottom"
+instance = "scenes/panels/weights.toml"
+
+[[nodes]]
+id = "bonemap"
+name = "Bonemap"
+parent = "bottom"
+instance = "scenes/panels/bonemap.toml"
 
 # Where a plugin dock's own subtree goes, above the status strip rather than
-# after it: `docks.rn` makes one child here per registered dock.
+# after it: `docks.bs` makes one child here per registered dock.
 [[nodes]]
 id = "bottom_plugins"
 name = "BottomPlugins"
@@ -719,6 +554,7 @@ grow = 1
 id = "status"
 name = "Status"
 parent = "bottom"
+script = { source = "scripts/panels/status.bs" }
 # A pooled row, not a hatch: the strip is labels and a dot, so the theme can
 # dress it and the layout can keep its boxes between passes.
 [nodes.widget]
@@ -748,7 +584,7 @@ grow = 1
 gap = [12, 12]
 
 # What is left of the canvas once the hooks list has taken its width. The
-# code pane and the scene share it; `layout.rn` decides how.
+# code pane and the scene share it; `layout.bs` decides how.
 [[nodes]]
 id = "stage"
 name = "Stage"
@@ -758,12 +594,29 @@ kind = "row"
 interactive = false
 grow = 1
 
+# The file being edited, over the stage or beside the scene in a split: see
+# scenes/panels/code.toml.
+[[nodes]]
+id = "code_sheet"
+name = "Code"
+parent = "stage"
+instance = "scenes/panels/code.toml"
+
+# What the viewport carries over itself: its chips, the Interface guides and
+# the folded docks' handles. See scenes/panels/stage.toml.
+[[nodes]]
+id = "stage_chrome"
+name = "Chrome"
+parent = "stage"
+instance = "scenes/panels/stage.toml"
+
 # A document tab whose rows are nodes fills this, over the whole stage: the
 # event bindings do. Hidden for the scene and for the code.
 [[nodes]]
 id = "doc_panel"
 name = "DocPanel"
 parent = "stage"
+script = { source = "scripts/panels/events.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet_doc"
@@ -799,15 +652,48 @@ kind = "column"
 role = "list_doc"
 grow = 1
 
-# The file's engine-facing surface, beside the code. `layout.rn` writes 0 here
+# The file's engine-facing surface, beside the code. `layout.bs` writes 0 here
 # when it is closed; this is what it opens back to.
 [[nodes]]
 id = "hooks"
 name = "Hooks"
 parent = "canvas"
+script = { source = "scripts/panels/hooks.bs" }
 [nodes.widget]
-kind = "row"
+kind = "panel"
+role = "sheet"
+text = ""
 width = 172
+padding = [12, 0, 12, 0]
+gap = [0, 6]
+
+[[nodes]]
+id = "hooks_title"
+name = "Title"
+parent = "hooks"
+[nodes.widget]
+kind = "label"
+role = "text_heading"
+text = "HOOKS IN FILE"
+padding = [2, 11, 2, 5]
+
+[[nodes]]
+id = "hooks_pills"
+name = "Pills"
+parent = "hooks"
+[nodes.widget]
+kind = "column"
+gap = [0, 6]
+
+[[nodes]]
+id = "hooks_unsaved"
+name = "Unsaved"
+parent = "hooks"
+[nodes.widget]
+kind = "label"
+role = "text_caption_primary"
+text = "● unsaved · ⌘S"
+visible = false
 
 # The start screen, over the shell rather than inside it: its own root on the
 # same surface, drawn after, so it covers the editor and takes every click.
@@ -815,6 +701,7 @@ width = 172
 id = "manager"
 name = "Manager"
 parent = "n_editor"
+script = { source = "scripts/panels/manager.bs" }
 [nodes.widget]
 kind = "column"
 layer = "shell"
@@ -840,8 +727,8 @@ parent = "manager"
 kind = "row"
 role = "toolbar_manager"
 
-# The page under the tabs. Still drawn: the project history is a `list`, which
-# builds only the rows on screen, and a column of nodes would build them all.
+# The page under the tabs: what the screen was told last, a job's bar, the
+# Projects tab's filter and verbs, and the rows of whichever tab is up.
 [[nodes]]
 id = "manager_body"
 name = "ManagerBody"
@@ -850,15 +737,89 @@ parent = "manager"
 kind = "column"
 role = "layout_manager"
 grow = 1
+max_width = 900
+gap = [0, 10]
+
+[[nodes]]
+id = "manager_note"
+name = "Note"
+parent = "manager_body"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+wrap = true
+text = ""
+visible = false
+
+[[nodes]]
+id = "manager_progress"
+name = "Progress"
+parent = "manager_body"
+[nodes.widget]
+kind = "row"
+gap = [10, 10]
+align_items = "center"
+visible = false
+
+# Wraps under a phone's width: a filter and three buttons do not share 280
+# pixels, so the verbs drop to the line below.
+[[nodes]]
+id = "manager_tools"
+name = "Tools"
+parent = "manager_body"
+[nodes.widget]
+kind = "flow"
+gap = [6, 8]
+align_items = "center"
+visible = false
+
+[[nodes]]
+id = "manager_filter"
+name = "Filter"
+parent = "manager_tools"
+[nodes.widget]
+kind = "text_field"
+role = "input_form"
+text = ""
+placeholder = "Filter projects"
+grow = 1
+min_width = 240
+
+[[nodes]]
+id = "manager_open"
+name = "Open"
+parent = "manager_tools"
+[nodes.widget]
+kind = "button"
+role = "action_manager"
+text = "Open folder"
+
+[[nodes]]
+id = "manager_new"
+name = "New"
+parent = "manager_tools"
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "New project"
+
+[[nodes]]
+id = "manager_scroll"
+name = "Scroll"
+parent = "manager_body"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
 
 [[nodes]]
 id = "manager_page"
-name = "ManagerPage"
-parent = "manager_body"
+name = "Page"
+parent = "manager_scroll"
 [nodes.widget]
-kind = "draw"
-draw = "draw_manager_body"
-grow = 1
+kind = "column"
+gap = [0, 4]
 
 # A query and what it matches, over everything: the command palette and the
 # node picker take turns on it. A `dialog`, so Escape and a click on the dim
@@ -867,6 +828,7 @@ grow = 1
 id = "picker"
 name = "Picker"
 parent = "n_editor"
+script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -910,6 +872,7 @@ grow = 1
 id = "sheet"
 name = "Sheet"
 parent = "n_editor"
+script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -926,8 +889,8 @@ parent = "sheet"
 kind = "row"
 role = "header_dialog"
 
-# The body a screen fills. Drawn for now: every one of the four is immediate,
-# and the frame round them is what this node gives them.
+# The body a screen fills: a column of its own down the left, and the rows
+# beside it.
 [[nodes]]
 id = "sheet_body"
 name = "SheetBody"
@@ -937,24 +900,12 @@ kind = "column"
 grow = 1
 
 [[nodes]]
-id = "sheet_page"
-name = "SheetPage"
-parent = "sheet_body"
-[nodes.widget]
-kind = "draw"
-draw = "draw_sheet_body"
-grow = 1
-
-# A screen whose rows are nodes fills these instead: a column of its own down
-# the left, and the rows beside it. Hidden for a screen that draws.
-[[nodes]]
 id = "sheet_split"
 name = "SheetSplit"
 parent = "sheet_body"
 [nodes.widget]
 kind = "row"
 role = "layout_dialog"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -991,3 +942,83 @@ parent = "sheet_scroll"
 [nodes.widget]
 kind = "column"
 grow = 1
+
+# The plugins' open dialogs, a sheet each down the left of the stage. One
+# script, which has the Editor fill them when a plugin says they moved.
+[[nodes]]
+id = "dialogs"
+name = "Dialogs"
+parent = "n_editor"
+script = { source = "scripts/panels/dialogs.bs" }
+[nodes.widget]
+kind = "column"
+anchor = "top_left"
+gap = [12, 12]
+layer = "shell"
+visible = false
+
+# `--state fontdemo`'s sheet of every script, face and icon, over the stage.
+[[nodes]]
+id = "font_sheet"
+name = "FontSheet"
+parent = "n_editor"
+[nodes.widget]
+kind = "panel"
+text = ""
+role = "sheet"
+anchor = "top_left"
+layer = "shell"
+gap = [6, 6]
+padding = [16, 12, 16, 12]
+visible = false
+
+# The box select's outline, placed while the drag lasts.
+[[nodes]]
+id = "marquee"
+name = "Marquee"
+parent = "n_editor"
+[nodes.widget]
+kind = "panel"
+text = ""
+anchor = "top_left"
+layer = "shell"
+fill = "none"
+stroke = "primary_text"
+dashed = true
+interactive = false
+visible = false
+
+# Typing over a text node where it is drawn: see scenes/panels/textedit.toml.
+[[nodes]]
+id = "textedit"
+name = "TextEdit"
+parent = "n_editor"
+instance = "scenes/panels/textedit.toml"
+
+# What the imports of a batch have done so far: see scenes/panels/imports.toml.
+[[nodes]]
+id = "imports"
+name = "Imports"
+parent = "n_editor"
+instance = "scenes/panels/imports.toml"
+
+# What may be typed at the caret: see scenes/panels/complete.toml.
+[[nodes]]
+id = "complete"
+name = "Complete"
+parent = "n_editor"
+instance = "scenes/panels/complete.toml"
+
+# The input overlay a capture is taken with: see scenes/panels/inputview.toml.
+[[nodes]]
+id = "inputview"
+name = "InputView"
+parent = "n_editor"
+instance = "scenes/panels/inputview.toml"
+
+# The shell's keys, a node a command: see scenes/panels/keys.toml.
+[[nodes]]
+id = "keys"
+name = "Keys"
+parent = "n_editor"
+instance = "scenes/panels/keys.toml"

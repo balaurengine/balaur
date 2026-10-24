@@ -59,7 +59,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
-        ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
+        ("bounds", &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
     ]);
     // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
@@ -127,8 +127,13 @@ fn install_pick_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
-        ("pick_ray_at", &[], "", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
+        ("pick_ray_at", &[], "-> Hit?", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
     ]);
+    m.records(&[(
+        "Hit",
+        "{ node: node, at: float }",
+        "The nearest node a ray met and how far along the ray it was met.",
+    )]);
     // Picking ray through the mouse: origin xyz, direction xyz.
     m.function("mouse_ray", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
@@ -484,7 +489,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
         ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, …), `pixels_per_unit` and `z_index`."),
         ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
-        ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
+        ("text_size", &[], "(text: string, opts: table) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
@@ -743,7 +748,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         (
             "trace_texture",
             &[],
-            "(path: string, opts: table) -> list",
+            "(path: string, opts: table) -> [[vec2]]",
             "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, \
              ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as \
              opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, \

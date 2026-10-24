@@ -146,7 +146,7 @@ the fault.
     `unit = "degrees"` but write `max` in radians
     (`crates/balaur_physics/src/character.rs:56,60`). The inspector clamps a
     typed 45 to 1.57 and stores 0.027 rad
-    (`editor/scripts/inspector.rn:1131-1155`).
+    (`editor/scripts/inspector.bs`).
 20. `can_sleep = false` is stored as negative sleep thresholds
     (`crates/balaur_physics/src/body.rs:141-149`), so `get` reports `false`
     for every body while world sleep is off, and a re-save writes it.

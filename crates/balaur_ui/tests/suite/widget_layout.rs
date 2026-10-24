@@ -658,3 +658,48 @@ fn a_label_s_padding_insets_its_text() {
         rects[0]
     );
 }
+
+/// A box someone listens on says when it moved, and only then: what used to
+/// be a rect read back every pass is a `resized` with the new box, once.
+#[test]
+fn a_listened_widget_says_when_its_box_moved() {
+    let (_dir, mut app) = app();
+    let panel = add_widget(
+        &app,
+        &toml::toml! { kind = "panel" text = "" x = 10.0 y = 10.0 width = 100.0 height = 40.0 }
+            .into(),
+    );
+    balaur_core::events::subscribe(&app.engine, panel, "resized", Some(panel));
+    let ctx = egui::Context::default();
+    let heard = |app: &mut balaur::App, ctx: &egui::Context| {
+        pass(app, ctx, vec![]);
+        consume_input(app);
+        balaur_core::events::delivered_from(&app.engine, panel, "resized")
+    };
+    // The first pass only learns sizes, so the box arrives over the passes
+    // that settle it, once.
+    let mut first = Vec::new();
+    for _ in 0..3 {
+        first.extend(heard(&mut app, &ctx));
+    }
+    assert_eq!(
+        first.len(),
+        1,
+        "the first box drawn was not said once: {first:?}"
+    );
+    assert!(
+        heard(&mut app, &ctx).is_empty(),
+        "a box that held still was said again"
+    );
+    let wider = toml::toml! { width = 160.0 };
+    balaur::components::patch(&app.engine, panel, "widget", &wider.into()).unwrap();
+    let moved = heard(&mut app, &ctx);
+    let width = match moved.first() {
+        Some(balaur_script::Value::Map(entries)) => entries
+            .iter()
+            .find(|(key, _)| key == "width")
+            .map(|(_, v)| v.clone()),
+        _ => None,
+    };
+    assert_eq!(width, Some(balaur_script::Value::Num(160.0)), "{moved:?}");
+}

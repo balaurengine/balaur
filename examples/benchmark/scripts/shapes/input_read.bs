@@ -1,0 +1,13 @@
+// Reading the pointer and an action, which every player-controlled node does.
+
+pub struct InputRead {
+    node: Node,
+    x: float,
+}
+
+impl InputRead {
+    fn update(dt: float) {
+        let mouse = input::mouse_position();
+        self.x = input::action_value("ui_right") + mouse.x * 0.0 + mouse.y * 0.0;
+    }
+}

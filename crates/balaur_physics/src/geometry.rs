@@ -99,9 +99,9 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
         "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
     );
     m.describe(&[
-        ("convex_hull", &[], "(mesh: any)", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
-        ("convex_decomposition", &[], "(mesh: any, opts: table?)", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
-        ("voxelize", &[], "(mesh: any, opts: table?)", "The mesh as a voxel grid (`#{ size, cells }`, ready to be a `voxels` asset) so a model can become destructible terrain."),
+        ("convex_hull", &[], "(mesh: any) -> map", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
+        ("convex_decomposition", &[], "(mesh: any, opts: table?) -> [map]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
+        ("voxelize", &[], "(mesh: any, opts: table?) -> map", "The mesh as a voxel grid (`#{ size, cells }`, ready to be a `voxels` asset) so a model can become destructible terrain."),
     ]);
     m.function("convex_hull", |eng: &Engine, mesh: Value| {
         let (points, _) = mesh_of(eng, Some(&mesh))?;
@@ -194,9 +194,9 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("split", &[], "(mesh: any, opts: table)", "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`."),
-        ("intersect", &[], "(a: any, b: any)", "The mesh both meshes have in common, or nothing when they do not overlap."),
-        ("pieces", &[], "(mesh: any)", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
+        ("split", &[], "(mesh: any, opts: table) -> [map?]", "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`."),
+        ("intersect", &[], "(a: any, b: any) -> map?", "The mesh both meshes have in common, or nothing when they do not overlap."),
+        ("pieces", &[], "(mesh: any) -> [map]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
     ]);
     m.function("split", |eng: &Engine, (mesh, opts): (Value, Value)| {
         let (points, indices) = mesh_of(eng, Some(&mesh))?;

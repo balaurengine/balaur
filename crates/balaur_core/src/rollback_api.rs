@@ -16,13 +16,13 @@ pub fn install_rollback_api(m: &mut dyn Bindings<Engine>) {
         (
             "input",
             &[],
-            "(player: int)",
+            "(player: int) -> any",
             "What that player is doing on the tick being simulated, real or predicted; nil outside a session or for a player it does not know.",
         ),
         (
             "is_resimulating",
             &[],
-            "()",
+            "() -> bool",
             "Whether this tick is a re-run of one already simulated, so a script can skip anything it must not do twice.",
         ),
     ]);

@@ -14,7 +14,7 @@ stage = { type = "int", value = 0 }
 [[nodes]]
 id = "n_scene"
 name = "Scene"
-script = { source = "scenes/nest.rn" }
+script = { source = "scenes/nest.bs" }
 
 [[nodes.bindings.rows]]
 event = "emitted:child_added"
@@ -35,49 +35,53 @@ value = 1000000
 "#;
 
 const NEST_SCRIPT: &str = r#"
-fn add(n) {
-    scene::set_variable("score", scene::variable("score") + n);
+fn add(n: int) {
+    scene::set_variable("score", scene::variable("score").as_int() + n);
 }
 
-pub fn update(this, dt) {
-    let stage = scene::variable("stage");
-    if stage == 0 {
-        let kid = this.node.add_child("Kid");
-        events::listen(this.node, "renamed", kid);
-        events::listen(this.node, "reparented", kid);
-        kid.set_name("Renamed");
-        kid.set_parent(this.node.get_node("Other"));
-    }
-    if stage == 1 {
-        this.node.get_node("Other").queue_free();
-    }
-    scene::set_variable("stage", stage + 1);
-}
+pub struct Nest { node: Node }
 
-pub fn on_child_added(this, child) {
-    if child.name() == "Kid" {
-        add(1);
+impl Nest {
+    fn update(dt: float) {
+        let stage = scene::variable("stage").as_int();
+        if stage == 0 {
+            let kid = self.node.add_child("Kid");
+            events::listen(self.node, "renamed", kid);
+            events::listen(self.node, "reparented", kid);
+            kid.set_name("Renamed");
+            kid.set_parent(self.node.get_node("Other"));
+        }
+        if stage == 1 {
+            self.node.get_node("Other").queue_free();
+        }
+        scene::set_variable("stage", stage + 1);
     }
-}
 
-pub fn on_child_removed(this, child) {
-    if child.name() == "Renamed" {
-        add(1000);
+    pub fn on_child_added(child: Node) {
+        if child.name() == "Kid" {
+            add(1);
+        }
     }
-    if child.name() == "Other" {
-        add(100000);
-    }
-}
 
-pub fn on_renamed(this, was) {
-    if was == "Kid" {
-        add(100);
+    pub fn on_child_removed(child: Node) {
+        if child.name() == "Renamed" {
+            add(1000);
+        }
+        if child.name() == "Other" {
+            add(100000);
+        }
     }
-}
 
-pub fn on_reparented(this, left) {
-    if left.name() == "Scene" {
-        add(10000);
+    pub fn on_renamed(was: str) {
+        if was == "Kid" {
+            add(100);
+        }
+    }
+
+    pub fn on_reparented(left: Node) {
+        if left.name() == "Scene" {
+            add(10000);
+        }
     }
 }
 "#;
@@ -99,7 +103,7 @@ fn a_tree_edit_is_heard_by_the_parent_and_the_node_it_moved() {
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), NEST).unwrap();
-    std::fs::write(dir.path().join("scenes/nest.rn"), NEST_SCRIPT).unwrap();
+    std::fs::write(dir.path().join("scenes/nest.bs"), NEST_SCRIPT).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();

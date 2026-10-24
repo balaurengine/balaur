@@ -201,6 +201,9 @@ pub const LINK_EVENT: &str = "link";
 
 /// What a `code` widget emits when its gutter is clicked, with the line.
 pub const GUTTER_EVENT: &str = "gutter";
+/// What a `code` widget emits when its caret moved, with `#{ x, y, index }`:
+/// where a completion list opens, and what it completes.
+pub const CARET_EVENT: &str = "caret";
 
 /// What a row view emits when a dragged row is dropped, with the row moved,
 /// the row it landed on, and where it went.
@@ -232,6 +235,13 @@ pub const SCROLLED_EVENT: &str = "scrolled";
 /// What a `window` emits when its close button is pressed, before it shuts
 /// or, with `hide_on_close` off, instead of shutting.
 pub const CLOSE_REQUEST_EVENT: &str = "close_request";
+/// What a widget emits when the box it was laid out in moved or changed size,
+/// with the box: only from a node someone listens to it on, and once for a
+/// node that stopped drawing, with an empty box.
+pub const RESIZED_EVENT: &str = "resized";
+/// What the UI says from no node when text was pasted and no field took it,
+/// with the text: the platform clipboard is not readable on demand.
+pub const PASTED_EVENT: &str = "pasted";
 
 /// Which widgets the pointer was over at the end of the last pass.
 #[derive(Default)]
@@ -318,6 +328,7 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (SUBMIT_EVENT, "the text"),
     (LINK_EVENT, "the link's target"),
     (GUTTER_EVENT, "the line"),
+    (CARET_EVENT, "`#{ x, y, index }`"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
     (MARK_EVENT, "`#{ row, mark }`"),
@@ -334,7 +345,27 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (CLOSED_EVENT, "nil"),
     (SCROLLED_EVENT, "the offset, `[x, y]`"),
     (CLOSE_REQUEST_EVENT, "nil"),
+    (
+        RESIZED_EVENT,
+        "`#{ x, y, width, height }`, while someone listens on the node",
+    ),
 ];
+
+/// Say `pasted` for a paste no field took, where someone listens for it.
+pub(crate) fn hear_paste(eng: &Engine, ctx: &egui::Context) {
+    if ctx.egui_wants_keyboard_input() || !balaur_core::events::heard(eng, PASTED_EVENT) {
+        return;
+    }
+    let pasted = ctx.input(|i| {
+        i.events.iter().rev().find_map(|event| match event {
+            egui::Event::Paste(text) => Some(text.clone()),
+            _ => None,
+        })
+    });
+    if let Some(text) = pasted {
+        balaur_core::events::emit(eng, PASTED_EVENT, Value::Str(text));
+    }
+}
 
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
@@ -358,7 +389,28 @@ fn apply_system(eng: &Engine, _dt: f32) {
     // The pool's controls hear their edits and clicks here, before any named
     // handler, so a strip nobody refilled still answers.
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
+    // An inspector's rows are heard as one edit from the inspector itself.
+    for (entity, value) in crate::widget::inspector::heard(eng, &emitted, &hit) {
+        let method = eng
+            .world()
+            .get::<&Widget>(entity)
+            .ok()
+            .map(|widget| widget.on_change.to_string())
+            .filter(|method| !method.is_empty());
+        if let Some(method) = method {
+            typed.push((entity, method, value.clone()));
+        }
+        emitted.push((entity, CHANGE_EVENT, value));
+    }
     crate::widget::pool::dispatch(eng, &emitted, &hit);
+    // What a panel's `on_widget_event` hears: a widget's own events, not the
+    // pointer hooks every node already gets.
+    let mut told: Vec<(Entity, &'static str, Value)> = emitted
+        .iter()
+        .filter(|(_, event, _)| !hooks::BINDABLE.contains(event))
+        .cloned()
+        .collect();
+    told.extend(hit.iter().map(|&entity| (entity, CLICK_EVENT, Value::Nil)));
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
@@ -393,8 +445,23 @@ fn apply_system(eng: &Engine, _dt: f32) {
                 (recipient(eng, host.as_ref(), entity, &method), method, args)
             })
             .collect();
+        let panels: Vec<_> = told
+            .into_iter()
+            .filter_map(|(entity, event, value)| {
+                let panel = panel_of(eng, host.as_ref(), entity)?;
+                let node = Value::Node(balaur_core::node_id_of(entity).0);
+                Some((panel, [Value::Str(event.to_string()), node, value]))
+            })
+            .collect();
         for (entity, method, args) in signals.into_iter().chain(typed) {
             host.call_on(balaur_core::node_id_of(entity), &method, &args);
+        }
+        for (panel, args) in panels {
+            host.call_on(
+                balaur_core::node_id_of(panel),
+                hooks::ON_WIDGET_EVENT,
+                &args,
+            );
         }
     }
     announce_focus(eng, focused.as_ref());
@@ -511,6 +578,7 @@ fn settle_one(
         | Edit::Folded(..)
         | Edit::Opened
         | Edit::Closed
+        | Edit::Caret(..)
         | Edit::CloseRequested => {
             emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
             None
@@ -557,6 +625,17 @@ fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
         Edit::Opened => (OPENED_EVENT, Value::Nil),
         Edit::Closed => (CLOSED_EVENT, Value::Nil),
         Edit::Scrolled(offset) => (SCROLLED_EVENT, Value::Vec2(*offset)),
+        Edit::Caret(x, y, index) => (
+            CARET_EVENT,
+            Value::Map(vec![
+                (k::X.into(), Value::Num(f64::from(*x))),
+                (k::Y.into(), Value::Num(f64::from(*y))),
+                (
+                    "index".into(),
+                    Value::Int(i64::try_from(*index).unwrap_or(i64::MAX)),
+                ),
+            ]),
+        ),
         Edit::CloseRequested => (CLOSE_REQUEST_EVENT, Value::Nil),
         _ => return None,
     };
@@ -724,7 +803,27 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
 /// button deep in a panel names a method on the panel's script, the way a
 /// Godot signal is connected to the node that owns the scene. With none
 /// declaring it, the widget's own node, where the call is the no-op it was.
-fn recipient(
+/// The nearest node at or above `entity` whose script has `on_widget_event`:
+/// the panel that answers for the widget. `None` where no script up the tree
+/// has one.
+fn panel_of(
+    eng: &Engine,
+    host: &dyn balaur_script::ScriptHost<Engine>,
+    entity: Entity,
+) -> Option<Entity> {
+    let world = eng.world();
+    let mut current = entity;
+    loop {
+        if host.has_method(balaur_core::node_id_of(current), hooks::ON_WIDGET_EVENT) {
+            return Some(current);
+        }
+        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
+    }
+}
+
+/// Where a widget's handler `method` goes: the nearest node at or above
+/// `entity` whose script has it, or `entity` when none does.
+pub(crate) fn recipient(
     eng: &Engine,
     host: &dyn balaur_script::ScriptHost<Engine>,
     entity: Entity,

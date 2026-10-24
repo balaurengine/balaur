@@ -106,18 +106,24 @@ pub(crate) fn create(path: &Path, template: Option<&str>) -> Result<()> {
         path.join("scenes/main.toml"),
         r#"[[nodes]]
 name = "Hello"
-script = { source = "scripts/hello.rn" }
+script = { source = "scripts/hello.bs" }
 "#,
     )?;
     std::fs::write(
-        path.join("scripts/hello.rn"),
-        r#"pub fn init(this) {
-    log::info(format!("hello from {}", this.node.name()));
-    this.elapsed = 0.0;
+        path.join("scripts/hello.bs"),
+        r#"pub struct Hello {
+    node: Node,
+    elapsed: float,
 }
 
-pub fn update(this, dt) {
-    this.elapsed += dt;
+impl Hello {
+    fn init() {
+        log::info("hello from {self.node.name()}");
+    }
+
+    fn update(dt: float) {
+        self.elapsed += dt;
+    }
 }
 "#,
     )?;

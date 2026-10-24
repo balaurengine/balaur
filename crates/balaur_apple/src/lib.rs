@@ -713,14 +713,14 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
         (
             "show_dashboard",
             &[],
-            "(node: node?, opts: table?)",
+            "(node: node?, opts: table?) -> int",
             "Open Game Center's dashboard over the game; `state` picks the page \
 : default, leaderboards, achievements, challenges, profile, dashboard or friends.",
         ),
         (
             "access_point",
             &[],
-            "(active: bool, opts: table?)",
+            "(active: bool, opts: table?) -> bool",
             "Show or hide Game Center's floating access point, and answer whether it is showing; \
              `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         ),

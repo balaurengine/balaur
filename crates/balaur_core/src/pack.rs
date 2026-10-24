@@ -61,6 +61,11 @@ pub struct Pack {
     /// Without these a shipped game is only a single file when it is silent
     /// and untextured.
     pub assets: BTreeMap<String, Vec<u8>>,
+    /// The engine functions the scripts call, one line each with the types
+    /// they were checked against, sorted (`ScriptCompiler::api`): the
+    /// runtime that loads the pack says which it lacks or types otherwise,
+    /// before a script fails on one. Empty when the compiler keeps none.
+    pub api: Vec<String>,
 }
 
 impl Pack {
@@ -152,6 +157,8 @@ impl Pack {
                 failed.join("\n")
             );
         }
+        // After every script compiled: the calls they make.
+        pack.api = compiler.api();
         Ok(pack)
     }
 
@@ -198,6 +205,10 @@ impl Pack {
             write_bytes(&mut out, content_hash(v).as_bytes());
             write_bytes(&mut out, v);
         }
+        write_u32(&mut out, self.api.len() as u32);
+        for line in &self.api {
+            write_bytes(&mut out, line.as_bytes());
+        }
         out
     }
 
@@ -233,6 +244,13 @@ impl Pack {
                 ));
             }
             pack.assets.insert(k, v);
+        }
+        // A pack from before the section ends here.
+        if !cursor.is_empty() {
+            for _ in 0..read_u32(&mut cursor)? {
+                let line = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
+                pack.api.push(line);
+            }
         }
         Ok(pack)
     }
@@ -280,6 +298,11 @@ impl Pack {
                         .iter()
                         .map(|(k, v)| LEN + k.len() + LEN + HASH + LEN + v.len())
                         .sum::<usize>(),
+            },
+            SectionReport {
+                name: "api",
+                entries: self.api.len(),
+                bytes: LEN + self.api.iter().map(|line| LEN + line.len()).sum::<usize>(),
             },
         ];
 
@@ -419,7 +442,7 @@ pub struct SectionReport {
     pub entries: usize,
     /// What the section occupies in [`Pack::encode`], its keys, length
     /// prefixes and asset hashes counted. The manifest row carries the pack's
-    /// five magic bytes too, so the four rows sum to [`PackReport::total`].
+    /// five magic bytes too, so the five rows sum to [`PackReport::total`].
     pub bytes: usize,
 }
 

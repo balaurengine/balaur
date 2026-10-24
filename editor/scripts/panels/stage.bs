@@ -1,0 +1,51 @@
+// The stage chrome's one script: the Interface guides and the folded docks'
+// handles over the viewport, shown as the Editor says when the workspace, the
+// docks, the room or a chip moved.
+
+pub struct Stage {
+    node: Node,
+    editor: Node,
+}
+
+const STAGE: str = "stage_changed";
+
+impl Stage {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, STAGE, self.editor);
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event != "click" || node.name() != "Open" {
+            return;
+        }
+        let side = node.parent().name();
+        self.editor.call("stage_verb", if side == "Left" { "open_left" } else { "open_right" });
+    }
+
+    fn refresh() {
+        let view = self.editor.call("stage_view");
+        if !(view.kind() == "map") {
+            return;
+        }
+        self.node.get_node("Safe").patch_component("widget", map().with("visible", view.get("safe")));
+        self.node.get_node("Resolution").patch_component("widget", map()
+            .with("visible", view.get("resolution"))
+            .with("inset", view.get("res_inset")));
+        for side in ["Left", "Right"] {
+            let handle = if side == "Left" { view.get("left") } else { view.get("right") };
+            let sheet = self.node.get_node(side);
+            sheet.patch_component("widget", map().with("visible", handle.get("shown")).with("padding", view.get("pad")));
+            sheet.get_node("Open").patch_component("widget", map()
+                .with("icon", handle.get("icon"))
+                .with("tooltip", handle.get("tooltip"))
+                .with("width", view.get("d"))
+                .with("height", view.get("d"))
+                .with("corner_radius", view.get("d").as_float() / 2.0));
+        }
+    }
+}

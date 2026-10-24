@@ -1,0 +1,428 @@
+// The Import panel: how the selected file is read, written to the sidecar
+// beside it. Godot's Import dock, over `balaur_core::import`'s two sources —
+// `[import.<kind>]` in project.toml, then `<file>.toml`.
+
+use editor;
+use inspector;
+use pool;
+use util;
+
+/// The image a texture asset reads, kept for the file it was read for.
+pub struct Held {
+    rel: str,
+    source: str,
+}
+
+/// What each target ships of a file: a row a target, its name, its line and
+/// its tooltip.
+pub struct ImportShipped {
+    rel: str,
+    rows: [[str]],
+}
+
+/// What the Import tab's head says.
+pub struct Fill {
+    ready: bool,
+    says: str,
+    name: str,
+    from: str,
+}
+
+// The keys each kind offers, in the order they are drawn. `fallback` is what
+// the engine assumes when neither the project nor the sidecar says; `only`
+// names the one extension a row applies to.
+
+// The per-axis keys (`mag_filter`, `repeat_u`, `mipmap_filter` and the rest)
+// are written by hand: a row apiece would double the panel.
+fn ROWS() -> any {
+    map()
+        .with("texture", [
+            map().with("key", "filter").with("kind", "enum").with("options", ["linear", "nearest"]).with("fallback", "linear").with("help", "nearest keeps pixel art crisp when it is magnified"),
+            map().with("key", "repeat").with("kind", "enum").with("options", ["clamp", "repeat", "mirror"]).with("fallback", "clamp").with("help", "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam"),
+            map().with("key", "mipmaps").with("kind", "bool").with("fallback", false).with("help", "smaller copies for a texture drawn small, which stops it shimmering"),
+            map().with("key", "anisotropy").with("kind", "count").with("options", ["1", "2", "4", "8", "16"]).with("fallback", 1).with("help", "samples per fetch on a surface seen edge-on; needs a linear filter"),
+            map().with("key", "premultiply").with("kind", "bool").with("fallback", false).with("help", "color scaled by alpha at upload, so a soft edge blends without a dark fringe"),
+            map().with("key", "srgb").with("kind", "bool").with("fallback", true).with("help", "off for a normal map or a mask, which carry data rather than color"),
+            map().with("key", "bleed").with("kind", "bool").with("fallback", true).with("help", "the edge color spread under transparent texels, so a linear filter reads no fringe"),
+            map().with("key", "normal_map").with("kind", "bool").with("fallback", false).with("help", "a normal map: data rather than color, so srgb is off unless set"),
+            map().with("key", "flip_green").with("kind", "bool").with("fallback", false).with("help", "invert green, for a normal map baked the way DirectX reads one"),
+            map().with("key", "pixels_per_unit").with("kind", "number").with("fallback", 100.0).with("step", 1.0).with("help", "texture pixels to one world unit, for a sprite whose own is 0"),
+            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.25).with("only", "svg").with("help", "pixels per SVG unit; the raster a sprite measures"),
+            map().with("key", "recode").with("kind", "enum").with("options", ["original", "webp", "quantized"]).with("fallback", "export").with("help", "how an export re-encodes this file, over [export] images"),
+            map().with("key", "quality").with("kind", "number").with("fallback", 80.0).with("step", 5.0).with("whole", true).with("help", "the palette's 0 to 100 quality when this file is quantized"),
+        ])
+        .with("audio", [
+            map().with("key", "volume_linear").with("kind", "number").with("fallback", 1.0).with("step", 0.05).with("help", "the file's own level, multiplied into every play of it"),
+            map().with("key", "loop").with("kind", "bool").with("fallback", false).with("help", "loop wherever it is played"),
+            map().with("key", "loop_offset").with("kind", "number").with("fallback", 0.0).with("step", 0.1).with("help", "seconds in that each repeat starts from, past an intro"),
+            map().with("key", "force_mono").with("kind", "bool").with("fallback", false).with("help", "mixed to one channel at export; a WAV only"),
+            map().with("key", "max_rate_hz").with("kind", "count").with("options", ["0", "11025", "22050", "32000", "44100", "48000"]).with("fallback", 0).with("help", "the highest sample rate a WAV ships at, in Hz; 0 keeps its own"),
+            map().with("key", "recode").with("kind", "enum").with("options", ["original", "flac", "vorbis"]).with("fallback", "export").with("help", "how an export re-encodes this file, over [export] audio"),
+        ])
+        .with("font", [
+            map().with("key", "font_family").with("kind", "enum").with("options", ["ui", "heading", "mono", "icon"]).with("fallback", "name").with("help", "the family this face joins; by default its file name's prefix decides"),
+            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.05).with("help", "how much larger its glyphs draw and advance, in widgets and world text"),
+            map().with("key", "y_offset").with("kind", "number").with("fallback", 0.0).with("step", 0.01).with("help", "a nudge down as a fraction of the size, for a face that sits high"),
+            map().with("key", "hinting").with("kind", "bool").with("fallback", true).with("help", "snap outlines to the pixel grid; off for a smooth face"),
+            map().with("key", "antialias").with("kind", "bool").with("fallback", true).with("help", "smooth glyph edges; off draws every pixel on or off, for a pixel face"),
+        ])
+        .with("model", [
+            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.01).with("help", "the model's units to the scene's: 0.01 for a file modeled in centimeters"),
+            map().with("key", "lods").with("kind", "count").with("options", ["0", "1", "2", "3", "4", "5", "6"]).with("fallback", 0).with("help", "simpler copies built at load, each half the triangles of the one before"),
+            map().with("key", "lod_distance").with("kind", "number").with("fallback", 20.0).with("step", 1.0).with("help", "camera distance where the first simpler copy takes over; each next at twice it"),
+        ])
+}
+
+// What each `count` option writes: the sidecar holds a number, and a dropdown
+// hands back the text beside it.
+fn COUNTS() -> any {
+    map().with("0", 0).with("1", 1).with("2", 2).with("3", 3).with("4", 4).with("5", 5).with("6", 6).with("8", 8).with("16", 16).with("11025", 11025).with("22050", 22050).with("32000", 32000).with("44100", 44100).with("48000", 48000)
+}
+
+// Extensions the panel claims, matching `balaur_core::import::kind_of`. A
+// file in another format is not one the engine reads, so offering settings
+// for it would write a file nothing opens.
+fn KINDS() -> any {
+    map().with("png", "texture").with("webp", "texture").with("jpg", "texture").with("jpeg", "texture").with("svg", "texture").with("ogg", "audio").with("wav", "audio").with("mp3", "audio").with("flac", "audio").with("ttf", "font").with("otf", "font").with("ttc", "font").with("glb", "model").with("gltf", "model").with("obj", "model")
+}
+
+// The targets the panel shows a file shipping to; empty is this machine.
+fn TARGETS() -> [[str]] {
+    [["desktop", ""], ["web", "web"], ["android", "android"], ["ios", "ios"]]
+}
+
+pub fn kind_of(rel: str) -> str {
+    let lower = rel.to_lower();
+    let kinds = KINDS();
+    for extension in kinds.keys() {
+        if lower.ends_with("." + extension) {
+            return kinds.get(extension).as_str();
+        }
+    }
+    ""
+}
+
+pub fn sidecar_of(rel: str) -> str {
+    rel + ".import.toml"
+}
+
+fn full(S: editor::State, rel: str) -> str {
+    S.game_root + "/" + rel
+}
+
+// The sidecar's own table, empty when there is none. A file that does not
+// parse is reported once and treated as empty, so a typo cannot wedge the
+// panel.
+pub fn sidecar(S: editor::State, rel: str) -> any {
+    table_at(full(S, sidecar_of(rel)))
+}
+
+// The settings held in one sidecar file, by absolute path.
+fn table_at(path: str) -> any {
+    if !fs::exists(path) {
+        return map();
+    }
+    let text = fs::read(path);
+    if text.is_none() {
+        return map();
+    }
+    let value = toml::parse(text.unwrap());
+    if value.kind() != "map" {
+        log::warn("{path} is not a settings file");
+        return map();
+    }
+    value
+}
+
+// The image a `textures/*.toml` asset reads, or "" for any other file. Such a
+// file holds its own settings, so its rows edit it in place. Kept per file,
+// since a panel asks every frame.
+fn texture_source(S: editor::State, rel: str) -> str {
+    if S.import_texture.rel == rel {
+        return S.import_texture.source;
+    }
+    let found = "";
+    if rel.to_lower().ends_with(".toml") {
+        let table = table_at(full(S, rel));
+        if table.type.as_str() == "texture" {
+            found = table.source.as_str();
+        }
+    }
+    S.import_texture = Held { rel: rel, source: found };
+    found
+}
+
+// The picture a file's rows describe: a texture asset's source, or the file.
+fn image_of(S: editor::State, rel: str) -> str {
+    let source = texture_source(S, rel);
+    if source == "" { rel } else { source }
+}
+
+// The file a key is written to: a texture asset itself, or the sidecar.
+fn settings_file(S: editor::State, rel: str) -> str {
+    if texture_source(S, rel) == "" { sidecar_of(rel) } else { rel }
+}
+
+// Which kind's rows a file takes.
+fn kind_for(S: editor::State, rel: str) -> str {
+    let kind = kind_of(rel);
+    if kind == "" && texture_source(S, rel) != "" { "texture" } else { kind }
+}
+
+// What `project.toml` says for this kind, which the sidecar overrides.
+fn project_default(S: editor::State, kind: str, key: str) -> any {
+    let text = fs::read(S.game_root + "/project.toml");
+    if text.is_none() {
+        return nil;
+    }
+    toml::parse(text.unwrap()).get("import").get(kind).get(key)
+}
+
+// Write one key, or drop it when `value` is nil. An empty sidecar is removed
+// rather than left behind: a file of no settings is noise in a project.
+pub fn write(S: editor::State, rel: str, key: str, value: any) {
+    let cleared = value.is_nil();
+    let what = if cleared { "cleared" } else { "set" };
+    let path = full(S, settings_file(S, rel));
+    log::info("import: {key} {what} for {rel}");
+    let table = table_at(path);
+    if cleared {
+        table.remove(key);
+    } else {
+        table.set(key, value);
+    }
+    if table.len() == 0 {
+        if fs::exists(path) {
+            fs::remove(path);
+        }
+    } else {
+        fs::write(path, toml::encode(table));
+    }
+    // The renderer uploads a texture under a name built from its settings, so
+    // the change shows without a restart.
+    assets::invalidate();
+    S.import_shipped = ImportShipped { rel: "", rows: [] };
+}
+
+// One row: the label, the control, and where the value came from.
+fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
+    let key = spec.key.as_str();
+    let own = table_at(full(S, settings_file(S, rel))).get(key);
+    let inherited = project_default(S, kind, key);
+    // A texture asset reads its image's sidecar first, and overrides it.
+    let image = image_of(S, rel);
+    let beside = if image == rel { nil } else { sidecar(S, image).get(key) };
+    let has_own = !own.is_nil();
+    let source = if !beside.is_nil() { "image" } else if !inherited.is_nil() { "project" } else { "default" };
+    let effective = spec.fallback;
+    if !inherited.is_nil() {
+        effective = inherited;
+    }
+    if !beside.is_nil() {
+        effective = beside;
+    }
+    if has_own {
+        effective = own;
+    }
+    let shown = spec.fallback;
+    if effective.kind() == "float" || effective.kind() == "int" {
+        shown = effective.as_float();
+    }
+    let whole = spec.whole.as_bool();
+    let kind_of_row = spec.kind.as_str();
+    let control = if kind_of_row == "number" {
+        map()
+            .with("kind", "number_field")
+            .with("grow", 1)
+            .with("tooltip", spec.help)
+            .with("arrows", true)
+            .with("value", shown)
+            .with("step", spec.step)
+            .with("drag_speed", spec.step)
+            .with("on", "handle")
+            .with("data", map().with("fn", row_on_0).with("rel", rel).with("key", key).with("whole", whole))
+    } else if kind_of_row == "bool" {
+        map()
+            .with("kind", "checkbox")
+            .with("text", "")
+            .with("tooltip", spec.help)
+            .with("checked", effective.as_bool())
+            .with("on", "handle")
+            .with("data", map().with("fn", row_on_1).with("rel", rel).with("key", key))
+    } else if kind_of_row == "count" {
+        let count = if effective.kind() == "int" { effective } else { spec.fallback };
+        map()
+            .with("kind", "dropdown")
+            .with("grow", 1)
+            .with("tooltip", spec.help)
+            .with("text", "{count.as_int()}")
+            .with("options", spec.options)
+            .with("on", "handle")
+            .with("data", map().with("fn", row_on_2).with("rel", rel).with("key", key).with("spec", spec))
+    } else {
+        map()
+            .with("kind", "dropdown")
+            .with("grow", 1)
+            .with("tooltip", spec.help)
+            .with("text", if effective.kind() == "str" { effective.as_str() } else { spec.fallback.as_str() })
+            .with("options", spec.options)
+            .with("on", "handle")
+            .with("data", map().with("fn", row_on_3).with("rel", rel).with("key", key))
+    };
+    // What the value is following, or the way back to following it.
+    let note = if has_own {
+        map()
+            .with("kind", "button")
+            .with("text", "reset")
+            .with("role", "chip")
+            .with("width", 52)
+            .with("tooltip", "Drop this key and follow the project again")
+            .with("on", "handle")
+            .with("data", map().with("fn", row_on_4).with("rel", rel).with("key", key))
+    } else {
+        map().with("kind", "label").with("text", source).with("role", "text_caption").with("width", 52)
+    };
+    inspector::form_row(S, key, [control, note]);
+}
+
+fn row_on_0(S: &mut editor::State, data: any, v: any) {
+    if data.whole.as_bool() {
+        write(S, data.rel.as_str(), data.key.as_str(), math::round(v.as_float()) as int);
+    } else {
+        write(S, data.rel.as_str(), data.key.as_str(), v);
+    }
+}
+
+fn row_on_1(S: &mut editor::State, data: any, on: any) {
+    write(S, data.rel.as_str(), data.key.as_str(), on);
+}
+
+fn row_on_2(S: &mut editor::State, data: any, picked: any) {
+    let count = COUNTS().get(picked.as_str());
+    write(S, data.rel.as_str(), data.key.as_str(), if count.is_nil() { data.spec.fallback } else { count });
+}
+
+fn row_on_3(S: &mut editor::State, data: any, picked: any) {
+    write(S, data.rel.as_str(), data.key.as_str(), picked);
+}
+
+fn row_on_4(S: &mut editor::State, data: any, _0: any) {
+    write(S, data.rel.as_str(), data.key.as_str(), nil);
+}
+
+// The rows the selected file offers, empty when nothing is selected or the
+// file is one no importer claims.
+fn specs_for(S: editor::State) -> [any] {
+    let rel = S.assets.sel;
+    if rel == "" {
+        return [];
+    }
+    let kind = kind_for(S, rel);
+    if kind == "" {
+        return [];
+    }
+    let lower = image_of(S, rel).to_lower();
+    let out: [any] = [];
+    for spec in util::vec(ROWS().get(kind)) {
+        let only = spec.only.as_str();
+        if only == "" || lower.ends_with("." + only) {
+            out.push(spec);
+        }
+    }
+    out
+}
+
+/// Bytes as a person reads them.
+fn size_text(n: float) -> str {
+    if n < 1024.0 {
+        return "{n as int} B";
+    }
+    if n < 1048576.0 {
+        return "{util::fixed(n / 1024.0, 1)} KB";
+    }
+    "{util::fixed(n / 1048576.0, 1)} MB"
+}
+
+/// One target's line, short enough for the dock: the pixels that ship, what
+/// the scene measures when that differs, the bytes, and the variant used.
+fn shipped_line(rel: str, answer: export::Preview?) -> str {
+    if answer.is_none() {
+        return "not shipped";
+    }
+    let row = answer.unwrap();
+    let parts: [str] = [];
+    if row.width > 0 {
+        let pixels = "{row.width}x{row.height}";
+        if row.drawn_width > 0 {
+            pixels = pixels + " of {row.drawn_width}x{row.drawn_height}";
+        }
+        parts.push(pixels);
+    }
+    parts.push(size_text(row.after as float));
+    if row.source != rel {
+        parts.push(util::last_segment(row.source));
+    }
+    util::join(parts, " · ")
+}
+
+/// The same row whole, for the tooltip: what the GPU holds once uploaded.
+fn shipped_tip(answer: export::Preview?) -> str {
+    if answer.is_none() {
+        return "This file is not in that target's pack.";
+    }
+    let row = answer.unwrap();
+    let gpu = if row.gpu_bytes > 0 { ", {size_text(row.gpu_bytes as float)} on the GPU" } else { "" };
+    "{size_text(row.after as float)} from {size_text(row.before as float)}{gpu}"
+}
+
+// What each target ships, kept until the file or its settings change: an
+// answer decodes and may re-encode the picture, which no frame should pay.
+fn shipped(S: editor::State, rel: str) -> [[str]] {
+    if S.import_shipped.rel == rel {
+        return S.import_shipped.rows;
+    }
+    let rows: [[str]] = [];
+    for pair in TARGETS() {
+        let answer = export::preview(rel, pair[1]);
+        rows.push([pair[0], shipped_line(rel, answer), shipped_tip(answer)]);
+    }
+    S.import_shipped = ImportShipped { rel: rel, rows: rows };
+    rows
+}
+
+// The Import tab's form, under its own scroll.
+const FORM: str = "Editor/Shell/Body/Right/RightSheet/Import/Scroll/Form";
+
+/// The Import tab, for whatever the Assets tab has selected: its form filled
+/// on the tab's own node, and what its head says handed back. Empty until a
+/// file is picked, the way the Inspector is empty without a node.
+pub fn fill(S: &mut editor::State) -> Fill {
+    let k = S.theme;
+    let rel = S.assets.sel;
+    let specs: [any] = specs_for(S);
+    if specs.len() == 0 {
+        let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
+        pool::hide(S, FORM);
+        return Fill { ready: false, says: why, name: "", from: "" };
+    }
+    let kind = kind_for(S, rel);
+    let image = image_of(S, rel);
+    let from = if image != rel {
+        "reads " + image
+    } else if fs::exists(full(S, sidecar_of(rel))) {
+        sidecar_of(util::last_segment(rel))
+    } else {
+        "no settings file yet"
+    };
+    inspector::open_pool(S);
+    for spec in specs {
+        row(S, k, rel, kind, spec);
+    }
+    if kind == "texture" || kind == "audio" {
+        for pair in shipped(S, image) {
+            inspector::form_row(S, pair[0], [map().with("kind", "label").with("text", pair[1]).with("tooltip", pair[2]).with("role", "text_caption").with("grow", 1)]);
+        }
+    }
+    inspector::close_pool_into(S, FORM);
+    Fill { ready: true, says: "", name: util::last_segment(rel), from: "{kind}  ·  {from}" }
+}

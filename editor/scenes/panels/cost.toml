@@ -1,0 +1,57 @@
+# The Cost tab: what the engine measured, as a table under its headline.
+# One script answers it, sampling while the tab shows: see scripts/panels/meter.bs.
+
+[[nodes]]
+id = "panel"
+name = "Cost"
+script = { source = "scripts/panels/meter.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "tools"
+name = "Tools"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+gap = [6, 0]
+height = 26
+
+[[nodes]]
+id = "headline"
+name = "Headline"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+grow = 1
+
+[[nodes]]
+id = "table"
+name = "Table"
+parent = "panel"
+[nodes.widget]
+kind = "table"
+grow = 1
+row_height = 18
+font_family = "mono"
+sortable = true
+
+[nodes.widget.touch]
+row_height = 33
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false

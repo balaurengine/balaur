@@ -19,27 +19,29 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 collider3d = {{ kind = "box", size = [10.0, 1.0, 10.0], events = [{events}] }}
 
 [[nodes]]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = {{ source = "scripts/s.rn" }}
+script = {{ source = "scripts/s.bs" }}
 body3d = {{ kind = "dynamic" }}
 collider3d = {{ kind = "box", events = [{events}] }}
 transform = {{ position = [0.0, 1.5, 0.0] }}
 "#
         ),
-        r#"pub fn init(this) { this.entered = []; this.left = []; this.forces = []; }
-pub fn on_collision_enter(this, collision) { this.entered.push(collision); }
-pub fn on_collision_exit(this, collision) { this.left.push(collision); }
-pub fn on_contact_force(this, contact) { this.forces.push(contact); }
-pub fn entered(this) { this.entered }
-pub fn left(this) { this.left }
-pub fn forces(this) { this.forces }
-pub fn drop_crate(this) { this.node.get_node("../Crate").queue_free(); }
+        r#"pub struct S { node: Node, entered: [any], left: [any], forces: [any] }
+impl S {
+    pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
+    pub fn on_collision_exit(collision: any) { self.left.push(collision); }
+    pub fn on_contact_force(contact: any) { self.forces.push(contact); }
+    pub fn entered() -> [any] { self.entered }
+    pub fn left() -> [any] { self.left }
+    pub fn forces() -> [any] { self.forces }
+    pub fn drop_crate() { self.node.get_node("../Crate").queue_free(); }
+}
 "#,
     );
     b.tick(40);
@@ -62,10 +64,7 @@ fn first(b: &boot::Booted, node: &str, function: &str) -> Value {
 }
 
 fn y(value: &Value) -> f64 {
-    match value {
-        Value::Vec3([_, y, _]) => f64::from(*y),
-        other => panic!("not a vec3: {other:?}"),
-    }
+    boot::vector(value)[1]
 }
 
 #[test]
@@ -116,7 +115,7 @@ name = "World"
 id = "n_zone"
 name = "Zone"
 parent = "n_world"
-script = { source = "scripts/s.rn" }
+script = { source = "scripts/s.bs" }
 collider3d = { kind = "box", size = [4.0, 1.0, 4.0], sensor = true, events = ["collision"] }
 
 [[nodes]]
@@ -127,11 +126,13 @@ body3d = { kind = "dynamic" }
 collider3d = { kind = "sphere", radius = 0.25 }
 transform = { position = [0.0, 1.5, 0.0] }
 "#,
-        r"pub fn init(this) { this.entered = []; this.left = []; }
-pub fn on_collision_enter(this, collision) { this.entered.push(collision); }
-pub fn on_collision_exit(this, collision) { this.left.push(collision); }
-pub fn entered(this) { this.entered }
-pub fn left(this) { this.left }
+        r"pub struct S { node: Node, entered: [any], left: [any] }
+impl S {
+    pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
+    pub fn on_collision_exit(collision: any) { self.left.push(collision); }
+    pub fn entered() -> [any] { self.entered }
+    pub fn left() -> [any] { self.left }
+}
 ",
     );
     b.tick(90);

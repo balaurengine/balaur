@@ -9,7 +9,7 @@
 //! project, run in a tab.
 //!
 //! The trait is synchronous because the script API is: `fs::read` returns a
-//! value to a Rune script that is mid-frame, and no amount of plumbing makes
+//! value to a script that is mid-frame, and no amount of plumbing makes
 //! that await. A browser backend therefore has to have the bytes already,
 //! which is why the web entry point seeds one from a pack before booting.
 use std::cell::RefCell;
@@ -510,7 +510,10 @@ mod tests {
             [
                 ("project.toml".to_string(), b"name = 'x'".to_vec()),
                 ("scenes/main.toml".to_string(), b"[[nodes]]".to_vec()),
-                ("scripts/a.rn".to_string(), b"pub fn init(this) {}".to_vec()),
+                (
+                    "scripts/a.bs".to_string(),
+                    b"pub struct A { node: Node }".to_vec(),
+                ),
             ],
         );
         fs
@@ -547,14 +550,17 @@ mod tests {
     fn writing_one_file_leaves_the_others_stamps_alone() {
         let fs = seeded();
         let untouched = fs.mtime(Path::new("/p/project.toml")).unwrap();
-        fs.write(Path::new("/p/scripts/a.rn"), b"pub fn init(this) { 1 }")
-            .unwrap();
+        fs.write(
+            Path::new("/p/scripts/a.bs"),
+            b"pub struct A { node: Node, n: int }",
+        )
+        .unwrap();
         // The stamp is not recomputed, it is left alone, so the two are the
         // same bits and not merely near each other.
         #[allow(clippy::float_cmp, reason = "an untouched stamp is the same stamp")]
         let kept = fs.mtime(Path::new("/p/project.toml")).unwrap() == untouched;
         assert!(kept, "writing one file restamped another");
-        assert!(fs.mtime(Path::new("/p/scripts/a.rn")).unwrap() > untouched);
+        assert!(fs.mtime(Path::new("/p/scripts/a.bs")).unwrap() > untouched);
         assert!(fs.mtime(Path::new("/p/none.toml")).is_none());
     }
 
@@ -609,8 +615,8 @@ mod tests {
         let fs = seeded();
         fs.rename(Path::new("/p/scripts"), Path::new("/p/src"))
             .unwrap();
-        assert!(fs.read(Path::new("/p/src/a.rn")).is_ok());
-        assert!(!fs.exists(Path::new("/p/scripts/a.rn")));
+        assert!(fs.read(Path::new("/p/src/a.bs")).is_ok());
+        assert!(!fs.exists(Path::new("/p/scripts/a.bs")));
     }
 
     #[test]

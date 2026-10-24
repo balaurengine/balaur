@@ -4,7 +4,7 @@
 [[nodes]]
 id = "rig_click_to_move"
 name = "Click to move"
-script = { source = "scripts/click_to_move.rn" }
+script = { source = "scripts/click_to_move.bs" }
 
 [nodes.transform]
 position = [0, 1, 0]

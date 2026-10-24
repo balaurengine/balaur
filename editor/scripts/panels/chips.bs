@@ -1,0 +1,44 @@
+// The chip strip's one script: the workspace's chips, filled by the Editor on
+// a word. The scene is the document, so the chips step back until the
+// pointer comes for them, the way a canvas tool's context bar does.
+
+pub struct Chips {
+    node: Node,
+    editor: Node,
+    near: bool,
+}
+
+impl Chips {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        self.near = false;
+        events::listen(self.node, "stage_changed", self.editor);
+    }
+
+    pub fn on_stage_changed(_change: any) {
+        self.refresh();
+    }
+
+    pub fn on_pointer_enter() {
+        self.near = true;
+        self.refresh();
+    }
+
+    pub fn on_pointer_exit() {
+        self.near = false;
+        self.refresh();
+    }
+
+    /// A chip has run its own handler by now, so what is left is to show what
+    /// it changed.
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "click" {
+            self.refresh();
+        }
+    }
+
+    fn refresh() {
+        let shown = self.editor.call("chips_fill", self.near);
+        self.node.patch_component("widget", map().with("visible", shown.as_bool() == true));
+    }
+}

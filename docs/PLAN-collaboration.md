@@ -23,8 +23,8 @@ Built, and not built for this:
 | --- | --- |
 | Accounts, REST, realtime channels and hooks, on native and in the browser | `balaur_gamend`, the Phoenix client over `balaur_websocket`, `crates/balaur_gamend/src/realtime.rs` |
 | The browser editor with the project mirrored in the tab and restored on refresh | `crates/balaur_cli/src/web_fs.rs::StorageFs` |
-| Undo with labels, and a dirty flag per file | `editor/scripts/history.rn` |
-| Selection highlights and gizmos drawn over the mirror | `highlight.rn`, `gizmo.rn` |
+| Undo with labels, and a dirty flag per file | `editor/scripts/history.bs` |
+| Selection highlights and gizmos drawn over the mirror | `highlight.rn`, `gizmo.bs` |
 | Scene edits that keep comments | the TOML patcher |
 | A file backend seam, one implementation per platform | `balaur::files` |
 | Object storage, an admin portal, and the split between server work in the `gamend` repository and engine work here | `docs/PLAN-gamend.md` §2 |

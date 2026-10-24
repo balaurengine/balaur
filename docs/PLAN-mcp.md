@@ -28,7 +28,7 @@ Built, and not built for this:
 | Offscreen screenshots | `balaur run --offscreen`, `render.screenshot` |
 | Scene edits that keep comments | the TOML patcher |
 | Scripts and assets reloaded when the file changes, in a game and in the editor | `App::watch`, asset generations |
-| Every editor command as a script, and named states for its tests | `palette.rn`, `selftest.rn`, `--state` |
+| Every editor command as a script, and named states for its tests | `palette.bs`, `selftest.bs`, `--state` |
 | Component schemas, presets and tags a caller can enumerate | `scene.component_schema`, `presets`, `component_tags` |
 | `llms.txt` on the site | `../forge/lib/forge/llms_controller.ex` |
 
@@ -117,7 +117,7 @@ lives there.
   and checks the file it wrote, headless.
 - The tool list and its schemas are generated into `docs/generated/` and
   checked for drift like `api.json`.
-- The editor's `on_agent_request` runs in `selftest.rn`.
+- The editor's `on_agent_request` runs in `selftest.bs`.
 - What it cannot: whether an agent uses the tools well. That is an eval, not
   a test, and belongs beside the site's `llms.txt`.
 

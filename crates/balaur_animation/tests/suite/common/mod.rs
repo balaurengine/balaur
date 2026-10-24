@@ -4,7 +4,7 @@
 //! `ScriptHost::call_on`, so a test that wants to see one either runs a
 //! language or stands in for it. Standing in for it is what makes the
 //! assertions read as "the engine called `on_landed` on this node once",
-//! with no Rune anywhere in the way — the real backend is exercised
+//! with no language anywhere in the way — the real backend is exercised
 //! separately in `tests/script.rs`.
 
 #![allow(

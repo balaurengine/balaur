@@ -1,0 +1,31 @@
+// A bouncing ball: sets up its own physics in init (Godot-style _ready), then
+// watches its own fall from update.
+
+pub struct Ball {
+    node: Node,
+    reported: bool,
+}
+
+impl Ball {
+    fn init() {
+        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
+        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.reported = false;
+    }
+
+    fn update(dt: float) {
+        let y = self.node.transform.position.y;
+        if y < 0.2 && !self.reported {
+            self.reported = true;
+            log::info("ball touched down at t = {two_places(engine::time())}");
+        }
+    }
+}
+
+// `x` to two places.
+fn two_places(x: float) -> str {
+    let n = math::round(x * 100.0) as int;
+    let cents = n % 100;
+    let pad = if cents < 10 { "0" } else { "" };
+    "{n / 100}.{pad}{cents}"
+}

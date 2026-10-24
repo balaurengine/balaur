@@ -108,6 +108,16 @@ pub(crate) fn log_error(_: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// A line on standard output as it stands, for a tool reading a headless
+/// run: no level, no tag, and not in the buffer `recent` reads.
+pub(crate) fn log_print(_: &Engine, args: &[Value]) -> Result<Value> {
+    use std::io::Write as _;
+    let line = text(args, 0)?;
+    // A reader that closed the pipe is its own business, not the script's.
+    let _ = writeln!(std::io::stdout().lock(), "{line}");
+    Ok(Value::Nil)
+}
+
 pub(crate) fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
     let n = match args.first() {
         Some(Value::Int(n)) => usize::try_from(*n).unwrap_or(100),

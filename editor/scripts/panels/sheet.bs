@@ -1,0 +1,29 @@
+// The sheet's one script: whichever screen is up fills it through the Editor
+// on a word, and again after a control's own handler ran. Escape or a click
+// on the dim shuts it.
+
+pub struct Sheet {
+    node: Node,
+    editor: Node,
+}
+
+impl Sheet {
+    pub fn init() {
+        self.editor = scene::get_node("Editor");
+        events::listen(self.node, "sheet_changed", self.editor);
+    }
+
+    pub fn on_sheet_changed(_change: any) {
+        self.editor.call("sheet_fill");
+    }
+
+    pub fn on_widget_event(event: str, node: Node, value: any) {
+        if event == "closed" && node.name() == self.node.name() {
+            self.editor.call("sheet_closed");
+            return;
+        }
+        if event == "click" || event == "change" || event == "submit" || event == "commit" {
+            self.editor.call("sheet_fill");
+        }
+    }
+}

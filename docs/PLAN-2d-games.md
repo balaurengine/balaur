@@ -451,7 +451,12 @@ every platform plan says; the last is a person.
    glyphs — a fork of one function — or the widget layer draws its own
    text and egui keeps drawing the editor's. Two text stacks in one binary
    is the cost of the second; a fork to maintain is the cost of the first.
-   Decide by trying the first for a week.
+   Decide by trying the first for a week. **Answered:** beside it. Labels
+   and button captions are shaped by `balaur_text` into the atlas world
+   text shares. epaint lays out the rest: a field's text, the `code` kind,
+   and the captions of the kinds ported from egui. epaint shapes with
+   harfrust and skrifa since 0.36, the versions `balaur_text` links.
+   [PLAN-egui-as-painter.md](PLAN-egui-as-painter.md) §0.
 2. **One tag vocabulary or two?** `presets.toml` tags classify components
    for the palette; node tags classify nodes for a query. Sharing the word
    is deliberate; whether they share a registry, so a typo in a scene is

@@ -1,0 +1,19 @@
+// Blends the triangle towards its `peak` shape and back. A morph weight is
+// an ordinary property, so a clip drives it as `mesh/morph.peak` too.
+
+pub struct Breathe {
+    node: Node,
+    clock: float,
+}
+
+impl Breathe {
+    pub fn init() {
+        self.clock = 0.0;
+    }
+
+    pub fn update(dt: float) {
+        self.clock += dt;
+        let weight = 0.5 + 0.5 * math::sin(self.clock * 1.5);
+        self.node.patch_component("mesh", map().with("morph.peak", weight));
+    }
+}

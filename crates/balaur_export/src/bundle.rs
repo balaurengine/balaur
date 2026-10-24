@@ -59,6 +59,38 @@ impl Bundle {
 /// its own. `{{title}}`, `{{pack}}` and `{{icons}}` are filled in.
 const WEB_SHELL: &str = include_str!("web/index.html");
 
+/// Every file of the project's `web/` folder but its `index.html`, as a
+/// path inside the folder and its bytes: what a page of its own links to
+/// (a picture, a font, a stylesheet), copied beside it.
+///
+/// # Errors
+/// If a file there cannot be read.
+pub(crate) fn web_files(project: &Path) -> Result<Vec<(PathBuf, Vec<u8>)>> {
+    let fs = balaur::files::default_backend();
+    let root = project.join("web");
+    let mut found = Vec::new();
+    let mut dirs = vec![root.clone()];
+    while let Some(dir) = dirs.pop() {
+        if !fs.is_dir(&dir) {
+            continue;
+        }
+        for (name, is_dir) in fs.list(&dir) {
+            let path = dir.join(&name);
+            if is_dir {
+                dirs.push(path);
+                continue;
+            }
+            let rel = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
+            if rel == Path::new("index.html") {
+                continue;
+            }
+            found.push((rel, fs.read(&path)?));
+        }
+    }
+    found.sort();
+    Ok(found)
+}
+
 /// The shell for a project: its own, or the built-in one.
 ///
 /// # Errors
@@ -105,6 +137,7 @@ pub(crate) fn export_bundle(
     apple: &AppleConfig,
     android: &AndroidConfig,
     shell: &str,
+    web_assets: &[(PathBuf, Vec<u8>)],
     icons: Option<&Icons>,
 ) -> Result<PathBuf> {
     if kind == Bundle::Ios {
@@ -150,6 +183,13 @@ pub(crate) fn export_bundle(
     std::fs::write(&pack_path, pack).with_context(|| format!("writing {}", pack_path.display()))?;
     if kind == Bundle::Web {
         let page = crate::icon::web_page(shell, name, balaur::standalone::BUNDLED_PACK, icons);
+        for (file, bytes) in web_assets {
+            let path = output.join(file);
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            std::fs::write(&path, bytes).with_context(|| format!("writing {}", path.display()))?;
+        }
         let index = output.join("index.html");
         std::fs::write(&index, page).with_context(|| format!("writing {}", index.display()))?;
         for (file, bytes) in icons.map(|i| i.web_files(name)).unwrap_or_default() {
@@ -190,7 +230,7 @@ pub(crate) fn export_bundle(
 /// The binary inside the runtime bundle, read off the plist the exporter is
 /// about to replace: the executable file keeps the runtime's name, so the
 /// new plist has to name the same one.
-fn runtime_executable(plist: &Path) -> Option<String> {
+pub(crate) fn runtime_executable(plist: &Path) -> Option<String> {
     let text = std::fs::read_to_string(plist).ok()?;
     let after = text.split("<key>CFBundleExecutable</key>").nth(1)?;
     let open = after.find("<string>")? + "<string>".len();
@@ -364,6 +404,7 @@ mod tests {
             &AppleConfig::default(),
             &AndroidConfig::default(),
             WEB_SHELL,
+            &[],
             None,
         )
         .unwrap();

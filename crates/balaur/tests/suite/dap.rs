@@ -9,16 +9,21 @@ use std::time::Duration;
 use balaur::{App, AppConfig, DEFAULT_FIXED_DT, dap, standard_app};
 use serde_json::{Value as Json, json};
 
-/// Line 4 has no code on it, so a breakpoint asked for there lands on 5.
-/// Line 6 calls out, for stepping into.
-const SCRIPT: &str = "pub fn init(this) { this.n = 0; this.ran = 0; }
-pub fn update(this, dt) {
-    let before = this.n;
-    // nothing on this line
-    this.n = before + 1;
-    this.ran = bump(this.ran);
+/// Line 6 has no code on it, so a breakpoint asked for there lands on 7.
+/// Line 8 calls out, for stepping into.
+const SCRIPT: &str = "pub struct Runner { node: Node, n: int, ran: int }
+impl Runner {
+    fn init() { self.n = 0; }
+    fn update(dt: float) {
+        let before = self.n;
+        // nothing on this line
+        self.n = before + 1;
+        self.ran = bump(self.ran);
+    }
 }
-fn bump(n) { n + 1 }
+fn bump(n: int) -> int {
+    return n + 1;
+}
 ";
 
 fn project(dir: &std::path::Path) {
@@ -30,10 +35,10 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.rn\" }\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.rn"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("s.bs"), SCRIPT).unwrap();
 }
 
 fn app_in(dir: &std::path::Path) -> App {
@@ -42,7 +47,7 @@ fn app_in(dir: &std::path::Path) -> App {
 
 fn script_path(dir: &std::path::Path) -> String {
     dir.join("scripts")
-        .join("s.rn")
+        .join("s.bs")
         .to_string_lossy()
         .into_owned()
 }
@@ -182,7 +187,7 @@ fn handshake(app: &mut App, client: &mut Client) {
 }
 
 /// The stopped instance's fields, walked the way a client's variables pane
-/// does: the top frame, its Locals scope, then `this`.
+/// does: the top frame, its Locals scope, then `self`.
 fn instance_fields(app: &mut App, client: &mut Client) -> Json {
     let trace = client.ask(app, "stackTrace", &json!({ "threadId": 1 }));
     let scopes = client.ask(
@@ -195,7 +200,7 @@ fn instance_fields(app: &mut App, client: &mut Client) -> Json {
         "variables",
         &json!({ "variablesReference": scopes["scopes"][0]["variablesReference"] }),
     );
-    let this = variable(&locals, "this");
+    let this = variable(&locals, "self");
     assert_ne!(
         this["variablesReference"],
         json!(0),
@@ -233,14 +238,14 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let set = client.ask(
         &mut app,
         "setBreakpoints",
-        &json!({ "source": source, "breakpoints": [{ "line": 4 }] }),
+        &json!({ "source": source, "breakpoints": [{ "line": 6 }] }),
     );
     let breakpoint = &set["breakpoints"][0];
     assert_eq!(breakpoint["verified"], json!(true));
     assert_eq!(
         breakpoint["line"],
-        json!(5),
-        "line 4 has no code; the breakpoint moves to the next line that has"
+        json!(7),
+        "line 6 has no code; the breakpoint moves to the next line that has"
     );
 
     let stopped = client.event(&mut app, "stopped");
@@ -257,9 +262,9 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
 
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
     let top = trace["stackFrames"][0].clone();
-    assert_eq!(top["name"], json!("update"));
-    assert_eq!(top["line"], json!(5));
-    assert_eq!(top["source"]["name"], json!("s.rn"));
+    assert_eq!(top["name"], json!("Runner.update"));
+    assert_eq!(top["line"], json!(7));
+    assert_eq!(top["source"]["name"], json!("s.bs"));
     assert!(
         std::path::Path::new(top["source"]["path"].as_str().unwrap()).is_absolute(),
         "the client must be able to open the file"
@@ -276,12 +281,12 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     );
     assert_eq!(variable(&variables, "dt")["type"], json!("number"));
 
-    // Each update raises `n` on line 5 and `ran` on line 6, so the two agree
-    // for exactly as long as the stop on line 5 holds — whatever tick it is.
+    // Each update raises `n` on line 7 and `ran` on line 8, so the two agree
+    // for exactly as long as the stop on line 7 holds — whatever tick it is.
     let fields = instance_fields(&mut app, &mut client);
     let (n, ran) = (variable(&fields, "n"), variable(&fields, "ran"));
     assert_eq!(n["type"], json!("int"));
-    assert_eq!(n["value"], ran["value"], "line 5 has not run yet");
+    assert_eq!(n["value"], ran["value"], "line 7 has not run yet");
 
     let watch = client.ask(
         &mut app,
@@ -300,9 +305,9 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let after_step = client.event(&mut app, "stopped");
     assert_eq!(after_step["body"]["reason"], json!("step"));
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
-    assert_eq!(trace["stackFrames"][0]["line"], json!(6));
+    assert_eq!(trace["stackFrames"][0]["line"], json!(8));
 
-    // Line 5 has run now, and the new stop hands out its own references.
+    // Line 7 has run now, and the new stop hands out its own references.
     let fields = instance_fields(&mut app, &mut client);
     let stepped_n: i64 = variable(&fields, "n")["value"]
         .as_str()
@@ -316,12 +321,12 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     client.event(&mut app, "stopped");
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
     assert_eq!(trace["stackFrames"][0]["name"], json!("bump"));
-    assert_eq!(trace["stackFrames"][1]["name"], json!("update"));
+    assert_eq!(trace["stackFrames"][1]["name"], json!("Runner.update"));
 
     client.ask(&mut app, "stepOut", &json!({ "threadId": 1 }));
     client.event(&mut app, "stopped");
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
-    assert_eq!(trace["stackFrames"][0]["name"], json!("update"));
+    assert_eq!(trace["stackFrames"][0]["name"], json!("Runner.update"));
 
     client.ask(&mut app, "continue", &json!({ "threadId": 1 }));
     client.event(&mut app, "continued");
@@ -358,14 +363,14 @@ fn waiting_for_a_client_catches_a_breakpoint_in_init() {
         "setBreakpoints",
         &json!({
             "source": { "path": script_path(dir.path()) },
-            "breakpoints": [{ "line": 1 }, { "line": 4 }],
+            "breakpoints": [{ "line": 3 }, { "line": 6 }],
         }),
     );
     client.send("configurationDone", &json!({}));
     server.wait_for_attach(Duration::from_secs(10)).unwrap();
     let answered = client.response(&mut app, set)["body"]["breakpoints"].clone();
-    assert_eq!(answered[0]["line"], json!(1));
-    assert_eq!(answered[1]["line"], json!(4), "as asked, nothing compiled");
+    assert_eq!(answered[0]["line"], json!(3));
+    assert_eq!(answered[1]["line"], json!(6), "as asked, nothing compiled");
 
     // `init` runs during the load, and stops on the way.
     app.load_project().unwrap();
@@ -373,7 +378,7 @@ fn waiting_for_a_client_catches_a_breakpoint_in_init() {
     let stopped = client.event(&mut app, "stopped");
     assert_eq!(stopped["body"]["reason"], json!("breakpoint"));
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
-    assert_eq!(trace["stackFrames"][0]["name"], json!("init"));
+    assert_eq!(trace["stackFrames"][0]["name"], json!("Runner.init"));
 
     // The line that could not be resolved before now can be, and the client
     // is told where it went.
@@ -384,7 +389,7 @@ fn waiting_for_a_client_catches_a_breakpoint_in_init() {
             client.event(&mut app, "breakpoint")["body"]["breakpoint"]["line"].clone(),
         ))
         .collect();
-    assert_eq!(lines, vec![json!(1), json!(5)]);
+    assert_eq!(lines, vec![json!(3), json!(7)]);
 }
 
 #[test]
@@ -402,7 +407,7 @@ fn the_pause_request_stops_the_game_at_the_next_line_a_script_runs() {
     let stopped = client.event(&mut app, "stopped");
     assert_eq!(stopped["body"]["reason"], json!("pause"));
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
-    assert_eq!(trace["stackFrames"][0]["name"], json!("update"));
+    assert_eq!(trace["stackFrames"][0]["name"], json!("Runner.update"));
 
     client.ask(&mut app, "continue", &json!({ "threadId": 1 }));
     assert_eq!(app.engine.frozen_root(), None);
@@ -422,7 +427,7 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
         "setBreakpoints",
         &json!({
             "source": { "path": script_path(dir.path()) },
-            "breakpoints": [{ "line": 5 }],
+            "breakpoints": [{ "line": 7 }],
         }),
     );
     client.event(&mut app, "stopped");
@@ -433,10 +438,35 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
         app.engine
             .script_host()
             .unwrap()
-            .breakpoints("scripts/s.rn")
+            .breakpoints("scripts/s.bs")
             .is_empty(),
         "a debugger that walks away leaves nothing behind"
     );
     app.tick(DEFAULT_FIXED_DT);
     assert_eq!(app.engine.frozen_root(), None, "and it stays let go");
+}
+
+/// A client that stops reading costs itself Debug Console lines, never the
+/// game a frame: the adapter writes from its own thread and drops log lines
+/// past a backlog, so the frame loop runs on and the client is answered once
+/// it reads again.
+#[test]
+fn a_client_that_stops_reading_never_stalls_the_game() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    let mut app = app_in(dir.path());
+    let server = dap::serve(&mut app, 0).unwrap();
+    app.load_project().unwrap();
+    let mut client = Client::connect(server.addr());
+    handshake(&mut app, &mut client);
+    // Far more than the socket holds, and nothing read.
+    for frame in 0..200 {
+        for line in 0..100 {
+            tracing::info!("flood {frame} {line}");
+        }
+        app.tick(DEFAULT_FIXED_DT);
+    }
+    let threads = client.ask(&mut app, "threads", &json!({}));
+    assert_eq!(threads["threads"][0]["name"], json!("game"));
 }

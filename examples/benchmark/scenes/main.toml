@@ -1,5 +1,5 @@
-# The benchmark project: one node, one script, and the two convex shapes the
-# mixed-pile cases need as inline meshes.
+# The benchmark project: one node, one script, its menu, and as inline meshes
+# the two convex shapes the mixed-pile cases need and the polygon case's square.
 
 [[assets]]
 id = "octahedron"
@@ -12,8 +12,71 @@ id = "pentagon"
 type = "mesh"
 positions = [[13, 0], [4.017, 12.363], [-10.517, 7.641], [-10.517, -7.641], [4.017, -12.363]]
 
+[[assets]]
+id = "square"
+type = "mesh"
+positions = [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]]
+
 [[nodes]]
 id = "n_bench"
 name = "Bench"
 parent = ""
-script = { source = "scripts/bench.rn" }
+script = { source = "scripts/bench.bs" }
+
+# The menu: a column docked at the left, so the case being built stays on
+# screen beside its own numbers. A headless run frees it.
+[[nodes]]
+id = "n_menu"
+name = "Menu"
+parent = "n_bench"
+
+[nodes.widget]
+kind = "panel"
+anchor = "fill_left"
+width = 360
+padding = 10
+gap = [6, 6]
+text = "Balaur benchmarks"
+
+[[nodes]]
+id = "n_menu_status"
+name = "Status"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "label"
+text = "pick a case"
+role = "caption"
+
+[[nodes]]
+id = "n_menu_draw"
+name = "Draw"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "checkbox"
+text = "Draw the shapes"
+checked = true
+on_change = "on_draw"
+
+# A pick queues the case; the script fills the rows with the catalogue.
+[[nodes]]
+id = "n_menu_cases"
+name = "Cases"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "list"
+row_height = 22
+height = 600
+on_change = "on_pick"
+
+[[nodes]]
+id = "n_menu_results"
+name = "Results"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "label"
+text = ""
+role = "caption"

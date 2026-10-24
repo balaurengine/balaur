@@ -1,0 +1,36 @@
+# The Problems tab: every error and warning the last check found, the
+# errors first. A pick opens the script it names.
+
+[[nodes]]
+id = "panel"
+name = "Problems"
+script = { source = "scripts/panels/problems.bs" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+visible = false
+
+[[nodes]]
+id = "list"
+name = "List"
+parent = "panel"
+[nodes.widget]
+kind = "list"
+grow = 1
+text = ""
+row_height = 18
+font_family = "mono"
+
+[nodes.widget.touch]
+row_height = 33
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false

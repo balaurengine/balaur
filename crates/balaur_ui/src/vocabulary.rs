@@ -15,7 +15,6 @@ pub(crate) mod words {
     pub(crate) const SCROLL: &str = "scroll";
     pub(crate) const TEXT_AREA: &str = "text_area";
     pub(crate) const TABS: &str = "tabs";
-    pub(crate) const DRAW: &str = "draw";
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const TEXT_FIELD: &str = "text_field";
     pub(crate) const CHECKBOX: &str = "checkbox";
@@ -37,6 +36,7 @@ pub(crate) mod words {
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
     pub(crate) const TOAST: &str = "toast";
+    pub(crate) const INSPECTOR: &str = "inspector";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL,
@@ -46,7 +46,6 @@ pub(crate) mod words {
         COLUMN,
         SCROLL,
         TABS,
-        DRAW,
         IMAGE,
         TEXT_FIELD,
         TEXT_AREA,
@@ -58,6 +57,7 @@ pub(crate) mod words {
         LIST,
         TREE,
         TABLE,
+        INSPECTOR,
         SLIDER,
         NUMBER_FIELD,
         PROGRESS_BAR,
@@ -430,14 +430,12 @@ pub(crate) mod keys {
     pub(crate) const DARK: &str = "dark";
     pub(crate) const SIZES: &str = "sizes";
     pub(crate) const ANCHOR: &str = "anchor";
-    pub(crate) const AUTOFOCUS: &str = "autofocus";
     pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const GROUP: &str = "group";
     pub(crate) const TOGGLE: &str = "toggle";
-    pub(crate) const TRACK: &str = "track";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";
@@ -445,12 +443,10 @@ pub(crate) mod keys {
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const CURRENT_LINE: &str = "current_line";
-    pub(crate) const DIAMETER: &str = "diameter";
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const SCROLL_DEADZONE: &str = "scroll_deadzone";
     pub(crate) const DECIMALS: &str = "decimals";
     pub(crate) const DURATION: &str = "duration";
-    pub(crate) const DRAW: &str = "draw";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";
     pub(crate) const FONT_FAMILY: &str = "font_family";
@@ -463,7 +459,6 @@ pub(crate) mod keys {
     pub(crate) const GUTTER_WIDTH: &str = "gutter_width";
     pub(crate) const SPLITTER_WIDTH: &str = "splitter_width";
     pub(crate) const HEIGHT: &str = "height";
-    pub(crate) const HIGHLIGHT: &str = "highlight";
     pub(crate) const ICON: &str = "icon";
     pub(crate) const ICON_COLOR: &str = "icon_color";
     pub(crate) const ICON_SIZE: &str = "icon_size";
@@ -479,7 +474,6 @@ pub(crate) mod keys {
     pub(crate) const KEEP_OPEN: &str = "keep_open";
     pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
-    pub(crate) const KNOB: &str = "knob";
     pub(crate) const LANGUAGE: &str = "language";
     pub(crate) const LAYER: &str = "layer";
     pub(crate) const LINE_HEIGHT: &str = "line_height";
@@ -515,8 +509,6 @@ pub(crate) mod keys {
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MAX_LENGTH: &str = "max_length";
-    pub(crate) const MENU: &str = "menu";
-    pub(crate) const MENU_CLICK: &str = "menu_click";
     pub(crate) const MIN: &str = "min";
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
     pub(crate) const HIDE_WIDER: &str = "hide_wider";
@@ -540,7 +532,6 @@ pub(crate) mod keys {
     pub(crate) const PLACEHOLDER: &str = "placeholder";
     pub(crate) const PLACEMENT: &str = "placement";
     pub(crate) const PREFIX: &str = "prefix";
-    pub(crate) const PREFIX_COLOR: &str = "prefix_color";
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
     pub(crate) const PROBLEMS: &str = "problems";
     pub(crate) const CORNER_RADIUS: &str = "corner_radius";
@@ -548,14 +539,19 @@ pub(crate) mod keys {
     /// what is behind it, which must keep its clicks.
     pub(crate) const INTERACTIVE: &str = "interactive";
     pub(crate) const ENABLED: &str = "enabled";
-    pub(crate) const RAIL: &str = "rail";
     pub(crate) const REGION: &str = "region";
     pub(crate) const RESIZABLE: &str = "resizable";
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
-    pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
+    /// What an `inspector` shows: a node by path, one of its components, and
+    /// how its rows spell a file and lay out a label.
+    pub(crate) const TARGET: &str = "target";
+    pub(crate) const COMPONENT: &str = "component";
+    pub(crate) const LABEL_WIDTH: &str = "label_width";
+    pub(crate) const RELATIVE_TO: &str = "relative_to";
+    pub(crate) const ALIASES: &str = "aliases";
     pub(crate) const TITLES: &str = "titles";
     pub(crate) const TITLE_BAR: &str = "title_bar";
     pub(crate) const WIDTHS: &str = "widths";
@@ -590,12 +586,11 @@ pub(crate) mod keys {
     pub(crate) const SELECTION: &str = "selection";
     pub(crate) const MULTI_SELECT: &str = "multi_select";
     pub(crate) const SHORTCUT: &str = "shortcut";
-    pub(crate) const SELECTED: &str = "selected";
-    pub(crate) const SEPARATOR: &str = "separator";
+    pub(crate) const WHILE_TYPING: &str = "while_typing";
+    pub(crate) const TAKES_TYPING: &str = "takes_typing";
     pub(crate) const FIT: &str = "fit";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const SHEET: &str = "sheet";
-    pub(crate) const SPEED: &str = "speed";
     pub(crate) const STEP: &str = "step";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
@@ -606,17 +601,11 @@ pub(crate) mod keys {
     pub(crate) const TEXT_COLOR: &str = "text_color";
     pub(crate) const TEXT_KEY: &str = "text_key";
     pub(crate) const THEME: &str = "theme";
-    pub(crate) const TIGHT: &str = "tight";
-    pub(crate) const TITLE: &str = "title";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";
-    pub(crate) const TOP: &str = "top";
     pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const SHOWING: &str = "showing";
-    pub(crate) const TRAILING_COLOR: &str = "trailing_color";
-    pub(crate) const TRAILING_SIZE: &str = "trailing_size";
-    pub(crate) const TRANSPARENT: &str = "transparent";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SAFE_AREA: &str = "safe_area";
@@ -625,7 +614,6 @@ pub(crate) mod keys {
     pub(crate) const WARNINGS: &str = "warnings";
     pub(crate) const WIDTH: &str = "width";
     pub(crate) const WRAP: &str = "wrap";
-    pub(crate) const INDEX: &str = "index";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
 
@@ -707,7 +695,7 @@ pub(crate) mod keys {
     pub(crate) const CLOSE_ON: &str = "close_on";
     pub(crate) const BACKDROP_COLOR: &str = "backdrop_color";
     pub(crate) const DISMISSABLE: &str = "dismissable";
-    /// What a window takes, from the component and from `ui.window`.
+    /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";
     pub(crate) const CONSTRAIN: &str = "constrain";
     pub(crate) const DEFAULT_OPEN: &str = "default_open";
@@ -719,8 +707,10 @@ pub(crate) mod keys {
 pub(crate) mod pool {
     /// The component every pooled node carries.
     pub(crate) const WIDGET: &str = "widget";
-    /// The callback that hears the reader's edit.
+    /// What hears the reader's edit: a callback, or the name of a method.
     pub(crate) const ON: &str = "on";
+    /// What a named `on` is handed first, before the edit.
+    pub(crate) const DATA: &str = "data";
     /// A spec's children: the spec is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
     /// A row's label, and the roles its label and control column wear.
@@ -732,6 +722,60 @@ pub(crate) mod pool {
     /// The roles a row wears where its spec names none.
     pub(crate) const TEXT_LABEL: &str = "text_label";
     pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
+}
+
+/// What an `inspector` reads off a property's spec, the datatypes it draws,
+/// and what its `change` event carries.
+pub(crate) mod inspect {
+    pub(crate) const TYPE: &str = "type";
+    pub(crate) const DEFAULT: &str = "default";
+    pub(crate) const MIN: &str = "min";
+    pub(crate) const MAX: &str = "max";
+    pub(crate) const STEP: &str = "step";
+    pub(crate) const UNIT: &str = "unit";
+    pub(crate) const DESCRIPTION: &str = "description";
+    pub(crate) const READONLY: &str = "readonly";
+    pub(crate) const OPTIONS: &str = "options";
+    pub(crate) const ASSET: &str = "asset";
+    pub(crate) const OF: &str = "of";
+    pub(crate) const FIELDS: &str = "fields";
+    pub(crate) const KEY: &str = "key";
+    pub(crate) const CLASS: &str = "class";
+    pub(crate) const DECIMALS: &str = "decimals";
+    pub(crate) const DEGREES: &str = "degrees";
+
+    pub(crate) const FLOAT: &str = "float";
+    pub(crate) const INT: &str = "int";
+    pub(crate) const BOOL: &str = "bool";
+    pub(crate) const ENUM: &str = "enum";
+    pub(crate) const VEC2: &str = "vec2";
+    pub(crate) const VEC3: &str = "vec3";
+    pub(crate) const VEC4: &str = "vec4";
+    pub(crate) const COLOR: &str = "color";
+    pub(crate) const FLAGS: &str = "flags";
+    pub(crate) const LIST: &str = "list";
+    pub(crate) const MAP: &str = "map";
+    pub(crate) const RECORD: &str = "record";
+
+    /// What a `change` event's table holds: the property, the steps into
+    /// its value, the value now there, and a verb in place of a value.
+    pub(crate) const PROPERTY: &str = "property";
+    pub(crate) const PATH: &str = "path";
+    pub(crate) const VALUE: &str = "value";
+    pub(crate) const VERB: &str = "verb";
+    /// An inline asset written to a file, and a file copied inline.
+    pub(crate) const SAVE: &str = "save";
+    pub(crate) const EMBED: &str = "embed";
+
+    /// The theme entries a row's parts wear.
+    pub(crate) const CHIP: &str = "chip";
+    pub(crate) const CHIP_FLAG: &str = "chip_flag";
+    pub(crate) const INPUT: &str = "input";
+    pub(crate) const TEXT_CAPTION: &str = "text_caption";
+    pub(crate) const TEXT_CODE_QUIET: &str = "text_code_quiet";
+    pub(crate) const TEXT_HINT: &str = "text_hint";
+    pub(crate) const ACTION_DOCK_SECONDARY: &str = "action_dock_secondary";
+    pub(crate) const LAYOUT_ACTIONS: &str = "layout_actions";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers
@@ -786,9 +830,7 @@ pub(crate) mod tokens {
     pub(crate) const TEXT_MUTED: &str = "text_muted";
     pub(crate) const TEXT_SUBTLE: &str = "text_subtle";
     pub(crate) const PRIMARY_TEXT: &str = "primary_text";
-    pub(crate) const PRIMARY_FILL: &str = "primary_fill";
     pub(crate) const PRIMARY_BG: &str = "primary_bg";
-    pub(crate) const TEXT_ON_PRIMARY: &str = "text_on_primary";
     pub(crate) const SECONDARY_TEXT: &str = "secondary_text";
     pub(crate) const WARNING_TEXT: &str = "warning_text";
     pub(crate) const DANGER_TEXT: &str = "danger_text";
@@ -816,9 +858,9 @@ pub(crate) mod tokens {
         #[test]
         fn a_spelled_family_token_is_the_one_the_palette_builds() {
             assert_eq!(of(PRIMARY, TEXT), PRIMARY_TEXT);
-            assert_eq!(of(PRIMARY, FILL), PRIMARY_FILL);
+            assert_eq!(of(PRIMARY, FILL), "primary_fill");
             assert_eq!(of(PRIMARY, BG), PRIMARY_BG);
-            assert_eq!(on(PRIMARY), TEXT_ON_PRIMARY);
+            assert_eq!(on(PRIMARY), "text_on_primary");
             assert_eq!(of(SECONDARY, TEXT), SECONDARY_TEXT);
             assert_eq!(of(WARNING, TEXT), WARNING_TEXT);
             assert_eq!(of(DANGER, TEXT), DANGER_TEXT);
