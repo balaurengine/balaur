@@ -26,7 +26,7 @@ Beside the generated modules and `events.bs`, written by hand:
 | `gamend::prefs` | The player's prefs on this device |
 | `gamend::logs` | This run's log, shipped in batches; put `log_sink.bs` on a node that lives as long as the game |
 | `gamend::core` | The query string, the required-field check and the reply helpers |
-| `editor/gamend.rn` | The Gamend dock in the Balaur editor (Rune until the editor takes Balaur Script plugins) |
+| `editor/gamend.bs` | The Gamend dock in the Balaur editor: the server, the session, and what the calls answered |
 
 ## admin_analytics
 
