@@ -136,7 +136,10 @@ fn content_of(word: &str, safe: bool) -> AlignContent {
     };
     AlignContent {
         keyword,
-        safety: safety(safe, matches!(keyword, K::Center | K::FlexStart | K::FlexEnd)),
+        safety: safety(
+            safe,
+            matches!(keyword, K::Center | K::FlexStart | K::FlexEnd),
+        ),
     }
 }
 
