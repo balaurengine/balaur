@@ -108,9 +108,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let target;
 // `exited` stops the wait the moment the browser is gone: a Chrome that dies
-// on a bad flag did so in the first second, and 20s of polling a dead port
-// only delays the message.
-for (let i = 0; i < 100 && !target && exited === null; i++) {
+// on a bad flag did so in the first second, and a minute of polling a dead
+// port only delays the message. A live one on a busy runner has taken over
+// 20s to open its port.
+for (let i = 0; i < 300 && !target && exited === null; i++) {
   await sleep(200);
   try {
     const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
