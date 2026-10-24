@@ -7,12 +7,18 @@
 //!
 //! The browser owns the transport, so TLS, redirects and HTTP/2 or /3
 //! negotiation are its problem, not this crate's.
+//!
+//! **No cookies.** Every request is `credentials: "omit"`: the browser sends
+//! none and keeps none it is sent. Fetch's default is `same-origin`, and a
+//! game can run on a site with logins (the web editor): there a project's
+//! script calling the site would carry the visitor's session and read the
+//! answer, acting as them. A script that needs to sign in sends a header.
 
 use std::sync::mpsc::Sender;
 
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{AbortSignal, Headers, Request, RequestInit, Response};
+use web_sys::{AbortSignal, Headers, Request, RequestCredentials, RequestInit, Response};
 
 use crate::{HttpCall, HttpEvent};
 
@@ -41,6 +47,7 @@ pub(crate) fn pump() {}
 async fn send(call: HttpCall, events: &Sender<HttpEvent>) -> Result<HttpEvent, String> {
     let init = RequestInit::new();
     init.set_method(&call.method);
+    init.set_credentials(RequestCredentials::Omit);
     // Fetch has no timeout of its own; an abort signal is how one is spelled.
     let seconds = call.timeout.unwrap_or(DEFAULT_TIMEOUT);
     init.set_signal(Some(&AbortSignal::timeout_with_f64(seconds * 1000.0)));

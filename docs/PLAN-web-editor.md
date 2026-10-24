@@ -34,7 +34,7 @@ Built, and not built for this:
 | The editor's own tooling bindings: `fs`, `toml`, `require`, `log.recent` | `balaur_core::file_api`, `engine_api` |
 | A scene mirrored as real nodes, play attaching the game's real scripts | `model.build_mirror`, `scene.instantiate` |
 | Hot reload of a script, and of the editor's own modules | `engine.reload_script`, `require` |
-| A headless self-test over the whole editor, run in CI on every example | `editor/scripts/selftest.bs`, `scripts/e2e.sh` |
+| A headless self-test over the whole editor, run by `scripts/e2e.sh` | `editor/scripts/selftest.bs`, `scripts/e2e.sh` |
 | A session recorded and replayed to a bit-identical digest | `replay`, `digest`, `run --trace-digest` |
 | The parts a web build has not got, already cfg'd off | `update.rs`, `templates.rs`, `--debug` in `main.rs` |
 

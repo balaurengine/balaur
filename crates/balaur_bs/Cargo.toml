@@ -11,8 +11,7 @@ libm.workspace = true
 rustc-hash.workspace = true
 wasm-encoder = "0.262"
 smallvec.workspace = true
-# `deterministic` canonicalises NaNs, the one result wasm leaves to the platform.
-wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch", "deterministic"] }
+wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch"] }
 # Reads a module back for `c`, the translation an iOS export compiles.
 wasmparser = { version = "0.262", optional = true, default-features = false, features = ["std", "validate"] }
 

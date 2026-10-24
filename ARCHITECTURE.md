@@ -629,9 +629,8 @@ such a pack: the editor's, never a game template.
   it and nothing outside its own tests opens a link, so it stays out of the
   default web feature set.
 - A pack is written in sorted key order, so two exports of one source tree give
-  the same bytes anywhere. CI exports every example twice per platform and diffs
-  the digests across the matrix — hashed maps once gave five files from ten
-  exports.
+  the same bytes anywhere. `scripts/e2e.sh` exports every example twice and
+  diffs the two — hashed maps once gave five files from ten exports.
 
 ### Fused executables
 

@@ -114,17 +114,17 @@ Every exemption carries its reason inline, so it stops being cited as precedent.
 - `.gitattributes` pins LF: a CRLF checkout on Windows CI exports different pack
   bytes from the same sources.
 
-Then CI checks it four ways:
+Then CI checks it two ways:
 
-1. **Two exports agree.** `scripts/e2e.sh` exports every example twice in
-   separate processes; the packs must be byte-identical. A pack was once written
-   in hash order — stable within a process, different in the next.
-2. **Every platform exports the same bytes** — `scripts/compare_packs.sh`.
-3. **Every platform steps the same simulation** — one digest per tick for 600
+1. **Every platform steps the same simulation** — one digest per tick for 600
    frames over five examples, diffed by `scripts/determinism_trace.sh compare`.
-4. **The same sources build the same binary** —
+2. **The same sources build the same binary** —
    `scripts/reproducible_build.sh` builds twice and compares. Without it, "same
    binary, same simulation" is not testable and a divergence cannot be bisected.
+
+Locally, `scripts/e2e.sh` exports every example twice in separate processes;
+the packs must be byte-identical. A pack was once written in hash order, stable
+within a process and different in the next.
 
 A change that alters a recorded digest has to say why.
 
@@ -147,8 +147,8 @@ three desktop platforms. Beyond `cargo test --workspace`:
 
 ## End to end, over every example
 
-`scripts/e2e.sh` runs each of the twelve examples thirty-eight ways, on three
-platforms:
+`scripts/e2e.sh` runs each of the fifteen examples these ways. CI does not
+run it; `scripts/precommit.sh --e2e` does.
 
 - **check** — every script a scene attaches, compiled, plus the handle calls
   no compiler can see. The cheapest gate, and the only one that names a file
@@ -159,13 +159,10 @@ platforms:
 - **run** — dev mode from sources.
 - **export**, twice — the packs must be identical.
 - **play** — the exported pack, no sources, no compiler.
-- **edit**, thirty-one times — the editor booted headless against every
-  example: the scene it opens, then `undo`, `layout`, `picker`, `rename`,
-  `import`, `focus`, `rig`, `polygon`, `weights`, `bone map`,
-  `physical bones`, `tiles`, `showcase`, `plugin`, `clipboard`,
-  `script paths`, `assets`, `picking`, `props`, `instances`, `placing`,
-  `timings`, `session`, `theme`, `selection`, `drag-in`, `events`, `library`,
-  `rows`, `pen`.
+- **edit** — the editor booted headless against every example. The
+  per-project self-test states (`EXAMPLE_STATES`) run on `angrynerds`,
+  `hello`, `objects` and `rig`, which between them hold what every state
+  needs; elsewhere most would skip. The editor's own states run once.
 - **render**, twice — the game and the editor surface-less on a real GPU,
   which is where a texture the backend cannot bind or a shader it rejects
   warns. The step reads the `rendering ... offscreen` line back, so a binary

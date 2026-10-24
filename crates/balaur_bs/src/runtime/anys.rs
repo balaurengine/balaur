@@ -3,7 +3,7 @@
 
 use super::engine::{ImportCtx, Raw};
 use super::host::{CtxReader, alloc, encode_owned};
-use super::values::{Value, rd32, rd64, read_any, read_str};
+use super::values::{Value, float, rd32, rd64, read_any, read_str};
 use crate::anys::{BOOL, FLOAT, INT, LIST, MAP, NODE, STR};
 use crate::{Meta, Ty, words};
 
@@ -398,7 +398,7 @@ pub(crate) fn run(
             _ => 0,
         })]),
         "as_float" => Ok(vec![Raw::F64(match tag {
-            FLOAT => f64::from_bits(rd64(&m, at)),
+            FLOAT => float(rd64(&m, at)),
             INT => rd64(&m, at) as i64 as f64,
             _ => 0.0,
         })]),

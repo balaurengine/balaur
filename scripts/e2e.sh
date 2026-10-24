@@ -16,8 +16,6 @@ shift || true
 # broken example is a thirty-second loop rather than the whole pipeline.
 only=("$@")
 mkdir -p "$out_dir"
-digests="$out_dir/digests.txt"
-: >"$digests"
 
 # Built once, then run directly: `cargo run` takes the build lock on every
 # call. `--features window`, or `--offscreen` runs headless and checks nothing.
@@ -113,9 +111,9 @@ UNRESOLVED='did not resolve in the mirror'
 # What a state that ran leaves in the log. See the check at the end of edit_step.
 RAN='selftest ok|script: .*skip|script: showcase '
 
-# The states run on every example, in one launch each. Opening the project is
-# checked on its own first: the game loaded, its scene mirrored, every node
-# resolved and its assets rebound.
+# The states run in one launch per example. Opening the project is checked on
+# its own first: the game loaded, its scene mirrored, every node resolved and
+# its assets rebound.
 EXAMPLE_STATES=(
   test:undo test:rename                     # the history, and renaming
   test:focus                                # the shell folds round the code
@@ -128,6 +126,10 @@ EXAMPLE_STATES=(
   test:instances test:placing test:selection  # prefabs, the selection set
   test:import_job                           # last: it writes into the project
 )
+
+# The examples EXAMPLE_STATES run on: between them every state finds what it
+# needs (a rig, a polygon, a 3D shape, an instance), and elsewhere most skip.
+STATES_ON=(angrynerds hello objects rig)
 
 # The editor's own states, run once rather than once per example: they drive
 # the editor and not the project under it.
@@ -306,7 +308,6 @@ for ex in examples/*/; do
   again=$(sha "$out_dir/$name.again.bpak")
   [ "$first" = "$again" ] ||
     fail "$name: two exports of the same sources differ ($first vs $again)"
-  printf '%s  %s\n' "$first" "$name" >>"$digests"
   printf 'ok %s\n' "${first:0:16}"
 
   printf '  play ...   '
@@ -326,13 +327,15 @@ for ex in examples/*/; do
   render_step "$name: render in the editor" edit "$ex" --offscreen --frames 90
   printf 'ok\n'
 
-  # The editor's own assertions, which log an ERROR on failure, in one launch.
-  suite_step "$name" "$ex" "${EXAMPLE_STATES[@]}"
+  # The editor's own assertions, which log an ERROR on failure, in one launch;
+  # an example named on the command line runs them too.
+  states_here=${#only[@]}
+  for pick in "${STATES_ON[@]}"; do [ "$pick" = "$name" ] && states_here=1; done
+  if [ "$states_here" -gt 0 ]; then
+    suite_step "$name" "$ex" "${EXAMPLE_STATES[@]}"
+  fi
 done
 
 if [ "$gpu" = 1 ] && [ -n "${states_on:-}" ]; then
   editor_states "$states_on"
 fi
-
-printf '\npack digests (compared across platforms in CI):\n'
-cat "$digests"

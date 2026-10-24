@@ -141,7 +141,7 @@ RUN set -eux; \
     "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" version
 
 # bundletool makes the App Bundle Play takes for a new app. Google ships it
-# apart from the SDK, and `balaur export --aab` looks for it beside the SDK,
+# apart from the SDK, and `balaur export --bundle aab` looks for it beside the SDK,
 # so that is where it goes. Pinned for the same reason build-tools is.
 ARG BUNDLETOOL_VERSION=1.18.3
 RUN set -eux; \

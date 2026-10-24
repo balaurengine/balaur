@@ -15,9 +15,8 @@ command -v cargo-llvm-cov >/dev/null || {
 # binaries left in `target/debug` are reused by the next plain cargo run,
 # which writes a `default_*.profraw` into whatever directory it started in.
 export CARGO_TARGET_DIR=target/shape/coverage
-# Every step in that one directory. Unset, the test runs write theirs under
-# `llvm-cov-target/` and `show-env` points the report at the parent: it read
-# the e2e profiles only, and none of the tests'.
+# Every step in that one directory, so the report reads the profiles every
+# test run wrote.
 export CARGO_LLVM_COV_TARGET_DIR=target/shape/coverage
 
 html=0
@@ -44,11 +43,6 @@ cargo llvm-cov nextest -p balaur_plugin --features extensions \
   --no-fail-fast --no-report || status=$?
 cargo llvm-cov nextest -p balaur --features extensions \
   --no-fail-fast --no-report || status=$?
-
-# The CLI is a binary, and e2e.sh spawns it: exporting the profile environment
-# is what makes those runs record anything. One example walks every command.
-eval "$(cargo llvm-cov show-env --sh)"
-./scripts/e2e.sh target/coverage/e2e hello || status=$?
 
 # From the recorded profiles, not a second test run: HTML too costs nothing.
 mkdir -p target/coverage

@@ -100,7 +100,7 @@ fn from_js(v: &JsValue, slot: Option<Slot>) -> Raw {
     }
     match slot {
         Some(Slot::I32) => Raw::I32(v.as_f64().unwrap_or(0.0) as i32),
-        _ => Raw::F64(v.as_f64().unwrap_or(0.0)),
+        _ => Raw::F64(super::values::float(v.as_f64().unwrap_or(0.0).to_bits())),
     }
 }
 

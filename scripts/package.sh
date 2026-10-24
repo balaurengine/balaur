@@ -19,7 +19,10 @@ target=${1:?usage: package.sh <target>}
 if [[ ${GITHUB_REF:-} == refs/tags/* ]]; then
   export BALAUR_BUILD=${GITHUB_REF#refs/tags/}
 else
-  export BALAUR_BUILD="nightly-$(git rev-parse --short=7 HEAD)"
+  # A container job's checkout is another user's, so git refuses it unless
+  # told it is safe; a failed `$(…)` inside `export` stopped nothing.
+  sha=$(git -c safe.directory="$PWD" rev-parse --short=7 HEAD)
+  export BALAUR_BUILD="nightly-$sha"
 fi
 # Absolute, so nothing downstream depends on which directory we are standing in.
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)

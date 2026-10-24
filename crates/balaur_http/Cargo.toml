@@ -27,6 +27,7 @@ js-sys = "0.3.106"
 web-sys = { version = "0.3.106", features = [
     "Window",
     "Request",
+    "RequestCredentials",
     "RequestInit",
     "Headers",
     "Response",

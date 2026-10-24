@@ -4,8 +4,7 @@
 > tooling) and `crates/balaur_script_bs` (the backend beside Rune; features
 > `bs` and `bs-jit` of the facade, the CLI, Android and every game
 > template, `bs-web` on the web). Desktop and Android run it on wasmtime, at
-> 1.6 to 2.4 times Rust; an iOS export compiles it to native code, at 1.1 to
-> 1.2. hello's `scripts/spinner.bs` turns its spinner to the bit
+> 1.5 times Rust; an iOS export compiles it to native code, at 1.1 to 1.3. hello's `scripts/spinner.bs` turns its spinner to the bit
 > its Rune original did, from source, from an exported pack and as native code.
 
 # Plan: Balaur Script, a scripting language compiled to WebAssembly
@@ -155,8 +154,15 @@ A module reaches only its imports. Under wasmi's fuel, a 16 MiB memory cap and
 the default stack, an infinite loop, an allocation loop, unbounded recursion,
 an out-of-bounds index and a division by zero each trap, and the same
 instance runs the next call, allocations included: a request the memory
-cannot grow to traps with the allocator as it was. wasmi is built
-`deterministic`, which canonicalises NaNs.
+cannot grow to traps with the allocator as it was.
+
+A NaN's sign and payload are the hardware's: x86 and ARM make different ones,
+and for `-(0.0 / 0.0)` the C build hands out `7ff8…` where wasmi hands out
+`fff8…`. Nothing in a module reads those bits (no `copysign`, and `as int`
+saturates), so no engine canonicalises per operation. The host does, as it
+reads any float out of a module: a call's result, an import's argument, a
+field, an element or an `any` (`runtime::values::float`).
+`tests/suite/nans.rs` holds every way out to the canonical NaN on each engine.
 
 A browser's engine meters nothing, so a module built with `Options.meter`
 counts its own fuel: a global the host refills before each call, charged at
@@ -166,19 +172,26 @@ enforces. The backend caps each file at 256 MiB.
 
 ## 7. What it costs
 
-Apple M1 under load 30 to 240 from parallel builds; ratios, not absolutes.
-The particle update is 10,000 particles over 100 steps, four `[float]`
-arrays; every engine returns the bit-identical sum `411e3e76e978d4fd`.
+Apple M1; ratios, not absolutes. The particle update is 10,000 particles
+over 100 steps, four `[float]` arrays; every engine returns the bit-identical
+sum `411e3e76e978d4fd`. The first five rows are from 2026-10-24 at load 3 to
+4, best of 80 interleaved calls, with NaNs canonicalised by the host (§6);
+the rest are older, under load 30 to 240, with each float operation's NaN
+canonicalised by the engine.
 
 | vs Rust | particles | fib(25) |
 | --- | ---: | ---: |
-| native (iOS export; C at `-O2`) | 1.1x | 1.2x |
-| release, wasmtime | 2.2–2.4x | 1.6–1.8x |
-| release, V8 | 2.4x | 1.6x |
+| native (iOS export; C at `-O2`) | 1.1x | 1.3x |
+| release, wasmtime | 1.5x | 1.5x |
 | release, wasmi | 16x | 11x |
+| LuaJIT 2.1, for scale | 1.5x | 1.9x |
+| Rune 0.14 | 271x | 69x |
+| release, V8 | 2.4x | 1.6x |
 | debug build, wasmtime | 4.2–4.6x | 3.2–3.3x |
 | debug build, wasmi | 48–53x | 38–41x |
-| Rune | 547x | 136x |
+
+wasmtime canonicalising every float operation's NaN put the particles at
+2.3x; that was 36% of their time.
 
 wasmtime is the default wherever it runs (`bs-jit`; not the web, not iOS),
 for about 11 MB of binary. Compiling a module costs it about 13 ms, so the

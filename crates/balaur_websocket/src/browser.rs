@@ -11,6 +11,13 @@
 //! accepted and ignored rather than refused, because a script written for
 //! desktop should still run here; what it must not do is believe a header
 //! was sent.
+//!
+//! **Cookies cannot be left out.** Unlike `balaur_http`'s Fetch, which sends
+//! none, the browser puts the url's cookies on the upgrade request of a
+//! same-site socket, and the constructor has no way to stop it. On a site
+//! with logins a project's script can open a socket to that site as the
+//! visitor; what stops it is the server, which authenticates a socket by a
+//! token in its url or first message and never by its cookie.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

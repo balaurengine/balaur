@@ -13,6 +13,7 @@ mod library;
 mod loops;
 mod memory;
 mod modules;
+mod nans;
 #[cfg(all(feature = "c", feature = "native"))]
 mod native;
 mod optional;

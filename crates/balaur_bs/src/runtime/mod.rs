@@ -938,7 +938,7 @@ impl Runtime {
 fn slot_at(m: &(impl Reader + ?Sized), s: crate::Slot, at: usize) -> Raw {
     match s {
         crate::Slot::I64 => Raw::I64(values::rd64(m, at) as i64),
-        crate::Slot::F64 => Raw::F64(f64::from_bits(values::rd64(m, at))),
+        crate::Slot::F64 => Raw::F64(values::float(values::rd64(m, at))),
         crate::Slot::I32 => Raw::I32(rd32(m, at) as i32),
     }
 }

@@ -137,7 +137,7 @@ fn raw(kind: Kind, bits: u64) -> Raw {
     match kind {
         Kind::I32 => Raw::I32(bits as u32 as i32),
         Kind::I64 => Raw::I64(bits.cast_signed()),
-        Kind::F64 => Raw::F64(f64::from_bits(bits)),
+        Kind::F64 => Raw::F64(super::values::float(bits)),
     }
 }
 
