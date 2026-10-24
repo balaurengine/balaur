@@ -1,0 +1,54 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `user` topics, as `events::decode` names it:
+// `use addons::gamend::events::user;`, then `user::<NAME>`.
+
+pub const ACCOUNT_BANNED: str = "account_banned";
+pub const ACCOUNT_UNBANNED: str = "account_unbanned";
+pub const CHAT_MUTED: str = "chat_muted";
+pub const CHAT_UNMUTED: str = "chat_unmuted";
+pub const FRIEND_ADDED: str = "friend_added";
+pub const FRIEND_BLOCKED: str = "friend_blocked";
+pub const FRIEND_CHAT_MESSAGE: str = "friend_chat_message";
+pub const FRIEND_CHAT_MESSAGE_DELETED: str = "friend_chat_message_deleted";
+pub const FRIEND_CHAT_MESSAGE_UPDATED: str = "friend_chat_message_updated";
+pub const FRIEND_REJECTED: str = "friend_rejected";
+pub const FRIEND_REMOVED: str = "friend_removed";
+pub const FRIEND_REQUEST_CANCELLED: str = "friend_request_cancelled";
+pub const FRIEND_UNBLOCKED: str = "friend_unblocked";
+pub const FRIEND_UPDATED: str = "friend_updated";
+pub const GROUP_INVITE_ACCEPTED: str = "group_invite_accepted";
+pub const GROUP_INVITE_CANCELLED: str = "group_invite_cancelled";
+pub const GROUP_JOIN_REQUEST_APPROVED: str = "group_join_request_approved";
+pub const GROUP_JOIN_REQUEST_REJECTED: str = "group_join_request_rejected";
+pub const INVENTORY_UPDATED: str = "inventory_updated";
+pub const KV_DELETED: str = "kv_deleted";
+pub const KV_UPDATED: str = "kv_updated";
+pub const MATCH_FOUND: str = "match_found";
+pub const NOTIFICATION_EMITTED: str = "notification_emitted";
+pub const PARTY_INVITE_ACCEPTED: str = "party_invite_accepted";
+pub const PARTY_INVITE_CANCELLED: str = "party_invite_cancelled";
+pub const PARTY_INVITE_DECLINED: str = "party_invite_declined";
+pub const QUEST_CLAIMED: str = "quest_claimed";
+pub const QUEST_COMPLETED: str = "quest_completed";
+pub const QUEST_PROGRESS: str = "quest_progress";
+pub const READY_CHECK_FAILED: str = "ready_check_failed";
+pub const READY_CHECK_PASSED: str = "ready_check_passed";
+pub const READY_CHECK_STARTED: str = "ready_check_started";
+pub const READY_CHECK_UPDATED: str = "ready_check_updated";
+pub const RESULT_ENDED: str = "result_ended";
+pub const RESULT_EVENT: str = "result_event";
+pub const RESULT_STARTED: str = "result_started";
+pub const TOURNAMENT_FINISHED: str = "tournament_finished";
+pub const TOURNAMENT_MATCH_READY: str = "tournament_match_ready";
+pub const TOURNAMENT_MATCH_RESOLVED: str = "tournament_match_resolved";
+pub const TOURNAMENT_UPDATED: str = "tournament_updated";
+pub const UPDATED: str = "user_updated";
+pub const WALLET_UPDATED: str = "wallet_updated";
+pub const WEBRTC_ANSWER: str = "webrtc_answer";
+pub const WEBRTC_CHANNEL_CLOSED: str = "webrtc_channel_closed";
+pub const WEBRTC_CHANNEL_OPEN: str = "webrtc_channel_open";
+pub const WEBRTC_ICE: str = "webrtc_ice";
+pub const WEBRTC_STATE: str = "webrtc_state";

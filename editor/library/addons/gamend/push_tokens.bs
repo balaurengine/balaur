@@ -1,0 +1,38 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Push: one function per operation, `push_tokens::<name>` once a
+// script says `use addons::gamend::push_tokens;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Unregister one of the current user's devices
+/// `DELETE /api/v1/me/push_tokens/{id}`
+pub fn delete_push_token(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/me/push_tokens/{id}", nil())
+}
+
+/// List the current user's registered devices
+/// `GET /api/v1/me/push_tokens`
+pub fn list_push_tokens(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/me/push_tokens{query}", nil())
+}
+
+/// Register a device push token
+/// `POST /api/v1/me/push_tokens`
+pub fn register_push_token(node: Node, params: any) -> any {
+    if !core::given(params, "token") {
+        return core::missing("gamend::push_tokens::register_push_token", "token");
+    }
+    if !core::given(params, "platform") {
+        return core::missing("gamend::push_tokens::register_push_token", "platform");
+    }
+    gamend::rest(node, "POST", "/api/v1/me/push_tokens", params)
+}

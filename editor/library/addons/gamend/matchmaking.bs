@@ -1,0 +1,37 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Matchmaking: one function per operation, `matchmaking::<name>` once a
+// script says `use addons::gamend::matchmaking;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Leave the matchmaking queue
+/// `DELETE /api/v1/matchmaking/tickets`
+pub fn cancel(node: Node) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/matchmaking/tickets", nil())
+}
+
+/// Join the matchmaking queue
+/// `POST /api/v1/matchmaking/tickets`
+pub fn join(node: Node, params: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/matchmaking/tickets", params)
+}
+
+/// Get my current ticket
+/// `GET /api/v1/matchmaking/tickets/me`
+pub fn my_ticket(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/matchmaking/tickets/me", nil())
+}
+
+/// Queue statistics
+/// `GET /api/v1/matchmaking/stats`
+pub fn stats(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/matchmaking/stats", nil())
+}

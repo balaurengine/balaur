@@ -1,0 +1,21 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `party` topics, as `events::decode` names it:
+// `use addons::gamend::events::party;`, then `party::<NAME>`.
+
+pub const CHAT_MESSAGE: str = "party_chat_message";
+pub const CHAT_MESSAGE_DELETED: str = "party_chat_message_deleted";
+pub const CHAT_MESSAGE_UPDATED: str = "party_chat_message_updated";
+pub const DISBANDED: str = "party_disbanded";
+pub const MEMBER_JOINED: str = "party_member_joined";
+pub const MEMBER_LEFT: str = "party_member_left";
+pub const MEMBER_OFFLINE: str = "party_member_offline";
+pub const MEMBER_ONLINE: str = "party_member_online";
+pub const MEMBER_UPDATED: str = "party_member_updated";
+pub const UPDATED: str = "party_updated";
+pub const READY_CHECK_FAILED: str = "ready_check_failed";
+pub const READY_CHECK_PASSED: str = "ready_check_passed";
+pub const READY_CHECK_STARTED: str = "ready_check_started";
+pub const READY_CHECK_UPDATED: str = "ready_check_updated";

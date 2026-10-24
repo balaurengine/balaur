@@ -1,0 +1,21 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `group` topics, as `events::decode` names it:
+// `use addons::gamend::events::group;`, then `group::<NAME>`.
+
+pub const CHAT_MESSAGE: str = "group_chat_message";
+pub const CHAT_MESSAGE_DELETED: str = "group_chat_message_deleted";
+pub const CHAT_MESSAGE_UPDATED: str = "group_chat_message_updated";
+pub const JOIN_REQUEST_APPROVED: str = "group_join_request_approved";
+pub const JOIN_REQUEST_REJECTED: str = "group_join_request_rejected";
+pub const MEMBER_DEMOTED: str = "group_member_demoted";
+pub const MEMBER_JOINED: str = "group_member_joined";
+pub const MEMBER_KICKED: str = "group_member_kicked";
+pub const MEMBER_LEFT: str = "group_member_left";
+pub const MEMBER_OFFLINE: str = "group_member_offline";
+pub const MEMBER_ONLINE: str = "group_member_online";
+pub const MEMBER_PROMOTED: str = "group_member_promoted";
+pub const MEMBER_UPDATED: str = "group_member_updated";
+pub const UPDATED: str = "group_updated";

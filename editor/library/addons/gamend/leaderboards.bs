@@ -1,0 +1,73 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Leaderboards: one function per operation, `leaderboards::<name>` once a
+// script says `use addons::gamend::leaderboards;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Get a leaderboard by ID
+/// `GET /api/v1/leaderboards/{id}`
+pub fn get_leaderboard(node: Node, id: any) -> any {
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}", nil())
+}
+
+/// Get current user's record
+/// `GET /api/v1/leaderboards/{id}/records/me`
+pub fn get_my_record(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["key"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}/records/me{query}", nil())
+}
+
+/// List a leaderboard's rankings
+/// `GET /api/v1/leaderboards/{id}/keys`
+pub fn list_leaderboard_keys(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["prefix"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}/keys{query}", nil())
+}
+
+/// List leaderboard records
+/// `GET /api/v1/leaderboards/{id}/records`
+pub fn list_leaderboard_records(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["page", "page_size", "key"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}/records{query}", nil())
+}
+
+/// List leaderboards
+/// `GET /api/v1/leaderboards`
+pub fn list_leaderboards(node: Node, options: any) -> any {
+    let query = core::query(options, ["slug", "active", "order_by", "starts_after", "starts_before", "ends_after", "ends_before", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards{query}", nil())
+}
+
+/// List the records just ahead of a score
+/// `GET /api/v1/leaderboards/{id}/records/above`
+pub fn list_records_above(node: Node, id: any, options: any) -> any {
+    if !core::given(options, "score") {
+        return core::missing("gamend::leaderboards::list_records_above", "score");
+    }
+    let query = core::query(options, ["score", "limit", "key"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}/records/above{query}", nil())
+}
+
+/// List records around a user
+/// `GET /api/v1/leaderboards/{id}/records/around/{user_id}`
+pub fn list_records_around_user(node: Node, id: any, user_id: any, options: any) -> any {
+    let query = core::query(options, ["limit", "key"]);
+    gamend::rest(node, "GET", "/api/v1/leaderboards/{id}/records/around/{user_id}{query}", nil())
+}
+
+/// Resolve multiple slugs to active leaderboards
+/// `POST /api/v1/leaderboards/resolve`
+pub fn resolve_leaderboard_slugs(node: Node, params: any) -> any {
+    if !core::given(params, "slugs") {
+        return core::missing("gamend::leaderboards::resolve_leaderboard_slugs", "slugs");
+    }
+    gamend::rest(node, "POST", "/api/v1/leaderboards/resolve", params)
+}

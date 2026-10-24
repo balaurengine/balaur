@@ -1,0 +1,39 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Admin – Results: one function per operation, `admin_results::<name>` once a
+// script says `use addons::gamend::admin_results;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Delete a result and its events (admin)
+/// `DELETE /api/v1/admin/results/{id}`
+pub fn delete_result(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/results/{id}", nil())
+}
+
+/// Get a result (admin)
+/// `GET /api/v1/admin/results/{id}`
+pub fn get_result(node: Node, id: any) -> any {
+    gamend::rest(node, "GET", "/api/v1/admin/results/{id}", nil())
+}
+
+/// List a result's events (admin)
+/// `GET /api/v1/admin/results/{id}/events`
+pub fn list_result_events(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["after", "limit"]);
+    gamend::rest(node, "GET", "/api/v1/admin/results/{id}/events{query}", nil())
+}
+
+/// List results (admin)
+/// `GET /api/v1/admin/results`
+pub fn list_results(node: Node, options: any) -> any {
+    let query = core::query(options, ["kind", "status", "user_id", "lobby_id", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/admin/results{query}", nil())
+}

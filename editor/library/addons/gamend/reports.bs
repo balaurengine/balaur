@@ -1,0 +1,28 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Reports: one function per operation, `reports::<name>` once a
+// script says `use addons::gamend::reports;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// File a report
+/// `POST /api/v1/reports`
+pub fn create_report(node: Node, params: any) -> any {
+    if !core::given(params, "kind") {
+        return core::missing("gamend::reports::create_report", "kind");
+    }
+    gamend::rest(node, "POST", "/api/v1/reports", params)
+}
+
+/// Report kinds
+/// `GET /api/v1/reports/kinds`
+pub fn list_report_kinds(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/reports/kinds", nil())
+}

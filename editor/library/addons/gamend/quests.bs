@@ -1,0 +1,46 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Quests: one function per operation, `quests::<name>` once a
+// script says `use addons::gamend::quests;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Claim a completed quest
+/// `POST /api/v1/me/quests/{key}/claim`
+pub fn claim_quest(node: Node, key: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/me/quests/{key}/claim", nil())
+}
+
+/// List quests
+/// `GET /api/v1/quests`
+pub fn list_quests(node: Node, options: any) -> any {
+    let query = core::query(options, ["category", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/quests{query}", nil())
+}
+
+/// List my quests
+/// `GET /api/v1/me/quests`
+pub fn my_quests(node: Node, options: any) -> any {
+    let query = core::query(options, ["category", "group", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/me/quests{query}", nil())
+}
+
+/// Quest progress counts
+/// `GET /api/v1/quests/stats`
+pub fn quest_stats(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/quests/stats", nil())
+}
+
+/// List a user's completed quests
+/// `GET /api/v1/quests/user/{user_id}`
+pub fn user_quests(node: Node, user_id: any, options: any) -> any {
+    let query = core::query(options, ["category", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/quests/user/{user_id}{query}", nil())
+}

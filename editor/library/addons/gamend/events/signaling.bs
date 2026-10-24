@@ -1,0 +1,14 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `signaling` topics, as `events::decode` names it:
+// `use addons::gamend::events::signaling;`, then `signaling::<NAME>`.
+
+pub const ANSWER: str = "signaling_answer";
+pub const ICE: str = "signaling_ice";
+pub const OFFER: str = "signaling_offer";
+pub const ROOM_CLOSED: str = "signaling_room_closed";
+pub const USER_JOINED: str = "signaling_user_joined";
+pub const USER_LEFT: str = "signaling_user_left";
+pub const USER_REJOINED: str = "signaling_user_rejoined";

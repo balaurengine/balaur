@@ -1,0 +1,32 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Economy: one function per operation, `economy::<name>` once a
+// script says `use addons::gamend::economy;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Current user's item quantities
+/// `GET /api/v1/me/inventory`
+pub fn get_current_user_inventory(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/me/inventory", nil())
+}
+
+/// Current user's currency balances
+/// `GET /api/v1/me/wallet`
+pub fn get_current_user_wallet(node: Node) -> any {
+    gamend::rest(node, "GET", "/api/v1/me/wallet", nil())
+}
+
+/// Current user's ledger history
+/// `GET /api/v1/me/wallet/ledger`
+pub fn list_current_user_ledger(node: Node, options: any) -> any {
+    let query = core::query(options, ["currency", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/me/wallet/ledger{query}", nil())
+}

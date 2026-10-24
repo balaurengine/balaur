@@ -1,0 +1,32 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Hooks: one function per operation, `hooks::<name>` once a
+// script says `use addons::gamend::hooks;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Invoke a hook function
+/// `POST /api/v1/hooks/call`
+pub fn call_hook(node: Node, params: any) -> any {
+    if !core::given(params, "plugin") {
+        return core::missing("gamend::hooks::call_hook", "plugin");
+    }
+    if !core::given(params, "fn") {
+        return core::missing("gamend::hooks::call_hook", "fn");
+    }
+    gamend::rest(node, "POST", "/api/v1/hooks/call", params)
+}
+
+/// List available hook functions
+/// `GET /api/v1/hooks`
+pub fn list_hooks(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/hooks{query}", nil())
+}

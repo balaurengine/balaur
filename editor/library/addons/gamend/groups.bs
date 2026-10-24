@@ -1,0 +1,184 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Groups: one function per operation, `groups::<name>` once a
+// script says `use addons::gamend::groups;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Accept a group invitation
+/// `POST /api/v1/groups/invitations/{invite_id}/accept`
+pub fn accept_group_invite(node: Node, invite_id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/invitations/{invite_id}/accept", nil())
+}
+
+/// Approve a join request (admin only)
+/// `POST /api/v1/groups/{id}/join_requests/{request_id}/approve`
+pub fn approve_join_request(node: Node, id: any, request_id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve", nil())
+}
+
+/// Cancel a sent group invitation
+/// `DELETE /api/v1/groups/sent_invitations/{invite_id}`
+pub fn cancel_group_invite(node: Node, invite_id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/groups/sent_invitations/{invite_id}", nil())
+}
+
+/// Cancel your own pending join request
+/// `DELETE /api/v1/groups/{id}/join_requests/{request_id}`
+pub fn cancel_join_request(node: Node, id: any, request_id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/groups/{id}/join_requests/{request_id}", nil())
+}
+
+/// Create a group
+/// `POST /api/v1/groups`
+pub fn create_group(node: Node, params: any) -> any {
+    if !core::given(params, "title") {
+        return core::missing("gamend::groups::create_group", "title");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups", params)
+}
+
+/// Request a group icon upload ticket (admin only)
+/// `POST /api/v1/groups/{id}/icon/upload_url`
+pub fn create_group_icon_upload_url(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "content_type") {
+        return core::missing("gamend::groups::create_group_icon_upload_url", "content_type");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/icon/upload_url", params)
+}
+
+/// Decline a group invitation
+/// `POST /api/v1/groups/invitations/{invite_id}/decline`
+pub fn decline_group_invite(node: Node, invite_id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/invitations/{invite_id}/decline", nil())
+}
+
+/// Delete a group (admin only)
+/// `DELETE /api/v1/groups/{id}`
+pub fn delete_group(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/groups/{id}", nil())
+}
+
+/// Demote admin to member
+/// `POST /api/v1/groups/{id}/demote`
+pub fn demote_group_member(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "target_user_id") {
+        return core::missing("gamend::groups::demote_group_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/demote", params)
+}
+
+/// Get group details
+/// `GET /api/v1/groups/{id}`
+pub fn get_group(node: Node, id: any) -> any {
+    gamend::rest(node, "GET", "/api/v1/groups/{id}", nil())
+}
+
+/// Invite a user to a group (admin only)
+/// `POST /api/v1/groups/{id}/invite`
+pub fn invite_to_group(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "target_user_id") {
+        return core::missing("gamend::groups::invite_to_group", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/invite", params)
+}
+
+/// Join a group
+/// `POST /api/v1/groups/{id}/join`
+pub fn join_group(node: Node, id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/join", nil())
+}
+
+/// Kick a member (admin only)
+/// `POST /api/v1/groups/{id}/kick`
+pub fn kick_group_member(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "target_user_id") {
+        return core::missing("gamend::groups::kick_group_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/kick", params)
+}
+
+/// Leave a group
+/// `POST /api/v1/groups/{id}/leave`
+pub fn leave_group(node: Node, id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/leave", nil())
+}
+
+/// List my group invitations
+/// `GET /api/v1/groups/invitations`
+pub fn list_group_invitations(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/invitations{query}", nil())
+}
+
+/// List group members
+/// `GET /api/v1/groups/{id}/members`
+pub fn list_group_members(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/{id}/members{query}", nil())
+}
+
+/// List groups
+/// `GET /api/v1/groups`
+pub fn list_groups(node: Node, options: any) -> any {
+    let query = core::query(options, ["title", "type", "min_members", "max_members", "metadata_key", "metadata_value", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups{query}", nil())
+}
+
+/// List pending join requests (admin only)
+/// `GET /api/v1/groups/{id}/join_requests`
+pub fn list_join_requests(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/{id}/join_requests{query}", nil())
+}
+
+/// List groups I belong to
+/// `GET /api/v1/groups/me`
+pub fn list_my_groups(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/me{query}", nil())
+}
+
+/// List group invitations I have sent
+/// `GET /api/v1/groups/sent_invitations`
+pub fn list_sent_invitations(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/sent_invitations{query}", nil())
+}
+
+/// Promote member to admin
+/// `POST /api/v1/groups/{id}/promote`
+pub fn promote_group_member(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "target_user_id") {
+        return core::missing("gamend::groups::promote_group_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/promote", params)
+}
+
+/// Reject a join request (admin only)
+/// `POST /api/v1/groups/{id}/join_requests/{request_id}/reject`
+pub fn reject_join_request(node: Node, id: any, request_id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/join_requests/{request_id}/reject", nil())
+}
+
+/// Confirm an uploaded group icon (admin only)
+/// `POST /api/v1/groups/{id}/icon`
+pub fn set_group_icon(node: Node, id: any, params: any) -> any {
+    if !core::given(params, "key") {
+        return core::missing("gamend::groups::set_group_icon", "key");
+    }
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/icon", params)
+}
+
+/// Update a group (admin only)
+/// `PATCH /api/v1/groups/{id}`
+pub fn update_group(node: Node, id: any, params: any) -> any {
+    gamend::rest(node, "PATCH", "/api/v1/groups/{id}", params)
+}

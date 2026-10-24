@@ -32,4 +32,4 @@ fi
 rm -rf "$TARGET"
 mkdir -p "$(dirname "$TARGET")"
 cp -R "$SOURCE" "$TARGET"
-echo "copied $(find "$TARGET" -name '*.rn' | wc -l | tr -d ' ') modules into editor/library/addons/gamend"
+echo "copied $(find "$TARGET" -name '*.bs' | wc -l | tr -d ' ') modules into editor/library/addons/gamend"

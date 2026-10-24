@@ -1,5 +1,5 @@
 //! What a player does on a live Gamend server (port 4000, or `GAMEND_URL`):
-//! each flow in `player_flows.rn` calls the SDK addon the way a game does, and
+//! each flow in `player_flows.bs` calls the SDK addon the way a game does, and
 //! a second player signed in here answers over plain HTTP.
 //!
 //! Part of the e2e suite. Every account a flow makes is deleted before it
@@ -12,24 +12,38 @@ use balaur_gamend::client::{Client, Credentials, Session, auth};
 use balaur_testkit::{gamend_url, run_until_within};
 use serde_json::json;
 
-const FLOWS: &str = include_str!("player_flows.rn");
+const FLOWS: &str = include_str!("player_flows.bs");
 
-/// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
+/// The SDK addon `editor/library/addons/gamend` holds, as a game requires it:
+/// every `.bs` module, `events/` among them, under `addons/gamend/`.
 fn gamend_addon() -> Vec<(String, String)> {
     let root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library/addons/gamend");
-    std::fs::read_dir(&root)
-        .unwrap_or_else(|e| panic!("no SDK addon at {}: {e}", root.display()))
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            let name = path.file_name()?.to_str()?.to_string();
-            if path.extension().is_none_or(|e| e != "rn") {
-                return None;
-            }
-            let text = std::fs::read_to_string(&path).ok()?;
-            Some((format!("addons/gamend/{name}"), text))
-        })
-        .collect()
+    let mut files = Vec::new();
+    modules_under(&root, "addons/gamend", &mut files);
+    assert!(!files.is_empty(), "no SDK addon at {}", root.display());
+    files
+}
+
+fn modules_under(dir: &std::path::Path, published: &str, files: &mut Vec<(String, String)>) {
+    let entries =
+        std::fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()))
+            .path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let at = format!("{published}/{name}");
+        if path.is_dir() {
+            modules_under(&path, &at, files);
+        } else if path.extension().is_some_and(|e| e == "bs") {
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+            files.push((at, text));
+        }
+    }
 }
 
 #[allow(
@@ -136,7 +150,6 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
     run_flow(
         "profile",
@@ -169,7 +182,6 @@ fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
     run_flow(
         "lobby",
@@ -230,7 +242,6 @@ fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn two_players_befriend_party_up_and_share_groups() {
     run_flow(
         "social",
@@ -313,7 +324,6 @@ fn two_players_befriend_party_up_and_share_groups() {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
     run_flow(
         "catalog",
@@ -369,7 +379,6 @@ fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
     run_flow(
         "realtime",
@@ -394,7 +403,6 @@ fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
 }
 
 #[test]
-#[ignore = "needs the Gamend SDK addon in Balaur Script"]
 fn a_kicked_player_forgets_the_closed_channel_and_a_reconnect_does_not_join_it() {
     run_flow(
         "kicked",

@@ -1,0 +1,35 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Admin – Bans: one function per operation, `admin_bans::<name>` once a
+// script says `use addons::gamend::admin_bans;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Ban an IP address, an account or a chat sender (admin)
+/// `POST /api/v1/admin/bans`
+pub fn create_ban(node: Node, params: any) -> any {
+    if !core::given(params, "kind") {
+        return core::missing("gamend::admin_bans::create_ban", "kind");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/bans", params)
+}
+
+/// Lift a ban (admin)
+/// `DELETE /api/v1/admin/bans/{id}`
+pub fn lift_ban(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/bans/{id}", nil())
+}
+
+/// List bans (admin)
+/// `GET /api/v1/admin/bans`
+pub fn list_bans(node: Node, options: any) -> any {
+    let query = core::query(options, ["kind", "user_id", "subject", "scope", "scope_ref_id", "active", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/admin/bans{query}", nil())
+}

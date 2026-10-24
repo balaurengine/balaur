@@ -1,0 +1,599 @@
+// Ship a run's log lines to Gamend in batches, as the Godot addon's
+// GamendLogs did. Functions over one `Sink`: `log_sink.bs` keeps it on its
+// node and pumps it each frame, and a game with its own loop can too.
+
+const POLICY_PATH: str = "/api/v1/client_logs/policy";
+const INGEST_PATH: str = "/api/v1/client_logs";
+
+/// A flush at this many lines, every this many seconds, and at once on an
+/// error.
+pub const FLUSH_AT: int = 50;
+pub const FLUSH_EVERY: float = 10.0;
+
+/// The most held between flushes. The oldest go first, and the gap in `seq`
+/// tells the server what was lost.
+pub const HELD: int = 500;
+
+/// The save slot unsent lines wait in for the next launch.
+pub const SPOOL: str = "gamend_logs";
+
+/// How often the spool is rewritten while lines arrive, in seconds.
+const SPOOL_EVERY: float = 1.0;
+
+/// How long before asking for the policy again after no answer.
+const RETRY: float = 30.0;
+
+/// A cursor past every line, which `log::since` answers with the newest.
+const NEWEST: int = 9223372036854775807;
+
+/// How much of the previous run's log file goes up when it recorded a
+/// failure.
+const TAIL: int = 200;
+
+/// One line as the server takes it.
+pub struct Line {
+    pub seq: int,
+    pub at: float,
+    pub level: str,
+    pub category: str,
+    pub message: str,
+    pub lobby_id: str,
+    pub screen: str,
+    /// How many times it came in a row; a repeat folds into the line before.
+    pub repeat: int,
+}
+
+/// What a sink knows: the server, the run, the lines read and not yet sent,
+/// the policy and how the shipping is doing.
+pub struct Sink {
+    pub url: str,
+    pub run: str,
+    cursor: int,
+    seq: int,
+    pending: [Line],
+    sending: [Line],
+    recovered: [Line],
+    pub state: str,
+    off: bool,
+    pub enabled: bool,
+    /// The request asking for the policy, or 0.
+    policy: int,
+    retry_in: float,
+    pub level: str,
+    categories: any,
+    batch_max: int,
+    /// The batch request out, or 0.
+    in_flight: int,
+    elapsed: float,
+    spool_in: float,
+    dirty: bool,
+    registered: bool,
+    started_at: float,
+    pub last_flush: str,
+    pub accepted: int,
+    pub dropped: int,
+}
+
+/// A sink for the server at `url`, or the one this run talks to when `url`
+/// is empty. Nothing is read until the server's policy says to collect.
+pub fn setup(url: str) -> Sink {
+    let server = if url != "" { url } else { server_url() };
+    let sink = Sink {
+        url: trimmed(server),
+        run: gamend::run_id(),
+        cursor: 0,
+        seq: 0,
+        pending: [],
+        sending: [],
+        recovered: recovered(),
+        state: "asking for the policy",
+        off: false,
+        enabled: false,
+        policy: 0,
+        retry_in: 0.0,
+        level: "info",
+        categories: map(),
+        batch_max: 200,
+        in_flight: 0,
+        elapsed: 0.0,
+        spool_in: 0.0,
+        dirty: false,
+        registered: false,
+        started_at: 0.0,
+        last_flush: "never",
+        accepted: 0,
+        dropped: 0,
+    };
+    if engine::target().editor {
+        // A game played inside the editor shares its process, its log and
+        // its log file: the editor's own lines came first, the game's start
+        // here.
+        sink.cursor = log::since(NEWEST).cursor;
+    }
+    sink
+}
+
+/// The server this run talks to: the configured one, or `[gamend]`'s.
+pub fn server_url() -> str {
+    let url = gamend::connection().url;
+    if url != "" { url } else { gamend::server().url }
+}
+
+/// One frame: ask for the policy until it comes, read the new lines, and
+/// send a batch when one is due. Replies come back through `settle`.
+pub fn pump(sink: &mut Sink, node: Node, dt: float) {
+    if sink.url == "" || !started(sink) {
+        return;
+    }
+    if !sink.enabled {
+        if sink.policy == 0 && !sink.off {
+            sink.retry_in -= dt;
+            if sink.retry_in <= 0.0 {
+                ask_policy(sink, node);
+            }
+        }
+        return;
+    }
+    if sink.recovered.len() > 0 {
+        let earlier = sink.recovered;
+        sink.recovered = [];
+        send(sink, node, earlier);
+    }
+    let urgent = take(sink);
+    sink.elapsed += dt;
+    if urgent || sink.pending.len() >= FLUSH_AT || sink.elapsed >= FLUSH_EVERY {
+        sink.elapsed = 0.0;
+        flush(sink, node);
+    }
+    sink.spool_in -= dt;
+    if sink.dirty && (urgent || sink.spool_in <= 0.0) {
+        spool(sink);
+    }
+}
+
+/// Send what is held now, unless a batch is already out: batches go in
+/// order, and two at once would interleave.
+pub fn flush(sink: &mut Sink, node: Node) -> bool {
+    if !sink.enabled || sink.in_flight != 0 || sink.pending.len() == 0 {
+        return false;
+    }
+    let batch: [Line] = [];
+    let rest: [Line] = [];
+    for line in sink.pending {
+        if batch.len() < sink.batch_max {
+            batch.push(line);
+        } else {
+            rest.push(line);
+        }
+    }
+    let id = send(sink, node, batch);
+    if id <= 0 {
+        return false;
+    }
+    sink.pending = rest;
+    sink.sending = batch;
+    sink.in_flight = id;
+    true
+}
+
+/// A reply to one of the sink's requests; false when it was someone else's.
+pub fn settle(sink: &mut Sink, reply: any) -> bool {
+    let request = reply.get("request").as_int();
+    if sink.policy != 0 && request == sink.policy {
+        sink.policy = 0;
+        policy_came(sink, reply);
+        return true;
+    }
+    if sink.in_flight == 0 || request != sink.in_flight {
+        return false;
+    }
+    sink.in_flight = 0;
+    let batch = sink.sending;
+    sink.sending = [];
+    let status = reply.get("status").as_int();
+    if status >= 200 && status < 300 {
+        // Written now, not on the next second: a run that quits after this
+        // reply must not leave delivered lines to be sent again.
+        spool(sink);
+        sink.registered = true;
+        let counts = unwrap(parsed(reply.get("body")));
+        let accepted = if counts.has("accepted") { counts.get("accepted").as_int() } else { batch.len() };
+        sink.accepted += accepted;
+        if counts.has("dropped") {
+            sink.dropped = counts.get("dropped").as_int();
+        }
+        sink.last_flush = "{status} · {accepted} lines";
+        return true;
+    }
+    if status >= 400 && status < 500 {
+        // Refused for good: retrying would pin the buffer full.
+        spool(sink);
+        sink.dropped += batch.len();
+        sink.last_flush = "{status} · refused {batch.len()} lines";
+        return true;
+    }
+    for line in sink.pending {
+        batch.push(line);
+    }
+    sink.pending = batch;
+    trim(sink);
+    sink.dirty = true;
+    sink.last_flush = "failed ({describe(reply)}): kept for the next try";
+    true
+}
+
+/// How the sink is doing, as the Gamend dock shows it.
+pub fn report(sink: Sink) -> any {
+    map()
+        .with("shipping", sink.state)
+        .with("floor", sink.level)
+        .with("run", sink.run)
+        .with("pending", sink.pending.len())
+        .with("last flush", sink.last_flush)
+        .with("accepted", sink.accepted)
+        .with("dropped", sink.dropped)
+}
+
+/// The headers every call carries: the run's id, and the player's token
+/// once there is one, so an early line is adopted when the run signs in.
+pub fn headers(sink: Sink) -> any {
+    let out = map().with("content-type", "application/json").with("x-gamend-session", sink.run);
+    let session = gamend::session();
+    if session.is_some() && session.unwrap().access_token != "" {
+        out = out.with("authorization", "Bearer " + session.unwrap().access_token);
+    }
+    out
+}
+
+fn ask_policy(sink: &mut Sink, node: Node) {
+    sink.retry_in = RETRY;
+    let url = sink.url + POLICY_PATH;
+    let opts = map().with("headers", headers(sink)).with("timeout_seconds", 10.0);
+    sink.policy = http::request(node, url, opts);
+}
+
+fn policy_came(sink: &mut Sink, reply: any) {
+    let status = reply.get("status").as_int();
+    let policy = if status == 200 { parsed(reply.get("body")) } else { nil() };
+    if policy.kind() != "map" {
+        sink.state = "no policy ({describe(reply)}): asking again";
+        return;
+    }
+    apply_policy(sink, unwrap(policy));
+}
+
+/// A reply's body as a value: parsed when it came as JSON text.
+fn parsed(body: any) -> any {
+    if body.kind() == "str" { json::parse(body.as_str()) } else { body }
+}
+
+/// Every API answer carries its payload under `data`; a server from before
+/// that change sent it bare, so take either.
+fn unwrap(body: any) -> any {
+    if body.get("data").kind() == "map" { body.get("data") } else { body }
+}
+
+/// What the server asked for: on or off, a level floor, per-category floors.
+pub fn apply_policy(sink: &mut Sink, policy: any) {
+    sink.enabled = policy.get("enabled").as_bool();
+    let level = policy.get("level");
+    sink.level = if level.kind() == "str" { level.as_str() } else { "info" };
+    let most = policy.get("batch_max");
+    sink.batch_max = if most.kind() == "int" && most.as_int() > 0 { most.as_int() } else { 200 };
+    let floors = map();
+    let categories = policy.get("categories");
+    for name in categories.keys() {
+        floors = floors.with(name, categories.get(name).text());
+    }
+    sink.categories = floors;
+    if !sink.enabled {
+        // Told to collect nothing: drop what the last run left, too.
+        sink.off = true;
+        sink.state = "off: the server collects no client logs";
+        sink.recovered = [];
+        forget_spool();
+        return;
+    }
+    sink.state = "on";
+}
+
+/// The lines logged since the last read that the policy wants; true when
+/// one of them is an error, which flushes at once.
+fn take(sink: &mut Sink) -> bool {
+    let read = log::since(sink.cursor);
+    sink.cursor = read.cursor;
+    // Numbered here, not by the engine: a gap then means lines really lost
+    // (the buffer's, or trimmed), never lines the floor chose not to send.
+    sink.seq += read.missed;
+    let now = engine::unix_time();
+    let lobby = current_lobby();
+    let urgent = false;
+    for entry in read.entries {
+        let line = line_of(entry, now, lobby);
+        if !wanted(sink, line) {
+            continue;
+        }
+        if line.level == "error" {
+            urgent = true;
+        }
+        sink.dirty = true;
+        if !fold(sink, line) {
+            sink.seq += 1;
+            line.seq = sink.seq;
+            sink.pending.push(line);
+        }
+    }
+    trim(sink);
+    urgent
+}
+
+fn wanted(sink: Sink, line: Line) -> bool {
+    let floor = sink.categories.get(line.category);
+    let at = if floor.kind() == "str" { floor.as_str() } else { sink.level };
+    rank(line.level) >= rank(at)
+}
+
+fn rank(level: str) -> int {
+    if level == "trace" {
+        return 0;
+    }
+    if level == "debug" {
+        return 1;
+    }
+    if level == "warn" {
+        return 3;
+    }
+    if level == "error" {
+        return 4;
+    }
+    if level == "off" {
+        return 99;
+    }
+    2
+}
+
+/// A line as the server takes it, filed under its tag: `script` for a
+/// script's own line, or a leading `[word]` where a line names one.
+fn line_of(entry: log::Entry, now: float, lobby: str) -> Line {
+    let category = entry.tag;
+    let message = entry.message;
+    let word = bracket_word(entry.message);
+    if word != "" {
+        category = word;
+        message = entry.message.slice(word.len() + 2, entry.message.len()).trim();
+    }
+    for field in entry.fields {
+        message = message + " " + field.name + "=" + field.value;
+    }
+    Line { seq: 0, at: now, level: entry.level, category: category, message: message, lobby_id: lobby, screen: "", repeat: 1 }
+}
+
+/// The word of a leading `[word]`, or empty when the message has none (or
+/// one longer than a tag).
+fn bracket_word(message: str) -> str {
+    if !message.starts_with("[") {
+        return "";
+    }
+    let close = message.find("]");
+    if close < 2 || close > 25 {
+        return "";
+    }
+    message.slice(1, close)
+}
+
+/// The lobby the game's socket has joined: the server files the run under
+/// it, so a search for the lobby finds every player's lines.
+fn current_lobby() -> str {
+    for socket in gamend::connection().sockets {
+        for topic in socket.topics {
+            if topic.starts_with("lobby:") {
+                return topic.replace("lobby:", "");
+            }
+        }
+    }
+    ""
+}
+
+/// An immediate repeat counts on the line before it instead of adding one.
+fn fold(sink: &mut Sink, line: Line) -> bool {
+    let count = sink.pending.len();
+    if count == 0 {
+        return false;
+    }
+    let last = sink.pending[count - 1];
+    if last.message != line.message || last.level != line.level || last.category != line.category || last.lobby_id != line.lobby_id {
+        return false;
+    }
+    sink.pending[count - 1].repeat += 1;
+    sink.pending[count - 1].at = line.at;
+    true
+}
+
+fn trim(sink: &mut Sink) {
+    while sink.pending.len() > HELD {
+        sink.pending.remove(0);
+    }
+}
+
+/// Post a batch: the request's id, or 0 when none went out.
+fn send(sink: Sink, node: Node, lines: [Line]) -> int {
+    let body = json::encode(map().with("session", session_payload(sink)).with("entries", rendered(lines)));
+    let url = sink.url + INGEST_PATH;
+    let opts = map()
+        .with("method", "POST")
+        .with("headers", headers(sink))
+        .with("body", body)
+        .with("timeout_seconds", 15.0);
+    http::request(node, url, opts)
+}
+
+/// Lines as the server takes them, a repeat folded into its message.
+fn rendered(lines: [Line]) -> any {
+    let list: [any] = [];
+    for line in lines {
+        let message = if line.repeat > 1 { "{line.message}  (x{line.repeat})" } else { line.message };
+        list.push(map()
+            .with("seq", line.seq)
+            .with("at", line.at)
+            .with("level", line.level)
+            .with("category", line.category)
+            .with("message", message)
+            .with("lobby_id", line.lobby_id)
+            .with("screen", line.screen));
+    }
+    list
+}
+
+/// The run described until a batch is accepted; its id alone after that.
+fn session_payload(sink: Sink) -> any {
+    if sink.registered {
+        return map().with("client_session_id", sink.run);
+    }
+    let host = engine::target();
+    let platform = if host.web { "web" } else { host.os };
+    let build = if host.dev { "debug" } else { "release" };
+    map()
+        .with("client_session_id", sink.run)
+        .with("device_id", engine::device_id())
+        .with("platform", platform)
+        .with("build", build)
+        .with("started_at", sink.started_at)
+        .with("meta", map().with("engine", "balaur").with("os", host.os))
+}
+
+/// Unsent lines written down, so a crash leaves them for the next launch.
+fn spool(sink: &mut Sink) {
+    sink.dirty = false;
+    sink.spool_in = SPOOL_EVERY;
+    let held: [Line] = [];
+    for line in sink.sending {
+        held.push(line);
+    }
+    for line in sink.pending {
+        held.push(line);
+    }
+    if held.len() == 0 {
+        forget_spool();
+        return;
+    }
+    save::write(SPOOL, map().with("entries", rendered(held)));
+}
+
+fn forget_spool() {
+    for slot in save::slots() {
+        if slot == SPOOL {
+            save::remove(SPOOL);
+        }
+    }
+}
+
+/// The lines the last run spooled and never saw delivered.
+fn recovered() -> [Line] {
+    let out: [Line] = [];
+    for slot in save::slots() {
+        if slot == SPOOL {
+            let entries = save::read(SPOOL).get("entries");
+            for i in 0..entries.len() {
+                let kept = entries.at(i);
+                out.push(Line {
+                    seq: kept.get("seq").as_int(),
+                    at: kept.get("at").as_float(),
+                    level: kept.get("level").text(),
+                    category: "recovered",
+                    message: kept.get("message").text(),
+                    lobby_id: kept.get("lobby_id").text(),
+                    screen: kept.get("screen").text(),
+                    repeat: 1,
+                });
+            }
+        }
+    }
+    forget_spool();
+    out
+}
+
+/// The tail of the last run's log file, when it recorded an error or a panic.
+fn previous_tail() -> [Line] {
+    let out: [Line] = [];
+    let path = log::file();
+    if path.is_none() {
+        return out;
+    }
+    let text = fs::read(path.unwrap().replace("run.log", "run.1.log"));
+    if text.is_none() {
+        return out;
+    }
+    let lines: [str] = [];
+    for line in text.unwrap().split("\n") {
+        if line != "" {
+            lines.push(line);
+        }
+    }
+    let from = if lines.len() > TAIL { lines.len() - TAIL } else { 0 };
+    let failed = false;
+    for n in from..lines.len() {
+        if lines[n].contains(" error ") || lines[n].contains("panic") {
+            failed = true;
+        }
+    }
+    if !failed {
+        return out;
+    }
+    for n in from..lines.len() {
+        out.push(Line { seq: 0, at: 0.0, level: level_in(lines[n]), category: "engine_log", message: lines[n], lobby_id: "", screen: "", repeat: 1 });
+    }
+    out
+}
+
+/// A log file line's own level, its second word; a line the engine did not
+/// write, a panic's, counts as an error.
+fn level_in(line: str) -> str {
+    let words: [str] = [];
+    for word in line.split(" ") {
+        if word != "" && words.len() < 2 {
+            words.push(word);
+        }
+    }
+    if words.len() == 2 && (rank(words[1]) != 2 || words[1] == "info") {
+        return words[1];
+    }
+    "error"
+}
+
+/// Note when the run started once the clock reads, which it does from the
+/// first tick on; false until then.
+fn started(sink: &mut Sink) -> bool {
+    if sink.started_at > 0.0 {
+        return true;
+    }
+    let now = engine::unix_time();
+    if now <= 0.0 {
+        return false;
+    }
+    sink.started_at = now;
+    // Read now rather than in `setup`: the log file opens after `init`.
+    if !engine::target().editor {
+        for line in previous_tail() {
+            sink.recovered.push(line);
+        }
+    }
+    for i in 0..sink.recovered.len() {
+        if sink.recovered[i].at == 0.0 {
+            sink.recovered[i].at = now;
+        }
+    }
+    true
+}
+
+fn trimmed(url: str) -> str {
+    let out = url;
+    while out.ends_with("/") {
+        out = out.slice(0, out.len() - 1);
+    }
+    out
+}
+
+fn describe(reply: any) -> str {
+    let error = reply.get("error");
+    if error.kind() == "str" { error.as_str() } else { reply.get("status").text() }
+}

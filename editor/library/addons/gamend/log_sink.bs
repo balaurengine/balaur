@@ -1,0 +1,40 @@
+// Ships this run's log to Gamend: put it on a node that lives as long as the
+// game. The server comes from `[gamend]`, and its policy decides what goes.
+
+use logs;
+
+/// Where the sink reports to the Gamend dock, and where the dock asks it to
+/// flush now, in the script store.
+const REPORT_KEY: str = "gamend:logs";
+const FLUSH_KEY: str = "gamend:logs_flush";
+
+pub struct LogSink {
+    node: Node,
+    sink: logs::Sink,
+    report_in: int,
+}
+
+impl LogSink {
+    fn init() {
+        self.sink = logs::setup("");
+        self.report_in = 0;
+    }
+
+    fn update(dt: float) {
+        logs::pump(self.sink, self.node, dt);
+        if script::stored(FLUSH_KEY).text() == "yes" {
+            script::store(FLUSH_KEY, "");
+            logs::flush(self.sink, self.node);
+        }
+        // Twice a second is enough for a person reading the dock.
+        self.report_in -= 1;
+        if self.report_in <= 0 {
+            self.report_in = 30;
+            script::store(REPORT_KEY, logs::report(self.sink));
+        }
+    }
+
+    pub fn on_response(reply: any) {
+        logs::settle(self.sink, reply);
+    }
+}

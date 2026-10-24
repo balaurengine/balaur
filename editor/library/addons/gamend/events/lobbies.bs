@@ -1,0 +1,11 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `lobbies` topics, as `events::decode` names it:
+// `use addons::gamend::events::lobbies;`, then `lobbies::<NAME>`.
+
+pub const LOBBY_CREATED: str = "lobby_created";
+pub const LOBBY_DELETED: str = "lobby_deleted";
+pub const LOBBY_LIST_UPDATED: str = "lobby_list_updated";
+pub const LOBBY_MEMBERSHIP_CHANGED: str = "lobby_membership_changed";

@@ -1,0 +1,414 @@
+// The session, the socket and the server's hooks, over the engine's
+// `gamend::` calls. The socket id is the caller's; the rows, the topics and
+// the keys are this module's own, in the script store, so every script in a
+// game sees one cache.
+
+use core;
+use events;
+use events::user;
+use authentication;
+use kv;
+use users;
+use lobbies;
+
+/// A hook's reply: what the call answered, or why it did not.
+pub struct HookReply {
+    pub ok: bool,
+    pub data: any,
+    pub error: str,
+}
+
+/// A `write_deduped`: whether it was skipped as a repeat, and the hook's
+/// reply when it was sent.
+pub struct Write {
+    pub skipped: bool,
+    pub reply: HookReply,
+}
+
+/// Where the hook calls go. Godot's SDK called this `plugin`.
+const PLUGIN_KEY: str = "gamend:plugin";
+/// The rows the server sent, by key.
+const ROWS_KEY: str = "gamend:rows";
+/// The keys this session subscribed, and the topics it joined.
+const KEYS_KEY: str = "gamend:keys";
+const TOPICS_KEY: str = "gamend:topics";
+/// Writes in flight, by key, so an identical one is not sent twice.
+const WRITES_KEY: str = "gamend:writes";
+/// What this client thinks of its connection.
+const NETWORK_KEY: str = "gamend:network";
+
+/// Point the plugin at a server, and name the server plugin `call` reaches;
+/// nil or empty for either takes `[gamend]`'s. Every other call errors until
+/// this one runs. Answers the server's url.
+pub fn configure(url: str?, plugin: str) -> str {
+    if plugin != "" {
+        script::store(PLUGIN_KEY, plugin);
+    }
+    gamend::configure(url)
+}
+
+/// The server plugin this game's hooks live in.
+pub fn plugin() -> str {
+    let named = script::stored(PLUGIN_KEY);
+    if named.kind() == "str" && named.as_str() != "" {
+        return named.as_str();
+    }
+    gamend::server().plugin
+}
+
+/// Open a session from a device id. The reply reaches `node`'s handler as
+/// `kind = "login"`, and the returned id can be awaited instead.
+pub fn login_device(node: Node, device_id: str) -> int {
+    gamend::login(node, map().with("device_id", device_id), nil())
+}
+
+/// Open a session from an email and a password.
+pub fn login_email(node: Node, email: str, password: str) -> int {
+    gamend::login(node, map().with("email", email).with("password", password), nil())
+}
+
+/// Make an account from an email, with no password yet. Not a sign-in, as
+/// `login_device` is: no session opens, and the reply, a REST call's like any
+/// other (await the returned id, then `core::unpack`), carries the account.
+/// The server emails a link and a six-digit code; `auth::confirm_registration`
+/// takes the code and the password the player chooses, and opens a session.
+/// An empty `username` lets the server pick one.
+pub fn register_email(node: Node, email: str, username: str) -> any {
+    let account = map().with("email", email);
+    if username != "" {
+        account = account.with("username", username);
+    }
+    authentication::register(node, account)
+}
+
+/// Email a `register_email` account a new code; only the newest works. The
+/// reply is `ok` whether or not the address has an account waiting.
+pub fn resend_confirmation(node: Node, email: str) -> any {
+    authentication::resend_confirmation(node, map().with("email", email))
+}
+
+/// Open the realtime socket. The worker joins this session's own `user:<id>`
+/// topic before reporting `open`, so hooks work as soon as it does. A dropped
+/// connection comes back on its own and joins its topics again: `route`
+/// hands the node `on_socket_reconnecting`, then `on_socket_reopened`.
+pub fn connect(node: Node) -> int {
+    gamend::connect(node, nil())
+}
+
+/// Hand an event to the node's own handler for it. A server message goes to
+/// `on_<kind>`, named as `events::decode` names it (`on_lobby_member_joined`),
+/// with the decoded event; the socket's own to `on_socket_<kind>` (`open`,
+/// `reconnecting`, `reopened`, `closed`, `error`); a call's result to
+/// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
+/// took the event.
+pub fn route(node: Node, e: any) -> bool {
+    let kind = e.get("kind").text();
+    let socket = e.has("socket");
+    if socket {
+        note_socket(kind);
+    }
+    let event = e;
+    let method = if socket { "on_socket_" + kind } else { "on_" + kind };
+    if kind == "message" {
+        event = events::decode(e.get("topic").text(), e.get("event").text(), e.get("payload"));
+        method = "on_" + event.get("kind").text();
+    }
+    if !node.has_method(method) {
+        return false;
+    }
+    node.call(method, event);
+    true
+}
+
+pub fn close(socket: int) -> bool {
+    script::store(TOPICS_KEY, map());
+    gamend::close(socket)
+}
+
+/// Join a topic and remember it: `party:<id>`, `group:<id>`, `lobbies`. A
+/// dropped connection rejoins what it held, so this is the whole record a
+/// game needs of what it is listening to.
+pub fn join(socket: int, topic: str) -> int {
+    let held = joined();
+    if !contains(held, topic) {
+        held.push(topic);
+        script::store(TOPICS_KEY, held);
+    }
+    gamend::join(socket, topic, nil())
+}
+
+/// Leave a topic and drop it from the record.
+pub fn leave(socket: int, topic: str) -> int {
+    script::store(TOPICS_KEY, without(joined(), topic));
+    gamend::leave(socket, topic)
+}
+
+/// Every topic this session joined, in the order it joined them.
+pub fn joined() -> [str] {
+    stored_list(TOPICS_KEY)
+}
+
+/// Call a server hook and await the reply. The caller decides what to say
+/// about a failure, which is what the Godot client did.
+pub async fn call(socket: int, name: str, args: any) -> HookReply {
+    if socket <= 0 {
+        return HookReply { ok: false, data: nil(), error: "gamend: {name} needs a connection" };
+    }
+    let reply = await task::wait(gamend::call_hook(socket, plugin(), name, args));
+    unpack_hook(name, reply)
+}
+
+/// Fire a hook and do not wait. The push leaves in the frame it is made,
+/// which is the only transport that escapes a process about to stop
+/// ticking; the caller reconciles from a later payload.
+pub fn send(socket: int, name: str, args: any) -> bool {
+    if socket <= 0 {
+        return false;
+    }
+    gamend::push(socket, "user", "hook", map().with("plugin", plugin()).with("fn", name).with("args", args)) > 0
+}
+
+/// A hook reply as a `HookReply`.
+pub fn unpack_hook(name: str, reply: any) -> HookReply {
+    if reply.is_nil() {
+        return HookReply { ok: false, data: nil(), error: "gamend: {name} sent no reply" };
+    }
+    let response = reply.get("response");
+    if response.has("error") {
+        let message = response.get("error").text();
+        log::warn("gamend: hook {name}: {message}");
+        return HookReply { ok: false, data: nil(), error: message };
+    }
+    HookReply { ok: true, data: response.get("data"), error: "" }
+}
+
+/// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
+/// when it changes, which `absorb` files into the cache.
+pub fn register_kv(socket: int, key: str) -> bool {
+    if socket <= 0 {
+        return false;
+    }
+    let held = registered();
+    if !contains(held, key) {
+        held.push(key);
+        script::store(KEYS_KEY, held);
+    }
+    gamend::push(socket, "user", "kv:subscribe", map().with("key", key)) > 0
+}
+
+pub fn unregister_kv(socket: int, key: str) -> bool {
+    if socket <= 0 {
+        return false;
+    }
+    script::store(KEYS_KEY, without(registered(), key));
+    gamend::push(socket, "user", "kv:unsubscribe", map().with("key", key)) > 0
+}
+
+/// Every key this session subscribed, in the order it asked for them.
+pub fn registered() -> [str] {
+    stored_list(KEYS_KEY)
+}
+
+/// Subscribe to exactly `keys`: what is new is subscribed, what is gone is
+/// dropped. A key that depends on the player, such as a locale pair or a
+/// lobby, changes by calling this again with the new list.
+pub fn refresh_keys(socket: int, keys: [str]) -> [str] {
+    for key in registered() {
+        if !contains(keys, key) {
+            unregister_kv(socket, key);
+        }
+    }
+    for key in keys {
+        if !contains(registered(), key) {
+            register_kv(socket, key);
+        }
+    }
+    registered()
+}
+
+/// File a decoded `kv_updated` or `kv_deleted` into the cache. Give it what
+/// `events::decode` returned and it takes the rows it knows.
+pub fn absorb(event: any) -> bool {
+    let kind = event.get("kind").text();
+    if kind != user::KV_UPDATED && kind != user::KV_DELETED {
+        return false;
+    }
+    let payload = event.get("payload");
+    let key = payload.get("key").text();
+    if kind == user::KV_DELETED {
+        clear_row(key);
+    } else {
+        keep_row(key, payload.get("value"));
+    }
+    true
+}
+
+/// The row this client last saw for a key, or nil.
+pub fn row(key: str) -> any {
+    rows().get(key)
+}
+
+pub fn has_row(key: str) -> bool {
+    rows().has(key)
+}
+
+/// The cached row, or the server's, fetched once and kept. `force` asks the
+/// server even when a row is cached. A key the server has no row for caches
+/// an empty map, so `has_row` answers without asking again; anything else
+/// that went wrong caches nothing and the next call retries.
+pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
+    if !force && has_row(key) {
+        return row(key);
+    }
+    let reply = await task::wait(kv::get_kv(node, key, nil()).as_int());
+    if !core::ok(reply) {
+        if reply.get("status").as_int() == 404 {
+            keep_row(key, map());
+            return map();
+        }
+        log::warn(core::error_of(reply));
+        return nil();
+    }
+    let value = core::body(reply);
+    keep_row(key, value);
+    value
+}
+
+/// The signed-in player's profile, fetched fresh, as `core::unpack` shapes it.
+pub async fn fetch_current_user(node: Node) -> any {
+    let reply = await task::wait(users::get_current_user(node).as_int());
+    core::unpack(reply)
+}
+
+/// One lobby, fetched fresh, its members inside it as the server sends them.
+pub async fn fetch_lobby(node: Node, lobby_id: any) -> any {
+    let reply = await task::wait(lobbies::get_lobby(node, lobby_id).as_int());
+    core::unpack(reply)
+}
+
+/// Call a hook to write a key, unless the same value for that key is already
+/// on its way.
+pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: any) -> Write {
+    let sent = json::encode(value);
+    if writes().get(key).text() == sent {
+        return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
+    }
+    script::store(WRITES_KEY, writes().with(key, sent));
+    let reply = await call(socket, hook, args);
+    if writes().get(key).text() == sent {
+        script::store(WRITES_KEY, dropped(writes(), key));
+    }
+    Write { skipped: false, reply: reply }
+}
+
+/// Listen to one lobby's channel, or to none: `lobby:<id>` is joined and any
+/// other lobby topic this session held is left.
+pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
+    let topic = if lobby_id == "" { "" } else { "lobby:" + lobby_id };
+    for held in joined() {
+        if held.starts_with("lobby:") && held != topic {
+            leave(socket, held);
+        }
+    }
+    if topic != "" && !contains(joined(), topic) {
+        join(socket, topic);
+    }
+    topic
+}
+
+/// File a value under a key as if the server had sent it: what a caller with
+/// its own fetch, a hook rather than `kv`, keeps its answer with.
+pub fn keep_row(key: str, value: any) {
+    script::store(ROWS_KEY, rows().with(key, value));
+}
+
+/// Forget one row, or all of them: what a sign-out does.
+pub fn clear_row(key: str) {
+    script::store(ROWS_KEY, dropped(rows(), key));
+}
+
+pub fn clear_rows() {
+    script::store(ROWS_KEY, map());
+}
+
+/// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
+/// first two as `route` sees them; `fail_network` is what moves it to the
+/// third.
+pub fn network_state() -> str {
+    let held = script::stored(NETWORK_KEY);
+    if held.kind() == "str" { held.as_str() } else { "open" }
+}
+
+/// Say the connection is gone: what a game calls when a request it needed
+/// failed and it wants its offline screen. `retry_network` is the way back.
+pub fn fail_network() {
+    script::store(NETWORK_KEY, "failed");
+}
+
+/// Cut the socket so the worker opens it again, and report reconnecting
+/// until it does. False when the socket was already gone, which is when a
+/// caller opens a new one with `connect`.
+pub fn retry_network(socket: int) -> bool {
+    script::store(NETWORK_KEY, "reconnecting");
+    gamend::interrupt(socket)
+}
+
+fn note_socket(kind: str) {
+    if kind == "reconnecting" {
+        script::store(NETWORK_KEY, "reconnecting");
+    } else if kind == "open" || kind == "reopened" {
+        script::store(NETWORK_KEY, "open");
+    } else if kind == "closed" {
+        script::store(NETWORK_KEY, "failed");
+    }
+}
+
+fn rows() -> any {
+    let held = script::stored(ROWS_KEY);
+    if held.kind() == "map" { held } else { map() }
+}
+
+fn writes() -> any {
+    let held = script::stored(WRITES_KEY);
+    if held.kind() == "map" { held } else { map() }
+}
+
+/// A list of names the store holds, as names.
+fn stored_list(key: str) -> [str] {
+    let held = script::stored(key);
+    let out: [str] = [];
+    for i in 0..held.len() {
+        out.push(held.at(i).text());
+    }
+    out
+}
+
+fn contains(names: [str], name: str) -> bool {
+    for held in names {
+        if held == name {
+            return true;
+        }
+    }
+    false
+}
+
+fn without(names: [str], name: str) -> [str] {
+    let out: [str] = [];
+    for held in names {
+        if held != name {
+            out.push(held);
+        }
+    }
+    out
+}
+
+/// A map without one key.
+fn dropped(table: any, key: str) -> any {
+    let out = map();
+    for name in table.keys() {
+        if name != key {
+            out = out.with(name, table.get(name));
+        }
+    }
+    out
+}

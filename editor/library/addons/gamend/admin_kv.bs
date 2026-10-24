@@ -1,0 +1,66 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Admin – KV: one function per operation, `admin_kv::<name>` once a
+// script says `use addons::gamend::admin_kv;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Create KV entry (admin)
+/// `POST /api/v1/admin/kv/entries`
+pub fn create_kv_entry(node: Node, params: any) -> any {
+    if !core::given(params, "key") {
+        return core::missing("gamend::admin_kv::create_kv_entry", "key");
+    }
+    if !core::given(params, "data") {
+        return core::missing("gamend::admin_kv::create_kv_entry", "data");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/kv/entries", params)
+}
+
+/// Delete KV by key (admin)
+/// `DELETE /api/v1/admin/kv`
+pub fn delete_kv(node: Node, options: any) -> any {
+    if !core::given(options, "key") {
+        return core::missing("gamend::admin_kv::delete_kv", "key");
+    }
+    let query = core::query(options, ["key", "user_id", "lobby_id"]);
+    gamend::rest(node, "DELETE", "/api/v1/admin/kv{query}", nil())
+}
+
+/// Delete KV entry by id (admin)
+/// `DELETE /api/v1/admin/kv/entries/{id}`
+pub fn delete_kv_entry(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/kv/entries/{id}", nil())
+}
+
+/// List KV entries (admin)
+/// `GET /api/v1/admin/kv/entries`
+pub fn list_kv_entries(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size", "key", "user_id", "lobby_id", "global_only"]);
+    gamend::rest(node, "GET", "/api/v1/admin/kv/entries{query}", nil())
+}
+
+/// Update KV entry by id (admin)
+/// `PATCH /api/v1/admin/kv/entries/{id}`
+pub fn update_kv_entry(node: Node, id: any, params: any) -> any {
+    gamend::rest(node, "PATCH", "/api/v1/admin/kv/entries/{id}", params)
+}
+
+/// Upsert KV by key (admin)
+/// `PUT /api/v1/admin/kv`
+pub fn upsert_kv(node: Node, params: any) -> any {
+    if !core::given(params, "key") {
+        return core::missing("gamend::admin_kv::upsert_kv", "key");
+    }
+    if !core::given(params, "data") {
+        return core::missing("gamend::admin_kv::upsert_kv", "data");
+    }
+    gamend::rest(node, "PUT", "/api/v1/admin/kv", params)
+}

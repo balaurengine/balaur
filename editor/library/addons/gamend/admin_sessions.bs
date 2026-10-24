@@ -1,0 +1,32 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Admin – Sessions: one function per operation, `admin_sessions::<name>` once a
+// script says `use addons::gamend::admin_sessions;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Delete session token by id (admin)
+/// `DELETE /api/v1/admin/sessions/{id}`
+pub fn delete_session(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/sessions/{id}", nil())
+}
+
+/// Delete all session tokens for a user (admin)
+/// `DELETE /api/v1/admin/users/{id}/sessions`
+pub fn delete_user_sessions(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/users/{id}/sessions", nil())
+}
+
+/// List sessions (admin)
+/// `GET /api/v1/admin/sessions`
+pub fn list_sessions(node: Node, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/admin/sessions{query}", nil())
+}

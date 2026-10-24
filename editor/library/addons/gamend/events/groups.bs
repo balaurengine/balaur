@@ -1,0 +1,10 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `groups` topics, as `events::decode` names it:
+// `use addons::gamend::events::groups;`, then `groups::<NAME>`.
+
+pub const GROUP_CREATED: str = "group_created";
+pub const GROUP_DELETED: str = "group_deleted";
+pub const GROUP_LIST_UPDATED: str = "group_list_updated";

@@ -1,0 +1,26 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// What arrives on `lobby` topics, as `events::decode` names it:
+// `use addons::gamend::events::lobby;`, then `lobby::<NAME>`.
+
+pub const CHAT_MESSAGE: str = "lobby_chat_message";
+pub const CHAT_MESSAGE_DELETED: str = "lobby_chat_message_deleted";
+pub const CHAT_MESSAGE_UPDATED: str = "lobby_chat_message_updated";
+pub const HOST_CHANGED: str = "lobby_host_changed";
+pub const MEMBER_JOINED: str = "lobby_member_joined";
+pub const MEMBER_KICKED: str = "lobby_member_kicked";
+pub const MEMBER_LEFT: str = "lobby_member_left";
+pub const MEMBER_OFFLINE: str = "lobby_member_offline";
+pub const MEMBER_ONLINE: str = "lobby_member_online";
+pub const MEMBER_UPDATED: str = "lobby_member_updated";
+pub const RESULT_ENDED: str = "lobby_result_ended";
+pub const RESULT_EVENT: str = "lobby_result_event";
+pub const RESULT_STARTED: str = "lobby_result_started";
+pub const STATE_CHANGED: str = "lobby_state_changed";
+pub const UPDATED: str = "lobby_updated";
+pub const READY_CHECK_FAILED: str = "ready_check_failed";
+pub const READY_CHECK_PASSED: str = "ready_check_passed";
+pub const READY_CHECK_STARTED: str = "ready_check_started";
+pub const READY_CHECK_UPDATED: str = "ready_check_updated";

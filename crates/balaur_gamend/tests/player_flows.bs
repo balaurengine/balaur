@@ -1,0 +1,672 @@
+// What a player does on a live Gamend, through the SDK addon the way a game
+// calls it. `player_flows.rs` fills the `@...@` slots: player B signed in
+// there and answers over plain `http::request`.
+
+use addons::gamend::authentication;
+use addons::gamend::chat;
+use addons::gamend::client;
+use addons::gamend::client_logs;
+use addons::gamend::economy;
+use addons::gamend::events;
+use addons::gamend::events::lobby;
+use addons::gamend::friends;
+use addons::gamend::groups;
+use addons::gamend::health;
+use addons::gamend::hooks;
+use addons::gamend::kv;
+use addons::gamend::leaderboards;
+use addons::gamend::lobbies;
+use addons::gamend::matchmaking;
+use addons::gamend::notifications;
+use addons::gamend::parties;
+use addons::gamend::payments;
+use addons::gamend::push_tokens;
+use addons::gamend::quests;
+use addons::gamend::ready_checks;
+use addons::gamend::signaling;
+use addons::gamend::stats;
+use addons::gamend::time;
+use addons::gamend::tournaments;
+use addons::gamend::users;
+
+const URL: str = "@URL@";
+const FLOW: str = "@FLOW@";
+const DEVICE: str = "@DEVICE@";
+const TAG: str = "@TAG@";
+const B_ID: str = "@B_ID@";
+const B_TOKEN: str = "@B_TOKEN@";
+/// A live server limits calls per minute; a flow waits out a 429.
+const LIMITED_WAIT: float = 15.0;
+const LIMITED_TRIES: int = 6;
+const HEARD_WAIT: float = 5.0;
+
+/// One flow's record: what it reported, and what the socket delivered. A
+/// class, so the socket's handlers, called while the flow awaits, write the
+/// one record the flow reads.
+class Run {
+    node: Node,
+    socket: int,
+    steps: [str],
+    heard: [str],
+    lost: int,
+}
+
+pub struct PlayerFlows {
+    node: Node,
+    run: Run,
+}
+
+impl PlayerFlows {
+    pub async fn init() {
+        client::configure(URL, "");
+        self.run = Run { node: self.node, socket: 0, steps: [], heard: [], lost: 0 };
+        let r = self.run;
+        let login = await sign_in(r, DEVICE);
+        let me = login.get("user_id");
+        if me.kind() != "str" {
+            log::info("flow {FLOW}: login failed");
+            return;
+        }
+        let id = me.as_str();
+        if FLOW == "profile" {
+            await profile(r, id);
+        }
+        if FLOW == "lobby" {
+            await hosting(r, id);
+        }
+        if FLOW == "social" {
+            await befriending(r, id);
+            await partying(r);
+            await grouping(r);
+            await goodbye(r, id, nil());
+        }
+        if FLOW == "catalog" {
+            await catalog(r, id);
+        }
+        if FLOW == "realtime" {
+            await realtime(r, id);
+        }
+        if FLOW == "kicked" {
+            await kicked(r, id);
+        }
+        let line = "flow {FLOW}:";
+        for step in r.steps {
+            line = line + " " + step;
+        }
+        log::info("{line} end");
+    }
+
+    /// Every socket event, named as `events::decode` names it, or by the
+    /// server's own event where the table names none, for `heard`; and
+    /// handed on to the handlers below.
+    pub fn on_gamend_event(e: any) {
+        let kind = e.get("kind").text();
+        if kind == "message" {
+            let named = events::decode(e.get("topic").text(), e.get("event").text(), e.get("payload"));
+            kind = if named.get("kind").text() != "message" { named.get("kind").text() } else { e.get("event").text() };
+        }
+        self.run.heard.push(kind);
+        client::route(self.node, e);
+    }
+
+    pub fn on_lobby_member_kicked(e: any) {
+        self.run.heard.push("routed_lobby_member_kicked");
+    }
+
+    pub fn on_socket_open(e: any) {
+        self.run.heard.push("routed_socket_open");
+    }
+
+    pub fn on_socket_reconnecting(e: any) {
+        self.run.heard.push("routed_socket_reconnecting");
+    }
+
+    pub fn on_socket_reopened(e: any) {
+        self.run.lost = count(e.get("lost"));
+        self.run.heard.push("routed_socket_reopened");
+    }
+
+    pub fn on_socket_closed(e: any) {
+        self.run.heard.push("routed_socket_closed");
+    }
+
+    pub fn on_lobby_updated(e: any) {
+        self.run.heard.push("routed_lobby_updated");
+    }
+}
+
+async fn profile(r: Run, me: str) {
+    let name = "Tester {TAG}";
+    let user = TAG;
+    await call0(r, "me", users::get_current_user);
+    await call1(r, "display_name", users::update_current_user_display_name, map().with("display_name", name));
+    await call1(r, "username", users::update_current_user_username, map().with("username", user));
+    let mine = await call0(r, "me_again", users::get_current_user);
+    check(r, "renamed", same(mine.get("display_name"), name) && same(mine.get("username"), user));
+    let public = await call1(r, "get_user", users::get_user, me);
+    check(r, "public_name", same(public.get("display_name"), name));
+    let found = await call1(r, "search", users::search_users, map().with("q", user));
+    check(r, "found", has(found, "id", me));
+
+    let session = gamend::session();
+    let refresh = if session.is_some() { session.unwrap().refresh_token } else { "" };
+    let fresh = await call1(r, "refresh", authentication::refresh_token, map().with("refresh_token", refresh));
+    check(r, "refreshed", fresh.get("access_token").kind() == "str");
+
+    // A token the server will not take heals: a call refreshes on its 401,
+    // and a socket renews a token it cannot read before connecting.
+    let stale = kept_session().with("access_token", "stale");
+    gamend::restore(stale);
+    await call0(r, "healed", users::get_current_user);
+    let token = access_token();
+    check(r, "renewed", token != "" && token != "stale");
+    gamend::restore(stale);
+    r.socket = client::connect(r.node);
+    let opened = await heard(r, "open");
+    check(r, "socket_healed", opened);
+    client::close(r.socket);
+
+    // Linking moves the account to the new device; the old one is a stranger.
+    let second = "{DEVICE}-2";
+    await call1(r, "link_device", authentication::link_device, map().with("device_id", second));
+    let moved = await sign_in(r, second);
+    check(r, "linked", same(moved.get("user_id"), me));
+    await call0(r, "unlink_last", authentication::unlink_device);
+
+    // A new password signs every session out, this one included.
+    let password = "pw-{TAG}-long";
+    await call1(r, "set_password", users::update_current_user_password, map().with("password", password));
+    await call0(r, "signed_out", users::get_current_user);
+    await sign_in(r, second);
+    await call1(r, "delete_refused", users::delete_current_user, nil());
+    await goodbye(r, me, map().with("current_password", password));
+}
+
+/// The signed-in session as the map `gamend::restore` takes.
+fn kept_session() -> any {
+    let held = gamend::session();
+    if held.is_none() {
+        return map();
+    }
+    let s = held.unwrap();
+    map()
+        .with("user_id", s.user_id)
+        .with("username", s.username)
+        .with("display_name", s.display_name)
+        .with("access_token", s.access_token)
+        .with("refresh_token", s.refresh_token)
+        .with("expires_in", s.expires_in)
+}
+
+fn access_token() -> str {
+    let held = gamend::session();
+    if held.is_some() { held.unwrap().access_token } else { "" }
+}
+
+async fn hosting(r: Run, me: str) {
+    let title = "lobby {TAG}";
+    let made = await call1(r, "create", lobbies::create_lobby, map().with("title", title).with("max_users", 4).with("metadata", map().with("mode", "duel")));
+    let id = made.get("id").text();
+    r.socket = client::connect(r.node);
+    let opened = await task::wait(r.socket);
+    check(r, "socket_open", same(opened.get("kind"), "open"));
+    let joined = await task::wait(client::join(r.socket, "lobby:" + id));
+    check(r, "channel_joined", same(joined.get("status"), "ok"));
+    let got = await call1(r, "get", lobbies::get_lobby, id);
+    check(r, "hosted", same(got.get("host_id"), me));
+    let listed = await call1(r, "list", lobbies::list_lobbies, map().with("title", title));
+    check(r, "listed", has(listed, "id", id));
+    let renamed = "renamed {TAG}";
+    let updated = await call1(r, "update", lobbies::update_lobby, map().with("title", renamed).with("metadata", map().with("mode", "ffa")));
+    check(r, "updated", same(updated.get("title"), renamed) && same(updated.get("metadata").get("mode"), "ffa"));
+    let playing = await call1(r, "state", lobbies::set_lobby_state, map().with("state", "playing"));
+    check(r, "playing", same(playing.get("state"), "playing"));
+    await as_b(r, "join", "POST", "/api/v1/lobbies/{id}/join", map());
+    let full = await call1(r, "get_full", lobbies::get_lobby, id);
+    check(r, "two", count(full.get("members")) == 2);
+
+    let sent = await call1(r, "chat_send", chat::send_chat_message, map().with("chat_type", "lobby").with("chat_ref_id", id).with("content", "gg"));
+    let message = sent.get("id");
+    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=lobby&chat_ref_id={id}", nil());
+    check(r, "b_unread_one", same(unread.get("unread_count"), 1));
+    let history = await call1(r, "chat_list", chat::list_chat_messages, map().with("chat_type", "lobby").with("chat_ref_id", id));
+    check(r, "chat_listed", has(history, "id", message));
+    await call2(r, "chat_edit", chat::update_chat_message, message, map().with("content", "good game"));
+    let edited = await call1(r, "chat_get", chat::get_chat_message, message);
+    check(r, "chat_edited", same(edited.get("content"), "good game"));
+    await call1(r, "chat_read", chat::mark_chat_read, map().with("chat_type", "lobby").with("chat_ref_id", id).with("message_id", message));
+    await call1(r, "chat_delete", chat::delete_chat_message, message);
+
+    await call1(r, "ready_open", ready_checks::open_lobby_ready_check, map().with("timeout_ms", 30000));
+    let answer = await as_b(r, "ready", "POST", "/api/v1/me/ready_check", map().with("ready", true).with("scope", "lobby"));
+    check(r, "ready_passed", same(answer.get("status"), "passed"));
+    await call1(r, "mute", chat::mute_lobby_member, map().with("target_user_id", B_ID));
+    let mutes = await call1(r, "mutes", chat::list_lobby_mutes, map());
+    check(r, "b_muted", has(mutes, "user_id", B_ID));
+    await call1(r, "unmute", chat::unmute_lobby_member, map().with("target_user_id", B_ID));
+    await call1(r, "kick", lobbies::kick_user, map().with("target_user_id", B_ID));
+    let left = await call1(r, "get_kicked", lobbies::get_lobby, id);
+    check(r, "one", count(left.get("members")) == 1);
+    let expected = [
+        lobby::UPDATED,
+        lobby::STATE_CHANGED,
+        lobby::MEMBER_JOINED,
+        lobby::CHAT_MESSAGE,
+        lobby::READY_CHECK_PASSED,
+        lobby::MEMBER_KICKED,
+    ];
+    for kind in expected {
+        let delivered = await heard(r, kind);
+        check(r, "heard_" + kind, delivered);
+    }
+    client::close(r.socket);
+    await call0(r, "leave", lobbies::leave_lobby);
+    await call1(r, "gone", lobbies::get_lobby, id);
+
+    // Quick-join would take any open lobby, another flow's included, even as
+    // that flow disbands it; this run's own tag matches none, so it makes one.
+    await call1(r, "quick_join", lobbies::quick_join, map().with("title", "quick {TAG}").with("max_users", 2).with("metadata", map().with("run", TAG)));
+    await call0(r, "quick_leave", lobbies::leave_lobby);
+    let second = await call1(r, "second", lobbies::create_lobby, map().with("title", "second {TAG}").with("max_users", 2));
+    await call0(r, "disband", lobbies::disband_lobby);
+    await call1(r, "second_gone", lobbies::get_lobby, second.get("id"));
+    await call0(r, "stats", lobbies::lobby_stats);
+    await goodbye(r, me, nil());
+}
+
+async fn befriending(r: Run, me: str) {
+    let asked = await as_b(r, "befriend", "POST", "/api/v1/friends", map().with("target_user_id", me));
+    let friendship = asked.get("id");
+    let requests = await call1(r, "requests", friends::list_friend_requests, map());
+    check(r, "incoming", has(requests.get("incoming"), "id", friendship));
+    await call1(r, "accept", friends::accept_friend_request, friendship);
+    let listed = await call1(r, "friends", friends::list_friends, map());
+    check(r, "befriended", has(listed, "id", B_ID));
+
+    let note = await call1(r, "notify", notifications::send_notification, map().with("user_id", B_ID).with("title", "hello {TAG}").with("content", "gg"));
+    let note_id = note.get("id");
+    let inbox = await as_b(r, "inbox", "GET", "/api/v1/notifications", nil());
+    check(r, "delivered", has(inbox, "id", note_id));
+    let dismissed: [any] = [note_id];
+    await as_b(r, "dismiss", "DELETE", "/api/v1/notifications", map().with("ids", dismissed));
+    await call1(r, "own_inbox", notifications::list_notifications, map());
+
+    await call1(r, "unfriend", friends::remove_friendship, friendship);
+    await call1(r, "block", friends::block_user, B_ID);
+    let blocked = await call1(r, "blacklist", friends::list_blacklisted_users, map());
+    check(r, "b_blocked", has(blocked, "id", B_ID));
+    await call1(r, "unblock", friends::unblock_user, B_ID);
+    // Parties and groups invite friends only.
+    let again = await as_b(r, "befriend_again", "POST", "/api/v1/friends", map().with("target_user_id", me));
+    await call1(r, "accept_again", friends::accept_friend_request, again.get("id"));
+}
+
+async fn partying(r: Run) {
+    let made = await call1(r, "party", parties::create_party, map().with("max_size", 4));
+    let party_id = made.get("id");
+    await call1(r, "invite", parties::invite_to_party, map().with("target_user_id", B_ID));
+    let sent = await call1(r, "sent", parties::list_sent_party_invitations, map());
+    check(r, "invite_sent", has(sent, "party_id", party_id));
+    await as_b(r, "join_party", "POST", "/api/v1/parties/invite/accept", map().with("party_id", party_id));
+    let shown = await call0(r, "show", parties::show_party);
+    check(r, "party_of_two", count(shown.get("members")) == 2);
+    await call1(r, "party_update", parties::update_party, map().with("metadata", map().with("mode", "duel")));
+    await call1(r, "ready_open", ready_checks::open_party_ready_check, map().with("timeout_ms", 30000));
+    let answer = await as_b(r, "ready", "POST", "/api/v1/me/ready_check", map().with("ready", true).with("scope", "party"));
+    check(r, "ready_passed", same(answer.get("status"), "passed"));
+    let made_lobby = await call1(r, "party_lobby", parties::party_create_lobby, map().with("title", "party {TAG}").with("max_users", 4));
+    let b_me = await as_b(r, "me", "GET", "/api/v1/me", nil());
+    check(r, "b_followed", same(b_me.get("lobby_id"), made_lobby.get("id")));
+    await as_b(r, "leave_lobby", "POST", "/api/v1/lobbies/leave", nil());
+    await call0(r, "leave_lobby", lobbies::leave_lobby);
+    await call1(r, "party_kick", parties::kick_party_member, map().with("target_user_id", B_ID));
+    await call0(r, "disband", parties::disband_party);
+}
+
+async fn grouping(r: Run) {
+    let title = "group {TAG}";
+    let made = await call1(r, "group", groups::create_group, map().with("title", title).with("type", "private"));
+    let id = made.get("id");
+    await call2(r, "group_invite", groups::invite_to_group, id, map().with("target_user_id", B_ID));
+    let invites = await as_b(r, "invites", "GET", "/api/v1/groups/invitations", nil());
+    let invite = first_with(invites, "group_id", id).get("id");
+    await as_b(r, "join_group", "POST", "/api/v1/groups/invitations/{invite}/accept", nil());
+    let members = await call2(r, "members", groups::list_group_members, id, map());
+    check(r, "group_of_two", count(members) == 2);
+    let mine = await call1(r, "my_groups", groups::list_my_groups, map());
+    check(r, "mine", has(mine, "id", id));
+    await call2(r, "group_update", groups::update_group, id, map().with("description", "test"));
+    await call2(r, "promote", groups::promote_group_member, id, map().with("target_user_id", B_ID));
+    await call2(r, "demote", groups::demote_group_member, id, map().with("target_user_id", B_ID));
+    await call2(r, "group_mute", chat::mute_group_member, id, map().with("target_user_id", B_ID));
+    let mutes = await call2(r, "group_mutes", chat::list_group_mutes, id, map());
+    check(r, "b_muted", has(mutes, "user_id", B_ID));
+    await call2(r, "group_unmute", chat::unmute_group_member, id, map().with("target_user_id", B_ID));
+    await call1(r, "group_chat", chat::send_chat_message, map().with("chat_type", "group").with("chat_ref_id", id).with("content", "gm"));
+    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=group&chat_ref_id={id}", nil());
+    check(r, "b_unread_one", same(unread.get("unread_count"), 1));
+    await call2(r, "group_kick", groups::kick_group_member, id, map().with("target_user_id", B_ID));
+    await call1(r, "group_leave", groups::leave_group, id);
+    let left = await call1(r, "group_gone", groups::list_groups, map().with("title", title));
+    check(r, "no_group", count(left) == 0);
+
+    // A private group takes a join request, which its admin approves.
+    let asked_title = "asked {TAG}";
+    let asked = await call1(r, "asked_group", groups::create_group, map().with("title", asked_title).with("type", "private"));
+    let asked_id = asked.get("id");
+    let request = await as_b(r, "ask", "POST", "/api/v1/groups/{asked_id}/join", nil());
+    let pending = await call2(r, "join_requests", groups::list_join_requests, asked_id, map());
+    check(r, "pending", has(pending, "id", request.get("id")));
+    await call2(r, "approve", groups::approve_join_request, asked_id, request.get("id"));
+    await as_b(r, "leave_asked", "POST", "/api/v1/groups/{asked_id}/leave", nil());
+    await call1(r, "leave_asked", groups::leave_group, asked_id);
+    let asked_left = await call1(r, "asked_gone", groups::list_groups, map().with("title", asked_title));
+    check(r, "no_asked_group", count(asked_left) == 0);
+}
+
+async fn catalog(r: Run, me: str) {
+    await call0(r, "wallet", economy::get_current_user_wallet);
+    await call0(r, "inventory", economy::get_current_user_inventory);
+    await call1(r, "ledger", economy::list_current_user_ledger, map());
+    await call1(r, "quests", quests::list_quests, map());
+    await call1(r, "my_quests", quests::my_quests, map());
+    await call2(r, "user_quests", quests::user_quests, me, map());
+    await call0(r, "quest_stats", quests::quest_stats);
+    await call1(r, "store", payments::catalog, map());
+    await call1(r, "entitlements", payments::entitlements, map());
+    await call2(r, "kv_missing", kv::get_kv, "missing-{TAG}", map());
+    await call0(r, "log_policy", client_logs::get_client_log_policy);
+    await call1(r, "hooks", hooks::list_hooks, map());
+    let now = await call0(r, "time", time::get_server_time);
+    check(r, "clock", now.get("server_now").kind() == "int");
+    await call0(r, "stats", stats::get_stats);
+    await call0(r, "user_stats", users::user_stats);
+    await call0(r, "signaling", signaling::stats);
+    await call0(r, "providers", authentication::list_auth_providers);
+    await call0(r, "health", health::index);
+    await call1(r, "party_invites", parties::list_party_invitations, map());
+    await call1(r, "group_invites", groups::list_group_invitations, map());
+    await call0(r, "party_stats", parties::party_stats);
+
+    let boards = await call1(r, "boards", leaderboards::list_leaderboards, map());
+    let board = first_with(boards, "", nil()).get("id");
+    await call1(r, "board", leaderboards::get_leaderboard, board);
+    await call2(r, "records", leaderboards::list_leaderboard_records, board, map());
+    await call2(r, "my_record", leaderboards::get_my_record, board, map());
+    await call3(r, "around_me", leaderboards::list_records_around_user, board, me, map());
+    let slugs: [any] = ["missing-{TAG}"];
+    await call1(r, "resolve", leaderboards::resolve_leaderboard_slugs, map().with("slugs", slugs));
+
+    let open = await call1(r, "tournaments", tournaments::list_tournaments, map().with("state", "registration"));
+    let cup = first_with(open, "", nil()).get("id");
+    let entry = await call1(r, "enter", tournaments::join_tournament, cup);
+    await call2(r, "entries", tournaments::tournament_entries, cup, map());
+    // `my_entry`, not the entries list: that pages oldest first, behind the seeded entries.
+    let joined = await call1(r, "cup", tournaments::get_tournament, cup);
+    check(r, "entered", same(joined.get("my_entry").get("id"), entry.get("id")) && same(entry.get("leader_id"), me));
+    await call1(r, "my_match", tournaments::tournament_my_match, cup);
+    await call1(r, "standings", tournaments::tournament_standings, cup);
+    await call1(r, "withdraw", tournaments::leave_tournament, cup);
+
+    let token = await call1(r, "push_register", push_tokens::register_push_token, map().with("platform", "android").with("token", "t-{TAG}"));
+    let tokens = await call1(r, "push_list", push_tokens::list_push_tokens, map());
+    check(r, "push_listed", has(tokens, "id", token.get("id")));
+    await call1(r, "push_delete", push_tokens::delete_push_token, token.get("id"));
+    // No ticket: a 404 from a current server, an empty 200 from an older one.
+    let ticket = await fetch0(r, matchmaking::my_ticket);
+    check(r, "no_ticket", same(ticket.get("status"), 404) || data(ticket).is_nil());
+    await call0(r, "cancel", matchmaking::cancel);
+    await call0(r, "queues", matchmaking::stats);
+    await goodbye(r, me, nil());
+}
+
+/// A dropped connection comes back by itself, joins its topics again and
+/// says so, and an event after it still reaches its own handler.
+async fn realtime(r: Run, me: str) {
+    let made = await call1(r, "create", lobbies::create_lobby, map().with("title", "live {TAG}").with("max_users", 2));
+    let id = made.get("id").text();
+    r.socket = client::connect(r.node);
+    let opened = await heard(r, "routed_socket_open");
+    check(r, "open", opened);
+    let joined = await task::wait(client::join(r.socket, "lobby:" + id));
+    check(r, "channel_joined", same(joined.get("status"), "ok"));
+    check(r, "interrupted", gamend::interrupt(r.socket));
+    let reconnecting = await heard(r, "routed_socket_reconnecting");
+    check(r, "reconnecting", reconnecting);
+    let reopened = await heard(r, "routed_socket_reopened");
+    check(r, "reopened", reopened);
+    check(r, "nothing_lost", r.lost == 0);
+    await call1(r, "rename", lobbies::update_lobby, map().with("title", "after {TAG}"));
+    let after = await heard(r, "routed_lobby_updated");
+    check(r, "heard_after", after);
+    // No plugin answers `sdk_probe`, so the reply is an error: the socket
+    // carries calls again.
+    let args: [any] = ["hi"];
+    let hook = await task::wait(gamend::call_hook(r.socket, "sdk_probe", "echo", args));
+    check(r, "hook_after", same(hook.get("status"), "error"));
+    client::close(r.socket);
+    let closed = await heard(r, "routed_socket_closed");
+    check(r, "closed", closed);
+    await call0(r, "leave", lobbies::leave_lobby);
+    await goodbye(r, me, nil());
+}
+
+/// A player the host kicks loses the lobby's channel, which the server
+/// closes on purpose: a reconnect after it does not join it again.
+async fn kicked(r: Run, me: str) {
+    let made = await as_b(r, "create", "POST", "/api/v1/lobbies", map().with("title", "kick {TAG}").with("max_users", 2));
+    let id = made.get("id").text();
+    await call2(r, "join", lobbies::join_lobby, id, map());
+    r.socket = client::connect(r.node);
+    let opened = await heard(r, "routed_socket_open");
+    check(r, "open", opened);
+    let joined = await task::wait(client::join(r.socket, "lobby:" + id));
+    check(r, "channel_joined", same(joined.get("status"), "ok"));
+    await as_b(r, "kick", "POST", "/api/v1/lobbies/kick", map().with("target_user_id", me));
+    let kicked = await heard(r, "routed_lobby_member_kicked");
+    check(r, "kicked", kicked);
+    let closed = await heard(r, "phx_close");
+    check(r, "channel_closed", closed);
+    check(r, "interrupted", gamend::interrupt(r.socket));
+    let reopened = await heard(r, "routed_socket_reopened");
+    check(r, "reopened", reopened);
+    // The server lets anyone watch a lobby, so a rejoin would be let in and
+    // would hear the rename; only a forgotten topic stays quiet.
+    r.heard = [];
+    await as_b(r, "rename", "PATCH", "/api/v1/lobbies", map().with("title", "renamed {TAG}"));
+    let rejoined = await heard(r, lobby::UPDATED);
+    check(r, "not_rejoined", !rejoined);
+    client::close(r.socket);
+    await as_b(r, "leave", "POST", "/api/v1/lobbies/leave", nil());
+    await goodbye(r, me, nil());
+}
+
+/// Whether the socket delivers `kind` within a few seconds.
+async fn heard(r: Run, kind: str) -> bool {
+    let until = engine::unix_time() + HEARD_WAIT;
+    loop {
+        for seen in r.heard {
+            if seen == kind {
+                return true;
+            }
+        }
+        if engine::unix_time() > until {
+            let got = "";
+            for seen in r.heard {
+                got = got + " " + seen;
+            }
+            log::info("waited for {kind}; heard{got}");
+            return false;
+        }
+        await task::frames(1);
+    }
+}
+
+/// Delete the account and prove it: nobody can look it up any more.
+async fn goodbye(r: Run, me: str, params: any) {
+    await call1(r, "delete", users::delete_current_user, params);
+    await send(r, "lookup_deleted", "", "GET", "/api/v1/users/{me}", nil());
+}
+
+/// Sign in, waiting out the server's limit on sign-ins.
+async fn sign_in(r: Run, device: str) -> any {
+    let login = await task::wait(client::login_device(r.node, device));
+    let tries = 0;
+    while limited_login(login) && tries < LIMITED_TRIES {
+        await pause();
+        login = await task::wait(client::login_device(r.node, device));
+        tries += 1;
+    }
+    login
+}
+
+fn limited_login(login: any) -> bool {
+    let error = login.get("error");
+    error.kind() == "str" && error.as_str().contains("(429)")
+}
+
+/// Let a rate-limit window pass. Wall-clock seconds: this harness ticks
+/// faster than real time.
+async fn pause() {
+    let until = engine::unix_time() + LIMITED_WAIT;
+    while engine::unix_time() < until {
+        await task::frames(1);
+    }
+}
+
+// An SDK call, made again while the server answers 429; its status noted
+// under `name`, and its reply's data answered. One per arity of the SDK's
+// functions after the node, since a call is passed as the function itself.
+
+async fn call0(r: Run, name: str, make: fn(Node) -> any) -> any {
+    let reply = await fetch0(r, make);
+    note(r, name, reply)
+}
+
+async fn call1(r: Run, name: str, make: fn(Node, any) -> any, a: any) -> any {
+    let reply = await task::wait(make(r.node, a).as_int());
+    let tries = 0;
+    while limited(reply) && tries < LIMITED_TRIES {
+        await pause();
+        reply = await task::wait(make(r.node, a).as_int());
+        tries += 1;
+    }
+    note(r, name, reply)
+}
+
+async fn call2(r: Run, name: str, make: fn(Node, any, any) -> any, a: any, b: any) -> any {
+    let reply = await task::wait(make(r.node, a, b).as_int());
+    let tries = 0;
+    while limited(reply) && tries < LIMITED_TRIES {
+        await pause();
+        reply = await task::wait(make(r.node, a, b).as_int());
+        tries += 1;
+    }
+    note(r, name, reply)
+}
+
+async fn call3(r: Run, name: str, make: fn(Node, any, any, any) -> any, a: any, b: any, c: any) -> any {
+    let reply = await task::wait(make(r.node, a, b, c).as_int());
+    let tries = 0;
+    while limited(reply) && tries < LIMITED_TRIES {
+        await pause();
+        reply = await task::wait(make(r.node, a, b, c).as_int());
+        tries += 1;
+    }
+    note(r, name, reply)
+}
+
+/// An SDK call of no arguments, made again while the server answers 429:
+/// the whole reply, its status unnoted.
+async fn fetch0(r: Run, make: fn(Node) -> any) -> any {
+    let reply = await task::wait(make(r.node).as_int());
+    let tries = 0;
+    while limited(reply) && tries < LIMITED_TRIES {
+        await pause();
+        reply = await task::wait(make(r.node).as_int());
+        tries += 1;
+    }
+    reply
+}
+
+fn limited(reply: any) -> bool {
+    same(reply.get("status"), 429)
+}
+
+fn note(r: Run, name: str, reply: any) -> any {
+    r.steps.push(name + "=" + status_of(reply));
+    data(reply)
+}
+
+/// A call as player B, who signed in outside the SDK.
+async fn as_b(r: Run, name: str, method: str, path: str, payload: any) -> any {
+    let reply = await send(r, "b_" + name, B_TOKEN, method, path, payload);
+    reply
+}
+
+/// A plain HTTP call, with `token` when it is not empty: its status noted,
+/// and its body's data answered.
+async fn send(r: Run, name: str, token: str, method: str, path: str, payload: any) -> any {
+    let headers = map().with("content-type", "application/json");
+    if token != "" {
+        headers = headers.with("authorization", "Bearer " + token);
+    }
+    let opts = map().with("method", method).with("headers", headers);
+    if !payload.is_nil() {
+        opts = opts.with("body", json::encode(payload));
+    }
+    let reply = await task::wait(http::request(URL + path, opts));
+    let tries = 0;
+    while limited(reply) && tries < LIMITED_TRIES {
+        await pause();
+        reply = await task::wait(http::request(URL + path, opts));
+        tries += 1;
+    }
+    let text = reply.get("body");
+    let body = if text.kind() == "str" && text.as_str() != "" { json::parse(text.as_str()) } else { nil() };
+    note(r, name, map().with("status", reply.get("status")).with("body", body))
+}
+
+/// The HTTP status, or `error` for a call that never got one.
+fn status_of(reply: any) -> str {
+    let status = reply.get("status");
+    if status.kind() == "int" { status.text() } else { "error" }
+}
+
+fn check(r: Run, name: str, held: bool) {
+    let word = if held { "yes" } else { "NO" };
+    r.steps.push(name + "=" + word);
+}
+
+/// A reply's `data`, or its whole body where the server sends it bare.
+fn data(reply: any) -> any {
+    let body = reply.get("body");
+    if body.kind() == "map" && body.has("data") { body.get("data") } else { body }
+}
+
+/// Two strings or two ints that are equal; nothing else is the same.
+fn same(a: any, b: any) -> bool {
+    let kind = a.kind();
+    (kind == "str" || kind == "int") && kind == b.kind() && a.equals(b)
+}
+
+fn count(list: any) -> int {
+    if list.kind() == "list" { list.len() } else { -1 }
+}
+
+fn has(list: any, key: str, value: any) -> bool {
+    !first_with(list, key, value).is_nil()
+}
+
+/// The first row whose `key` is `value`; an empty key takes the first row.
+fn first_with(list: any, key: str, value: any) -> any {
+    if list.kind() != "list" {
+        return nil();
+    }
+    for row in list {
+        if key == "" || same(row.get(key), value) {
+            return row;
+        }
+    }
+    nil()
+}

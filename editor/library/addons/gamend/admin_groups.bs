@@ -1,0 +1,32 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Admin – Groups: one function per operation, `admin_groups::<name>` once a
+// script says `use addons::gamend::admin_groups;`.
+//
+// A call takes the node its result should reach, then the path's own
+// parameters, then `params` for the request body and `options` for the
+// query where the operation has them. It answers the id `gamend::rest`
+// answers, to await with `task::wait`, or nil when it refused to send.
+
+use core;
+
+/// Delete a group (admin)
+/// `DELETE /api/v1/admin/groups/{id}`
+pub fn delete_group(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/admin/groups/{id}", nil())
+}
+
+/// List all groups (admin)
+/// `GET /api/v1/admin/groups`
+pub fn list_groups(node: Node, options: any) -> any {
+    let query = core::query(options, ["title", "type", "min_members", "max_members", "sort_by", "page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/admin/groups{query}", nil())
+}
+
+/// Update a group (admin)
+/// `PATCH /api/v1/admin/groups/{id}`
+pub fn update_group(node: Node, id: any, params: any) -> any {
+    gamend::rest(node, "PATCH", "/api/v1/admin/groups/{id}", params)
+}

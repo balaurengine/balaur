@@ -1,0 +1,96 @@
+// What every generated call needs: a query string, a required-field check,
+// and the way this SDK reports a call it refused to make; and the reply
+// helpers. Linked as `use core;` inside the addon, and as
+// `use addons::gamend::core;` from a game's script.
+
+/// Whether a map carries a key with a value. A key set to nil is absent:
+/// the server would refuse it, and refusing here names the field instead.
+pub fn given(table: any, key: str) -> bool {
+    table.kind() == "map" && table.has(key) && !table.get(key).is_nil()
+}
+
+/// A call this SDK would not send. It logs which field was missing and
+/// answers nil, which is what a caller sees instead of a request id.
+pub fn missing(call: str, field: str) -> any {
+    log::error("gamend: {call} needs `{field}`");
+    nil()
+}
+
+/// `?a=1&b=2` for the keys an operation declares, in the order it declares
+/// them, skipping the ones the caller left out. Empty when none are given,
+/// so the path stays exactly as the document wrote it.
+pub fn query(options: any, allowed: [str]) -> str {
+    if options.kind() != "map" {
+        return "";
+    }
+    let out = "";
+    for key in allowed {
+        if !given(options, key) {
+            continue;
+        }
+        let lead = if out == "" { "?" } else { "&" };
+        out = out + lead + key + "=" + escape(options.get(key).text());
+    }
+    out
+}
+
+/// Percent-encoding for what a query value may hold. The server's keys are
+/// ids, page numbers and search terms, so this covers the reserved set
+/// rather than every byte above 127. `%` goes first, so it is never doubled.
+pub fn escape(text: str) -> str {
+    text.replace("%", "%25")
+        .replace(" ", "%20")
+        .replace("&", "%26")
+        .replace("=", "%3D")
+        .replace("?", "%3F")
+        .replace("#", "%23")
+        .replace("+", "%2B")
+        .replace("/", "%2F")
+}
+
+/// Whether a `rest` completion carried a 2xx status.
+pub fn ok(reply: any) -> bool {
+    let status = reply.get("status");
+    status.kind() == "int" && status.as_int() >= 200 && status.as_int() < 300
+}
+
+/// The decoded body of a reply, or nil.
+pub fn body(reply: any) -> any {
+    reply.get("body")
+}
+
+/// What the server said went wrong, for a reply that is not 2xx.
+pub fn error_of(reply: any) -> str {
+    let payload = body(reply);
+    if payload.has("error") {
+        return payload.get("error").text();
+    }
+    if reply.has("error") {
+        return reply.get("error").text();
+    }
+    if reply.has("status") {
+        return "gamend: HTTP " + reply.get("status").text();
+    }
+    "gamend: no reply"
+}
+
+/// What a REST call answered, in the shape a hook's reply takes:
+/// `ok`, `data`, `error` and `status`. A 2xx carries the body's `data`
+/// where the server wrapped it, and the body itself where it did not.
+pub fn unpack(reply: any) -> any {
+    if reply.is_nil() {
+        return map().with("ok", false).with("data", nil()).with("error", "gamend: the call sent no reply");
+    }
+    let status = reply.get("status");
+    let payload = reply.get("body");
+    if !ok(reply) {
+        let message = if payload.has("error") {
+            payload.get("error").text()
+        } else {
+            "gamend: the call answered " + status.text()
+        };
+        return map().with("ok", false).with("data", nil()).with("error", message).with("status", status);
+    }
+    let data = if payload.has("data") { payload.get("data") } else { payload };
+    map().with("ok", true).with("data", data).with("error", "").with("status", status)
+}
