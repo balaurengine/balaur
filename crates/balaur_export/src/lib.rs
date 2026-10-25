@@ -34,7 +34,7 @@ mod variants;
 use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
-pub use config::{DEFAULT_OUTPUT, ExportConfig, Runtime};
+pub use config::{DEFAULT_OUTPUT, ExportConfig, NativeScripts, Runtime};
 pub use fits::fits;
 
 /// Everything an export was asked for.
@@ -323,6 +323,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         return Ok(());
     }
     let name = project_name(&opts.path);
+    let native = native::request(opts, &config, &mut extra, &pack, &apple)?;
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.
     if let Some((kind, target)) = bundle {
@@ -343,7 +344,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &web_assets,
             icons.as_ref(),
         )?;
-        native_scripts(kind, &written, opts, &mut extra, &pack, &apple)?;
+        native_scripts(kind, &written, native.as_ref(), &apple)?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
     let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
@@ -380,6 +381,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &apple,
             &opts.path,
             icons.as_ref(),
+            native.as_ref(),
         )?;
         if opts.notarize || apple.notarize {
             sign::notarize(&app)?;
@@ -399,6 +401,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         runtime,
         target,
         icons.as_ref(),
+        native.as_ref(),
     )
 }
 
@@ -416,6 +419,7 @@ fn export_desktop(
     runtime: Option<PathBuf>,
     target: Option<&str>,
     icons: Option<&icon::Icons>,
+    native: Option<&native::Request>,
 ) -> Result<()> {
     let Some(runtime) = runtime else {
         let output = opts
@@ -472,7 +476,17 @@ fn export_desktop(
         runtime.display(),
         output.display()
     );
-    let shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
+    let mut shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
+    match (native, target) {
+        (Some(request), Some(target)) => {
+            shipped.extend(native::build_desktop(&output, target, request)?);
+        }
+        (Some(request), None) => tracing::info!(
+            "{} script(s) run on the runtime's engine: name a --target to build them as native code",
+            request.scripts.modules
+        ),
+        (None, _) => {}
+    }
     if windows && (opts.sign.is_some() || !signing.certificate.is_empty()) {
         let mut signing = signing.clone();
         if let Some(named) = &opts.sign {
@@ -485,24 +499,27 @@ fn export_desktop(
     Ok(())
 }
 
-/// iOS runs no JIT, so an iOS bundle carries its `.bs` scripts as native code.
+/// A bundle's scripts as native code, when the export asked for them: in the
+/// iOS app's frameworks, or in each 64-bit ABI of the Android layout before
+/// it is packed.
 fn native_scripts(
     kind: Bundle,
     app: &Path,
-    opts: &Options<'_>,
-    extra: &mut [Box<dyn balaur_plugin::Plugin>],
-    pack: &balaur::Pack,
+    request: Option<&native::Request>,
     apple: &AppleConfig,
 ) -> Result<()> {
-    if kind != Bundle::Ios {
-        return Ok(());
-    }
-    let Some(scripts) = balaur::native_scripts(&opts.path, extra, pack)? else {
+    let Some(request) = request else {
         return Ok(());
     };
-    let executable =
-        bundle::runtime_executable(&app.join("Info.plist")).unwrap_or_else(|| "Balaur".to_string());
-    native::build_framework(app, &executable, &scripts, apple)
+    match kind {
+        Bundle::Ios => {
+            let executable = bundle::runtime_executable(&app.join("Info.plist"))
+                .unwrap_or_else(|| "Balaur".to_string());
+            native::build_framework(app, &executable, request, apple)
+        }
+        Bundle::Android => native::build_android(app, request),
+        Bundle::Web => Ok(()),
+    }
 }
 
 /// What a signed export uses: the flag when one was passed, else what the

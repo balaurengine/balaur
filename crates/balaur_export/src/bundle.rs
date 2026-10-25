@@ -288,6 +288,7 @@ pub(crate) fn export_macos_app(
     apple: &AppleConfig,
     project: &Path,
     icons: Option<&Icons>,
+    native: Option<&crate::native::Request>,
 ) -> Result<PathBuf> {
     crate::require_icon(icons, "macos")?;
     apple.check(Platform::Macos)?;
@@ -311,6 +312,9 @@ pub(crate) fn export_macos_app(
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
+    if let Some(request) = native {
+        crate::native::build_desktop(&executable, "macos-universal", request)?;
+    }
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
     let icon_keys = match icons {
         Some(icons) => icons.write_macos(&app, &apple.min_macos)?,

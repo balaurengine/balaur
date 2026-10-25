@@ -9,6 +9,8 @@ mod direct;
 mod engine_api;
 mod fnrefs;
 mod format;
+#[cfg(all(feature = "c", feature = "native"))]
+mod freestanding;
 mod library;
 mod loops;
 mod memory;

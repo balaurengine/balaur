@@ -200,26 +200,60 @@ named by a hash of the wasm and checked on load), and a cached file loads
 in 0.84 ms. wasmi remains for debugging, since only it parks a call, and
 for a script an export has no native build of.
 
-## 7a. Native code on iOS
+## 7a. Native code
 
-iOS runs no JIT, so an iOS export compiles the scripts ahead of time:
+An export builds the scripts ahead of time, for every target but the web: iOS
+runs no JIT, and on the others C runs at 1.1 to 1.3 times Rust to wasmtime's 1.5.
 
 - `balaur_bs::c` translates each module to C, one file for the game: wasm's
   stack becomes a C variable per height and kind, blocks become labels, every
   memory access is checked against the memory's length, and a function whose
-  frame passes the thread's stack floor traps. A trap is a `longjmp` back to
-  the host's call, never past a host frame, so a host function calling back
-  in has its own.
-- The export compiles it with Xcode's clang (`-O2 -ffp-contract=off`, for the
-  device or the simulator the template was built for, read off its Mach-O)
-  into `Frameworks/BalaurScripts.framework`, which signing covers with the
-  rest of the app.
-- At start the backend opens the framework when it is there. A module whose
-  hash (`balaur_bs::module_hash`) is in it runs from there; any other, a
-  debug build among them, runs on wasmi, and the log says which.
+  frame passes the thread's stack floor traps. A trap is a jump back to the
+  host's call, never past a host frame, so a host function calling back in
+  has its own.
+- The C includes no header and calls no library. Memory comes from the
+  host's allocator and the stack's extent from the host (`bs_host`, ABI 2);
+  the trap's jump is a few instructions of its own for arm64, x86-64 and
+  Windows x64; rounding is exact on the bits where x86-64 lacks SSE4.1; and
+  the few routines a compiler still calls (`memcpy`, `memset`, `sqrt`,
+  Windows' `__chkstk`) are in the file, hidden. Under GCC the jump is the C
+  library's, so only clang builds it needing nothing.
+- So clang and lld build it for any target with no SDK (`-O2 -ffreestanding
+  -fno-math-errno -fno-stack-protector -ffp-contract=off`; `-z
+  max-page-size=16384` for Android). On 2026-10-24 one module of 24
+  functions, built that way from upstream LLVM 20 and lld 23, answered all
+  321 calls of a conformance plan (traps, recursion, memory growth, rounding
+  and min/max edges) bit for bit as wasmi did: macOS arm64 and x86-64
+  (Rosetta), the iOS simulator and an Android 15 emulator. The Linux and
+  Windows builds link with nothing undefined but were not run. The bit-level
+  rounding matches SSE4.1 on 20 million inputs.
+- `[export] native_scripts` (`auto`, `on`, `off`; per target through its
+  override) asks for it. `balaur_export::native` builds with Xcode for an
+  Apple target on a Mac that has it, else with clang and lld found in
+  `BALAUR_LLVM`, on `PATH` or where LLVM installs. `auto` keeps the target's
+  engine when no compiler is found; `on` fails the export.
+- `standalone::native_scripts_beside` names where it goes, for the exporter
+  and the runtime alike: beside a flat executable (`libBalaurScripts.so`,
+  `BalaurScripts.dll`, a universal `libBalaurScripts.dylib` the exporter
+  writes itself), in a `.app`'s `Contents/Frameworks` before codesign, and in
+  an iOS app's `Frameworks/BalaurScripts.framework`, for the device or the
+  simulator the template was built for. An APK carries it in `lib/arm64-v8a`
+  and `lib/x86_64`, and the game opens it by name; the 32-bit ABIs keep
+  their engine. Windows signs it with the executable.
+- At start the backend opens it when it is there. A module whose hash
+  (`balaur_bs::module_hash`) is in it runs from there; any other, a debug
+  build among them, runs on the engine it would have had, and the log says which.
+- On 2026-10-24 hello exported for `macos-universal`, flat and as a signed
+  `.app` launched as Finder does, ran its 5 scripts as native code. Its
+  Linux, Linux server and Windows exports wrote the library beside the
+  executable, needing nothing; none of the three ran here, and no APK was
+  assembled.
 - Floats come out bit for bit as on every engine: the particle sum matches,
   and so does hello's spinner. Natively it loads in 0.02 ms.
-- Exporting without Xcode leaves the scripts on wasmi and says so.
+- Left: run the Linux and Windows builds in CI, and an APK on a device; put
+  clang and lld in the engine's container, so Forge's builds get them; and
+  have Forge keep the library beside a desktop executable, which it now
+  drops along with `extensions/`.
 
 Ten thousand spinners a frame: 0.36–1.0 ms batched on wasmtime against 9–35
 ms in Rune and 0.03–0.19 ms in Rust. Compiling runs at 0.84–1.3 million lines

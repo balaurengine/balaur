@@ -82,7 +82,7 @@ windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional
 libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }
 tempfile = "3"
 # Validates a linked shader's types without a GPU, as wgpu will at
 # `create_shader_module`, and writes it as the GLSL ES a GLES device compiles.

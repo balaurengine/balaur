@@ -31,6 +31,7 @@ font_ranges = { type = "list", of = { type = "string" }, default = [], order = 7
 font_original = { type = "list", of = { type = "string" }, default = [], order = 8, help = "Faces that ship whole however font_recode is set, as globs: the one a text field draws with cannot be subset to the characters this project happens to contain." }
 audio_recode = { type = "enum", default = "original", options = ["original", "flac", "vorbis"], order = 9, help = "How uncompressed audio is re-encoded. flac keeps every sample; vorbis does not." }
 audio_quality = { type = "float", default = 0.5, min = -0.1, max = 1.0, order = 10, help = "libvorbis's quality, which audio_recode = \"vorbis\" reads and every other mode ignores." }
+native_scripts = { type = "enum", default = "auto", options = ["auto", "on", "off"], order = 13, help = "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target's override." }
 "#;
 
 pub fn declare(eng: &Engine) {

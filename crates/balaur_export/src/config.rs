@@ -67,6 +67,22 @@ pub struct ExportConfig {
     /// Which of a target's runtimes the game is put on: `full`, or `2d` and
     /// `3d`, which carry one physics world each and weigh less.
     pub runtime: Runtime,
+    /// Whether the scripts ship as native code built from their C.
+    pub native_scripts: NativeScripts,
+}
+
+/// `[export] native_scripts`: whether an export builds the scripts as native
+/// code, with Xcode for an Apple target and clang and lld for any.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeScripts {
+    /// When a compiler is found; without one the scripts run on the target's engine.
+    #[default]
+    Auto,
+    /// Always; an export with no compiler fails.
+    On,
+    /// Never.
+    Off,
 }
 
 /// The runtime `[export] runtime` names, for every target that has one.
@@ -109,6 +125,7 @@ impl Default for ExportConfig {
             audio_recode: crate::recode::AudioMode::Original,
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
             runtime: Runtime::Full,
+            native_scripts: NativeScripts::Auto,
         }
     }
 }

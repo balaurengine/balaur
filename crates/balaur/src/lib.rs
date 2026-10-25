@@ -166,7 +166,7 @@ pub fn native_scripts(
         Ok(
             balaur_script_bs::native_source(engine, &pack.scripts)?.map(|(c, modules)| {
                 NativeScripts {
-                    framework: balaur_script_bs::NATIVE_FRAMEWORK,
+                    framework: balaur_core::standalone::NATIVE_SCRIPTS,
                     c,
                     modules,
                 }
