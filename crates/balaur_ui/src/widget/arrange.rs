@@ -327,7 +327,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             at.rects = held;
         });
         // Reported when it moves, against where the last pass left it.
-        crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
+        crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
         let used = pad.around(inner_ui.min_rect());
@@ -366,7 +366,7 @@ fn tab_head(
         ui,
         text.size() + ui.spacing().button_padding * 2.0,
         egui::Sense::click(),
-        egui::WidgetType::Button,
+        egui::Role::Button,
         label,
     );
     let radius = egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8);
@@ -693,7 +693,7 @@ fn drag_seam(
     at.take_pointer(ui.clip_rect().intersect(seam));
     let handle = ui.interact(
         seam,
-        egui::Id::new(("balaur-seam", at.arena[target].entity, slot)),
+        egui::Id::unique(("balaur-seam", at.arena[target].entity, slot)),
         egui::Sense::drag(),
     );
     if handle.hovered() || handle.dragged() {

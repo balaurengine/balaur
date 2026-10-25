@@ -195,6 +195,12 @@ enum Command {
         /// measurement.
         #[arg(long)]
         dry_run: bool,
+        /// An export setting for this export alone, over `project.toml` and
+        /// its overrides, repeatable: `--set export.native_scripts=on`. The
+        /// value is TOML and a bare word is a string; any `[export]`,
+        /// `[android]`, `[apple]` or `[windows]` key but `export.tags`.
+        #[arg(long = "set", value_name = "GROUP.KEY=VALUE")]
+        set: Vec<String>,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -497,6 +503,7 @@ fn dispatch(command: Command) -> Result<()> {
             notarize,
             provisioning_profile,
             dry_run,
+            set,
         } => export_game(&ExportArgs {
             path,
             output,
@@ -510,6 +517,7 @@ fn dispatch(command: Command) -> Result<()> {
             notarize,
             provisioning_profile,
             dry_run,
+            set,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
         Command::Port { path, out, force } => port_cmd::run(&path, out.as_deref(), force),

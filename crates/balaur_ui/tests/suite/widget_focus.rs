@@ -253,7 +253,7 @@ fn a_theme_is_inherited_by_everything_under_it() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the panel drew")
     };
     assert!(
@@ -294,7 +294,7 @@ fn a_kind_the_theme_does_not_mention_is_unchanged() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the panel drew")
     };
     assert_eq!(
@@ -343,7 +343,7 @@ fn a_text_key_follows_the_locale() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let width = || {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", label))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", label))))
             .expect("the widget drew")
             .width()
     };
@@ -380,7 +380,7 @@ fn a_layer_nothing_configured_takes_the_default_surface() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let placed = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", hud))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", hud))))
         .expect("control: the hud drew somewhere");
     assert!(
         placed.min.x >= 299.0,

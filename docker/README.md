@@ -69,6 +69,7 @@ from the matching release.
 | `BALAUR_VERSION` | which runtimes under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
+| `BALAUR_SETTINGS` | export settings over `project.toml`: `group.key=value` entries split by `;`, each a `balaur export --set` |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
@@ -81,13 +82,15 @@ printed on the way.
 
 | `BALAUR_TARGET` | Artifact |
 |---|---|
-| `linux-x64`, `linux-arm64`, `macos-universal` | `game` |
-| `windows-x64`, `windows-arm64` | `game.exe` |
+| `linux-x64`, `linux-arm64`, `macos-universal` | `game`, or `game.zip` when anything sits beside it |
+| `windows-x64`, `windows-arm64` | `game.exe`, or `game.zip` when anything sits beside it |
 | `web` | `game.zip` |
 | `ios` | `game.ipa`, unsigned — see the signer image below |
 | `android` | `game.apk`, debug-signed, with the `-android` tag; `game.aab` with `BALAUR_ANDROID_PACKAGE=aab`; otherwise `game.zip` of the layout |
 
-One file per run, whatever shape the platform exports in.
+One file per run, whatever shape the platform exports in. A desktop game with
+its scripts as native code or an `extensions/` directory beside the executable
+comes out as one zip of all of it, the executable at its root.
 
 An `.aab` is what Play takes for a new app; an `.apk` is what installs on a
 device and what every other store takes. The Android image carries
@@ -100,6 +103,16 @@ there is nothing to set up at run time. It is the well-known debug identity
 (`androiddebugkey` / `android`), it installs on a device and every store
 refuses it. A release key belongs in `[export] android_keystore`, never in an
 image.
+
+## Native scripts
+
+Every tag carries clang and lld, Debian bookworm's own LLVM 14 (`ARG LLVM`),
+with `BALAUR_LLVM` naming their directory. So an export builds the game's
+scripts as native code (`[export] native_scripts`, on by default): inside the
+`.ipa`'s `BalaurScripts.framework`, and in the `.apk`'s `lib/arm64-v8a` and
+`lib/x86_64`. A desktop export writes `libBalaurScripts.so`,
+`BalaurScripts.dll` or `libBalaurScripts.dylib` beside the executable, and
+the two go out together in `game.zip`.
 
 ## Mount `/work` with a mode
 
@@ -184,6 +197,10 @@ password.
 | `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
 | `macos-universal` | Developer ID `.p12` and its password | yes — rcodesign timestamps through Apple |
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
+
+A desktop `game.zip` is signed inside: every `.exe` and `.dll` for Windows,
+every Mach-O for macOS, and the zip is made again. The notary takes that zip
+as it is.
 
 Egress buys an RFC 3161 timestamp and nothing else. Without one a signature
 stops verifying the day the certificate expires, rather than staying valid for

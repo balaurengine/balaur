@@ -353,7 +353,7 @@ fn selecting(
     origin: egui::Pos2,
     entity: balaur_core::hecs::Entity,
 ) {
-    let id = egui::Id::new(("balaur-selection", entity));
+    let id = egui::Id::unique(("balaur-selection", entity));
     let mut span = ui
         .data(|data| data.get_temp::<(u32, u32)>(id))
         .unwrap_or((0, 0));
@@ -468,7 +468,7 @@ fn spans(
         return;
     };
     if let Some(hint) = quad.hint.and_then(|i| shaped.hints.get(i as usize)) {
-        let id = egui::Id::new(("balaur-hint", entity, quad.hint));
+        let id = egui::Id::unique(("balaur-hint", entity, quad.hint));
         let over = ui.interact(
             quad.rect.translate(origin.to_vec2()),
             id,
@@ -570,7 +570,7 @@ fn edit(
     } else {
         egui::TextEdit::singleline(&mut buffer)
     }
-    .id(egui::Id::new(&key))
+    .id(egui::Id::unique(&key))
     .font(font.clone())
     .text_color(color)
     .hint_text(widget.placeholder.to_string())
@@ -647,9 +647,10 @@ fn dressed_edit<'t>(
 ) -> egui::TextEdit<'t> {
     let o = &widget.egui;
     edit = edit
-        .horizontal_align(crate::widget::layer::across(
-            crate::widget::theme::text_align_of(style, widget),
-        ))
+        .align(egui::Align2([
+            crate::widget::layer::across(crate::widget::theme::text_align_of(style, widget)),
+            egui::Align::TOP,
+        ]))
         .interactive(o.editable)
         .lock_focus(o.tab_inserts)
         .cursor_at_end(o.caret_at_end)
@@ -660,9 +661,8 @@ fn dressed_edit<'t>(
     if !widget.suffix.is_empty() {
         edit = edit.suffix(widget.suffix.to_string());
     }
-    if let Some(margin) = margin_of(widget) {
-        edit = edit.margin(margin);
-    }
+    // egui's own text field margin, which its theme no longer supplies.
+    edit = edit.margin(margin_of(widget).unwrap_or(egui::Margin::symmetric(4, 2)));
     if !multiline && let Some(chord) = submit {
         edit = edit.return_key(chord);
     }

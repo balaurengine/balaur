@@ -56,8 +56,8 @@ pub(crate) fn deadzone_drag(
             return None;
         }
         let id = ui.make_persistent_id(("balaur-scroll", entity));
-        let offset =
-            egui::scroll_area::State::load(ui.ctx(), id).map_or(egui::Vec2::ZERO, |s| s.offset);
+        let offset = egui::scroll_area::State::load(ui.ctx(), id)
+            .map_or(egui::Vec2::ZERO, |s| s.clamped_offset());
         slot.insert(crate::ScrollDrag {
             from: origin,
             base: offset,
@@ -163,7 +163,7 @@ pub(crate) fn report(
     entity: Entity,
     offset: egui::Vec2,
 ) {
-    let last = egui::Id::new(("balaur-scrolled", entity));
+    let last = egui::Id::unique(("balaur-scrolled", entity));
     let moved = ui
         .data(|d| d.get_temp::<egui::Vec2>(last))
         .is_some_and(|was| was != offset);
@@ -178,5 +178,5 @@ pub(crate) fn report(
 }
 
 fn said_id(entity: Entity) -> egui::Id {
-    egui::Id::new(("balaur-scroll-said", entity))
+    egui::Id::unique(("balaur-scroll-said", entity))
 }

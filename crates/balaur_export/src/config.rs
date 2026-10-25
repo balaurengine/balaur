@@ -137,15 +137,99 @@ impl Default for ExportConfig {
 /// Read through the files backend rather than the disk, so an export from a
 /// browser tab reads the project it holds. `None` is the machine exporting,
 /// which is what a bare pack is built for.
-pub(crate) fn manifest_for(project: &Path, target: Option<&str>) -> Result<toml::Table> {
+pub(crate) fn manifest_for(
+    project: &Path,
+    target: Option<&str>,
+    settings: &[Setting],
+) -> Result<toml::Table> {
     let path = project.join("project.toml");
-    let Ok(bytes) = balaur::files::default_backend().read(&path) else {
-        return Ok(toml::Table::new());
+    let mut manifest = match balaur::files::default_backend().read(&path) {
+        Ok(bytes) => {
+            let source = String::from_utf8(bytes)
+                .with_context(|| format!("{} is not text", path.display()))?;
+            let tags = tags_for(&source, target)?;
+            balaur::settings::resolve(&source, &tags)
+                .with_context(|| format!("parsing {}", path.display()))?
+        }
+        Err(_) => toml::Table::new(),
     };
-    let source =
-        String::from_utf8(bytes).with_context(|| format!("{} is not text", path.display()))?;
-    let tags = tags_for(&source, target)?;
-    balaur::settings::resolve(&source, &tags).with_context(|| format!("parsing {}", path.display()))
+    for setting in settings {
+        setting.lay_over(&mut manifest);
+    }
+    Ok(manifest)
+}
+
+/// The tables `--set` reaches: the ones an export reads and nothing in the
+/// game does, so the pack's manifest stays the project's own.
+const SETTABLE: [&str; 4] = ["export", "android", "apple", "windows"];
+
+/// One `--set group.key=value`: an export setting laid over the project's
+/// own after every `[override.<tag>]`, so the caller's word is the last.
+///
+/// The value is TOML, and a bare word is a string: `native_scripts=on`,
+/// `max_size=1024`, `strip=true`. A key or a value the table does not take
+/// fails the export the way the same line in `project.toml` would.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Setting {
+    pub group: String,
+    pub key: String,
+    pub value: toml::Value,
+}
+
+impl Setting {
+    fn lay_over(&self, manifest: &mut toml::Table) {
+        let group = manifest
+            .entry(self.group.clone())
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+        if !group.is_table() {
+            *group = toml::Value::Table(toml::Table::new());
+        }
+        if let toml::Value::Table(table) = group {
+            table.insert(self.key.clone(), self.value.clone());
+        }
+    }
+}
+
+impl std::fmt::Display for Setting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}={}", self.group, self.key, self.value)
+    }
+}
+
+impl std::str::FromStr for Setting {
+    type Err = String;
+
+    fn from_str(text: &str) -> std::result::Result<Self, String> {
+        let shape = || format!("`{text}` is not group.key=value, e.g. export.native_scripts=on");
+        let (path, value) = text.split_once('=').ok_or_else(shape)?;
+        let (group, key) = path.trim().split_once('.').ok_or_else(shape)?;
+        let (group, key, value) = (group.trim(), key.trim(), value.trim());
+        if !SETTABLE.contains(&group) {
+            return Err(format!(
+                "`{group}` is not a table an export takes; one of {}",
+                SETTABLE.join(", ")
+            ));
+        }
+        if key.is_empty() {
+            return Err(shape());
+        }
+        if group == "export" && key == "tags" {
+            return Err(
+                "[export] tags pick which overrides a target takes, so they are set in \
+                 project.toml"
+                    .into(),
+            );
+        }
+        let value = toml::from_str::<toml::Table>(&format!("v = {value}"))
+            .ok()
+            .and_then(|mut parsed| parsed.remove("v"))
+            .unwrap_or_else(|| toml::Value::String(value.to_string()));
+        Ok(Self {
+            group: group.to_string(),
+            key: key.to_string(),
+            value,
+        })
+    }
 }
 
 /// What `target` answers to: its platform's tags, then the project's own the
@@ -262,7 +346,7 @@ impl ExportConfig {
     /// The `[export]` table of a project as `target` resolves it, or the
     /// defaults when there is none.
     pub fn load(project: &Path, target: Option<&str>) -> Result<Self> {
-        Self::from_manifest(&manifest_for(project, target)?, project)
+        Self::from_manifest(&manifest_for(project, target, &[])?, project)
     }
 
     /// The table out of a manifest already resolved for a target, so the
@@ -360,13 +444,50 @@ mod tests {
             "what no override touched still lands"
         );
 
-        let manifest = super::manifest_for(dir.path(), Some("android")).unwrap();
+        let manifest = super::manifest_for(dir.path(), Some("android"), &[]).unwrap();
         assert_eq!(
             orientation_of(&manifest),
             balaur::project::Orientation::Portrait
         );
-        let manifest = super::manifest_for(dir.path(), Some("windows-x64")).unwrap();
+        let manifest = super::manifest_for(dir.path(), Some("windows-x64"), &[]).unwrap();
         assert_eq!(orientation_of(&manifest), balaur::project::Orientation::Any);
+    }
+
+    #[test]
+    fn a_set_value_is_toml_and_a_bare_word_is_a_string() {
+        let set = |line: &str| line.parse::<super::Setting>().unwrap().value;
+        assert_eq!(set("export.native_scripts=on"), toml::Value::from("on"));
+        assert_eq!(set("export.max_size = 1024"), toml::Value::Integer(1024));
+        assert_eq!(set("export.strip=true"), toml::Value::Boolean(true));
+        assert_eq!(set("apple.version=\"1.0\""), toml::Value::from("1.0"));
+        for refused in ["native_scripts=on", "window.width=3", "export.=1", "export.tags=[]"] {
+            assert!(refused.parse::<super::Setting>().is_err(), "{refused}");
+        }
+    }
+
+    /// The caller's word is the last: a `--set` wins over the target's own
+    /// override, and leaves what it does not name to the file.
+    #[test]
+    fn a_set_setting_wins_over_the_override_the_target_answers_to() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[export]\nstrip = true\n\n\
+             [override.android.export]\nnative_scripts = \"off\"\n",
+        )
+        .unwrap();
+        let set = ["export.native_scripts=on".parse().unwrap()];
+        let manifest = super::manifest_for(dir.path(), Some("android"), &set).unwrap();
+        let config = ExportConfig::from_manifest(&manifest, dir.path()).unwrap();
+        assert_eq!(config.native_scripts, super::NativeScripts::On);
+        assert!(config.strip, "what the --set did not name stays the file's");
+
+        let bad = ["export.native_scripts=maybe".parse().unwrap()];
+        let manifest = super::manifest_for(dir.path(), Some("android"), &bad).unwrap();
+        assert!(
+            ExportConfig::from_manifest(&manifest, dir.path()).is_err(),
+            "a value the table does not take fails the export"
+        );
     }
 
     #[test]

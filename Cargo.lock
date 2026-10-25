@@ -20,9 +20,9 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
 name = "accesskit"
-version = "0.24.1"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320"
+checksum = "ad442f58ee04714aaa0ba0a2768c1ea1935b29507bb22ddece8cbbc76db02932"
 dependencies = [
  "uuid",
 ]
@@ -2050,8 +2050,8 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
 name = "ecolor"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 dependencies = [
  "bytemuck",
  "emath",
@@ -2073,8 +2073,8 @@ dependencies = [
 
 [[package]]
 name = "egui"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 dependencies = [
  "accesskit",
  "ahash",
@@ -2087,13 +2087,12 @@ dependencies = [
  "profiling",
  "smallvec",
  "unicode-segmentation",
- "web-sys",
 ]
 
 [[package]]
 name = "egui-wgpu"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2115,8 +2114,8 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
 name = "emath"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 dependencies = [
  "bytemuck",
 ]
@@ -2158,8 +2157,8 @@ dependencies = [
 
 [[package]]
 name = "epaint"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2176,14 +2175,15 @@ dependencies = [
  "skrifa",
  "smallvec",
  "unicode-general-category",
+ "unicode-properties",
  "unicode-segmentation",
  "zeno",
 ]
 
 [[package]]
 name = "epaint_default_fonts"
-version = "0.36.2"
-source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#dc495a3ea2dc3ed6387b13178c76c96949ca8a2e"
+version = "0.37.0"
+source = "git+https://github.com/Ughuuu/egui.git?branch=balaur-zeno-glyphs#87595d089bd8a3438f3198eea4b5a074ff05621b"
 
 [[package]]
 name = "equator"
@@ -3326,8 +3326,8 @@ dependencies = [
 
 [[package]]
 name = "kiss3d"
-version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#7e397092dd2988c3a19ebe89a38626cda82a0c09"
+version = "0.47.0"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#8b9bd937929576e74564c0330a224887e1f7ba5b"
 dependencies = [
  "android-activity",
  "bitflags 2.13.2",
@@ -3362,8 +3362,8 @@ dependencies = [
 
 [[package]]
 name = "kiss3d-macro"
-version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#7e397092dd2988c3a19ebe89a38626cda82a0c09"
+version = "0.36.1"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#8b9bd937929576e74564c0330a224887e1f7ba5b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7381,6 +7381,12 @@ name = "unicode-linebreak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-properties"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
 
 [[package]]
 name = "unicode-script"

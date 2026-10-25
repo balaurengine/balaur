@@ -857,10 +857,10 @@ pub(crate) fn sync_environment(
     window.set_shadow_softness(env.shadow_softness);
     window.set_shadow_distance(env.shadow_distance);
     window.set_shadow_cascades(env.shadow_cascades);
-    window.set_shadow_first_cascade_distance(env.shadow_first_cascade_distance);
+    window.set_first_cascade_far_bound(env.shadow_first_cascade_distance);
     window.set_shadow_depth_bias(env.shadow_bias);
     window.set_shadow_raster_bias(env.shadow_constant_bias, env.shadow_slope_bias);
-    window.set_max_shadow_views(env.shadow_views);
+    window.set_shadow_atlas_layers(env.shadow_views);
     window.set_reflection_probe_size(env.probe_capture_size);
     window.set_cluster_grid(env.cluster_grid);
     window.set_max_lights_per_cluster(env.cluster_max_lights);

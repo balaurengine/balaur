@@ -286,6 +286,6 @@ pub fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Pos2)> {
 }
 
 pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
-    ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+    ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew")
 }

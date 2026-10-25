@@ -48,7 +48,7 @@ pub(crate) fn table(
     // column was named to sort by, or the whole of it was turned round.
     let walk = ordered(&widget, &items, &heads, first);
     let row_h = row_pitch(ui, &widget, font);
-    let id = egui::Id::new(("balaur-table", entity));
+    let id = egui::Id::unique(("balaur-table", entity));
     let style = at.style_of(&widget);
     let look = Look {
         row_h,
@@ -112,7 +112,7 @@ pub(crate) fn table(
             }
         }
     });
-    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
     // A row already picked keeps the set it is in, so a menu opened over one
     // of several picked rows is opened over all of them.
     let aimed = aimed.filter(|&row| !picked.contains(&items[row]));
@@ -328,7 +328,7 @@ fn head_row(ui: &mut egui::Ui, head: &Head<'_>, widths: &mut [f32]) -> Asked {
         };
         text_in(ui, cell, &head_cell, look.color);
         if head.sortable && !named.is_empty() {
-            let name_hit = ui.interact(cell, ui.id().with(("head", n)), Sense::click());
+            let name_hit = ui.interact(cell, ui.scope_id().with(("head", n)), Sense::click());
             if name_hit.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -343,7 +343,7 @@ fn head_row(ui: &mut egui::Ui, head: &Head<'_>, widths: &mut [f32]) -> Asked {
             continue;
         }
         let grab = Rect::from_center_size(pos2(x, rect.center().y), vec2(head.grab, look.row_h));
-        let seam = ui.interact(grab, ui.id().with(("seam", n)), Sense::drag());
+        let seam = ui.interact(grab, ui.scope_id().with(("seam", n)), Sense::drag());
         if seam.hovered() || seam.dragged() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }

@@ -42,7 +42,7 @@ bs-jit = ["balaur/bs-jit"]
 # on for every workspace build. Off Android this crate compiles to nothing.
 [target.'cfg(target_os = "android")'.dependencies]
 balaur = { workspace = true, features = ["window"] }
-kiss3d = "0.46"
+kiss3d = "0.47"
 tracing = { workspace = true }
 
 [lints]

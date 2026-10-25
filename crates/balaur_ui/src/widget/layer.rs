@@ -243,9 +243,9 @@ fn draw_root(
     };
     painting.root_layers.push(egui::LayerId::new(
         order,
-        egui::Id::new(("balaur-widget", entity)),
+        egui::Id::unique(("balaur-widget", entity)),
     ));
-    let mut root_area = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
+    let mut root_area = egui::Area::new(egui::Id::unique(("balaur-widget", entity)))
         .order(order)
         .pivot(align)
         .fixed_pos(pos)
@@ -278,14 +278,14 @@ fn draw_root(
     // A root's first egui pass only measures it, so a rerun draws the scene
     // in this frame instead of one bare frame of clear colour.
     let first_pass = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .is_none();
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
         // Escape or the dim was what asked to close.
         let dismissable = widget.egui.dismissable;
-        let shut = egui::Modal::new(egui::Id::new(("balaur-dialog", entity)))
+        let shut = egui::Modal::new(egui::Id::unique(("balaur-dialog", entity)))
             .area(root_area)
             .frame(egui::Frame::NONE)
             .backdrop_color(crate::widget::node::rgba_color(widget.egui.backdrop_color))
@@ -304,7 +304,7 @@ fn draw_root(
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
     let drawn = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
     // A toast is read, not used: nothing in it takes the pointer.
@@ -323,7 +323,7 @@ fn drag_root(ui: &egui::Ui, painting: &mut Painting<'_>, root: usize) {
     };
     let held = ui.interact(
         rect,
-        egui::Id::new(("balaur-root-drag", entity)),
+        egui::Id::unique(("balaur-root-drag", entity)),
         egui::Sense::drag(),
     );
     if held.dragged() {
@@ -425,7 +425,7 @@ fn measured(
 fn root_ui(ctx: &egui::Context) -> egui::Ui {
     egui::Ui::new(
         ctx.clone(),
-        egui::Id::new("balaur-layout-probe"),
+        egui::Id::unique("balaur-layout-probe"),
         egui::UiBuilder::new()
             .layer_id(egui::LayerId::background())
             .max_rect(ctx.viewport_rect()),
@@ -747,7 +747,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
     if !passive || widget.on_click.is_empty() || widget.disabled {
         return;
     }
-    let id = egui::Id::new(("balaur-click", placed.entity));
+    let id = egui::Id::unique(("balaur-click", placed.entity));
     if ui
         .interact(ui.max_rect(), id, egui::Sense::click())
         .clicked()
@@ -917,7 +917,7 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return;
     }
-    let id = egui::Id::new(("balaur-tip", entity));
+    let id = egui::Id::unique(("balaur-tip", entity));
     let response = ui.interact(rect, id, egui::Sense::hover());
     if ui.is_enabled() {
         crate::widget::theme::tip(&response, tooltip);

@@ -31,7 +31,7 @@ Built:
 | Whole-project templates behind `balaur new --template` | `editor/library/templates/{empty,platformer,viewer}` |
 | Character controllers in both dimensions | `character2d`, `character3d` |
 | An API that documents itself: 39 modules, 638 functions with signatures and docs | `balaur api`, `docs/generated/`, the site's `api.json` |
-| Widgets drawn on egui 0.36 through `ui.*` verbs | `balaur_ui` |
+| Widgets drawn on egui 0.37 through `ui.*` verbs | `balaur_ui` |
 
 Missing:
 

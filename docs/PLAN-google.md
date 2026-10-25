@@ -128,7 +128,7 @@ hundreds of megabytes and a license flow to a download that is one binary.
 [android]
 application_id = "com.studio.game"
 min_sdk = 26
-target_sdk = 35
+target_sdk = 36
 # Defaults to every ABI the template carries; a game that knows it ships to
 # phones alone drops the rest rather than paying for them in every install.
 abis = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]

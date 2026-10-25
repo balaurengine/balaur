@@ -117,7 +117,7 @@ fn focused_field(app: &balaur_core::App, ctx: &egui::Context, time: f64, input: 
         time: Some(time),
         ..Default::default()
     });
-    egui::Area::new(egui::Id::new("field")).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("field")).show(ctx, |ui| {
         let mut text = String::from("name");
         ui.text_edit_singleline(&mut text).request_focus();
     });

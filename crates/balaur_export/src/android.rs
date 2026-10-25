@@ -99,7 +99,7 @@ impl Default for AndroidConfig {
             version_code: 0,
             // 0 defers to the template's own, read at export.
             min_sdk: 0,
-            target_sdk: 35,
+            target_sdk: 36,
             abis: Vec::new(),
             keystore: String::new(),
             key: String::new(),
@@ -839,7 +839,7 @@ mod tests {
     package="org.balaur.template"
     android:versionCode="1"
     android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
   <application android:label="Balaur" android:hasCode="false">
     <activity
         android:name="android.app.NativeActivity"
@@ -856,7 +856,7 @@ mod tests {
     package="org.balaur.template"
     android:versionCode="1"
     android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
   <application android:label="Balaur" android:hasCode="false">
   </application>
 </manifest>

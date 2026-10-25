@@ -31,7 +31,11 @@ pub(super) fn sense<'a>(ui: &egui::Ui, item: &'a str, slot: usize, rect: Rect) -
         .map(|(n, (name, glyph))| {
             let right = rect.max.x - step * n as f32;
             let box_ = Rect::from_min_max(pos2(right - step, rect.min.y), pos2(right, rect.max.y));
-            let sensed = ui.interact(box_, ui.id().with(("mark", slot, name)), Sense::click());
+            let sensed = ui.interact(
+                box_,
+                ui.scope_id().with(("mark", slot, name)),
+                Sense::click(),
+            );
             (name, glyph, sensed)
         })
         .collect()

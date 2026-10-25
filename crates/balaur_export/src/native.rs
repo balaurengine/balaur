@@ -272,10 +272,13 @@ fn apple_slice(
         Err(why) => return Ok(Some(format!("no Xcode here, and {why}"))),
     };
     let obj = compile(clang, work, &slice.triple)?;
+    // lld 14 signs a macOS slice of its own accord and an iOS one only when
+    // asked, and the simulator loads nothing unsigned.
     run(
         Command::new(ld64)
             .args([
                 "-dylib",
+                "-adhoc_codesign",
                 "-arch",
                 slice.arch,
                 "-platform_version",

@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 289 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 290 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -52,7 +52,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 
 | Crate | Version | Features on |
 | --- | --- | --- |
-| `egui` | 0.36.2 | none |
+| `egui` | 0.37.0 | none |
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `bmp`, `exr`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
 | `rodio` | 0.23.0 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |

@@ -140,7 +140,7 @@ fn title_bar(
             color,
         );
         if ui
-            .interact(arrow, ui.id().with(("fold", entity)), Sense::click())
+            .interact(arrow, ui.scope_id().with(("fold", entity)), Sense::click())
             .clicked()
         {
             set_folded(entity, !shut);
@@ -157,7 +157,7 @@ fn title_bar(
             color,
         );
         if ui
-            .interact(cross, ui.id().with(("close", entity)), Sense::click())
+            .interact(cross, ui.scope_id().with(("close", entity)), Sense::click())
             .clicked()
         {
             at.edits.push((entity, Edit::CloseRequested));
@@ -173,7 +173,7 @@ fn title_bar(
     Brush::of(ui).galley(pos2(left, y), words, color);
     let handle = egui::Rect::from_min_max(pos2(left, rect.min.y), pos2(right, rect.max.y));
     if widget.egui.movable {
-        let title = ui.interact(handle, ui.id().with(("title", entity)), Sense::drag());
+        let title = ui.interact(handle, ui.scope_id().with(("title", entity)), Sense::drag());
         if title.dragged() {
             let moved = constrained(at, &widget, ui.max_rect(), title.drag_delta());
             at.edits.push((entity, Edit::Moved([moved.x, moved.y])));
@@ -225,7 +225,7 @@ fn grip(
             Stroke::new(1.0, ink),
         );
     }
-    let held = ui.interact(corner, ui.id().with(("grip", entity)), Sense::drag());
+    let held = ui.interact(corner, ui.scope_id().with(("grip", entity)), Sense::drag());
     if held.hovered() || held.dragged() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNwSe);
     }

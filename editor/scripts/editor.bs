@@ -1222,6 +1222,10 @@ impl Editor {
         kit::save_prefs(self.S);
     }
 
+    pub fn kit_save_project() {
+        kit::save_project(self.S);
+    }
+
     pub fn kit_short_path(path: str) -> str {
         kit::short_path(path)
     }

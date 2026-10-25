@@ -360,6 +360,7 @@ fn a_written_scroll_offset_scrolls_there_and_the_reader_s_scroll_reads_back() {
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(0.0, -90.0),
             phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
             modifiers: egui::Modifiers::NONE,
         },
     ];
@@ -767,6 +768,7 @@ fn a_scroll_the_wheel_may_not_scroll_stays_put() {
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(0.0, -90.0),
             phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
             modifiers: egui::Modifiers::NONE,
         },
     ];

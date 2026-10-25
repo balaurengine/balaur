@@ -250,10 +250,16 @@ runs no JIT, and on the others C runs at 1.1 to 1.3 times Rust to wasmtime's 1.5
   assembled.
 - Floats come out bit for bit as on every engine: the particle sum matches,
   and so does hello's spinner. Natively it loads in 0.02 ms.
-- Left: run the Linux and Windows builds in CI, and an APK on a device; put
-  clang and lld in the engine's container, so Forge's builds get them; and
-  have Forge keep the library beside a desktop executable, which it now
-  drops along with `extensions/`.
+- The engine's container (`docker/Dockerfile`) carries bookworm's LLVM 14,
+  `clang-14` and `lld-14`, as `BALAUR_LLVM`. Built with LLVM 14.0.6 the C
+  answered all 321 calls as wasmi did on macOS arm64 and x86-64, the iOS
+  simulator and Android, once `ld64.lld` was told `-adhoc_codesign`: lld 14
+  signs a macOS slice of its own accord and an iOS one only when asked.
+- A desktop export with anything beside its executable leaves the container
+  as one `game.zip` (`docker/export.sh`), which Forge takes for desktop
+  targets, and `docker/sign.sh` signs every `.exe` and `.dll` or Mach-O in it
+  before zipping it again.
+- Left: run the Linux and Windows builds in CI, and an APK on a device.
 
 Ten thousand spinners a frame: 0.36–1.0 ms batched on wasmtime against 9–35
 ms in Rune and 0.03–0.19 ms in Rust. Compiling runs at 0.84–1.3 million lines

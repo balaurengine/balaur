@@ -54,7 +54,7 @@ display_name = { type = "string", default = "", order = 2, help = "The name unde
 version = { type = "string", default = "", order = 3, help = "versionName: what a player is shown. Required to export." }
 version_code = { type = "int", default = 0, min = 0, max = 2100000000, order = 4, help = "versionCode: what Play orders updates by, and the only one it reads. Required to export; 0 is unset." }
 min_sdk = { type = "int", default = 0, min = 0, max = 40, order = 5, help = "The API floor. 0 defers to the template's own, which is what its libraries were built against." }
-target_sdk = { type = "int", default = 35, min = 21, max = 40, order = 6, help = "The API this game says it was written for." }
+target_sdk = { type = "int", default = 36, min = 21, max = 40, order = 6, help = "The API this game says it was written for. Google Play takes a new app or an update only at 36 or later." }
 abis = { type = "flags", default = [], options = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"], order = 7, help = "Which of the template's ABIs the export keeps. None named means every one it carries, so a game that says nothing ships everywhere." }
 keystore = { type = "string", default = "", order = 8, help = "A project-relative keystore. Without one an export needs --sign debug, which installs on a device and ships nowhere." }
 key = { type = "string", default = "", order = 9, help = "Which key in that keystore signs." }

@@ -46,7 +46,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let rect = ctx.viewport_rect();
     let painter = Brush::layer(
         ctx,
-        egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("balaur-splash")),
+        egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("balaur-splash")),
     );
     painter.fill(rect, 0.0, Color32::BLACK);
     let Ok(texture) = crate::images::texture_of(eng, ctx, &path) else {

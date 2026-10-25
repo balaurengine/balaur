@@ -217,6 +217,12 @@ pub fn save_prefs(S: editor::State) {
     settings::commit_prefs(S);
 }
 
+/// Write the game's `project.toml`, after a plugin set a project-scope
+/// setting the person chose: the Gamend dock's server picker.
+pub fn save_project(S: editor::State) {
+    settings::commit_project(S);
+}
+
 /// A labelled value. `mask` hides all but its ends until `show` is pressed,
 /// `copy` adds a copy mark (copying `copy_text` when given), and `role`
 /// dresses the value where the theme has a role for what it says.

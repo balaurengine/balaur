@@ -1,7 +1,7 @@
 #!/bin/sh
 # Export the project at /src for one platform, into /out. docker/README.md has
 # the contract in full: /src /out /cache /work, and BALAUR_TARGET, _VERSION,
-# _OUTPUT, _ANDROID_PACKAGE. Exit status is the verdict.
+# _OUTPUT, _ANDROID_PACKAGE, _SETTINGS. Exit status is the verdict.
 set -eu
 
 log() { printf '%s\n' "$*"; }
@@ -46,6 +46,19 @@ mkdir -p "$WORK" || fail "could not create ${WORK}"
 cp -a "${SRC}/." "$WORK" || fail "could not stage source"
 
 set -- export . --target "$BALAUR_TARGET"
+
+# Export settings over the project's own, `group.key=value` entries split by
+# `;`, each a `balaur export --set`. Not lines: --env-file refuses a newline.
+if [ -n "${BALAUR_SETTINGS:-}" ]; then
+  set -f
+  saved_ifs=$IFS
+  IFS=';'
+  for setting in $BALAUR_SETTINGS; do
+    if [ -n "$setting" ]; then set -- "$@" --set "$setting"; fi
+  done
+  IFS=$saved_ifs
+  set +f
+fi
 
 if [ -d /cache ]; then
   version="${BALAUR_VERSION:-latest}"
@@ -112,6 +125,16 @@ if [ -d "${OUT}/${OUTPUT}" ]; then
   ( cd "$OUT" && zip -qry "${OUTPUT}.zip" "$OUTPUT" ) || fail "could not archive ${OUTPUT}"
   rm -rf "${OUT:?}/${OUTPUT}"
   log "==> wrote ${OUTPUT}.zip"
+elif [ -n "$(find "$OUT" -mindepth 1 -maxdepth 1 ! -name "$OUTPUT")" ]; then
+  # A desktop game with anything beside its executable (its scripts as native
+  # code, `extensions/`) is one zip of all of it, so a caller that keeps one
+  # file keeps the game whole.
+  archive="${OUTPUT%.exe}.zip"
+  log "==> archive ${OUTPUT} with what sits beside it"
+  ( cd "$OUT" && zip -qry "/work/${archive}" . ) || fail "could not archive ${OUTPUT}"
+  find "$OUT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  mv "/work/${archive}" "${OUT}/${archive}" || fail "could not write ${archive}"
+  log "==> wrote ${archive}"
 else
   log "==> wrote ${OUTPUT}"
 fi

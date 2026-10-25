@@ -38,7 +38,7 @@ flate2 = "1"
 libm.workspace = true
 # Balaur draws text with balaur_text, hands egui its fonts and decodes images
 # through balaur_core, so kiss3d's own text, faces and codecs stay out.
-kiss3d = { version = "0.46", optional = true, default-features = false, features = ["egui"] }
+kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui"] }
 egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }

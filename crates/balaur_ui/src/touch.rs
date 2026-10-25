@@ -69,6 +69,6 @@ pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
 fn layer(ctx: &egui::Context) -> Brush {
     Brush::layer(
         ctx,
-        egui::LayerId::new(Order::Background, egui::Id::new("balaur-touch-controls")),
+        egui::LayerId::new(Order::Background, egui::Id::unique("balaur-touch-controls")),
     )
 }

@@ -18,8 +18,12 @@ local_url = { type = "string", default = "http://localhost:4000", order = 2, hel
 plugin = { type = "string", default = "", order = 3, help = "The server plugin a game's hooks are called in." }
 "#;
 
+// `cloud_token` is what `/editor/connect` on gamend.org handed the dock; the
+// settings screen draws a `secret` setting as dots.
 const EDITOR_SCHEMA: &str = r#"
 server = { type = "enum", default = "production", options = ["production", "local"], order = 4, help = "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships." }
+cloud = { type = "string", default = "https://gamend.org", order = 5, help = "Where your Gamend Cloud account is: the Gamend dock lists your servers from it." }
+cloud_token = { type = "string", default = "", secret = true, order = 6, help = "What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor's own file; empty disconnects it." }
 "#;
 
 /// The two names a target goes by.

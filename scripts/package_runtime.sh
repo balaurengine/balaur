@@ -139,7 +139,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     package="org.balaur.template"
     android:versionCode="1"
     android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
   <application android:label="Balaur" android:hasCode="false">
     <activity
         android:name="android.app.NativeActivity"
