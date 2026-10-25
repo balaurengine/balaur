@@ -666,7 +666,7 @@ pub(crate) fn from_bits(s: crate::Slot, b: u64) -> Raw {
     match s {
         crate::Slot::I32 => Raw::I32(b as u32 as i32),
         crate::Slot::I64 => Raw::I64(b.cast_signed()),
-        crate::Slot::F64 => Raw::F64(f64::from_bits(b)),
+        crate::Slot::F64 => Raw::F64(super::values::float(b)),
     }
 }
 

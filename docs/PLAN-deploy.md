@@ -108,7 +108,7 @@ pub fn on_deploy(this, e) {
 while a recording plays or a tick is re-simulated (`replay::suppressed`).
 For `docs/PLAN-steam.md` that rule needed a caveat, because an achievement
 cannot be taken back; here it needs none and is load-bearing — the editor's
-own sessions are recorded and replayed in CI (`scripts/e2e.sh`), and a
+own sessions are recorded and replayed by `scripts/e2e.sh`, and a
 deploy firing from one would publish a game from a test run.
 
 **The button and the command are one path.** The verb lives in a `deploy`

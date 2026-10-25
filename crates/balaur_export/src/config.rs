@@ -67,6 +67,22 @@ pub struct ExportConfig {
     /// Which of a target's runtimes the game is put on: `full`, or `2d` and
     /// `3d`, which carry one physics world each and weigh less.
     pub runtime: Runtime,
+    /// Whether the scripts ship as native code built from their C.
+    pub native_scripts: NativeScripts,
+}
+
+/// `[export] native_scripts`: whether an export builds the scripts as native
+/// code, with Xcode for an Apple target and clang and lld for any.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeScripts {
+    /// When a compiler is found; without one the scripts run on the target's engine.
+    #[default]
+    Auto,
+    /// Always; an export with no compiler fails.
+    On,
+    /// Never.
+    Off,
 }
 
 /// The runtime `[export] runtime` names, for every target that has one.
@@ -109,6 +125,7 @@ impl Default for ExportConfig {
             audio_recode: crate::recode::AudioMode::Original,
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
             runtime: Runtime::Full,
+            native_scripts: NativeScripts::Auto,
         }
     }
 }
@@ -169,6 +186,28 @@ pub(crate) fn orientation_of(manifest: &toml::Table) -> balaur::project::Orienta
             balaur::project::Orientation::parse
         })
 }
+
+/// `[application] name`, trimmed; empty when the project declares none.
+pub(crate) fn application_name(manifest: &toml::Table) -> String {
+    manifest
+        .get("application")
+        .and_then(|a| a.get("name"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+/// The same, for an export a player sees the name of: there is no folder
+/// name to guess with.
+pub(crate) fn required_name(manifest: &toml::Table) -> Result<String> {
+    let name = application_name(manifest);
+    anyhow::ensure!(!name.is_empty(), "{NAME_MISSING}");
+    Ok(name)
+}
+
+pub(crate) const NAME_MISSING: &str = "[application] name is not set: the name a home screen, \
+     a dock and a page title show, e.g. name = \"My Game\"";
 
 /// One table out of a resolved manifest, or the defaults when the project
 /// declares none.

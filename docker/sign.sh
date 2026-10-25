@@ -58,6 +58,27 @@ notarize_apple() {
   rm -f /work/api-key.json
 }
 
+# A desktop zip carries the executable with what sits beside it: each file is
+# signed where it lies, then the zip is made again.
+unpack() {
+  rm -rf /work/zip
+  mkdir -p /work/zip
+  unzip -q "$IN" -d /work/zip || fail "could not open ${SIGN_ARTIFACT}"
+}
+repack() {
+  rm -f "$OUT"
+  ( cd /work/zip && zip -qry "$OUT" . ) || fail "could not repack ${SIGN_ARTIFACT}"
+  rm -rf /work/zip
+}
+
+# Whether $1 is a Mach-O, thin or universal: what a macOS zip has to sign.
+macho() {
+  case "$(head -c 4 "$1" | od -An -tx1 | tr -d ' \n')" in
+    cffaedfe|cafebabe) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 case "$SIGN_TARGET" in
   windows-*)
     need windows_certificate windows_password
@@ -76,8 +97,21 @@ case "$SIGN_TARGET" in
       log "==> no timestamp server set; the signature expires with the certificate"
     fi
 
-    log "==> sign ${SIGN_ARTIFACT} for ${SIGN_TARGET}"
-    osslsigncode "$@" -in "$IN" -out "$OUT" || fail "osslsigncode failed"
+    case "$SIGN_ARTIFACT" in
+      *.zip)
+        unpack
+        find /work/zip -type f \( -iname '*.exe' -o -iname '*.dll' \) | sort | while IFS= read -r file; do
+          log "==> sign ${file#/work/zip/} for ${SIGN_TARGET}"
+          osslsigncode "$@" -in "$file" -out "${file}.signed" || exit 1
+          mv "${file}.signed" "$file" || exit 1
+        done || fail "osslsigncode failed"
+        repack
+        ;;
+      *)
+        log "==> sign ${SIGN_ARTIFACT} for ${SIGN_TARGET}"
+        osslsigncode "$@" -in "$IN" -out "$OUT" || fail "osslsigncode failed"
+        ;;
+    esac
     ;;
 
   macos-universal)
@@ -94,14 +128,34 @@ case "$SIGN_TARGET" in
       set -- "$@" --for-notarization
     fi
 
-    log "==> sign ${SIGN_ARTIFACT} for macOS"
-    rcodesign "$@" "$IN" "$OUT" || fail "rcodesign failed"
+    case "$SIGN_ARTIFACT" in
+      *.zip)
+        unpack
+        find /work/zip -type f | sort | while IFS= read -r file; do
+          macho "$file" || continue
+          log "==> sign ${file#/work/zip/} for macOS"
+          rcodesign "$@" "$file" "${file}.signed" || exit 1
+          mv "${file}.signed" "$file" || exit 1
+          chmod +x "$file" || exit 1
+        done || fail "rcodesign failed"
+        repack
+        ;;
+      *)
+        log "==> sign ${SIGN_ARTIFACT} for macOS"
+        rcodesign "$@" "$IN" "$OUT" || fail "rcodesign failed"
+        ;;
+    esac
 
     if [ "${SIGN_NOTARIZE:-0}" = "1" ]; then
-      mkdir -p /work/notary
-      cp "$OUT" /work/notary/
-      ( cd /work/notary && zip -qry /work/notary.zip . ) || fail "could not archive for notarization"
-      notarize_apple /work/notary.zip
+      case "$SIGN_ARTIFACT" in
+        *.zip) notarize_apple "$OUT" ;;
+        *)
+          mkdir -p /work/notary
+          cp "$OUT" /work/notary/
+          ( cd /work/notary && zip -qry /work/notary.zip . ) || fail "could not archive for notarization"
+          notarize_apple /work/notary.zip
+          ;;
+      esac
       log "==> notarized (not stapled: a bare executable has nowhere to keep a ticket)"
     fi
     ;;

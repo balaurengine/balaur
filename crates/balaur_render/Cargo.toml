@@ -38,7 +38,7 @@ flate2 = "1"
 libm.workspace = true
 # Balaur draws text with balaur_text, hands egui its fonts and decodes images
 # through balaur_core, so kiss3d's own text, faces and codecs stay out.
-kiss3d = { version = "0.46", optional = true, default-features = false, features = ["egui"] }
+kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui"] }
 egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }
@@ -82,7 +82,7 @@ windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional
 libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }
 tempfile = "3"
 # Validates a linked shader's types without a GPU, as wgpu will at
 # `create_shader_module`, and writes it as the GLSL ES a GLES device compiles.

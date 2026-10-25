@@ -184,7 +184,7 @@ fn rows(
     let items = strings_of(widget);
     let picked_rows = picked_set(widget);
     let (anchor, multi) = (widget.text.to_string(), widget.multi);
-    let id = egui::Id::new(("balaur-list", entity));
+    let id = egui::Id::unique(("balaur-list", entity));
     let depth_of = |item: &String| depth(item, indent);
     // Folded branches are the tree's own business: a script hands over the
     // whole outline and only hears a caret as a `fold` event.
@@ -226,7 +226,7 @@ fn rows(
             seen.absorb(i, item, hit);
         }
     });
-    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
     if widget.reorderable {
         let drag = Drag {
             id,
@@ -557,7 +557,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         // Interacted after the row, so a click on the caret is the caret's:
         // egui gives a tie to the widget registered last.
         let box_ = Rect::from_min_size(pos2(at, rect.min.y), egui::Vec2::splat(step));
-        let caret = ui.interact(box_, ui.id().with(("caret", r.slot)), Sense::click());
+        let caret = ui.interact(box_, ui.scope_id().with(("caret", r.slot)), Sense::click());
         hit.folded = caret.clicked();
         hit.folded_hovered = caret.hovered();
         Brush::of(ui).text(
@@ -1079,7 +1079,7 @@ fn cards(
     let mut picked = None;
     let mut aimed = None;
     let mut took = None;
-    let id = egui::Id::new(("balaur-cards", entity));
+    let id = egui::Id::unique(("balaur-cards", entity));
     let area = held_to(egui::ScrollArea::vertical(), id, want);
     let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
     let shown = area.show_rows(ui, cell.y + gap, lines, |ui, range| {
@@ -1115,7 +1115,7 @@ fn cards(
             });
         }
     });
-    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
     if widget.draggable {
         let drag = Carry {
             id,

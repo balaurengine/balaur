@@ -3,6 +3,10 @@
 //! No threads. A call is a promise that settles between frames and feeds the
 //! same channel the native workers feed; the realtime socket is
 //! `crate::realtime`, over `balaur_websocket`'s browser backend.
+//!
+//! A call sends no cookies (`credentials: "omit"`): the session is the bearer
+//! token, and a page's own cookies are not the game's to send. `balaur_http`'s
+//! browser backend says why.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -12,7 +16,7 @@ use anyhow::Result;
 use serde_json::Value as Json;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{AbortSignal, Headers, Request, RequestInit, Response};
+use web_sys::{AbortSignal, Headers, Request, RequestCredentials, RequestInit, Response};
 
 use crate::client::Client;
 use crate::client::auth::{Credentials, login_request, refresh_request, session_of};
@@ -48,6 +52,7 @@ impl SharedClient {
 async fn send(prepared: Prepared) -> Result<Reply, String> {
     let init = RequestInit::new();
     init.set_method(&prepared.method);
+    init.set_credentials(RequestCredentials::Omit);
     init.set_signal(Some(&AbortSignal::timeout_with_f64(
         TIMEOUT_SECONDS * 1000.0,
     )));

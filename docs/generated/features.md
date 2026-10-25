@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 288 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 290 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -19,7 +19,7 @@ atomics only that build has.
 | Feature | Default | Web runtime | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
-| `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (25 crates) |
+| `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (26 crates) |
 | `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
 | `bs` | on | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
 | `bs-jit` | on | on |  | nothing |
@@ -52,11 +52,11 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 
 | Crate | Version | Features on |
 | --- | --- | --- |
-| `egui` | 0.36.2 | none |
+| `egui` | 0.37.0 | none |
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `bmp`, `exr`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
-| `rodio` | 0.22.2 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
-| `rapier3d` | 0.36.0 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |
+| `rodio` | 0.23.0 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
+| `rapier3d` | 0.36.1 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |
 | `parry3d` | 0.31.1 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `monospace_fallback`, `shape-run-cache`, `std`, `swash`, `sys-locale` |
 | `wesl` | — | not in the runtime |

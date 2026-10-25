@@ -62,7 +62,7 @@ Only the rows on screen are built, which is where the saving was, and
 
 ## 1. The layout
 
-`taffy` 0.14, a retained flexbox tree, replaced `widget_arrange`'s
+`taffy`, a retained flexbox tree, replaced `widget_arrange`'s
 `share_out`, `Ask`, `contain` and the head-and-far walk, and
 `widget_measure`'s whole container recursion. `crates/balaur_ui/src/widget/taffy.rs`
 maps a `Widget` to a `taffy::Style` and solves each root before anything

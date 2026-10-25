@@ -203,7 +203,8 @@ stands.
 | Generated typed calls over the OpenAPI document, one per operation: `me`, `user`, `session`, `provider`, `lobby`, `party`, `friend`, `group`, `chat`, `chat_mute`, `matchmaking`, `ready_check`, `notification`, `push_token`, `quest`, `leaderboard`, `tournament`, `economy`, `kv`, `storage`, `payment`, `client_log`, `hook`, `stats`, `time`, `health`, `signaling` | Step E1 |
 | Typed realtime events per channel: user, lobby, lobbies, party, group, groups, signaling; `kv:subscribe` | Step E1 |
 | Lobby to match glue: the address and token off `lobby_updated` into `multiplayer::join`, in the game's script; a host-run match that needs no server as the fallback | Step E2 |
-| A Gamend dock in the editor: a header with the server target, Overview, User, Lobby, Data, Activity and Logs sub-tabs, and a tab per server feature | Built (E3), designed in §2b |
+| A Gamend dock in the editor: a header with the server target, Overview, Cloud, User, Lobby, Data, Activity and Logs sub-tabs, and a tab per server feature | Built (E3), designed in §2b |
+| Picking a Gamend Cloud server as a project's `gamend/url`, from the dock's Cloud tab | Built (E3g) |
 | The server target: `gamend/url`, `local_url`, `plugin` for the project and `gamend/server` for the person | Built (E3c) |
 | Player prefs kept locally, `prefs.rn`, seen and edited from the dock and the editor's User data dock | Built (E3d) |
 | A log cursor, a log file that survives a crash, and batched shipping to Gamend | Built (E4) |
@@ -220,7 +221,7 @@ is: `register()` returning docks, windows and commands. Since 2026-10-24 it
 is Balaur Script and fills the kit's rows on the editor's words; a reply
 reaches its `on_gamend_event`, which says the dock moved, so nothing polls.
 
-**One header, six sub-tabs, then a tab per feature.** The header is one
+**One header, seven sub-tabs, then a tab per feature.** The header is one
 row: the server target as two chips, `Open` and `Admin` links to the
 configured URL, and who is signed in over what socket. The tabs are a
 sidebar beside the body, since a bottom dock has width and little height.
@@ -228,13 +229,14 @@ sidebar beside the body, since a bottom dock has width and little height.
 | Tab | Shows | Works signed out |
 | --- | --- | --- |
 | Overview | Server URL and health, server version against the addon's `GAMEND_VERSION`, the hook plugin, the user, each socket and its topics, whether a session is saved | Yes |
+| Cloud | The person's Gamend Cloud servers, each with Use for this project, which writes `gamend/url`; Connect first, by a code approved on gamend.org | Not the game's sign-in: its own |
 | User | The profile from `GET /api/v1/me` as a structure; the access token masked, with reveal, copy and its expiry counting down; the refresh token masked; sign in with a device id, sign out, forget the saved session | The saved session, marked as saved rather than live |
 | Lobby | The lobby behind a joined `lobby:<id>` topic: its fields, `data`, host, and members with online state; the party the same way | No |
 | Data | Local: the addon's save slots, `gamend` (the kept session, read only) and `gamend_prefs` (player prefs, editable per key or as JSON), with the folder revealed. Server: each subscribed key-value key with its last value, and get and set for one key | Local yes, server no |
 | Activity | What is built: every call with its reply and round trip, and every realtime message. Adds filters (calls, messages, errors), clear, and a row that opens to its arguments and reply | Yes |
 | Logs | Whether shipping is on and at what floor, the run id, entries pending, the last flush with accepted and dropped counts, the log file, flush now | Yes |
 
-After the six, one tab per server feature: Leaderboards, Quests, Economy,
+After the seven, one tab per server feature: Leaderboards, Quests, Economy,
 Friends, Chat, Parties, Groups, Tournaments, Matchmaking, Notifications,
 Payments, Hooks and Users. Each is a list of `GET` views of that feature
 (a leaderboard's records, the wallet, the ledger), with an id field where a
@@ -254,8 +256,8 @@ one: `strip(S, host, name, controls)` and `rows(S, host, name, specs)` put
 them on the host's `head`, `side`, `body` or `foot`, `node(host, name)` is
 the node itself, and `tabs(S, host, id, names)`, `pages(S, host, id, groups)`,
 `tree(S, id, value, opts)`, `field(S, label, value, opts)`,
-`section(title)`, `empty(text)`, `files(S, id, opts)`, `game_data(S)` and
-`save_prefs(S)` are what a row is made of. The editor's own User data dock
+`section(title)`, `empty(text)`, `files(S, id, opts)`, `game_data(S)`,
+`save_prefs(S)` and `save_project(S)` are what a row is made of. The editor's own User data dock
 (`editor/plugins/userdata.bs`) is `files` over the game's user data
 directory, which is the generic half of the Data tab. A plugin adds a dock
 tab, a floating window (`windows`), a palette command or an inspector section
@@ -371,6 +373,24 @@ no server dependency and can start now.
     again when a newer message lands on their topic (`activity` rows carry
     a `seq`). Checked on a local Gamend: a rename shows in the dock.
   - **E3f, built.** A tab per server feature, each a list of `GET` views.
+  - **E3g, built.** The Cloud tab. The editor connects to the person's
+    Gamend Cloud account (`gamend/cloud`, gamend.org by default) the way a
+    television does: it asks for a code (`POST /api/v1/cloud/editor/links`),
+    opens `/editor/connect` where the person, signed in, approves it, and
+    holds one request (`/links/claim`) that answers a token on approval, so
+    nothing polls. The token is `gamend/cloud_token`, an editor setting
+    drawn as dots (`secret = true`, which the settings screen honours for
+    any string setting). The servers come from `GET
+    /api/v1/cloud/editor/servers`; Use for this project sets `gamend/url`
+    and writes `project.toml` (`kit_save_project`). Forge only shows which
+    server a project names. The server side is `../gamend_cloud`
+    (`GamendCloud.Editors`). Checked offscreen against a local gamend_cloud:
+    the code approved in a browser answered the held claim, the token landed
+    in `editor.toml` and not the project, and the pick wrote `[gamend] url`.
+    Disconnect emptied `cloud_token` and left the project's url; a token
+    disconnected on gamend.org showed "Connect it again"; settings shows
+    the token as dots. Disconnect in the dock leaves the token valid on
+    gamend.org until it is disconnected there.
 - **E4, built.** `log::since` and the log file in the engine (lines logged
   before it opened go in first), `logs.rn` and `log_sink.rn` in the addon,
   and the Logs tab. One run id (`gamend::run_id()`) rides every REST call

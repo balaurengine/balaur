@@ -2,6 +2,7 @@
 
 use super::engine::{Args, ImportCtx, Outcome, Raw, Setup, Shared, Wasm, read_from, unit_layout};
 use super::host::dispatch;
+use super::values::float;
 use crate::{Compiled, Slot, words};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
@@ -129,7 +130,7 @@ fn vt(s: Slot) -> ValType {
 fn raw(v: &Val) -> Raw {
     match v {
         Val::I64(x) => Raw::I64(*x),
-        Val::F64(x) => Raw::F64(f64::from(*x)),
+        Val::F64(x) => Raw::F64(float(f64::from(*x).to_bits())),
         Val::I32(x) => Raw::I32(*x),
         _ => Raw::I32(0),
     }

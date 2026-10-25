@@ -94,14 +94,16 @@ pub(crate) enum PlistValue {
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct AppleConfig {
-    /// The identifier registered in App Store Connect. Empty means the game
-    /// declares none, and the exporter keeps its old `org.balaur.<name>`.
+    /// The identifier registered in App Store Connect. Required: an export
+    /// refuses to invent one.
     pub bundle_id: String,
     /// The ten-character team identifier. Xcode expands
     /// `$(TeamIdentifierPrefix)` from it; nothing expands anything here, so
     /// an entitlement that carries the prefix needs the real value.
     pub team_id: String,
+    /// The name under the icon; `[application] name` when empty.
     pub display_name: String,
+    /// Required, as is `build_number`.
     pub version: String,
     pub build_number: String,
     /// `MinimumOSVersion` on iOS.
@@ -128,6 +130,10 @@ pub(crate) struct AppleConfig {
     /// platform reads, taken from the same resolved document.
     #[serde(skip)]
     pub(crate) orientation: balaur::project::Orientation,
+    /// `[application] name`, which `display_name` overrides. Not a key of
+    /// `[apple]` either.
+    #[serde(skip)]
+    pub(crate) title: String,
 }
 
 impl Default for AppleConfig {
@@ -136,8 +142,8 @@ impl Default for AppleConfig {
             bundle_id: String::new(),
             team_id: String::new(),
             display_name: String::new(),
-            version: "1.0".into(),
-            build_number: "1".into(),
+            version: String::new(),
+            build_number: String::new(),
             // The templates are built for these (scripts/package_runtime.sh,
             // scripts/package.sh), which is where StoreKit 2 starts; a plist
             // may not claim less than the binary was built for.
@@ -151,6 +157,7 @@ impl Default for AppleConfig {
             ios_provisioning_profile: String::new(),
             plist: BTreeMap::new(),
             orientation: balaur::project::Orientation::Any,
+            title: String::new(),
         }
     }
 }
@@ -164,48 +171,60 @@ impl AppleConfig {
     pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
         Ok(Self {
             orientation: crate::config::orientation_of(manifest),
+            title: crate::config::application_name(manifest),
             ..crate::config::table_of(manifest, "apple", project)?
         })
     }
 
-    /// The identifier this bundle ships with: the project's, or the old
-    /// invented one for a game that declares none.
-    pub(crate) fn identifier(&self, name: &str) -> String {
-        if self.bundle_id.is_empty() {
-            let id: String = name
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-                .collect();
-            format!("org.balaur.{id}")
+    /// The identifier this bundle ships with, which the project declares: an
+    /// invented one is owned by no App Store Connect account.
+    pub(crate) fn identifier(&self) -> Result<&str> {
+        anyhow::ensure!(
+            !self.bundle_id.is_empty(),
+            "[apple] bundle_id is not set: the identifier registered in App Store \
+             Connect, e.g. bundle_id = \"com.studio.game\""
+        );
+        Ok(&self.bundle_id)
+    }
+
+    /// The name under the icon: `display_name`, else `[application] name`.
+    fn display(&self) -> &str {
+        if self.display_name.is_empty() {
+            &self.title
         } else {
-            self.bundle_id.clone()
+            &self.display_name
         }
     }
 
-    /// Refuse an export that would produce a bundle no capability can work
-    /// in, naming what to fix.
+    /// Refuse an export that is missing what names it, or that would produce
+    /// a bundle no capability can work in, naming what to fix.
     pub(crate) fn check(&self, platform: Platform) -> Result<()> {
-        if self.capabilities.is_empty() {
-            return Ok(());
-        }
-        if self.bundle_id.is_empty() {
-            bail!(
-                "[apple] capabilities need `bundle_id`: {} resolves against the identifier \
-                 registered in App Store Connect, and the exporter's invented one is owned \
-                 by no account",
-                self.capabilities[0].name()
-            );
-        }
-        if !self
-            .bundle_id
+        anyhow::ensure!(
+            !self.display().is_empty(),
+            "{}",
+            crate::config::NAME_MISSING
+        );
+        let id = self.identifier()?;
+        if !id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
         {
             bail!(
-                "[apple] bundle_id \"{}\" is not a bundle identifier: letters, digits, \
-                 dots and hyphens only",
-                self.bundle_id
+                "[apple] bundle_id \"{id}\" is not a bundle identifier: letters, digits, \
+                 dots and hyphens only"
             );
+        }
+        anyhow::ensure!(
+            !self.version.is_empty(),
+            "[apple] version is not set: the version a player sees, e.g. version = \"1.0.0\""
+        );
+        anyhow::ensure!(
+            !self.build_number.is_empty(),
+            "[apple] build_number is not set: what App Store Connect orders uploads by, \
+             e.g. build_number = \"1\""
+        );
+        if self.capabilities.is_empty() {
+            return Ok(());
         }
         let declared = self.deployment(platform);
         let version = parse_version(declared).with_context(|| {
@@ -285,25 +304,19 @@ impl AppleConfig {
     /// goes in `[apple.plist]`.
     ///
     /// `executable` is the binary's file name inside the bundle, which on iOS
-    /// is still the template's; `name` is the game's.
+    /// is still the template's. Call [`Self::check`] first.
     /// `icon_keys` are the lines the icon writer answered, already plist.
     pub(crate) fn info_plist(
         &self,
         platform: Platform,
         executable: &str,
-        name: &str,
         icon_keys: &str,
-    ) -> String {
-        let display = if self.display_name.is_empty() {
-            name
-        } else {
-            &self.display_name
-        };
+    ) -> Result<String> {
         let mut body = String::new();
         string_key(&mut body, "CFBundleExecutable", executable);
-        string_key(&mut body, "CFBundleIdentifier", &self.identifier(name));
-        string_key(&mut body, "CFBundleName", name);
-        string_key(&mut body, "CFBundleDisplayName", display);
+        string_key(&mut body, "CFBundleIdentifier", self.identifier()?);
+        string_key(&mut body, "CFBundleName", self.display());
+        string_key(&mut body, "CFBundleDisplayName", self.display());
         string_key(&mut body, "CFBundlePackageType", "APPL");
         string_key(&mut body, "CFBundleShortVersionString", &self.version);
         string_key(&mut body, "CFBundleVersion", &self.build_number);
@@ -331,18 +344,18 @@ impl AppleConfig {
             body.push_str(&plist_value(v, 1));
             body.push('\n');
         }
-        plist_document(&body)
+        Ok(plist_document(&body))
     }
 
     /// The `Info.plist` of a framework the app carries: `framework` is its
     /// binary's name, `platform` the one `CFBundleSupportedPlatforms` names.
-    pub(crate) fn framework_plist(&self, name: &str, framework: &str, platform: &str) -> String {
+    pub(crate) fn framework_plist(&self, framework: &str, platform: &str) -> Result<String> {
         let mut body = String::new();
         string_key(&mut body, "CFBundleExecutable", framework);
         string_key(
             &mut body,
             "CFBundleIdentifier",
-            &format!("{}.{}", self.identifier(name), framework.to_lowercase()),
+            &format!("{}.{}", self.identifier()?, framework.to_lowercase()),
         );
         string_key(&mut body, "CFBundleInfoDictionaryVersion", "6.0");
         string_key(&mut body, "CFBundleName", framework);
@@ -355,7 +368,7 @@ impl AppleConfig {
             "  <key>CFBundleSupportedPlatforms</key><array><string>{}</string></array>",
             escape(platform)
         );
-        plist_document(&body)
+        Ok(plist_document(&body))
     }
 
     /// Where the entitlements file goes and what to do with it, written next
@@ -460,9 +473,12 @@ mod tests {
             #[serde(default)]
             apple: AppleConfig,
         }
-        toml::from_str::<Manifest>(table)
-            .expect("the table parses")
-            .apple
+        AppleConfig {
+            title: "Game".into(),
+            ..toml::from_str::<Manifest>(table)
+                .expect("the table parses")
+                .apple
+        }
     }
 
     #[test]
@@ -485,9 +501,9 @@ mod tests {
     fn an_orientation_reaches_the_plist() {
         let held = AppleConfig {
             orientation: balaur::project::Orientation::Portrait,
-            ..AppleConfig::default()
+            ..config("[apple]\nbundle_id = \"com.studio.game\"\n")
         };
-        let text = held.info_plist(Platform::Ios, "Balaur", "Tide", "");
+        let text = held.info_plist(Platform::Ios, "Balaur", "").unwrap();
         assert!(
             text.contains("<key>UISupportedInterfaceOrientations</key>"),
             "{text}"
@@ -495,27 +511,43 @@ mod tests {
         assert!(text.contains("UIInterfaceOrientationPortrait"), "{text}");
         assert!(!text.contains("LandscapeLeft"), "{text}");
 
-        let none = AppleConfig::default().info_plist(Platform::Ios, "Balaur", "Tide", "");
+        let none = config("[apple]\nbundle_id = \"com.studio.game\"\n")
+            .info_plist(Platform::Ios, "Balaur", "")
+            .unwrap();
         assert!(!none.contains("UISupportedInterfaceOrientations"), "{none}");
 
         let named = AppleConfig {
             orientation: balaur::project::Orientation::Portrait,
             ..config(
-                "[apple]\n[apple.plist]\n\
+                "[apple]\nbundle_id = \"com.studio.game\"\n[apple.plist]\n\
                  UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
             )
         };
-        let text = named.info_plist(Platform::Ios, "Balaur", "Tide", "");
+        let text = named.info_plist(Platform::Ios, "Balaur", "").unwrap();
         assert!(text.contains("LandscapeLeft"), "{text}");
         assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
     }
 
+    /// Nothing is invented: each key missing is refused by name, in the order
+    /// a project would fill them in.
     #[test]
-    fn a_project_with_no_apple_table_keeps_the_invented_identifier() {
-        let config = config("name = \"hello\"\n");
-        assert_eq!(config.identifier("hello"), "org.balaur.hello");
-        assert!(config.entitlements().is_none());
-        config.check(Platform::Ios).expect("nothing to check");
+    fn a_project_with_no_apple_table_is_refused_key_by_key() {
+        let refusal = |table: &str| config(table).check(Platform::Ios).unwrap_err().to_string();
+        assert!(refusal("name = \"hello\"\n").contains("bundle_id is not set"));
+        let id = "[apple]\nbundle_id = \"com.studio.game\"\n";
+        assert!(refusal(id).contains("version is not set"));
+        assert!(refusal(&format!("{id}version = \"1.0\"\n")).contains("build_number is not set"));
+        let untitled = AppleConfig {
+            title: String::new(),
+            ..config(id)
+        };
+        let err = untitled.check(Platform::Ios).unwrap_err().to_string();
+        assert!(err.contains("[application] name"), "{err}");
+        let named = config(&format!("{id}version = \"1.0\"\nbuild_number = \"1\"\n"));
+        named
+            .check(Platform::Ios)
+            .expect("a named game with no capabilities");
+        assert!(named.entitlements().is_none());
     }
 
     #[test]
@@ -544,8 +576,9 @@ mod tests {
 
     #[test]
     fn the_icloud_store_identifier_needs_a_team_because_it_carries_one() {
-        let config =
-            config("[apple]\nbundle_id = \"com.studio.game\"\ncapabilities = [\"icloud-kv\"]\n");
+        let config = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\ncapabilities = [\"icloud-kv\"]\n",
+        );
         let err = config
             .check(Platform::Ios)
             .expect_err("nothing expands $(TeamIdentifierPrefix) here")
@@ -556,7 +589,7 @@ mod tests {
     #[test]
     fn game_center_below_the_version_its_identity_signature_needs_is_refused() {
         let config = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nmin_ios = \"13.0\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\nmin_ios = \"13.0\"\n\
              capabilities = [\"game-center\"]\n",
         );
         let err = config
@@ -569,7 +602,7 @@ mod tests {
     #[test]
     fn every_capability_writes_its_own_entitlement() {
         let config = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nteam_id = \"AB12CD34EF\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\nteam_id = \"AB12CD34EF\"\n\
              min_ios = \"15.0\"\n\
              capabilities = [\"sign-in-with-apple\", \"game-center\", \"icloud-kv\"]\n",
         );
@@ -591,7 +624,7 @@ mod tests {
              [apple.plist]\nITSAppUsesNonExemptEncryption = false\n\
              UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
         );
-        let text = config.info_plist(Platform::Ios, "Balaur", "game", "");
+        let text = config.info_plist(Platform::Ios, "Balaur", "").unwrap();
         assert!(text.contains("<key>CFBundleIdentifier</key><string>com.studio.game</string>"));
         assert!(text.contains("<key>CFBundleDisplayName</key><string>My Game</string>"));
         assert!(text.contains("<key>CFBundleShortVersionString</key><string>2.1</string>"));
@@ -603,7 +636,7 @@ mod tests {
     #[test]
     fn a_macos_plist_declares_its_own_minimum_and_no_iphone_keys() {
         let config = config("[apple]\nbundle_id = \"com.studio.game\"\nmin_macos = \"13.0\"\n");
-        let text = config.info_plist(Platform::Macos, "game", "game", "");
+        let text = config.info_plist(Platform::Macos, "game", "").unwrap();
         assert!(text.contains("<key>LSMinimumSystemVersion</key><string>13.0</string>"));
         assert!(!text.contains("LSRequiresIPhoneOS"), "{text}");
     }
@@ -611,7 +644,7 @@ mod tests {
     #[test]
     fn in_app_purchase_writes_no_entitlement_and_still_checks_the_version() {
         let below = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nmin_ios = \"14.0\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\nmin_ios = \"14.0\"\n\
              capabilities = [\"in-app-purchase\"]\n",
         );
         let err = below
@@ -621,7 +654,7 @@ mod tests {
         assert!(err.contains("15.0"), "{err}");
 
         let config = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\ncapabilities = [\"in-app-purchase\"]\n",
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\ncapabilities = [\"in-app-purchase\"]\n",
         );
         config.check(Platform::Ios).expect("the default is 15.0");
         assert!(

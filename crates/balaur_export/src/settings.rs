@@ -31,6 +31,7 @@ font_ranges = { type = "list", of = { type = "string" }, default = [], order = 7
 font_original = { type = "list", of = { type = "string" }, default = [], order = 8, help = "Faces that ship whole however font_recode is set, as globs: the one a text field draws with cannot be subset to the characters this project happens to contain." }
 audio_recode = { type = "enum", default = "original", options = ["original", "flac", "vorbis"], order = 9, help = "How uncompressed audio is re-encoded. flac keeps every sample; vorbis does not." }
 audio_quality = { type = "float", default = 0.5, min = -0.1, max = 1.0, order = 10, help = "libvorbis's quality, which audio_recode = \"vorbis\" reads and every other mode ignores." }
+native_scripts = { type = "enum", default = "auto", options = ["auto", "on", "off"], order = 13, help = "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target's override." }
 "#;
 
 pub fn declare(eng: &Engine) {
@@ -48,14 +49,14 @@ pub fn declare(eng: &Engine) {
         &parse(
             "settings.android",
             r#"
-application_id = { type = "string", default = "", order = 1, help = "The identifier Play resolves an OAuth client, a licence and an update against. Empty keeps the invented org.balaur.<name>." }
-display_name = { type = "string", default = "", order = 2, help = "The name under the icon. Empty means the project's own." }
-version = { type = "string", default = "1.0", order = 3, help = "versionName: what a player is shown." }
-version_code = { type = "int", default = 1, min = 1, max = 2100000000, order = 4, help = "versionCode: what Play orders updates by, and the only one it reads." }
+application_id = { type = "string", default = "", order = 1, help = "The identifier Play resolves an OAuth client, a licence and an update against. Required to export." }
+display_name = { type = "string", default = "", order = 2, help = "The name under the icon. Empty means [application] name." }
+version = { type = "string", default = "", order = 3, help = "versionName: what a player is shown. Required to export." }
+version_code = { type = "int", default = 0, min = 0, max = 2100000000, order = 4, help = "versionCode: what Play orders updates by, and the only one it reads. Required to export; 0 is unset." }
 min_sdk = { type = "int", default = 0, min = 0, max = 40, order = 5, help = "The API floor. 0 defers to the template's own, which is what its libraries were built against." }
-target_sdk = { type = "int", default = 35, min = 21, max = 40, order = 6, help = "The API this game says it was written for." }
+target_sdk = { type = "int", default = 36, min = 21, max = 40, order = 6, help = "The API this game says it was written for. Google Play takes a new app or an update only at 36 or later." }
 abis = { type = "flags", default = [], options = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"], order = 7, help = "Which of the template's ABIs the export keeps. None named means every one it carries, so a game that says nothing ships everywhere." }
-keystore = { type = "string", default = "", order = 8, help = "A project-relative keystore, or empty for Android's debug identity." }
+keystore = { type = "string", default = "", order = 8, help = "A project-relative keystore. Without one an export needs --sign debug, which installs on a device and ships nowhere." }
 key = { type = "string", default = "", order = 9, help = "Which key in that keystore signs." }
 bundletool = { type = "string", default = "", order = 10, help = "Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK." }
 "#,
@@ -68,11 +69,11 @@ bundletool = { type = "string", default = "", order = 10, help = "Where bundleto
         &parse(
             "settings.apple",
             r#"
-bundle_id = { type = "string", default = "", order = 1, help = "The identifier registered in App Store Connect. Empty means the exporter keeps its invented org.balaur.<name>." }
+bundle_id = { type = "string", default = "", order = 1, help = "The identifier registered in App Store Connect. Required to export." }
 team_id = { type = "string", default = "", order = 2, help = "The ten-character team identifier. Nothing expands it, so an entitlement carrying the prefix needs the real value." }
-display_name = { type = "string", default = "", order = 3, help = "The name under the icon. Empty means the project's own." }
-version = { type = "string", default = "1.0", order = 4, help = "CFBundleShortVersionString: what a player is shown." }
-build_number = { type = "string", default = "1", order = 5, help = "CFBundleVersion: what the store orders uploads by." }
+display_name = { type = "string", default = "", order = 3, help = "The name under the icon. Empty means [application] name." }
+version = { type = "string", default = "", order = 4, help = "CFBundleShortVersionString: what a player is shown. Required to export." }
+build_number = { type = "string", default = "", order = 5, help = "CFBundleVersion: what the store orders uploads by. Required to export." }
 min_ios = { type = "string", default = "15.0", order = 6, help = "MinimumOSVersion on iOS. A plist may not claim less than the binary was built for." }
 min_macos = { type = "string", default = "12.0", order = 7, help = "LSMinimumSystemVersion on macOS." }
 category = { type = "string", default = "", order = 8, help = "LSApplicationCategoryType, macOS only." }

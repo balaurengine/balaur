@@ -147,6 +147,7 @@ fn a_scroll_says_where_it_moved_to() {
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(0.0, -120.0),
             phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
             modifiers: egui::Modifiers::NONE,
         },
     ];

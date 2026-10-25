@@ -5,7 +5,7 @@
 use crate::support::*;
 
 fn rect(ctx: &egui::Context, entity: balaur_core::hecs::Entity) -> egui::Rect {
-    ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+    ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew, so its area has a rect")
 }
 

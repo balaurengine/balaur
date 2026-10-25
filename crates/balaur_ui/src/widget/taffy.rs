@@ -94,11 +94,13 @@ fn direction(kind: &str, reverse: bool) -> FlexDirection {
     }
 }
 
-fn safety(safe: bool) -> taffy::style::AlignmentSafety {
-    if safe {
-        taffy::style::AlignmentSafety::Safe
-    } else {
-        taffy::style::AlignmentSafety::Unsafe
+/// `safe` qualifies a position only; taffy stops stretching a stretch that
+/// carries either word.
+fn safety(safe: bool, positional: bool) -> taffy::style::AlignmentSafety {
+    match (positional, safe) {
+        (false, _) => taffy::style::AlignmentSafety::Default,
+        (true, true) => taffy::style::AlignmentSafety::Safe,
+        (true, false) => taffy::style::AlignmentSafety::Unsafe,
     }
 }
 
@@ -115,7 +117,7 @@ fn align_of(word: &str, safe: bool) -> Option<AlignItems> {
     };
     Some(AlignItems {
         keyword,
-        safety: safety(safe),
+        safety: safety(safe, !matches!(keyword, K::Stretch | K::Baseline)),
     })
 }
 
@@ -134,7 +136,10 @@ fn content_of(word: &str, safe: bool) -> AlignContent {
     };
     AlignContent {
         keyword,
-        safety: safety(safe),
+        safety: safety(
+            safe,
+            matches!(keyword, K::Center | K::FlexStart | K::FlexEnd),
+        ),
     }
 }
 
@@ -347,14 +352,20 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
             width: length(gap.x),
             height: length(gap.y),
         },
-        align_items: if container {
-            align_of(&widget.align, safe)
-        } else {
-            None
-        },
+        align_items: align_of(&widget.align, safe)
+            .filter(|_| container)
+            .unwrap_or(AlignItems::NORMAL),
         align_self: align_of(&layout.align_self, safe),
-        align_content: container.then(|| content_of(&layout.align_content, safe)),
-        justify_content: container.then(|| content_of(&widget.justify, safe)),
+        align_content: if container {
+            content_of(&layout.align_content, safe)
+        } else {
+            AlignContent::NORMAL
+        },
+        justify_content: if container {
+            content_of(&widget.justify, safe)
+        } else {
+            AlignContent::NORMAL
+        },
         ..Style::default()
     };
     box_into(&mut out, widget, shape.is_root);
@@ -398,6 +409,9 @@ fn box_into(out: &mut Style, widget: &Widget, is_root: bool) {
             right: inset_of(widget.inset[2]),
             bottom: inset_of(widget.inset[3]),
         };
+    } else {
+        // Taffy's default is static; every box holds its absolute children.
+        out.position = Position::Relative;
     }
 }
 

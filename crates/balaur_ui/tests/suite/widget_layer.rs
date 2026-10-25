@@ -61,7 +61,7 @@ fn an_edge_anchor_pins_one_axis_and_centres_the_other() {
     pass(&app, &ctx, vec![]);
 
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the label drew, so its area has a rect")
     };
     let (l, r, t, b, m) = (
@@ -106,7 +106,7 @@ fn a_panel_takes_an_explicit_size() {
     pass(&app, &ctx, vec![]);
 
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the panel drew, so its area has a rect")
     };
     let sized_rect = rect(sized);
@@ -141,7 +141,7 @@ fn a_row_lays_its_children_out_along_its_own_direction() {
     let ctx = egui::Context::default();
     settle(&in_a_row, &ctx);
     let row_rect = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", row))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", row))))
         .expect("the row drew");
 
     // A column of the same three, to compare against.
@@ -161,7 +161,7 @@ fn a_row_lays_its_children_out_along_its_own_direction() {
     let ctx2 = egui::Context::default();
     settle(&app2, &ctx2);
     let column_rect = ctx2
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
         .expect("the column drew");
 
     assert!(
@@ -194,7 +194,7 @@ fn the_gap_widens_a_row() {
         }
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", row))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", row))))
             .expect("the row drew")
             .width()
     };
@@ -227,7 +227,7 @@ fn a_childs_own_offset_is_ignored_inside_a_container() {
         );
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
             .expect("the column drew")
     };
     assert_eq!(measure(0.0, 0.0), measure(300.0, 200.0));
@@ -249,7 +249,7 @@ fn a_button_inside_a_container_still_takes_its_click() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
         .expect("the column drew");
 
     let target = rect.center();
@@ -284,7 +284,7 @@ fn a_panel_with_children_grows_around_them() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the panel drew")
     };
     assert!(
@@ -328,7 +328,7 @@ fn grow_divides_what_the_fixed_children_leave() {
     };
     assert!(seen(bar) && seen(body), "both panels are still panels");
     let column_rect = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
         .expect("the column drew");
     // 400 tall less the 40 the bar states: the grower takes the rest, and
     // nothing overflows the box the column was given.
@@ -370,7 +370,7 @@ fn a_root_draws_on_the_surface_it_names() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("it drew")
     };
     assert!(
@@ -480,7 +480,7 @@ fn a_scroll_keeps_its_box_however_long_its_contents() {
         }
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", holder))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", holder))))
             .expect("it drew")
             .height()
     };
@@ -730,10 +730,10 @@ fn a_plain_node_between_container_and_child_is_seen_through() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let laid = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
         .expect("the column drew");
     // The child gets no area of its own: it is laid out, not placed.
-    let child_area = ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entry))));
+    let child_area = ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entry))));
     assert!(
         child_area.is_none(),
         "the child was placed on its own at {child_area:?}"
@@ -765,7 +765,7 @@ fn a_containers_own_padding_is_measured_as_well_as_drawn() {
         );
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
             .expect("the column drew")
     };
     let tight = width(0.0);
@@ -793,7 +793,7 @@ fn a_panels_own_padding_applies() {
         );
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", panel))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", panel))))
             .expect("the panel drew")
             .height()
     };
@@ -959,7 +959,7 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
         add_child_widget(&app, column, "Second", &second.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", column))))
             .expect("the column drew")
             .height()
     };
@@ -987,7 +987,7 @@ fn a_root_can_keep_above_the_on_screen_keyboard() {
     let (lifted, left) = (at(true), at(false));
     let ctx = egui::Context::default();
     let bottom = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
             .expect("the label drew")
             .max
             .y

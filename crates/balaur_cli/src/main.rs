@@ -177,8 +177,9 @@ enum Command {
         bundle: Vec<BundleKind>,
         /// Sign with this identity, overriding the platform's table: a
         /// certificate name on Apple platforms, a certificate file on
-        /// Windows. On macOS it implies `--bundle app`, since a flat binary
-        /// cannot be signed.
+        /// Windows, `debug` on Android for its public debug key (installs on
+        /// a device, ships nowhere). On macOS it implies `--bundle app`,
+        /// since a flat binary cannot be signed.
         #[arg(long)]
         sign: Option<String>,
         /// Submit the signed macOS bundle to Apple's notary service and

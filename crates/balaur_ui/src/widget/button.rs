@@ -136,7 +136,7 @@ pub(crate) fn sensor(
     ui: &mut egui::Ui,
     min: egui::Vec2,
     sense: egui::Sense,
-    kind: egui::WidgetType,
+    kind: egui::Role,
     label: &str,
 ) -> egui::Response {
     let spacing = ui.spacing();
@@ -176,14 +176,13 @@ pub(crate) fn text_button(
         ui,
         galley.size() + pad * 2.0,
         egui::Sense::click(),
-        egui::WidgetType::Button,
+        egui::Role::Button,
         &label,
     );
     if let Some(on) = selected {
         let enabled = ui.is_enabled();
-        response.widget_info(|| {
-            egui::WidgetInfo::selected(egui::WidgetType::Button, enabled, on, &label)
-        });
+        response
+            .widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, on, &label));
     }
     if ui.is_rect_visible(response.rect) {
         let look = ui.style().interact(&response);
@@ -369,7 +368,7 @@ pub(crate) fn button(
         ui,
         min,
         sense_of(&widget.egui.sense),
-        egui::WidgetType::Button,
+        egui::Role::Button,
         caption,
     );
     let pointer = Pointer::of(&response);

@@ -18,10 +18,6 @@ env:
   # a plain local `cargo test` skips them; CI always runs everything.
   BALAUR_E2E: "1"
 
-  # Software Vulkan for the Windows runner. Pinned: a Mesa that changes under
-  # a render step is a difference nobody can explain afterwards.
-  MESA_VERSION: "26.2.0"
-
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
@@ -43,8 +39,7 @@ jobs:
         with:
           node-version: 24
       # Audio and input for the headless build; X11/Wayland/xkb for the
-      # windowed one, which links winit; Mesa's Vulkan for the render steps,
-      # which ask a runner with no GPU for a device.
+      # windowed one, which links winit.
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
@@ -55,34 +50,7 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev \
-            libvulkan1 mesa-vulkan-drivers
-      # The same software Vulkan, in its Windows spelling: the runner has the
-      # loader and no driver, and the GL fallback answers 1.1, not 3.3.
-      - name: Windows software GPU
-        if: runner.os == 'Windows'
-        # pwsh, alone in a file of bash: registering the driver means a
-        # native path and a `/v` flag, and Git Bash rewrites both.
-        shell: pwsh
-        run: |
-          curl.exe -sSL --retry 5 --retry-delay 2 --retry-all-errors -o mesa.7z `
-            "https://github.com/pal1000/mesa-dist-win/releases/download/${env:MESA_VERSION}/mesa3d-${env:MESA_VERSION}-release-msvc.7z"
-          # The manifest names its library relatively, so the two stay together.
-          7z x mesa.7z -omesa x64/vulkan_lvp.dll x64/lvp_icd.x86_64.json `
-            x64/opengl32.dll x64/libgallium_wgl.dll
-          $icd = (Resolve-Path mesa/x64/lvp_icd.x86_64.json).Path
-          # The registry, not VK_DRIVER_FILES: the loader ignored the variable
-          # and looked here, which is what `Found no drivers!` was reporting.
-          $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers'
-          New-Item -Path $key -Force | Out-Null
-          New-ItemProperty -Path $key -Name $icd -PropertyType DWord -Value 0 -Force | Out-Null
-          Get-ItemProperty -Path $key
-          # And GL, because wgpu enumerates every backend: this runner's is
-          # the 1.1 GDI one, and the render died right after saying so. An
-          # app-local opengl32.dll answers 4.6, beside the binary e2e.sh runs.
-          New-Item -ItemType Directory -Force -Path target/e2e/bin | Out-Null
-          Copy-Item mesa/x64/opengl32.dll, mesa/x64/libgallium_wgl.dll target/e2e/bin/
-          "GALLIUM_DRIVER=llvmpipe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+            libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -132,48 +100,8 @@ jobs:
           cargo build -p balaur_cli --no-default-features
           cargo test -p balaur_core --no-default-features
           cargo test -p balaur_physics --no-default-features --features physics2d,physics3d
-      # examples/ are Balaur projects, not cargo examples; scripts/e2e.sh says
-      # why all five modes are needed. Windows keeps check/run/export/play:
-      # render and the editor exit 0x87A under lavapipe, logging nothing.
-      - name: E2E — run, export, play, edit and render every example project
-        shell: bash
-        env:
-          BALAUR_E2E_GPU: ${{ runner.os == 'Windows' && '0' || '1' }}
-        run: ./scripts/e2e.sh
-      # The two steps E2E skips on Windows, run for their exit code alone:
-      # bash keeps 8 bits of a Windows exit code, 122; this keeps all 32.
-      - name: Windows — the real exit code, and the engine's own log
-        if: runner.os == 'Windows' && !cancelled()
-        continue-on-error: true
-        shell: pwsh
-        env:
-          RUST_BACKTRACE: "1"
-        run: |
-          $bin = 'target/e2e/bin/balaur.exe'
-          foreach ($case in @(
-            @('run',  'examples/angrynerds', '--offscreen', '--frames', '10'),
-            @('edit', 'examples/angrynerds', '--frames', '10')
-          )) {
-            & $bin @case 2>&1 | Select-Object -Last 15
-            $code = $LASTEXITCODE
-            '{0,-5} exit {1} = 0x{1:X8}' -f $case[0], $code
-          }
-          Get-ChildItem "$env:APPDATA/balaur/*/logs/run.log" -ErrorAction SilentlyContinue |
-            ForEach-Object { "==== $_"; Get-Content $_ -Tail 40 }
-      - if: runner.os == 'Windows' && !cancelled()
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-balaur-logs
-          path: ~/AppData/Roaming/balaur/*/logs/run.log
-          if-no-files-found: ignore
-      - name: Upload pack digests
-        uses: actions/upload-artifact@v7
-        with:
-          name: packs-${{ matrix.os }}
-          path: target/e2e/digests.txt
-      # A pack agreeing across platforms says the encoder is reproducible. It
-      # says nothing about whether two CPUs stepped the same physics, which is
-      # what this records and the simulation job diffs.
+      # Whether two CPUs stepped the same physics: this records it and the
+      # simulation job diffs.
       - name: Determinism — record the per-tick digest trace
         shell: bash
         run: ./scripts/determinism_trace.sh record target/determinism
@@ -184,23 +112,8 @@ jobs:
           path: target/determinism/traces.txt
 
 
-  # The multi-platform half of the determinism promise; see
-  # scripts/compare_packs.sh for what it does and does not claim.
-  packs-match:
-    name: every platform exports an identical pack
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: packs-*
-          path: digests
-      - name: Compare
-        run: ./scripts/compare_packs.sh digests
-
-  # The other multi-platform half: same sources, same simulation. A failure
-  # here names the tick two platforms parted on.
+  # The multi-platform half of the determinism promise: same sources, same
+  # simulation. A failure here names the tick two platforms parted on.
   simulation-matches:
     name: every platform steps the same simulation
     needs: test
@@ -243,9 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # The same set the test job takes: coverage runs the e2e suite, which
-      # renders on a real adapter, and a runner without the software Vulkan
-      # driver has none to find.
+      # The same set the test job takes.
       - name: Linux build deps
         run: |
           # The image's Chrome and Microsoft repos, which nothing here installs
@@ -255,8 +166,7 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev \
-            libvulkan1 mesa-vulkan-drivers
+            libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}

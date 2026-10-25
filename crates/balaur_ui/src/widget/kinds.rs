@@ -82,9 +82,9 @@ fn tick_box(
     let enabled = ui.is_enabled();
     response.widget_info(|| {
         if either {
-            egui::WidgetInfo::labeled(egui::WidgetType::Checkbox, enabled, caption)
+            egui::WidgetInfo::labeled(egui::Role::CheckBox, enabled, caption)
         } else {
-            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, enabled, on, caption)
+            egui::WidgetInfo::selected(egui::Role::CheckBox, enabled, on, caption)
         }
     });
     if !ui.is_rect_visible(rect) {
@@ -191,7 +191,7 @@ pub(crate) fn dropdown(
             let response = picker(ui, id, open, picked, (fold, width));
             let enabled = ui.is_enabled();
             response.widget_info(|| {
-                let mut info = egui::WidgetInfo::new(egui::WidgetType::ComboBox);
+                let mut info = egui::WidgetInfo::new(egui::Role::ComboBox);
                 info.enabled = enabled;
                 info.current_text_value = Some(widget.text.to_string());
                 info
@@ -596,7 +596,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
     // The picker's drag happens in its popup, so the release is watched for
     // here: a colour committed once the button that was changing it lets go.
-    let dragging = egui::Id::new(("balaur-color-drag", entity));
+    let dragging = egui::Id::unique(("balaur-color-drag", entity));
     let (down, released) = ui.input(|i| (i.pointer.any_down(), i.pointer.any_released()));
     let was = ui.data(|d| d.get_temp::<bool>(dragging).unwrap_or(false));
     if changed && down {
@@ -632,7 +632,7 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
         vec2(spacing, room.y)
     };
     let (rect, response) = ui.allocate_at_least(size, Sense::hover());
-    response.widget_info(|| egui::WidgetInfo::new(egui::WidgetType::Other));
+    response.widget_info(|| egui::WidgetInfo::new(egui::Role::Unknown));
     if !ui.is_rect_visible(rect) {
         return;
     }
@@ -746,7 +746,7 @@ fn fold_header(
     let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
     let frame = Brush::of(ui).slot();
     // Sensed before the bar's children are drawn, so theirs sit on top.
-    let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
+    let header = ui.interact(strip, ui.scope_id().with(("fold", entity)), Sense::click());
     if header.clicked() {
         at.edits.push((entity, Edit::Open(!open)));
     }
@@ -1131,7 +1131,7 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
     }
     ui.interact(
         rect,
-        egui::Id::new(("balaur-context-under", placed.entity)),
+        egui::Id::unique(("balaur-context-under", placed.entity)),
         egui::Sense::CLICK,
     );
 }
@@ -1170,7 +1170,7 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
     if pressed {
         at.context_opened = true;
     }
-    let id = egui::Id::new(("balaur-context", placed.entity));
+    let id = egui::Id::unique(("balaur-context", placed.entity));
     if !pressed && !egui::Popup::is_id_open(&ctx, id) {
         return;
     }

@@ -214,7 +214,7 @@ can do today, in the batches it would be built in.
 | **The match record** — the match recording uploaded as the lobby's record. | 0.4 | [PLAN-gamend.md#1-design](PLAN-gamend.md#1-design) |
 | **A WebRTC relay for browsers** — so a browser peer joins a match through Gamend. | 0.7 | [PLAN-gamend.md#2-the-surface](PLAN-gamend.md#2-the-surface) |
 | **Typed bindings for the whole API** — in place of `rest` and `push`, over the nine calls the `gamend` module has today. | 0.4 | [PLAN-gamend.md#engine-side-in-this-repository](PLAN-gamend.md#engine-side-in-this-repository) |
-| **A Gamend dock** — the server target, the signed-in user, the lobby, server data, a tab per feature, every call, and the log a game ships. | 0.4 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
+| **A Gamend dock** — the server target picked from your Gamend Cloud servers, the signed-in user, server data, a tab per feature, every call, shipped logs. | 0.4 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
 | **Skill matchmaking** — queues and ratings, whose work is in the Gamend server. | 0.7 | [gamend ROADMAP.md](https://github.com/appsinacup/gamend/blob/main/ROADMAP.md) |
 
 Server steps run in the `gamend` repository; `PLAN-gamend.md` marks which

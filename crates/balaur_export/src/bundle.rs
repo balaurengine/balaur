@@ -140,6 +140,9 @@ pub(crate) fn export_bundle(
     web_assets: &[(PathBuf, Vec<u8>)],
     icons: Option<&Icons>,
 ) -> Result<PathBuf> {
+    if kind != Bundle::Web {
+        crate::require_icon(icons, kind.platform())?;
+    }
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
     }
@@ -165,7 +168,7 @@ pub(crate) fn export_bundle(
         let path = output.join("AndroidManifest.xml");
         let staged = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        let mut xml = android.manifest(&staged, name)?;
+        let mut xml = android.manifest(&staged)?;
         if let Some(icons) = icons {
             icons.write_android(&output)?;
             xml = crate::android::name_icon(&xml);
@@ -211,7 +214,7 @@ pub(crate) fn export_bundle(
         };
         std::fs::write(
             &plist,
-            apple.info_plist(Platform::Ios, &executable, name, &icon_keys),
+            apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
         )
         .with_context(|| format!("writing {}", plist.display()))?;
         if let Some(path) = apple.write_entitlements(&output, name)? {
@@ -285,7 +288,9 @@ pub(crate) fn export_macos_app(
     apple: &AppleConfig,
     project: &Path,
     icons: Option<&Icons>,
+    native: Option<&crate::native::Request>,
 ) -> Result<PathBuf> {
+    crate::require_icon(icons, "macos")?;
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
     if let Some(dir) = app.parent().filter(|d| !d.as_os_str().is_empty()) {
@@ -307,6 +312,9 @@ pub(crate) fn export_macos_app(
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
+    if let Some(request) = native {
+        crate::native::build_desktop(&executable, "macos-universal", request)?;
+    }
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
     let icon_keys = match icons {
         Some(icons) => icons.write_macos(&app, &apple.min_macos)?,
@@ -314,7 +322,7 @@ pub(crate) fn export_macos_app(
     };
     std::fs::write(
         app.join("Contents").join("Info.plist"),
-        apple.info_plist(Platform::Macos, name, name, &icon_keys),
+        apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
     let entitlements = apple.write_entitlements(&app, name)?;
     crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;

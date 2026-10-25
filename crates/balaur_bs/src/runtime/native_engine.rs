@@ -9,12 +9,66 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 
-const ABI: u32 = 1;
+const ABI: u32 = 2;
 const HOST_TRAP: i32 = 6;
 
+/// `bs_host` in the C prelude: the build links against nothing, so its
+/// memory and its stack's extent come from here.
 #[repr(C)]
 struct HostVtable {
     import: unsafe extern "C" fn(*mut c_void, u32, *const u64, *mut u64) -> i32,
+    resize: unsafe extern "C" fn(*mut c_void, u64, u64) -> *mut c_void,
+    stack_bottom: unsafe extern "C" fn() -> usize,
+}
+
+const BLOCK_ALIGN: usize = 16;
+
+// A block of `n` bytes, as both its allocation and its release name it.
+fn block(n: u64) -> Option<std::alloc::Layout> {
+    std::alloc::Layout::from_size_align(usize::try_from(n.max(1)).ok()?, BLOCK_ALIGN).ok()
+}
+
+unsafe extern "C" fn resize(ptr: *mut c_void, old: u64, new: u64) -> *mut c_void {
+    let (Some(was), Some(now)) = (block(old), block(new)) else {
+        return std::ptr::null_mut();
+    };
+    // SAFETY: a non-null `ptr` is a block this function handed out at `old` bytes.
+    unsafe {
+        if ptr.is_null() {
+            return std::alloc::alloc_zeroed(now).cast();
+        }
+        if new == 0 {
+            std::alloc::dealloc(ptr.cast(), was);
+            return std::ptr::null_mut();
+        }
+        let grown = std::alloc::realloc(ptr.cast(), was, now.size());
+        if !grown.is_null() && now.size() > was.size() {
+            grown
+                .add(was.size())
+                .write_bytes(0, now.size() - was.size());
+        }
+        grown.cast()
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+unsafe extern "C" fn stack_bottom() -> usize {
+    unsafe extern "C" {
+        fn pthread_self() -> *mut c_void;
+        fn pthread_get_stackaddr_np(thread: *mut c_void) -> *mut c_void;
+        fn pthread_get_stacksize_np(thread: *mut c_void) -> usize;
+    }
+    // SAFETY: libSystem's own answers about the calling thread.
+    unsafe {
+        let t = pthread_self();
+        pthread_get_stackaddr_np(t) as usize - pthread_get_stacksize_np(t)
+    }
+}
+
+// Elsewhere the module takes its floor from where the host first called in.
+#[cfg(not(target_vendor = "apple"))]
+unsafe extern "C" fn stack_bottom() -> usize {
+    0
 }
 
 #[repr(C)]
@@ -57,7 +111,11 @@ unsafe impl Send for Loaded {}
 
 static LOADED: Mutex<Loaded> = Mutex::new(Loaded(Vec::new()));
 
-static HOST: HostVtable = HostVtable { import };
+static HOST: HostVtable = HostVtable {
+    import,
+    resize,
+    stack_bottom,
+};
 
 /// Opens the native build at `path` and adds its modules; how many it has.
 pub(crate) fn load(path: &Path) -> Result<usize, String> {
@@ -137,7 +195,7 @@ fn raw(kind: Kind, bits: u64) -> Raw {
     match kind {
         Kind::I32 => Raw::I32(bits as u32 as i32),
         Kind::I64 => Raw::I64(bits.cast_signed()),
-        Kind::F64 => Raw::F64(f64::from_bits(bits)),
+        Kind::F64 => Raw::F64(super::values::float(bits)),
     }
 }
 

@@ -556,6 +556,7 @@ fn editor_control(S: editor::State, def: settings::Setting, path: str) -> any {
         .with("role", "input_form")
         .with("grow", 1)
         .with("text", shown)
+        .with("secret", spec.secret.as_bool())
         .with("on_submit", "handle_submit")
         .with("data", map().with("submit", editor_control_on_13).with("path", path).with("datatype", datatype))
 }

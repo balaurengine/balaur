@@ -9,7 +9,7 @@ authors.workspace = true
 [features]
 # egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
 # emoji fonts.
-fallback-fonts = ["egui/default_fonts"]
+fallback-fonts = ["egui/monochrome_emoji_fonts"]
 
 [dependencies]
 balaur_core.workspace = true

@@ -62,16 +62,19 @@ else
   log "==> runtime will be downloaded"
 fi
 
-# The last packaging step, where the platform has one. Both come out unsigned;
-# sign.sh signs them. `--apk` needs the SDK, which is a separate image tag.
+# The last packaging step, where the platform has one. Both come out unsigned
+# or debug-signed; sign.sh signs them. An `.apk` needs the SDK, which is a
+# separate image tag.
 case "$BALAUR_TARGET" in
   ios)
-    set -- "$@" --ipa
+    set -- "$@" --bundle ipa
     log "==> will wrap as .ipa (unsigned; balaur-sign signs it)"
     ;;
   android)
     if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
-      set -- "$@" "--${PACKAGE}"
+      # The debug key by name: an export never takes it because no keystore
+      # was set, and the owner's key is applied after, outside this sandbox.
+      set -- "$@" --bundle "${PACKAGE}" --sign debug
       log "==> will package an .${PACKAGE} (debug-signed; balaur-sign re-signs it)"
     elif [ "$PACKAGE" = aab ]; then
       fail "an .aab needs the Android SDK and bundletool; use the -android image"
@@ -109,6 +112,16 @@ if [ -d "${OUT}/${OUTPUT}" ]; then
   ( cd "$OUT" && zip -qry "${OUTPUT}.zip" "$OUTPUT" ) || fail "could not archive ${OUTPUT}"
   rm -rf "${OUT:?}/${OUTPUT}"
   log "==> wrote ${OUTPUT}.zip"
+elif [ -n "$(find "$OUT" -mindepth 1 -maxdepth 1 ! -name "$OUTPUT")" ]; then
+  # A desktop game with anything beside its executable (its scripts as native
+  # code, `extensions/`) is one zip of all of it, so a caller that keeps one
+  # file keeps the game whole.
+  archive="${OUTPUT%.exe}.zip"
+  log "==> archive ${OUTPUT} with what sits beside it"
+  ( cd "$OUT" && zip -qry "/work/${archive}" . ) || fail "could not archive ${OUTPUT}"
+  find "$OUT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  mv "/work/${archive}" "${OUT}/${archive}" || fail "could not write ${archive}"
+  log "==> wrote ${archive}"
 else
   log "==> wrote ${OUTPUT}"
 fi

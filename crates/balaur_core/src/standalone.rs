@@ -181,6 +181,35 @@ pub fn extensions_beside(exe: &Path) -> PathBuf {
     )
 }
 
+/// The name a native build of a game's scripts goes by.
+pub const NATIVE_SCRIPTS: &str = "BalaurScripts";
+
+/// The file a native build of the scripts is on `os`, spelled as
+/// `std::env::consts::OS` spells it.
+#[must_use]
+pub fn native_scripts_file(os: &str) -> String {
+    match os {
+        "ios" => format!("{NATIVE_SCRIPTS}.framework/{NATIVE_SCRIPTS}"),
+        "macos" => format!("lib{NATIVE_SCRIPTS}.dylib"),
+        "windows" => format!("{NATIVE_SCRIPTS}.dll"),
+        _ => format!("lib{NATIVE_SCRIPTS}.so"),
+    }
+}
+
+/// Where a game on `os` loads the native build of its scripts from, and so
+/// where the exporter puts it: in `Frameworks/` beside an iOS executable or
+/// in a `.app`'s `Contents/Frameworks`, where signing covers it, else beside
+/// the executable. An Android game opens it by name from its own libraries.
+#[must_use]
+pub fn native_scripts_beside(exe: &Path, os: &str) -> PathBuf {
+    let file = native_scripts_file(os);
+    match (os, app_contents(exe)) {
+        ("ios", _) => exe.with_file_name("Frameworks").join(file),
+        (_, Some(contents)) => contents.join("Frameworks").join(file),
+        _ => exe.with_file_name(file),
+    }
+}
+
 /// Where a download keeps its data, given the directory its binary is in:
 /// beside the binary, and in `Contents/Resources` when that binary is inside
 /// a `.app`, where a bundle's non-code belongs.
@@ -227,6 +256,32 @@ pub fn write_executable(path: &Path, bytes: &[u8], template: &Path) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_platform_finds_its_native_scripts_where_signing_reaches_them() {
+        let at = |exe: &str, os: &str| native_scripts_beside(Path::new(exe), os);
+        assert_eq!(
+            at("/games/Run.app/Contents/MacOS/Run", "macos"),
+            Path::new("/games/Run.app/Contents/Frameworks/libBalaurScripts.dylib")
+        );
+        assert_eq!(
+            at("/games/run", "macos"),
+            Path::new("/games/libBalaurScripts.dylib")
+        );
+        assert_eq!(
+            at("/var/Run.app/Run", "ios"),
+            Path::new("/var/Run.app/Frameworks/BalaurScripts.framework/BalaurScripts")
+        );
+        assert_eq!(
+            at("/opt/run/run", "linux"),
+            Path::new("/opt/run/libBalaurScripts.so")
+        );
+        assert_eq!(
+            at(r"C:\run\run.exe", "windows").file_name().unwrap(),
+            "BalaurScripts.dll"
+        );
+        assert_eq!(native_scripts_file("android"), "libBalaurScripts.so");
+    }
 
     #[test]
     fn a_bundled_binary_also_looks_in_resources() {

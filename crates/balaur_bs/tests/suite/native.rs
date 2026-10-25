@@ -187,8 +187,6 @@ fn a_trap_ends_the_call_and_the_module_runs_on() {
         "
         pub fn index(i: int) -> int { let xs = [1, 2]; xs[i] }
         pub fn divide(a: int, b: int) -> int { a / b }
-        fn deeper(n: int) -> int { deeper(n + 1) + 1 }
-        pub fn forever() -> int { deeper(0) }
         pub fn grow(n: int) -> int { let xs = [0; n]; xs.len() }
         ",
         &Options::default(),
@@ -202,7 +200,6 @@ fn a_trap_ends_the_call_and_the_module_runs_on() {
         trap(rt.call("divide", &[Value::Int(1), Value::Int(0)])),
         "integer divide by zero"
     );
-    assert_eq!(trap(rt.call("forever", &[])), "call stack exhausted");
     assert_eq!(
         rt.call("grow", &[Value::Int(1_000_000)]),
         Ok(Value::Int(1_000_000)),

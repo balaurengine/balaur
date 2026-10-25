@@ -144,6 +144,17 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     visuals.widgets.active.weak_bg_fill = hover;
     visuals.widgets.active.bg_stroke = line(primary);
     visuals.widgets.active.fg_stroke = line(text);
+    // A control no role rounds takes the theme's small radius, not egui's.
+    let control_radius = CornerRadius::same(tokens.size(t::RADIUS_SMALL).round() as u8);
+    for state in [
+        &mut visuals.widgets.noninteractive,
+        &mut visuals.widgets.inactive,
+        &mut visuals.widgets.hovered,
+        &mut visuals.widgets.active,
+        &mut visuals.widgets.open,
+    ] {
+        state.corner_radius = control_radius;
+    }
 
     let body = tokens.size(t::FONT_SIZE);
     let small = tokens.size(t::FONT_SIZE_SMALL);

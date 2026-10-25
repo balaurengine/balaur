@@ -515,7 +515,7 @@ pub(crate) fn code_editor(
             // `show` rather than `add`: a popup has to open under the caret,
             // and only the output carries the galley it sits in.
             let mut edit = egui::TextEdit::multiline(&mut buffer)
-                .id(egui::Id::new(id.to_string()))
+                .id(egui::Id::unique(id.to_string()))
                 .frame(egui::Frame::NONE)
                 .desired_width(ui.available_width())
                 .interactive(widget.egui.editable)

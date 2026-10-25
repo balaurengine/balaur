@@ -11,14 +11,13 @@ libm.workspace = true
 rustc-hash.workspace = true
 wasm-encoder = "0.262"
 smallvec.workspace = true
-# `deterministic` canonicalises NaNs, the one result wasm leaves to the platform.
-wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch", "deterministic"] }
+wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch"] }
 # Reads a module back for `c`, the translation an iOS export compiles.
 wasmparser = { version = "0.262", optional = true, default-features = false, features = ["std", "validate"] }
 
 # A JIT runs everywhere but a browser and iOS; elsewhere `wasmtime` is inert.
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
-wasmtime = { version = "48", optional = true, default-features = false, features = ["cranelift", "runtime", "std", "parallel-compilation"] }
+wasmtime = { version = "50", optional = true, default-features = false, features = ["cranelift", "runtime", "std", "parallel-compilation"] }
 # Cranelift compiles a module's functions in a pool of its own, so rayon's
 # global pool stays the physics solver's to size.
 rayon = { version = "1", optional = true }

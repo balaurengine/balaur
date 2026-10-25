@@ -107,7 +107,7 @@ impl Slide<'_> {
         let radius = self.handle_radius(rect) * self.handle.unwrap_or(1.0);
         if self.upright {
             // The largest value is at the top, the lowest y.
-            rect.y_range().shrink(radius).flip()
+            rect.y_range().shrink(radius).flipped()
         } else {
             rect.x_range().shrink(radius)
         }

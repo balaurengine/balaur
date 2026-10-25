@@ -233,8 +233,10 @@ impl DragNumber<'_> {
         let response = ui.add(
             TextEdit::singleline(&mut text)
                 .clip_text(false)
-                .horizontal_align(ui.layout().horizontal_align())
-                .vertical_align(ui.layout().vertical_align())
+                .align(egui::Align2([
+                    ui.layout().horizontal_align(),
+                    ui.layout().vertical_align(),
+                ]))
                 .margin(spacing.button_padding)
                 .min_size(spacing.interact_size)
                 .id(id)
@@ -366,7 +368,7 @@ fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui:
         }
     }
     let enabled = ui.is_enabled();
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, value));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, value));
     response
 }
 

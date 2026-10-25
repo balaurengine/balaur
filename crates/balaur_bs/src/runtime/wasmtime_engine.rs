@@ -3,6 +3,7 @@
 
 use super::engine::{Args, ImportCtx, Raw, Setup, Shared, Wasm, read_from, unit_layout};
 use super::host::dispatch;
+use super::values::float;
 use crate::{Compiled, Slot, words};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
@@ -109,7 +110,7 @@ fn vt(s: Slot) -> ValType {
 fn raw(v: &Val) -> Raw {
     match v {
         Val::I64(x) => Raw::I64(*x),
-        Val::F64(x) => Raw::F64(f64::from_bits(*x)),
+        Val::F64(x) => Raw::F64(float(*x)),
         Val::I32(x) => Raw::I32(*x),
         _ => Raw::I32(0),
     }
@@ -148,8 +149,6 @@ fn engine(fuel: bool) -> Result<Engine, String> {
     cell.get_or_init(|| {
         let mut config = wasmtime::Config::new();
         config.consume_fuel(fuel);
-        // NaN bits are the one result wasm leaves to the hardware.
-        config.cranelift_nan_canonicalization(true);
         Engine::new(&config).map_err(|e| e.to_string())
     })
     .clone()
@@ -704,7 +703,7 @@ impl Wasm for Wasmtime {
             .map(|(v, k)| match k {
                 Slot::I32 => Raw::I32(v.get_i32()),
                 Slot::I64 => Raw::I64(v.get_i64()),
-                Slot::F64 => Raw::F64(f64::from_bits(v.get_f64())),
+                Slot::F64 => Raw::F64(float(v.get_f64())),
             })
             .collect())
     }

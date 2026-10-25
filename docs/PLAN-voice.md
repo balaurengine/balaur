@@ -17,7 +17,7 @@ voice never enters the simulation.
 
 | Have | Where |
 | --- | --- |
-| Output on every target through rodio 0.22 over cpal, WebAudio on wasm | `balaur_audio`, `rodio` with `wasm-bindgen` on wasm |
+| Output on every target through rodio 0.23 over cpal, WebAudio on wasm | `balaur_audio`, `rodio` with `wasm-bindgen` on wasm |
 | Buses with volumes, and a `master` they mix into | `balaur_audio::bus`, `audio::buses`, `bus_volume_linear` |
 | Positional sound from a listener node: pan and distance gain per emitter, moved per frame | `balaur_audio::spatial`, `emitter_position`, `set_listener_position`, `pan`, `distance_gain` |
 | Unreliable datagrams on the match's link, with a size the link reports | `Transport::send_datagram`, `max_datagram` |

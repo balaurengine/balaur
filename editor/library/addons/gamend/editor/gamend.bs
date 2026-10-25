@@ -13,6 +13,17 @@ const FLUSH_KEY: str = "gamend:logs_flush";
 /// Where `client.bs` keeps the key-value rows a game subscribed to.
 const ROWS_KEY: str = "gamend:rows";
 
+/// The person's Gamend Cloud account, kept in the editor's own file
+/// (`target.rs`), and the editor API on it.
+const CLOUD: str = "gamend/cloud";
+const CLOUD_TOKEN: str = "gamend/cloud_token";
+const LINKS_PATH: str = "/api/v1/cloud/editor/links";
+const CLAIM_PATH: str = "/api/v1/cloud/editor/links/claim";
+const SERVERS_PATH: str = "/api/v1/cloud/editor/servers";
+/// The claim is held until the person approves the code; the server answers
+/// before its own ten minutes, so this only ends a lost connection.
+const CLAIM_SECONDS: float = 600.0;
+
 /// What a reply that came back fine, failed, or says little is written in.
 const QUIET: str = "text_code_quiet";
 const MUTED: str = "text_note";
@@ -36,6 +47,11 @@ pub struct Gamend {
     open: any,
     // The newest message's `seq` acted on, by topic.
     seen: any,
+    // Gamend Cloud: the code shown while the person approves it, and the
+    // requests out to the account and their replies, by kind.
+    cloud_link: any,
+    cloud_asked: any,
+    cloud_replies: any,
 }
 
 // The Editor, whose methods are what a plugin reaches the editor through.
@@ -44,7 +60,7 @@ fn editor() -> Node {
 }
 
 fn core_pages() -> [str] {
-    ["Overview", "User", "Lobby", "Data", "Activity", "Logs"]
+    ["Overview", "Cloud", "User", "Lobby", "Data", "Activity", "Logs"]
 }
 
 /// One page per server feature: the id its paths take, where one does, and
@@ -126,6 +142,40 @@ impl Gamend {
         ed.call("kit_rows", host, "body", self.page(page));
     }
 
+    /// A Gamend Cloud request came back: a link starts its claim, a claim
+    /// keeps its token, and every reply is kept for the page.
+    pub fn on_response(reply: any) {
+        let request = reply.get("request").as_int();
+        let kind = "";
+        for key in self.cloud_asked.keys() {
+            if self.cloud_asked.get(key).as_int() == request {
+                kind = key;
+            }
+        }
+        if kind == "" {
+            return;
+        }
+        self.cloud_asked.remove(kind);
+        self.cloud_replies = self.cloud_replies.with(kind, reply);
+        let status = reply.get("status").as_int();
+        let data = parsed(reply.get("body")).get("data");
+        if kind == "link" && status == 201 {
+            self.cloud_link = map().with("code", data.get("code")).with("approve_url", data.get("approve_url"));
+            engine::open_url(data.get("approve_url").as_str());
+            let body = json::encode(map().with("code", data.get("code")).with("secret", data.get("secret")));
+            self.cloud_send("claim", "POST", CLAIM_PATH, body, CLAIM_SECONDS);
+        }
+        if kind == "claim" {
+            self.cloud_link = nil();
+            if status == 200 {
+                settings::set(CLOUD_TOKEN, data.get("token").as_str());
+                editor().call("kit_save_prefs");
+                self.cloud_replies.remove("servers");
+            }
+        }
+        editor().call("kit_changed");
+    }
+
     /// A call the dock made came back: kept under the key it was asked for.
     pub fn on_gamend_event(e: any) {
         let request = e.get("request").as_int();
@@ -140,6 +190,9 @@ impl Gamend {
     fn page(name: str) -> [any] {
         if name == "Overview" {
             return self.overview();
+        }
+        if name == "Cloud" {
+            return self.cloud();
         }
         if name == "User" {
             return self.user();
@@ -177,6 +230,105 @@ impl Gamend {
         out.push(field("saved session", if saved_session().is_nil() { "none" } else { "yes, readable signed out" }, map()));
         out.push(buttons([refresh_button(self.node, "")]));
         out
+    }
+
+    /// The person's Gamend Cloud servers, any of which becomes this
+    /// project's `gamend/url` with one press; connecting the editor first.
+    fn cloud() -> [any] {
+        let base = cloud_url();
+        let out: [any] = [heading("Gamend Cloud · " + host_of(base))];
+        if cloud_token() == "" {
+            return self.cloud_connect_rows(out);
+        }
+        let reply = self.cloud_servers();
+        if reply.is_nil() {
+            out.push(line("asking for your servers…", QUIET));
+            return out;
+        }
+        let status = reply.get("status").as_int();
+        if status == 401 {
+            out.push(line("This editor was disconnected on " + host_of(base) + ". Connect it again.", FAILED));
+            out.push(buttons([button(self.node, "Connect again", "cloud_disconnect", map())]));
+            return out;
+        }
+        if status != 200 {
+            out.push(line("Your servers could not be read: " + describe(reply), FAILED));
+            out.push(buttons([button(self.node, "Try again", "cloud_refresh", map())]));
+            return out;
+        }
+        let servers = parsed(reply.get("body")).get("data");
+        let current = gamend::server().production;
+        if servers.len() == 0 {
+            out.push(empty("no servers yet: make one on " + host_of(base) + "/servers"));
+        }
+        for i in 0..servers.len() {
+            let one = servers.at(i);
+            let url = one.get("url").as_str();
+            out.push(heading(one.get("slug").as_str()));
+            out.push(field("address", url, map().with("copy", true)));
+            out.push(field("status", one.get("status").as_str() + " · " + one.get("size").as_str(), map()));
+            let picked = url == current;
+            out.push(buttons([
+                button(self.node, if picked { "This project's server" } else { "Use for this project" }, "cloud_pick", map().with("url", url)).with("checked", picked),
+            ]));
+        }
+        out.push(buttons([
+            button(self.node, "Refresh", "cloud_refresh", map()),
+            button(self.node, "Open on " + host_of(base), "open_site", map().with("url", base + "/servers")),
+            button(self.node, "Disconnect", "cloud_disconnect", map()),
+        ]));
+        out
+    }
+
+    fn cloud_connect_rows(out: [any]) -> [any] {
+        if !self.cloud_link.is_nil() {
+            out.push(field("code", self.cloud_link.get("code").as_str(), map()));
+            out.push(line("Approve this code on the page that opened in your browser. The dock waits for it.", MUTED));
+            out.push(buttons([
+                button(self.node, "Open the page again", "open_site", map().with("url", self.cloud_link.get("approve_url").as_str())),
+                button(self.node, "Cancel", "cloud_cancel", map()),
+            ]));
+            return out;
+        }
+        out.push(line("Connect this editor to your Gamend Cloud account to list your servers here and make one this project's server.", MUTED));
+        out.push(buttons([button(self.node, "Connect", "cloud_connect", map())]));
+        let failed = self.cloud_replies.get("claim");
+        if failed.is_nil() {
+            failed = self.cloud_replies.get("link");
+        }
+        if !failed.is_nil() && failed.get("status").as_int() != 200 && failed.get("status").as_int() != 201 {
+            let text = if failed.get("status").as_int() == 410 { "The code ran out before it was approved. Connect again." } else { "Not connected: " + describe(failed) };
+            out.push(line(text, FAILED));
+        }
+        out
+    }
+
+    /// The servers' reply, asked for once and kept until Refresh.
+    fn cloud_servers() -> any {
+        let held = self.cloud_replies.get("servers");
+        if !held.is_nil() {
+            return held;
+        }
+        if !self.cloud_asked.has("servers") {
+            self.cloud_send("servers", "GET", SERVERS_PATH, nil(), 15.0);
+        }
+        nil()
+    }
+
+    /// A request to the person's Gamend Cloud account, with the editor's
+    /// token when it has one; its reply reaches `on_response`.
+    fn cloud_send(kind: str, method: str, path: str, body: any, seconds: float) {
+        let headers = map().with("content-type", "application/json").with("accept", "application/json");
+        let token = cloud_token();
+        if token != "" {
+            headers = headers.with("authorization", "Bearer " + token);
+        }
+        let opts = map().with("method", method).with("headers", headers).with("timeout_seconds", seconds);
+        if !body.is_nil() {
+            opts = opts.with("body", body);
+        }
+        let asked = http::request(self.node, cloud_url() + path, opts);
+        self.cloud_asked = self.cloud_asked.with(kind, asked);
     }
 
     fn user() -> [any] {
@@ -409,6 +561,43 @@ impl Gamend {
         }
         settings::set("gamend/server", name);
         editor().call("kit_save_prefs");
+        gamend::configure(nil());
+        self.forget("");
+    }
+
+    /// Ask the account for a code, then wait for the person to approve it.
+    pub fn cloud_connect(_data: any, _value: any) {
+        self.cloud_replies = map();
+        let body = json::encode(map().with("label", "Balaur editor"));
+        self.cloud_send("link", "POST", LINKS_PATH, body, 15.0);
+    }
+
+    /// Stop waiting: the held claim is cut and the code left to run out.
+    pub fn cloud_cancel(_data: any, _value: any) {
+        if self.cloud_asked.has("claim") {
+            http::cancel(self.cloud_asked.get("claim").as_int());
+            self.cloud_asked.remove("claim");
+        }
+        self.cloud_link = nil();
+    }
+
+    pub fn cloud_refresh(_data: any, _value: any) {
+        self.cloud_replies.remove("servers");
+    }
+
+    /// Forget the token here. gamend.org's `/editor/connect` lists it until
+    /// it is disconnected there too.
+    pub fn cloud_disconnect(_data: any, _value: any) {
+        settings::set(CLOUD_TOKEN, "");
+        editor().call("kit_save_prefs");
+        self.cloud_replies = map();
+    }
+
+    /// Make a server this project's: `gamend/url`, kept in `project.toml`,
+    /// and the dock talking to it when production is the target.
+    pub fn cloud_pick(data: any, _value: any) {
+        settings::set("gamend/url", data.get("url").as_str());
+        editor().call("kit_save_project");
         gamend::configure(nil());
         self.forget("");
     }
@@ -700,6 +889,33 @@ fn addon_version() -> str {
     }
     let parts = text.unwrap().split("\"");
     if parts.len() >= 2 { parts[1] } else { "unknown" }
+}
+
+fn cloud_url() -> str {
+    let set = settings::get(CLOUD);
+    let url = if set.kind() == "str" { set.as_str() } else { "" };
+    if url == "" { "https://gamend.org" } else { url.trim() }
+}
+
+fn cloud_token() -> str {
+    let set = settings::get(CLOUD_TOKEN);
+    if set.kind() == "str" { set.as_str() } else { "" }
+}
+
+/// A reply's body as data: `http::` answers text.
+fn parsed(body: any) -> any {
+    if body.kind() == "str" { json::parse(body.as_str()) } else { body }
+}
+
+/// Why a raw reply failed, in a few words.
+fn describe(reply: any) -> str {
+    if reply.get("kind").as_str() == "error" {
+        return reply.get("error").as_str();
+    }
+    let body = parsed(reply.get("body"));
+    let error = body.get("error");
+    let status = reply.get("status").as_int();
+    if error.kind() == "str" { "{status} " + error.as_str() } else { "status {status}" }
 }
 
 fn host_of(url: str) -> str {

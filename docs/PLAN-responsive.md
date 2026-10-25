@@ -17,7 +17,7 @@ override shape that widgets, themes and settings all take.
 
 Measured 2026-09-13.
 
-- **One stack.** Every control, the editor's and a game's, is egui 0.36 drawn
+- **One stack.** Every control, the editor's and a game's, is egui 0.37 drawn
   inside the kiss3d fork, which owns the window, the surface and the egui
   context. `crates/balaur_ui` has two vocabularies: the `widget` component a
   scene holds, 29 kinds laid out by taffy, and the `ui::*` verbs the editor

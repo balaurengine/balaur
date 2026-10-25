@@ -44,7 +44,9 @@ physics3d = []
 parallel = ["dep:rayon", "rapier2d/parallel", "rapier3d/parallel"]
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
+# `bs`: the tests' scenes attach Balaur Script, which is a feature now that
+# Rune, always built in, is gone.
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }
 tempfile = "3"
 
 [lints]

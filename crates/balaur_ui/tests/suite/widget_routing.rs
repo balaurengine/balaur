@@ -150,7 +150,7 @@ fn a_popup_the_widget_layer_did_not_draw_takes_its_own_area() {
             )),
             ..Default::default()
         });
-        egui::Area::new(egui::Id::new("popup"))
+        egui::Area::new(egui::Id::unique("popup"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos2(400.0, 300.0))
             .show(&ctx, |ui| {

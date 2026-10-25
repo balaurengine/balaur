@@ -57,7 +57,7 @@ times, so read yours rather than this.
 | `scripts/precommit.sh --files` | 7 s | 7 s | rustfmt, then five Python passes |
 | `scripts/precommit.sh --lints` | a full build | 6 s | thirteen clippy shapes on macOS, ten elsewhere, a target tree each |
 | `scripts/precommit.sh` | a full build | 48 m | every test, one process each |
-| `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project, every editor state each |
+| `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project; the editor states on four of them |
 | `scripts/e2e.sh target/e2e hello` | n/a | 8 m | one project through run, export, play, edit and render |
 | `node scripts/web_smoke.mjs dist/play` | n/a | 2 m | every pack of a web bundle, 8 s each in headless Chrome |
 

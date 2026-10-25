@@ -1,13 +1,10 @@
 // A game's `.bs` scripts as native code: an export writes their C, and the
-// backend loads the framework built from it, when there is one, at start.
+// backend loads the library built from it, when there is one, at start.
 
 #[cfg(feature = "c")]
 use crate::host::{BsHost, key_of};
 #[cfg(feature = "c")]
 use anyhow::{Context, Result, anyhow};
-
-/// The framework the native build goes by, in the app's `Frameworks`.
-pub const NATIVE_FRAMEWORK: &str = "BalaurScripts";
 
 /// The `.bs` files among `scripts` as one C file, compiled as this game's
 /// runtime compiles them, and how many there are; `None` when there are none
@@ -70,25 +67,31 @@ pub(crate) fn has_native(wasm: &[u8]) -> bool {
 /// is one; whether any is loaded.
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub(crate) fn load_beside_executable() -> bool {
+    use balaur_core::standalone::{native_scripts_beside, native_scripts_file};
     static LOADED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *LOADED.get_or_init(|| {
-        let Some(path) = std::env::current_exe().ok().and_then(|exe| {
-            let dir = exe.parent()?.join("Frameworks");
-            Some(
-                dir.join(format!("{NATIVE_FRAMEWORK}.framework"))
-                    .join(NATIVE_FRAMEWORK),
-            )
-        }) else {
-            return false;
+        let os = std::env::consts::OS;
+        // Android opens it by name from the app's own libraries.
+        let path = if os == "android" {
+            std::path::PathBuf::from(native_scripts_file(os))
+        } else {
+            let Some(path) = std::env::current_exe()
+                .ok()
+                .map(|exe| native_scripts_beside(&exe, os))
+            else {
+                return false;
+            };
+            if !path.is_file() {
+                return false;
+            }
+            path
         };
-        if !path.is_file() {
-            return false;
-        }
         match balaur_bs::runtime::load_native(&path) {
             Ok(n) => {
                 tracing::info!("{n} script(s) run as native code");
                 true
             }
+            Err(e) if os == "android" && e.contains("not found") => false,
             Err(e) => {
                 tracing::error!("{}: {e}; scripts run interpreted", path.display());
                 false

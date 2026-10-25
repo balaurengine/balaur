@@ -320,14 +320,15 @@ fn affixes(prefix: &str, suffix: &str) -> (String, String) {
 /// One of a `number_field`'s two steps: a glyph in `rect` that lights up
 /// under the pointer, true on the pass it was clicked.
 fn arrow(ui: &mut egui::Ui, rect: egui::Rect, glyph: &str, size: f32) -> bool {
-    // Put as egui puts a button: centred on the rect, and as tall as a
-    // control even where the rect is shorter, so the pair overlaps.
+    // Exactly its half: where two widgets overlap egui hands the click to the
+    // later one, so a control-tall pair gave the up arrow's lower half to down.
     let response = ui.put(rect, |ui: &mut egui::Ui| {
+        ui.spacing_mut().interact_size.y = rect.height();
         crate::widget::button::sensor(
             ui,
-            egui::Vec2::ZERO,
+            rect.size(),
             egui::Sense::click(),
-            egui::WidgetType::Button,
+            egui::Role::Button,
             glyph,
         )
     });
@@ -394,9 +395,9 @@ pub(crate) fn progress(
     response.widget_info(|| {
         let mut info = match &shown {
             Some(text) if !widget.egui.show_percentage => {
-                egui::WidgetInfo::labeled(egui::WidgetType::ProgressIndicator, enabled, text)
+                egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, enabled, text)
             }
-            _ => egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator),
+            _ => egui::WidgetInfo::new(egui::Role::ProgressIndicator),
         };
         info.value = Some((f64::from(fraction) * 100.0).floor());
         info

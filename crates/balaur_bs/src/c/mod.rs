@@ -32,7 +32,7 @@ pub fn translate(modules: &[&[u8]]) -> Result<String, String> {
     }
     let _ = write!(
         out,
-        "}};\n\n__attribute__((visibility(\"default\"))) const bs_entry *balaur_bs_modules(uint32_t *count) {{\n  \
+        "}};\n\nBS_EXPORT const bs_entry *balaur_bs_modules(uint32_t *count) {{\n  \
          *count = {};\n  return bs_entries;\n}}\n",
         entries.len()
     );

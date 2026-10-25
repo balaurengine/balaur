@@ -75,6 +75,14 @@ project=$work/project
 "$balaur" new "$project" >/dev/null
 # With an icon, so what is signed is a runtime whose resources the export rewrote.
 "$(dirname "$0")/with_icon.sh" "$project"
+# A bundle invents no identity, so the one this signs is declared.
+cat >>"$project/project.toml" <<'TOML'
+
+[apple]
+bundle_id = "org.balaur.signing-check"
+version = "1.0.0"
+build_number = "1"
+TOML
 
 # A signed game has to still find the pack behind its own signature: on
 # Windows the certificate table lands after it, and this is the only check

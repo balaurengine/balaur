@@ -56,6 +56,18 @@ pub(crate) fn rd64(r: &(impl Reader + ?Sized), at: usize) -> u64 {
     )
 }
 
+/// The float in `bits`, as a module hands it out. A NaN's sign and payload
+/// are the hardware's, so the host only ever sees the canonical NaN.
+pub(crate) fn float(bits: u64) -> f64 {
+    const CANONICAL_NAN: u64 = 0x7ff8_0000_0000_0000;
+    let x = f64::from_bits(bits);
+    if x.is_nan() {
+        f64::from_bits(CANONICAL_NAN)
+    } else {
+        x
+    }
+}
+
 /// Field and element layout, as the compiler lays them out.
 pub(crate) fn slots(meta: &Meta, ty: &Ty) -> Vec<(crate::Slot, Option<Ty>)> {
     use crate::Slot;
@@ -130,7 +142,7 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
     match ty {
         Ty::Int => Value::Int(rd64(m, at) as i64),
         Ty::Node => Value::Node(rd64(m, at) as i64),
-        Ty::Float => Value::Float(f64::from_bits(rd64(m, at))),
+        Ty::Float => Value::Float(float(rd64(m, at))),
         Ty::Bool => Value::Bool(rd32(m, at) != 0),
         // A `fn` shows as its table slot.
         Ty::Fn(..) => Value::Int(i64::from(rd32(m, at))),
@@ -200,7 +212,7 @@ pub(crate) fn read_any(meta: &Meta, m: &(impl Reader + ?Sized), p: usize) -> Val
         BOOL => Value::Bool(rd32(m, at) != 0),
         INT => Value::Int(rd64(m, at) as i64),
         NODE => Value::Node(rd64(m, at) as i64),
-        FLOAT => Value::Float(f64::from_bits(rd64(m, at))),
+        FLOAT => Value::Float(float(rd64(m, at))),
         STR => read_str(m, rd32(m, at) as usize),
         LIST => read_array(meta, m, &Ty::Any, rd32(m, at) as usize),
         MAP => {
@@ -284,7 +296,7 @@ pub(crate) fn decode(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, raw: &[Ra
         Ty::Node => Value::Node(scalar(raw[0]) as i64),
         Ty::Float => match raw[0] {
             Raw::F64(x) => Value::Float(x),
-            r => Value::Float(f64::from_bits(scalar(r))),
+            r => Value::Float(float(scalar(r))),
         },
         Ty::Bool => Value::Bool(raw[0].i32() != 0),
         Ty::Fn(..) => Value::Int(i64::from(raw[0].i32())),

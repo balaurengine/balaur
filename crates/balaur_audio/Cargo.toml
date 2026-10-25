@@ -33,7 +33,7 @@ tracing.workspace = true
 libm.workspace = true
 # `experimental` lists output devices and opens automatic gain control's knobs
 # to a live change.
-rodio = { version = "0.22", default-features = false, features = ["playback", "experimental"] }
+rodio = { version = "0.23", default-features = false, features = ["playback", "experimental"] }
 
 [dev-dependencies]
 tempfile = "3"
@@ -41,7 +41,7 @@ tempfile = "3"
 # The WebAudio host: cpal reaches the browser's AudioContext through
 # wasm-bindgen, so the same rodio backend plays on every target.
 [target.'cfg(target_family = "wasm")'.dependencies]
-rodio = { version = "0.22", default-features = false, features = ["playback", "experimental", "wasm-bindgen"] }
+rodio = { version = "0.23", default-features = false, features = ["playback", "experimental", "wasm-bindgen"] }
 # The dither's noise is seeded from the system: in a browser that is
 # `crypto.getRandomValues`, which getrandom reaches only with this feature.
 getrandom = { version = "0.4", features = ["wasm_js"] }
