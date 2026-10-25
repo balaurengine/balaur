@@ -22,7 +22,6 @@ pub(crate) struct ExportArgs {
     pub(crate) notarize: bool,
     pub(crate) provisioning_profile: Option<PathBuf>,
     pub(crate) dry_run: bool,
-    pub(crate) set: Vec<String>,
 }
 
 /// A package `export --bundle` makes beside the export.
@@ -56,11 +55,6 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
     let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);
     #[cfg(target_family = "wasm")]
     let plugins = None;
-    let settings = args
-        .set
-        .iter()
-        .map(|line| line.parse().map_err(|why: String| anyhow::anyhow!("--set {why}")))
-        .collect::<Result<Vec<balaur_export::Setting>>>()?;
     balaur_export::export(&balaur_export::Options {
         path: args.path.clone(),
         output: args.output.clone(),
@@ -77,7 +71,6 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
         pkg: args.bundle.contains(&BundleKind::Pkg),
         dry_run: args.dry_run,
         runtime_roots: balaur_export::default_roots(crate::runtimes::cache_dir()),
-        settings,
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },
     })

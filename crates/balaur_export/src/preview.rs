@@ -37,7 +37,7 @@ pub struct Preview {
 /// # Errors
 /// If the file cannot be read, or a step the export would run refuses it.
 pub fn preview(project: &Path, rel: &str, target: Option<&str>) -> Result<Preview> {
-    let manifest = config::manifest_for(project, target, &[])?;
+    let manifest = config::manifest_for(project, target)?;
     let export = ExportConfig::from_manifest(&manifest, project)?;
     let source = config::manifest_text(project).unwrap_or_default();
     let tags = config::tags_for(&source, target)?;

@@ -69,7 +69,6 @@ from the matching release.
 | `BALAUR_VERSION` | which runtimes under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
-| `BALAUR_SETTINGS` | export settings over `project.toml`: `group.key=value` entries split by `;`, each a `balaur export --set` |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Export the project at /src for one platform, into /out. docker/README.md has
 # the contract in full: /src /out /cache /work, and BALAUR_TARGET, _VERSION,
-# _OUTPUT, _ANDROID_PACKAGE, _SETTINGS. Exit status is the verdict.
+# _OUTPUT, _ANDROID_PACKAGE. Exit status is the verdict.
 set -eu
 
 log() { printf '%s\n' "$*"; }
@@ -46,19 +46,6 @@ mkdir -p "$WORK" || fail "could not create ${WORK}"
 cp -a "${SRC}/." "$WORK" || fail "could not stage source"
 
 set -- export . --target "$BALAUR_TARGET"
-
-# Export settings over the project's own, `group.key=value` entries split by
-# `;`, each a `balaur export --set`. Not lines: --env-file refuses a newline.
-if [ -n "${BALAUR_SETTINGS:-}" ]; then
-  set -f
-  saved_ifs=$IFS
-  IFS=';'
-  for setting in $BALAUR_SETTINGS; do
-    if [ -n "$setting" ]; then set -- "$@" --set "$setting"; fi
-  done
-  IFS=$saved_ifs
-  set +f
-fi
 
 if [ -d /cache ]; then
   version="${BALAUR_VERSION:-latest}"

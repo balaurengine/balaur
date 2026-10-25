@@ -34,7 +34,7 @@ mod variants;
 use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
-pub use config::{DEFAULT_OUTPUT, ExportConfig, NativeScripts, Runtime, Setting};
+pub use config::{DEFAULT_OUTPUT, ExportConfig, NativeScripts, Runtime};
 pub use fits::fits;
 
 /// Everything an export was asked for.
@@ -78,8 +78,6 @@ pub struct Options<'a> {
     pub pkg: bool,
     /// Where runtimes are looked for, most specific first.
     pub runtime_roots: Vec<PathBuf>,
-    /// Export settings laid over the project's own, after every override.
-    pub settings: Vec<Setting>,
     /// Modules to register before compiling, for a project whose scripts
     /// call something this binary adds rather than the engine.
     pub plugins: Option<&'a ExtraModules>,
@@ -103,7 +101,7 @@ pub type WebFile = (String, Vec<u8>);
 /// # Errors
 /// If `project.toml` does not parse, or an icon it names does not read.
 pub fn web_page(project: &Path, shell: &str, title: &str) -> Result<(String, Vec<WebFile>)> {
-    let manifest = config::manifest_for(project, Some("web"), &[])?;
+    let manifest = config::manifest_for(project, Some("web"))?;
     let icons = icon::Icons::load(project, &manifest)?;
     let page = icon::web_page(
         shell,
@@ -304,23 +302,12 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let mut pack = balaur::build_pack_using(&opts.path, opts.keep_sources, &mut extra)?;
     // One read, resolved for the target: `[override.android.export]` is
     // folded onto `[export]` before any of these three is parsed.
-    let manifest = config::manifest_for(&opts.path, target, &opts.settings)?;
-    let read = || -> Result<_> {
-        Ok((
-            AppleConfig::from_manifest(&manifest, &opts.path)?,
-            android::AndroidConfig::from_manifest(&manifest, &opts.path)?,
-            ExportConfig::from_manifest(&manifest, &opts.path)?,
-            config::WindowsConfig::from_manifest(&manifest, &opts.path)?,
-        ))
-    };
-    // A bad value may be the caller's, not the file's: say which it laid over.
-    let (apple, mut android, config, windows_signing) = if opts.settings.is_empty() {
-        read()?
-    } else {
-        let set: Vec<String> = opts.settings.iter().map(Setting::to_string).collect();
-        read().with_context(|| format!("with --set {}", set.join(" --set ")))?
-    };
+    let manifest = config::manifest_for(&opts.path, target)?;
+    let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
+    let mut android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     android.debug_key = opts.sign.as_deref() == Some("debug");
+    let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
+    let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
