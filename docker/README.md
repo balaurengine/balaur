@@ -11,7 +11,7 @@ as useful in a GitHub Actions job as it is in a hosted builder.
 
 | Tag | What | Architectures |
 |---|---|---|
-| `:nightly` | follows `main` | amd64, arm64 |
+| `:nightly` | follows `main`, once its `nightly` release is out | amd64, arm64 |
 | `:<version>` | a released engine, e.g. `:v0.2.0` | amd64, arm64 |
 | `:latest` | the newest release | amd64, arm64 |
 | `:nightly-android`, `:<version>-android` | the same, plus the Android SDK | amd64, arm64 |

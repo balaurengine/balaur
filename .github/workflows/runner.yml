@@ -46,9 +46,8 @@ jobs:
       packages: write
     uses: ./.github/workflows/container-signer.yml
 
-  # The same engine as a container image, from that run's own editor binaries.
-  # `!cancelled()` because a failure elsewhere in the matrix — a mobile export,
-  # the web bundle — used to skip this without a word.
+  # The run's engine as an image: built even when a job failed, so a broken Dockerfile shows,
+  # and pushed only with its release, so `:nightly` never names a build the release lacks.
   container:
     needs: build
     if: ${{ !cancelled() }}
@@ -56,3 +55,5 @@ jobs:
       contents: read
       packages: write
     uses: ./.github/workflows/container.yml
+    with:
+      publish: ${{ needs.build.outputs.released == 'true' }}

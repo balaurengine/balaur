@@ -7,6 +7,10 @@ on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
   # dispatchable so it can still be run on its own from the Actions tab.
   workflow_call:
+    outputs:
+      released:
+        description: "'true' once draft-release made this commit's release; container.yml publishes only then"
+        value: ${{ jobs.draft-release.outputs.released }}
   workflow_dispatch:
 
 env:
@@ -437,6 +441,8 @@ jobs:
     # Drafting a release means writing to the repo's releases.
     permissions:
       contents: write
+    outputs:
+      released: ${{ steps.draft.outputs.released }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -445,6 +451,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Draft the release
+        id: draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/draft_release.sh dist

@@ -116,3 +116,10 @@ gh release create "$tag" \
   "${assets[@]}"
 
 printf '\nrelease %s created (%s)\n' "$tag" "${kind[0]#--}"
+
+# What the engine image is published on: an image and a release of different
+# builds break every export that fuses one onto the other's runtime. The
+# early exit above, for a run the branch has moved past, leaves it unset.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  printf 'released=true\n' >>"$GITHUB_OUTPUT"
+fi

@@ -360,8 +360,10 @@ impl ProjectFs {
             tracing::warn!("keeping files in the browser failed; trying again");
             fs.put_back(batch, name);
         });
+        // A transaction that fails aborts, whatever failed in it, so `abort`
+        // alone puts the batch back: a failed request raises `error` first,
+        // and a callback on both ran twice.
         transaction.set_oncomplete(Some(on_done.unchecked_ref()));
-        transaction.set_onerror(Some(on_err.unchecked_ref()));
         transaction.set_onabort(Some(on_err.unchecked_ref()));
         Some(transaction)
     }
@@ -813,6 +815,13 @@ async fn finished(request: &IdbRequest) -> Result<JsValue, JsValue> {
 }
 
 /// Await a whole transaction, which is what makes a batch one write.
+///
+/// Through listeners, never `oncomplete`/`onabort`: [`ProjectFs::issue`]
+/// holds those for its count and the `balaur-project-kept` event, and a
+/// flush that took them over left the event unsent and the count stuck, so
+/// a page never heard what `save_project` kept and always read it unsaved.
+/// A failed transaction aborts, so `abort` is the failure, one no request
+/// raised included (a full disk at commit).
 async fn settled(transaction: &IdbTransaction) -> Result<(), JsValue> {
     let promise = js_sys::Promise::new(&mut |resolve, reject| {
         let on_done = Closure::once_into_js(move |_: web_sys::Event| {
@@ -822,8 +831,8 @@ async fn settled(transaction: &IdbTransaction) -> Result<(), JsValue> {
         let on_err = Closure::once_into_js(move |_: web_sys::Event| {
             let _ = reject.call1(&JsValue::NULL, &fault(failed.error()));
         });
-        transaction.set_oncomplete(Some(on_done.unchecked_ref()));
-        transaction.set_onerror(Some(on_err.unchecked_ref()));
+        let _ = transaction.add_event_listener_with_callback("complete", on_done.unchecked_ref());
+        let _ = transaction.add_event_listener_with_callback("abort", on_err.unchecked_ref());
     });
     JsFuture::from(promise).await.map(|_| ())
 }
