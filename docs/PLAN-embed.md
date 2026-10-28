@@ -3,7 +3,7 @@
 > `physics3d` and each audio codec gate their code; a `-2d` and `-3d` template
 > of every target is built and exported in CI, and `[export] runtime` picks
 > one. The site's examples play on theirs. The budget gate is left; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
-> `balaur export --target web` writes a page, the module and a pack, and the
+> `balaur export --target web` writes a page, the module and an export pack, and the
 > site runs every example and the editor on it. What Spline has and this
 > does not is the shape of the thing on someone else's page: an element to
 > drop in, a package to import, an API the page calls, and a download small
@@ -26,14 +26,14 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| A web export: a shell page, `balaur.js`, `balaur_bg.wasm`, the pack fetched beside them, a project's own `web/index.html` honoured | `balaur_export::bundle`, `crates/balaur_export/src/web/index.html` |
+| A web export: a shell page, `balaur.js`, `balaur_bg.wasm`, the export pack fetched beside them, a project's own `web/index.html` honoured | `balaur_export::bundle`, `crates/balaur_export/src/web/index.html` |
 | The module booted on a canvas, and the editor too | `balaur::boot_pack_on_canvas`, `boot_editor_on_canvas`, `crates/balaur_cli/src/web.rs` |
 | A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_browser` |
-| The site's loader and player, one stamped set of glue, module and packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
+| The site's loader and player, one stamped set of glue, module and export packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
 | The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
-| Packs compiled for every target, the web included; sources only on request, and only a build with `compile` runs them | `balaur export --keep-sources`, the `compile` feature |
+| Export packs compiled for every target, the web included; sources only on request, and only a build with `compile` runs them | `balaur export --keep-sources`, the `compile` feature |
 | A game template apart from the editor's module: no export tooling, no editor entry points, no Rune compiler, no WESL linker, no egui fonts | the `editor`, `compile` and `fallback-fonts` features, `scripts/package_play.sh` |
-| Every shader a game draws with linked at export into the pack; kiss3d's own linked when it compiles | `balaur_render::prelinked`, `.balaur/shaders.toml.deflate`, kiss3d's `build.rs` |
+| Every shader a game draws with linked at export into the export pack; kiss3d's own linked when it compiles | `balaur_render::prelinked`, `.balaur/shaders.toml.deflate`, kiss3d's `build.rs` |
 | Each physics world behind a feature, both on by default, and each audio codec | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
 | A template per world for every target, built, exported and run in CI | `scripts/export_check.sh`, `scripts/package.sh`, the `build-templates` job |
 | The project picks its runtime, and an export refuses one missing a physics world a scene or script uses | `[export] runtime = "2d"`, the Export sheet's Runtime choice, `balaur_export::fits` |
@@ -92,7 +92,7 @@ the keyboard only when focused so a page keeps its scroll. `transparent`
 asks the backend for an alpha swapchain and a clear with alpha zero, and
 `set_background` learns an alpha. The exported shell grows a `--pwa` option
 beside it: a manifest and a service worker around the page, so a game
-installs to a home screen and opens offline from the cached module and pack.
+installs to a home screen and opens offline from the cached module and export pack.
 
 **React is a wrapper and nothing more.** `@balaurengine/react` exports
 `<BalaurViewer>` with the same attributes as props and `onReady(app)`;
@@ -108,7 +108,7 @@ protocol above is what it carries.
 `WEB_FEATURES` — `window` alone; with `audio`; with `http,websocket`; with
 `gamend` — and `balaur export --target web` picks the smallest that satisfies
 the project's `[plugins]`, since a browser cannot build one. The Rune
-compiler goes behind a `compile` feature that a compiled pack does not need,
+compiler goes behind a `compile` feature that a compiled export pack does not need,
 which is the single largest item after the renderer. `wasm-opt -Oz` and
 brotli are already in the packaging; physics split into `physics2d` and
 `physics3d` features is the next cut. The first budget is the `window`-only
@@ -150,7 +150,7 @@ boolean or a text mesh leaves the engine.
 | glTF export | Step 6, `gltf-json` |
 | USDZ | Not planned; Apple's `usdzconvert` over the glTF is the fallback |
 | Swift and Kotlin snippets | Not this plan: the iOS and Android exports and `docs/PLAN-c-api.md` are where a native host embeds the runtime |
-| A cost panel: draw calls, triangles, textures, pack size per asset, module size per feature | Step 6 exposes `render.stats`; `docs/PLAN-editor-ergonomics.md` draws it |
+| A cost panel: draw calls, triangles, textures, export pack size per asset, module size per feature | Step 6 exposes `render.stats`; `docs/PLAN-editor-ergonomics.md` draws it |
 
 ## 3. Steps
 

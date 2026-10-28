@@ -9,6 +9,7 @@ mod bs;
 mod bs_host;
 mod components;
 mod dap;
+mod dependencies;
 mod digest_cover;
 mod editor_theme;
 mod extensions;

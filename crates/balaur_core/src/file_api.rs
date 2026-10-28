@@ -118,8 +118,20 @@ fn packed_files(
     from_pack.then_some(project)
 }
 
+/// The path a script named, as its own project spells it.
+fn named<'a>(eng: &Engine, args: &'a [Value], at: usize) -> Result<std::borrow::Cow<'a, str>> {
+    Ok(crate::dependencies::scoped(eng, text(args, at)?))
+}
+
+/// A path a script writes to: resolved, and refused inside a dependency.
+fn writable(eng: &Engine, args: &[Value], at: usize) -> Result<PathBuf> {
+    let path = resolve(eng, &named(eng, args, at)?)?;
+    crate::dependencies::refuse_write(eng, &path)?;
+    Ok(path)
+}
+
 pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let named = text(args, 0)?;
+    let named = &*named(eng, args, 0)?;
     if let Some(project) = packed_files(eng, named) {
         let project = project.borrow();
         if project.packs(named)
@@ -141,13 +153,13 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Creating the parent is part of writing: a tool that saves an asset into
 /// `animations/` should not fail because the project has never had one.
 pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let path = writable(eng, args, 0)?;
     files::backend(eng).write(&path, text(args, 1)?.as_bytes())?;
     Ok(Value::Nil)
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let named = text(args, 0)?;
+    let named = &*named(eng, args, 0)?;
     if packed_files(eng, named).is_some_and(|project| project.borrow().packs(named)) {
         return Ok(Value::Bool(true));
     }
@@ -160,12 +172,12 @@ pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Answers whether there was anything there, rather than failing: a tool
 /// deleting what a previous run already deleted has nothing to report.
 pub(crate) fn fs_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let path = writable(eng, args, 0)?;
     Ok(Value::Bool(files::backend(eng).remove(&path)?))
 }
 
 pub(crate) fn fs_mkdir(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let path = writable(eng, args, 0)?;
     files::backend(eng).mkdir(&path)?;
     Ok(Value::Nil)
 }
@@ -173,8 +185,8 @@ pub(crate) fn fs_mkdir(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Move a file or directory. The destination's parent is made first, for the
 /// same reason `fs::write` makes one.
 pub(crate) fn fs_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let from = resolve(eng, text(args, 0)?)?;
-    let to = resolve(eng, text(args, 1)?)?;
+    let from = writable(eng, args, 0)?;
+    let to = writable(eng, args, 1)?;
     files::backend(eng).rename(&from, &to)?;
     Ok(Value::Nil)
 }
@@ -184,8 +196,8 @@ pub(crate) fn fs_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Not `read` then `write`: those go through script strings, and a `.png` or
 /// a `.glb` is not text.
 pub(crate) fn fs_copy(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let from = resolve(eng, text(args, 0)?)?;
-    let to = resolve(eng, text(args, 1)?)?;
+    let from = resolve(eng, &named(eng, args, 0)?)?;
+    let to = writable(eng, args, 1)?;
     let bytes = files::backend(eng).read(&from)?;
     files::backend(eng).write(&to, &bytes)?;
     Ok(Value::Nil)
@@ -194,14 +206,14 @@ pub(crate) fn fs_copy(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// When a file last changed, in seconds since the epoch, or `()` for one that
 /// is not there. A tool polling for edits compares this instead of re-reading.
 pub(crate) fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let path = resolve(eng, &named(eng, args, 0)?)?;
     Ok(files::backend(eng)
         .mtime(&path)
         .map_or(Value::Nil, Value::Num))
 }
 
 pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let dir = text(args, 0)?;
+    let dir = &*named(eng, args, 0)?;
     let path = resolve(eng, dir)?;
     let mut names: Vec<(String, bool)> = files::backend(eng)
         .list(&path)

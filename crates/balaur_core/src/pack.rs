@@ -75,6 +75,13 @@ impl Pack {
     /// A script that imports a file the pack leaves out fails the build,
     /// naming the `[application] ignore` pattern that dropped it: the game
     /// would fail on it when it runs.
+    ///
+    /// Each of `[dependencies]` ships under `deps/<alias>/`, less what its
+    /// own `ignore` names, with its documents rewritten to the game's
+    /// spelling (a packed run never asks which project owns a document) and
+    /// its assets that nothing names dropped, whatever `[export] strip` says:
+    /// a game pays only for what it uses of a large dependency. Its own
+    /// `[export] include` globs keep what its scripts build.
     pub fn build(
         project_root: &Path,
         compiler: &dyn balaur_script::ScriptCompiler,
@@ -105,9 +112,8 @@ impl Pack {
             manifest,
             ..Default::default()
         };
-        let mut files = Vec::new();
         let ignored = crate::ignore::from_manifest(&pack.manifest);
-        collect_files(&*fs, project_root, project_root, &ignored, &mut files);
+        let (fs, files, shipped) = gathered(fs, project_root, &pack.manifest, &ignored)?;
         let nested = nested_roots(&files);
         // Every script is compiled before the build fails, so one export
         // names every file that does not compile rather than the first.
@@ -115,6 +121,10 @@ impl Pack {
         // Each script and the files it links in, checked against what ships
         // once every script is in.
         let mut used: Vec<(String, Vec<String>)> = Vec::new();
+        // What every script's source names, read before it becomes bytecode
+        // no literal can be read back out of: what the strip under `deps/`
+        // keeps.
+        let mut literals = BTreeSet::new();
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
@@ -125,6 +135,9 @@ impl Pack {
                     if in_nested(&nested, &rel) {
                         pack.scripts.insert(rel, source.into_bytes());
                         continue;
+                    }
+                    if !shipped.is_empty() {
+                        literals.extend(script_references(&rel, &source));
                     }
                     let checked = compiler
                         .compile(&rel, &source)
@@ -151,7 +164,12 @@ impl Pack {
                 // `scenes` is the pack's text map: scene documents, asset
                 // documents and shader sources all read back through it.
                 Some("toml") if rel != "project.toml" => {
-                    pack.scenes.insert(rel, text(&*fs, &path)?);
+                    let source = text(&*fs, &path)?;
+                    let source = match shipped.iter().find(|dep| dep.holds(&rel)) {
+                        Some(dep) => dep.game_spelling(&*fs, &source),
+                        None => source,
+                    };
+                    pack.scenes.insert(rel, source);
                 }
                 Some("wesl") => {
                     pack.scenes.insert(rel, text(&*fs, &path)?);
@@ -192,7 +210,85 @@ impl Pack {
         }
         // After every script compiled: the calls they make.
         pack.api = compiler.api();
+        if !shipped.is_empty() {
+            pack.finish_dependencies(&shipped, &literals);
+        }
         Ok(pack)
+    }
+
+    /// Drop each dependency's assets nothing names, bake its
+    /// `[import.<kind>]` defaults into the sidecars of what is left, and
+    /// write `deps/credits.json` for the game's credits screen.
+    fn finish_dependencies(&mut self, shipped: &[Shipped], literals: &BTreeSet<String>) {
+        let mut keep = crate::dependencies::strings_at(
+            &toml::from_str(&self.manifest).unwrap_or_default(),
+            "export",
+            "include",
+        );
+        for dep in shipped {
+            keep.extend(
+                dep.include
+                    .iter()
+                    .map(|glob| format!("{}/{glob}", dep.folder)),
+            );
+        }
+        let dir = format!("{}/", crate::dependencies::DIR);
+        let references = self.references_with(literals.clone());
+        let dropped: Vec<String> = self
+            .assets
+            .keys()
+            .filter(|key| {
+                key.starts_with(&dir)
+                    && !is_referenced(key, &references)
+                    && !keep.iter().any(|pattern| glob_matches(pattern, key))
+            })
+            .cloned()
+            .collect();
+        for key in dropped {
+            self.assets.remove(&key);
+        }
+        for dep in shipped {
+            let prefix = format!("{}/", dep.folder);
+            let keys: Vec<String> = self
+                .assets
+                .keys()
+                .filter(|key| key.starts_with(&prefix))
+                .cloned()
+                .collect();
+            for key in keys {
+                let Some(defaults) = crate::import::kind_of(&key)
+                    .and_then(|kind| dep.import.get(kind)?.as_table().cloned())
+                else {
+                    continue;
+                };
+                let sidecar = crate::import::sidecar_of(&key);
+                let mut settings = defaults;
+                if let Some(own) = self
+                    .scenes
+                    .get(&sidecar)
+                    .and_then(|text| toml::from_str::<toml::Table>(text).ok())
+                {
+                    settings.extend(own);
+                }
+                self.scenes
+                    .insert(sidecar, toml::to_string(&settings).unwrap_or_default());
+            }
+        }
+        let credits: Vec<serde_json::Value> = shipped
+            .iter()
+            .map(|dep| {
+                serde_json::json!({
+                    "alias": dep.alias,
+                    "project": dep.project,
+                    "rev": dep.rev,
+                    "license": dep.license,
+                })
+            })
+            .collect();
+        self.assets.insert(
+            format!("{}/{CREDITS}", crate::dependencies::DIR),
+            serde_json::to_vec_pretty(&credits).unwrap_or_default(),
+        );
     }
 
     /// The pack as the project tree it was built from: `project.toml`, then
@@ -422,25 +518,50 @@ impl Pack {
 
     /// Every path the pack's own files name, with any `#entry` cut off.
     fn references(&self) -> BTreeSet<String> {
-        let mut out = BTreeSet::new();
+        self.references_with(BTreeSet::new())
+    }
+
+    /// [`references`](Self::references), starting from `out`.
+    ///
+    /// A dependency's document counts only once something already counted
+    /// names it: a dependency ships its showroom scenes, and those keep no
+    /// asset of it the game does not reach.
+    fn references_with(&self, mut out: BTreeSet<String>) -> BTreeSet<String> {
         // `[application] splash` and `icon` name files no scene or script does.
         if let Ok(value) = toml::from_str::<toml::Value>(&self.manifest) {
             collect_toml_strings(&value, &mut out);
         }
+        let mut waiting: Vec<(&String, &String)> = Vec::new();
         for (key, text) in &self.scenes {
             // The id index maps every id to its path, so its values would name
             // every indexed asset; it answers `id://` below and nothing else.
             if key == crate::assets::INDEX_PATH {
                 continue;
             }
-            if let Ok(value) = toml::from_str::<toml::Value>(text) {
+            if crate::dependencies::split(key).is_some() {
+                waiting.push((key, text));
+            } else if let Ok(value) = toml::from_str::<toml::Value>(text) {
                 collect_toml_strings(&value, &mut out);
             }
         }
-        for bytes in self.scripts.values() {
+        for (key, bytes) in &self.scripts {
             // A script may be bytecode; only text can hold a literal to read.
             if let Ok(text) = std::str::from_utf8(bytes) {
-                collect_string_literals(text, &mut out);
+                out.extend(script_references(key, text));
+            }
+        }
+        loop {
+            let (reached, rest): (Vec<_>, Vec<_>) = waiting
+                .into_iter()
+                .partition(|(key, _)| is_referenced(key, &out));
+            waiting = rest;
+            if reached.is_empty() {
+                break;
+            }
+            for (_, text) in reached {
+                if let Ok(value) = toml::from_str::<toml::Value>(text) {
+                    collect_toml_strings(&value, &mut out);
+                }
             }
         }
         if let Some(index) = self
@@ -735,9 +856,6 @@ fn text(fs: &dyn crate::files::FileBackend, path: &Path) -> Result<String> {
     String::from_utf8(fs.read(path)?).with_context(|| format!("'{}' is not text", path.display()))
 }
 
-/// Every file under `dir`, project-relative. A directory the backend cannot
-/// read contributes nothing: the manifest was read first, so a root that is
-/// not there has already failed.
 /// The directory prefixes of every project nested inside this one, each with
 /// its trailing slash. A `project.toml` below the root is what marks one.
 fn nested_roots(files: &[String]) -> Vec<String> {
@@ -753,15 +871,195 @@ fn in_nested(nested: &[String], rel: &str) -> bool {
     nested.iter().any(|prefix| rel.starts_with(prefix.as_str()))
 }
 
+/// The paths a script's literals name, as the game spells them: a
+/// dependency's script names its files from its own root.
+fn script_references(key: &str, source: &str) -> BTreeSet<String> {
+    let mut own = BTreeSet::new();
+    collect_string_literals(source, &mut own);
+    let Some((alias, _)) = crate::dependencies::split(key) else {
+        return own;
+    };
+    let folder = crate::dependencies::folder(alias);
+    own.into_iter()
+        .map(|reference| {
+            if crate::dependencies::split(&reference).is_some() {
+                reference
+            } else {
+                format!("{folder}/{reference}")
+            }
+        })
+        .collect()
+}
+
+/// The backend to read through, every file the pack may hold, and each
+/// dependency's own: the game's files less `ignored`, then each dependency's
+/// under `deps/<alias>/` less its own `ignore`.
+#[allow(clippy::type_complexity)]
+fn gathered(
+    fs: std::rc::Rc<dyn crate::files::FileBackend>,
+    project_root: &Path,
+    manifest: &str,
+    ignored: &[String],
+) -> Result<(
+    std::rc::Rc<dyn crate::files::FileBackend>,
+    Vec<String>,
+    Vec<Shipped>,
+)> {
+    let dependencies = crate::dependencies::declared(manifest)?;
+    let fs = mounted(fs, project_root, &dependencies);
+    let mut files = Vec::new();
+    let skip = (!dependencies.is_empty()).then_some(crate::dependencies::DIR);
+    collect_files(&*fs, project_root, project_root, ignored, skip, &mut files);
+    let shipped = shipped_dependencies(&*fs, project_root, &dependencies)?;
+    for dep in &shipped {
+        // Its documents' `id://` are paths by the time they ship.
+        files.extend(
+            dep.files
+                .iter()
+                .filter(|rel| *rel != crate::assets::INDEX_PATH)
+                .map(|rel| format!("{}/{rel}", dep.folder)),
+        );
+    }
+    Ok((fs, files, shipped))
+}
+
+/// What a pack credits each dependency with: `deps/credits.json`.
+pub const CREDITS: &str = "credits.json";
+
+/// The backend a pack reads through: the disk, with each `path` dependency
+/// mounted under `deps/<alias>`.
+fn mounted(
+    fs: std::rc::Rc<dyn crate::files::FileBackend>,
+    project_root: &Path,
+    dependencies: &[crate::dependencies::Dependency],
+) -> std::rc::Rc<dyn crate::files::FileBackend> {
+    let mounts: Vec<(std::path::PathBuf, std::path::PathBuf)> = dependencies
+        .iter()
+        .filter_map(|dep| match &dep.source {
+            crate::dependencies::Source::Path(path) => Some((
+                project_root.join(dep.folder()),
+                crate::files::lexical(&project_root.join(path)),
+            )),
+            crate::dependencies::Source::Forge { .. } => None,
+        })
+        .collect();
+    if mounts.is_empty() {
+        return fs;
+    }
+    std::rc::Rc::new(crate::dependencies::Mounted::new(fs, mounts))
+}
+
+/// One dependency on its way into a pack.
+struct Shipped {
+    alias: String,
+    folder: String,
+    root: std::path::PathBuf,
+    /// Under its root, less its own `ignore`.
+    files: Vec<String>,
+    index: BTreeMap<String, String>,
+    include: Vec<String>,
+    import: toml::Table,
+    project: String,
+    rev: String,
+    license: String,
+}
+
+impl Shipped {
+    fn holds(&self, rel: &str) -> bool {
+        crate::dependencies::split(rel).is_some_and(|(alias, _)| alias == self.alias)
+    }
+
+    /// A document of this dependency as the game spells its paths. Text that
+    /// does not parse ships as it is, as a game's own does.
+    fn game_spelling(&self, fs: &dyn crate::files::FileBackend, source: &str) -> String {
+        let Ok(mut value) = toml::from_str::<toml::Value>(source) else {
+            return source.to_string();
+        };
+        let exists = |path: &str| fs.exists(&self.root.join(path));
+        crate::document_paths::prefixed_in(&self.folder, &mut value, &exists, &self.index);
+        toml::to_string(&value).unwrap_or_else(|_| source.to_string())
+    }
+}
+
+/// Each dependency's files and own settings, read under the game.
+fn shipped_dependencies(
+    fs: &dyn crate::files::FileBackend,
+    project_root: &Path,
+    dependencies: &[crate::dependencies::Dependency],
+) -> Result<Vec<Shipped>> {
+    let locked: BTreeMap<String, String> = fs
+        .read(&project_root.join(crate::dependencies::LOCK))
+        .ok()
+        .map(|bytes| crate::dependencies::read_lock(&String::from_utf8_lossy(&bytes)))
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .map(|entry| (entry.name, entry.rev))
+        .collect();
+    let mut out = Vec::new();
+    for dep in dependencies {
+        let folder = dep.folder();
+        let root = project_root.join(&folder);
+        let own =
+            text(fs, &root.join(crate::project::MANIFEST)).with_context(|| match &dep.source {
+                crate::dependencies::Source::Forge { .. } => {
+                    format!(
+                        "dependency `{}` is not fetched: run `balaur fetch`",
+                        dep.alias
+                    )
+                }
+                crate::dependencies::Source::Path(path) => format!(
+                    "dependency `{}`: {} is not a project",
+                    dep.alias,
+                    path.display()
+                ),
+            })?;
+        let table: toml::Table = toml::from_str(&own)
+            .with_context(|| format!("dependency `{}`: its project.toml", dep.alias))?;
+        let ignore = crate::ignore::from_manifest(&own);
+        out.push(Shipped {
+            files: crate::dependencies::files_of(fs, &root, &ignore),
+            index: crate::dependencies::index_of(fs, &root),
+            include: crate::dependencies::strings_at(&table, "export", "include"),
+            import: table
+                .get("import")
+                .and_then(toml::Value::as_table)
+                .cloned()
+                .unwrap_or_default(),
+            project: match &dep.source {
+                crate::dependencies::Source::Forge { project, .. } => project.clone(),
+                crate::dependencies::Source::Path(_) => String::new(),
+            },
+            rev: locked.get(&dep.alias).cloned().unwrap_or_default(),
+            license: table
+                .get("application")
+                .and_then(|app| app.get("license"))
+                .and_then(toml::Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            alias: dep.alias.clone(),
+            folder,
+            root,
+        });
+    }
+    Ok(out)
+}
+
+/// Every file under `dir`, project-relative, less dot files and what
+/// `ignored` names. A directory the backend cannot read contributes nothing:
+/// the manifest was read first, so a root that is not there has already
+/// failed. `skip` is a top-level folder left out whole: `deps/`, whose
+/// dependencies are gathered with their own settings.
 fn collect_files(
     fs: &dyn crate::files::FileBackend,
     root: &Path,
     dir: &Path,
     ignored: &[String],
+    skip: Option<&str>,
     out: &mut Vec<String>,
 ) {
     for (name, is_dir) in fs.list(dir) {
-        if name.starts_with('.') {
+        if name.starts_with('.') || (dir == root && skip == Some(name.as_str())) {
             continue;
         }
         let path = dir.join(&name);
@@ -773,7 +1071,7 @@ fn collect_files(
             continue;
         }
         if is_dir {
-            collect_files(fs, root, &path, ignored, out);
+            collect_files(fs, root, &path, ignored, skip, out);
         } else if !rel.is_empty() {
             out.push(rel);
         }

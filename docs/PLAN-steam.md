@@ -22,8 +22,8 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| A desktop game as one file: the template binary with the pack appended | `balaur::standalone`, `crates/balaur_cli` |
-| A signed macOS `.app` with the pack as a resource | `bundle.rs::export_macos_app` |
+| A desktop game as one file: the template binary with the export pack appended | `balaur::standalone`, `crates/balaur_cli` |
+| A signed macOS `.app` with the export pack as a resource | `bundle.rs::export_macos_app` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
 | A transport trait with reliable streams and unreliable datagrams | `balaur_core::transport::Transport` |
 | Gamepads, and an action layer over them whose bindings a recording carries | `balaur_input`, gilrs, `App::add_replay_setup` |
@@ -152,7 +152,7 @@ Every Steamworks interface, and where each stands here.
 | `ISteamApps`: DLC installed, build id, branch, launch command line, purchase time | Step 6 |
 | `ISteamMatchmaking`: lobbies, lobby chat, invites, favourites | Step 7. A lobby is the cheapest session layer this engine could have: `docs/PLAN-networking.md` §1's session layer asks for a member list and a way to send to each, and a lobby is both |
 | `ISteamNetworkingSockets`, `ISteamNetworkingMessages`: P2P, listen sockets, the Steam Datagram Relay | Step 8, as a `Transport` implementation. It is the only transport that gives peer-to-peer through NAT with no server and no certificate, which is exactly what WebTransport cannot do; `docs/PLAN-networking.md` §2's table gains a row |
-| `ISteamUGC`: Workshop items, subscriptions, downloads, creating and updating | Step 9, and it fits the engine's shape better than most: a pack is content-addressed and the asset source already knows `embedded+files`, so a subscribed item is a directory the loader is told about |
+| `ISteamUGC`: Workshop items, subscriptions, downloads, creating and updating | Step 9, and it fits the engine's shape better than most: an export pack is content-addressed and the asset source already knows `embedded+files`, so a subscribed item is a directory the loader is told about |
 | `ISteamInput`: action sets, glyphs, gyro, haptics, Deck controls | Step 10, as a second backend under `balaur_input` — feeding the recorded input snapshot, never read directly. It replaces both of `balaur_input`'s readers on a Steam build — gilrs for buttons and axes, `sensors.rs` for gyro and the touchpad — rather than sitting beside them, because two readings of one pad is a bug with a name. `docs/PLAN-input.md` §1 rule 5 is the rule, and its §5 asks what happens to a pad Steam does not recognise |
 | `ISteamInventory`: item definitions, drops, microtransactions, trading | Step 11 |
 | `ISteamScreenshots` | Step 11. The offscreen render path already exists (ARCHITECTURE.md "Camera and screenshots"); this is the hook that tells Steam a screenshot happened |
@@ -164,7 +164,7 @@ Every Steamworks interface, and where each stands here.
 | `ISteamController` | Not planned. Superseded by Steam Input |
 | Remote Play Together, Family Sharing | Have, with no code: both are Steam features over a normal build |
 | VAC, Easy Anti-Cheat | Not planned. VAC is a partner-site setting on a server the engine does not run, and EAC is a separate SDK with its own agreement |
-| Steam DRM wrapper | Not planned. It rewrites the shipped executable, which is the file the exporter appends a pack to; the two do not compose, and the wrapper is optional |
+| Steam DRM wrapper | Not planned. It rewrites the shipped executable, which is the file the exporter appends an export pack to; the two do not compose, and the wrapper is optional |
 | SteamPipe upload (`steamcmd`) | Step 12, as a destination in `docs/PLAN-deploy.md` — one uploader, one credential store, one progress stream for every store |
 | Steam Deck Verified: input, text entry, suspend and resume, one-window fullscreen | Step 12 as a checklist, not code. Suspend and resume is the one that can find a real bug — a fixed 60 Hz tick and a process frozen for an hour |
 

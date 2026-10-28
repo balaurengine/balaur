@@ -22,6 +22,8 @@ mod image_tools;
 #[cfg(not(target_family = "wasm"))]
 mod check;
 mod debugger;
+#[cfg(not(target_family = "wasm"))]
+mod deps_cmd;
 #[cfg(feature = "editor")]
 mod export_api;
 mod export_cmd;
@@ -72,6 +74,39 @@ enum Command {
         /// node an empty project has. `--template list` names them.
         #[arg(long)]
         template: Option<String>,
+    },
+    /// Add another project as a dependency: `owner/name` on Forge, fetched
+    /// into `deps/<alias>/` and pinned in `project.lock`, or a project folder
+    /// on this machine, used as it is.
+    Add {
+        /// `owner/name` of a project on Forge, or a project folder.
+        source: String,
+        /// The folder name and `use` path, `deps/<alias>/`; the project's
+        /// name in lowercase words joined by `_` unless given.
+        #[arg(long = "as")]
+        alias: Option<String>,
+        /// Follow this branch rather than the project's default one.
+        #[arg(long, conflicts_with = "tag")]
+        branch: Option<String>,
+        /// Pin this tag.
+        #[arg(long)]
+        tag: Option<String>,
+        /// The project to add it to.
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
+    /// Fill `deps/` from `project.lock`, locking any dependency it does not
+    /// name yet. A dependency whose files do not match the lock is refused.
+    Fetch {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Move each dependency to the newest commit of its branch or tag,
+        /// and name the game's references the new files no longer have.
+        #[arg(long)]
+        update: bool,
+        /// Only this dependency.
+        #[arg(long)]
+        only: Option<String>,
     },
     /// Run a project in dev mode: scripts hot reload automatically on save.
     Run {
@@ -138,10 +173,10 @@ enum Command {
         #[arg(last = true)]
         args: Vec<String>,
     },
-    /// Export the project as a pack: every script checked, scenes and
+    /// Export the project as an export pack: every script checked, scenes and
     /// manifest bundled.
     ///
-    /// With `--target` or `--runtime` the pack is carried inside a runtime
+    /// With `--target` or `--runtime` the export pack is carried inside a runtime
     /// binary instead, producing a game the player can just run.
     Export {
         #[arg(default_value = ".")]
@@ -163,9 +198,9 @@ enum Command {
         /// Never download a missing runtime; fail instead.
         #[arg(long)]
         no_download: bool,
-        /// Keep script sources in the pack instead of bytecode: what an
+        /// Keep script sources in the export pack instead of bytecode: what an
         /// editor showing the code wants. Only a build with the `compile`
-        /// feature runs such a pack, which the web game template is not.
+        /// feature runs such an export pack, which the web game template is not.
         #[arg(long)]
         keep_sources: bool,
         /// A package to make beside the export, repeatable: `app` (a macOS
@@ -271,7 +306,7 @@ enum Command {
         #[arg(long, value_name = "TICK")]
         entries_at: Option<u64>,
     },
-    /// Run an exported pack (no sources, no compiler, no watcher).
+    /// Run an export pack (no sources, no compiler, no watcher).
     Play {
         pack: PathBuf,
         /// Stop after N frames (useful for smoke tests and CI).
@@ -446,6 +481,20 @@ fn dispatch(command: Command) -> Result<()> {
             layers,
         } => import(&file, &project, &layers),
         Command::New { path, template } => new_project::create(&path, template.as_deref()),
+        Command::Add {
+            source,
+            alias,
+            branch,
+            tag,
+            project,
+        } => deps_cmd::add(
+            &project,
+            &source,
+            alias.as_deref(),
+            branch.as_deref(),
+            tag.as_deref(),
+        ),
+        Command::Fetch { path, update, only } => deps_cmd::fetch(&path, update, only.as_deref()),
         Command::Run {
             path,
             scene,
@@ -525,7 +574,7 @@ fn dispatch(command: Command) -> Result<()> {
     }
 }
 
-/// `balaur play`: an exported pack, windowed, or headless for a frame budget.
+/// `balaur play`: an export pack, windowed, or headless for a frame budget.
 fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
     let mut config = AppConfig::packed(Pack::decode(&bytes)?);
@@ -1035,6 +1084,8 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     // project there is no second root until one is opened.
     if opened {
         balaur::file_api::add_root(&app.engine, &game);
+        // Each of the game's dependencies is a root of its own inside it.
+        balaur::dependencies::install(&app.engine, &game);
     }
     // Before the project loads: the editor's scripts read the platform at
     // init, and a fact that lands after that is a frame of the wrong shell.

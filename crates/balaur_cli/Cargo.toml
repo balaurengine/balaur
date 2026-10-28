@@ -49,7 +49,7 @@ import = ["dep:balaur_import", "balaur/svg"]
 # A game template leaves it off.
 editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
 # The WESL shader linker and the `.bs` to C translator. Off, the build draws
-# with the shaders an export linked into the pack.
+# with the shaders an export linked into the export pack.
 compile = ["balaur/compile"]
 # Balaur Script (`.bs`), on wasmi; `bs-jit` runs it on wasmtime where a JIT
 # may run, `bs-web` on the browser's own engine.
@@ -100,6 +100,10 @@ balaur_port.workspace = true
 toml.workspace = true
 ureq.workspace = true
 sha2.workspace = true
+# `balaur fetch` checks each blob against its git id.
+sha1 = "0.11"
+# `balaur add` writes `[dependencies]` into a project.toml, comments kept.
+toml_edit = "0.25"
 dirs = "7"
 # A runtime download's tarball, and the editor archive `update` unpacks.
 flate2 = "1"
@@ -121,7 +125,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 wasm-bindgen-rayon = { version = "1.3", default-features = false, features = ["no-bundler"] }
 
-# The browser entry point (src/web.rs): a fetch for the pack, the canvas to
+# The browser entry point (src/web.rs): a fetch for the export pack, the canvas to
 # draw on, and panics reported on the console instead of as `unreachable`.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.129"
@@ -160,7 +164,7 @@ web-sys = { version = "0.3.106", features = [
     "HtmlInputElement",
 ] }
 console_error_panic_hook = "0.1"
-# A web bundle exported from a tab: the pack zipped beside the glue and the
+# A web bundle exported from a tab: the export pack zipped beside the glue and the
 # module (src/web_export.rs). `toml` reads the name off the manifest, which is
 # all a browser has to name the file it hands back.
 zip = { version = "9", default-features = false, features = ["deflate"] }

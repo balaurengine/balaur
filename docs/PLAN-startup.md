@@ -37,8 +37,8 @@ A game boot has the same shape without the Rune: shaders 20%, wgpu and Metal
 16%, dyld 12%, Rune 10%, TOML 5%.
 
 Compiling is the one that scales with the project. A generated project of
-60,000 lines takes 272 ms to boot from source and 39 ms from a pack, which is
-what a 113-line project costs, because a pack ships the compiled unit.
+60,000 lines takes 272 ms to boot from source and 39 ms from an export pack, which is
+what a 113-line project costs, because an export pack ships the compiled unit.
 
 ## 1. The units a run already compiled
 
@@ -58,7 +58,7 @@ What a hit is checked against:
   constant. A script compiled against another set names items that are no
   longer there.
 
-The unit carries its debug info, unlike the one a pack ships: a dev run sets
+The unit carries its debug info, unlike the one an export pack ships: a dev run sets
 breakpoints and renders spans against it, and a cached unit that had dropped it
 would break both.
 
@@ -132,9 +132,9 @@ for. `balaur_core::timings::boot` files a phase and `mark_start` is called by
 - The renderer's eager pipelines, in §3.
 - The 21 ms dyld floor on a 63 MB binary. Nothing here touches it, and it is a
   linking question rather than an engine one.
-- The web editor's first boot. It opens a pack that ships script sources, so
-  the browser compiles them: the cache now covers a pack as well as a dev run,
-  reading a `mod` back out of the pack, and stamps on `BALAUR_BUILD` where
+- The web editor's first boot. It opens an export pack that ships script sources, so
+  the browser compiles them: the cache now covers an export pack as well as a dev run,
+  reading a `mod` back out of the export pack, and stamps on `BALAUR_BUILD` where
   there is no executable to fingerprint. A released web build therefore caches
   its units in the browser's store and a source build does not. Measured on a
   60,000-line project packed with its sources: 311 ms cold, 46 ms warm.

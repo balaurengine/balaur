@@ -640,6 +640,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     }
     let mut node = host.module("node")?;
     crate::node_api::install_node_api(&mut *node);
+    let mut dependencies = host.module("dependency")?;
+    crate::dependencies::api::install_dependencies_api(&mut *dependencies);
     let mut debugger = host.module("debugger")?;
     crate::debugger_api::install_debugger_api(&mut *debugger);
     let mut replay = host.module("replay")?;

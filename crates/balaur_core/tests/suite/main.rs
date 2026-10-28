@@ -9,6 +9,7 @@ mod assets;
 mod classes;
 mod components;
 mod csg;
+mod dependencies;
 mod digest;
 mod engine;
 mod engine_api;

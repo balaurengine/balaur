@@ -14,6 +14,10 @@ pub class LibraryState {
     kind: str,
     catalogue: Catalogue?,
     shown: Shown,
+    /// Projects on Forge, as the last search answered.
+    forge: [any],
+    /// What the Forge kind says while it searches, or why it could not.
+    forge_says: str,
 }
 
 /// The library's manifest.
@@ -37,7 +41,7 @@ pub struct View {
 }
 
 pub fn state() -> LibraryState {
-    LibraryState { kind: "material", catalogue: nil, shown: Shown { items: [], held: [] } }
+    LibraryState { kind: "material", catalogue: nil, shown: Shown { items: [], held: [] }, forge: [], forge_says: "" }
 }
 
 /// The kinds the dock filters by, in the order the chips offer them.
@@ -50,6 +54,8 @@ pub fn kinds() -> [[str]] {
         ["rig", "Rigs"],
         ["addon", "Addons"],
         ["template", "Templates"],
+        ["deps", "Dependencies"],
+        ["forge", "On Forge"],
     ]
 }
 
@@ -242,6 +248,12 @@ pub fn view(S: &mut editor::State) -> View {
         };
         return View { kind: S.library.kind, templates: true, items: items, says: says };
     }
+    if S.library.kind == "deps" {
+        return dependency_view(S);
+    }
+    if S.library.kind == "forge" {
+        return forge_view(S);
+    }
     for entry in known.entries {
         if entry.kind.as_str() == S.library.kind {
             // The kind's mark, the entry's name, and its note as the hover.
@@ -252,6 +264,146 @@ pub fn view(S: &mut editor::State) -> View {
     S.library.shown = Shown { items: items, held: held };
     let says = if items.len() == 0 { "nothing of that kind in the library" } else { "" };
     View { kind: S.library.kind, templates: false, items: items, says: says }
+}
+
+/// Files a dependency lists at most, so a large one stays a list to read.
+const DEPENDENCY_ROWS: int = 400;
+
+/// Each of the game's dependencies, file by file, with the names and notes
+/// its own `catalog.toml` gives where it has one.
+fn dependency_view(S: &mut editor::State) -> View {
+    let k = S.theme;
+    let items: [str] = [];
+    let held: [any] = [];
+    for dep in dependency::list() {
+        if dep.get("game").as_str() != S.game_root {
+            continue;
+        }
+        let alias = dep.get("alias").as_str();
+        let folder = "deps/" + alias;
+        let named = catalogue_of(S.game_root + "/" + folder);
+        for rel in files_under(S.game_root + "/" + folder, "") {
+            if items.len() >= DEPENDENCY_ROWS {
+                break;
+            }
+            let entry = named.get(rel);
+            let title = if entry.is_nil() { rel } else { entry.get("name").as_str() };
+            let note = if entry.is_nil() { folder + "/" + rel } else { entry.get("note").as_str() };
+            items.push(util::row(file_icon(rel), alias + " · " + title, note, k.text_default.as_str()));
+            held.push(map().with("kind", "dependency").with("file", folder + "/" + rel));
+        }
+    }
+    S.library.shown = Shown { items: items, held: held };
+    let says = if items.len() == 0 {
+        "no dependencies: `balaur add owner/name`, or pick one On Forge"
+    } else {
+        "placed linked: an update to the dependency reaches it"
+    };
+    View { kind: S.library.kind, templates: false, items: items, says: says }
+}
+
+/// A dependency's `catalog.toml` entries by file, or an empty map.
+fn catalogue_of(root: str) -> any {
+    let out = map();
+    let text = fs::read(root + "/catalog.toml");
+    if text.is_none() {
+        return out;
+    }
+    let table = util::obj(toml::parse(text.unwrap()));
+    for entry in util::vec(table.entries) {
+        out.set(entry.file.as_str(), entry);
+    }
+    out
+}
+
+/// Every file under `root`/`dir`, relative to `root`, less the ones that
+/// describe the project rather than ship with it.
+fn files_under(root: str, dir: str) -> [str] {
+    let out: [str] = [];
+    let at = if dir == "" { root } else { root + "/" + dir };
+    for f in util::vec(fs::list(at)) {
+        let name = f.name.as_str();
+        let rel = if dir == "" { name } else { dir + "/" + name };
+        if f.is_dir.as_bool() {
+            if !(dir == "" && name == "deps") {
+                for inner in files_under(root, rel) {
+                    out.push(inner);
+                }
+            }
+        } else if !(dir == "" && (name == "project.toml" || name == "project.lock" || name == "catalog.toml")) {
+            out.push(rel);
+        }
+    }
+    out
+}
+
+/// A mark by what a file is.
+fn file_icon(rel: str) -> str {
+    if rel.ends_with(".toml") {
+        return icons::panel("scene");
+    }
+    if rel.ends_with(".bs") {
+        return icons::workspace(defs::WORKSPACE_SCRIPT);
+    }
+    icons::workspace(defs::WORKSPACE_UI)
+}
+
+/// Projects on Forge, from the last search; the first look starts one.
+fn forge_view(S: &mut editor::State) -> View {
+    let k = S.theme;
+    if S.library.forge.len() == 0 && S.library.forge_says == "" {
+        if forge::search("", "") {
+            S.library.forge_says = "asking " + forge::url();
+        }
+    }
+    let items: [str] = [];
+    let held: [any] = [];
+    for row in S.library.forge {
+        let tags = "";
+        for tag in util::vec(row.get("tags")) {
+            tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
+        }
+        let note = if tags == "" { row.get("description").as_str() } else { row.get("description").as_str() + " · " + tags };
+        items.push(util::row(icons::panel("assets"), row.get("project").as_str(), note, k.text_default.as_str()));
+        held.push(map().with("kind", "forge").with("file", row.get("project").as_str()));
+    }
+    S.library.shown = Shown { items: items, held: held };
+    let says = if S.library.forge_says != "" {
+        S.library.forge_says
+    } else if items.len() == 0 {
+        "no public projects yet"
+    } else {
+        "a pick adds it to this game as a dependency"
+    };
+    View { kind: S.library.kind, templates: false, items: items, says: says }
+}
+
+/// What a Forge job reported: the projects a search found, a dependency
+/// added, or why either failed.
+pub fn heard(S: &mut editor::State, event: any) {
+    let kind = event.get("kind").as_str();
+    if kind == "listed" {
+        S.library.forge = util::vec(event.get("rows"));
+        S.library.forge_says = "";
+    } else if kind == "fetched" {
+        let alias = event.get("alias").as_str();
+        // Its files are on disk; installing makes the new one a root.
+        dependency::install(S.game_root);
+        model::forget(S, nil);
+        S.library.forge_says = "";
+        if alias == "" {
+            log::info("dependencies fetched");
+        } else {
+            log::info("added deps/{alias}");
+        }
+    } else if kind == "failed" && event.get("job").as_str() != "copy" {
+        S.library.forge_says = event.get("message").as_str();
+        log::warn("Forge: " + event.get("message").as_str());
+    } else {
+        return;
+    }
+    signals::changed(S, "library");
+    signals::changed(S, "assets");
 }
 
 /// The kind the panel's chips filter by.
@@ -273,6 +425,14 @@ pub fn pick(S: &mut editor::State, row: str) {
         if held.kind() == "str" {
             ui::set_clipboard(held.as_str());
             log::info("copied: " + held.as_str());
+        } else if held.get("kind").as_str() == "dependency" {
+            // Linked: placed by the path the game names it with.
+            dropin::place_file(S, held.get("file").as_str());
+        } else if held.get("kind").as_str() == "forge" {
+            if forge::add(S.game_root, held.get("file").as_str()) {
+                S.library.forge_says = "adding " + held.get("file").as_str();
+                signals::changed(S, "library");
+            }
         } else if held.kind.as_str() == "material" {
             apply_material(S, held);
         } else {

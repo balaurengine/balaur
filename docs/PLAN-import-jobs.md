@@ -219,7 +219,7 @@ this.
 
 The web editor and an exported game are one module today:
 `scripts/package_play.sh` copies `balaur.js` and `balaur_bg.wasm` out of
-`package_runtime.sh web` and ships them beside `editor.bpak` and a pack per
+`package_runtime.sh web` and ships them beside `editor.bpak` and an export pack per
 example. The `import` cargo feature on `balaur_cli` is what splits them, and
 is built: on by default and in every native build, which is where the command
 lives, and off in `package_runtime.sh web`, so a game a reader downloads
@@ -244,10 +244,10 @@ through `package_runtime.sh`, so the tarball matches the artifact the way
 
 Run here, not only planned: the editor's module is **21.43 MB raw, 5.81 MB
 brotli**, and the bundle it lands in is 11.25 MB holding `editor.bpak` and
-twelve example packs.
+twelve example export packs.
 
 **The exporter has to be current.** `package_play.sh` compiles the editor's
-scripts while exporting its pack, using the binary that exports, so a stale
+scripts while writing its export pack, using the binary that exports, so a stale
 one fails with `Missing item {root}::::import::cancel` and names the script
 rather than itself.
 
@@ -310,7 +310,7 @@ rather than itself.
    the event and the line documenting `listen` and nothing else. The change is
    type-identical, so the compiler checked the wiring; nothing but the editor
    drives an export's events, so what was checked beyond that is that the
-   editor boots and registers `export::listen`, and that a pack still
+   editor boots and registers `export::listen`, and that an export pack still
    exports.
 6. **The editor.** Built, bar the toast. `dropin::take` starts a job and
    `dropin::report` is where every step lands: the status strip says
@@ -371,7 +371,7 @@ rather than itself.
    model.
 
    **Run in a tab, 2026-09-16.** The play bundle was served from the
-   scratchpad and opened in a browser, with an editor pack whose init logs
+   scratchpad and opened in a browser, with an editor export pack whose init logs
    what it can see: `handles("hero.glb")` true and `handles("a.png")` false,
    where a tab used to answer false to both, and `choose()` true with no panic
    and no element left in the page. So the module carries the importers and

@@ -31,6 +31,11 @@ pub class ManagerState {
     tag: str,
     installing: Installing,
     back: bool,
+    /// Public projects on Forge, as the last search answered.
+    forge: [any],
+    forge_asked: bool,
+    /// The project a copy is being made of, or "".
+    copying: str,
 }
 
 /// An install in flight: the tag, bytes so far and of how many, and whether
@@ -80,6 +85,9 @@ pub fn state() -> ManagerState {
         installing: no_install(),
         // Opened over a project, with the way back to it.
         back: false,
+        forge: [],
+        forge_asked: false,
+        copying: "",
     }
 }
 
@@ -220,7 +228,7 @@ fn tabs() -> [[str]] {
         return [["projects", "Projects"]];
     }
     // `return`, because a block followed by `[` is an index in Rune.
-    return [["projects", "Projects"], ["examples", "Examples"], ["engine", "Engine"]];
+    return [["projects", "Projects"], ["examples", "Examples"], ["forge", "On Forge"], ["engine", "Engine"]];
 }
 
 // One column under this, two above it.
@@ -299,6 +307,8 @@ pub fn fill(S: &mut editor::State) {
         engine_specs(S, k, col)
     } else if S.manager.tab == "examples" {
         examples_specs(S, k, col)
+    } else if S.manager.tab == "forge" {
+        forge_specs(S, k, col)
     } else {
         projects_specs(S, k, col)
     };
@@ -590,6 +600,84 @@ fn example_card(S: editor::State, k: any, w: float, cover_h: float, row: any) ->
 fn example_card_on_3(S: &mut editor::State, data: any, _0: any) {
     let id: any = data.id;
     open_example(S, id.as_str());
+}
+
+// Public projects on Forge, one row each, a click opening a copy in the
+// projects folder as an example does. The first look asks Forge.
+fn forge_specs(S: &mut editor::State, k: any, col: float) -> [any] {
+    if !S.manager.forge_asked {
+        S.manager.forge_asked = forge::search("", "");
+    }
+    let out: [any] = [];
+    if S.manager.copying != "" {
+        out.push(say("Copying {S.manager.copying} into {S.manager.parent}", k.get("text_subtle").as_str()));
+    }
+    if S.manager.forge.len() == 0 {
+        out.push(say(if S.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, k.get("text_subtle").as_str()));
+        return out;
+    }
+    for row in S.manager.forge {
+        let project = row.get("project").as_str();
+        let tags = "";
+        for tag in util::vec(row.get("tags")) {
+            tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
+        }
+        let note = row.get("description").as_str();
+        out.push(map()
+            .with("full", true)
+            .with("height", 52.0)
+            .with("controls", [
+                map()
+                    .with("kind", "panel")
+                    .with("fill", k.get("bg_panel"))
+                    .with("corner_radius", 10)
+                    .with("padding", [12, 6, 12, 6])
+                    .with("width", col)
+                    .with("gap", [0, 2])
+                    .with("controls", [
+                        map().with("kind", "label").with("role", "text_title").with("font_size", 13).with("text", project),
+                        map().with("kind", "label").with("role", "text_code_quiet").with("font_size", 11).with("truncate", true)
+                            .with("text", if tags == "" { note } else { note + " · " + tags }),
+                        map()
+                            .with("kind", "button")
+                            .with("role", "chip_quiet")
+                            .with("text", "")
+                            .with("absolute", true)
+                            .with("inset", [0.0, 0.0, 0.0, 0.0])
+                            .with("tooltip", "Copy into " + S.manager.parent)
+                            .with("on", "handle")
+                            .with("data", map().with("fn", forge_row_on).with("project", project)),
+                    ]),
+            ]));
+    }
+    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", k.get("text_subtle").as_str()));
+    out
+}
+
+fn forge_row_on(S: &mut editor::State, data: any, _0: any) {
+    let project = data.get("project").as_str();
+    if S.manager.copying == "" && forge::copy(project, S.manager.parent) {
+        S.manager.copying = project;
+        told(S);
+    }
+}
+
+/// A Forge job reported: the projects a search found, or a copy made.
+pub fn forge_heard(S: &mut editor::State, e: any) {
+    let kind = e.get("kind").as_str();
+    if kind == "listed" {
+        S.manager.forge = util::vec(e.get("rows"));
+    } else if kind == "copied" {
+        S.manager.copying = "";
+        go(S, e.get("path").as_str());
+        return;
+    } else if kind == "failed" && (e.get("job").as_str() == "copy" || e.get("job").as_str() == "search") {
+        S.manager.copying = "";
+        S.manager.failed = e.get("message").as_str();
+    } else {
+        return;
+    }
+    told(S);
 }
 
 /// Copy an example into the projects folder and open the copy.

@@ -46,7 +46,7 @@ Built, and load-bearing for a 2D game:
 | `save`, `settings`, `fs`, `json`, `toml`; `strings.tr` with interpolation and plurals; `strings/<locale>.toml` | `crates/balaur_core/src/{save,settings,file_api,strings}.rs` |
 | A project's own `fonts/*.ttf` loaded as a fallback chain ahead of the bundled and system faces | `crates/balaur_text/src/fonts.rs` |
 | `platform.*` and its Apple backend: sign-in, Game Center, iCloud, StoreKit, notifications, inbound URLs | `crates/balaur_platform`, `crates/balaur_apple`, `docs/PLAN-apple.md` |
-| A fused desktop binary, a signed macOS `.app`, an unsigned iOS `.app`, an unsigned APK, a wasm build that boots a pack on a canvas | `crates/balaur_export`, `crates/balaur_cli/src/web.rs` |
+| A fused desktop binary, a signed macOS `.app`, an unsigned iOS `.app`, an unsigned APK, a wasm build that boots an export pack on a canvas | `crates/balaur_export`, `crates/balaur_cli/src/web.rs` |
 | One fixed tick, record and replay, a digest, rollback | `Stage::FixedUpdate`, `balaur_core::{replay,digest,rollback}` |
 
 What was missing on 2026-09-04, grouped by what blocks a platform and what
@@ -198,7 +198,7 @@ in the game; "not planned" is a deliberate no.
 
 | Need | Decision |
 | --- | --- |
-| A `.wasm`, JS glue, the pack fetched beside it, a canvas that resizes with the page, focus on start | Step 1: `balaur export --target web` writes a shell, and the shell is a template a project may override |
+| A `.wasm`, JS glue, the export pack fetched beside it, a canvas that resizes with the page, focus on start | Step 1: `balaur export --target web` writes a shell, and the shell is a template a project may override |
 | Audio in the browser, behind the user gesture every browser demands | Step 1: a WebAudio backend under `balaur_audio` — cpal's `wasm-bindgen` host on `wasm32-unknown-unknown`, or `web-sys` `AudioContext` directly — decoding through symphonia as native does, and `audio.ready()` for the unlock |
 | The backend from a tab: login, REST, hooks, the socket | Step 1: `balaur_gamend`'s `backend` module over `balaur_http`'s Fetch and `balaur_websocket`'s browser backend; the seam exists and only the wasm side is a stub |
 | Settings, a session token and downloaded content that survive a reload | Step 1: a `FileBackend` over the origin-private file system (`web-sys` `FileSystemDirectoryHandle`) for `engine.user_data_directory()`, so `fs`, `save` and `settings` work unchanged and `localStorage` is never needed |
@@ -299,7 +299,7 @@ in the game; "not planned" is a deliberate no.
 | Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume_linear`, which makes a bus it does not know; `define_bus` **not planned** |
 | Effects on a bus: a limiter, reverb | Roadmap 0.9, "Sound that fills a room": buses are gain today (`bus.rs:1-18`), and that milestone makes them a graph. Until then, normalise the files offline |
 | Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume_linear` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
-| Content downloaded at run time: a manifest, a pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
+| Content downloaded at run time: a manifest, a content pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second export pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |
 | Positional audio, pitch | Have |
 | A gate for a browser that refuses audio | Step 1: `audio.ready()` |
@@ -327,7 +327,7 @@ in the game; "not planned" is a deliberate no.
 | Base64, a random id | Have: `encoding.base64`/`from_base64`; `random.uuid()` from the engine's own stream, so it replays |
 | A test runner for a game's own headless tests | Have: `balaur test` runs every `tests/**/*.rn` on its own node in a headless copy of the project; Rune's own `assert!` is the assertion, a logged script error fails the test, and the exit code says so |
 | Threads | Have: none, by design; I/O lands on a tick |
-| A CSV or spreadsheet importer for game data | Not planned: a build step writes TOML or JSON into the pack and `fs`/`json` read it |
+| A CSV or spreadsheet importer for game data | Not planned: a build step writes TOML or JSON into the export pack and `fs`/`json` read it |
 
 ### Localization
 
@@ -435,7 +435,7 @@ rows above that name them are what this plan asks of each.
   takes today, one per example screen; and the digest test that a hidden
   node, a moved layer and a tagged node all change the digest.
 - **Batteries:** unit tests, and a recorded session with a URL opened, a
-  dark-mode flip, a keyboard shown, a phone buzzed and a pack downloaded
+  dark-mode flip, a keyboard shown, a phone buzzed and a content pack downloaded
   replays to the same digest with none of them happening.
 
 What it cannot: a phone drawing a frame, a platform sign-in, a store

@@ -1129,6 +1129,30 @@
         "least": 0,
         "signature": "() -> any"
       },
+      "dependency::add_path": {
+        "least": 3,
+        "signature": "(str, str, str)"
+      },
+      "dependency::install": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "dependency::list": {
+        "least": 0,
+        "signature": "() -> [any]"
+      },
+      "dependency::make_local": {
+        "least": 2,
+        "signature": "(str, str) -> [str]"
+      },
+      "dependency::move_into": {
+        "least": 2,
+        "signature": "([str], str) -> [str]"
+      },
+      "dependency::of": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
       "encoding::base64": {
         "least": 0,
         "signature": "(any) -> str"
@@ -1296,6 +1320,30 @@
       "export::targets": {
         "least": 0,
         "signature": "() -> [export::Target]"
+      },
+      "forge::add": {
+        "least": 2,
+        "signature": "(str, str) -> bool"
+      },
+      "forge::copy": {
+        "least": 2,
+        "signature": "(str, str) -> bool"
+      },
+      "forge::fetch": {
+        "least": 2,
+        "signature": "(str, bool) -> bool"
+      },
+      "forge::listen": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "forge::search": {
+        "least": 2,
+        "signature": "(str, str) -> bool"
+      },
+      "forge::url": {
+        "least": 0,
+        "signature": "() -> str"
       },
       "fs::copy": {
         "least": 2,
@@ -4530,6 +4578,10 @@
         "signature": "() -> bool"
       },
       "project::open": {
+        "least": 1,
+        "signature": "(str) -> project::Opened"
+      },
+      "project::open_beside": {
         "least": 1,
         "signature": "(str) -> project::Opened"
       },
@@ -19486,6 +19538,37 @@
       "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.",
+      "docs": {
+        "add_path": "Declare `alias = { path = \"<path>\" }` in a game's `[dependencies]`, comments kept, and install it. An empty game is the open project.",
+        "install": "Read a game's `[dependencies]` again and install each: what a dependency fetched while the editor runs needs to become a root. An empty game is the open project.",
+        "list": "Every installed dependency: `#{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty.",
+        "make_local": "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files.",
+        "move_into": "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/\u2026`; answers the files rewritten.",
+        "of": "The alias of the dependency a path lies in, or nil for one of the game's own."
+      },
+      "functions": [
+        "add_path",
+        "install",
+        "list",
+        "make_local",
+        "move_into",
+        "of"
+      ],
+      "name": "dependency",
+      "signatures": {
+        "add_path": "(str, str, str)",
+        "install": "(str)",
+        "list": "() -> [any]",
+        "make_local": "(str, str) -> [str]",
+        "move_into": "([str], str) -> [str]",
+        "of": "(str) -> str?"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
       "doc": "Bytes to base64 text and back.",
       "docs": {
         "base64": "Bytes, or a string's UTF-8, as standard base64 with padding.",
@@ -19658,6 +19741,37 @@
         "running_count": "() -> int",
         "start": "(str, any) -> bool",
         "targets": "() -> [export::Target]"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.",
+      "docs": {
+        "add": "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `listen` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
+        "copy": "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `listen` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
+        "fetch": "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `listen` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
+        "listen": "Call a method on `node` with every report: `on_forge_event` unless `opts.on_event` names another.",
+        "search": "List public projects on a thread, either filter empty for none. `listen` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
+        "url": "The Forge this machine asks, without a trailing slash."
+      },
+      "functions": [
+        "add",
+        "copy",
+        "fetch",
+        "listen",
+        "search",
+        "url"
+      ],
+      "name": "forge",
+      "signatures": {
+        "add": "(str, str) -> bool",
+        "copy": "(str, str) -> bool",
+        "fetch": "(str, bool) -> bool",
+        "listen": "(Node, any)",
+        "search": "(str, str) -> bool",
+        "url": "() -> str"
       }
     },
     {
@@ -24063,6 +24177,7 @@
         "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         "in_tab": "Whether this editor runs in a browser tab, where the page holds the projects and opening one is its call rather than this screen's.",
         "open": "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
+        "open_beside": "Start a second editor on `path` and keep this one: Edit dependency on a `path` dependency, whose project is another folder. Answers `{ error }` when there is no project there or no second editor can start.",
         "pick_directory": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         "templates": "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
@@ -24078,6 +24193,7 @@
         "home",
         "in_tab",
         "open",
+        "open_beside",
         "pick_directory",
         "recent",
         "templates",
@@ -24094,6 +24210,7 @@
         "home": "() -> str",
         "in_tab": "() -> bool",
         "open": "(str) -> project::Opened",
+        "open_beside": "(str) -> project::Opened",
         "pick_directory": "() -> str?",
         "recent": "() -> [project::Recent]",
         "templates": "() -> [project::Template]",

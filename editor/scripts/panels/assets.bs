@@ -14,7 +14,7 @@ pub struct Field2 {
 }
 
 fn VERBS() -> [str] {
-    ["Up", "Import", "Folder", "Rename", "Delete"]
+    ["Up", "Import", "Folder", "Local", "Move", "Source", "Update", "Rename", "Delete"]
 }
 
 impl Assets {
@@ -82,6 +82,14 @@ impl Assets {
             .with("tooltip", view.get("import_tip"))
             .with("checked", view.get("importing")));
         tools.get_node("Folder").patch_component("widget", map().with("text", view.get("folder_text")));
+        tools.get_node("Local").patch_component("widget", map().with("visible", view.get("local")));
+        tools.get_node("Move").patch_component("widget", map()
+            .with("visible", view.get("move_to").as_str() != "")
+            .with("tooltip", "Move the selected item into deps/{view.get("move_to").as_str()}"));
+        tools.get_node("Update").patch_component("widget", map().with("visible", view.get("update")));
+        tools.get_node("Source").patch_component("widget", map()
+            .with("visible", view.get("source_tip").as_str() != "")
+            .with("tooltip", view.get("source_tip")));
         tools.get_node("Rename").patch_component("widget", map()
             .with("role", if view.get("chosen").as_bool() { "action_dock" } else { "action_dock_quiet" })
             .with("tooltip", if view.get("chosen").as_bool() { "Rename the selected item" } else { "Select an item first" }));

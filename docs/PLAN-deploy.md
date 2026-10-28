@@ -20,7 +20,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| A pack, and a game fused onto a per-platform runtime template | `balaur export --target`, `crates/balaur_export` |
+| An export pack, and a game fused onto a per-platform runtime template | `balaur export --target`, `crates/balaur_export` |
 | Export as a library any caller can drive, not a subcommand's private code | `balaur_export::{export, Options}`. The network stack, the terminal prompt and the per-user cache stay with the caller, so an editor can drive it without any of the three |
 | A macOS `.app` signed with an identity the developer holds | `export --bundle app --sign`, `bundle.rs::export_macos_app` |
 | A signed iOS `.app` and an assembled, signed APK | `bundle.rs::export_bundle`, `balaur_export::{sign, android}`, `docs/PLAN-actions.md` |
@@ -58,7 +58,7 @@ Missing:
 ## 1. Design
 
 **Export builds, deploy places.** `balaur deploy` runs `balaur export` and
-then moves what it produced. It owns no template lookup, no pack format and
+then moves what it produced. It owns no template lookup, no export pack format and
 no signing flags of its own — a bug in a deployed build must be reproducible
 by exporting it by hand, which is only true while there is exactly one
 exporter.
@@ -142,7 +142,7 @@ Every place a game from this engine could go, and where each stands.
 | itch.io (`butler push`) | Step 2, and the likeliest first destination for a game made in this engine: no review, a channel per platform, HTML5 playable in the page, and butler diffs so a second push is seconds |
 | GitHub Pages | Step 2, as a commit to a branch. `git` is already on the machine and the token is the one `gh` holds |
 | Amazon S3, Cloudflare R2, Netlify, Vercel | Step 2, each through its own CLI under one `kind = "static"` shape. The engine's contribution is the directory and the cache headers a wasm page needs, not a fifth deployment product |
-| Gamend-hosted | Step 3. The first-party answer: a project on a Gamend account gets a URL, versioned, with the pack and the wasm behind the server that already has login and REST. It is also where `docs/PLAN-web-editor.md`'s Deploy button goes, since a browser has no `rsync` |
+| Gamend-hosted | Step 3. The first-party answer: a project on a Gamend account gets a URL, versioned, with the export pack and the wasm behind the server that already has login and REST. It is also where `docs/PLAN-web-editor.md`'s Deploy button goes, since a browser has no `rsync` |
 | A QR code for the URL just deployed | Step 3, and worth its hundred lines: the point of a web deploy is playing it on a phone that is not plugged into anything |
 | An Android device on the cable (`adb install -r`) | Step 4. The fastest loop that exists — no store, no review, no account |
 | An iOS device on the cable (`xcrun devicectl device install app`) | Step 4. `ios-deploy` was the old answer; `devicectl` ships with Xcode and needs no third-party tool. Still needs a provisioning profile, which is `docs/PLAN-apple.md` step 1 |

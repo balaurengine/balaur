@@ -1,13 +1,13 @@
 # Exporting for mobile and web
 
 Status: **mobile export works, unsigned.** `balaur export --target ios` writes
-an `.app` and `--target android` an APK layout, both carrying the pack as a
+an `.app` and `--target android` an APK layout, both carrying the export pack as a
 bundle resource; `scripts/export_check.sh` proves the path in CI on every
 build. What is left is signing — the developer's, not CI's — and web.
 
 **Compiling and rendering are different claims.** Nothing in CI runs a frame
 on a real device or simulator; the export check stops at "a device would
-install this", and `export_check.sh` proves the bundle shape, the pack's
+install this", and `export_check.sh` proves the bundle shape, the export pack's
 place inside it, and that the iOS executable was built for iOS. An exported
 game has been run by hand on the Android emulator's GLES backend: it draws,
 plays sound, saves, and logs to logcat under the tag `balaur`. What CI checks
@@ -63,7 +63,7 @@ the recorded input and the tick count is unchanged by it.
 ## Web
 
 **Built.** `balaur export --target web` writes a `.wasm`, its glue and a
-shell page with the pack beside them, and the canvas problem this section
+shell page with the export pack beside them, and the canvas problem this section
 carried — a wgpu surface on an HTML canvas — is solved on
 `wasm32-unknown-unknown` with wasm-bindgen. Audio plays. Web needed no signing
 and no bundle format, which is why it landed before the rest of this plan.

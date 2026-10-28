@@ -92,7 +92,7 @@ being built, marked `done`, never back in the shipped one.
 | **Names settled** — one name per concept across the script API, scene files, themes, settings, the CLI and the editor, held by lints. | 0.3 | [PLAN-naming.md](PLAN-naming.md) |
 | **Rune scripting** — the first language, replaced by Balaur Script: a `math` module, hot reload, a DAP debugger and a self-documenting API. | 0.1 done | no plan |
 | **A second scripting language** — Luau, C# or mimas beside Balaur Script, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
-| **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
+| **Scenes, assets and export packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary export packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path. | 0.2 done | no plan |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
@@ -100,7 +100,7 @@ being built, marked `done`, never back in the shipped one.
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **More importers** — Spine and DragonBones for 2D bone animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |
-| **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
+| **A package manager** — any Forge project or folder imported whole into `deps/<alias>/`: `[dependencies]` in `project.toml`, `balaur add`, `balaur fetch`, and a lockfile carrying each one's commit and hash. | 1.1 | [PLAN-dependencies.md](PLAN-dependencies.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
 | **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to `.wasm` over the same host calls; the editor and examples run on it, each module compiled once. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
@@ -247,12 +247,12 @@ waits for its tick to settle.
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics, the clipboard, keep-awake and vibration, behind one `device` module. | 0.8 | [PLAN-2d-games.md](PLAN-2d-games.md) |
-| **A web module that loads in parts** — the wasm split so a game fetches the physics, audio or networking it uses, with a pack arriving in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
+| **A web module that loads in parts** — the wasm split so a game fetches the physics, audio or networking it uses, with an export pack arriving in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **A game on a small machine** — `linux-arm64` is an export target that has never run, so a Raspberry Pi wants the GL backend and a measured frame budget. | 0.8 | [PLAN-release.md](PLAN-release.md) |
 | **Per-platform project settings** — one settings screen over every table in `project.toml`, with an override per platform, architecture or build. | 0.7 | [PLAN-per-platform.md](PLAN-per-platform.md) |
 | **Suspend and resume** — hooks a script answers on a phone call or a console's suspend, audio released and taken back, and a tick that pauses. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Embedding on a page** — an npm runtime with a `<balaur-viewer>` element and a React wrapper, a typed page API, and a web module sized to the game. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
-| **Sealed packs and stripped binaries** — bytecode on the web too, and a pack sealed with ChaCha20-Poly1305 under a project key, never a DRM wrapper. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
+| **Sealed export packs and stripped binaries** — bytecode on the web too, and an export pack sealed with ChaCha20-Poly1305 under a project key, never a DRM wrapper. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation and Xbox, each an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
 | **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser, and ARKit and ARCore behind the same seam. | 0.8 | no plan |
 | **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |

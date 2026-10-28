@@ -3,7 +3,7 @@
 > file or directory and rewrites every reference under the project, which
 > the Assets dock's rename now goes through; `assets/index.toml` and
 > `id://<id>` references (phase 6) resolve through `ProjectFiles::path_of`
-> for text and binary alike and ride in a pack; and `balaur import
+> for text and binary alike and ride in an export pack; and `balaur import
 > file.aseprite` (phase 5) writes an atlas, a `sprite_sheet` asset with
 > frames, tags and slices, and a clip per tag, drawn by `sprite.sheet`.
 > ARCHITECTURE.md "Assets" is the record. What stays open: a `.rn` that
@@ -37,7 +37,7 @@ tool understands them. Renames are handled in two steps:
 2. **An id index**, `assets/index.toml`, written by the editor: `id → path`,
    with the id also stored in the asset's own file as `id = "..."`. A
    reference may be `id://<id>`; the loader resolves it through the index,
-   and a pack carries the index. This is the escape for content edited
+   and an export pack carries the index. This is the escape for content edited
    outside the editor.
 
 Hot reload: built. The watcher in `balaur_script_rune` sees every file change

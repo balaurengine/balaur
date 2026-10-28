@@ -206,7 +206,7 @@ Three rules belong to the importer rather than the translator:
 - Retire the four hand-written files as the steps above land. Each carries
   the reason it exists in its header comment.
 - Export for the web and run `scripts/web_smoke.mjs` over it. The project is
-  297 MB with its history and holds 2 824 SVG rasters, so the pack's size is
+  297 MB with its history and holds 2 824 SVG rasters, so the export pack's size is
   the first number to take. The 13 `JavaScriptBridge` sites map onto `web`.
 - iOS and Android: `balaur export` writes both, unsigned, and no frame has
   been rendered on a device (`docs/PLAN-mobile-export.md`).
@@ -331,12 +331,12 @@ Three rules belong to the importer rather than the translator:
    country maps as binary `.scn` (`RSCC`), which the importer does not
    read.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
-    Done 2026-09-25: the pack is 139.0 MB and boots in headless Chrome,
+    Done 2026-09-25: the export pack is 139.0 MB and boots in headless Chrome,
     drawing within 90 s with no warning or error. Scenes are 30.9 MB,
     scripts 8.2 MB and assets 99.9 MB, of which PNG 47.6, CSV 35.6, fonts
     9.7 and JSON 4.5. On the way: a packed game's `fs` reads its own files
-    from the pack, a pack carries `json` and `csv`, and `application/ignore`
-    takes what every Godot export preset leaves out, which cut the pack
+    from the export pack, an export pack carries `json` and `csv`, and `application/ignore`
+    takes what every Godot export preset leaves out, which cut the export pack
     from 186.9 MB. A window leaves fullscreen only when in it, a script
     replacing a prefab's is the instance's own, `JavaScriptBridge` reads as
     absent, and a method bound with arguments is a record. The report

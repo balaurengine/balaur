@@ -427,6 +427,7 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         .try_resource::<ProjectRoot>()
         .ok_or_else(|| anyhow!("no project directory, so '{reference}' cannot be written"))?;
     let full = root.borrow().0.join(&path);
+    crate::dependencies::refuse_write(eng, &full)?;
     // What the read made absolute goes back the way the owning project spells
     // it: an absolute path written into a game does not survive another machine.
     let mut definition = definition.clone();

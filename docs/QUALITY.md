@@ -111,7 +111,7 @@ Every exemption carries its reason inline, so it stops being cited as precedent.
   `#[allow(clippy::disallowed_methods, reason = "..")]`.
 - `platform-float-math` and `nondeterministic-iteration` catch what clippy
   cannot see.
-- `.gitattributes` pins LF: a CRLF checkout on Windows CI exports different pack
+- `.gitattributes` pins LF: a CRLF checkout on Windows CI exports different export pack
   bytes from the same sources.
 
 Then CI checks it two ways:
@@ -123,7 +123,7 @@ Then CI checks it two ways:
    binary, same simulation" is not testable and a divergence cannot be bisected.
 
 Locally, `scripts/e2e.sh` exports every example twice in separate processes;
-the packs must be byte-identical. A pack was once written in hash order, stable
+the export packs must be byte-identical. An export pack was once written in hash order, stable
 within a process and different in the next.
 
 A change that alters a recorded digest has to say why.
@@ -157,8 +157,8 @@ run it; `scripts/precommit.sh --e2e` does.
   from and each template it starts a project with: each carries a manifest,
   so each is checked from its own root.
 - **run** — dev mode from sources.
-- **export**, twice — the packs must be identical.
-- **play** — the exported pack, no sources, no compiler.
+- **export**, twice — the export packs must be identical.
+- **play** — the export pack, no sources, no compiler.
 - **edit** — the editor booted headless against every example. The
   per-project self-test states (`EXAMPLE_STATES`) run on `angrynerds`,
   `hello`, `objects` and `rig`, which between them hold what every state
@@ -241,7 +241,7 @@ one entry in `cases_kinds.bs` or `cases_scripts.bs`.
 - `build.yml` also exports and runs a new project on each packaged template
   (`scripts/package.sh`), runs `scripts/signing_check.sh`
   (`BALAUR_SIGNING_CHECK`) and `scripts/export_check.sh` per platform, and
-  `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`
+  `scripts/web_smoke.mjs` over every web export pack through `scripts/package_play.sh`
   and over the web export, booted on the game template, which has no compiler.
   `package_play.sh` boots each example on the web runtime its
   `[export] runtime` picked.

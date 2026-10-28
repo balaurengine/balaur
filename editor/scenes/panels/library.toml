@@ -86,6 +86,26 @@ kind = "button"
 role = "chip"
 text = "Templates"
 
+# The game's own dependencies, file by file: placed linked, not copied.
+[[nodes]]
+id = "deps"
+name = "deps"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "Dependencies"
+
+# Projects on Forge, any of which the game can import.
+[[nodes]]
+id = "forge"
+name = "forge"
+parent = "kinds"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "On Forge"
+
 # What the kind holds nothing of, or what a template row does.
 [[nodes]]
 id = "note"

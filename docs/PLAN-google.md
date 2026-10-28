@@ -32,7 +32,7 @@ Built, and not built for this:
 | --- | --- |
 | An APK out of `balaur export --target android --bundle apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
-| The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
+| The export pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
 | An application id, label, version and SDK floors the game owns | `[android]` in `project.toml`, `AndroidConfig::manifest` |
 | All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_runtime.sh`, `android::{Abi, AndroidConfig}` |
 | 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_runtime.sh` |
@@ -191,7 +191,7 @@ Every Google service an Android game reaches for, and where each stands here.
 | Purchase verification (Google Play Developer API), Real-time developer notifications | Step 6, server side, as a Gamend hook. A purchase the client alone has checked is not checked |
 | Play Billing Lab / license testers | Step 6 — the only way a purchase is tested without money |
 | Play Integrity API | Step 7. The verdict is a signed token for the *server* to read; a client that reads its own verdict has proved nothing |
-| Play Asset Delivery (install-time, fast-follow, on-demand packs) | Step 8, and the one Google service that touches engine architecture: an on-demand pack is the asset-streaming row of the roadmap wearing Play's clothes. Needs the AAB from step 1 |
+| Play Asset Delivery (install-time, fast-follow, on-demand asset packs) | Step 8, and the one Google service that touches engine architecture: an on-demand asset pack is the asset-streaming row of the roadmap wearing Play's clothes. Needs the AAB from step 1 |
 | Play Feature Delivery (dynamic feature modules) | Not planned. A feature module is Java code delivered late; the engine's late-delivered thing is assets |
 | In-app review, in-app updates, install referrer | Step 9. Three small libraries, one event each |
 | Firebase Crashlytics with the NDK reporter | Step 9, and worth more here than in most engines: a Rust panic in a NativeActivity is otherwise a line in `logcat` nobody sees. It overlaps the roadmap's self-reproducing crash report, which is the better answer where a recording exists |
@@ -233,8 +233,8 @@ something that works.
    purchase that survives a reinstall.
 7. **Play Integrity.** A verdict token requested by the client and read by
    the server, and a Gamend hook that says yes or no.
-8. **Play Asset Delivery.** On-demand packs behind an asset-source that the
-   pack loader already has a seam for. This is the step that should wait for
+8. **Play Asset Delivery.** On-demand Play asset packs behind an asset-source that the
+   export pack loader already has a seam for. This is the step that should wait for
    the roadmap's asset-streaming work rather than lead it.
 9. **The long tail.** In-app review and updates, the install referrer,
    Crashlytics NDK, and `google.call` for the game that wants a Java library
@@ -248,7 +248,7 @@ move it. What a runner can check:
 - the Gradle template builds, the dex is in the APK, and the APK installs on
   an emulator far enough to log a line
 - an exported game carries the project's application id, its capabilities'
-  manifest entries, and the pack in `assets/`
+  manifest entries, and the export pack in `assets/`
 - `bundletool build-apks` accepts the AAB and carries every ABI the export
   asked for, which `export_check.sh` already checks of the APK
 - the plugin's replay test passes: a recorded session of canned platform

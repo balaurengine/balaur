@@ -46,7 +46,7 @@ browser = ["dep:balaur_browser"]
 # a build drops GameKit and the objc2 bindings to it. `platform.*` is always
 # there; with no store behind it every call answers `unsupported`.
 apple = ["dep:balaur_apple"]
-# SVG textures read in place. An exported pack holds their rasters, so a game
+# SVG textures read in place. An export pack holds their rasters, so a game
 # template leaves it off.
 svg = ["balaur_core/svg"]
 # The 2D physics world: `physics2d.*`, its components and presets.
@@ -55,7 +55,7 @@ physics2d = ["balaur_physics/physics2d"]
 physics3d = ["balaur_physics/physics3d"]
 # The WESL shader linker and the `.bs` to C translator: a dev run, the editor
 # and an export. A template leaves it off and draws with the shaders an export
-# linked into the pack.
+# linked into the export pack.
 compile = ["balaur_render/compile", "balaur_script_bs?/c"]
 # Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi
 # or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi,

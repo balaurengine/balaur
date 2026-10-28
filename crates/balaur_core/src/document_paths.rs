@@ -39,12 +39,16 @@ pub fn owner_of(eng: &Engine, path: &Path) -> Option<PathBuf> {
 /// The root a document read from `path` names its files from, or `None` when
 /// that is the project's own and nothing needs rewriting. `read_from` is the
 /// root that answered the read, which is what a relative path belongs to.
+///
+/// A relative path under `deps/<alias>/` belongs to that dependency, which is
+/// a project of its own inside the root that answered.
 pub(crate) fn foreign_root(eng: &Engine, path: &str, read_from: &Path) -> Option<PathBuf> {
     let named = Path::new(path);
     let owner = if crate::files::rooted(named) {
         owner_of(eng, named)?
     } else {
-        read_from.to_path_buf()
+        crate::dependencies::root_under(eng, read_from, path)
+            .unwrap_or_else(|| read_from.to_path_buf())
     };
     let project = crate::file_api::project_roots(eng).into_iter().next()?;
     (owner != project).then_some(owner)
@@ -52,21 +56,29 @@ pub(crate) fn foreign_root(eng: &Engine, path: &str, read_from: &Path) -> Option
 
 /// Rewrite every file path in a document against `root`. `ids` also resolves
 /// `id://` through that root's own index, which only a document the engine
-/// never writes back may ask for: the spelling is lost, not translated.
+/// never writes back may ask for: the spelling is lost, not translated. A
+/// dependency's documents are never written back, so theirs always resolve.
+///
+/// The paths come out as the game spells that root: absolute for a game a
+/// host added, `deps/<alias>/…` for a dependency of the project itself, which
+/// is also how its files are keyed in an export pack.
 pub(crate) fn absolute_in(eng: &Engine, root: &Path, value: &mut toml::Value, ids: Ids) {
     let files = crate::files::backend(eng);
+    let dependency = crate::dependencies::owning(eng, &root.to_string_lossy()).is_some();
     let index = match ids {
         Ids::Resolve => index_at(files.as_ref(), root),
+        Ids::Keep if dependency => index_at(files.as_ref(), root),
         Ids::Keep => None,
     };
+    let spelled = crate::dependencies::spelling(eng, root);
     walk(
         &mut |text: &mut String| {
             if let Some(rest) = text.strip_prefix(crate::assets::ID_PREFIX) {
                 if let Some(named) = index.as_ref().and_then(|index| id_path(index, rest)) {
-                    *text = join(root, &named);
+                    *text = join(&spelled, &named);
                 }
             } else if names_a_file(text) && files.exists(&root.join(&text)) {
-                *text = join(root, text);
+                *text = join(&spelled, text);
             }
         },
         value,
@@ -81,6 +93,30 @@ pub(crate) fn relative_in(root: &Path, value: &mut toml::Value) {
         &mut |text: &mut String| {
             if let Some(rest) = text.strip_prefix(&prefix) {
                 *text = rest.to_string();
+            }
+        },
+        value,
+    );
+}
+
+/// Rewrite a dependency's document for an export pack, whose one key space
+/// is the game's: a path naming one of the dependency's files, or an `id://`
+/// its own index knows, becomes `<prefix>/<path>`. `exists` answers for a
+/// path under the dependency's root.
+pub(crate) fn prefixed_in(
+    prefix: &str,
+    value: &mut toml::Value,
+    exists: &dyn Fn(&str) -> bool,
+    index: &std::collections::BTreeMap<String, String>,
+) {
+    walk(
+        &mut |text: &mut String| {
+            if let Some(rest) = text.strip_prefix(crate::assets::ID_PREFIX) {
+                if let Some(named) = id_path(index, rest) {
+                    *text = format!("{prefix}/{named}");
+                }
+            } else if names_a_file(text) && exists(text) {
+                *text = format!("{prefix}/{text}");
             }
         },
         value,
@@ -144,7 +180,7 @@ fn id_path(index: &std::collections::BTreeMap<String, String>, rest: &str) -> Op
 /// an absolute one is already resolved. `model::names_a_file` in the editor is
 /// the same rule and must stay so, down to a Windows drive counting as absolute:
 /// the editor walks what this hands back.
-fn names_a_file(value: &str) -> bool {
+pub(crate) fn names_a_file(value: &str) -> bool {
     if value.is_empty() || crate::files::rooted(Path::new(value)) {
         return false;
     }

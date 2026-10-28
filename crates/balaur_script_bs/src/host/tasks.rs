@@ -114,6 +114,7 @@ impl BsHost {
         let Ok(mut rt) = file.rt.try_borrow_mut() else {
             return Ok(Polled::Waiting(p));
         };
+        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
         self.poll_held(&file, &mut rt, &inst, p)
     }
 

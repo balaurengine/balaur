@@ -91,15 +91,15 @@ Three smaller facts that shape the work:
    carries beneath it. `settings::set` needs no change; the path is the
    feature.
 8. **What is baked, not resolved.** Three things cannot wait for a read:
-   the bytes in the pack, the native manifests (`AndroidManifest.xml`,
+   the bytes in the export pack, the native manifests (`AndroidManifest.xml`,
    `Info.plist`, `index.html`), and the custom tags themselves. Export
    resolves those against the target's tags and writes them into the artefact,
    the way Godot bakes `_custom_features`. Everything else stays a read.
 9. **Asset variants.** A variant is a file beside the asset, named by tag:
-   `sprites/hero.png` and `sprites/hero.android.png`. The pack is a map keyed
+   `sprites/hero.png` and `sprites/hero.android.png`. The export pack is a map keyed
    by project-relative path, so the exporter substitutes the bytes under the
    canonical path and nothing downstream — scenes, scripts, the runtime —
-   learns a new concept. A variant that no tag selects never enters the pack.
+   learns a new concept. A variant that no tag selects never enters the export pack.
 10. **`[window] mode` and `orientation`.** The window keys are desktop-shaped:
     a phone has no width. `mode` (`windowed`, `maximized`, `fullscreen`,
     `exclusive`) replaces the `fullscreen` switch, and `orientation` (`any`,
@@ -120,18 +120,18 @@ Every step above is built.
   `[locale]`, `[input]`, `[input.actions]`, `[audio.buses]`, `[http]`,
   `[websocket]`, `[import.<kind>]` and `application/splash`. `[http]` and
   `[websocket]` used to read `project.toml` from the project files, which a
-  pack does not keep there, so a shipped game took their defaults.
+  export pack does not keep there, so a shipped game took their defaults.
 - `ProjectManifest` keeps only what is read before an engine exists: the
   name, the main scene, the language, `[plugins]` and `[check]`. It resolves
-  too, against the machine's tags and a pack's `[build] tags`, so
+  too, against the machine's tags and an export pack's `[build] tags`, so
   `[override.ios.plugins] http = false` decides what loads and a demo build
-  opens `[override.demo.application] main_scene`. A pack's
+  opens `[override.demo.application] main_scene`. An export pack's
   `application/asset_source` is read through the registry at boot.
 - `App::load_project` refuses a key `settings::unknown` finds.
 - `settings::to_toml` edits through `toml_edit` and writes only what was set.
 - `crates/balaur_export/src/settings.rs` declares `[export]`, `[android]` and
   `[apple]`; the exporter reads them from one document resolved for the
-  target, and stamps the target's own tags into the pack as `[build] tags`.
+  target, and stamps the target's own tags into the export pack as `[build] tags`.
 - `[window] orientation` reaches both native manifests, and `[window] mode`
   is `windowed`, `maximized`, `fullscreen` or `exclusive`, with
   `window.set_window_mode` beside it. The kiss3d fork gained

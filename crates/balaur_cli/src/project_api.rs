@@ -12,6 +12,7 @@ use anyhow::Result;
 use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
+mod forge;
 mod release;
 
 /// How many projects the list keeps. Past this the oldest falls off: the
@@ -63,7 +64,8 @@ impl balaur_plugin::Plugin for ProjectPlugin {
         install_project_api(&mut *m);
         install_project_verbs(&mut *m);
         drop(m);
-        release::declare(reg)
+        release::declare(reg)?;
+        forge::declare(reg)
     }
 }
 
@@ -132,6 +134,12 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             &[],
             "(path: string) -> Opened",
             "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
+        ),
+        (
+            "open_beside",
+            &[],
+            "(path: string) -> Opened",
+            "Start a second editor on `path` and keep this one: Edit dependency on a `path` dependency, whose project is another folder. Answers `{ error }` when there is no project there or no second editor can start.",
         ),
         (
             "forget",
@@ -205,6 +213,19 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
     m.function("open", |eng: &Engine, path: String| {
         let home = home_of(eng);
         Ok(open(eng, &home, Path::new(&path)))
+    });
+    m.function("open_beside", |_: &Engine, path: String| {
+        let path = Path::new(&path);
+        let error = if path.join("project.toml").is_file() {
+            relaunch(path).err().map(|e| format!("{e:#}"))
+        } else {
+            Some(format!("no project.toml in {}", path.display()))
+        };
+        Ok(Value::Map(
+            error
+                .map(|e| vec![("error".into(), Value::text(e))])
+                .unwrap_or_default(),
+        ))
     });
     m.function("forget", |eng: &Engine, path: String| {
         forget(eng, Path::new(&path));

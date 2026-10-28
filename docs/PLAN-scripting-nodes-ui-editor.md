@@ -107,7 +107,7 @@ async and runs with its breakpoints ignored. Separately, `trampoline`
 **Shape.** Read the unit, not the text: `Unit::debug_info().functions`
 carries every function with its `DebugArgs::Named` list, which the debugger
 already reads for locals (`debugger.rs:239`), and `Unit::is_immediate` says
-whether it is synchronous. A packed script keeps the list the pack encodes
+whether it is synchronous. A packed script keeps the list the export pack encodes
 today, computed from the dev unit at export. Lift the arity cap by building a
 shared function as a raw handler over `Memory` and an argument count, the
 shape `RuneModule::function_raw` already uses (`bindings.rs:184-214`).

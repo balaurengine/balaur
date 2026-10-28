@@ -116,7 +116,7 @@ from the target's schema, a `when` field. "Convert to script" writes the file
 and opens it in the code pane.
 
 **A cost dock.** `render.stats` from `docs/PLAN-embed.md` — draw calls,
-triangles, texture bytes per node — beside `engine.timings` and the pack's
+triangles, texture bytes per node — beside `engine.timings` and the export pack's
 size per asset from `balaur export`, as a tab of the Profiler dock.
 
 **The library is files.** `editor/library/` holds `material` assets over the

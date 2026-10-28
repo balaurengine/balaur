@@ -11,7 +11,7 @@ balaur_cfg.workspace = true
 
 [features]
 # SVG textures rasterized at their `scale`. Off in a game runtime: an export
-# has already written the raster into the pack.
+# has already written the raster into the export pack.
 svg = ["dep:resvg"]
 
 [dependencies]
@@ -38,7 +38,7 @@ sha2.workspace = true
 # Bone rest poses go through sin/cos once per bone; the platform libm differs
 # across operating systems and this one does not.
 libm.workspace = true
-# `.glb` meshes, skins, clips and morph targets. No `import` feature: a pack
+# `.glb` meshes, skins, clips and morph targets. No `import` feature: an export pack
 # hands the reader bytes; `extras` carries a shape's own name, and the
 # extensions below carry a surface's paint and the lights a scene places.
 gltf = { version = "1.4", default-features = false, features = [

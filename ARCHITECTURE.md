@@ -128,7 +128,7 @@ one backend; the Rune backend before it was one crate and went as one.
   `class` field.
 - `use name;` links `name.bs`, found beside the file or in a folder above it,
   and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
-  struct is a module others use. Disk in a dev run, pack when shipped.
+  struct is a module others use. Disk in a dev run, export pack when shipped.
 - Each file compiles once, alone, as a unit; a script runs its own unit with
   the units of every module it uses, in one memory, each made on its first
   call (`docs/PLAN-bs-linking.md`). A debugger's probes, a profiler, the
@@ -336,16 +336,16 @@ content is `asset`.
   `AssetState` is the `DetHashMap` cache keyed by resolved reference;
   `AssetTypeRegistry` is the parser table, read-only after plugin build.
 - `application/ignore` in `project.toml` lists what is not the game's, as
-  globs (`art/wip/**`, `**/*.blend1`): the asset index skips it and a pack
+  globs (`art/wip/**`, `**/*.blend1`): the asset index skips it and an export pack
   leaves it out, so nothing there reaches a shipped game. One list rather than
   a marker file per folder, so it is visible and versioned. A script compiles
-  against the disk, where an ignored module still is, so the pack asks the
+  against the disk, where an ignored module still is, so the export pack asks the
   compiler what each shipped script links in (`ScriptCompiler::uses`) and
   fails on one it left out, naming the pattern; `balaur check` says the same.
 - Sharing is the default; `assets.duplicate` opts out. Cache keys use a
   hand-written FNV-1a over bytes and TOML structure — `std`'s hashers specify
   nothing about their output, and this key must agree across platforms.
-- Resolution reuses `ScriptHost::scene_source` (pack or disk), with a
+- Resolution reuses `ScriptHost::scene_source` (export pack or disk), with a
   `ProjectRoot` + `std::fs` fallback for Rust-only apps and tests.
 - An unresolved reference **warns** and the scene loads; a definition table that
   does not parse is an error. `apply` errors are fatal to `instantiate_scene`,
@@ -357,7 +357,7 @@ content is `asset`.
   stands in for a path anywhere, resolved before the cache key.
   `assets.assign_id` writes a digest of path and content, so a rebuilt index
   gives a file the id it had. Script sources are not rewritten. Binary assets
-  landed with pack format 2, verified by sha256.
+  landed with export pack format 2, verified by sha256.
 - **Import settings are a sidecar**, Godot's `.import` by another name:
   `art/hero.png.import.toml` states how `art/hero.png` is read, and `[import.<kind>]`
   in `project.toml` sets the default for every file of that kind. A file's kind
@@ -552,7 +552,7 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin` —
   `standalone::extensions_beside` names that place for exporter and runtime
   alike, and the template's own format picks `.so`, `.dylib` or `.dll`.
 - A packed boot loads from there, never from the working directory, which is
-  `/` for a `.app` Finder opened. `balaur play` loads from beside the pack. A
+  `/` for a `.app` Finder opened. `balaur play` loads from beside the export pack. A
   web, iOS or Android export warns and ships without them.
 
 **Two boundaries, because Rust has no stable ABI.** `load_extension` picks by
@@ -581,13 +581,13 @@ exported symbols.
   its call, and the host copies before returning. Tier 1 today is script modules
   of functions and constants (`docs/PLAN-c-api.md`).
 
-### Precompiled packs
+### Export packs
 
 `balaur export` compiles every script with dev mode's own options less the
 debug info, so shipped bytecode is what was tested, and bundles scripts, scenes
 and manifest into a `.bpak`, for the web as for every other target. Only
 `--keep-sources` ships source, and only a build with the `compile` feature runs
-such a pack: the editor's, never a game template.
+such an export pack: the editor's, never a game template.
 
 - The web game template and the editor's module are two builds of
   `balaur_cli`. The template leaves out `editor` (the exporter, the project
@@ -598,7 +598,7 @@ such a pack: the editor's, never a game template.
   `balaur_render::prelinked::cached`, keyed by what it links; an export runs
   each one the game can draw with (the engine's in every variant, each
   material morphed or not, in the transparency pass or not) and writes the
-  results to `.balaur/shaders.toml` in the pack, which a template reads.
+  results to `.balaur/shaders.toml` in the export pack, which a template reads.
 - kiss3d links its built-in shaders in `build.rs`. Its object shader keeps
   three `@if` flags that change what it declares (8 modules); the other
   fourteen are `override` constants each pipeline sets.
@@ -628,26 +628,55 @@ such a pack: the editor's, never a game template.
   audio before a gesture. `balaur_webtransport` has a browser backend, but no plugin registers
   it and nothing outside its own tests opens a link, so it stays out of the
   default web feature set.
-- A pack is written in sorted key order, so two exports of one source tree give
+- An export pack is written in sorted key order, so two exports of one source tree give
   the same bytes anywhere. `scripts/e2e.sh` exports every example twice and
   diffs the two — hashed maps once gave five files from ten exports.
 
+### Dependencies
+
+A dependency is another project imported whole into `deps/<alias>/`,
+declared in `[dependencies]` (`docs/PLAN-dependencies.md`).
+`balaur_core::dependencies` holds the manifest and lock formats, the hash
+both a desktop and a Forge runner check, and what a running engine knows.
+
+- Each installed dependency is a declared root, so `document_paths` reads a
+  document under `deps/<alias>/` against that root and spells its paths
+  `deps/<alias>/…`, which is also how an export pack keys them.
+- A `path` dependency is mounted: `dependencies::Mounted` wraps the file
+  backend and maps the mount point to the folder, `canonicalize` included,
+  so `file_api`'s root check and the asset loader see one tree. The `.bs`
+  host watches the folder and keys its edits under the mount point.
+- The `.bs` host names the file of each instance it calls into
+  (`dependencies::calling`); `path_of` and `fs.*` read a relative path a
+  dependency's script builds under its folder. Building a scene is the
+  game's turn (`as_game`), since its document is already in game spelling.
+- A file under `deps/` is refused to `fs.*` writes, `assets.save`,
+  `assets.rename` and `assets.assign_id`. The `dependency` script module is
+  what the editor's docks call: `list`, `of`, `make_local`, `move_into`.
+- `Pack::build` gathers each dependency with its own `ignore`, rewrites its
+  documents, bakes its `[import.<kind>]` into sidecars, and drops what
+  nothing names, reading script literals from the sources. It writes
+  `deps/credits.json`.
+- `balaur add` and `balaur fetch` (`balaur_cli`'s `deps_cmd`) read a Forge
+  project over its HTTP API by tree and blob, each blob checked against its
+  git id and kept once under the editor's data folder.
+
 ### Fused executables
 
-`--target <platform>` appends the pack to the runtime template CI publishes:
+`--target <platform>` appends the export pack to the runtime template CI publishes:
 
 ```text
 [ template executable ][ pack bytes ][ pack length: u64 LE ][ "BPAKSELF" ]
 ```
 
 - ELF, Mach-O and PE ignore trailing bytes, so the fused file runs. At startup
-  the CLI reads its own executable (`core::standalone`): a pack means it is a game
+  the CLI reads its own executable (`core::standalone`): an export pack means it is a game
   and argv is never read. One binary is the editor, the CLI and every game's
   runtime.
 - Runtimes resolve from `BALAUR_RUNTIMES`, then `runtimes/` beside the
   executable, then `<data dir>/balaur/runtimes/<build id>`. A missing desktop
   template is offered for download from the release this build came from and
-  verified against its `SHA256SUMS` — pinned exactly, because a pack must only
+  verified against its `SHA256SUMS` — pinned exactly, because an export pack must only
   meet the runtime its compiler shipped with. The prompt needs a terminal or
   `--download`; `--no-download` forbids it.
 - `scripts/package.sh` bakes a build id and every release carries a VERSION
@@ -655,7 +684,7 @@ such a pack: the editor's, never a game template.
   `balaur update` — one command replacing binary, editor, template and header,
   which only work as a set. A source build refuses and points at git. An update
   follows the channel its own version names, and `--channel` crosses lines.
-- A signed macOS game is `export --app`: a `.app` with the pack in
+- A signed macOS game is `export --app`: a `.app` with the export pack in
   `Contents/Resources`, because codesign seals resources but never bytes
   appended to a flat binary. `export --sign` signs it (and implies `--app` on
   macOS), and `--notarize` staples Apple's ticket.

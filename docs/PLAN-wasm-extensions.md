@@ -86,9 +86,9 @@ extension has its own linear memory and its own function table.
 - **The file goes in `extensions/`,** beside native libraries. The loader
   picks by suffix: `.wasm` to the wasm host, the platform's own suffix to
   `dlopen`.
-- **The pack carries it.** One `.wasm` file runs everywhere, so `balaur export`
+- **The export pack carries it.** One `.wasm` file runs everywhere, so `balaur export`
   keeps `extensions/` whole, the way `pack.rs` keeps `fonts/`. `/play` and
-  `/editor` then receive the extension in the pack they already fetch.
+  `/editor` then receive the extension in the export pack they already fetch.
 - **Switches and load order are unchanged.** A wasm extension has a manifest
   name like any plugin, so `[plugins]` turns it off, and load order is by
   name.
@@ -130,7 +130,7 @@ already forces the schema-or-`Value` decision tier 2 has to make.
    the registry, and calls through the exported table. Measure a call against
    a native binding. Tested in a headless browser on a packed project,
    asserting what `c_extension.rs` asserts natively.
-4. **Packs.** `extensions/` kept whole in a pack. `balaur check` reports a
+4. **Export packs.** `extensions/` kept whole in an export pack. `balaur check` reports a
    `.wasm` that fails validation.
 5. **The Rust guest crate.** `balaur_extension`, its macro, and
    `examples/extension_greeter` ported to it. The example becomes a project

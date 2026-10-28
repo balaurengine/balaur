@@ -2,11 +2,11 @@
 > the web game template has no compiler to run anything else. Steps 1 and 3
 > not started. Written 2026-09-06, after "how safe is a shipped
 > game against decompilation" got the honest answer: it is not, by design.
-> The pack is length-prefixed raw bytes, the web pack carries the script
+> The export pack is length-prefixed raw bytes, the web export pack carries the script
 > sources, and the release binary keeps its symbol table. The steps are
 > ordered by what each costs against what it buys: stripping is one line;
 > the bytecode is portable already and only the web exception says
-> otherwise; a cipher on the pack is a speed bump and is called one; nothing
+> otherwise; a cipher on the export pack is a speed bump and is called one; nothing
 > stronger is planned. No step here stops a determined reader, and every
 > step says so, because a protection that claims more than it does is the
 > one that costs a developer a launch.
@@ -25,7 +25,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| One pack per export: manifest, scenes, scripts and assets, length-prefixed, in sorted order so two exports are byte-identical and CI can diff them | `balaur_core::pack`, `Pack::encode` |
+| One export pack per export: manifest, scenes, scripts and assets, length-prefixed, in sorted order so two exports are byte-identical and CI can diff them | `balaur_core::pack`, `Pack::encode` |
 | Scripts as a compiled Rune unit on every target, the web included, debug info dropped; `--keep-sources` alone ships source | `balaur_script_rune::packed`, `options.debug_info(Purpose::Dev)` in `lib.rs` |
 | A web export booted in Chrome on the game template, which has no compiler | `scripts/export_check.sh web`, `scripts/web_smoke.mjs` |
 | A test that states what the unit still spells out: every function name, private ones included, field names, string literals | `crates/balaur_script_rune/tests/packed.rs` |
@@ -37,10 +37,10 @@ Built, and not built for this:
 
 Missing:
 
-- **Anything on the pack.** No compression and no cipher. A fused
-  executable's pack starts where a `u64` at `len - 16` says, and each entry
+- **Anything on the export pack.** No compression and no cipher. A fused
+  executable's export pack starts where a `u64` at `len - 16` says, and each entry
   inside is the original file: `Pack::entries` is a public function that
-  returns the project tree. `strings` on a pack prints every scene, comments
+  returns the project tree. `strings` on an export pack prints every scene, comments
   included.
 - **A stripped native binary.** `[profile.release]` sets `lto` and
   `codegen-units` and nothing else, so the release `balaur` carries its whole
@@ -58,14 +58,14 @@ Missing:
 
 **The bar, stated once.** A shipped game holds every byte a player needs to
 run it, so it holds every byte needed to read it; the key that opens a
-sealed pack is in the file that opens it. Godot's PCK encryption, Unity's
+sealed export pack is in the file that opens it. Godot's PCK encryption, Unity's
 IL2CPP and Unreal's pak encryption are each undone by a public tool for that
 reason, and this engine will be no different. What the steps below buy is
 that casual extraction stops working — `strings`, a hex editor, a
 thirty-line script, a generic unpacker — and nothing more. The manual says
 that in those words, next to the flag.
 
-**Cheating has a different answer.** A pack nobody can read still runs on a
+**Cheating has a different answer.** An export pack nobody can read still runs on a
 machine the player owns and can single-step. A score, an unlock or a match
 result that matters is written by a server that saw it happen:
 `docs/PLAN-gamend.md` §1 (leaderboard writes come from the game server, never
@@ -94,7 +94,7 @@ fails, the failing sentinel is named, fixed in the fork, and `FORMAT` moves
 to 3. Either way the comment that says "until the bytecode format is
 portable" stops being a guess.
 
-**A sealed pack.** `BPAK\x03`: the v2 body under ChaCha20-Poly1305, and
+**A sealed export pack.** `BPAK\x03`: the v2 body under ChaCha20-Poly1305, and
 `Pack::decode` reads both. The parts:
 
 - `chacha20poly1305` from RustCrypto: pure Rust, builds on every target the
@@ -111,10 +111,10 @@ portable" stops being a guess.
   over the key and the plaintext body. One key and one body give one
   ciphertext, so two exports of the same project are still byte-identical on
   any machine, and the diff CI runs across the matrix keeps its meaning.
-  What that leaks is that two packs are the same pack, which is the
+  What that leaks is that two export packs are the same export pack, which is the
   reproducible-build feature by another name.
 - **Where the key rides.** By default the exporter writes it ahead of the
-  pack, so a fused executable ends `[template][key][sealed pack][len]["BPAKSEAL"]`
+  export pack, so a fused executable ends `[template][key][sealed pack][len]["BPAKSEAL"]`
   and a bundle's `game.bpak` starts with it. That is the speed bump in
   full: a generic unpacker and `strings` find nothing, and a reader of
   `standalone.rs` finds the key in one step. A developer who wants the key
@@ -124,14 +124,14 @@ portable" stops being a guess.
   the key is in `.rodata` — but no longer a documented one.
 - **On the web** the sealed `game.bpak` is fetched as before and opened in
   the module; the key is in the file or in the module, and either way in the
-  browser's cache. A sealed web pack keeps scripts and scenes out of
+  browser's cache. A sealed web export pack keeps scripts and scenes out of
   `strings` and out of the network tab's preview, and that is all it does.
 
-**What a seal does not change.** The pack is still held whole in memory
+**What a seal does not change.** The export pack is still held whole in memory
 (the roadmap's asset streaming item is unrelated and stays so), a `.app`
 still signs the same way since the sealed file is a resource like the plain
-one was, and `balaur play game.bpak` still opens a sealed pack, because the
-key is in it. Compression is not part of the seal: the assets a pack carries
+one was, and `balaur play game.bpak` still opens a sealed export pack, because the
+key is in it. Compression is not part of the seal: the assets an export pack carries
 are already compressed formats, and text seals as well as it zips. If
 download size asks, zstd goes under the seal, not instead of it.
 
@@ -144,15 +144,15 @@ Every measure a reader might ask about, and where each stands.
 | A stripped release binary and template | Step 1 |
 | Symbols kept for the developer | Step 1: a separate artifact per template, never in the download |
 | Bytecode on the web | Step 2 |
-| A sealed pack: ChaCha20-Poly1305, a project key, a derived nonce | Step 3 |
+| A sealed export pack: ChaCha20-Poly1305, a project key, a derived nonce | Step 3 |
 | The key compiled into a developer-built template | Step 4 |
 | Function names out of a unit | Step 5, when a game asks. String literals stay: they are data, and a dialogue line or a URL has to be in the file somewhere |
 | Code signing: `codesign`, notarization, Authenticode, `apksigner` | Have. It proves who built the file and that nobody changed it since; it hides nothing |
 | A SHA-256 per asset | Have. It catches a truncated or corrupt entry. It is not a defence: whoever edits an asset recomputes the hash with the same public function |
 | Build provenance | Have: `attest-build-provenance` on what a push to `main` exports |
-| GPU-compressed textures at export | Not planned: BC7 and ASTC ship bigger than the PNGs they replace. Were it built, a KTX2 in the pack would no longer be the artist's PNG |
-| Compression of the pack (`zstd`) | Not planned on its own; under the seal if web size asks. On its own it hides nothing from anyone with `zstd` installed |
-| Steam DRM wrapper | Not planned, as `docs/PLAN-steam.md` §2 says: it rewrites the executable the exporter appends a pack to |
+| GPU-compressed textures at export | Not planned: BC7 and ASTC ship bigger than the PNGs they replace. Were it built, a KTX2 in the export pack would no longer be the artist's PNG |
+| Compression of the export pack (`zstd`) | Not planned on its own; under the seal if web size asks. On its own it hides nothing from anyone with `zstd` installed |
+| Steam DRM wrapper | Not planned, as `docs/PLAN-steam.md` §2 says: it rewrites the executable the exporter appends an export pack to |
 | Denuvo, VMProtect, Themida and other packers or virtualisers | Not planned. Each rewrites the executable, which breaks the trailer, the signature and the reproducible build, and each is a licensed product the engine cannot ship |
 | Anti-debugging and run-time self-checks | Not planned. They stop `balaur`'s own debugger and the DAP, trip antivirus heuristics, and each is removed with one byte |
 | VAC, Easy Anti-Cheat, BattlEye | Not planned; `docs/PLAN-steam.md` §2. Authority on a server is the engine's answer |
@@ -161,7 +161,7 @@ Every measure a reader might ask about, and where each stands.
 | Watermarking textures or audio | Not planned. A studio tracing a leak does it in its art pipeline, not in the exporter |
 | Encrypting saves | Not planned. A save is the player's file; anything that matters lives on a server (`docs/PLAN-gamend.md`) |
 | Licence keys, online activation | Not planned. That is a store's job, and playing offline is a feature |
-| Subresource Integrity on the web shell | Not planned. The host serves the page, the glue, the module and the pack; a host that changes one can change the hashes with it |
+| Subresource Integrity on the web shell | Not planned. The host serves the page, the glue, the module and the export pack; a host that changes one can change the hashes with it |
 
 ## 3. Steps
 
@@ -174,7 +174,7 @@ developer can turn on.
    desktop template on Linux and macOS, and that no `.pdb` sits in the
    Windows download (MSVC keeps names there, never in the executable). Ends
    with: a fused game with an empty symbol table.
-2. **Bytecode on the web.** Built: every example's compiled pack boots on the
+2. **Bytecode on the web.** Built: every example's compiled export pack boots on the
    compiler-less template in Chrome. The wasm32 test from §1; then the force in
    `balaur_export`, the hard-coded `true` in `web_export.rs`, and the
    `--keep-sources` help text lose the pointer-width reason;
@@ -183,9 +183,9 @@ developer can turn on.
    the flag is for. Ends with: a web export whose `game.bpak` shows no
    `pub fn` under `strings`.
 3. **The seal.** `BPAK\x03`, `chacha20poly1305`, `[export] pack_key`,
-   `balaur export --new-key`, the key ahead of the pack, `Pack::decode`
-   reading v2 and v3, `web.rs::start` opening a sealed pack, and a checkbox
-   in the editor's Export sheet. A test that a sealed pack contains none of
+   `balaur export --new-key`, the key ahead of the export pack, `Pack::decode`
+   reading v2 and v3, `web.rs::start` opening a sealed export pack, and a checkbox
+   in the editor's Export sheet. A test that a sealed export pack contains none of
    the fragments `tests/packed.rs` checks for, that a wrong key fails with a
    named error, and that the reproducibility diff still holds. The manual
    calls it a speed bump in those words. Ends with: `strings game.bpak`
@@ -206,7 +206,7 @@ developer can turn on.
 - a unit compiled on the host decodes and runs on wasm32 — through
   `wasm-bindgen-test` in Node, which the web runtime job has the toolchain
   for, or failing that in the headless page `export_check.sh web` drives
-- a sealed pack contains no plaintext fragment, opens with its key, refuses a
+- a sealed export pack contains no plaintext fragment, opens with its key, refuses a
   wrong one by name, still opens as v2 when unsealed, and exports
   byte-identical across the matrix as before
 - an `.app` with a sealed resource still passes `codesign --verify --deep`
@@ -217,12 +217,12 @@ finds nothing; it cannot show a reader gives up, and no test here claims to.
 ## 5. Open questions
 
 1. **A Rust game that embeds the engine.** Such a game hands
-   `AppConfig::packed` a pack it decoded from `include_bytes!` itself, so
+   `AppConfig::packed` an export pack it decoded from `include_bytes!` itself, so
    the seal is opened before the engine sees it. The developer built the
    binary and the key is theirs to place; the open part is only whether the
    facade offers `Pack::open_sealed(bytes, key)` or reads the same
    `option_env!` the template does.
-2. **Should the editor open a sealed pack?** It can, since the key is in the
+2. **Should the editor open a sealed export pack?** It can, since the key is in the
    file, and refusing would protect nothing. Whether the Open dialog should
    list `.bpak` at all is an editor question, not this plan's.
 3. **One key per project or per release?** Per project keeps every export

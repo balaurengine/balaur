@@ -94,6 +94,53 @@ role = "action_dock"
 text = "folder"
 tooltip = "Make a folder here"
 
+# A dependency's file into the game's own tree, with no link back.
+[[nodes]]
+id = "local"
+name = "Local"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "make local"
+tooltip = "Copy into the game and point the game at the copy"
+visible = false
+
+# The game's file into a `path` dependency kept for later.
+[[nodes]]
+id = "move"
+name = "Move"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "move to project"
+visible = false
+
+# The dependency's own project: its folder in a second editor, or its page
+# on Forge.
+[[nodes]]
+id = "source"
+name = "Source"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "edit dependency"
+visible = false
+
+# A Forge dependency to the newest commit of its branch or tag.
+[[nodes]]
+id = "update"
+name = "Update"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "action_dock"
+text = "update"
+tooltip = "Fetch the newest commit of each dependency's branch or tag"
+visible = false
+
 [[nodes]]
 id = "rename"
 name = "Rename"

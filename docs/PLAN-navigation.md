@@ -34,7 +34,7 @@ out, in core, with a test that runs it twice.
 **The navmesh is an asset.** `navmesh` in `navigation/`: `positions` and
 `polygons` as index loops, in the same shape a `mesh` asset uses, so an
 authored one is a mesh and a baked one is a file the editor writes and the
-pack carries. 2D and 3D share the type; a 2D mesh is flat.
+export pack carries. 2D and 3D share the type; a 2D mesh is flat.
 
 **Baking is a tool, not a load.** A bake is slow and its inputs are the
 scene's static geometry, so `balaur bake` and the editor's Bake button write

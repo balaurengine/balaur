@@ -563,6 +563,9 @@ fn instantiate_from(
         attach_scripts,
         merge_into: None,
     };
+    // A document's paths are the game's spelling by now, whichever script
+    // asked for the scene; each script it attaches runs as its own file's.
+    let _game = crate::dependencies::as_game(eng);
     build_scene(eng, source, base, &mut build, foreign)?;
     children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)

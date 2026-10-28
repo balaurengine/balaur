@@ -13,12 +13,13 @@ ARCHITECTURE.md's plugin section is the record. What is left is below.
   C extension is still short of, with nothing left to reach around it.
 - **Extensions in WebAssembly**, roadmap 1.1: the C ABI in a `.wasm` module
   that loads in the browser too. `docs/PLAN-wasm-extensions.md`.
-- **A package manager**, roadmap 1.1. Nothing resolves a dependency: a plugin
-  is a file somebody copies in, and a version is whatever they copied. What it
-  wants is `[dependencies]` in `project.toml`, `balaur add`, a lockfile with a
-  hash per entry, and the catalogue in `docs/PLAN-collaboration.md` as the
-  registry. A package is files plus an optional native or wasm extension, so a
-  plugin, a script library and an art pack install one way.
+- **A package manager**, roadmap 1.1, built for content:
+  `[dependencies]` in `project.toml`, `balaur add`, `balaur fetch` and a
+  `project.lock` with a hash per entry, any Forge project imported whole into
+  `deps/<alias>/` (`docs/PLAN-dependencies.md`). A script library and a
+  folder of art install that way today. A plugin is still a file somebody
+  copies in: a dependency carrying a native or wasm extension waits on
+  `docs/PLAN-wasm-extensions.md`.
 - **The plugins we do not ship.** Dialogue, behaviour trees and a noise module
   are each a plugin this engine has no answer for, and each is on the roadmap
   rather than in the tree.

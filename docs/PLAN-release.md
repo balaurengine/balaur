@@ -32,7 +32,7 @@ opens without a warning and updates itself.
    Artifact Signing — whose key is in an HSM — is the path the engine's own
    download takes. The certificate names the company, not the engine: a
    Windows user sees `Napocapps Extremus Creo S.R.L.` as the publisher.
-   Only the editor is signed. A runtime template exists to have a pack
+   Only the editor is signed. A runtime template exists to have an export pack
    appended to it, and appending invalidates a signature — `balaur export`
    signs the fused result instead, which is the order `standalone::extract`
    already reads for. On macOS the template inside `Balaur.app` is the
@@ -51,7 +51,7 @@ opens without a warning and updates itself.
    store needs. Putting the signed result where a player can reach it is
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
    profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
-   What the export weighs is built: `balaur export` reports the pack by
+   What the export weighs is built: `balaur export` reports the export pack by
    section and extension, `--dry-run` measures without writing, and `[export]`
    `strip`, `images`, `fonts` and `audio` drop and re-encode losslessly.
 6. **The Download page** on the website reads the nightly by tag today

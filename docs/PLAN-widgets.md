@@ -345,7 +345,7 @@ Measured 2026-09-13:
   `list` and `tree`, and nothing else, so the two never overlap.
 - **`file` is not `egui-file-dialog`.** 0.15 pins egui 0.36 but browses the
   machine through `std::fs`, `directories` and `sysinfo`: it cannot see a
-  project on the web's `MemoryFs` or inside a pack, and shows OS drives a
+  project on the web's `MemoryFs` or inside an export pack, and shows OS drives a
   game should not. Project files are a `list` over `fs::list` with a filter,
   the kind's own work; an OS file is `rfd`, already in the tree through
   kiss3d and what the project manager plan opens folders with.

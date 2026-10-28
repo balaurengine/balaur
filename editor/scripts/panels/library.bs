@@ -7,7 +7,7 @@ pub struct Library {
 }
 
 fn KINDS() -> [str] {
-    ["material", "sky", "model", "scene", "rig", "addon", "template"]
+    ["material", "sky", "model", "scene", "rig", "addon", "template", "deps", "forge"]
 }
 
 impl Library {

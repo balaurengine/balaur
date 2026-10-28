@@ -199,7 +199,7 @@ Every place a game from this engine could be asked to prove who made it.
 | Opening the folder | no host function | Step 6: `engine.reveal(path)` through the `opener` crate (`opener::reveal`), and `engine.open_url(url)` beside it since it is the same crate; both are effects, never recorded, like rumble |
 | Template download | CLI prompt only | Step 6: `Options::obtain` bound to a modal ("download balaur-runtime-windows-x64 (41 MB) from v0.2.0?"), into the same cache, verified the same way |
 | A place in Settings | none | Step 6, small: `editor/export/output` and `editor/export/remember_identities`; the templates themselves are not a setting — they are state with a verb, and they live in the sheet |
-| Export from the web editor | none | `docs/PLAN-web-editor.md` step 7: a pack in the browser, a fused binary from the game's own workflow using `export-game`. **Not planned** here |
+| Export from the web editor | none | `docs/PLAN-web-editor.md` step 7: an export pack in the browser, a fused binary from the game's own workflow using `export-game`. **Not planned** here |
 | Deploy after export | none | `docs/PLAN-deploy.md` step 7; the sheet grows a Deploy column there, not here |
 
 ## 4. Steps
@@ -212,7 +212,7 @@ Every place a game from this engine could be asked to prove who made it.
 2. **Provenance and the web check.** `actions/attest-build-provenance` on
    every artifact `build.yml` uploads; `export_mobile.sh` becomes
    `export_check.sh` and adds `web`, asserting the shell, the wasm and the
-   pack are in the directory. Ends with: every download verifiable with
+   export pack are in the directory. Ends with: every download verifiable with
    `gh attestation verify`, and web export proven on every push.
 3. **macOS done properly.** Hardened runtime and timestamp in `codesign`;
    `--notarize` and stapling; frameworks signed before the bundle. Ends
@@ -271,7 +271,7 @@ Every place a game from this engine could be asked to prove who made it.
   point. The check reads the signature back rather than trusting the exit
   code: the authority is the name the script made, the hardened runtime flag
   is on the bundle, and the signed game runs for 60 frames, which is the
-  only thing that proves a pack still reads from behind a certificate table.
+  only thing that proves an export pack still reads from behind a certificate table.
 - The frameworks-first order is a unit test, not a CI step: an exported
   bundle carries no framework to sign second, so `nested_code` is asserted
   over a bundle a test builds (`crates/balaur_export/src/sign.rs`).

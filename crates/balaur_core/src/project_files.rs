@@ -93,6 +93,12 @@ impl ProjectFiles {
         self
     }
 
+    /// Serve loose files from `fs` from now on: a dependency mounted after
+    /// the files were made.
+    pub fn use_backend(&mut self, fs: std::rc::Rc<dyn crate::files::FileBackend>) {
+        self.fs = fs;
+    }
+
     /// The id index a pack carries, as the text of `assets/index.toml`.
     #[must_use]
     pub fn with_index(mut self, text: Option<String>) -> Self {
@@ -312,6 +318,7 @@ impl ProjectFiles {
 /// # Errors
 /// When the id is not in the index.
 pub fn path_of(eng: &Engine, reference: &str) -> Result<String> {
+    let reference = &*crate::dependencies::scoped(eng, reference);
     if !reference.starts_with(crate::assets::ID_PREFIX) {
         return Ok(reference.to_string());
     }

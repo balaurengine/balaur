@@ -5,7 +5,7 @@
 > `bs` and `bs-jit` of the facade, the CLI, Android and every game
 > template, `bs-web` on the web). Desktop and Android run it on wasmtime, at
 > 1.5 times Rust; an iOS export compiles it to native code, at 1.1 to 1.3. hello's `scripts/spinner.bs` turns its spinner to the bit
-> its Rune original did, from source, from an exported pack and as native code.
+> its Rune original did, from source, from an export pack and as native code.
 
 # Plan: Balaur Script, a scripting language compiled to WebAssembly
 

@@ -1331,6 +1331,13 @@ pub fn selected_node(S: editor::State) -> any {
 // Write the document back to the scene file (hot reload on the game side is
 // the game's watcher's business; the editor is a plain writer).
 pub fn save(S: &mut editor::State) {
+    // A dependency's scene is its project's: the game changes what it uses
+    // through an instance's overrides, or takes the file over in Assets.
+    let owner = dependency::of(S.scene_path);
+    if owner.is_some() {
+        log::warn("{S.scene_rel} is in the dependency {owner.unwrap()}, which is read-only here: make it local in Assets to change it, or edit the dependency");
+        return;
+    }
     // `patch`, not `encode`: a scene file is hand-written as often as not,
     // and encoding the nodes over it would drop its comments, its key order
     // and every table the editor does not model.

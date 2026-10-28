@@ -213,6 +213,11 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
     eng.insert_resource(crate::assets::AssetState::default());
     eng.insert_resource(ProjectRoot(config.project_root.clone()));
+    // A packed run's documents were written in the game's spelling by the
+    // export, so only a run from the sources has dependencies to declare.
+    if config.pack.is_none() {
+        crate::dependencies::install(eng, &config.project_root);
+    }
     eng.insert_resource(crate::settings::SettingsRegistry::default());
     eng.insert_resource(crate::settings::SettingsValues::default());
     eng.insert_resource(crate::settings::SettingsRevision::default());

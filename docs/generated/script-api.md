@@ -15,10 +15,12 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`audio`](#audio) | 23 | 1 |
 | [`browser`](#browser) | 8 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
+| [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 2 | 0 |
 | [`engine`](#engine) | 28 | 0 |
 | [`events`](#events) | 6 | 0 |
 | [`export`](#export) | 6 | 0 |
+| [`forge`](#forge) | 6 | 0 |
 | [`fs`](#fs) | 9 | 0 |
 | [`gamend`](#gamend) | 19 | 9 |
 | [`geometry2d`](#geometry2d) | 12 | 0 |
@@ -36,7 +38,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics2d`](#physics2d) | 132 | 113 |
 | [`physics3d`](#physics3d) | 142 | 120 |
 | [`platform`](#platform) | 11 | 7 |
-| [`project`](#project) | 13 | 0 |
+| [`project`](#project) | 14 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 5 | 0 |
@@ -265,6 +267,19 @@ Breakpoints, pausing a script and resuming it. The editor's Debugger dock and th
 | `STEP_OUT` | `"out"` |
 | `STEP_OVER` | `"over"` |
 
+## `dependency`
+
+The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.
+
+| Function | Signature |
+| --- | --- |
+| `add_path` | `(str, str, str)` |
+| `install` | `(str)` |
+| `list` | `() -> [any]` |
+| `make_local` | `(str, str) -> [str]` |
+| `move_into` | `([str], str) -> [str]` |
+| `of` | `(str) -> str?` |
+
 ## `encoding`
 
 Bytes to base64 text and back.
@@ -334,6 +349,19 @@ Exports the project being edited. `targets` lists what this install can build; `
 | `running_count` | `() -> int` |
 | `start` | `(str, any) -> bool` |
 | `targets` | `() -> [export::Target]` |
+
+## `forge`
+
+Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.
+
+| Function | Signature |
+| --- | --- |
+| `add` | `(str, str) -> bool` |
+| `copy` | `(str, str) -> bool` |
+| `fetch` | `(str, bool) -> bool` |
+| `listen` | `(Node, any)` |
+| `search` | `(str, str) -> bool` |
+| `url` | `() -> str` |
 
 ## `fs`
 
@@ -1142,6 +1170,7 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `home` | `() -> str` |
 | `in_tab` | `() -> bool` |
 | `open` | `(str) -> project::Opened` |
+| `open_beside` | `(str) -> project::Opened` |
 | `pick_directory` | `() -> str?` |
 | `recent` | `() -> [project::Recent]` |
 | `templates` | `() -> [project::Template]` |

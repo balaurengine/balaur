@@ -66,6 +66,14 @@ pub struct AssetsView {
     chosen: bool,
     items: [str],
     picked: str,
+    /// The selection is a dependency's file, which Make local copies out.
+    local: bool,
+    /// The `path` dependency Move to project moves the selection into, or "".
+    move_to: str,
+    /// What Edit dependency opens, or "" outside a dependency.
+    source_tip: str,
+    /// The browser is in a Forge dependency, which Update moves on.
+    update: bool,
 }
 
 pub struct DebuggerView {
@@ -135,7 +143,7 @@ fn cost_hint(S: editor::State, room: float) -> str {
     let stats = render::stats();
     let line = "{stats.draws as int} draws · {stats.triangles as int} triangles · {bytes(stats.texture_bytes)} in {stats.textures as int} textures";
     if room > 560.0 {
-        line += " · pack {pack_size(S)}";
+        line += " · export {pack_size(S)}";
     }
     line
 }
@@ -355,6 +363,119 @@ pub fn delete_asset(S: &mut editor::State) {
     signals::changed(S, "assets");
 }
 
+/// The installed dependency a project-relative path lies in, as
+/// `dependency::list` describes it, or nil for one of the game's own.
+fn dependency_at(S: editor::State, rel: str) -> any {
+    if !rel.starts_with("deps/") {
+        return nil;
+    }
+    let alias = dependency::of(asset_path(S, rel));
+    if alias.is_none() {
+        return nil;
+    }
+    for dep in dependency::list() {
+        if dep.get("alias").as_str() == alias.unwrap() && dep.get("game").as_str() == S.game_root {
+            return dep;
+        }
+    }
+    nil
+}
+
+/// Whether a card the browser shows is a folder.
+fn shown_folder(S: editor::State, rel: str) -> bool {
+    let shown = S.assets.shown;
+    for n in 0..shown.paths.len() {
+        if shown.paths[n] == rel {
+            return shown.dirs[n];
+        }
+    }
+    false
+}
+
+/// The game's first `path` dependency, where Move to project puts files.
+fn shelf(S: editor::State) -> str {
+    for dep in dependency::list() {
+        if dep.get("kind").as_str() == "path" && dep.get("game").as_str() == S.game_root {
+            return dep.get("alias").as_str();
+        }
+    }
+    ""
+}
+
+/// What Edit dependency opens for `dep`: its folder or its page.
+fn source_of(dep: any) -> str {
+    if dep.get("kind").as_str() == "path" {
+        return "Open {dep.get("path").as_str()} in a second editor";
+    }
+    "Open {dep.get("project").as_str()} on Forge"
+}
+
+/// Say why a dependency's file is not changed here, and what does change it.
+fn refuse_in_dependency(S: editor::State, rel: str) -> bool {
+    let dep = dependency_at(S, rel);
+    if dep.is_nil() {
+        return false;
+    }
+    log::warn("res://{rel} is in the dependency {dep.get("alias").as_str()}, which is read-only here: make it local to change it, or edit the dependency");
+    true
+}
+
+/// Copy the selected dependency file into the game at the same place under
+/// the game's root, and point the game at the copy.
+fn make_local(S: &mut editor::State) {
+    let rel = S.assets.sel;
+    let dep = dependency_at(S, rel);
+    if dep.is_nil() {
+        return;
+    }
+    let inside = rel.slice("deps/{dep.get("alias").as_str()}/".len(), rel.len());
+    let target = inside;
+    let n = 2;
+    while fs::exists(asset_path(S, target)) {
+        let cut = util::index_of(inside, ".");
+        let stem = if cut.is_some() { inside.slice(0, cut.unwrap()) } else { inside };
+        let extension = inside.slice(stem.len(), inside.len());
+        target = "{stem}_{n}{extension}";
+        n += 1;
+    }
+    let rewritten = dependency::make_local(asset_path(S, rel), asset_path(S, target));
+    model::forget(S, nil);
+    S.assets.sel = target;
+    S.assets.dir = parent_dir(target);
+    log::info("made res://{target} from {dep.get("alias").as_str()}; {rewritten.len()} file(s) now name it");
+}
+
+/// Move the selected game file into the game's `path` dependency.
+fn move_to_shelf(S: &mut editor::State) {
+    let alias = shelf(S);
+    let rel = S.assets.sel;
+    if alias == "" || rel == "" {
+        return;
+    }
+    let rewritten = dependency::move_into([asset_path(S, rel)], alias);
+    model::forget(S, nil);
+    S.assets.sel = "deps/{alias}/{rel}";
+    log::info("moved res://{rel} into {alias}; {rewritten.len()} file(s) updated");
+}
+
+/// Open the dependency the browser is in: a `path` one's folder in a second
+/// editor, a Forge one's page.
+fn edit_dependency(S: editor::State) {
+    let at = if S.assets.sel != "" { S.assets.sel } else { S.assets.dir };
+    let dep = dependency_at(S, at);
+    if dep.is_nil() {
+        return;
+    }
+    if dep.get("kind").as_str() == "path" {
+        let opened = util::obj(project::open_beside(S.game_root + "/" + dep.get("path").as_str()));
+        if !opened.get("error").is_nil() {
+            log::warn(opened.get("error").as_str());
+        }
+        return;
+    }
+    engine::open_url("{forge::url()}/projects/{dep.get("project").as_str()}");
+}
+
 /// What the Assets panel shows for a search: where the browser is, its cards
 /// and the verbs' state. The cards are kept, so a pick names its file.
 pub fn assets_view(S: &mut editor::State, query: str) -> AssetsView {
@@ -377,7 +498,10 @@ pub fn assets_view(S: &mut editor::State, query: str) -> AssetsView {
         let is_dir = f.is_dir.as_bool();
         let rel = if dir == "" { name } else { "{dir}/{name}" };
         let look = asset_look(name, is_dir);
-        let item = util::row(look.icon, name, rel, k.get(look.ink).as_str());
+        // A dependency's files are one shade quieter, as a prefab's rows are:
+        // there to use, not to change.
+        let ink = if rel.starts_with("deps/") { "text_subtle" } else { look.ink };
+        let item = util::row(look.icon, name, rel, k.get(ink).as_str());
         if rel == S.assets.sel {
             picked = item;
         }
@@ -391,11 +515,21 @@ pub fn assets_view(S: &mut editor::State, query: str) -> AssetsView {
     S.assets.cards = cards;
     S.assets.shown = Shown { items: items, paths: paths, dirs: dirs };
     let importing = dropin::in_flight(S) > 0;
+    let here = dependency_at(S, if S.assets.sel != "" { S.assets.sel } else { dir });
+    let in_dependency = dependency_at(S, dir);
+    let pinned = if in_dependency.is_nil() {
+        ""
+    } else if in_dependency.get("rev").as_str() != "" {
+        " · {in_dependency.get("rev").as_str().slice(0, 7)}"
+    } else {
+        " · {in_dependency.get("path").as_str()}"
+    };
+    let selected_own = S.assets.sel != "" && !S.assets.sel.starts_with("deps/");
     AssetsView {
         dir: dir,
         // A project-relative path: the absolute one is this machine's, and
         // lands in every screenshot.
-        where: "res://{dir}",
+        where: if in_dependency.is_nil() { "res://{dir}" } else { "res://{dir} · read-only{pinned}" },
         renaming: S.assets.renaming,
         name: util::last_segment(S.assets.sel),
         count: "{files.len()} items",
@@ -410,6 +544,10 @@ pub fn assets_view(S: &mut editor::State, query: str) -> AssetsView {
         chosen: S.assets.sel != "",
         items: items,
         picked: picked,
+        local: !here.is_nil() && S.assets.sel != "" && !shown_folder(S, S.assets.sel),
+        move_to: if selected_own { shelf(S) } else { "" },
+        source_tip: if here.is_nil() { "" } else { source_of(here) },
+        update: !here.is_nil() && here.get("kind").as_str() == "forge",
     }
 }
 
@@ -452,11 +590,28 @@ pub fn assets_verb(S: &mut editor::State, verb: str, value: str) {
             import::choose();
         }
     } else if verb == "Folder" {
-        new_folder(S);
+        if !refuse_in_dependency(S, S.assets.dir) {
+            new_folder(S);
+        }
+    } else if verb == "Local" && chosen {
+        make_local(S);
+    } else if verb == "Move" && chosen {
+        move_to_shelf(S);
+    } else if verb == "Source" {
+        edit_dependency(S);
+    } else if verb == "Update" {
+        // `balaur fetch --update`, on a thread; the Library hears it end.
+        if forge::fetch(S.game_root, true) {
+            log::info("updating the dependencies");
+        }
     } else if verb == "Rename" && chosen {
-        S.assets.renaming = !S.assets.renaming;
+        if !refuse_in_dependency(S, S.assets.sel) {
+            S.assets.renaming = !S.assets.renaming;
+        }
     } else if verb == "Delete" && chosen {
-        delete_asset(S);
+        if !refuse_in_dependency(S, S.assets.sel) {
+            delete_asset(S);
+        }
     } else if verb == "rename_to" {
         rename_asset(S, value);
     }

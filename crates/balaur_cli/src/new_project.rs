@@ -89,6 +89,7 @@ pub(crate) fn create(path: &Path, template: Option<&str>) -> Result<()> {
             );
         }
         copy_template(&from, path, &name)?;
+        keep_deps_out_of_git(path)?;
         tracing::info!(
             "created project '{name}' from the `{template}` template at {}",
             path.display()
@@ -127,8 +128,20 @@ impl Hello {
 }
 "#,
     )?;
+    keep_deps_out_of_git(path)?;
     tracing::info!("created project '{name}' at {}", path.display());
     tracing::info!("run it with: balaur run {}", path.display());
+    Ok(())
+}
+
+/// `/deps/` in a project's `.gitignore`, made if there is none: fetched
+/// dependencies are `project.lock`'s to restore, not the repository's to hold.
+pub(crate) fn keep_deps_out_of_git(project: &Path) -> Result<()> {
+    let path = project.join(".gitignore");
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    if let Some(text) = balaur::dependencies::gitignored(&text) {
+        std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    }
     Ok(())
 }
 

@@ -368,7 +368,7 @@ fn shipped_line(rel: str, answer: export::Preview?) -> str {
 /// The same row whole, for the tooltip: what the GPU holds once uploaded.
 fn shipped_tip(answer: export::Preview?) -> str {
     if answer.is_none() {
-        return "This file is not in that target's pack.";
+        return "This file is not in that target's export pack.";
     }
     let row = answer.unwrap();
     let gpu = if row.gpu_bytes > 0 { ", {size_text(row.gpu_bytes as float)} on the GPU" } else { "" };

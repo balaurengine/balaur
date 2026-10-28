@@ -551,6 +551,7 @@ pub fn boot(S: &mut State, editor: Node, listen: bool) {
         export::listen(editor, map());
         import::listen(editor, map());
         release::listen(editor, map());
+        forge::listen(editor, map());
         signals::hear_own(editor);
         signals::hear_engine(editor);
         signals::hear_boxes(S, editor);
@@ -606,6 +607,13 @@ impl Editor {
     // A release check or install reports here, for the start screen and About.
     pub fn on_release_event(e: any) {
         manager::heard(self.S, e);
+    }
+
+    // A Forge search, add, fetch or copy: the Library and the start screen
+    // each keep what they asked for.
+    pub fn on_forge_event(e: any) {
+        library::heard(self.S, e);
+        manager::forge_heard(self.S, e);
     }
 
     // Every import reports here: what is coming, each file, then the end.

@@ -4,7 +4,7 @@
 > `std::fs`, hot reload is driven by the write instead of a watcher, audio
 > plays, a project is kept in IndexedDB and comes back after a refresh, a
 > folder from a machine can be opened and taken away again as a zip, and the
-> Export sheet builds a pack and a web bundle in the tab.
+> Export sheet builds an export pack and a web bundle in the tab.
 >
 > What is left is what needs a machine that is not the tab: steps 4 and 5, an
 > account and a project kept on Gamend rather than in one browser; the native
@@ -56,7 +56,7 @@ Missing, roughly in the order they block each other:
 - **Gamend on wasm.** The crate compiles by refusing: every operation
   resolves to "no network backend compiles for wasm". So the one server the
   engine has is exactly the thing the web editor cannot reach.
-- **A compiler.** `balaur export --target` fuses a pack onto a runtime
+- **A compiler.** `balaur export --target` fuses an export pack onto a runtime
   template, and a browser cannot run a linker. Exporting a native game from
   a tab needs a machine that is not the tab.
 - **Audio.** Stubbed on wasm (`balaur_audio`), so the editor's preview is
@@ -73,8 +73,8 @@ the same shape as a `platform` call resolving to `unsupported` in
 the wrong crate and belongs lower. Everything in this plan is engineered so
 that `editor/scripts/*.rn` is untouched by it.
 
-**`fs` grows a backend, the way the pack loader already did.**
-`balaur_core::fused` learned to find its pack somewhere other than its own
+**`fs` grows a backend, the way the export pack loader already did.**
+`balaur_core::fused` learned to find its export pack somewhere other than its own
 file through the `embedded()` seam; `file_api` needs the same move —
 `fs_read`, `fs_write`, `fs_exists`, `fs_remove` and `fs_list` against a
 project-files trait held as a resource, `std::fs` on native and the browser's
@@ -96,13 +96,13 @@ makes this possible at all rather than a rewrite of every caller.
   — Chromium only today — which is why it is not the one everything else is
   built on.
 
-**The browser is a full editor and half an exporter.** Producing a pack is
+**The browser is a full editor and half an exporter.** Producing an export pack is
 file work: scripts checked, scenes and manifest bundled, no linker involved,
 so `balaur export` without `--target` runs in a tab as it stands. Fusing that
-pack onto a native runtime template does not. The split is honest and it is
+export pack onto a native runtime template does not. The split is honest and it is
 also lucky, because the one target a browser can finish by itself is the web:
-the wasm template is a file the page can fetch and the pack is bytes it can
-zip beside it. Every other target becomes a job — the pack uploaded to
+the wasm template is a file the page can fetch and the export pack is bytes it can
+zip beside it. Every other target becomes a job — the export pack uploaded to
 Gamend, the same `balaur export --target` run on a runner, a download handed
 back — and that job is `docs/PLAN-deploy.md` seen from the other side.
 
@@ -149,7 +149,7 @@ the web.
 | Screenshots and `--offscreen` | Step 6. Reading the canvas back is cheap; where the file goes is the question `fs` already answers |
 | The debugger (DAP) | Step 9. The Debugger dock works in the tab since 2026-10-23: the editor module carries wasmi (`bs-wasmi` beside `bs-web`), the one engine that parks a call at a stop. What is left is an adapter for an editor outside the tab: `main.rs` refuses `--debug` on wasm because there is no TCP listener, so it moves onto a `MessagePort` or a Gamend socket, and the protocol does not change |
 | `balaur check` | Have, once files work. It is the Rune compiler, which is Rust, which compiles |
-| `balaur export` to a pack | Step 7, and it already works — file work with no linker in it |
+| `balaur export` to an export pack | Step 7, and it already works — file work with no linker in it |
 | `balaur export --target` to a native binary | Step 7, as a build service. A browser cannot link and never will |
 | Deploy | Step 7, and it is `docs/PLAN-deploy.md` step 3: Gamend hosting is the destination a page can reach |
 | Extensions (`libloading`) | Not planned. There is no `dlopen` in a browser. A tier-two extension compiled to wasm and instantiated as a module is a real answer and a different plan |
@@ -180,8 +180,8 @@ the web.
    resource on the server, not a rewrite. Ends with: the same project from a
    second machine.
 6. **Play.** *Built,* audio included.
-7. **Export and deploy from the browser.** *Half built.* A pack and a web
-   bundle are assembled in the tab (`balaur_cli::web_export`): the pack is
+7. **Export and deploy from the browser.** *Half built.* An export pack and a web
+   bundle are assembled in the tab (`balaur_cli::web_export`): the export pack is
    built through the `fs` backend, and the bundle zips it beside the glue and
    module the page is itself running. What is left is the native targets as a
    build job and the Deploy button over `docs/PLAN-deploy.md` step 3 — both
@@ -195,7 +195,7 @@ the web.
    file moves to wasmi, which the editor module now carries (`bs-wasmi`
    beside `bs-web`, about 0.9 MB raw, 0.25 MB gzipped); the browser's own
    engine cannot park a call. Two fixes came with it: the host reads a
-   project's script through `fs` when the editor's pack lacks it, which
+   project's script through `fs` when the editor's export pack lacks it, which
    play in the tab needed too, and a parked call in a direct module is
    resumed with the i64 its entry point owes. What is left is DAP for an
    editor outside the tab, over a port instead of a socket, the same

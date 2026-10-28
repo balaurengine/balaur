@@ -117,6 +117,9 @@ struct Inner {
     _watcher: Option<notify::RecommendedWatcher>,
     /// `root` as the watcher reports paths under it.
     watch_root: PathBuf,
+    /// Each `path` dependency's folder as the watcher reports paths under
+    /// it, with the `deps/<alias>` its scripts are keyed under.
+    watch_mounts: Vec<(PathBuf, String)>,
     /// Every engine function a script compiled for export calls, as
     /// [`api::line`]: what the pack records.
     called: RefCell<std::collections::BTreeSet<String>>,
@@ -165,6 +168,19 @@ impl BsHost {
     pub fn new(engine: Engine, root: &std::path::Path, pack: Option<Pack>, watch: bool) -> Self {
         use notify::Watcher as _;
         let watch_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        // A `path` dependency's folder is outside the root, so it is watched
+        // on its own and its edits keyed back under `deps/<alias>`.
+        let watch_mounts: Vec<(PathBuf, String)> = balaur_core::dependencies::installed(&engine)
+            .iter()
+            .filter(|dep| dep.game == root)
+            .filter_map(|dep| {
+                let to = dep.mount.as_ref()?;
+                Some((
+                    to.canonicalize().unwrap_or_else(|_| to.clone()),
+                    balaur_core::dependencies::folder(&dep.alias),
+                ))
+            })
+            .collect();
         let (watcher, events) = if watch && pack.is_none() {
             // The watcher's own thread hands file events in and nothing goes out:
             // the channel never leaves the process, so a replay has nothing to stop.
@@ -175,6 +191,9 @@ impl BsHost {
             })
             .and_then(|mut watcher| {
                 watcher.watch(&watch_root, notify::RecursiveMode::Recursive)?;
+                for (folder, _) in &watch_mounts {
+                    watcher.watch(folder, notify::RecursiveMode::Recursive)?;
+                }
                 Ok(watcher)
             }) {
                 Ok(watcher) => (Some(watcher), Some(rx)),
@@ -200,6 +219,7 @@ impl BsHost {
                 events,
                 _watcher: watcher,
                 watch_root,
+                watch_mounts,
                 called: RefCell::default(),
                 tasks: RefCell::default(),
                 debugging: RefCell::default(),
@@ -296,7 +316,9 @@ impl BsHost {
     }
 
     /// Where `use name;` in a file finds `name.bs`: beside it, then in each
-    /// folder above it, from the pack or the project.
+    /// folder above it, from the pack or the project. A file in a dependency
+    /// stops at the dependency's folder, so it never links a game's module
+    /// of the same name.
     fn modules(&self) -> balaur_bs::Modules {
         let host = Rc::downgrade(&self.inner);
         balaur_bs::Modules(Rc::new(move |from: &str, name: &str| {
@@ -304,11 +326,15 @@ impl BsHost {
             let me = BsHost { inner };
             // `use gamend::core;` is `gamend/core.bs`.
             let file = format!("{}.{EXTENSION}", name.replace("::", "/"));
+            let stop = balaur_core::dependencies::boundary(&me.inner.engine, from);
             let mut dir = std::path::Path::new(from).parent();
             while let Some(d) = dir {
                 let key = key_of(&d.join(&file).to_string_lossy());
                 if let Some(source) = me.kept_source(&key) {
                     return Some((key, source.to_string()));
+                }
+                if stop.as_deref() == Some(d) {
+                    break;
                 }
                 dir = d.parent();
             }
@@ -527,10 +553,18 @@ impl BsHost {
                 if path.extension().and_then(|e| e.to_str()) != Some(EXTENSION) {
                     continue;
                 }
-                let Ok(rel) = path.strip_prefix(&self.inner.watch_root) else {
+                let key = if let Ok(rel) = path.strip_prefix(&self.inner.watch_root) {
+                    key_of(&rel.to_string_lossy())
+                } else if let Some((rel, folder)) = self
+                    .inner
+                    .watch_mounts
+                    .iter()
+                    .find_map(|(at, folder)| Some((path.strip_prefix(at).ok()?, folder)))
+                {
+                    format!("{folder}/{}", key_of(&rel.to_string_lossy()))
+                } else {
                     continue;
                 };
-                let key = key_of(&rel.to_string_lossy());
                 if !keys.contains(&key) {
                     keys.push(key);
                 }
@@ -597,6 +631,8 @@ impl BsHost {
         let Some(info) = file.method(method).filter(|_| !inst.gone.get()) else {
             return Ok(None);
         };
+        // A path the script builds reads from its own project's folder.
+        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
         let args: Vec<L> = info
             .params
             .iter()

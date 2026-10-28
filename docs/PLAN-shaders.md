@@ -86,7 +86,7 @@ module already has `shaders::register_shader_module`.
    cannot drift from the shader. Where a range or a description would live is
    still open: the material would have to annotate what the struct declares.
 2. **When linking happens in an export.** Linking at load costs milliseconds
-   per material on a cold start; linking at export time puts WGSL in the pack
+   per material on a cold start; linking at export time puts WGSL in the export pack
    and drops the compiler from the shipped binary. Export-time is the answer,
    once `balaur export` learns to walk materials.
 3. **Whether kiss3d should expose its linker.** `compile_wesl` and

@@ -139,8 +139,9 @@ Recorded so each stops being cited as precedent for the next.
 `resource` = typemap entry. `asset` = game content from a file. `system` = a
 closure in a stage. `load` = produce a live object from a path. `source` = raw
 file text. `spawn` = one empty node. `instantiate` = a scene file. `duplicate` =
-a private copy of an asset. `kind` = a tagged-union discriminant. `type` = a
-schema property's datatype. `scale` = qualified by its module, above.
+a private copy of an asset. `export pack` = the `.bpak` an export writes,
+never a bare `pack`. `kind` = a tagged-union discriminant. `type` = a schema
+property's datatype. `scale` = qualified by its module, above.
 
 `token` = a named colour or size in a theme. `source` in a theme = one of the
 seven colours or four sizes every other token is derived from. `role` = a named
@@ -575,6 +576,11 @@ Every string is sentence case, and a button is a verb.
 | Running | Run project, Run scene, Stop | Godot |
 | A play run on disk | recording, replay, the Recordings panel, `.blr` | Unreal |
 | Building a game | Export…; the prebuilt player is a runtime | Godot |
+| What an export writes | export pack, `.bpak`; `Pack` in code | none |
+| Another project a game imports | dependency: `[dependencies]`, `deps/<alias>/`, `project.lock`, `balaur add`, `balaur fetch` | Cargo |
+| A dependency's file taken into the game | Make local; `dependency::make_local` | none |
+| A dependency's own project, from the game | Edit dependency | none |
+| A game's files moved into a `path` dependency | Move to project; `dependency::move_into` | none |
 | Per-file import options | the Import panel, import settings | Unity |
 | A command that opens a dialog | a trailing `…` | Apple |
 | An event row on a node | binding, the Bindings view | Unreal |

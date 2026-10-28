@@ -284,11 +284,20 @@ pub fn merged(manifest: &toml::Table, path: &str, sidecar: Option<&str>) -> toml
 
 /// The project's defaults for whatever kind `path` is, as this run resolves
 /// them: `[override.mobile.import.texture] mipmaps = false` answers on a phone.
+///
+/// A file in a dependency takes that project's own `[import.<kind>]` over the
+/// game's, so it imports as it does where it was made.
 fn defaults(eng: &Engine, path: &str) -> toml::Table {
     let Some(kind) = kind_of(path) else {
         return toml::Table::new();
     };
-    crate::settings::table(eng, &format!("import/{kind}"))
+    let mut table = crate::settings::table(eng, &format!("import/{kind}"));
+    if let Some(own) = crate::dependencies::owning(eng, path)
+        .and_then(|dep| dep.import.get(kind)?.as_table().cloned())
+    {
+        table.extend(own);
+    }
+    table
 }
 
 /// A short stable name for a resolved set of settings.

@@ -715,6 +715,8 @@ pub async fn boot_editor_on_canvas(
     // reader says which project, as on a desktop launched without one.
     if !game_root.is_empty() {
         file_api::add_root(&app.engine, game_root);
+        // Forge's sync puts each locked dependency under `deps/<alias>/`.
+        balaur_core::dependencies::install(&app.engine, std::path::Path::new(game_root));
     }
     app.load_project()?;
     balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await

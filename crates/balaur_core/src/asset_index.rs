@@ -156,6 +156,7 @@ pub fn id_of(eng: &Engine, path: &str) -> Result<Option<String>> {
 pub fn assign_id(eng: &Engine, path: &str) -> Result<String> {
     let backend = files::backend(eng);
     let at = locate(eng, &*backend, path)?;
+    crate::dependencies::refuse_write(eng, &at.absolute)?;
     if !backend.exists(&at.absolute) {
         bail!("nothing at {} to give an id", at.relative);
     }
@@ -232,6 +233,8 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
     let backend = files::backend(eng);
     let old = locate(eng, &*backend, from)?;
     let new_absolute = crate::file_api::resolve(eng, to)?;
+    crate::dependencies::refuse_write(eng, &old.absolute)?;
+    crate::dependencies::refuse_write(eng, &new_absolute)?;
     let new = relative(&old.root, &new_absolute)?;
     if !backend.exists(&old.absolute) {
         bail!("nothing at {} to rename", old.relative);
@@ -243,9 +246,27 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
     backend
         .rename(&old.absolute, &new_absolute)
         .with_context(|| format!("moving {} to {new}", old.relative))?;
+    let rewritten = point_references(&*backend, &old.root, &old.relative, &new, is_dir)?;
+    if let Ok(cache) = crate::assets::state_of(eng) {
+        cache.borrow_mut().forget_under(&old.relative);
+    }
+    crate::assets::invalidate(eng);
+    refresh(eng, &*backend, &old.root);
+    Ok(rewritten)
+}
+
+/// Rewrite every reference to `from` in the `.toml` files under `root` to
+/// `to`, comments and key order kept; answers the files rewritten.
+fn point_references(
+    backend: &dyn FileBackend,
+    root: &Path,
+    from: &str,
+    to: &str,
+    is_dir: bool,
+) -> Result<Vec<String>> {
     let mut rewritten = Vec::new();
-    for file in toml_files(&*backend, &old.root) {
-        let absolute = old.root.join(&file);
+    for file in toml_files(backend, root) {
+        let absolute = root.join(&file);
         let Ok(text) = backend
             .read(&absolute)
             .and_then(|b| Ok(String::from_utf8(b)?))
@@ -256,29 +277,212 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
             continue;
         };
         let mut changed = false;
-        rewrite_item(
-            document.as_item_mut(),
-            &old.relative,
-            &new,
-            is_dir,
-            &mut changed,
-        );
+        rewrite_item(document.as_item_mut(), from, to, is_dir, &mut changed);
         if changed {
             backend.write(&absolute, document.to_string().as_bytes())?;
             rewritten.push(file);
         }
     }
-    if let Ok(cache) = crate::assets::state_of(eng) {
-        cache.borrow_mut().forget_under(&old.relative);
-    }
-    crate::assets::invalidate(eng);
-    refresh(eng, &*backend, &old.root);
     Ok(rewritten)
 }
 
+/// Copy a file out of a dependency into the game and point the game's own
+/// references at the copy: Make local. The copy has no link and never
+/// updates. A document's own paths are rewritten to the game's spelling of
+/// the dependency's files on the way, so a material keeps its textures; an
+/// import sidecar beside the file comes along. Answers the game's files
+/// rewritten.
+///
+/// # Errors
+/// When `from` is in no dependency, `to` is not in that dependency's game
+/// or is there already, or a file does not copy.
+pub fn make_local(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
+    let backend = files::backend(eng);
+    let source = crate::file_api::resolve(eng, from)?;
+    let dep = crate::dependencies::read_only(eng, &source)
+        .ok_or_else(|| anyhow!("{from} is not in a dependency: it is the game's own already"))?;
+    let target = crate::file_api::resolve(eng, to)?;
+    crate::dependencies::refuse_write(eng, &target)?;
+    let game = backend.canonicalize(&dep.game);
+    let old = relative(&game, &source)?;
+    let new = relative(&game, &target)?;
+    if backend.exists(&target) {
+        bail!("{new} already exists");
+    }
+    let dep_root = backend.canonicalize(&dep.root);
+    let inner = relative(&dep_root, &source)?;
+    let mut copies = vec![(source.clone(), target.clone())];
+    let sidecar = crate::import::sidecar_of(&inner);
+    if backend.exists(&dep_root.join(&sidecar)) {
+        let beside = target.with_file_name(
+            Path::new(&crate::import::sidecar_of(&new))
+                .file_name()
+                .unwrap_or_default(),
+        );
+        copies.push((dep_root.join(&sidecar), beside));
+    }
+    let prefix = crate::dependencies::folder(&dep.alias);
+    for (from, to) in copies {
+        let bytes = backend.read(&from)?;
+        let bytes = if is_toml(&from.to_string_lossy()) {
+            game_spelling(&*backend, &dep_root, &prefix, bytes)
+        } else {
+            bytes
+        };
+        backend
+            .write(&to, &bytes)
+            .with_context(|| format!("copying {} into the game", from.display()))?;
+    }
+    let rewritten = point_references(&*backend, &game, &old, &new, false)?;
+    crate::assets::invalidate(eng);
+    refresh(eng, &*backend, &game);
+    Ok(rewritten)
+}
+
+/// A dependency's document with each path naming one of the dependency's
+/// own files spelled `deps/<alias>/…`, as the game names it; comments kept.
+/// Text that is not a document comes back as it was.
+fn game_spelling(
+    backend: &dyn FileBackend,
+    dep_root: &Path,
+    prefix: &str,
+    bytes: Vec<u8>,
+) -> Vec<u8> {
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return bytes;
+    };
+    let Ok(mut document) = text.parse::<toml_edit::DocumentMut>() else {
+        return bytes;
+    };
+    let mut changed = false;
+    edit_strings(
+        document.as_item_mut(),
+        &mut |value: &str| {
+            (crate::document_paths::names_a_file(value) && backend.exists(&dep_root.join(value)))
+                .then(|| format!("{prefix}/{value}"))
+        },
+        &mut changed,
+    );
+    if changed {
+        document.to_string().into_bytes()
+    } else {
+        bytes
+    }
+}
+
+/// Move game files into a dependency kept as a `path` folder, and point the
+/// game's references at `deps/<alias>/…`: Move to project. Each path keeps
+/// its place under the dependency's root, so files moved together still name
+/// each other. Answers the game's files rewritten.
+///
+/// # Errors
+/// When the alias names no installed dependency of the game, a path is not
+/// the game's own, or one is in the dependency already.
+pub fn move_into(eng: &Engine, paths: &[String], alias: &str) -> Result<Vec<String>> {
+    let backend = files::backend(eng);
+    let mut rewritten = Vec::new();
+    for path in paths {
+        let source = crate::file_api::resolve(eng, path)?;
+        crate::dependencies::refuse_write(eng, &source)?;
+        let at = locate(eng, &*backend, path)?;
+        let dep = crate::dependencies::installed(eng)
+            .into_iter()
+            .find(|dep| dep.alias == alias && backend.canonicalize(&dep.game) == at.root)
+            .ok_or_else(|| anyhow!("the game has no dependency named `{alias}`"))?;
+        if dep.mount.is_none() {
+            bail!("`{alias}` is fetched from Forge; files move into a `path` dependency");
+        }
+        let target = backend.canonicalize(&dep.root).join(&at.relative);
+        if backend.exists(&target) {
+            bail!("{alias} already has {}", at.relative);
+        }
+        let is_dir = backend.is_dir(&source);
+        move_across(&*backend, &source, &target, is_dir)?;
+        let new = format!("{}/{}", crate::dependencies::folder(alias), at.relative);
+        for file in point_references(&*backend, &at.root, &at.relative, &new, is_dir)? {
+            if !rewritten.contains(&file) {
+                rewritten.push(file);
+            }
+        }
+    }
+    rewritten.sort();
+    crate::assets::invalidate(eng);
+    Ok(rewritten)
+}
+
+/// A move that may cross devices, as a mounted folder often does: a rename,
+/// or a copy and a delete where the rename is refused.
+fn move_across(backend: &dyn FileBackend, from: &Path, to: &Path, is_dir: bool) -> Result<()> {
+    if backend.rename(from, to).is_ok() {
+        return Ok(());
+    }
+    if is_dir {
+        for (name, inner_dir) in backend.list(from) {
+            move_across(backend, &from.join(&name), &to.join(&name), inner_dir)?;
+        }
+    } else {
+        backend.write(to, &backend.read(from)?)?;
+    }
+    backend.remove(from)?;
+    Ok(())
+}
+
+/// Every string in a document, each replaced by what `edit` answers for it.
+fn edit_strings(
+    item: &mut toml_edit::Item,
+    edit: &mut dyn FnMut(&str) -> Option<String>,
+    changed: &mut bool,
+) {
+    fn in_value(
+        value: &mut toml_edit::Value,
+        edit: &mut dyn FnMut(&str) -> Option<String>,
+        changed: &mut bool,
+    ) {
+        match value {
+            toml_edit::Value::String(text) => {
+                if let Some(new) = edit(text.value()) {
+                    let decor = text.decor().clone();
+                    let mut formatted = toml_edit::Formatted::new(new);
+                    *formatted.decor_mut() = decor;
+                    *value = toml_edit::Value::String(formatted);
+                    *changed = true;
+                }
+            }
+            toml_edit::Value::Array(items) => {
+                for inner in items.iter_mut() {
+                    in_value(inner, edit, changed);
+                }
+            }
+            toml_edit::Value::InlineTable(table) => {
+                for (_, inner) in table.iter_mut() {
+                    in_value(inner, edit, changed);
+                }
+            }
+            _ => {}
+        }
+    }
+    match item {
+        toml_edit::Item::Value(v) => in_value(v, edit, changed),
+        toml_edit::Item::Table(table) => {
+            for (_, inner) in table.iter_mut() {
+                edit_strings(inner, edit, changed);
+            }
+        }
+        toml_edit::Item::ArrayOfTables(tables) => {
+            for table in tables.iter_mut() {
+                for (_, inner) in table.iter_mut() {
+                    edit_strings(inner, edit, changed);
+                }
+            }
+        }
+        toml_edit::Item::None => {}
+    }
+}
+
 /// Every `.toml` under `root`, project-relative and sorted. Dot directories,
-/// `target` and what `application/ignore` names are skipped: none of them
-/// holds content a scene names.
+/// `target`, `deps` and what `application/ignore` names are skipped: none of
+/// them holds content of the game's own, and a dependency's files are its
+/// project's to change.
 fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
     let manifest = backend
         .read(&root.join(crate::project::MANIFEST))
@@ -295,7 +499,9 @@ fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
             root.join(&dir)
         };
         for (name, is_dir) in backend.list(&full) {
-            if name.starts_with('.') || (dir.is_empty() && name == "target") {
+            if name.starts_with('.')
+                || (dir.is_empty() && (name == "target" || name == crate::dependencies::DIR))
+            {
                 continue;
             }
             let rel = if dir.is_empty() {

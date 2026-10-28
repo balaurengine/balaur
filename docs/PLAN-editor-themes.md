@@ -91,7 +91,7 @@ platform shows in a dark or a tinted theme. A picture that is not square is
 refused with its size.
 
 - **Windows.** An `.ico` of six sizes, 16 to 256, written into the runtime's
-  resources with `editpe` before the pack is fused and the file is signed.
+  resources with `editpe` before the export pack is fused and the file is signed.
 - **Linux.** `<game>.png` at 512 and a `<game>.desktop` entry beside the
   executable, for a packager to install.
 - **macOS.** `AppIcon.icns` and `CFBundleIconFile` in the `.app`. On a Mac
