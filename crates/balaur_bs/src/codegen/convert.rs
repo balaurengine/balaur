@@ -1,9 +1,9 @@
-// A typed value into an `any` and back, as a function generated for each type
-// that crosses, the way a release is. Each is written as a script would write
-// it, so a field or an element that is itself a struct, a list or a `T?` goes
-// through its own: a struct is a map of its fields, a list a list of its
-// elements, a `T?` its value or nil. Read back, a field the map lacks is its
-// type's zero, as `as_int` and the rest give for nil.
+//! A typed value into an `any` and back, as a function generated for each type
+//! that crosses, the way a release is. Each is written as a script would write
+//! it, so a field or an element that is itself a struct, a list or a `T?` goes
+//! through its own: a struct is a map of its fields, a list a list of its
+//! elements, a `T?` its value or nil. Read back, a field the map lacks is its
+//! type's zero, as `as_int` and the rest give for nil.
 
 use crate::ast::{Block, Expr, ExprKind, FnDecl, Param, Pos, Stmt, StmtKind, Ty};
 

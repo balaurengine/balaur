@@ -1,7 +1,7 @@
-// The methods of a `str`, compiled into a program that calls them. Offsets
-// are bytes, as `len` counts them, moved back onto the start of a character.
-// A number that does not parse is 0. Case comes from the tables `build.rs`
-// writes from Rust's own, a character at a time.
+//! The methods of a `str`, compiled into a program that calls them. Offsets
+//! are bytes, as `len` counts them, moved back onto the start of a character.
+//! A number that does not parse is 0. Case comes from the tables `build.rs`
+//! writes from Rust's own, a character at a time.
 
 pub fn contains(text: str, needle: str) -> bool {
     find_from(text, needle, 0) >= 0

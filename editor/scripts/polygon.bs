@@ -1,8 +1,8 @@
-// The Polygon tool: trace a polygon's outline in the viewport, draw its
-// polygons over interior points, place its UVs over the texture, and paint
-// bone weights. Every edit lands in the node's inline `mesh` table, the
-// component as asked held for the frame (`model::edited`) and handed back
-// whole (`write`).
+//! The Polygon tool: trace a polygon's outline in the viewport, draw its
+//! polygons over interior points, place its UVs over the texture, and paint
+//! bone weights. Every edit lands in the node's inline `mesh` table, the
+//! component as asked held for the frame (`model::edited`) and handed back
+//! whole (`write`).
 
 use anim;
 use defs;

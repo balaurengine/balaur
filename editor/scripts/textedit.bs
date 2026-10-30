@@ -1,7 +1,7 @@
-// Editing a `text2d` or `text3d` where it is drawn: double-click one in the
-// viewport, or add one, and type over it rather than crossing to the
-// inspector for a word. Enter or a click away keeps what was typed; Escape
-// drops it.
+//! Editing a `text2d` or `text3d` where it is drawn: double-click one in the
+//! viewport, or add one, and type over it rather than crossing to the
+//! inspector for a word. Enter or a click away keeps what was typed; Escape
+//! drops it.
 
 use editor;
 use gizmo;

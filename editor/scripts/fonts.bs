@@ -1,7 +1,7 @@
-// The fonts a project can take: its own under `fonts/`, the faces this
-// machine has installed, and in a browser tab the open fonts Forge's
-// catalogue lists. A face from outside is copied into `fonts/` before a row
-// names it: an exported game cannot count on it being anywhere else.
+//! The fonts a project can take: its own under `fonts/`, the faces this
+//! machine has installed, and in a browser tab the open fonts Forge's
+//! catalogue lists. A face from outside is copied into `fonts/` before a row
+//! names it: an exported game cannot count on it being anywhere else.
 
 use dropin;
 use editor;

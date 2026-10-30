@@ -238,10 +238,10 @@ fn editor_and_panel(editor: &str) -> tempfile::TempDir {
     dir
 }
 
-// The project's scripts are units of one instance: a panel holds the
-// editor's own object, read from its node as the class it is, and calls it
-// with nothing copied. A reload of the editor's file keeps the panel holding
-// the one editor rather than a copy of it.
+/// The project's scripts are units of one instance: a panel holds the
+/// editor's own object, read from its node as the class it is, and calls it
+/// with nothing copied. A reload of the editor's file keeps the panel holding
+/// the one editor rather than a copy of it.
 #[test]
 fn a_script_holds_another_nodes_script_as_its_class() {
     use balaur_script::Value::Int;

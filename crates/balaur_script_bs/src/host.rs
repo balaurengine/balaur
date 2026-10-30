@@ -1,7 +1,7 @@
-// `.bs` scripts behind the seam: every file a unit of the project's one
-// instance (or, built whole for a debugger or a profiler, an instance of its
-// own), one host-held object per node, its lifecycle methods called by name
-// when the script has them.
+//! `.bs` scripts behind the seam: every file a unit of the project's one
+//! instance (or, built whole for a debugger or a profiler, an instance of its
+//! own), one host-held object per node, its lifecycle methods called by name
+//! when the script has them.
 
 use crate::api::{self, Module, Registry};
 use crate::convert::{from_neutral, to_neutral};
@@ -821,10 +821,10 @@ impl BsHost {
         }
     }
 
-    // `method` on every object of `group` in one call. False when it cannot
-    // be: a debug build steps each call, an object out in a call stays out,
-    // and a method that takes or gives a string, an array or an `any` has no
-    // batch entry.
+    /// `method` on every object of `group` in one call. False when it cannot
+    /// be: a debug build steps each call, an object out in a call stays out,
+    /// and a method that takes or gives a string, an array or an `any` has no
+    /// batch entry.
     fn batch(&self, file: &File, group: &[Rc<Instance>], method: &str, args: &[Value]) -> bool {
         if file.compiled.meta.debug {
             return false;

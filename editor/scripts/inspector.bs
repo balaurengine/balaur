@@ -364,10 +364,10 @@ fn on_row_prefab_open(state: &mut editor::State, data: any, _value: any) {
     model::open_prefab(state);
 }
 
-// The script a node names and what it sets, as rows like a component's: the
-// path is a field, where typing a name moves the file and the picker beside
-// it names one that already exists. Attaching, opening and detaching are
-// the palette's and the tree menu's.
+/// The script a node names and what it sets, as rows like a component's: the
+/// path is a field, where typing a name moves the file and the picker beside
+/// it names one that already exists. Attaching, opening and detaching are
+/// the palette's and the tree menu's.
 fn script_section(state: &mut editor::State, tokens: any) {
     let node = model::selected_node(state);
     if !section(state, tokens, "Script") {

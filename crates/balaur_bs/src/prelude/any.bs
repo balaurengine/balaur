@@ -1,8 +1,8 @@
-// The methods of an `any`, compiled into a program that calls them. An `any`
-// is a counted cell holding its kind, then the value or the arrays it points
-// at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
-// `remove` change a map or a list in place, so every holder of it sees the
-// change; `with` and `sorted` make new ones.
+//! The methods of an `any`, compiled into a program that calls them. An `any`
+//! is a counted cell holding its kind, then the value or the arrays it points
+//! at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
+//! `remove` change a map or a list in place, so every holder of it sees the
+//! change; `with` and `sorted` make new ones.
 
 const BOOL: int = 1;
 const INT: int = 2;

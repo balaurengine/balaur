@@ -514,10 +514,10 @@ impl FnGen<'_> {
         self.prelude_method("any", base, name, args, pos)
     }
 
-    // `value.method(..)` on a `str` or an `any`: the prelude's
-    // `str::method(value, ..)`. The receiver is compiled where it is, not
-    // cloned into a call: a clone is a tree `type_of` has not seen, so each
-    // link of a chain would type the whole chain under it again.
+    /// `value.method(..)` on a `str` or an `any`: the prelude's
+    /// `str::method(value, ..)`. The receiver is compiled where it is, not
+    /// cloned into a call: a clone is a tree `type_of` has not seen, so each
+    /// link of a chain would type the whole chain under it again.
     fn prelude_method(
         &mut self,
         ty: &str,

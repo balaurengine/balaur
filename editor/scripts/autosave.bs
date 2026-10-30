@@ -1,7 +1,7 @@
-// Nothing to save: an edit to the scene is written to its file once the
-// edits stop for a moment, and a script or a shader once its typing stops
-// for a little longer, since writing a script is compiling it. A closed tab
-// or a crash loses at most that moment.
+//! Nothing to save: an edit to the scene is written to its file once the
+//! edits stop for a moment, and a script or a shader once its typing stops
+//! for a little longer, since writing a script is compiling it. A closed tab
+//! or a crash loses at most that moment.
 
 use anim;
 use editor;

@@ -1,8 +1,8 @@
-// The Animation workspace's adapter between the scene and the engine's
-// `assets` / `animation` modules: scrubbing seeks the engine, nothing here
-// samples. The clip belongs to the player (`player`), keyed by node path.
-// An inline clip is the player's `animation` table as asked, held for the
-// frame (`model::edited`) and handed back whole by `arm`.
+//! The Animation workspace's adapter between the scene and the engine's
+//! `assets` / `animation` modules: scrubbing seeks the engine, nothing here
+//! samples. The clip belongs to the player (`player`), keyed by node path.
+//! An inline clip is the player's `animation` table as asked, held for the
+//! frame (`model::edited`) and handed back whole by `arm`.
 
 use editor;
 use history;

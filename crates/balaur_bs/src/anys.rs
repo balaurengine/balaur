@@ -1,7 +1,7 @@
-// An `any` holds a value whose kind is known only when the script runs: what
-// the engine hands over for an http reply, a gamend record or an event. It is
-// a refcounted cell in the module's memory, and nil is the pointer 0. Its
-// methods are the prelude's (`prelude/any.bs`).
+//! An `any` holds a value whose kind is known only when the script runs: what
+//! the engine hands over for an http reply, a gamend record or an event. It is
+//! a refcounted cell in the module's memory, and nil is the pointer 0. Its
+//! methods are the prelude's (`prelude/any.bs`).
 
 /// rc, tag, then 8 bytes of payload: the value, or one or two pointers.
 pub(crate) const CELL: i32 = 16;
