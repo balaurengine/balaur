@@ -158,9 +158,11 @@ EDITOR_STATES=(
 gpu=${BALAUR_E2E_GPU:-1}
 
 # A windowed step needs a display, and a Linux CI runner has none: the editor
-# opens offscreen there rather than failing to build an event loop. A scalar
-# rather than an array, which bash 3.2 calls unbound when it is empty.
-offscreen=
+# opens offscreen there rather than failing to build an event loop.
+# `BALAUR_E2E_OFFSCREEN=--offscreen` asks for it anywhere, so a run on a
+# desktop leaves the screen alone. A scalar rather than an array, which bash
+# 3.2 calls unbound when it is empty.
+offscreen=${BALAUR_E2E_OFFSCREEN:-}
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
   offscreen=--offscreen
 fi
