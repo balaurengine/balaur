@@ -85,6 +85,27 @@ jobs:
         if: failure() && steps.gamend.outcome == 'success'
         working-directory: ${{ steps.gamend.outputs.project }}
         run: tail -n 300 .gamend/tmp/log/erlang.log.*
+      # Every script the editor, its library, the templates and the examples
+      # hold, compiled with warnings as errors. Scripts compile the same on
+      # every platform, so one runner is enough.
+      - name: Every script checked
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/check_scripts.sh
+      # The same corpus on the browser's own WebAssembly engine, beside wasmi,
+      # in Node. The runner's version is the `wasm-bindgen` in Cargo.lock.
+      - uses: taiki-e/install-action@v2
+        if: runner.os == 'Linux'
+        with:
+          tool: wasm-bindgen@0.2.129
+      - name: Scripts on the browser's engine
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo test -p balaur_bs --target wasm32-unknown-unknown --features web --test web
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests

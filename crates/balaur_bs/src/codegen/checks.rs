@@ -36,6 +36,14 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
         unknown(&x.ret, x.pos)?;
     }
     for f in &prog.fns {
+        if let Some(owner) = &f.owner
+            && !names.contains(&owner)
+        {
+            return err(
+                f.pos,
+                format!("`impl {owner}` names no struct or class: declare `struct {owner}`"),
+            );
+        }
         for p in &f.params {
             unknown(&p.ty, p.pos)?;
             if p.by_ref && f.is_async {

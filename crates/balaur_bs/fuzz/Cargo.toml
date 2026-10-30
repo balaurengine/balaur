@@ -1,0 +1,31 @@
+# `cargo fuzz run <target>` from crates/balaur_bs (nightly). Its own workspace,
+# so the engine's lockfile and `cargo test --workspace` never see libFuzzer.
+[package]
+name = "balaur_bs_fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+balaur_bs = { path = "..", features = ["wasmi"] }
+wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
+
+[workspace]
+
+[[bin]]
+name = "compile"
+path = "fuzz_targets/compile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "run"
+path = "fuzz_targets/run.rs"
+test = false
+doc = false
+bench = false

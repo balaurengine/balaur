@@ -35,6 +35,10 @@ wasm-bindgen = { version = "0.2.129", optional = true }
 # The corpus runner validates every module it builds.
 wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
 
+# The corpus on the browser's engine, run in Node (`tests/web/main.rs`).
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 [features]
 default = ["wasmi"]
 # An interpreter, on every platform: the engine when no faster one is built in.

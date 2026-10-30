@@ -15,6 +15,7 @@ mod library;
 mod maps;
 mod memory;
 mod modules;
+mod mutants;
 mod nans;
 #[cfg(all(feature = "c", feature = "native"))]
 mod native;

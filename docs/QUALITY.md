@@ -143,8 +143,19 @@ three desktop platforms. Beyond `cargo test --workspace`:
   files whose `// expect:` lines are calls and their answers and whose
   `// error:` lines are their compile errors, written out whole. Each runs on
   every engine the build has (wasmi, wasmtime, native code through C), which
-  must agree to the bit; `cargo test --workspace` turns all three on.
+  must agree to the bit; `cargo test --workspace` turns all three on. CI
+  also runs it on the browser's engine in Node (`--test web`, wasm32).
   `BLESS=1` rewrites the answers from what ran.
+- **Broken programs** — `tests/suite/mutants.rs` cuts, splices and seeds
+  tokens into every corpus program with a seeded generator, then reads,
+  formats, analyses, compiles and runs each under fuel: nothing may panic,
+  and every module written validates. `BS_FUZZ_SEED` and `BS_FUZZ_MUTANTS`
+  (12 a program by default) widen a run; `crates/balaur_bs/fuzz/` holds the
+  same two checks as `cargo fuzz` targets, `compile` and `run`, for a nightly
+  run without end.
+- `scripts/check_scripts.sh` — `balaur check --strict` over the editor, its
+  library and templates, and every example: CI runs it on Linux after the
+  tests.
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
   on `BALAUR_E2E` so a local `cargo test` stays fast. The Gamend ones talk

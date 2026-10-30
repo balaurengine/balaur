@@ -1,6 +1,7 @@
-> **Status:** planned 2026-10-30. Steps 1, 3 and 5 built 2026-10-30: 59
-> programs, 119 calls and 33 compile errors, on wasmi, wasmtime and native
-> code. Step 2 is part done (below). Steps 1 to 7 are step 6 of
+> **Status:** planned 2026-10-30. Steps 1, 3 to 7 built 2026-10-30: 60
+> programs on wasmi, wasmtime, native code and the browser's engine, a
+> mutation test on every push, `cargo fuzz` targets, and
+> `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
 > PLAN-foundations, step 10 is in its step 7, steps 8 and 9 are its step 13.
 
 # Plan: Balaur Script's tests, and enums with `match`
@@ -55,8 +56,14 @@ engine its platform can build, native code included.
 ## 4. The browser's engine
 
 The corpus runs on the browser's own WebAssembly engine in CI, under Node or
-a headless browser, through the same host calls. The way in is decided at
-the start: `wasm-bindgen-test`, or a Node script over the compiled modules.
+a headless browser, through the same host calls.
+
+Built 2026-10-30 as `tests/web/main.rs`: a `wasm-bindgen-test` that reads
+the corpus through Node's `fs` and runs every program on the browser's
+engine and wasmi, in Node (`cargo test -p balaur_bs --target
+wasm32-unknown-unknown --features web --test web`, with
+`wasm-bindgen-test-runner` as the runner). The parsing and the comparison
+are `tests/corpus/mod.rs`, which the native run shares.
 
 ## 5. Errors as written
 
@@ -74,7 +81,14 @@ compared.
 - compile: never panics, and every module it writes validates
 - run: never brings the host down, under the fuel limit
 
-Locally `cargo fuzz run`; in CI a scheduled job, never the push gate.
+Locally `cargo fuzz run` (nightly, `cargo install cargo-fuzz`); a scheduled
+CI job for them is still to write, never the push gate.
+
+Built 2026-10-30 beside them: `tests/suite/mutants.rs`, the same checks over
+mutants of every corpus program from a seeded generator, 12 a program on
+every push. Its first runs found an `impl` for a type nobody declared
+panicking in codegen; it is now a compile error
+(`classes/impl_without_struct.bs`).
 
 ## 7. CI over the big corpus
 
@@ -82,6 +96,11 @@ One job, shared with PLAN-balaur-script §9 steps 7 and 8:
 `balaur check --strict` over the editor, the examples and the templates; the
 editor's scripts built native; the budget gate; the corpus on every engine.
 `check` is cheap and needs no GPU, so it runs on every push.
+
+Built 2026-10-30: `scripts/check_scripts.sh` (21 projects, 4 s against a
+built binary) runs in `test.yml` on Linux. The corpus and `budgets.rs` run
+in `cargo nextest run --workspace`, whose features turn every engine on.
+The editor built native is the handover's (§9 step 7).
 
 ## 8. Random programs against a reference
 
