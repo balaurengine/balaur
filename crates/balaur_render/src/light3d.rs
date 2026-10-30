@@ -5,46 +5,61 @@
 //! so a test asserts on either with no GPU. A scene with no `light3d` keeps
 //! the backend's own sun, which is what lets every example draw unchanged.
 
-use anyhow::{Result, anyhow};
-use balaur_core::components::{
-    ComponentDef, as_f64, prop_bool, prop_f32, prop_i64, prop_str, prop_vec3,
-};
+use balaur_core::GlobalTransform;
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Enum};
 use balaur_core::hecs::{Entity, World};
-use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
+use crate::layer::Layer;
 use crate::vocabulary::{keys as k, words};
-use crate::{color_from_params, color_to_toml};
 
 /// Which way a `light3d` throws light.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LightKind3d {
-    /// Radiates from the node, fading to nothing at `radius`.
-    Point,
     /// Parallel rays across the whole scene, aimed by the node's rotation.
     Directional,
+    /// Radiates from the node, fading to nothing at `radius`.
+    Point,
     /// A cone from the node, aimed by its rotation.
     Spot,
 }
 
-/// The `light3d` component's authored state. The node's global pose places and
-/// aims it; `radius` is in world units and does not follow the node's scale.
+/// A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.
+// The node's global pose places and aims it; `range` is in world units and
+// does not follow the node's scale. [`lights`] holds every number to what a
+// light can be.
+#[derive(Component)]
+#[component(name = "light3d")]
 pub struct Light3d {
+    /// A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims
+    #[property(default = LightKind3d::Directional)]
     pub kind: LightKind3d,
+    /// Light colour, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub color: [f32; 4],
+    /// Brightness multiplier; over 1 blows past white
+    #[property(default = 3.0, min = 0.0)]
     pub intensity: f32,
-    pub radius: f32,
-    /// Full brightness inside this cone, in degrees. Spot only.
-    pub inner: f32,
-    /// Fading to nothing at this cone, in degrees. Spot only.
-    pub outer: f32,
-    pub shadows: bool,
-    /// Which light layers this reaches. A renderable is lit when its own
-    /// layers share a bit with these.
-    pub layers: u32,
-    /// The emitting sphere's radius, which only the path tracer reads.
+    /// How far a point or spot light reaches, in world units
+    #[property(default = 30.0, min = 0.0)]
+    pub range: f32,
+    /// Half-angle of a spot light's full-brightness cone, in degrees
+    #[property(default = 20.0, min = 0.0, max = 179.0, group = "cone")]
+    pub inner_angle_degrees: f32,
+    /// Half-angle a spot light fades to nothing at, in degrees
+    #[property(default = 35.0, min = 0.0, max = 179.0, group = "cone")]
+    pub outer_angle_degrees: f32,
+    /// Whether this light casts shadows from the nodes that say they cast
+    #[property(default = true, group = "shadows")]
+    pub shadow_enabled: bool,
+    /// Radius of the sphere the light shines from, in world units, which softens its shadows. Read by the path tracer only; the rasterizer's edge is `environment.shadow_softness`
+    #[property(min = 0.0, group = "shadows")]
     pub source_radius: f32,
+    /// The light layers this light reaches: a node whose `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
 }
 
 /// One light in world space, with everything a backend needs resolved.
@@ -96,11 +111,11 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
             direction: aim(&global),
             color: [r, g, b],
             intensity: light.intensity.max(0.0),
-            radius: light.radius.max(0.0),
-            inner: light.inner.clamp(0.0, 179.0),
-            outer: light.outer.clamp(0.0, 179.0),
-            shadows: light.shadows,
-            layers: light.layers,
+            radius: light.range.max(0.0),
+            inner: light.inner_angle_degrees.clamp(0.0, 179.0),
+            outer: light.outer_angle_degrees.clamp(0.0, 179.0),
+            shadows: light.shadow_enabled,
+            layers: Layer::mask(&light.light_layers),
             source_radius: light.source_radius.max(0.0),
             kind: light.kind,
             enabled: visible,
@@ -109,115 +124,22 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
     out
 }
 
-fn light_schema() -> String {
-    let kinds = crate::vocabulary::options(words::LIGHT_KINDS_3D);
-    let default = words::DIRECTIONAL;
-    let layer_options = balaur_core::layers::options();
-    format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims" }}
-color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
-intensity = {{ type = "float", default = 3.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-range = {{ type = "float", default = 30.0, min = 0.0, description = "How far a point or spot light reaches, in world units" }}
-inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees", group = "cone" }}
-outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees", group = "cone" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether this light casts shadows from the nodes that say they cast", group = "shadows" }}
-source_radius = {{ type = "float", default = 0.0, min = 0.0, description = "Radius of the sphere the light shines from, in world units, which softens its shadows. Read by the path tracer only; the rasterizer's edge is `environment.shadow_softness`", group = "shadows" }}
-light_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The light layers this light reaches: a node whose `light_layers` share one; empty is every layer", group = "layers" }}"#
-    )
-}
-
 /// The `light3d` component. The node's position places it and its rotation
 /// aims it; `visible = false` switches it off.
 pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "light3d",
+        Light3d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
-            schema: ComponentDef::parse_schema("light3d", &light_schema()),
             tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let kind = match prop_str(params, k::KIND) {
-                    words::POINT => LightKind3d::Point,
-                    words::DIRECTIONAL => LightKind3d::Directional,
-                    words::SPOT => LightKind3d::Spot,
-                    other => return Err(anyhow!("unknown light3d kind '{other}'")),
-                };
-                let num = |key: &str, default: f64| {
-                    params.get(key).and_then(as_f64).unwrap_or(default) as f32
-                };
-                let layers = balaur_core::layers::bits(params.get(k::LIGHT_LAYERS), true);
-                set_light(
-                    eng,
-                    entity,
-                    Light3d {
-                        kind,
-                        color: color_from_params(params),
-                        intensity: num(k::INTENSITY, 3.0).max(0.0),
-                        radius: num(k::RANGE, 30.0).max(0.0),
-                        inner: num(k::INNER_ANGLE_DEGREES, 20.0),
-                        outer: num(k::OUTER_ANGLE_DEGREES, 35.0),
-                        shadows: prop_bool(params, k::SHADOW_ENABLED),
-                        layers,
-                        source_radius: num(k::SOURCE_RADIUS, 0.0).max(0.0),
-                    },
-                )
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Light3d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let light = world.get::<&Light3d>(entity).ok()?;
-                let kind = match light.kind {
-                    LightKind3d::Point => words::POINT,
-                    LightKind3d::Directional => words::DIRECTIONAL,
-                    LightKind3d::Spot => words::SPOT,
-                };
-                let mut map = toml::map::Map::new();
-                map.insert(k::KIND.into(), toml::Value::String(kind.into()));
-                map.insert(k::COLOR.into(), color_to_toml(light.color));
-                map.insert(
-                    k::INTENSITY.into(),
-                    toml::Value::Float(f64::from(light.intensity)),
-                );
-                map.insert(k::RANGE.into(), toml::Value::Float(f64::from(light.radius)));
-                map.insert(k::INNER_ANGLE_DEGREES.into(), toml::Value::Float(f64::from(light.inner)));
-                map.insert(k::OUTER_ANGLE_DEGREES.into(), toml::Value::Float(f64::from(light.outer)));
-                map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
-                map.insert(
-                    k::LIGHT_LAYERS.into(),
-                    balaur_core::layers::names(light.layers),
-                );
-                map.insert(
-                    k::SOURCE_RADIUS.into(),
-                    toml::Value::Float(f64::from(light.source_radius)),
-                );
-                Some(toml::Value::Table(map))
-            }),
+            ..ComponentDef::of::<Light3d>(None)
         },
     );
 }
 
-fn set_light(eng: &Engine, entity: Entity, next: Light3d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut light) = world.get::<&mut Light3d>(entity) {
-        *light = next;
-        return Ok(());
-    }
-    world
-        .insert_one(entity, next)
-        .map_err(|_| anyhow!("node is dead"))
-}
-
 /// How fog thickens with distance.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum FogKind {
+    #[option(name = "none")]
     Off,
     /// Ramps between `start` and `end`, in view-space distance.
     Linear,
@@ -228,18 +150,20 @@ pub enum FogKind {
 }
 
 /// Which curve the HDR film is mapped through.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum Tonemap {
     None,
     Aces,
     Reinhard,
+    #[option(name = "agx")]
     AgX,
     Neutral,
+    #[option(name = "tony_mcmapface")]
     TonyMcMapface,
 }
 
 /// How glass blurs what it refracts: kiss3d's `TransmissionBlurQuality`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum BlurQuality {
     Low,
     Medium,
@@ -289,10 +213,130 @@ impl Default for Transmission {
     }
 }
 
-/// The `environment` component: everything about a scene's atmosphere that is
-/// scene-wide rather than per view. `camera.post` keeps the per-view passes.
-#[derive(Clone, Debug, PartialEq)]
+/// The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and how shadows fall. The last `current` one wins; per-view effects stay on `camera.post`, and what the device can afford is `[render]`.
+// Everything about a scene's atmosphere that is scene-wide rather than per
+// view; `camera.post` keeps the per-view passes. [`LitEnvironment`] is it
+// held to kiss3d's ranges.
+#[derive(Component)]
+#[component(name = "environment")]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own property, not a state machine"
+)]
 pub struct Environment {
+    /// Whether this is the environment the scene draws under; the last current one in tree order wins
+    #[property(default = true)]
+    pub current: bool,
+    /// Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky
+    pub sky: String,
+    /// Light every surface gets whatever the lights do, a 2D one's before any `light2d` as a 3D one's
+    #[property(color, default = [0.125, 0.14, 0.157, 1.0])]
+    pub ambient_color: [f32; 4],
+    /// The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped
+    #[property(default = Tonemap::Neutral)]
+    pub tonemap: Tonemap,
+    /// Linear multiplier before the tonemap
+    #[property(default = 1.0, min = 0.0)]
+    pub exposure: f32,
+    /// False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky
+    #[property(default = true, group = "sky")]
+    pub sky_enabled: bool,
+    /// Brightness of the sky, and of the light it casts
+    #[property(default = 1.0, min = 0.0, group = "sky")]
+    pub sky_intensity: f32,
+    /// Turn of the sky about y, in degrees
+    #[property(group = "sky")]
+    pub sky_rotation_degrees: f32,
+    /// Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too
+    #[property(group = "sky")]
+    pub sky_light: String,
+    /// Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity`
+    #[property(default = -1.0, min = -1.0, group = "sky")]
+    pub sky_light_intensity: f32,
+    /// How fog thickens with distance
+    #[property(default = FogKind::Off, group = "fog")]
+    pub fog_mode: FogKind,
+    /// What distance fades toward
+    #[property(color, default = [0.624, 0.706, 0.784, 1.0], group = "fog")]
+    pub fog_color: [f32; 4],
+    /// Thickness, for exponential fog
+    #[property(default = 0.02, min = 0.0, group = "fog")]
+    pub fog_density: f32,
+    /// Where linear fog begins, in world units
+    #[property(default = 10.0, min = 0.0, group = "fog")]
+    pub fog_start: f32,
+    /// Where linear fog is total, in world units
+    #[property(default = 80.0, min = 0.0, group = "fog")]
+    pub fog_end: f32,
+    /// How fast fog thins with height; zero fills the scene evenly
+    #[property(min = 0.0, group = "fog")]
+    pub fog_height_falloff: f32,
+    /// Contrast around mid grey
+    #[property(default = 1.0, min = 0.0, group = "grading")]
+    pub contrast: f32,
+    /// Colour multiplier around luminance; zero is grey
+    #[property(default = 1.0, min = 0.0, group = "grading")]
+    pub saturation: f32,
+    /// Turns every hue about the grey axis before the tonemap, in degrees
+    #[property(group = "grading")]
+    pub hue_degrees: f32,
+    /// Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone
+    #[property(default = [1.0, 1.0, 1.0], group = "grading")]
+    pub white_balance: [f32; 3],
+    /// Gamma applied in linear space
+    #[property(default = 1.0, min = 0.01, group = "grading")]
+    pub gamma: f32,
+    /// Measure the frame's average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ
+    #[property(group = "auto exposure")]
+    pub auto_exposure_enabled: bool,
+    /// The mid grey auto-exposure maps the frame's average brightness to
+    #[property(default = 0.18, min = 0.0, group = "auto exposure")]
+    pub auto_exposure_key: f32,
+    /// The lowest exposure auto-exposure settles at, for the brightest scenes
+    #[property(default = 0.05, min = 0.0, group = "auto exposure")]
+    pub auto_exposure_min: f32,
+    /// The highest exposure auto-exposure settles at, for the darkest scenes
+    #[property(default = 8.0, min = 0.0, group = "auto exposure")]
+    pub auto_exposure_max: f32,
+    /// How fast auto-exposure follows the scene, per second
+    #[property(default = 3.0, min = 0.0, group = "auto exposure")]
+    pub auto_exposure_speed: f32,
+    /// Whether any light casts shadows at all
+    #[property(default = true, group = "shadows")]
+    pub shadow_enabled: bool,
+    /// How far along the view a directional light's cascades reach, in world units; the camera's `far` caps it
+    #[property(default = 60.0, min = 0.0, group = "shadows")]
+    pub shadow_distance: f32,
+    /// How far a shadow's edge is blurred
+    #[property(default = 1.0, min = 0.0, group = "shadows")]
+    pub shadow_softness: f32,
+    /// How many cascades a directional light splits its shadow range into; each takes one of `shadow_views`
+    #[property(default = 4, min = 1, max = 4, group = "shadows")]
+    pub shadow_cascades: i64,
+    /// How far along the view the first, sharpest cascade reaches, in world units
+    #[property(default = 12.0, min = 0.01, group = "shadows")]
+    pub shadow_first_cascade_distance: f32,
+    /// Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material
+    #[property(default = 0.0012, min = 0.0, group = "shadows")]
+    pub shadow_bias: f32,
+    /// How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself
+    #[property(default = 1.75, group = "shadows")]
+    pub shadow_slope_bias: f32,
+    /// Depth-buffer units the shadow pass pushes every caster back by
+    #[property(default = 1, group = "shadows")]
+    pub shadow_constant_bias: i32,
+    /// Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes
+    #[property(default = true, group = "transmission")]
+    pub transmission_enabled: bool,
+    /// How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky
+    #[property(default = BlurQuality::High, group = "transmission")]
+    pub transmission_blur_quality: BlurQuality,
+}
+
+/// An [`Environment`] held to kiss3d's ranges, with the device budget
+/// `[render]` sets: what a backend draws under.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LitEnvironment {
     pub current: bool,
     /// Equirectangular `.hdr` or `.exr`; empty means no sky and no image-based
     /// lighting.
@@ -344,7 +388,7 @@ pub struct Environment {
     pub cluster_max_lights: u32,
 }
 
-impl Environment {
+impl LitEnvironment {
     /// A scene with no `environment` node: the defaults with no tonemap, so
     /// the frame shows its colours as authored. A node's own default is
     /// `neutral`.
@@ -357,7 +401,7 @@ impl Environment {
     }
 }
 
-impl Default for Environment {
+impl Default for LitEnvironment {
     fn default() -> Self {
         Self {
             current: true,
@@ -400,320 +444,95 @@ impl Default for Environment {
     }
 }
 
+/// The environment a scene draws under: its current `environment` node, or
+/// [`LitEnvironment::none`] when it has none.
+#[must_use]
+pub fn environment_or_none(world: &World, root: Entity) -> LitEnvironment {
+    environment(world, root).unwrap_or_else(LitEnvironment::none)
+}
+
 /// The environment a scene draws under: the last `current` one in tree order,
 /// so a level can carry two and switch. `None` when no node has one, which is
 /// what leaves the backend's own defaults alone.
-/// The environment a scene draws under: its current `environment` node, or
-/// [`Environment::none`] when it has none.
-#[must_use]
-pub fn environment_or_none(world: &World, root: Entity) -> Environment {
-    environment(world, root).unwrap_or_else(Environment::none)
-}
-
-pub fn environment(world: &World, root: Entity) -> Option<Environment> {
+pub fn environment(world: &World, root: Entity) -> Option<LitEnvironment> {
     let mut found = None;
     for entity in balaur_core::scene::collect_subtree(world, root) {
         if let Ok(env) = world.get::<&Environment>(entity)
             && env.current
         {
-            found = Some(Environment::clone(&env));
+            found = Some(entity);
         }
     }
-    found
+    let env = world.get::<&Environment>(found?).ok()?;
+    Some(LitEnvironment::of(&env))
 }
 
-fn environment_schema() -> String {
-    let fogs = crate::vocabulary::options(words::FOG_KINDS);
-    let tonemaps = crate::vocabulary::options(words::TONEMAPS);
-    format!(
-        r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
-sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
-ambient_color = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do, a 2D one's before any `light2d` as a 3D one's" }}
-tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], description = "The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped" }}
-exposure = {{ type = "float", default = 1.0, min = 0.0, description = "Linear multiplier before the tonemap" }}
-sky_enabled = {{ type = "bool", default = true, description = "False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky", group = "sky" }}
-sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts", group = "sky" }}
-sky_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees", group = "sky" }}
-sky_light = {{ type = "string", default = "", description = "Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too", group = "sky" }}
-sky_light_intensity = {{ type = "float", default = -1.0, min = -1.0, description = "Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity`", group = "sky" }}
-fog_mode = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance", group = "fog" }}
-fog_color = {{ type = "color", default = [0.624, 0.706, 0.784, 1.0], description = "What distance fades toward", group = "fog" }}
-fog_density = {{ type = "float", default = 0.02, min = 0.0, description = "Thickness, for exponential fog", group = "fog" }}
-fog_start = {{ type = "float", default = 10.0, min = 0.0, description = "Where linear fog begins, in world units", group = "fog" }}
-fog_end = {{ type = "float", default = 80.0, min = 0.0, description = "Where linear fog is total, in world units", group = "fog" }}
-fog_height_falloff = {{ type = "float", default = 0.0, min = 0.0, description = "How fast fog thins with height; zero fills the scene evenly", group = "fog" }}
-contrast = {{ type = "float", default = 1.0, min = 0.0, description = "Contrast around mid grey", group = "grading" }}
-saturation = {{ type = "float", default = 1.0, min = 0.0, description = "Colour multiplier around luminance; zero is grey", group = "grading" }}
-hue_degrees = {{ type = "float", default = 0.0, description = "Turns every hue about the grey axis before the tonemap, in degrees", group = "grading" }}
-white_balance = {{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone", group = "grading" }}
-gamma = {{ type = "float", default = 1.0, min = 0.01, description = "Gamma applied in linear space", group = "grading" }}
-auto_exposure_enabled = {{ type = "bool", default = false, description = "Measure the frame's average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ", group = "auto exposure" }}
-auto_exposure_key = {{ type = "float", default = 0.18, min = 0.0, description = "The mid grey auto-exposure maps the frame's average brightness to", group = "auto exposure" }}
-auto_exposure_min = {{ type = "float", default = 0.05, min = 0.0, description = "The lowest exposure auto-exposure settles at, for the brightest scenes", group = "auto exposure" }}
-auto_exposure_max = {{ type = "float", default = 8.0, min = 0.0, description = "The highest exposure auto-exposure settles at, for the darkest scenes", group = "auto exposure" }}
-auto_exposure_speed = {{ type = "float", default = 3.0, min = 0.0, description = "How fast auto-exposure follows the scene, per second", group = "auto exposure" }}
-{budget}"#,
-        budget = budget_schema(),
-        none = words::NONE,
-        neutral = words::NEUTRAL,
-    )
-}
-
-/// Read an `environment` table. Lifted out of the component's `apply`, which
-/// is otherwise one expression per key and nothing else.
-fn environment_from_params(params: &toml::Value) -> Result<Environment> {
-    let base = Environment::default();
-    let num = |key: &str, default: f32| {
-        params
-            .get(key)
-            .and_then(as_f64)
-            .unwrap_or(f64::from(default)) as f32
-    };
-    let flag = |key: &str, default: bool| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(default)
-    };
-    let next = Environment {
-        current: flag(k::CURRENT, true),
-        sky: params
-            .get(k::SKY)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        sky_intensity: num(k::SKY_INTENSITY, base.sky_intensity).max(0.0),
-        sky_rotation: num(k::SKY_ROTATION_DEGREES, base.sky_rotation),
-        show_sky: flag(k::SKY_ENABLED, true),
-        ambient: crate::color_from_key(params, k::AMBIENT_COLOR, base.ambient),
-        fog: match params
-            .get(k::FOG_MODE)
-            .and_then(toml::Value::as_str)
-            .unwrap_or(words::NONE)
-        {
-            words::NONE => FogKind::Off,
-            words::LINEAR => FogKind::Linear,
-            words::EXPONENTIAL => FogKind::Exponential,
-            words::EXPONENTIAL_SQUARED => FogKind::ExponentialSquared,
-            other => return Err(anyhow!("unknown fog '{other}'")),
-        },
-        fog_color: crate::color_from_key(params, k::FOG_COLOR, base.fog_color),
-        fog_density: num(k::FOG_DENSITY, base.fog_density).max(0.0),
-        fog_start: num(k::FOG_START, base.fog_start),
-        fog_end: num(k::FOG_END, base.fog_end),
-        fog_height_falloff: num(k::FOG_HEIGHT_FALLOFF, 0.0).max(0.0),
-        exposure: num(k::EXPOSURE, base.exposure).max(0.0),
-        tonemap: match params
-            .get(k::TONEMAP)
-            .and_then(toml::Value::as_str)
-            .unwrap_or(words::NEUTRAL)
-        {
-            words::NONE => Tonemap::None,
-            words::ACES => Tonemap::Aces,
-            words::REINHARD => Tonemap::Reinhard,
-            words::AGX => Tonemap::AgX,
-            words::NEUTRAL => Tonemap::Neutral,
-            words::TONY_MCMAPFACE => Tonemap::TonyMcMapface,
-            other => return Err(anyhow!("unknown tonemap '{other}'")),
-        },
-        saturation: num(k::SATURATION, base.saturation).max(0.0),
-        contrast: num(k::CONTRAST, base.contrast).max(0.0),
-        gamma: num(k::GAMMA, base.gamma).max(0.01),
-        white_balance: prop_vec3(params, k::WHITE_BALANCE).map(|gain| gain.max(0.0)),
-        hue: prop_f32(params, k::HUE_DEGREES),
-        auto_exposure: AutoExposure {
-            enabled: prop_bool(params, k::AUTO_EXPOSURE_ENABLED),
-            speed: prop_f32(params, k::AUTO_EXPOSURE_SPEED).max(0.0),
-            min: prop_f32(params, k::AUTO_EXPOSURE_MIN).max(0.0),
-            max: prop_f32(params, k::AUTO_EXPOSURE_MAX).max(0.0),
-            key: prop_f32(params, k::AUTO_EXPOSURE_KEY).max(0.0),
-        },
-        transmission: Transmission {
-            enabled: prop_bool(params, k::TRANSMISSION_ENABLED),
-            blur_quality: match prop_str(params, k::TRANSMISSION_BLUR_QUALITY) {
-                words::LOW => BlurQuality::Low,
-                words::MEDIUM => BlurQuality::Medium,
-                words::HIGH => BlurQuality::High,
-                other => return Err(anyhow!("unknown transmission_blur_quality '{other}'")),
+impl LitEnvironment {
+    /// `env` held to kiss3d's ranges, at the device budget's defaults.
+    #[must_use]
+    pub fn of(env: &Environment) -> Self {
+        let base = Self::default();
+        Self {
+            current: env.current,
+            sky: env.sky.clone(),
+            sky_intensity: env.sky_intensity.max(0.0),
+            sky_rotation: env.sky_rotation_degrees,
+            show_sky: env.sky_enabled,
+            ambient: env.ambient_color,
+            fog: env.fog_mode,
+            fog_color: env.fog_color,
+            fog_density: env.fog_density.max(0.0),
+            fog_start: env.fog_start,
+            fog_end: env.fog_end,
+            fog_height_falloff: env.fog_height_falloff.max(0.0),
+            exposure: env.exposure.max(0.0),
+            tonemap: env.tonemap,
+            saturation: env.saturation.max(0.0),
+            contrast: env.contrast.max(0.0),
+            gamma: env.gamma.max(0.01),
+            white_balance: env.white_balance.map(|gain| gain.max(0.0)),
+            hue: env.hue_degrees,
+            auto_exposure: AutoExposure {
+                enabled: env.auto_exposure_enabled,
+                speed: env.auto_exposure_speed.max(0.0),
+                min: env.auto_exposure_min.max(0.0),
+                max: env.auto_exposure_max.max(0.0),
+                key: env.auto_exposure_key.max(0.0),
             },
-            steps: base.transmission.steps,
-        },
-        shadows: flag(k::SHADOW_ENABLED, true),
-        shadow_resolution: base.shadow_resolution,
-        shadow_softness: num(k::SHADOW_SOFTNESS, base.shadow_softness).max(0.0),
-        shadow_distance: num(k::SHADOW_DISTANCE, base.shadow_distance).max(0.0),
-        shadow_cascades: count(params, k::SHADOW_CASCADES).clamp(1, 4),
-        shadow_first_cascade_distance: num(
-            k::SHADOW_FIRST_CASCADE_DISTANCE,
-            base.shadow_first_cascade_distance,
-        )
-        .max(0.01),
-        shadow_bias: num(k::SHADOW_BIAS, base.shadow_bias).max(0.0),
-        shadow_constant_bias: i32::try_from(prop_i64(params, k::SHADOW_CONSTANT_BIAS))
-            .unwrap_or(base.shadow_constant_bias),
-        shadow_slope_bias: num(k::SHADOW_SLOPE_BIAS, base.shadow_slope_bias),
-        shadow_views: base.shadow_views,
-        sky_light: prop_str(params, k::SKY_LIGHT).to_string(),
-        sky_light_intensity: Some(prop_f32(params, k::SKY_LIGHT_INTENSITY)).filter(|v| *v >= 0.0),
-        probe_capture_size: base.probe_capture_size,
-        cluster_grid: base.cluster_grid,
-        cluster_max_lights: base.cluster_max_lights,
-    };
-    Ok(next)
-}
-
-/// A whole-number key as kiss3d's counters take it; a negative one is zero.
-fn count(params: &toml::Value, key: &str) -> u32 {
-    u32::try_from(prop_i64(params, key).max(0)).unwrap_or(u32::MAX)
-}
-
-/// The rows that spend the frame: shadows, glass seen through glass, and the
-/// many-light clusters and probe captures. Split from [`environment_schema`]
-/// under `MAX_FN_LINES`.
-fn budget_schema() -> String {
-    format!(
-        r#"shadow_enabled = {{ type = "bool", default = true, description = "Whether any light casts shadows at all", group = "shadows" }}
-shadow_distance = {{ type = "float", default = 60.0, min = 0.0, description = "How far along the view a directional light's cascades reach, in world units; the camera's `far` caps it", group = "shadows" }}
-shadow_softness = {{ type = "float", default = 1.0, min = 0.0, description = "How far a shadow's edge is blurred", group = "shadows" }}
-shadow_cascades = {{ type = "int", default = 4, min = 1, max = 4, description = "How many cascades a directional light splits its shadow range into; each takes one of `shadow_views`", group = "shadows" }}
-shadow_first_cascade_distance = {{ type = "float", default = 12.0, min = 0.01, description = "How far along the view the first, sharpest cascade reaches, in world units", group = "shadows" }}
-shadow_bias = {{ type = "float", default = 0.0012, min = 0.0, description = "Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material", group = "shadows" }}
-shadow_slope_bias = {{ type = "float", default = 1.75, description = "How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself", group = "shadows" }}
-shadow_constant_bias = {{ type = "int", default = 1, description = "Depth-buffer units the shadow pass pushes every caster back by", group = "shadows" }}
-transmission_enabled = {{ type = "bool", default = true, description = "Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes", group = "transmission" }}
-transmission_blur_quality = {{ type = "enum", default = "{high}", options = [{qualities}], description = "How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky", group = "transmission" }}"#,
-        high = words::HIGH,
-        qualities = crate::vocabulary::options(words::BLUR_QUALITIES),
-    )
+            transmission: Transmission {
+                enabled: env.transmission_enabled,
+                blur_quality: env.transmission_blur_quality,
+                steps: base.transmission.steps,
+            },
+            shadows: env.shadow_enabled,
+            shadow_resolution: base.shadow_resolution,
+            shadow_softness: env.shadow_softness.max(0.0),
+            shadow_distance: env.shadow_distance.max(0.0),
+            shadow_cascades: u32::try_from(env.shadow_cascades.clamp(1, 4)).unwrap_or(4),
+            shadow_first_cascade_distance: env.shadow_first_cascade_distance.max(0.01),
+            shadow_bias: env.shadow_bias.max(0.0),
+            shadow_constant_bias: env.shadow_constant_bias,
+            shadow_slope_bias: env.shadow_slope_bias,
+            shadow_views: base.shadow_views,
+            sky_light: env.sky_light.clone(),
+            sky_light_intensity: Some(env.sky_light_intensity).filter(|v| *v >= 0.0),
+            probe_capture_size: base.probe_capture_size,
+            cluster_grid: base.cluster_grid,
+            cluster_max_lights: base.cluster_max_lights,
+        }
+    }
 }
 
 /// The `environment` component: sky, ambient, fog, exposure, tonemap, grading
 /// and how shadows fall, all of which belong to the scene rather than a view.
 pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "environment",
+        Environment::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and how shadows fall. The last `current` one wins; per-view effects stay on `camera.post`, and what the device can afford is `[render]`.",
-            schema: ComponentDef::parse_schema("environment", &environment_schema()),
             // Both dimensions': a 2D scene's ambient is its environment's too.
             tags: &["render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let next = environment_from_params(params)?;
-                let mut world = eng.world_mut();
-                if let Ok(mut env) = world.get::<&mut Environment>(entity) {
-                    *env = next;
-                    return Ok(());
-                }
-                world
-                    .insert_one(entity, next)
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Environment>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let env = world.get::<&Environment>(entity).ok()?;
-                let fog = match env.fog {
-                    FogKind::Off => words::NONE,
-                    FogKind::Linear => words::LINEAR,
-                    FogKind::Exponential => words::EXPONENTIAL,
-                    FogKind::ExponentialSquared => words::EXPONENTIAL_SQUARED,
-                };
-                let tonemap = match env.tonemap {
-                    Tonemap::None => words::NONE,
-                    Tonemap::Aces => words::ACES,
-                    Tonemap::Reinhard => words::REINHARD,
-                    Tonemap::AgX => words::AGX,
-                    Tonemap::Neutral => words::NEUTRAL,
-                    Tonemap::TonyMcMapface => words::TONY_MCMAPFACE,
-                };
-                let mut map = toml::map::Map::new();
-                let mut put = |key: &str, value: toml::Value| {
-                    map.insert(key.to_string(), value);
-                };
-                let float = |v: f32| toml::Value::Float(f64::from(v));
-                put(k::CURRENT, toml::Value::Boolean(env.current));
-                put(k::SKY, toml::Value::String(env.sky.clone()));
-                put(k::SKY_INTENSITY, float(env.sky_intensity));
-                put(k::SKY_ROTATION_DEGREES, float(env.sky_rotation));
-                put(k::SKY_ENABLED, toml::Value::Boolean(env.show_sky));
-                put(k::AMBIENT_COLOR, color_to_toml(env.ambient));
-                put(k::FOG_MODE, toml::Value::String(fog.into()));
-                put(k::FOG_COLOR, color_to_toml(env.fog_color));
-                put(k::FOG_DENSITY, float(env.fog_density));
-                put(k::FOG_START, float(env.fog_start));
-                put(k::FOG_END, float(env.fog_end));
-                put(k::FOG_HEIGHT_FALLOFF, float(env.fog_height_falloff));
-                put(k::EXPOSURE, float(env.exposure));
-                put(k::TONEMAP, toml::Value::String(tonemap.into()));
-                put(k::SATURATION, float(env.saturation));
-                put(k::CONTRAST, float(env.contrast));
-                put(k::GAMMA, float(env.gamma));
-                environment_extras_to_map(&env, &mut put);
-                put(k::SHADOW_ENABLED, toml::Value::Boolean(env.shadows));
-                put(k::SHADOW_SOFTNESS, float(env.shadow_softness));
-                put(k::SHADOW_DISTANCE, float(env.shadow_distance));
-                shadow_budget_to_map(&env, &mut put);
-                Some(toml::Value::Table(map))
-            }),
+            ..ComponentDef::of::<Environment>(None)
         },
-    );
-}
-
-/// The grading, eye-adaptation and glass keys read back.
-fn environment_extras_to_map(env: &Environment, put: &mut impl FnMut(&str, toml::Value)) {
-    let float = |v: f32| toml::Value::Float(f64::from(v));
-    let [r, g, b] = env.white_balance;
-    put(
-        k::WHITE_BALANCE,
-        toml::Value::Array(vec![float(r), float(g), float(b)]),
-    );
-    put(k::HUE_DEGREES, float(env.hue));
-    let auto = env.auto_exposure;
-    put(k::AUTO_EXPOSURE_ENABLED, toml::Value::Boolean(auto.enabled));
-    put(k::AUTO_EXPOSURE_SPEED, float(auto.speed));
-    put(k::AUTO_EXPOSURE_MIN, float(auto.min));
-    put(k::AUTO_EXPOSURE_MAX, float(auto.max));
-    put(k::AUTO_EXPOSURE_KEY, float(auto.key));
-    let glass = env.transmission;
-    let quality = match glass.blur_quality {
-        BlurQuality::Low => words::LOW,
-        BlurQuality::Medium => words::MEDIUM,
-        BlurQuality::High => words::HIGH,
-    };
-    put(k::TRANSMISSION_ENABLED, toml::Value::Boolean(glass.enabled));
-    put(
-        k::TRANSMISSION_BLUR_QUALITY,
-        toml::Value::String(quality.into()),
-    );
-}
-
-/// The shadow knobs, sky light and renderer limits read back.
-fn shadow_budget_to_map(env: &Environment, put: &mut impl FnMut(&str, toml::Value)) {
-    let float = |v: f32| toml::Value::Float(f64::from(v));
-    let whole = |v: u32| toml::Value::Integer(i64::from(v));
-    put(k::SHADOW_CASCADES, whole(env.shadow_cascades));
-    put(
-        k::SHADOW_FIRST_CASCADE_DISTANCE,
-        float(env.shadow_first_cascade_distance),
-    );
-    put(k::SHADOW_BIAS, float(env.shadow_bias));
-    put(
-        k::SHADOW_CONSTANT_BIAS,
-        toml::Value::Integer(i64::from(env.shadow_constant_bias)),
-    );
-    put(k::SHADOW_SLOPE_BIAS, float(env.shadow_slope_bias));
-    put(k::SKY_LIGHT, toml::Value::String(env.sky_light.clone()));
-    put(
-        k::SKY_LIGHT_INTENSITY,
-        float(env.sky_light_intensity.unwrap_or(-1.0)),
     );
 }
 
@@ -751,7 +570,7 @@ pub(crate) fn budget_settings() -> String {
 
 /// The device budget `[render]` sets, over whichever environment draws.
 #[cfg(feature = "window")]
-fn budget_from_settings(eng: &balaur_core::Engine, env: &mut Environment) {
+fn budget_from_settings(eng: &balaur_core::Engine, env: &mut LitEnvironment) {
     let setting = |key: &str| balaur_core::settings::get(eng, &format!("render/{key}"));
     let whole = |key: &str, fallback: u32| {
         setting(key)
@@ -853,12 +672,12 @@ impl LightSlots {
 }
 
 /// Push the scene's `environment` onto the window: sky, ambient, fog, the HDR
-/// film and the shadow budget. A scene with none gets [`Environment::none`].
+/// film and the shadow budget. A scene with none gets [`LitEnvironment::none`].
 #[cfg(feature = "window")]
 pub(crate) fn sync_environment(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
-    applied: &mut Option<Environment>,
+    applied: &mut Option<LitEnvironment>,
 ) {
     let mut env = {
         let world = app.engine.world();
@@ -936,8 +755,8 @@ pub(crate) fn sync_environment(
 #[cfg(feature = "window")]
 fn sync_transmission(
     window: &mut kiss3d::window::Window,
-    env: &Environment,
-    was: Option<&Environment>,
+    env: &LitEnvironment,
+    was: Option<&LitEnvironment>,
 ) {
     window.set_transmission_enabled(env.transmission.enabled);
     let moved = was.map_or(Transmission::default(), |old| old.transmission) != env.transmission;
@@ -959,14 +778,14 @@ fn sync_transmission(
 /// term in every shader, so the scene would go black instead of taking
 /// `ambient_color`.
 #[cfg(feature = "window")]
-fn bound_sky(env: &Environment) -> Option<&str> {
+fn bound_sky(env: &LitEnvironment) -> Option<&str> {
     (env.show_sky && !env.sky.is_empty()).then_some(env.sky.as_str())
 }
 
 /// The image that lights the scene apart from the drawn sky: none for a sky
 /// switched off, which takes its light away with it.
 #[cfg(feature = "window")]
-fn bound_sky_light(env: &Environment) -> Option<&str> {
+fn bound_sky_light(env: &LitEnvironment) -> Option<&str> {
     (env.show_sky && !env.sky_light.is_empty()).then_some(env.sky_light.as_str())
 }
 
@@ -996,8 +815,8 @@ fn sky_image(app: &balaur_core::App, path: &str) -> Option<image::DynamicImage> 
 fn sync_sky(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
-    env: &Environment,
-    was: Option<&Environment>,
+    env: &LitEnvironment,
+    was: Option<&LitEnvironment>,
 ) {
     let wanted = bound_sky(env);
     if was.is_none_or(|old| bound_sky(old) != wanted) {
@@ -1018,7 +837,15 @@ fn sync_sky(
 
 #[cfg(test)]
 mod environment_tests {
-    use super::{Environment, Tonemap, environment_or_none};
+    use super::{Environment, LitEnvironment, Tonemap, environment_or_none};
+
+    #[test]
+    fn an_environment_at_its_defaults_draws_as_the_default_one() {
+        assert_eq!(
+            LitEnvironment::of(&Environment::default()),
+            LitEnvironment::default()
+        );
+    }
 
     #[test]
     fn a_scene_with_no_environment_is_not_tonemapped() {
@@ -1032,14 +859,14 @@ mod environment_tests {
 
     #[test]
     fn an_environment_node_keeps_its_own_defaults() {
-        assert_eq!(Environment::default().tonemap, Tonemap::Neutral);
-        let none = Environment::none();
+        assert_eq!(LitEnvironment::default().tonemap, Tonemap::Neutral);
+        let none = LitEnvironment::none();
         assert_eq!(
-            Environment {
+            LitEnvironment {
                 tonemap: Tonemap::Neutral,
                 ..none
             },
-            Environment::default(),
+            LitEnvironment::default(),
             "no environment differs from a default one by the tonemap alone"
         );
     }
@@ -1047,20 +874,24 @@ mod environment_tests {
 
 #[cfg(all(test, feature = "window"))]
 mod tests {
-    use super::{Environment, bound_sky};
+    use super::{LitEnvironment, bound_sky};
 
     #[test]
     fn a_sky_switched_off_is_unbound_so_the_ambient_colour_lights() {
-        let lit = Environment {
+        let lit = LitEnvironment {
             sky: "sky.hdr".into(),
-            ..Environment::default()
+            ..LitEnvironment::default()
         };
         assert_eq!(bound_sky(&lit), Some("sky.hdr"));
-        let off = Environment {
+        let off = LitEnvironment {
             show_sky: false,
             ..lit
         };
         assert_eq!(bound_sky(&off), None);
-        assert_eq!(bound_sky(&Environment::default()), None, "no file, no sky");
+        assert_eq!(
+            bound_sky(&LitEnvironment::default()),
+            None,
+            "no file, no sky"
+        );
     }
 }

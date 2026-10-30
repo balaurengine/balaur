@@ -194,7 +194,7 @@ fn a_tilemap_takes_a_tint() {
     add(&app, map, "tilemap", "color = [1.0, 0.5, 0.25, 1.0]");
     assert_eq!(read(&app, map, "tilemap")["color"][1].as_float(), Some(0.5));
     let world = app.engine.world();
-    let tilemap = world.get::<&balaur_render::Tilemap>(map).unwrap();
+    let tilemap = world.get::<&balaur_render::TileLayout>(map).unwrap();
     assert!(crate::same(tilemap.color, [1.0, 0.5, 0.25, 1.0]));
 }
 

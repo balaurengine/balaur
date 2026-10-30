@@ -1,157 +1,116 @@
-//! The `sprite` component: its schema and scene-file round trip. The data it
-//! writes (`SpriteTexture` inside `Renderable2d`) lives in the crate root.
+//! The `sprite` component. The data it writes (`SpriteTexture` inside
+//! `Renderable2d`) lives in the crate root.
 
 use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Written};
+use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
-use crate::vocabulary::{keys as k, words};
-use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
+use crate::vocabulary::words;
+use crate::{Renderable2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
-/// The `sprite` component's property schema, lifted out so the
-/// registration below stays readable.
-fn sprite_schema() -> std::rc::Rc<balaur_core::components::Schema> {
-    ComponentDef::parse_schema(
-        "sprite",
-        &balaur_core::components::ComponentDef::schema(&[
-            (
-                k::TEXTURE,
-                &format!(
-                    r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing" }}"#,
-                    balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-                ),
-            ),
-            (
-                k::COLOR,
-                r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-            ),
-            (
-                k::SHEET,
-                &format!(
-                    r#"{{ type = "asset", asset = "{}", default = "", description = "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region" }}"#,
-                    crate::sheet::SPRITE_SHEET_ASSET_TYPE
-                ),
-            ),
-            (
-                k::FRAME,
-                r#"{ type = "int", default = 0, min = 0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
-            ),
-            (
-                k::FLIP_X,
-                r#"{ type = "bool", default = false, description = "Mirror horizontally" }"#,
-            ),
-            (
-                k::FLIP_Y,
-                r#"{ type = "bool", default = false, description = "Mirror vertically" }"#,
-            ),
-            (
-                k::MATERIAL,
-                &format!(
-                    r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#,
-                    crate::material::MATERIAL_ASSET_TYPE
-                ),
-            ),
-            (
-                k::CENTERED,
-                r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there", group = "placement" }"#,
-            ),
-            (
-                k::OFFSET,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the image sits against the node, in texture pixels with y down; turns and scales with the node", group = "placement" }"#,
-            ),
-            (
-                k::SIZE,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Whole size in world units; [0, 0] sizes from the texture", group = "placement" }"#,
-            ),
-            (
-                k::PIXELS_PER_UNIT,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says", group = "placement" }"#,
-            ),
-            (
-                k::REGION_ORIGIN,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`", group = "region" }"#,
-            ),
-            (
-                k::REGION_SIZE,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell", group = "region" }"#,
-            ),
-            (
-                k::NINE_SLICE_MARGINS_PIXELS,
-                r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, right, top and bottom margins in texture pixels: the corners keep their size at `pixels_per_unit` while the edges and the middle stretch to `size`. All zero takes the margins from the `sheet`'s first slice with a `center`, drawing that slice's part of the frame, and draws one plain quad without one", group = "region" }"#,
-            ),
-        ]),
-    )
+/// A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.
+// The node draws the [`SpriteTexture`] each write leaves in its
+// [`Renderable2d`].
+#[derive(Clone, Component)]
+#[component(name = "sprite")]
+pub struct Sprite {
+    /// Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region
+    #[property(asset = "sprite_sheet")]
+    pub sheet: String,
+    /// Current sheet cell, counted left-to-right then top-to-bottom
+    #[property(min = 0)]
+    pub frame: i64,
+    /// Mirror horizontally
+    pub flip_x: bool,
+    /// Mirror vertically
+    pub flip_y: bool,
+    /// The material this draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Centre the image on the node; off puts its top-left corner there
+    #[property(default = true, group = "placement")]
+    pub centered: bool,
+    /// Where the image sits against the node, in texture pixels with y down; turns and scales with the node
+    #[property(group = "placement")]
+    pub offset: [f32; 2],
+    /// Whole size in world units; [0, 0] sizes from the texture
+    #[property(group = "placement")]
+    pub size: [f32; 2],
+    /// Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says
+    #[property(min = 0.0, group = "placement")]
+    pub pixels_per_unit: f32,
+    /// Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`
+    #[property(group = "region")]
+    pub region_origin: [f32; 2],
+    /// Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell
+    #[property(group = "region")]
+    pub region_size: [f32; 2],
+    /// Left, right, top and bottom margins in texture pixels: the corners keep their size at `pixels_per_unit` while the edges and the middle stretch to `size`. All zero takes the margins from the `sheet`'s first slice with a `center`, drawing that slice's part of the frame, and draws one plain quad without one
+    #[property(group = "region")]
+    pub nine_slice_margins_pixels: [f32; 4],
 }
 
-/// The `sprite` component: a textured 2D quad.
-/// Every `sprite` property onto the node.
-fn apply_sprite(
+/// The write refused, a node it would have given `sprite` is left without it.
+fn sprite_written(
     eng: &balaur_core::Engine,
-    entity: balaur_core::hecs::Entity,
-    params: &toml::Value,
+    entity: Entity,
+    written: Written,
 ) -> anyhow::Result<()> {
-    let num = |key: &str| balaur_core::components::prop_f64(params, key);
-    let mut texture = params
-        .get(k::TEXTURE)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    let frame = num(k::FRAME) as u32;
-    let sheet_asset = params
-        .get(k::SHEET)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    crate::undo_refused_add::<Sprite>(eng, entity, written, sprite_laid_out(eng, entity))
+}
+
+/// The quad a sprite draws, worked out again from what was written: its
+/// texture and frame, its sheet's cut, its size and where it sits.
+fn sprite_laid_out(eng: &balaur_core::Engine, entity: Entity) -> anyhow::Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&Sprite>(entity)
+        .ok()
+        .map(|asked| Sprite::clone(&asked))
+    else {
+        return Ok(());
+    };
+    let mut texture = asked.texture.clone();
+    let frame = u32::try_from(asked.frame.max(0)).unwrap_or(u32::MAX);
+    let sheet_asset = asked.sheet.trim().to_string();
     let (atlas, grid) = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
-    let margins = margins_of(params);
+    let margins = asked
+        .nine_slice_margins_pixels
+        .map(|margin| margin.max(0.0));
     let patch = if margins.iter().any(|m| *m > 0.0) {
         None
     } else {
         sheet_patch(eng, &sheet_asset, frame, &texture, atlas, grid)
     };
-    let sheet_texture = !sheet_asset.is_empty() && texture_was_empty(params);
     // A `columns` x `rows` sheet draws as that grid, unless a nine-patch
     // slice crops the frame to a region of its own.
     let sheet = grid
         .filter(|_| patch.is_none())
         .map(|[columns, rows]| SpriteSheet2d { columns, rows });
-    let he = |i: usize| {
-        params
-            .get(k::SIZE)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.0) as f32
-            / 2.0
-    };
     // An absent (or zero) size means "size it from the image".
-    let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
-    let pair = |key: &str, i: usize| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.0) as f32
-    };
-    let (rw, rh) = (pair(k::REGION_SIZE, 0), pair(k::REGION_SIZE, 1));
+    let [hx, hy] = asked.size.map(|whole| whole / 2.0);
+    let explicit = (hx > 0.0 && hy > 0.0).then_some((hx, hy));
+    let [rw, rh] = asked.region_size;
     let region = patch.map(|(rect, _)| rect).or(atlas).or_else(|| {
         (rw > 0.0 && rh > 0.0).then(|| {
-            [
-                pair(k::REGION_ORIGIN, 0).max(0.0).round() as u32,
-                pair(k::REGION_ORIGIN, 1).max(0.0).round() as u32,
-                rw.round() as u32,
-                rh.round() as u32,
-            ]
+            let [x, y] = asked.region_origin.map(|at| at.max(0.0).round() as u32);
+            [x, y, rw.round() as u32, rh.round() as u32]
         })
     });
-    let own_ppu = num(k::PIXELS_PER_UNIT) as f32;
+    let own_ppu = asked.pixels_per_unit;
     let per = if own_ppu > 0.0 {
         own_ppu
     } else {
         crate::texture::pixels_per_unit(eng, &texture)
     };
-    let offset = [pair(k::OFFSET, 0), pair(k::OFFSET, 1)];
+    let offset = asked.offset;
     set_sprite(
         eng,
         entity,
@@ -159,16 +118,11 @@ fn apply_sprite(
             path: texture,
             sheet,
             frame,
-            flip_x: params.get(k::FLIP_X).and_then(toml::Value::as_bool) == Some(true),
-            flip_y: params.get(k::FLIP_Y).and_then(toml::Value::as_bool) == Some(true),
+            flip_x: asked.flip_x,
+            flip_y: asked.flip_y,
             region,
-            sheet_asset,
-            sheet_texture,
-            offset,
-            centered: params.get(k::CENTERED).and_then(toml::Value::as_bool) != Some(false),
+            centered: asked.centered,
             shift: [offset[0] / per, -offset[1] / per],
-            own_pixels_per_unit: own_ppu,
-            nine_slice_margins: margins,
             nine: patch
                 .map(|(_, margins)| margins)
                 .or_else(|| margins.iter().any(|m| *m > 0.0).then_some(margins)),
@@ -176,51 +130,24 @@ fn apply_sprite(
         explicit,
         per,
     )?;
-    crate::set_color(eng, entity, crate::color_from_params(params))?;
-    crate::material::set_material_2d(
-        eng,
-        entity,
-        params
-            .get("material")
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default(),
-    )
+    crate::set_color(eng, entity, asked.color)?;
+    crate::material::set_material_2d(eng, entity, &asked.material)
 }
 
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "sprite",
+        Sprite::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
-            schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(apply_sprite),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
+                let _ = world.remove_one::<Sprite>(entity);
                 let _ = world.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
-            get: Box::new(read_sprite),
+            ..ComponentDef::of::<Sprite>(Some(sprite_written))
         },
     );
-}
-
-/// `nine_slice_margins_pixels`: left, right, top, bottom, none below zero.
-fn margins_of(params: &toml::Value) -> [f32; 4] {
-    let at = |i: usize| {
-        params
-            .get(k::NINE_SLICE_MARGINS_PIXELS)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(0.0, |v| (v as f32).max(0.0))
-    };
-    [at(0), at(1), at(2), at(3)]
 }
 
 /// The first slice of a sheet that carries a nine-patch `center`, as the
@@ -266,14 +193,6 @@ fn sheet_patch(
     Some((rect, margins))
 }
 
-fn texture_was_empty(params: &toml::Value) -> bool {
-    params
-        .get(k::TEXTURE)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .is_empty()
-}
-
 /// The rectangle a `sprite_sheet` gives `frame`, filling in the sheet's
 /// texture when the component names none. `None` without a sheet.
 /// What a sheet says about the frame a sprite draws: the rect it sits on, or
@@ -297,92 +216,6 @@ fn atlas_frame(
         return Ok((None, Some(grid)));
     }
     Ok((Some(sheet.frame(frame).rect), None))
-}
-
-/// The `sprite` component's properties, read back off the node.
-fn read_sprite(
-    eng: &balaur_core::Engine,
-    entity: balaur_core::hecs::Entity,
-) -> Option<toml::Value> {
-    let world = eng.world();
-    let renderable = world.get::<&Renderable2d>(entity).ok()?;
-    let sprite = renderable.sprite.as_ref()?;
-    let Shape2d::Sprite { hx, hy } = renderable.shape else {
-        return None;
-    };
-    let mut map = toml::map::Map::new();
-    let texture = if sprite.sheet_texture {
-        String::new()
-    } else {
-        sprite.path.clone()
-    };
-    map.insert(k::TEXTURE.into(), toml::Value::String(texture));
-    if !sprite.sheet_asset.is_empty() {
-        map.insert(
-            k::SHEET.into(),
-            toml::Value::String(sprite.sheet_asset.clone()),
-        );
-    }
-    map.insert(
-        k::FRAME.into(),
-        toml::Value::Integer(i64::from(sprite.frame)),
-    );
-    map.insert(k::FLIP_X.into(), toml::Value::Boolean(sprite.flip_x));
-    map.insert(
-        k::OFFSET.into(),
-        toml::Value::Array(vec![
-            toml::Value::Float(f64::from(sprite.offset[0])),
-            toml::Value::Float(f64::from(sprite.offset[1])),
-        ]),
-    );
-    map.insert(k::CENTERED.into(), toml::Value::Boolean(sprite.centered));
-    map.insert(k::FLIP_Y.into(), toml::Value::Boolean(sprite.flip_y));
-    // A region the sheet chose is derived, and reporting it would pin the
-    // quad to one frame the first time anything patched the component.
-    if let Some([x, y, w, h]) = sprite.region.filter(|_| sprite.sheet_asset.is_empty()) {
-        let pair = |a: u32, b: u32| {
-            toml::Value::Array(vec![
-                toml::Value::Float(f64::from(a)),
-                toml::Value::Float(f64::from(b)),
-            ])
-        };
-        map.insert(k::REGION_ORIGIN.into(), pair(x, y));
-        map.insert(k::REGION_SIZE.into(), pair(w, h));
-    }
-    // A derived size is absent, not resolved: `patch` overlays what `get`
-    // reports, so reporting it would freeze the quad the first time anything
-    // read the component back.
-    if renderable.sized {
-        map.insert(
-            k::SIZE.into(),
-            toml::Value::Array(vec![
-                toml::Value::Float(f64::from(hx * 2.0)),
-                toml::Value::Float(f64::from(hy * 2.0)),
-            ]),
-        );
-    }
-    // As authored: 0 follows the texture, and reporting the value it
-    // resolved to would pin it the first time anything patched the sprite.
-    map.insert(
-        k::PIXELS_PER_UNIT.into(),
-        toml::Value::Float(f64::from(sprite.own_pixels_per_unit)),
-    );
-    map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
-    map.insert(
-        "material".into(),
-        toml::Value::String(renderable.material.clone()),
-    );
-    map.insert(
-        k::NINE_SLICE_MARGINS_PIXELS.into(),
-        toml::Value::Array(
-            sprite
-                .nine_slice_margins
-                .iter()
-                .map(|m| toml::Value::Float(f64::from(*m)))
-                .collect(),
-        ),
-    );
-    Some(toml::Value::Table(map))
 }
 
 /// What a nine-slice sprite's mesh is built from: its whole size and its

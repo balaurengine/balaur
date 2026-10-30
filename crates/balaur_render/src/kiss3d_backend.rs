@@ -130,7 +130,7 @@ struct Frontend {
     probes: crate::reflection::ProbeSlots,
     /// The environment last pushed to the window, so an unchanged one costs
     /// no sky decode and no shadow-map resize.
-    environment: Option<crate::light3d::Environment>,
+    environment: Option<crate::light3d::LitEnvironment>,
     /// The asset generation the nodes below were built at. A saved texture,
     /// model or tileset moves it, and every node built from a file is built
     /// again — the material caches watch the same counter for their shaders.

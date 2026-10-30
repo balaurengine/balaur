@@ -14,23 +14,79 @@ use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::components::{ComponentDef, as_f64, rgba};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::GlobalTransform;
 use balaur_plugin::Registry;
 use glamx::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
+use crate::layer::Layer;
 use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Renderable3d};
 
 /// The asset type's name, and what a definition's `type` says.
 pub const MULTIMESH_ASSET_TYPE: &str = "multimesh";
 
+/// Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
+#[derive(Clone, Component)]
+#[component(name = "multimesh3d")]
+pub struct MultiMesh3d {
+    /// The multimesh asset: the mesh and the instances it is drawn at
+    #[property(asset = "multimesh")]
+    pub source: String,
+    /// Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// Image file, project-relative, or a `texture` asset; empty draws the colour alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material every instance draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Whether the instances cast a shadow from the lights that cast
+    #[property(default = true, group = "shadows")]
+    pub cast_shadow: bool,
+    /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub render_layers: Vec<Layer>,
+    /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
+    /// Whether shadows land on it; off lights it as if nothing stood between it and every light
+    #[property(default = true, group = "shadows")]
+    pub receive_shadows: bool,
+    /// The id `render.snap_aov("segmentation")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up
+    #[property(min = 0, group = "layers")]
+    pub segmentation_id: i64,
+}
+
+/// Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
+#[derive(Clone, Component)]
+#[component(name = "multimesh2d")]
+pub struct MultiMesh2d {
+    /// The multimesh asset: the mesh and the instances it is drawn at
+    #[property(asset = "multimesh")]
+    pub source: String,
+    /// Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// Image file, project-relative, or a `texture` asset; empty draws the colour alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty takes an inherited `material` component, else the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Texture pixels per world unit, for a mesh that carries no UVs of its own
+    #[property(default = 100.0, min = 0.01, group = "placement")]
+    pub pixels_per_unit: f32,
+}
+
 /// The 3D component: `MultiMeshInstance3D`.
-pub const MULTIMESH_3D: &str = "multimesh3d";
+pub const MULTIMESH_3D: &str = <MultiMesh3d as Component>::NAME;
 
 /// The 2D component: `MultiMeshInstance2D`.
-pub const MULTIMESH_2D: &str = "multimesh2d";
+pub const MULTIMESH_2D: &str = <MultiMesh2d as Component>::NAME;
 
 /// The most instances one node holds. A count a script works out wrong should
 /// cost a frame rather than the process.
@@ -622,121 +678,66 @@ fn adopt(eng: &Engine, entity: Entity, source: &str, flat: bool) -> Option<Strin
     mesh
 }
 
-fn text(params: &toml::Value, key: &str) -> String {
-    params
-        .get(key)
-        .and_then(toml::Value::as_str)
-        .unwrap_or_default()
-        .to_string()
+/// The write refused, a node it would have given `multimesh3d` is left without it.
+fn multimesh3d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
+    crate::undo_refused_add::<MultiMesh3d>(eng, entity, written, multimesh3d_laid_out(eng, entity))
 }
 
-fn apply_3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let source = text(params, k::SOURCE);
-    let mesh = adopt(eng, entity, &source, false).unwrap_or_default();
-    crate::set_mesh(eng, entity, mesh, String::new(), text(params, k::TEXTURE))?;
-    crate::set_color(
+/// A `multimesh3d`'s copy of its asset, its mesh, tint, lighting and
+/// material, worked out again from what was written.
+fn multimesh3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&MultiMesh3d>(entity)
+        .ok()
+        .map(|asked| MultiMesh3d::clone(&asked))
+    else {
+        return Ok(());
+    };
+    let mesh = adopt(eng, entity, &asked.source, false).unwrap_or_default();
+    crate::set_mesh(eng, entity, mesh, String::new(), asked.texture)?;
+    crate::set_color(eng, entity, asked.color)?;
+    crate::set_lighting(
         eng,
         entity,
-        crate::color_from_key(params, k::COLOR, [1.0; 4]),
-    )?;
-    crate::lighting_from_params(eng, entity, params);
-    crate::material::set_material_3d(eng, entity, &text(params, k::MATERIAL))
+        &crate::Lighting3d::of(
+            asked.cast_shadow,
+            &asked.light_layers,
+            &asked.render_layers,
+            asked.receive_shadows,
+            asked.segmentation_id,
+        ),
+    );
+    crate::material::set_material_3d(eng, entity, &asked.material)
 }
 
-fn apply_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let source = text(params, k::SOURCE);
-    let mesh = adopt(eng, entity, &source, true).unwrap_or_default();
+/// The write refused, a node it would have given `multimesh2d` is left without it.
+fn multimesh2d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
+    crate::undo_refused_add::<MultiMesh2d>(eng, entity, written, multimesh2d_laid_out(eng, entity))
+}
+
+/// A `multimesh2d`'s copy of its asset, its polygon, tint and material,
+/// worked out again from what was written.
+fn multimesh2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&MultiMesh2d>(entity)
+        .ok()
+        .map(|asked| MultiMesh2d::clone(&asked))
+    else {
+        return Ok(());
+    };
+    let mesh = adopt(eng, entity, &asked.source, true).unwrap_or_default();
     let polygon = crate::polygon::resolve(
         eng,
         mesh,
-        text(params, k::TEXTURE),
+        asked.texture,
         String::new(),
-        balaur_core::components::prop_f32(params, k::PIXELS_PER_UNIT).max(0.01),
+        asked.pixels_per_unit.max(0.01),
     )?;
     crate::set_polygon(eng, entity, Arc::new(polygon))?;
-    crate::set_color(eng, entity, crate::color_from_params(params))?;
-    crate::material::set_material_2d(eng, entity, &text(params, k::MATERIAL))
-}
-
-fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let multimesh = world.get::<&MultiMesh>(entity).ok()?;
-    if multimesh.flat {
-        return None;
-    }
-    let renderable = world.get::<&Renderable3d>(entity).ok()?;
-    let mut map = toml::map::Map::new();
-    map.insert(
-        k::SOURCE.into(),
-        toml::Value::String(multimesh.source.clone()),
-    );
-    map.insert(
-        k::TEXTURE.into(),
-        toml::Value::String(renderable.texture.clone()),
-    );
-    map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
-    map.insert(
-        k::MATERIAL.into(),
-        toml::Value::String(renderable.material.clone()),
-    );
-    map.insert(
-        k::CAST_SHADOW.into(),
-        toml::Value::Boolean(renderable.shadows),
-    );
-    map.insert(
-        k::LIGHT_LAYERS.into(),
-        balaur_core::layers::names(renderable.layers),
-    );
-    map.insert(
-        k::RENDER_LAYERS.into(),
-        balaur_core::layers::names(renderable.render_layers),
-    );
-    crate::overlay::overlay_3d_to_map(renderable.overlay, &mut map);
-    Some(toml::Value::Table(map))
-}
-
-fn get_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let multimesh = world.get::<&MultiMesh>(entity).ok()?;
-    if !multimesh.flat {
-        return None;
-    }
-    let renderable = world.get::<&Renderable2d>(entity).ok()?;
-    let (texture, ppu) = renderable
-        .polygon
-        .as_ref()
-        .map_or((String::new(), crate::DEFAULT_PIXELS_PER_UNIT), |polygon| {
-            (polygon.texture.clone(), polygon.pixels_per_unit)
-        });
-    let mut map = toml::map::Map::new();
-    map.insert(
-        k::SOURCE.into(),
-        toml::Value::String(multimesh.source.clone()),
-    );
-    map.insert(k::TEXTURE.into(), toml::Value::String(texture));
-    map.insert(
-        k::PIXELS_PER_UNIT.into(),
-        toml::Value::Float(f64::from(ppu)),
-    );
-    map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
-    map.insert(
-        k::MATERIAL.into(),
-        toml::Value::String(renderable.material.clone()),
-    );
-    Some(toml::Value::Table(map))
-}
-
-fn source_line() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{MULTIMESH_ASSET_TYPE}", default = "", description = "The multimesh asset: the mesh and the instances it is drawn at" }}"#
-    )
-}
-
-fn texture_line() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#,
-        balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-    )
+    crate::set_color(eng, entity, asked.color)?;
+    crate::material::set_material_2d(eng, entity, &asked.material)
 }
 
 /// The asset type and both components.
@@ -750,70 +751,32 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         },
     );
     reg.add_system(balaur_core::Stage::SceneSync, refresh_multimeshes_system);
-    let material_line = format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "The material every instance draws with; empty draws with the built-in one" }}"#,
-        crate::material::MATERIAL_ASSET_TYPE
-    );
     reg.register_component(
         MULTIMESH_3D,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
-            schema: ComponentDef::parse_schema(
-                MULTIMESH_3D,
-                &ComponentDef::schema(&crate::overlay::with_rows(&[
-                    (k::SOURCE, &source_line()),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::TEXTURE, &texture_line()),
-                    (k::MATERIAL, &material_line),
-                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether the instances cast a shadow from the lights that cast", group = "shadows" }"#),
-                    (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
-                    (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
-                ], &crate::overlay::schema_3d())),
-            ),
             tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(apply_3d),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
+                let _ = world.remove_one::<MultiMesh3d>(entity);
                 let _ = world.remove_one::<MultiMesh>(entity);
                 let _ = world.remove_one::<Renderable3d>(entity);
                 Ok(())
             }),
-            get: Box::new(get_3d),
+            ..ComponentDef::of::<MultiMesh3d>(Some(multimesh3d_written))
         },
     );
     reg.register_component(
         MULTIMESH_2D,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
-            schema: ComponentDef::parse_schema(
-                MULTIMESH_2D,
-                &ComponentDef::schema(&[
-                    (k::SOURCE, &source_line()),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::TEXTURE, &texture_line()),
-                    (k::MATERIAL, &crate::material::material_line_2d()),
-                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for a mesh that carries no UVs of its own", group = "placement" }"#),
-                ]),
-            ),
             tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(apply_2d),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
+                let _ = world.remove_one::<MultiMesh2d>(entity);
                 let _ = world.remove_one::<MultiMesh>(entity);
                 let _ = world.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
-            get: Box::new(get_2d),
+            ..ComponentDef::of::<MultiMesh2d>(Some(multimesh2d_written))
         },
     );
 }

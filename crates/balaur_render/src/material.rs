@@ -432,13 +432,6 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
     Ok(())
 }
 
-/// The `material` schema line a 2D drawable spells, so each says the same.
-pub(crate) fn material_line_2d() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{MATERIAL_ASSET_TYPE}", default = "", description = "The material this draws with; empty takes an inherited `material` component, else the built-in one" }}"#
-    )
-}
-
 /// Point `entity` at the `material` asset its 3D shape draws with.
 ///
 /// The 3D counterpart of [`set_material_2d`]; a change rebuilds the node for

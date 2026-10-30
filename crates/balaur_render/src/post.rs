@@ -649,14 +649,6 @@ pub(crate) fn register_camera_effects_asset(reg: &mut balaur_plugin::Registry<'_
     );
 }
 
-/// The row a camera names its effects in.
-pub(crate) fn effects_row() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "The passes the frame resolves through and how each is tuned; empty draws the frame as it is" }}"#,
-        k::CAMERA_EFFECTS
-    )
-}
-
 /// The effects the current camera's row named, read again only when the row
 /// or the asset cache moved: a saved file shows, and a reference that does
 /// not resolve is reported once rather than every frame.
