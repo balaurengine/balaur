@@ -1,4 +1,4 @@
-> **Status:** planned 2026-10-30. Steps 1, 3 to 8 and 10 built 2026-10-30: 60
+> **Status:** planned 2026-10-30. Steps 1, 3 to 10 built 2026-10-30: 60
 > programs on wasmi, wasmtime, native code and the browser's engine, a
 > mutation test on every push, `cargo fuzz` targets, and
 > `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
@@ -129,6 +129,13 @@ Every construct, what it does and what it refuses, on the site (forge's
 scripting page gives the language in about 25 lines today. Rune leftovers go
 in the same step: the README's feature list, AGENTS.md's Rune section, and
 forge's build-size and quality pages.
+
+Written 2026-10-30 in forge, uncommitted there:
+`content/docs/070-manual/language.md`, every construct with corpus programs
+as its examples; `scripting.md` points at it and lists enums. README's
+feature line names Balaur Script. Left: forge's `build-size.md` still
+measures Rune (2.20 MB of the editor's code); it needs a fresh measurement,
+not an edit.
 
 ## 10. Enums and `match`
 

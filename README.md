@@ -20,7 +20,7 @@ Written in Rust. A game exports to a single executable.
 ## Features
 
 - **Nodes and scenes** — a tree of named nodes with scripts attached; scenes are plain TOML.
-- **Rune scripting** — Rust's syntax, async/await, a debugger in the editor.
+- **Balaur Script** — a typed language compiled to WebAssembly: Rust's look, enums and `match`, async/await, a debugger in the editor.
 - **Hot reload** — save a script while the game runs; live in milliseconds, state intact.
 - **Determinism** — same inputs, same bits, every platform. Record a session and replay it.
 - **Physics** — Rapier in 2D and 3D, stepped on a fixed tick, 60 Hz by default.
