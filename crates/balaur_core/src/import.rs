@@ -71,8 +71,6 @@ pub mod keys {
     pub const LOOP_OFFSET: &str = "loop_offset";
     /// A sound's own gain, multiplied into every play of it.
     pub const VOLUME_LINEAR: &str = "volume_linear";
-    /// The family a face joins: `ui`, `heading`, `mono` or `icon`.
-    pub const FONT_FAMILY: &str = "font_family";
     /// A face's vertical nudge, as a fraction of its size.
     pub const Y_OFFSET: &str = "y_offset";
     /// Snap a face's outlines to the pixel grid; off for a smooth face.
@@ -112,11 +110,24 @@ pub mod words {
     /// `recode` for a sound: lossless FLAC, or lossy Ogg Vorbis.
     pub const FLAC: &str = "flac";
     pub const VORBIS: &str = "vorbis";
-    /// The font families `font_family` names.
-    pub const UI: &str = "ui";
-    pub const HEADING: &str = "heading";
-    pub const MONO: &str = "mono";
-    pub const ICON: &str = "icon";
+}
+
+/// The outline faces a font reads: one list, so a collection loads wherever
+/// a single face does. A `.fnt` bitmap face is a font too, drawn rather than
+/// shaped.
+pub const FACE_EXTENSIONS: &[&str] = &["ttf", "otf", "ttc"];
+
+/// Whether `path` is an outline face, by its extension.
+#[must_use]
+pub fn is_face(path: &str) -> bool {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|extension| {
+            FACE_EXTENSIONS
+                .iter()
+                .any(|face| extension.eq_ignore_ascii_case(face))
+        })
 }
 
 /// Which kind a file belongs to, by extension, or `None` for a file no
@@ -132,7 +143,8 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
         // build without the `svg` feature leaves to `balaur export`.
         "png" | "webp" | "jpg" | "jpeg" | "svg" => Some(kinds::TEXTURE),
         "ogg" | "wav" | "mp3" | "flac" => Some(kinds::AUDIO),
-        "ttf" | "otf" | "ttc" | "fnt" => Some(kinds::FONT),
+        face if FACE_EXTENSIONS.contains(&face) => Some(kinds::FONT),
+        "fnt" => Some(kinds::FONT),
         "glb" | "gltf" | "obj" => Some(kinds::MODEL),
         _ => None,
     }

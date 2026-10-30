@@ -169,7 +169,7 @@ fn a_script_uses_a_library_file_and_reloads_with_it() {
     use balaur_script::Value::Int;
     let dir = one_script(
         "Counter",
-        "use steps;\npub struct C { count: int }\nimpl C {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
+        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
     );
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(&lib, "pub fn next(n: int) -> int { n + 1 }\n").unwrap();
@@ -192,7 +192,7 @@ fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
     use balaur_script::Value::Int;
     let dir = one_script(
         "Counter",
-        "use steps;\npub struct C { count: int }\nimpl C {\n    fn update(dt: float) {\n        self.count += steps::step().by;\n    }\n}\n",
+        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count += steps::step().by;\n    }\n}\n",
     );
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(
@@ -254,11 +254,11 @@ fn an_export_names_a_bs_script_that_does_not_compile() {
 fn an_export_refuses_a_script_whose_module_the_project_ignores() {
     let dir = one_script(
         "Counter",
-        "use addons::steps;\npub struct C { count: int }\nimpl C {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
+        "use addons::steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
     );
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
     )
     .unwrap();
     std::fs::create_dir_all(dir.path().join("addons")).unwrap();
@@ -268,11 +268,14 @@ fn an_export_refuses_a_script_whose_module_the_project_ignores() {
     )
     .unwrap();
     let err = format!("{:#}", balaur::build_pack(dir.path()).unwrap_err());
-    assert!(err.contains("scripts/s.bs uses addons/steps.bs"), "{err}");
+    assert!(
+        err.contains("scripts/counter.bs uses addons/steps.bs"),
+        "{err}"
+    );
     assert!(err.contains("\"addons/**\""), "{err}");
 }
 
-const WAITER: &str = "pub struct Waiter { node: Node, stage: int }
+const WAITER: &str = "pub class Waiter { node: Node, stage: int }
 
 impl Waiter {
     async fn init() {
@@ -291,15 +294,15 @@ fn waiter() -> tempfile::TempDir {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Waiter\"\nscript = { source = \"scripts/w.bs\" }\n",
+        "[[nodes]]\nid = \"waiter\"\nname = \"Waiter\"\nscript = { source = \"scripts/waiter.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/w.bs"), WAITER).unwrap();
+    std::fs::write(dir.path().join("scripts/waiter.bs"), WAITER).unwrap();
     dir
 }
 
@@ -341,13 +344,13 @@ fn a_file_written_as_it_was_keeps_its_parked_init() {
     let dir = waiter();
     let mut app = booted(dir.path());
     assert_eq!(stage(&app), Some(Int(1)));
-    std::fs::write(dir.path().join("scripts/w.bs"), WAITER).unwrap();
+    std::fs::write(dir.path().join("scripts/waiter.bs"), WAITER).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(500));
     ticked(&mut app, 4);
     assert_eq!(stage(&app), Some(Int(2)), "the parked init went on");
 }
 
-const COUNTER: &str = "pub struct Counter { count: int }
+const COUNTER: &str = "pub class Counter { count: int }
 impl Counter {
     fn update(dt: float) {
         let next = self.count + 1;
@@ -356,22 +359,25 @@ impl Counter {
 }
 ";
 
+/// One node named `name`, running `scripts/<name>.bs`: a script's class is
+/// named after its file, so `Counter` runs from `scripts/counter.bs`.
 fn one_script(name: &str, source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
+    let file = name.to_lowercase();
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"{name}\"\nscript = {{ source = \"scripts/s.bs\" }}\n"
+            "[[nodes]]\nid = \"{file}\"\nname = \"{name}\"\nscript = {{ source = \"scripts/{file}.bs\" }}\n"
         ),
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), source).unwrap();
+    std::fs::write(dir.path().join(format!("scripts/{file}.bs")), source).unwrap();
     dir
 }
 
@@ -393,11 +399,14 @@ fn a_breakpoint_freezes_the_game_until_the_editor_steps_on() {
     assert_eq!(field(&app, "Counter", "count"), Some(Int(1)));
 
     let host = app.engine.script_host().unwrap();
-    assert_eq!(host.set_breakpoints("scripts/s.bs", &[4]).unwrap(), [4]);
-    assert_eq!(host.breakpoints("scripts/s.bs"), [4]);
+    assert_eq!(
+        host.set_breakpoints("scripts/counter.bs", &[4]).unwrap(),
+        [4]
+    );
+    assert_eq!(host.breakpoints("scripts/counter.bs"), [4]);
     ticked(&mut app, 1);
     let stop = host.paused().expect("the breakpoint stopped the update");
-    assert_eq!((stop.path.as_str(), stop.line), ("scripts/s.bs", 4));
+    assert_eq!((stop.path.as_str(), stop.line), ("scripts/counter.bs", 4));
     assert_eq!(stop.reason, PauseReason::Breakpoint);
     assert_eq!(stop.frames[0].function, "Counter.update");
     assert!(app.engine.is_frozen());
@@ -410,7 +419,7 @@ fn a_breakpoint_freezes_the_game_until_the_editor_steps_on() {
     let next = stop.frames[0].locals.iter().find(|(n, _)| n == "next");
     assert_eq!(next.map(|(_, v)| v.clone()), Some(Int(2)));
 
-    host.set_breakpoints("scripts/s.bs", &[]).unwrap();
+    host.set_breakpoints("scripts/counter.bs", &[]).unwrap();
     host.resume(StepMode::Continue);
     assert!(host.paused().is_none());
     assert!(!app.engine.is_frozen());
@@ -419,7 +428,7 @@ fn a_breakpoint_freezes_the_game_until_the_editor_steps_on() {
     assert_eq!(field(&app, "Counter", "count"), Some(Int(3)));
 }
 
-const TICKER: &str = "pub struct Ticker { ticks: int }
+const TICKER: &str = "pub class Ticker { ticks: int }
 impl Ticker {
     async fn go() {
         await task::frames(1);
@@ -437,7 +446,7 @@ fn a_breakpoint_in_an_async_method_holds_its_task() {
     let dir = one_script("Ticker", TICKER);
     let mut app = booted(dir.path());
     let host = app.engine.script_host().unwrap();
-    host.set_breakpoints("scripts/s.bs", &[5]).unwrap();
+    host.set_breakpoints("scripts/ticker.bs", &[5]).unwrap();
     host.call_all("go");
     assert!(host.paused().is_none(), "it waits a frame first");
     ticked(&mut app, 1);
@@ -452,7 +461,7 @@ fn a_breakpoint_in_an_async_method_holds_its_task() {
     assert_eq!(stop.line, 6);
     let seen = stop.frames[0].locals.iter().find(|(n, _)| n == "seen");
     assert_eq!(seen.map(|(_, v)| v.clone()), Some(Int(0)));
-    host.set_breakpoints("scripts/s.bs", &[]).unwrap();
+    host.set_breakpoints("scripts/ticker.bs", &[]).unwrap();
     host.resume(StepMode::Continue);
     assert!(host.paused().is_none());
     assert!(!app.engine.is_frozen());
@@ -465,7 +474,7 @@ fn a_breakpoint_in_an_async_method_holds_its_task() {
     );
 }
 
-const CRASHER: &str = "pub struct Crasher { at: int }
+const CRASHER: &str = "pub class Crasher { at: int }
 impl Crasher {
     fn update(dt: float) {
         let items = [1, 2, 3];
@@ -514,7 +523,10 @@ fn balaur_check_names_the_line_a_bs_script_breaks_on() {
     );
     let dir = one_script("Counter", &broken);
     let found = balaur::check_project(dir.path()).unwrap();
-    let bl: Vec<_> = found.iter().filter(|f| f.file == "scripts/s.bs").collect();
+    let bl: Vec<_> = found
+        .iter()
+        .filter(|f| f.file == "scripts/counter.bs")
+        .collect();
     assert_eq!(bl.len(), 1, "{found:?}");
     assert_eq!(
         (bl[0].line, bl[0].severity),
@@ -527,7 +539,7 @@ fn balaur_check_names_the_line_a_bs_script_breaks_on() {
     assert!(balaur::check_project(dir.path()).unwrap().is_empty());
 }
 
-const MOVER_BS: &str = "pub struct Mover { node: Node, arm: Node, seen: int, label: str }
+const MOVER_BS: &str = "pub class Mover { node: Node, arm: Node, seen: int, label: str }
 
 impl Mover {
     fn init() {
@@ -545,23 +557,23 @@ impl Mover {
 }
 ";
 
-/// A Mover with an Arm under it, the Mover running `source` as `scripts/m.<ext>`.
+/// A Mover with an Arm under it, the Mover running `source` as `scripts/mover.<ext>`.
 fn movers(ext: &str, source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     let scene = format!(
-        "[[nodes]]\nid = \"m\"\nname = \"Mover\"\nscript = {{ source = \"scripts/m.{ext}\" }}\n\
+        "[[nodes]]\nid = \"mover\"\nname = \"Mover\"\nscript = {{ source = \"scripts/mover.{ext}\" }}\n\
          [nodes.transform]\nposition = [0, 0, 0]\n\n\
-         [[nodes]]\nid = \"a\"\nname = \"Arm\"\nparent = \"m\"\n\
+         [[nodes]]\nid = \"arm\"\nname = \"Arm\"\nparent = \"mover\"\n\
          [nodes.transform]\nposition = [0, 0, 0]\n"
     );
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join(format!("scripts/m.{ext}")), source).unwrap();
+    std::fs::write(dir.path().join(format!("scripts/mover.{ext}")), source).unwrap();
     dir
 }
 
@@ -621,7 +633,7 @@ fn node_operations_reach_the_node_its_children_and_its_tags() {
     );
 }
 
-const HITTER_BS: &str = "pub struct Hitter { node: Node, done: bool }
+const HITTER_BS: &str = "pub class Hitter { node: Node, done: bool }
 
 impl Hitter {
     fn update(dt: float) {
@@ -634,7 +646,7 @@ impl Hitter {
 }
 ";
 
-const LISTENER_BS: &str = "pub struct Listener { node: Node, heard: int, who: str }
+const LISTENER_BS: &str = "pub class Listener { node: Node, heard: int, who: str }
 
 impl Listener {
     pub fn hear(msg: any) -> int {
@@ -645,7 +657,7 @@ impl Listener {
 }
 ";
 
-const TARGET_BS: &str = "pub struct Target { node: Node, damage: int, first: str, reply: int }
+const TARGET_BS: &str = "pub class Target { node: Node, damage: int, first: str, reply: int }
 
 impl Target {
     pub fn take(hit: any) {
@@ -664,7 +676,7 @@ fn payloads_cross_between_scripts_as_any() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     // Hitter is the root; Target and Listener sit under it.
@@ -673,15 +685,15 @@ fn payloads_cross_between_scripts_as_any() {
             "[[nodes]]\nid = \"{id}\"\nname = \"{name}\"\n{parent}script = {{ source = \"scripts/{script}\" }}\n\n"
         )
     };
-    let under = "parent = \"h\"\n";
-    let scene = node("h", "Hitter", "h.bs", "")
-        + &node("t", "Target", "t.bs", under)
-        + &node("l", "Listener", "l.bs", under);
+    let under = "parent = \"hitter\"\n";
+    let scene = node("hitter", "Hitter", "hitter.bs", "")
+        + &node("target", "Target", "target.bs", under)
+        + &node("listener", "Listener", "listener.bs", under);
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     for (file, source) in [
-        ("h.bs", HITTER_BS),
-        ("t.bs", TARGET_BS),
-        ("l.bs", LISTENER_BS),
+        ("hitter.bs", HITTER_BS),
+        ("target.bs", TARGET_BS),
+        ("listener.bs", LISTENER_BS),
     ] {
         std::fs::write(dir.path().join("scripts").join(file), source).unwrap();
     }
@@ -702,7 +714,7 @@ fn payloads_cross_between_scripts_as_any() {
 
 #[test]
 fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
-    let source = "pub struct Fetcher { request: any }
+    let source = "pub class Fetcher { request: any }
 impl Fetcher {
     fn init() {
         self.request = http::request(\"https://example.com\", nil(), nil());
@@ -714,7 +726,7 @@ impl Fetcher {
     assert!(found.is_empty(), "{found:?}");
 }
 
-const LOGGER_BS: &str = "pub struct Logger { node: Node, matched: bool, scale: float }
+const LOGGER_BS: &str = "pub class Logger { node: Node, matched: bool, scale: float }
 impl Logger {
     fn init() {
         log::info(\"bs says info\");
@@ -752,11 +764,11 @@ fn a_bs_script_calls_the_engine_ops_its_docs_type() {
 
     let host = app.engine.script_host().unwrap();
     let tools = host
-        .tools_for("scripts/s.bs")
+        .tools_for("scripts/logger.bs")
         .expect("a .bs file has tools");
     let typing = LOGGER_BS.replace("log::info(\"bs says info\");", "log::");
     let offered: Vec<String> = tools
-        .complete("scripts/s.bs", &typing, 4, 14)
+        .complete("scripts/logger.bs", &typing, 4, 14)
         .into_iter()
         .map(|i| format!("{}: {}", i.label, i.detail))
         .collect();
@@ -768,12 +780,14 @@ fn a_bs_script_calls_the_engine_ops_its_docs_type() {
         assert!(offered.contains(&want.into()), "{offered:?}");
     }
     assert_eq!(
-        tools.hover("scripts/s.bs", LOGGER_BS, 4, 15).as_deref(),
+        tools
+            .hover("scripts/logger.bs", LOGGER_BS, 4, 15)
+            .as_deref(),
         Some("fn log::info(str)")
     );
 }
 
-const REACH_BS: &str = "pub struct Reach {
+const REACH_BS: &str = "pub class Reach {
     node: Node,
     button: int,
     turn: float,
@@ -803,7 +817,7 @@ fn a_bs_script_reaches_constants_optional_arguments_and_tuples() {
     let dir = one_script("Reach", REACH_BS);
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Reach\"\nscript = { source = \"scripts/s.bs\" }\n\
+        "[[nodes]]\nid = \"reach\"\nname = \"Reach\"\nscript = { source = \"scripts/reach.bs\" }\n\
          [nodes.transform]\nposition = [3, 4, 5]\n",
     )
     .unwrap();
@@ -820,14 +834,14 @@ fn a_bs_script_reaches_constants_optional_arguments_and_tuples() {
     assert_eq!(field(&app, "Reach", "pointer"), Some(Num(0.0)));
 }
 
-const CHECKER_BS: &str = "pub struct Checker { node: Node, count: int, message: str, line: int, first: str }
+const CHECKER_BS: &str = "pub class Checker { node: Node, count: int, message: str, line: int, first: str }
 impl Checker {
     fn init() {
-        let found = script::check(\"scripts/other.bs\", \"pub struct A {{ x: int }}\\nfn f() -> int {{ nope }}\");
+        let found = script::check(\"scripts/other.bs\", \"pub struct Point {{ x: int }}\\nfn missing() -> int {{ nope }}\");
         self.count = found.len();
         self.message = found[0].message;
         self.line = found[0].line;
-        let outline = script::symbols(\"scripts/other.bs\", \"pub struct A {{ x: int }}\");
+        let outline = script::symbols(\"scripts/other.bs\", \"pub struct Point {{ x: int }}\");
         self.first = outline[0].name;
     }
 }
@@ -848,10 +862,10 @@ fn a_record_result_is_a_struct_a_script_reads_by_field() {
         panic!("no message");
     };
     assert!(message.contains("nope"), "{message}");
-    assert_eq!(field(&app, "Checker", "first"), Some(Str("A".into())));
+    assert_eq!(field(&app, "Checker", "first"), Some(Str("Point".into())));
 }
 
-const ORC_BS: &str = "pub struct Orc { node: Node }
+const ORC_BS: &str = "pub class Orc { node: Node }
 
 impl Orc {
     pub fn info() -> any {
@@ -860,7 +874,7 @@ impl Orc {
 }
 ";
 
-const ASKER_BS: &str = "pub struct Asker { node: Node, hp: int, name: str }
+const ASKER_BS: &str = "pub class Asker { node: Node, hp: int, name: str }
 
 impl Asker {
     async fn init() {
@@ -879,14 +893,14 @@ fn task_wait_hands_an_async_init_what_the_engine_answered() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
-    let scene = "[[nodes]]\nid = \"a\"\nname = \"Asker\"\nscript = { source = \"scripts/a.bs\" }\n\n\
-                 [[nodes]]\nid = \"o\"\nname = \"Orc\"\nparent = \"a\"\nscript = { source = \"scripts/o.bs\" }\n";
+    let scene = "[[nodes]]\nid = \"asker\"\nname = \"Asker\"\nscript = { source = \"scripts/asker.bs\" }\n\n\
+                 [[nodes]]\nid = \"orc\"\nname = \"Orc\"\nparent = \"asker\"\nscript = { source = \"scripts/orc.bs\" }\n";
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/a.bs"), ASKER_BS).unwrap();
-    std::fs::write(dir.path().join("scripts/o.bs"), ORC_BS).unwrap();
+    std::fs::write(dir.path().join("scripts/asker.bs"), ASKER_BS).unwrap();
+    std::fs::write(dir.path().join("scripts/orc.bs"), ORC_BS).unwrap();
     let mut app = booted(dir.path());
     assert_eq!(
         field(&app, "Asker", "hp"),
@@ -898,7 +912,7 @@ fn task_wait_hands_an_async_init_what_the_engine_answered() {
     assert_eq!(field(&app, "Asker", "name"), Some(Str("orc".into())));
 }
 
-const TOOLED_BS: &str = "pub struct Tooled { node: Node, speed: float }
+const TOOLED_BS: &str = "pub class Tooled { node: Node, speed: float }
 impl Tooled {
     fn update(dt: float) {
         self.speed += dt;
@@ -912,11 +926,11 @@ fn a_bs_file_answers_the_editor_s_tooling() {
     let app = booted(dir.path());
     let host = app.engine.script_host().unwrap();
     let tools = host
-        .tools_for("scripts/s.bs")
+        .tools_for("scripts/tooled.bs")
         .expect("a .bs file has tools");
     let typing = TOOLED_BS.replace("self.speed += dt;", "self.");
     let labels: Vec<String> = tools
-        .complete("scripts/s.bs", &typing, 4, 14)
+        .complete("scripts/tooled.bs", &typing, 4, 14)
         .into_iter()
         .map(|i| i.label)
         .collect();
@@ -925,18 +939,20 @@ fn a_bs_file_answers_the_editor_s_tooling() {
         "{labels:?}"
     );
     assert_eq!(
-        tools.hover("scripts/s.bs", TOOLED_BS, 4, 15).as_deref(),
+        tools
+            .hover("scripts/tooled.bs", TOOLED_BS, 4, 15)
+            .as_deref(),
         Some("speed: float")
     );
     let def = tools
-        .definition("scripts/s.bs", TOOLED_BS, 4, 15)
+        .definition("scripts/tooled.bs", TOOLED_BS, 4, 15)
         .expect("a field");
-    assert_eq!((def.file.as_str(), def.line), ("scripts/s.bs", 1));
-    let found = tools.check("scripts/s.bs", "fn f() -> int { true }");
+    assert_eq!((def.file.as_str(), def.line), ("scripts/tooled.bs", 1));
+    let found = tools.check("scripts/tooled.bs", "fn f() -> int { true }");
     assert_eq!((found.len(), found[0].line), (1, 1));
 }
 
-const ASKS_TOOLS_BS: &str = r#"pub struct Editor {
+const ASKS_TOOLS_BS: &str = r#"pub class Editor {
     node: Node,
     completed: int,
     first: str,
@@ -950,18 +966,18 @@ const ASKS_TOOLS_BS: &str = r#"pub struct Editor {
 
 impl Editor {
     fn init() {
-        let src = "pub struct T {{ speed: float }}\nimpl T {{\n    fn update(dt: float) {{\n        self.\n    }}\n}}\n";
-        let rows = script::complete("scripts/t.bs", src, 4, 14);
+        let src = "pub struct Racer {{ speed: float }}\nimpl Racer {{\n    fn update(dt: float) {{\n        self.\n    }}\n}}\n";
+        let rows = script::complete("scripts/racer.bs", src, 4, 14);
         self.completed = rows.len();
         self.first = rows[0].label;
-        self.errors = script::check("scripts/t.bs", "fn f() -> int {{ true }}").len();
-        let hover = script::hover("scripts/t.bs", "pub struct T {{ speed: float }}\nfn g(t: T) -> float {{ t.speed }}\n", 2, 26);
+        self.errors = script::check("scripts/racer.bs", "fn wrong() -> int {{ true }}").len();
+        let hover = script::hover("scripts/racer.bs", "pub struct Racer {{ speed: float }}\nfn speed_of(racer: Racer) -> float {{ racer.speed }}\n", 2, 45);
         self.hover = hover.unwrap().title;
-        let syms = script::symbols("scripts/t.bs", "pub struct T {{ pub hp: int = 3 }}\nimpl T {{\n    fn update(dt: float) {{\n    }}\n}}\n");
+        let syms = script::symbols("scripts/racer.bs", "pub struct Racer {{ pub hp: int = 3 }}\nimpl Racer {{\n    fn update(dt: float) {{\n    }}\n}}\n");
         self.symbols = syms.len();
         self.hook = syms[2].name + ":" + syms[2].kind;
-        self.renamed = script::rename("scripts/t.bs", "pub struct T {{ hp: int }}\n", "hp", "health")[0].source;
-        self.formatted = script::format("scripts/t.bs", "fn f() {{\nlet x = 1;\n}}\n");
+        self.renamed = script::rename("scripts/racer.bs", "pub struct Racer {{ hp: int }}\n", "hp", "health")[0].source;
+        self.formatted = script::format("scripts/racer.bs", "fn tidy() {{\nlet count = 1;\n}}\n");
     }
 }
 "#;
@@ -973,15 +989,15 @@ fn the_editor_s_script_module_answers_for_a_bs_file() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"e\"\nname = \"Editor\"\nscript = { source = \"scripts/e.bs\" }\n",
+        "[[nodes]]\nid = \"editor\"\nname = \"Editor\"\nscript = { source = \"scripts/editor.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/e.bs"), ASKS_TOOLS_BS).unwrap();
+    std::fs::write(dir.path().join("scripts/editor.bs"), ASKS_TOOLS_BS).unwrap();
     let app = booted(dir.path());
     // The field and the method.
     assert_eq!(field(&app, "Editor", "completed"), Some(Int(2)));
@@ -998,29 +1014,29 @@ fn the_editor_s_script_module_answers_for_a_bs_file() {
     );
     assert_eq!(
         field(&app, "Editor", "renamed"),
-        Some(Str("pub struct T { health: int }\n".into()))
+        Some(Str("pub struct Racer { health: int }\n".into()))
     );
     assert_eq!(
         field(&app, "Editor", "formatted"),
-        Some(Str("fn f() {\n    let x = 1;\n}\n".into()))
+        Some(Str("fn tidy() {\n    let count = 1;\n}\n".into()))
     );
 }
 
-/// One script, as `scripts/s.bs` on a node named `B`.
+/// One script, as `scripts/bench.bs` on a node named `Bench`.
 fn bench_project(source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"B\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"bench\"\nname = \"Bench\"\nscript = { source = \"scripts/bench.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), source).unwrap();
+    std::fs::write(dir.path().join("scripts/bench.bs"), source).unwrap();
     dir
 }
 
@@ -1048,7 +1064,7 @@ fn engine_calls_cost() {
     };
     let bs = |body: &str| {
         format!(
-            "pub struct B {{ node: Node, out: float }}\nimpl B {{\n    fn update(dt: float) {{\n        let t = 0.0;\n        for i in 0..{CALLS} {{ {body} }}\n        self.out = t;\n    }}\n}}\n"
+            "pub class Bench {{ node: Node, out: float }}\nimpl Bench {{\n    fn update(dt: float) {{\n        let t = 0.0;\n        for i in 0..{CALLS} {{ {body} }}\n        self.out = t;\n    }}\n}}\n"
         )
     };
     let rows = [
@@ -1074,16 +1090,16 @@ fn engine_calls_cost() {
 const LIBRARY_CHECK_BS: &str = "use util;
 use defs;
 use icons;
-pub struct Check { said: str }
+pub class Check { said: str }
 impl Check {
     fn init() {
-        let c = util::hex_to_rgb(\"#ff8000\");
+        let color = util::hex_to_rgb(\"#ff8000\");
         let back = util::rotate_euler([0.1, 0.2, 0.3], 2, 0.0);
         let cells = util::cells([\"a\", \"b\"]);
-        let m = map().with(\"b\", 1).with(\"a\", 2);
-        let copy = util::deep(m);
+        let table = map().with(\"b\", 1).with(\"a\", 2);
+        let copy = util::deep(table);
         copy.set(\"c\", 3);
-        self.said = \"{util::prop_label(\\\"edge_radius\\\")}|{util::prop_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{c.r} {c.b}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(m), \\\",\\\")}|{m.has(\\\"c\\\")}|{util::dist([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
+        self.said = \"{util::prop_label(\\\"edge_radius\\\")}|{util::prop_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::dist([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
     }
 }
 ";
@@ -1111,7 +1127,7 @@ fn the_editor_libraries_answer_a_script_that_uses_them() {
     );
 }
 
-const NAMED_HANDLERS: &str = r#"pub struct Panel { frame: int, said: str, clicks: int }
+const NAMED_HANDLERS: &str = r#"pub class Panel { frame: int, said: str, clicks: int }
 impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
@@ -1145,7 +1161,7 @@ fn a_pooled_control_calls_the_method_it_names_with_its_data() {
     let dir = one_script("Panel", NAMED_HANDLERS);
     let scene = dir.path().join("main.toml");
     let mut text = std::fs::read_to_string(&scene).unwrap();
-    text.push_str("\n[[nodes]]\nid = \"strip\"\nname = \"Strip\"\nparent = \"n\"\n[nodes.widget]\nkind = \"row\"\n");
+    text.push_str("\n[[nodes]]\nid = \"strip\"\nname = \"Strip\"\nparent = \"panel\"\n[nodes.widget]\nkind = \"row\"\n");
     std::fs::write(&scene, text).unwrap();
     let mut app = booted(dir.path());
     ticked(&mut app, 4);
@@ -1154,10 +1170,10 @@ fn a_pooled_control_calls_the_method_it_names_with_its_data() {
 }
 
 const EXPORTER_BS: &str =
-    "pub struct Tuned { pub speed: float = 2.5, pub label: str = \"go\", seen: str }
+    "pub class Tuned { pub speed: float = 2.5, pub label: str = \"go\", seen: str }
 impl Tuned {
     fn init() {
-        let rows = script::exports(\"scripts/s.bs\");
+        let rows = script::exports(\"scripts/tuned.bs\");
         self.seen = \"{rows.len()} {rows[0].name}={rows[0].default} {rows[1].name}:{rows[1].type}\";
     }
 }

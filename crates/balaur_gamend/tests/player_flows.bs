@@ -51,7 +51,7 @@ class Run {
     lost: int,
 }
 
-pub struct PlayerFlows {
+pub class PlayerFlows {
     node: Node,
     run: Run,
 }

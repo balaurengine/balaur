@@ -238,11 +238,11 @@ fn run(scene: &str, script: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -266,7 +266,7 @@ name = "World"
 id = "n_watcher"
 name = "Watcher"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [[nodes]]
 id = "n_target"
@@ -287,8 +287,8 @@ radius = 0.5
 fn a_raycast_stops_finding_a_freed_node() {
     let errors = run(
         TWO_BALLS,
-        r#"pub struct S { node: Node, ticks: int, hit_before: bool }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int, hit_before: bool }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let opts = map().with("origin", [0.0, 8.0, 0.0]).with("direction", [0.0, -1.0, 0.0]).with("max_distance", 100.0);
@@ -314,8 +314,8 @@ impl S {
 fn a_call_on_a_freed_node_errors_rather_than_panicking() {
     let mut b = crate::boot::project(
         TWO_BALLS,
-        r#"pub struct S { node: Node, ticks: int, target: Node }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int, target: Node }
+impl Scenario {
     fn init() {
         self.target = scene::get_node("/World/Target");
     }

@@ -2,7 +2,7 @@ use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
 
 const V1: &str = r"
-    pub struct Spinner { angle: float, speed: float, name: str, history: [float] }
+    pub class Spinner { angle: float, speed: float, name: str, history: [float] }
     impl Spinner {
         pub fn update(dt: float) {
             self.angle += self.speed * dt;
@@ -12,7 +12,7 @@ const V1: &str = r"
 ";
 
 const V2: &str = r#"
-    pub struct Spinner { angle: float, speed: float, name: str, history: [float], turns: int }
+    pub class Spinner { angle: float, speed: float, name: str, history: [float], turns: int }
     impl Spinner {
         pub fn update(dt: float) {
             self.angle += self.speed * 2 * dt;

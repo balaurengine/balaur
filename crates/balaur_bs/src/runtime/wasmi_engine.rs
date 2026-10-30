@@ -108,14 +108,39 @@ impl ImportCtx for Ctx<'_, '_> {
         }
     }
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let f = self
-            .func(name)
-            .ok_or_else(|| format!("no export `{name}`"))?;
+        self.call_in(0, name, args, results)
+    }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        let f = if unit == 0 {
+            self.func(name)
+        } else {
+            let inst = unit_instance(&mut *self.0, unit)?;
+            inst.get_func(&*self.0, name)
+        }
+        .ok_or_else(|| format!("no export `{name}`"))?;
         let a: Vec<Val> = args.iter().map(|r| val(*r)).collect();
         let mut out = vec![Val::I32(0); results];
         f.call(&mut *self.0, &a, &mut out)
             .map_err(|e| e.to_string())?;
         Ok(out.iter().map(raw).collect())
+    }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        if unit == 0 {
+            return self.func(name).is_some();
+        }
+        unit_instance(&mut *self.0, unit)
+            .ok()
+            .and_then(|inst| inst.get_func(&*self.0, name))
+            .is_some()
+    }
+    fn link(&mut self, key: &str, unit: Arc<Compiled>) -> Result<usize, String> {
+        link_unit(&mut *self.0, key, unit)
     }
 }
 
@@ -354,6 +379,64 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     }))
 }
 
+// `unit` as unit `key` of the script, added unless it is one: its index. Its
+// static data takes a block of the heap, since the space before the heap was
+// laid out for the units known when the store was made. It is made on its
+// first call.
+fn link_unit(
+    mut cx: impl AsContextMut<Data = Data>,
+    key: &str,
+    unit: Arc<Compiled>,
+) -> Result<usize, String> {
+    let links = cx
+        .as_context()
+        .data()
+        .links
+        .clone()
+        .ok_or_else(|| format!("{key}: this script is not built as units"))?;
+    if let Some(index) = links.borrow().by_key.get(key) {
+        return Ok(*index);
+    }
+    let len = unit.meta.unit.as_ref().map_or(0, |u| u.data_len);
+    let base = if len == 0 {
+        0
+    } else {
+        let (root, live) = {
+            let l = links.borrow();
+            let live = words::UNIT_GLOBALS
+                .iter()
+                .position(|g| *g == words::LIVE)
+                .map(|at| l.globals[at]);
+            (
+                l.units[0].inst.ok_or("the script's own unit is not made")?,
+                live,
+            )
+        };
+        let e = |e: wasmi::Error| format!("{key}: {e}");
+        let alloc = root
+            .get_typed_func::<i32, i32>(&cx, words::ALLOC)
+            .map_err(e)?;
+        let block = alloc.call(&mut cx, (len + 15) as i32).map_err(e)?;
+        // Held as long as the instance, so no object a leak count watches.
+        if let Some(live) = live
+            && let Val::I32(count) = live.get(&cx)
+        {
+            live.set(&mut cx, Val::I32(count - 1))
+                .map_err(|e| format!("{key}: {e}"))?;
+        }
+        (block as u32).next_multiple_of(16)
+    };
+    let mut links = links.borrow_mut();
+    let index = links.units.len();
+    links.by_key.insert(key.to_string(), index);
+    links.units.push(LinkUnit {
+        compiled: Some(unit),
+        base,
+        inst: None,
+    });
+    Ok(index)
+}
+
 // Unit `i` of the script, made now if this is its first call.
 fn unit_instance(mut cx: impl AsContextMut<Data = Data>, i: usize) -> Result<Instance, String> {
     let links = cx
@@ -589,10 +672,29 @@ impl Wasmi {
     }
 }
 
+impl Wasmi {
+    // Unit `unit`'s instance, made now if this is its first call.
+    fn instance_of(&mut self, unit: usize) -> Result<Instance, String> {
+        if unit == 0 {
+            return Ok(self.inst);
+        }
+        unit_instance(&mut self.store, unit)
+    }
+}
+
 impl Wasm for Wasmi {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
+        self.call_in(0, name, args, results)
+    }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
         let f = self
-            .inst
+            .instance_of(unit)?
             .get_func(&self.store, name)
             .ok_or_else(|| format!("no export `{name}`"))?;
         let a: Vec<Val> = args.iter().map(|r| val(*r)).collect();
@@ -603,6 +705,15 @@ impl Wasm for Wasmi {
     }
     fn has_func(&mut self, name: &str) -> bool {
         self.inst.get_func(&self.store, name).is_some()
+    }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        self.instance_of(unit)
+            .ok()
+            .and_then(|inst| inst.get_func(&self.store, name))
+            .is_some()
+    }
+    fn link(&mut self, key: &str, unit: Arc<Compiled>) -> Result<usize, String> {
+        link_unit(&mut self.store, key, unit)
     }
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
         self.store
@@ -638,6 +749,9 @@ impl Wasm for Wasmi {
     }
     fn set_fuel(&mut self, fuel: u64) {
         let _ = self.store.set_fuel(fuel);
+    }
+    fn fuel(&mut self) -> Option<u64> {
+        self.store.get_fuel().ok()
     }
     fn can_park(&self) -> bool {
         true

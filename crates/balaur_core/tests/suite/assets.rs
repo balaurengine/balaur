@@ -579,6 +579,27 @@ fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
     assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
 }
 
+/// A file a person wrote keeps what the edit did not touch: its comments,
+/// its key order, and the text of every value that did not move.
+#[test]
+fn saving_an_asset_keeps_the_files_comments_and_order() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("notes/tuned.toml"),
+        "# A tuning fork.\ntype = \"note\"\npitch = 440.0 # concert A\nlabel = \"a\"\n",
+    )
+    .unwrap();
+    let app = app_in(dir.path(), None);
+    let mut document = assets::definition(&app.engine, "notes/tuned.toml").unwrap();
+    document["label"] = toml::Value::String("la".into());
+    assets::save(&app.engine, "notes/tuned.toml", &document).unwrap();
+    let written = std::fs::read_to_string(dir.path().join("notes/tuned.toml")).unwrap();
+    assert_eq!(
+        written,
+        "# A tuning fork.\ntype = \"note\"\npitch = 440.0 # concert A\nlabel = \"la\"\n"
+    );
+}
+
 /// Only a file can be saved. An entry belongs to a document and an inline
 /// table has no file at all, so both are refused by name rather than written
 /// somewhere the caller did not ask for.

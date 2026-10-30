@@ -194,7 +194,8 @@ fn emulation_can_be_turned_off() {
 const BUTTON: &str = r#"
 action = "jump"
 anchor = "bottom_right"
-offset = [-100.0, -100.0]
+x = 40.0
+y = 40.0
 width = 120.0
 height = 120.0
 kind = "circle"
@@ -205,7 +206,8 @@ visibility = "always"
 fn a_button_presses_its_action() {
     let (_dir, mut app) = app(MANIFEST);
     let entity = control(&app, "Jump", "touch_button", BUTTON);
-    // Anchored to the bottom right of 1000 x 600, offset back up and left.
+    // Anchored to the bottom right of 1000 x 600, its edges 40 in: centred
+    // 100 up and left of the corner.
     frame(&mut app, finger(1, 900.0, 500.0, Start));
     assert!((value(&app, "jump") - 1.0).abs() < 1e-6);
     assert!(
@@ -321,7 +323,8 @@ const STICK: &str = r#"
 action_x = "move_x"
 action_y = "move_y"
 anchor = "bottom_left"
-offset = [150.0, -150.0]
+x = 50.0
+y = 50.0
 radius = 100.0
 deadzone = 0.0
 visibility = "always"

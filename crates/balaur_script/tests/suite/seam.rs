@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_script::{Bindings, BindingsExt, BoundFn, OwnedFn, Value};
+use balaur_script::{Args, Bindings, BindingsExt, BoundFn, TypedFn, Value};
 
 /// Stands in for the engine. The seam names no concrete context.
 struct Host {
@@ -21,8 +21,8 @@ struct FakeModule {
 }
 
 impl Bindings<Host> for FakeModule {
-    fn function_raw(&mut self, name: &str, f: BoundFn<Host>) {
-        self.functions.push((name.to_string(), f));
+    fn function_raw(&mut self, name: &str, func: BoundFn<Host>) {
+        self.functions.push((name.to_string(), func));
     }
     fn constant(&mut self, name: &str, value: Value) {
         self.constants.push((name.to_string(), value));
@@ -115,37 +115,60 @@ fn a_wrong_argument_type_is_an_error_not_a_panic() {
     );
 }
 
-/// A backend that builds the slots for each call, and so hands them over
-/// rather than having the binding copy them.
+/// A backend that holds its arguments otherwise than as values, and so hands
+/// them over where they lie.
 #[derive(Default)]
-struct OwningModule {
-    functions: Vec<(String, OwnedFn<Host>)>,
+struct TypedModule {
+    functions: Vec<(String, TypedFn<Host>)>,
 }
 
-impl Bindings<Host> for OwningModule {
-    fn function_raw(&mut self, name: &str, f: BoundFn<Host>) {
-        self.functions
-            .push((name.to_string(), Box::new(move |host, args| f(host, args))));
+impl Bindings<Host> for TypedModule {
+    fn function_raw(&mut self, name: &str, func: BoundFn<Host>) {
+        self.functions.push((
+            name.to_string(),
+            Box::new(move |host, args: &dyn Args| {
+                let values: Vec<Value> = (0..args.len()).map(|index| args.value(index)).collect();
+                func(host, &values)
+            }),
+        ));
     }
-    fn function_owned(&mut self, name: &str, f: OwnedFn<Host>) {
-        self.functions.push((name.to_string(), f));
+    fn function_typed(&mut self, name: &str, func: TypedFn<Host>) {
+        self.functions.push((name.to_string(), func));
     }
     fn constant(&mut self, _: &str, _: Value) {}
 }
 
+/// A string and a number where a backend keeps them: neither becomes a value.
+struct Slots<'a>(&'a str, f64);
+
+impl Args for Slots<'_> {
+    fn len(&self) -> usize {
+        2
+    }
+    fn num(&self, index: usize) -> Option<f64> {
+        (index == 1).then_some(self.1)
+    }
+    fn text(&self, index: usize) -> Option<&str> {
+        (index == 0).then_some(self.0)
+    }
+    fn is_nil(&self, index: usize) -> bool {
+        index >= 2
+    }
+    fn value(&self, index: usize) -> Value {
+        panic!("argument {index} was built as a value")
+    }
+}
+
 #[test]
-fn a_backend_that_owns_the_slots_hands_them_over() {
+fn a_typed_binding_reads_its_arguments_where_they_lie() {
     let host = Host { name: "engine" };
-    let mut m = OwningModule::default();
+    let mut m = TypedModule::default();
     register(&mut m, Rc::new(RefCell::new(Vec::new())));
     let play = &m.functions.iter().find(|(n, _)| n == "play").unwrap().1;
-
-    let mut args = [Value::Str("shot.ogg".into()), Value::Num(0.5)];
     assert_eq!(
-        play(&host, &mut args).unwrap(),
+        play(&host, &Slots("shot.ogg", 0.5)).unwrap(),
         Value::Str("shot.ogg@0.5".into())
     );
-    assert_eq!(args[0], Value::Nil, "the string was taken, not copied");
 }
 
 #[test]

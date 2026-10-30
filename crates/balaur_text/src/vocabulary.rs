@@ -1,6 +1,43 @@
 //! The words a block's shaping settings take, as `text2d`, `text3d` and the
-//! widget spell them. Each crate that writes a schema keeps its own copy of
-//! the keys; the words are read back into the shaper's types here.
+//! widget spell them, and the keys of the `font` asset, whose schema this
+//! crate writes. Each crate that writes a schema keeps its own copy of the
+//! keys; the words are read back into the shaper's types here.
+
+/// The `font` and `text_style` assets' rows.
+pub mod keys {
+    pub const SOURCE: &str = balaur_core::assets::SOURCE;
+    pub const FEATURES: &str = "features";
+    pub const STRETCH: &str = "stretch";
+    pub const SHAPING: &str = "shaping";
+    pub const HINTING: &str = "hinting";
+    pub const PIXEL_SNAP: &str = "pixel_snap";
+    pub const SNAP_ADVANCES: &str = "snap_advances";
+    pub const MONOSPACE_WIDTH: &str = "monospace_width";
+
+    // The `text_style` asset's rows.
+    pub const LINE_HEIGHT: &str = "line_height";
+    pub const LETTER_SPACING: &str = "letter_spacing";
+    pub const OUTLINE_SIZE: &str = "outline_size";
+    pub const OUTLINE_COLOR: &str = "outline_color";
+    pub const SHADOW_COLOR: &str = "shadow_color";
+    pub const SHADOW_OFFSET_X: &str = "shadow_offset_x";
+    pub const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
+    pub const UNDERLINE: &str = "underline";
+    pub const UNDERLINE_COLOR: &str = "underline_color";
+    pub const OVERLINE: &str = "overline";
+    pub const OVERLINE_COLOR: &str = "overline_color";
+    pub const STRIKETHROUGH: &str = "strikethrough";
+    pub const STRIKETHROUGH_COLOR: &str = "strikethrough_color";
+}
+
+/// Words as the `options` of an enum row.
+pub(crate) fn options(words: &[&str]) -> String {
+    words
+        .iter()
+        .map(|word| format!("\"{word}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 pub mod words {
     pub const NORMAL: &str = "normal";

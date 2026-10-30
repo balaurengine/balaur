@@ -4,9 +4,20 @@
 use super::DEFAULT_DAMPING;
 use crate::scalar::Real;
 
-/// The schema both dimensions share; each adds its own axis-shaped half and
-/// names the words an `axes` record's `axis` takes.
-pub(crate) fn schema(axis_words: &[&str], default_axis: &str) -> String {
+/// The rows a dimension writes for itself, each set placed where the
+/// inspector shows it among the shared ones.
+pub(crate) struct OwnRows {
+    /// Ungrouped and first: what the joint is, and its other end.
+    pub(crate) primary: String,
+    /// Where each end attaches, and its frame.
+    pub(crate) anchors: String,
+    /// The axes the joint may not move or turn along.
+    pub(crate) locks: String,
+}
+
+/// A joint's schema in either dimension: the rows `own` holds among the
+/// shared ones, and the words an `axes` record's `axis` takes.
+pub(crate) fn schema(axis_words: &[&str], default_axis: &str, own: &OwnRows) -> String {
     use crate::vocabulary::{self as v, keys as k, words as w};
     let axis_options = v::options(axis_words);
     let motors = v::options(w::MOTOR_MODES);
@@ -31,87 +42,96 @@ pub(crate) fn schema(axis_words: &[&str], default_axis: &str) -> String {
         format!(r#"{friction} = {{ type = "float", default = 0.0, min = 0.0, description = "On an articulation: the most force or torque dry friction resists this axis with" }}"#),
     ]
     .join(", ");
-    v::schema(&[
-        (
+    [
+        own.primary.as_str(),
+        &v::schema(&[
+                (
+            k::ENABLED,
+            r#"{ type = "bool", default = true, description = "Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch" }"#,
+        ),
+                (
+            k::COLLIDE_CONNECTED,
+            r#"{ type = "bool", default = false, description = "Let the two joined bodies collide with each other" }"#,
+        ),
+                (
             k::AXES,
             &format!(
                 r#"{{ type = "list", of = {{ type = "record", fields = {{ {fields} }} }}, default = [], description = "One record per free axis to limit or drive. A rope's x takes no limits (max_length is its limit); a spring's x is its spring, whose motor stays off" }}"#
             ),
         ),
-        (
+            ]),
+        &own.anchors,
+        &v::schema(&[
+                (
             k::MAX_LENGTH,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length", group = "length" }"#,
         ),
-        (
+                (
             k::REST_LENGTH,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The length a spring pulls back to" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The length a spring pulls back to", group = "length" }"#,
         ),
-        (
-            k::COLLIDE_CONNECTED,
-            r#"{ type = "bool", default = false, description = "Let the two joined bodies collide with each other" }"#,
-        ),
-        (
-            k::BREAK_FORCE,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation" }"#,
-        ),
-        (
-            k::BREAK_TORQUE,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation" }"#,
-        ),
-        (
-            k::ARTICULATION,
-            r#"{ type = "bool", default = false, description = "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break" }"#,
-        ),
-        (
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch" }"#,
-        ),
-    ]) + "\n"
-        + &articulation_schema()
+            ]),
+        &own.locks,
+        &holding_schema(),
+    ]
+    .join("
+")
 }
 
-/// The rows a joint reads beyond its frames, axes and lengths: how soft it
-/// is, and what an articulation's chain holds for it.
-fn articulation_schema() -> String {
+/// The rows past the lengths and the locks: how softly the joint holds,
+/// what snaps it, and what an articulation's chain holds for it.
+fn holding_schema() -> String {
     use crate::vocabulary::{self as v, keys as k};
     v::schema(&[
         (
             k::SOFTNESS_HZ,
             &format!(
-                r#"{{ type = "float", default = {DEFAULT_SOFTNESS_HZ:?}, min = 0.0, description = "How stiffly the joint's locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back" }}"#
+                r#"{{ type = "float", default = {DEFAULT_SOFTNESS_HZ:?}, min = 0.0, description = "How stiffly the joint's locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back", group = "softness" }}"#
             ),
         ),
         (
             k::SOFTNESS_DAMPING_RATIO,
-            r#"{ type = "float", default = 1.0, min = 0.0, description = "The damping ratio of that spring; 1 settles without overshooting" }"#,
+            r#"{ type = "float", default = 1.0, min = 0.0, description = "The damping ratio of that spring; 1 settles without overshooting", group = "softness" }"#,
         ),
         (
-            k::KINEMATIC_LINK,
-            r#"{ type = "bool", default = false, description = "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik" }"#,
+            k::BREAK_FORCE,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation", group = "breaking" }"#,
+        ),
+        (
+            k::BREAK_TORQUE,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation", group = "breaking" }"#,
+        ),
+        (
+            k::ARTICULATION,
+            r#"{ type = "bool", default = false, description = "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break", group = "articulation" }"#,
         ),
         (
             k::SELF_COLLISION,
-            r#"{ type = "bool", default = true, description = "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off" }"#,
+            r#"{ type = "bool", default = true, description = "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off", group = "articulation" }"#,
+        ),
+        (
+            k::KINEMATIC_LINK,
+            r#"{ type = "bool", default = false, description = "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik", group = "articulation" }"#,
         ),
         (
             k::PASSIVE_STIFFNESS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none", group = "articulation" }"#,
         ),
         (
             k::PASSIVE_REST,
-            r#"{ type = "float", default = 0.0, description = "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one" }"#,
+            r#"{ type = "float", default = 0.0, description = "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one", group = "articulation" }"#,
         ),
         (
             k::GEAR_WITH,
-            r#"{ type = "node", default = "", description = "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis" }"#,
+            r#"{ type = "node", default = "", description = "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis", group = "articulation" }"#,
         ),
         (
             k::GEAR_RATIO,
-            r#"{ type = "float", default = 1.0, description = "How far this joint turns or slides per unit of the gear_with joint's" }"#,
+            r#"{ type = "float", default = 1.0, description = "How far this joint turns or slides per unit of the gear_with joint's", group = "articulation" }"#,
         ),
         (
             k::GEAR_OFFSET,
-            r#"{ type = "float", default = 0.0, description = "Where this joint stands when the gear_with joint is at 0" }"#,
+            r#"{ type = "float", default = 0.0, description = "Where this joint stands when the gear_with joint is at 0", group = "articulation" }"#,
         ),
     ])
 }

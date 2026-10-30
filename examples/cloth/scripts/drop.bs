@@ -1,7 +1,7 @@
 // Labels over the two sheets, and the pictures the manual takes. The physics
 // is the scene's; nothing here moves anything.
 
-pub struct Drop {
+pub class Drop {
     pub shot: str = "",
     pub frames: str = "",
     node: Node,
@@ -33,9 +33,9 @@ fn label(x: float, y: float, text: str, size: float, color: [float]) {
 
 impl Drop {
     pub fn update(dt: float) {
-        // Read off the sheet rather than written twice: the number under the
-        // label is the one the solver is actually using.
-        let strain = self.node.get_node("Tears").softbody3d.tear_strain;
+        // Read off the sheet's material rather than written twice: the number
+        // under the label is the one the solver is actually using.
+        let strain = assets::load(self.node.get_node("Tears").softbody3d.soft_material).tear_strain;
         label(-1.5, 2.15, "no tear strain", 28.0, INK());
         label(1.5, 2.15, "tear_strain = {strain}", 28.0, INK());
         label(-1.5, 1.8, "the cloth folds over the block", 18.0, FAINT());

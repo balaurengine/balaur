@@ -78,7 +78,7 @@ fn freed_memory_is_reused() {
 #[test]
 fn host_objects_own_their_fields() {
     let mut rt = run(r#"
-        pub struct Bag { items: [str], label: str }
+        pub class Bag { items: [str], label: str }
         impl Bag {
             pub fn add(what: str) { self.items.push(what); self.label = "{self.items.len()} items"; }
         }

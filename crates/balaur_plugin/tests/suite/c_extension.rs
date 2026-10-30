@@ -83,7 +83,7 @@ fn loaded(script: &str) -> Loaded {
     std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
     std::fs::write(
         dir.path().join("probe.bs"),
-        format!("pub struct Probe {{ node: Node }}\nimpl Probe {{\n{script}}}\n"),
+        format!("pub class Probe {{ node: Node }}\nimpl Probe {{\n{script}}}\n"),
     )
     .unwrap();
     let mut app = app_in(dir.path());

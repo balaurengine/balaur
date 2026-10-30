@@ -1,5 +1,5 @@
 //! A play's files turned into one rodio source: decoded, mixed with their
-//! layers, trimmed, looped, queued, and passed through its effects.
+//! stems, trimmed, looped, queued, and passed through its effects.
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -59,16 +59,16 @@ fn decoded_from(clip: &Clip, at: f64) -> Result<Boxed> {
     ))
 }
 
-/// One file of the program from `at` seconds in: `main` with its layers and
+/// One file of the program from `at` seconds in: `main` with its stems and
 /// its end, or a queued file whole.
 fn segment(program: &Program, index: usize, at: f64) -> Result<Boxed> {
     let clip = program.clip(index);
-    let layers: &[Clip] = if index == 0 { &program.layers } else { &[] };
+    let stems: &[Clip] = if index == 0 { &program.stems } else { &[] };
     let end = program.end(index, None);
     if program.looped(index) {
         let mut whole = decoded_from(clip, 0.0)?;
-        for layer in layers {
-            whole = Box::new(whole.mix(decoded_from(layer, 0.0)?));
+        for stem in stems {
+            whole = Box::new(whole.mix(decoded_from(stem, 0.0)?));
         }
         let whole: Boxed = match end {
             Some(end) => Box::new(whole.take_duration(seconds(end))),
@@ -87,8 +87,8 @@ fn segment(program: &Program, index: usize, at: f64) -> Result<Boxed> {
         return Ok(Box::new(played));
     }
     let mut mixed = decoded_from(clip, at)?;
-    for layer in layers {
-        mixed = Box::new(mixed.mix(decoded_from(layer, at)?));
+    for stem in stems {
+        mixed = Box::new(mixed.mix(decoded_from(stem, at)?));
     }
     Ok(match end {
         Some(end) => Box::new(mixed.take_duration(seconds(end - at))),

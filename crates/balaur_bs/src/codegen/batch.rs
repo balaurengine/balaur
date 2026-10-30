@@ -6,20 +6,24 @@ use crate::ast::FnDecl;
 use std::collections::BTreeSet;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
-// A batch entry runs the method once per instance with the same arguments,
-// so it exists only where no argument or result needs releasing.
+// A batch entry runs a script's method once per object with the same
+// arguments, so it exists only where no argument or result needs releasing.
+// A script's object is a class (`runtime::Runtime::object`).
 pub(super) fn batchable(f: &FnDecl, structs: &Structs, classes: &BTreeSet<String>) -> bool {
     f.public
         && f.owner.is_some()
         && !f.is_async
-        && f.owner.as_ref().is_some_and(|o| !classes.contains(o))
+        && f.owner
+            .as_ref()
+            .is_some_and(|owner| classes.contains(owner))
         && f.params.iter().all(|p| !p.by_ref)
         && !has_heap(&f.ret, structs, classes)
         && f.params.iter().all(|p| !has_heap(&p.ty, structs, classes))
 }
 
-// `T.m$batch(base, count, args..)`: `m` over `count` instances stored at
-// `base`, one 8-byte slot per field: one host call a frame, not one per instance.
+// `T.m$batch(base, count, args..)`: `m` over `count` objects whose pointers
+// are stored at `base`, an 8-byte slot each: one host call a frame, not one
+// per object.
 pub(super) fn batch_fn(g: &Gen, sig: &Sig) -> (u32, FuncBody) {
     use ValType::I32;
     let selfv = g.self_vts(sig.owner.as_ref());

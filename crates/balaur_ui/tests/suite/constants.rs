@@ -3,9 +3,7 @@
 
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
-use balaur_ui::{
-    ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS,
-};
+use balaur_ui::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 fn registered_options(field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -56,7 +54,6 @@ fn every_constant_is_screaming_snake_and_unique() {
         .chain(ALIGNS)
         .chain(ITEM_ALIGNS)
         .chain(FONT_STYLES)
-        .chain(FONTS)
         .chain(CLASSES)
         .chain(MODIFIERS)
     {

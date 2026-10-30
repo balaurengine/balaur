@@ -244,6 +244,11 @@ impl Writer {
                 self.ty(ret);
                 self.list(refs, |w, r| w.bool(*r));
             }
+            Ty::Map(key, value) => {
+                self.0.push(11);
+                self.ty(key);
+                self.ty(value);
+            }
         }
     }
     fn literal(&mut self, l: &Literal) {
@@ -328,6 +333,7 @@ impl Reader<'_> {
                 Box::new(self.ty()?),
                 self.list(Reader::bool)?,
             ),
+            11 => Ty::Map(Box::new(self.ty()?), Box::new(self.ty()?)),
             _ => return None,
         })
     }

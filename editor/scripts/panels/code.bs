@@ -2,7 +2,7 @@
 // hands it what is typed, where the caret went and which gutter line was
 // clicked, and writes the text again only when the buffer changed under it.
 
-pub struct Code {
+pub class Code {
     node: Node,
     editor: Node,
     path: str,

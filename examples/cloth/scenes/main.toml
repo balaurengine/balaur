@@ -61,7 +61,7 @@ color = [0.34, 0.36, 0.40, 1.0]
 [nodes.collider3d]
 kind = "box"
 size = [1.0, 0.8, 1.0]
-friction = 0.9
+physics_material = { friction = 0.9 }
 
 [[nodes]]
 id = "n_drapes"
@@ -77,13 +77,12 @@ size = [2.4, 0.0, 2.4]
 # 24 particles a side: the folds over the block are only as fine as the mesh.
 cells = [23.0, 23.0, 1.0]
 mass = 1.0
-# Stiff along its threads and very soft across them, which is what makes a
-# sheet fold rather than stretch. Nothing is pinned: the block holds it up.
-edge_hz = 120.0
-bend_hz = 1.0
 solver_substeps = 4
 self_collision = true
-friction = 0.9
+physics_material = { friction = 0.9 }
+# Stiff along its threads and very soft across them, which is what makes a
+# sheet fold rather than stretch. Nothing is pinned: the block holds it up.
+soft_material = { edge_hz = 120.0, bend_hz = 1.0 }
 
 [[nodes]]
 id = "n_tears"
@@ -105,12 +104,10 @@ pinned_particles = [
   244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255,
 ]
 mass = 2.0
-edge_hz = 60.0
-bend_hz = 6.0
 solver_substeps = 4
 # Past six percent of its rest length an edge gives way, which the ball's
 # impact reaches and the sheet's own weight does not.
-tear_strain = 0.06
+soft_material = { edge_hz = 60.0, bend_hz = 6.0, tear_strain = 0.06 }
 
 [[nodes]]
 id = "n_ball_tears"

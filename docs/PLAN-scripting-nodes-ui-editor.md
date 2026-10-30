@@ -286,7 +286,7 @@ whole-document frames were chosen for a reason, and the cost is fine below a
 few hundred nodes. Noted here so a future "the editor is slow on a big
 scene" report has its answer.
 
-Status: **partly done** — the mirror resolves by stable id through `scene.node_by_id(id, under)`. Whole-document history stands, deliberately.
+Status: **partly done** — the mirror resolves by stable id through `scene.node_by_id(id, under)`. Whole-document history is replaced by a list of changes, and the mirror by the live scene as the document (PLAN-editor-as-scene §10, planned 2026-10-27).
 
 ### 4.3 Screens
 
@@ -312,8 +312,8 @@ Status: open.
 
 - The seam. Every item above is one more declared-once operation or one
   more component property; nothing needs a language-specific type.
-- Whole-document history and a mirror rebuilt from the document. The costs
-  in §4.2 are known and accepted at the scene sizes the examples have.
+- Whole-document history and a mirror rebuilt from the document: no longer
+  left alone, PLAN-editor-as-scene §10.
 - The `#[export]` fork. §1.2 is what it will lower to, and it is worth
   having whether or not the fork happens.
 

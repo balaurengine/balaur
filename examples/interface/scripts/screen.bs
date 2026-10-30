@@ -2,7 +2,7 @@
 // the scene holds the boxes, and this puts rows in the three views that hold
 // a list. A row is `icon`, `label`, `note` and an `#rrggbb`, joined by U+001F.
 
-pub struct Screen {
+pub class Screen {
     /// Where a picture of the screen goes, for the manual's shot, and where
     /// the clip's frames go. Both empty is a normal run, which is what a
     /// reader gets.

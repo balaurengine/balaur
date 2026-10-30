@@ -38,10 +38,11 @@ impl Backend {
     }
 }
 
-/// A `.bs` script: one struct with `node` and `fields`, its methods `body`.
+/// A `.bs` script: one class with `node` and `fields`, its methods `body`,
+/// named after the file [`Project::new`] writes.
 #[must_use]
 pub fn script(fields: &str, body: &str) -> String {
-    format!("pub struct S {{ node: Node{fields} }}\nimpl S {{\n{body}\n}}\n")
+    format!("pub class Bench {{ node: Node{fields} }}\nimpl Bench {{\n{body}\n}}\n")
 }
 
 /// A project directory that lives as long as the benchmark holds it.
@@ -65,10 +66,10 @@ impl Project {
         )?;
         std::fs::write(
             dir.path().join("main.toml"),
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+            "[[nodes]]\nid = \"bench\"\nname = \"Root\"\n",
         )?;
         std::fs::write(
-            dir.path().join(format!("s.{}", backend.extension())),
+            dir.path().join(format!("bench.{}", backend.extension())),
             source,
         )?;
         Ok(Self { dir })
@@ -102,11 +103,14 @@ pub fn attach_many(app: &App, backend: Backend, count: usize) -> Result<Vec<hecs
         .script_host()
         .ok_or_else(|| anyhow::anyhow!("no script backend"))?;
     let root = app.engine.root();
-    let path = format!("s.{}", backend.extension());
+    let path = format!("bench.{}", backend.extension());
     let mut out = Vec::with_capacity(count);
-    for i in 0..count {
-        let entity =
-            balaur_core::scene::spawn_node(&mut app.engine.world_mut(), &format!("n{i}"), root);
+    for index in 0..count {
+        let entity = balaur_core::scene::spawn_node(
+            &mut app.engine.world_mut(),
+            &format!("node{index}"),
+            root,
+        );
         host.attach(balaur_core::node_id_of(entity), &path)?;
         out.push(entity);
     }

@@ -1,7 +1,7 @@
 // The Output tab's one script: it fills the log list when the engine says
 // lines arrived, and answers its clear, its levels and its search.
 
-pub struct Output {
+pub class Output {
     node: Node,
     level: str,
     query: str,
@@ -34,7 +34,7 @@ impl Output {
         let name = node.name();
         if name == "Clear" && event == "click" {
             self.editor.call("output_clear");
-        } else if on_widget_event_any_0(name, LEVELS()) && event == "click" {
+        } else if is_level(name, LEVELS()) && event == "click" {
             self.level = name;
         } else if name == "Search" && event == "change" {
             self.query = value.as_str();
@@ -69,7 +69,7 @@ impl Output {
     }
 }
 
-fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+fn is_level(name: str, items: [str]) -> bool {
     for level in items {
         if level == name {
             return true;

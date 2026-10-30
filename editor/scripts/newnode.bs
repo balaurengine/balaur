@@ -4,12 +4,12 @@
 
 use editor;
 use icons;
-use inspector;
 use model;
 use pool;
 use recipes;
 use search;
 use style;
+use textedit;
 use util;
 use window;
 
@@ -46,31 +46,31 @@ fn entry(name: str, note: str, tags: [str], preset: bool) -> Entry {
 
 // Asked once per opening rather than once per frame: both registries are
 // walked whole, and doing that on every keystroke is a list rebuild.
-pub fn catalogue(S: &mut editor::State) -> [Entry] {
-    if S.newnode_cache.is_some() {
-        return S.newnode_cache.unwrap();
+pub fn catalogue(state: &mut editor::State) -> [Entry] {
+    if state.newnode_cache.is_some() {
+        return state.newnode_cache.unwrap();
     }
-    let rows = if S.newnode_soft != "" {
-        recipes::soft_sources(S, S.newnode_soft == "2d")
-    } else if S.newnode_change {
-        changes(S)
+    let rows = if state.newnode_soft != "" {
+        recipes::soft_sources(state, state.newnode_soft == "2d")
+    } else if state.newnode_change {
+        changes(state)
     } else {
-        everything(S)
+        everything(state)
     };
-    S.newnode_cache = rows;
+    state.newnode_cache = rows;
     rows
 }
 
 // What the selected node can become, filed like the presets it names.
-fn changes(S: editor::State) -> [Entry] {
+fn changes(state: editor::State) -> [Entry] {
     let rows: [Entry] = [];
-    for target in recipes::targets(S, S.sel) {
+    for target in recipes::targets(state, state.sel) {
         rows.push(entry(target.name, target.note, target.tags, true));
     }
     rows
 }
 
-fn everything(S: editor::State) -> [Entry] {
+fn everything(state: editor::State) -> [Entry] {
     let rows: [Entry] = [];
     for name in scene::presets() {
         let info = scene::preset_info(name);
@@ -80,10 +80,12 @@ fn everything(S: editor::State) -> [Entry] {
     }
     // Components too, so a node can be made of one thing the presets do not
     // cover; `camera3d` has no preset and is still a node someone adds.
+    let presets = scene::presets();
     for name in scene::component_types() {
         // `transform` is not a node to add: `add_child` has already given the
-        // new node one, and every node in the tree carries it.
-        if name == "transform" {
+        // new node one, and every node in the tree carries it. A component a
+        // preset is named for is that preset's row, once.
+        if name == "transform" || util::contains(presets, name) {
             continue;
         }
         let tags = scene::component_tags(name);
@@ -92,111 +94,112 @@ fn everything(S: editor::State) -> [Entry] {
     rows
 }
 
-pub fn open(S: &mut editor::State) {
-    S.newnode = true;
-    S.newnode_query = "";
-    S.newnode_cache = nil;
-    S.newnode_change = false;
-    S.newnode_soft = "";
-    window::picker_changed(S);
+pub fn open(state: &mut editor::State) {
+    state.newnode = true;
+    state.newnode_query = "";
+    state.newnode_cache = nil;
+    state.newnode_change = false;
+    state.newnode_soft = "";
+    window::picker_changed(state);
 }
 
 /// The picker over what the selected node can be changed to.
-pub fn open_change(S: &mut editor::State) {
-    if !model::has_selection(S) {
+pub fn open_change(state: &mut editor::State) {
+    if !model::has_selection(state) {
         return;
     }
-    open(S);
-    S.newnode_change = true;
-    window::picker_changed(S);
+    open(state);
+    state.newnode_change = true;
+    window::picker_changed(state);
 }
 
-pub fn close(S: &mut editor::State) {
-    S.newnode = false;
-    S.newnode_change = false;
-    S.newnode_soft = "";
-    window::picker_shut(S);
+pub fn close(state: &mut editor::State) {
+    state.newnode = false;
+    state.newnode_change = false;
+    state.newnode_soft = "";
+    window::picker_shut(state);
 }
 
-pub fn place(S: &mut editor::State, row: Entry) {
+pub fn place(state: &mut editor::State, row: Entry) {
     // A soft body is built from something, so it asks what before building:
     // unless a node being changed already draws a thing to build it from.
     let soft = recipes::soft_dimension(row.name);
-    let drawn = S.newnode_change && recipes::soft_body_source(S, S.sel).is_some();
+    let drawn = state.newnode_change && recipes::soft_body_source(state, state.sel).is_some();
     if row.preset && soft != "" && !drawn {
-        S.newnode_soft = soft;
-        S.newnode_query = "";
-        S.newnode_cache = nil;
+        state.newnode_soft = soft;
+        state.newnode_query = "";
+        state.newnode_cache = nil;
         return;
     }
-    if S.newnode_change {
-        recipes::change_type(S, S.sel, row.name);
-    } else if row.preset {
-        model::add_child(S, row.name);
+    if state.newnode_change {
+        recipes::change_type(state, state.sel, row.name);
     } else {
-        // A child first, then the one component: `add_component` acts on the
-        // selection, and `add_child` has just made this the selection.
-        model::add_child(S, nil);
-        model::add_component(S, row.name);
+        add(state, row.name);
     }
-    close(S);
+    close(state);
+}
+
+/// Add a node of `kind` under the selection: a text opens ready to type
+/// over, its words selected.
+pub fn add(state: &mut editor::State, kind: str) {
+    model::add_child(state, kind);
+    textedit::open_added(state);
 }
 
 // A source picked in the soft body's step: a new child built from it, or the
 // node being changed rebuilt from it.
-pub fn place_source(S: &mut editor::State, source: Entry) {
-    if S.newnode_change {
-        recipes::give_soft_body(S, S.sel, source);
+pub fn place_source(state: &mut editor::State, source: Entry) {
+    if state.newnode_change {
+        recipes::give_soft_body(state, state.sel, source);
     } else {
-        recipes::add_soft_body(S, source);
+        recipes::add_soft_body(state, source);
     }
-    close(S);
+    close(state);
 }
 
 /// Fill the picker: what its script asks for while the node picker is up.
-pub fn fill(S: &mut editor::State) {
-    let row_h = util::max(style::row_h(S), 30.0);
-    let specs = if S.newnode_soft != "" { source_specs(S, S.theme, row_h) } else { row_specs(S, S.theme, row_h) };
-    let placeholder = if S.newnode_soft != "" {
+pub fn fill(state: &mut editor::State) {
+    let row_h = util::max(style::row_h(state), 30.0);
+    let specs = if state.newnode_soft != "" { source_specs(state, state.theme, row_h) } else { row_specs(state, state.theme, row_h) };
+    let placeholder = if state.newnode_soft != "" {
         "Build the soft body from a shape or a file…"
-    } else if S.newnode_change {
-        let got1 = model::selected_node(S).get("name");
-        let part2 = if got1.is_nil() { "the node" } else { got1.as_str() };
-        "Change {part2} to…"
+    } else if state.newnode_change {
+        let picked = model::selected_node(state);
+        "Change {if picked.is_valid() { picked.name() } else { "the node" }} to…"
     } else {
         "Nodes, components, 2d, physics…"
     };
-    let mark = if S.newnode_change { icons::ui("reset") } else { icons::ui("add") };
-    let host = window::picker(S, map()
+    let mark = if state.newnode_change { icons::ui("reset") } else { icons::ui("add") };
+    let host = window::picker(state, map()
         .with("width", 520.0)
         .with("mark", mark)
         .with("placeholder", placeholder)
-        .with("query", S.newnode_query)
+        .with("query", state.newnode_query)
         .with("rows_h", (specs.len() as float) * (row_h + 2.0) + 4.0)
         .with("on", "handle")
         .with("on_submit", "handle_submit")
-        .with("data", map().with("fn", fill_on_0).with("submit", fill_on_1)));
-    pool::sync(S, host, specs, 0.0, false);
+        .with("data", map().with("fn", on_query_typed).with("submit", on_query_submitted)));
+    pool::sync(state, host, specs, 0.0, false);
 }
 
-fn fill_on_0(S: &mut editor::State, data: any, text: any) {
-    S.newnode_query = text.as_str();
+fn on_query_typed(state: &mut editor::State, data: any, text: any) {
+    state.newnode_query = text.as_str();
 }
 
-fn fill_on_1(S: &mut editor::State, data: any, text: any) {
-    S.newnode_query = text.as_str();
+fn on_query_submitted(state: &mut editor::State, data: any, text: any) {
+    state.newnode_query = text.as_str();
 }
 
 /// Every row the picker shows: the empty node ahead of the groups, then a
 /// heading and its matches per group.
-fn row_specs(S: &mut editor::State, k: any, row_h: float) -> [any] {
-    let query = S.newnode_query.to_lower();
-    let rows = catalogue(S);
+fn row_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
+    let query = state.newnode_query.to_lower();
+    let rows = catalogue(state);
     let out: [any] = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
-    if !S.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else", icons::node("world"), k.text_subtle.as_str(), add_empty, map()));
+    if !state.newnode_change && (query == "" || "empty node".contains(query)) {
+        out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, map()));
     }
     for group in groups() {
         let title = group[1];
@@ -218,11 +221,11 @@ fn row_specs(S: &mut editor::State, k: any, row_h: float) -> [any] {
             // the tree draw a component with.
             let mark = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-            out.push(row_spec(row_h, caption, mark.glyph, tint_of(k, mark.token), place_row, map().with("row", row)));
+            out.push(row_spec(row_h, caption, mark.glyph, tint_of(tokens, mark.token), place_row, map().with("row", row)));
         }
     }
     if out.len() == 0 {
-        out.push(caption_row(search::nothing_says(S.newnode_query), 0.0, true));
+        out.push(caption_row(search::nothing_says(state.newnode_query), 0.0, true));
     }
     out
 }
@@ -233,52 +236,52 @@ fn caption_row(text: str, height: float, wrap: bool) -> any {
 }
 
 // A component's own colour token, or the plain text colour.
-fn tint_of(k: any, token: str) -> str {
-    let tint = k.get(token);
-    if tint.is_nil() { k.primary_text.as_str() } else { tint.as_str() }
+fn tint_of(tokens: any, token: str) -> str {
+    let tint = tokens.get(token);
+    if tint.is_nil() { tokens.primary_text.as_str() } else { tint.as_str() }
 }
 
-fn add_empty(S: &mut editor::State, _data: any, _value: any) {
-    model::add_child(S, nil);
-    close(S);
+fn add_empty(state: &mut editor::State, _data: any, _value: any) {
+    model::add_child(state, nil);
+    close(state);
 }
 
-fn place_row(S: &mut editor::State, data: any, _value: any) {
+fn place_row(state: &mut editor::State, data: any, _value: any) {
     let row: Entry = data.row;
-    place(S, row);
+    place(state, row);
 }
 
 /// The soft body's second step: a shape, or a file in the project, to build
 /// it from.
-fn source_specs(S: &mut editor::State, k: any, row_h: float) -> [any] {
-    let query = S.newnode_query.to_lower();
+fn source_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
+    let query = state.newnode_query.to_lower();
     let out = [caption_row("Soft body from", 20.0, false)];
-    for source in catalogue(S) {
+    for source in catalogue(state) {
         let caption = source.label + "  ·  " + source.note;
         if query != "" && !caption.to_lower().contains(query) {
             continue;
         }
         let keys = source.parts.keys();
         let mark = icons::component(if keys.len() > 0 { keys[0] } else { "" });
-        out.push(row_spec(row_h, caption, mark.glyph, tint_of(k, mark.token), place_source_row, map().with("source", source)));
+        out.push(row_spec(row_h, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, map().with("source", source)));
     }
     out
 }
 
-fn place_source_row(S: &mut editor::State, data: any, _value: any) {
+fn place_source_row(state: &mut editor::State, data: any, _value: any) {
     let source: Entry = data.source;
-    place_source(S, source);
+    place_source(state, source);
 }
 
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
-fn row_spec(row_h: float, caption: str, mark: str, color: str, f: fn(&mut editor::State, any, any), data: any) -> any {
+fn row_spec(row_h: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> any {
     let button = pool::on(map()
         .with("kind", "button")
         .with("role", "item_picker")
         .with("grow", 1)
         .with("text", caption)
         .with("icon", mark)
-        .with("icon_color", color), f, data);
+        .with("icon_color", color), handler, data);
     map().with("full", true).with("height", row_h).with("controls", [button])
 }

@@ -1,5 +1,10 @@
 # Plan: a second scripting language
 
+> **Status:** superseded on its premise. The engine runs only Balaur Script
+> since Rune's removal. A second language would implement the typed engine
+> interface of PLAN-balaur-script §9 step 2, not the `Value` seam this plan
+> rides.
+
 Rune is the language the engine ships, and it is the language nobody arrives
 already knowing. Lua is what a game developer has most likely written before.
 A second language lowers the cost of the first hour without changing what the

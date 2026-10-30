@@ -45,6 +45,7 @@ pub mod events;
 pub mod follow;
 pub mod geometry;
 pub mod joint;
+mod material;
 pub mod query;
 pub mod ragdoll;
 mod readers;
@@ -55,6 +56,7 @@ mod snapshot;
 pub(crate) use snapshot::{
     NodeKey, authored, filled, frame_value, key_of, keyed, resolve_key, resolved, world_bytes,
 };
+mod soft_material;
 pub mod softbody;
 pub mod tuning;
 pub mod vehicle;
@@ -132,6 +134,9 @@ pub struct PhysicsState3d {
     /// What the contact hook reads per collider: one-way platforms and
     /// conveyor belts.
     pub(crate) surfaces: events::Surfaces,
+    /// The asset generation the material files were last read at
+    /// (`collider::reread_materials`).
+    pub(crate) materials_read: u64,
     /// While paused the simulation does not step (editors pause by default
     /// and unpause on play).
     pub paused: bool,
@@ -178,6 +183,7 @@ impl PhysicsState3d {
             collider_params: DetHashMap::default(),
             joint_params: DetHashMap::default(),
             surfaces: events::Surfaces::default(),
+            materials_read: 0,
             paused: false,
             queries_ready: false,
             wheel_inputs: DetHashMap::default(),
@@ -250,6 +256,8 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         reg.add_system(Stage::PreUpdate, ragdoll::restore_system);
         reg.add_snapshot_source("ragdoll", ragdoll::save_memory, ragdoll::load_memory);
         ragdoll::register_ragdoll_component(reg);
+        material::register_physics_material_asset(reg);
+        soft_material::register_soft_material_asset(reg);
         debug::build(reg);
         tuning::build(reg);
         // `physics` holds what spans both worlds; each dimension has its own.
@@ -487,7 +495,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"box\"\ncell_model = \"corotational\"\nshape_matching = \"on\""),
+                Some("kind = \"box\"\nsoft_material = { cell_model = \"corotational\", shape_matching = \"on\" }"),
             )],
         )?,
     );
@@ -545,6 +553,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     if eng.paused() {
         return;
     }
+    collider::reread_materials(eng);
     {
         let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();

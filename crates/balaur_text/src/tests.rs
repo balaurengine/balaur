@@ -1,12 +1,13 @@
+use std::sync::Arc;
+
 use super::*;
 
 fn faces() -> Vec<crate::fonts::FontFace> {
     let mut faces = vec![crate::fonts::FontFace {
-        name: "ui-SourceSans3-Regular".into(),
-        chain: "ui",
-        bytes: Arc::new(
-            include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
-        ),
+        name: "SourceSans3-Regular".into(),
+        path: "fonts/SourceSans3-Regular.ttf".into(),
+        system: false,
+        bytes: Arc::new(include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec()),
         tweak: crate::fonts::FaceTweak::default(),
     }];
     faces.extend(crate::fonts::system_faces());
@@ -32,9 +33,10 @@ fn a_system_face_does_not_reach_a_measurement() {
     let mut with_system = own.clone();
     with_system.push(crate::fonts::FontFace {
         name: "system:pretend".into(),
-        chain: "system",
+        path: String::new(),
+        system: true,
         bytes: std::sync::Arc::new(
-            include_bytes!("../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
+            include_bytes!("../../../editor/fonts/JetBrainsMono-Regular.ttf").to_vec(),
         ),
         tweak: crate::fonts::FaceTweak::default(),
     });
@@ -216,9 +218,10 @@ fn a_face_scale_draws_and_measures_its_glyphs_larger() {
 #[test]
 fn a_fallback_face_scales_only_its_own_glyphs() {
     let icon = |scale: f32| crate::fonts::FontFace {
-        name: "icon-Phosphor-Fill".into(),
-        chain: "icon",
-        bytes: Arc::new(include_bytes!("../../../editor/fonts/icon-Phosphor-Fill.ttf").to_vec()),
+        name: "Phosphor-Fill".into(),
+        path: "fonts/Phosphor-Fill.ttf".into(),
+        system: false,
+        bytes: Arc::new(include_bytes!("../../../editor/fonts/Phosphor-Fill.ttf").to_vec()),
         tweak: crate::fonts::FaceTweak {
             scale,
             ..Default::default()
@@ -318,40 +321,55 @@ fn a_picture_reserves_its_box_on_the_line() {
     );
 }
 
-fn bundled(name: &str, chain: &'static str, bytes: &'static [u8]) -> crate::fonts::FontFace {
+fn bundled(name: &str, bytes: &'static [u8]) -> crate::fonts::FontFace {
     crate::fonts::FontFace {
         name: name.into(),
-        chain,
+        path: format!("fonts/{name}.ttf"),
+        system: false,
         bytes: Arc::new(bytes.to_vec()),
         tweak: crate::fonts::FaceTweak::default(),
     }
 }
 
-/// The editor's own three text faces, with no system face behind them.
+/// The editor's own three text faces, with no system face behind them: the
+/// regular first, which is the default font.
 fn editor_faces() -> Vec<crate::fonts::FontFace> {
     vec![
         bundled(
-            "ui-SourceSans3-Regular",
-            "ui",
-            include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf"),
+            "SourceSans3-Regular",
+            include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf"),
         ),
         bundled(
-            "heading-SourceSans3-Semibold",
-            "heading",
-            include_bytes!("../../../editor/fonts/heading-SourceSans3-Semibold.ttf"),
+            "SourceSans3-Semibold",
+            include_bytes!("../../../editor/fonts/SourceSans3-Semibold.ttf"),
         ),
         bundled(
-            "mono-JetBrainsMono-Regular",
-            "mono",
-            include_bytes!("../../../editor/fonts/mono-JetBrainsMono-Regular.ttf"),
+            "JetBrainsMono-Regular",
+            include_bytes!("../../../editor/fonts/JetBrainsMono-Regular.ttf"),
         ),
     ]
 }
 
+/// Which of [`editor_faces`] a test's font draws in.
+const SEMIBOLD: usize = 1;
+const MONO: usize = 2;
+
 /// `text` at 20 pixels over the editor's faces, as `edit` changes it.
 fn shaped_with(text: &str, edit: impl FnOnce(&mut Request)) -> (TextState, Rc<Shaped>) {
+    shaped_in(text, 0, FontSettings::default(), edit)
+}
+
+/// The same in a font of face `face` of them, shaped with `settings`.
+fn shaped_in(
+    text: &str,
+    face: usize,
+    settings: FontSettings,
+    edit: impl FnOnce(&mut Request),
+) -> (TextState, Rc<Shaped>) {
     let mut state = TextState::new(&editor_faces(), "en-US");
+    state.define_font("fonts/test.font", face, settings);
     let mut request = Request::new(text, 20.0);
+    request.font = "fonts/test.font".into();
     edit(&mut request);
     let shaped = state.shape(&request);
     (state, shaped)
@@ -540,9 +558,16 @@ fn oblique_slants_the_upright_face_when_no_italic_ships() {
 #[test]
 fn a_feature_changes_the_glyphs_it_names() {
     let (_, ligature) = shaped_with("office", |_| {});
-    let (_, apart) = shaped_with("office", |r| {
-        r.options.features = vec![Feature::parse("liga=0").unwrap()];
-    });
+    let features = vec![Feature::parse("liga=0").unwrap()];
+    let (_, apart) = shaped_in(
+        "office",
+        0,
+        FontSettings {
+            features,
+            ..FontSettings::default()
+        },
+        |_| {},
+    );
     assert!(
         apart.quads.len() > ligature.quads.len(),
         "liga=0 kept the ligature: {} against {}",
@@ -552,17 +577,34 @@ fn a_feature_changes_the_glyphs_it_names() {
 }
 
 #[test]
-fn a_font_name_shapes_in_that_family_ahead_of_the_chain() {
-    let narrow = |name: &str| {
-        let (_, shaped) = shaped_with("iiii", |r| r.options.font_name = name.to_string());
-        shaped.size.x
+fn a_font_shapes_in_its_own_face() {
+    let mono = |text: &str| {
+        shaped_in(text, MONO, FontSettings::default(), |_| {})
+            .1
+            .size
+            .x
     };
-    let (_, wide) = shaped_with("MMMM", |r| r.options.font_name = "JetBrains Mono".into());
+    let (_, default) = shaped_with("iiii", |_| {});
     assert!(
-        (narrow("JetBrains Mono") - wide.size.x).abs() < 1.0,
+        (mono("iiii") - mono("MMMM")).abs() < 1.0,
         "a monospace face draws i as wide as M"
     );
-    assert!(narrow("") < wide.size.x * 0.6);
+    assert!(default.size.x < mono("MMMM") * 0.6);
+}
+
+/// A font the shaper has not read yet draws in the default, and is asked
+/// for by name on the next look at the files.
+#[test]
+fn a_font_not_read_yet_draws_in_the_default_and_is_wanted() {
+    let mut state = TextState::new(&editor_faces(), "en-US");
+    let default = state.shape(&Request::new("iiii", 20.0)).size;
+    let mut request = Request::new("iiii", 20.0);
+    request.font = "fonts/unread.ttf".into();
+    assert_eq!(state.shape(&request).size, default);
+    assert_eq!(
+        state.host.take_wanted(),
+        vec!["fonts/unread.ttf".to_string()]
+    );
 }
 
 #[test]
@@ -579,22 +621,25 @@ fn line_break_by_glyph_fills_the_line_where_by_word_leaves_a_gap() {
 
 #[test]
 fn snapping_advances_puts_every_glyph_on_a_whole_pixel() {
-    let (_, shaped) = shaped_with("abcdefgh", |r| {
-        r.options.snap_advances = true;
-        r.letter_spacing = 0.37;
-    });
+    let snapping = FontSettings {
+        snap_advances: true,
+        ..FontSettings::default()
+    };
+    let (_, shaped) = shaped_in("abcdefgh", 0, snapping, |r| r.letter_spacing = 0.37);
     let mut pens: Vec<f32> = shaped.quads.iter().map(|q| q.rect.min.x).collect();
     pens.dedup();
     assert!(pens.len() > 4);
 }
 
 #[test]
-fn a_node_s_hinting_overrides_the_face_and_pixel_snap_marks_the_raster() {
+fn a_font_s_hinting_overrides_the_face_and_pixel_snap_marks_the_raster() {
     let flags = |hinting: Hinting, pixel_snap: bool| {
-        let (state, _) = shaped_with("ab", |r| {
-            r.options.hinting = hinting;
-            r.options.pixel_snap = pixel_snap;
-        });
+        let settings = FontSettings {
+            hinting,
+            pixel_snap,
+            ..FontSettings::default()
+        };
+        let (state, _) = shaped_in("ab", 0, settings, |_| {});
         state.atlas.keys().map(|key| key.flags).collect::<Vec<_>>()
     };
     assert!(
@@ -616,11 +661,12 @@ fn a_node_s_hinting_overrides_the_face_and_pixel_snap_marks_the_raster() {
 
 #[test]
 fn monospace_width_resizes_a_monospace_face_to_the_advance_asked() {
-    let (_, plain) = shaped_with("mmmm", |r| r.family = "mono".into());
-    let (_, wider) = shaped_with("mmmm", |r| {
-        r.family = "mono".into();
-        r.options.monospace_width = Some(24.0);
-    });
+    let (_, plain) = shaped_in("mmmm", MONO, FontSettings::default(), |_| {});
+    let resized = FontSettings {
+        monospace_width: Some(24.0),
+        ..FontSettings::default()
+    };
+    let (_, wider) = shaped_in("mmmm", MONO, resized, |_| {});
     let last = |shaped: &Shaped| shaped.quads[3].rect.min.x;
     assert!(
         last(&wider) > last(&plain) + 10.0,
@@ -642,7 +688,11 @@ fn a_wider_tab_pushes_the_text_after_it_further() {
 #[test]
 fn simple_shaping_lays_latin_out_as_complex_does() {
     let (_, complex) = shaped_with("plain text", |_| {});
-    let (_, simple) = shaped_with("plain text", |r| r.options.shaping = Shaping::Simple);
+    let basic = FontSettings {
+        shaping: Shaping::Simple,
+        ..FontSettings::default()
+    };
+    let (_, simple) = shaped_in("plain text", 0, basic, |_| {});
     assert_eq!(complex.quads.len(), simple.quads.len());
     assert!((complex.size.x - simple.size.x).abs() < 2.0);
 }
@@ -659,25 +709,28 @@ fn a_marked_size_draws_its_run_larger() {
 }
 
 #[test]
-fn a_marked_font_shapes_its_run_in_that_chain() {
-    let (_, shaped) = shaped_with("ii[font=mono]ii[/font]", |r| r.markup = true);
+fn a_marked_font_shapes_its_run_in_that_font() {
+    let mut state = TextState::new(&editor_faces(), "en-US");
+    state.define_font("fonts/mono.font", MONO, FontSettings::default());
+    let mut request = Request::new("ii[font=fonts/mono.font]ii[/font]", 20.0);
+    request.markup = true;
+    let shaped = state.shape(&request);
     let width = |q: &[Quad]| q[1].rect.min.x - q[0].rect.min.x;
     let (ui, mono) = (width(&shaped.quads[0..2]), width(&shaped.quads[2..4]));
     assert!(mono > ui * 1.5, "mono {mono} against ui {ui}");
 }
 
-/// egui draws `heading` in the face its chain opens with; the shaper has to
-/// pick the same one when nothing asks for another weight.
+/// A font naming the Semibold face draws Semibold when nothing asks for
+/// another weight, as egui draws it.
 #[test]
-fn a_heading_at_the_regular_weight_draws_in_the_chain_s_own_face() {
-    let width = |family: &str, weight: u16| {
-        let (_, shaped) = shaped_with("Heading", |r| {
-            r.family = family.into();
+fn a_font_at_the_regular_weight_draws_in_its_own_face() {
+    let width = |face: usize, weight: u16| {
+        let (_, shaped) = shaped_in("Heading", face, FontSettings::default(), |r| {
             r.weight = weight;
         });
         shaped.size.x
     };
-    let (regular, semibold) = (width("ui", 400), width("ui", 600));
+    let (regular, semibold) = (width(0, 400), width(0, 600));
     assert!(semibold > regular, "the two faces measure alike");
-    assert!((width("heading", 400) - semibold).abs() < 0.5);
+    assert!((width(SEMIBOLD, 400) - semibold).abs() < 0.5);
 }

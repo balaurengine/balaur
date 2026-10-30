@@ -1,7 +1,7 @@
 // Vector maths, which is what a movement or a look-at does several times a
 // frame: a sum, a length and a scale, written out on the fields.
 
-pub struct Vector {
+pub class Vector {
     node: Node,
     out: Vec3,
 }

@@ -14,7 +14,7 @@ use crate::LOG;
 const RIG: &str = r#"[[nodes]]
 id = "n_rig"
 name = "Rig"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [[nodes]]
 id = "n_hip"
@@ -58,11 +58,11 @@ fn run(scene: &str, script: &str, frames: usize) -> (App, Vec<String>) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
@@ -106,8 +106,8 @@ fn global_y(app: &App, entity: Entity) -> f32 {
 fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
 }
 "#,
@@ -145,8 +145,8 @@ impl S {
 fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
     let (app, errors) = run(
         RIG,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map()); }
 }
 ",
@@ -162,8 +162,8 @@ impl S {
 fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
 }
 "#,
@@ -186,8 +186,8 @@ impl S {
 fn ragdoll_blend_turns_it_on_partway_through() {
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         physics2d::ragdoll(self.node, map().with("influence", 0.0));
     }
@@ -217,8 +217,8 @@ fn a_limp_rig_starts_from_the_pose_it_was_built_in() {
     // turn their shapes, never the bones they hand back.
     let (app, errors) = run(
         RIG,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map()); }
 }
 ",
@@ -240,8 +240,8 @@ fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
     // limp for half a second, then the blend returns and they must too.
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         physics2d::ragdoll(self.node, map().with("influence", 1.0));
     }
@@ -274,8 +274,8 @@ impl S {
 fn a_rollback_to_a_limp_tick_gets_back_up_the_same_way() {
     let (mut app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map().with("influence", 1.0)); }
 }
 "#,
@@ -306,10 +306,10 @@ fn a_node_with_no_bones_says_so_rather_than_building_nothing() {
         r#"[[nodes]]
 id = "n"
 name = "Plain"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 "#,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map()); }
 }
 ",
@@ -325,8 +325,8 @@ impl S {
 fn a_ragdoll_carries_the_body_shape_and_joint_options_it_was_built_with() {
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         physics2d::ragdoll(self.node, map()
             .with("influence", 0.0).with("shape", "rectangle").with("restitution", 0.3)
@@ -361,10 +361,11 @@ impl S {
         collider.get("kind").and_then(toml::Value::as_str),
         Some("rectangle")
     );
-    let bounce = collider
-        .get("restitution")
-        .and_then(toml::Value::as_float)
-        .unwrap();
+    let bounce = {
+        let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+        let state = state.borrow();
+        state.world.colliders[state.colliders[&knee][0]].restitution()
+    };
     assert!((bounce - 0.3).abs() < 1e-6, "restitution {bounce}");
     let layers = collider
         .get("collision_layer")
@@ -408,8 +409,8 @@ impl S {
 fn a_follow_drive_holds_a_limp_rig_on_its_bones() {
     let (app, errors) = run(
         RIG,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         physics2d::ragdoll(self.node, map().with("drive", "follow").with("follow", map().with("kind", "pid")));
     }
@@ -448,8 +449,8 @@ fn a_ragdoll_joint_measures_its_angle_from_the_built_pose() {
     );
     let (app, errors) = run(
         &rig,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0).with("gravity_scale", 0.0)); }
 }
 "#,

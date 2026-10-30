@@ -2,7 +2,7 @@
 // the Editor when the node, the document or the tab moved, and again after a
 // row's own control ran.
 
-pub struct Events {
+pub class Events {
     node: Node,
     editor: Node,
 }

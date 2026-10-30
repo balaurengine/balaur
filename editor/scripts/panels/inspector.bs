@@ -1,7 +1,7 @@
 // The Inspector's one script: it answers every control in its scene and has
 // the Editor, which owns the document, fill the form's rows.
 
-pub struct Inspector {
+pub class Inspector {
     node: Node,
     query: str,
     editor: Node,

@@ -1,0 +1,3 @@
+# The columns, the plank and the table the pigs sit on.
+type = "physics_material"
+friction = 0.7

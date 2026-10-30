@@ -85,8 +85,8 @@ id = "n_player"
 replicate = { authority = "owner", components = ["transform", "body2d"], mode = "on_change" }
 ```
 
-Change detection is a generation counter per `(entity, component)` written by
-`components::patch`; the delta is the changed properties since the observer's
+Change detection is the engine's change log (PLAN-events §5): replication
+reads the entries for what it replicates; the delta is the changed properties since the observer's
 last acked tick, quantized off the schema's declared ranges. RPCs address a
 node by `StableId`, never by path.
 

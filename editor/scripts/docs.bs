@@ -29,75 +29,75 @@ pub fn state() -> DocsState {
 
 // Every module, asked once per session: `script::api` builds the whole
 // reference on each call, which is not a per-frame cost worth paying.
-fn modules(S: &mut editor::State) -> any {
-    if S.docs.modules.is_nil() {
-        S.docs.pick = if S.docs.pick == "" { "engine" } else { S.docs.pick };
-        S.docs.modules = script::api();
+fn modules(state: &mut editor::State) -> any {
+    if state.docs.modules.is_nil() {
+        state.docs.pick = if state.docs.pick == "" { "engine" } else { state.docs.pick };
+        state.docs.modules = script::api();
     }
-    S.docs.modules
+    state.docs.modules
 }
 
 /// Show a module's page, and one of its functions when named.
 /// `shell::goto_definition` calls this when the definition is engine API.
-pub fn show(S: &mut editor::State, module: str, name: str) {
-    S.docs.pick = module;
-    S.docs.fn_pick = name;
-    docks::show(S, "docs");
-    signals::changed(S, "docs");
+pub fn show(state: &mut editor::State, module: str, name: str) {
+    state.docs.pick = module;
+    state.docs.fn_pick = name;
+    docks::show(state, "docs");
+    signals::changed(state, "docs");
 }
 
 /// The Docs panel picked a module.
-pub fn pick(S: &mut editor::State, module: str) {
-    S.docs.pick = module;
-    S.docs.fn_pick = "";
+pub fn pick(state: &mut editor::State, module: str) {
+    state.docs.pick = module;
+    state.docs.fn_pick = "";
 }
 
 // The module the dock is showing; nil when none is.
-fn current(S: editor::State, list: any) -> any {
-    for m in list {
-        if m.name.as_str() == S.docs.pick {
-            return m;
+fn current(state: editor::State, list: any) -> any {
+    for module in list {
+        if module.name.as_str() == state.docs.pick {
+            return module;
         }
     }
     nil
 }
 
 /// What the Docs panel shows for `query`.
-pub fn view(S: &mut editor::State, query: str) -> View {
-    let k = S.theme;
-    let list = util::vec(modules(S));
+pub fn view(state: &mut editor::State, query: str) -> View {
+    let tokens = state.theme;
+    let list = util::vec(modules(state));
     let names: [str] = [];
-    for m in list {
-        names.push(m.name.as_str());
+    for module in list {
+        names.push(module.name.as_str());
     }
-    let m = current(S, list);
-    if m.is_nil() {
+    let module = current(state, list);
+    if module.is_nil() {
         let says = if list.len() == 0 { "the engine reported no modules" } else { "pick a module" };
-        return View { modules: names, pick: S.docs.pick, items: [], says: says };
+        return View { modules: names, pick: state.docs.pick, items: [], says: says };
     }
     let items: [str] = [];
-    if m.doc.as_str() != "" {
-        items.push(util::row("", m.doc.as_str(), "", k.text_muted.as_str()));
+    if module.doc.as_str() != "" {
+        items.push(util::row("", module.doc.as_str(), "", tokens.text_muted.as_str()));
     }
     let shown = 0;
-    for f in util::vec(m.functions) {
-        let name = f.as_str();
+    for function in util::vec(module.functions) {
+        let name = function.as_str();
         if !search::matches(query, name) {
             continue;
         }
         shown += 1;
-        let tint = if name == S.docs.fn_pick { k.primary_text } else { k.text_default };
-        items.push(util::row("", name + m.signatures.get(name).as_str(), "", tint.as_str()));
-        let doc = m.docs.get(name).as_str();
+        let tint = if name == state.docs.fn_pick { tokens.primary_text } else { tokens.text_default };
+        items.push(util::row("", name + module.signatures.get(name).as_str(), "", tint.as_str()));
+        let doc = module.docs.get(name).as_str();
         if doc != "" {
-            items.push(util::row("", "\t  " + doc, "", k.text_subtle.as_str()));
+            items.push(util::row("", "\t  " + doc, "", tokens.text_subtle.as_str()));
         }
     }
     if query == "" {
-        for c in util::vec(m.constants) {
-            items.push(util::row("", "{c.name.as_str()}  {c.value.as_str()}", "", k.text_subtle.as_str()));
+        for constant in util::vec(module.constants) {
+            items.push(util::row("", "{constant.name.as_str()}  {constant.value.as_str()}", "", tokens.text_subtle.as_str()));
         }
     }
     let says = if shown == 0 && query != "" { search::nothing_says(query) } else { "" };
-    View { modules: names, pick: S.docs.pick, items: items, says: says }
+    View { modules: names, pick: state.docs.pick, items: items, says: says }
 }

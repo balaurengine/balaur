@@ -35,8 +35,8 @@ struct Slot {
     /// than pushed every frame because a mirror owns a render target, and
     /// asserting one every frame would rebuild it every frame.
     surface: Option<crate::material::Surface>,
-    /// The overlay as last pushed onto the node.
-    overlay: Option<crate::overlay::Overlay3d>,
+    /// The flags and the debug drawing as last pushed onto the node.
+    overlay: Option<(crate::overlay::Overlay3d, crate::debug_draw::DebugDraw)>,
     /// A material with no shader, as last pushed onto kiss3d's own.
     builtin: Option<crate::material::Builtin>,
     /// A model's simpler copies, when its import settings ask for them.
@@ -85,8 +85,9 @@ pub(crate) struct Slot2d {
     /// The shear last written as the node's instance deformation, so a node
     /// that never leans never has its instance buffer touched.
     pub(crate) shear: f32,
-    /// The overlay as last pushed onto the node and its pieces.
-    pub(crate) overlay: Option<crate::overlay::Overlay2d>,
+    /// The material's surface and the debug drawing as last pushed onto the
+    /// node and its pieces.
+    pub(crate) overlay: Option<(crate::material::Surface, crate::debug_draw::DebugDraw)>,
     /// What a nine-slice sprite's mesh was built for, so a frame or a size
     /// that moved builds it again.
     pub(crate) nine: Option<crate::sprite::NineKey>,
@@ -212,7 +213,6 @@ impl Frontend {
         let dt = app.engine.delta();
         crate::particles::sync_particles(
             app,
-            window,
             &mut self.scene_2d,
             &mut self.emitter_slots,
             &mut crate::particles::ParticleFrame {
@@ -816,7 +816,8 @@ fn sync(
             .set_color(Color::new(r, g, b, a))
             .set_visible(visible);
         lit_and_layered(&mut slot.node, renderable);
-        dress(app, slot, renderable, reference);
+        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
+        dress(app, slot, renderable, &debug, reference);
         crate::overlay::follow_3d(slot.companion.as_mut(), Color::new(r, g, b, a), scale);
         instances::draw(app, &world, entity, slot, (global, eye, visible));
     }
@@ -827,28 +828,37 @@ fn sync(
 /// What a node draws with beyond its geometry: the material's `[surface]`,
 /// the renderable's overlay and a shader-less material's values, each pushed
 /// only when it moved.
-fn dress(app: &App, slot: &mut Slot, renderable: &Renderable3d, reference: &str) {
+fn dress(
+    app: &App,
+    slot: &mut Slot,
+    renderable: &Renderable3d,
+    debug: &crate::debug_draw::DebugDraw,
+    reference: &str,
+) {
     let mut surface = crate::material::surface_of(&app.engine, reference);
     // A solver's surface can be an open sheet, and a cloth has no inside
     // to cull away; without a material of its own it draws both sides.
-    surface.double_sided |= reference.is_empty() && slot.solved.is_some();
+    if reference.is_empty() && slot.solved.is_some() {
+        surface.double_sided = Some(true);
+    }
     if slot.surface != Some(surface) {
         apply_surface(&mut slot.node, &surface);
         slot.surface = Some(surface);
     }
     let builtin = crate::material::builtin_of(&app.engine, reference);
-    if slot.overlay != Some(renderable.overlay) {
-        crate::overlay::apply_3d(&mut slot.node, &renderable.overlay);
+    if slot.overlay != Some((renderable.overlay, *debug)) {
+        crate::overlay::apply_3d(&mut slot.node, renderable.overlay, debug);
         // A skinned mesh is posed in Balaur's vertex stage, and a companion
         // sharing its rest geometry would draw the lines where it stood.
         let pipeline = !reference.is_empty() && builtin.is_none() && slot.palette.is_none();
         crate::overlay::companion_3d(
             &mut slot.node,
             &mut slot.companion,
-            &renderable.overlay,
+            renderable.overlay,
+            debug,
             pipeline,
         );
-        slot.overlay = Some(renderable.overlay);
+        slot.overlay = Some((renderable.overlay, *debug));
     }
     if slot.builtin != builtin {
         crate::builtin_material::apply(
@@ -897,12 +907,15 @@ fn drop_unseen(slots: &mut HashMap<Entity, Slot>, seen: &HashSet<Entity>) {
 pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::Surface) {
     use crate::material::{AlphaMode, TraceSurface};
     node.set_alpha_mode(match surface.alpha {
-        AlphaMode::Opaque => kiss3d::scene::AlphaMode::Opaque,
+        AlphaMode::Auto | AlphaMode::Opaque => kiss3d::scene::AlphaMode::Opaque,
         AlphaMode::Mask => kiss3d::scene::AlphaMode::Mask(surface.alpha_cutoff),
-        AlphaMode::Blend => kiss3d::scene::AlphaMode::Blend,
+        AlphaMode::Blend | AlphaMode::Add | AlphaMode::Multiply | AlphaMode::Screen => {
+            kiss3d::scene::AlphaMode::Blend
+        }
         AlphaMode::Premultiplied => kiss3d::scene::AlphaMode::Premultiplied,
     });
-    node.enable_backface_culling(!surface.double_sided);
+    node.enable_backface_culling(!surface.double_sided_or(false));
+    node.set_depth_test(surface.depth_test);
     // A mirror owns a render target the window resizes and draws into, so
     // one is made when the surface says so and dropped when it stops.
     let [x, y, z] = surface.mirror_normal;

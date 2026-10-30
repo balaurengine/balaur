@@ -6,7 +6,7 @@ fn double(x: int) -> int { x * 2 }
 fn square(x: int) -> int { x * x }
 fn longer(a: str, b: str) -> bool { a.len() > b.len() }
 fn apply(f: fn(int) -> int, x: int) -> int { f(x) }
-pub struct Picker { pick: fn(int) -> int }
+pub class Picker { pick: fn(int) -> int }
 impl Picker {
     pub fn run(x: int) -> int {
         let f = self.pick;

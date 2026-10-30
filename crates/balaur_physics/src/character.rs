@@ -36,85 +36,71 @@ pub(crate) fn shared_character_schema() -> String {
     let sensors = w::SENSORS;
     v::schema(&[
         (
-            k::SAFE_MARGIN,
-            r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }"#,
-        ),
-        (
             k::SLIDE,
             r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#,
-        ),
-        (
-            k::STEP_HEIGHT,
-            r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }"#,
-        ),
-        (
-            k::STEP_MIN_WIDTH,
-            r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }"#,
-        ),
-        (
-            k::STEP_ON_DYNAMIC,
-            r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }"#,
-        ),
-        (
-            k::FLOOR_MAX_ANGLE,
-            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 90.0, unit = "degrees", description = "The steepest slope the character may walk up; radians in the file, degrees in the inspector" }"#,
-        ),
-        (
-            k::MIN_SLIDE_ANGLE,
-            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 90.0, unit = "degrees", description = "The shallowest slope the character slides back down; radians in the file, degrees in the inspector" }"#,
-        ),
-        (
-            k::FLOOR_SNAP_LENGTH,
-            r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }"#,
-        ),
-        (
-            k::NORMAL_NUDGE,
-            r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }"#,
         ),
         (
             k::PUSH_BODIES,
             r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#,
         ),
+        (k::LENGTHS, &lengths()),
+        (
+            k::FLOOR_MAX_ANGLE,
+            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 90.0, unit = "degrees", description = "The steepest slope the character may walk up; radians in the file, degrees in the inspector", group = "floor" }"#,
+        ),
+        (
+            k::MIN_SLIDE_ANGLE,
+            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 90.0, unit = "degrees", description = "The shallowest slope the character slides back down; radians in the file, degrees in the inspector", group = "floor" }"#,
+        ),
+        (
+            k::FLOOR_SNAP_LENGTH,
+            r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off", group = "floor" }"#,
+        ),
+        (
+            k::STEP_HEIGHT,
+            r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off", group = "steps" }"#,
+        ),
+        (
+            k::STEP_MIN_WIDTH,
+            r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed", group = "steps" }"#,
+        ),
+        (
+            k::STEP_ON_DYNAMIC,
+            r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones", group = "steps" }"#,
+        ),
+        (
+            k::SAFE_MARGIN,
+            r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall", group = "contacts" }"#,
+        ),
+        (
+            k::NORMAL_NUDGE,
+            r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams", group = "contacts" }"#,
+        ),
+        (
+            k::PUSH_MASS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body", group = "contacts" }"#,
+        ),
         (
             k::IGNORE,
             &format!(
-                r#"{{ type = "flags", default = ["{sensors}"], options = [{ignores}], description = "What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest" }}"#
+                r#"{{ type = "flags", default = ["{sensors}"], options = [{ignores}], description = "What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest", group = "filtering" }}"#
             ),
         ),
         (
             k::IGNORE_NODES,
-            r#"{ type = "list", of = { type = "node" }, default = [], description = "Nodes a move passes through: their colliders, and every collider on their body" }"#,
-        ),
-        (
-            k::PUSH_MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body" }"#,
-        ),
-        (
-            k::SAFE_MARGIN_LENGTHS,
-            &length(k::SAFE_MARGIN, "the height along up_direction"),
-        ),
-        (
-            k::STEP_HEIGHT_LENGTHS,
-            &length(k::STEP_HEIGHT, "the height along up_direction"),
-        ),
-        (
-            k::STEP_MIN_WIDTH_LENGTHS,
-            &length(k::STEP_MIN_WIDTH, "the width across up_direction"),
-        ),
-        (
-            k::FLOOR_SNAP_LENGTHS,
-            &length(k::FLOOR_SNAP_LENGTH, "the height along up_direction"),
+            r#"{ type = "list", of = { type = "node" }, default = [], description = "Nodes a move passes through: their colliders, and every collider on their body", group = "filtering" }"#,
         ),
     ])
 }
 
 /// The schema line of one `*_lengths` key: whether `key` is in world units or
 /// a fraction of the character's own extent, as rapier measures that length.
-fn length(key: &str, extent: &str) -> String {
+/// It sits in `key`'s `group`, beside the length it measures.
+fn lengths() -> String {
     let modes = v::options(w::LENGTH_MODES);
     let absolute = w::ABSOLUTE;
     format!(
-        r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether {key} is in world units or a fraction of the character's shape: relative is measured against {extent}" }}"#
+        r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether floor_snap_length, step_height, step_min_width and safe_margin are world units or fractions of the character's shape: relative measures the width across up_direction for step_min_width, and the height along it for the rest" }}"#
     )
 }
 

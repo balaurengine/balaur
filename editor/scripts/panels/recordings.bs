@@ -1,7 +1,7 @@
 // The Recordings tab's one script: it has the Editor fill a row a recording
 // when one is made, kept or dropped, and answers the verify switch.
 
-pub struct Recordings {
+pub class Recordings {
     node: Node,
     editor: Node,
 }

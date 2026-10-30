@@ -142,7 +142,7 @@ text = ""
 visible = false
 sortable = true
 row_height = 18
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 titles = ["template", "what it makes", "the command it is made with"]
 widths = ["1", "1.6", "2"]
 

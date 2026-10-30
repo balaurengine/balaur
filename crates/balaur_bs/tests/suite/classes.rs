@@ -1,4 +1,4 @@
-use super::{compile_error, run};
+use super::{call, compile_error, run};
 use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
 
@@ -23,7 +23,7 @@ impl Gizmo {
     fn reset() { self.drag = nil; }
 }
 
-pub struct Editor { s: State, said: str }
+pub class Editor { s: State, said: str }
 impl Editor {
     pub fn init() {
         self.s = fresh();
@@ -75,7 +75,7 @@ fn a_class_is_passed_as_one_value() {
         .collect::<Vec<_>>()
         .join(", ");
     let src = format!(
-        "pub class Big {{ {wide} }}\nfn touch(b: Big) {{ b.f7 += 1; }}\npub struct E {{ b: Big? }}\nimpl E {{ pub fn go() {{ }} }}\n"
+        "pub class Big {{ {wide} }}\nfn touch(b: Big) {{ b.f7 += 1; }}\npub class Keeper {{ big: Big? }}\nimpl Keeper {{ pub fn go() {{ }} }}\n"
     );
     let c = compile(&src, &Options::default()).unwrap();
     let mut widest = 0;
@@ -100,14 +100,14 @@ fn a_class_is_passed_as_one_value() {
 fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     let v1 = r#"
         pub class Doc { name: str, rev: int }
-        pub struct Editor { doc: Doc }
+        pub class Editor { doc: Doc }
         impl Editor {
             pub fn edit() { self.doc.rev += 1; self.doc.name = "a"; }
         }
     "#;
     let v2 = r"
         pub class Doc { name: str, rev: int, saved: bool = true }
-        pub struct Editor { doc: Doc }
+        pub class Editor { doc: Doc }
         impl Editor {
             pub fn edit() { self.doc.rev += 10; }
         }
@@ -138,18 +138,27 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     );
     rt.drop_object(e);
     assert_eq!(rt.live(), 0);
-    assert!(
-        rt.object("Doc", &[]).is_err(),
-        "a class is no script's own object"
-    );
+}
+
+// A script's own object lives in the module, so a call copies nothing in or
+// out of it: a struct, which a call would copy, is refused.
+#[test]
+fn a_scripts_own_object_is_a_class() {
+    let mut rt = run("pub struct Plain { count: int }\npub class Shared { count: int }\n");
+    let refused = rt.object("Plain", &[]).unwrap_err();
+    assert!(refused.msg.contains("`pub class Plain`"), "{}", refused.msg);
+    let shared = rt.object("Shared", &[("count", Value::Int(4))]).unwrap();
+    assert_eq!(rt.get(&shared, "count"), Some(Value::Int(4)));
+    rt.drop_object(shared);
+    assert_eq!(rt.live(), 0);
 }
 
 #[test]
 fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
     let src = r#"
         pub class P { x: int, tags: [str] }
-        pub struct E { said: str }
-        impl E {
+        pub class Packer { said: str }
+        impl Packer {
             pub fn go() {
                 let p = P { x: 3, tags: ["a"] };
                 let held: any = p;
@@ -163,13 +172,13 @@ fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
     "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut e = rt.object("E", &[]).unwrap();
-    rt.call_method(&mut e, "go", &[]).unwrap();
+    let mut packer = rt.object("Packer", &[]).unwrap();
+    rt.call_method(&mut packer, "go", &[]).unwrap();
     assert_eq!(
-        rt.get(&e, "said"),
+        rt.get(&packer, "said"),
         Some(Value::Str(r#"3 4 13 true {"x": 4, "tags": ["a"]}"#.into()))
     );
-    rt.drop_object(e);
+    rt.drop_object(packer);
     assert_eq!(rt.live(), base);
 }
 
@@ -231,4 +240,83 @@ fn only_a_class_may_hold_itself_through_an_optional() {
     assert!(e.contains("make it `N?`"), "{e}");
     let ok = compile("pub class N { next: N?, kids: [N] }", &Options::default());
     assert!(ok.is_ok(), "{:?}", ok.err());
+}
+
+// A script's own object is a class, so `self.node` is read out of memory:
+// its component's property is still the engine's to read and write.
+#[test]
+fn a_class_reaches_its_nodes_components() {
+    use balaur_bs::{HostApi, Ty};
+    let host_api = HostApi {
+        components: vec![(
+            "transform".into(),
+            vec![("position".into(), Ty::Struct("Vec3".into()))],
+        )],
+        ..HostApi::default()
+    };
+    let src = "pub class Ball { node: Node, seen: float }
+impl Ball {
+    pub fn update() {
+        self.seen = self.node.transform.position.y;
+        self.node.transform.position = vec3(1.0, self.seen + 1.0, 0.0);
+    }
+}
+";
+    let options = Options {
+        host: host_api,
+        ..Options::default()
+    };
+    let compiled = compile(src, &options).unwrap_or_else(|error| panic!("{error}"));
+    let set = std::rc::Rc::new(std::cell::RefCell::new(vec![]));
+    let wrote = set.clone();
+    let host = HostFns::default().engine(move |key, args, _| match key {
+        "transform.position.get" => Ok(Value::Struct(
+            "Vec3".into(),
+            vec![
+                ("x".into(), Value::Float(0.0)),
+                ("y".into(), Value::Float(2.5)),
+                ("z".into(), Value::Float(0.0)),
+            ],
+        )),
+        "transform.position.set" => {
+            wrote.borrow_mut().push(args[1].clone());
+            Ok(Value::Void)
+        }
+        other => Err(format!("no {other}")),
+    });
+    let mut rt = Runtime::new(&compiled, host, Limits::default()).unwrap();
+    let mut ball = rt.object("Ball", &[("node", Value::Node(7))]).unwrap();
+    rt.call_method(&mut ball, "update", &[]).unwrap();
+    assert_eq!(rt.get(&ball, "seen"), Some(Value::Float(2.5)));
+    let Value::Struct(_, fields) = &set.borrow()[0] else {
+        panic!("the position was not written");
+    };
+    assert_eq!(fields[1], ("y".to_string(), Value::Float(3.5)));
+    rt.drop_object(ball);
+    assert_eq!(rt.live(), 0);
+}
+
+// A spec is a struct: a literal names what differs from the declared
+// defaults, and an optional field it leaves out is nil.
+#[test]
+fn a_struct_literal_leaves_out_what_has_a_default() {
+    let mut rt = run(
+        r#"pub struct Label { kind: str = "label", size: int = 3, text: str, tip: str? }
+pub fn plain() -> str {
+    let label = Label { text: "hi" };
+    "{label.kind} {label.size} {label.text} {label.tip.is_none()}"
+}
+pub fn sized() -> int { Label { text: "x", size: 9 }.size }
+"#,
+    );
+    assert_eq!(
+        call(&mut rt, "plain", &[]),
+        Value::Str("label 3 hi true".into())
+    );
+    assert_eq!(call(&mut rt, "sized", &[]), Value::Int(9));
+    let missing = compile_error("pub struct Label { text: str }\npub fn f() { let l = Label {}; }");
+    assert!(
+        missing.contains("missing field `text` of Label"),
+        "{missing}"
+    );
 }

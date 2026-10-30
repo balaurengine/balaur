@@ -1,7 +1,8 @@
-// The text edit field's one script: up where a text node was double-clicked,
-// it hands what is typed to the Editor, Enter keeps it, and a blur drops it.
+// The text edit field's one script: up over a text node double-clicked or
+// added, it hands what is typed to the Editor. Enter or a click away submits
+// it, which keeps it; Escape is a blur alone, which drops it.
 
-pub struct Textedit {
+pub class Textedit {
     node: Node,
     editor: Node,
     open: bool,
@@ -22,7 +23,7 @@ impl Textedit {
         let field = self.node.get_node("Field");
         if view.get("open") && !self.open {
             self.node.patch_component("widget", map().with("visible", true).with("x", view.get("x")).with("y", view.get("y")));
-            field.patch_component("widget", map().with("text", view.get("text")).with("width", view.get("w").as_float() - 20.0));
+            field.patch_component("widget", map().with("text", view.get("text")).with("width", view.get("width").as_float() - 20.0).with("font_size", view.get("size")));
             ui::set_focus(field);
         } else if !view.get("open").as_bool() {
             self.node.patch_component("widget", map().with("visible", false));

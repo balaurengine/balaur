@@ -1,11 +1,11 @@
 //! The neutral value type and its conversions.
 //!
-//! Every binding argument in the engine passes through these, in both
-//! languages, so a mistake here is a mistake everywhere at once.
+//! Every binding argument in the engine passes through these, so a
+//! mistake here is a mistake everywhere at once.
 
 use balaur_script::{
-    Bindings, BindingsExt, CallbackId, FromArg, FromArgs, IntoValue, NoBindings, NodeId, Value,
-    expect_arity,
+    Args, Bindings, BindingsExt, CallbackId, FromArg, FromArgs, IntoValue, NoBindings, NodeId,
+    Value, expect_arity,
 };
 
 #[test]
@@ -140,22 +140,38 @@ fn bindings_forward_through_references_and_boxes() {
     by_ref.function("via_ref", |_: &Host, ()| Ok(()));
 }
 
+// A backend's arguments are read where they lie: a number and a string
+// never become values, and a nil is seen without building one.
 #[test]
-fn taking_an_argument_moves_it_and_leaves_nil() {
-    let table = Value::Map(vec![("height".into(), Value::Int(24))]);
-    let mut args = [Value::Str("name".into()), table.clone()];
-    let (name, opts) = <(String, Option<Value>)>::take_args(&mut args).unwrap();
-    assert_eq!(name, "name");
-    assert_eq!(opts, Some(table));
-    assert_eq!(args, [Value::Nil, Value::Nil]);
+fn typed_arguments_read_without_building_values() {
+    struct Slots;
+    impl Args for Slots {
+        fn len(&self) -> usize {
+            4
+        }
+        fn int(&self, index: usize) -> Option<i64> {
+            (index == 0).then_some(3)
+        }
+        fn num(&self, index: usize) -> Option<f64> {
+            (index == 1).then_some(1.5)
+        }
+        fn text(&self, index: usize) -> Option<&str> {
+            (index == 2).then_some("name")
+        }
+        fn is_nil(&self, index: usize) -> bool {
+            index >= 3
+        }
+        fn value(&self, index: usize) -> Value {
+            panic!("argument {index} was built as a value")
+        }
+    }
+    let read = <(i64, f32, String, Option<Value>)>::read_args(&Slots).unwrap();
+    assert_eq!(read, (3, 1.5, "name".to_string(), None));
 }
 
 #[test]
-fn taking_reads_what_borrowing_reads() {
-    let mut args = [Value::Int(3), Value::Nil, Value::Bool(true)];
-    let taken = <(i64, Option<String>, bool)>::take_args(&mut args).unwrap();
-    assert_eq!(taken, (3, None, true));
-    let err = String::take_arg(Some(&mut Value::Int(1))).unwrap_err();
+fn a_value_of_the_wrong_kind_names_both() {
+    let err = String::from_arg(Some(&Value::Int(1))).unwrap_err();
     assert!(
         err.to_string().contains("expected string, got int"),
         "{err}"

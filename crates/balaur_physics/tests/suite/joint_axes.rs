@@ -311,7 +311,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -326,8 +326,8 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         self.node.joint3d.set_joint_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
         self.node.joint3d.set_motor_velocity(physics3d::AXIS_ROTATION_X, 0.0, 0.5);
@@ -396,7 +396,7 @@ id = "n_lower"
 name = "Lower"
 parent = "n_world"
 bodyDIM = { kind = "dynamic", gravity_scale = 0.0 }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [2.0, 0.0, 0.0]
@@ -424,8 +424,8 @@ fn arm_2d() -> String {
 }
 
 /// Logs the distance left to the target as an error the harness collects.
-const ARM_SCRIPT: &str = r#"pub struct S { node: Node, ticks: int }
-impl S {
+const ARM_SCRIPT: &str = r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {

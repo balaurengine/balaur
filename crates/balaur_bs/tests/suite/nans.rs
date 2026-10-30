@@ -12,7 +12,7 @@ const ODD: u64 = 0xfff8_0000_0000_0001;
 
 const SRC: &str = r"
 extern fn take(x: float);
-pub struct Holder { x: float }
+pub class Holder { x: float }
 impl Holder {
     pub fn fill(v: float) { self.x = v + 1.0; }
 }
@@ -61,6 +61,7 @@ fn handed_out(engine: EngineKind, c: &Compiled) -> Vec<u64> {
     rt.call_method(&mut h, "fill", &[odd]).unwrap();
     floats(&rt.get(&h, "x").unwrap(), &mut out);
     out.extend(taken.borrow().iter());
+    rt.drop_object(h);
     assert_eq!(rt.live(), 0);
     out
 }

@@ -434,8 +434,9 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let style = at.style_of(&widget);
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
-    let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget);
-    let slant = crate::widget::theme::slanted(&style, &widget);
+    let project = at.arena[index].project;
+    let (color, font) = crate::widget::theme::face(&at.theme, &style, (&widget, project));
+    let slant = crate::widget::theme::slanted(&style, (&widget, project));
     let gap = gap_of(&widget, &style);
 
     // The page each strip button stands for, read before the strip borrows

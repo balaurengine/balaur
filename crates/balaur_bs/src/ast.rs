@@ -21,6 +21,10 @@ pub enum Ty {
     /// `fn(A, B) -> R`: a function named elsewhere, called later; no captures.
     /// Parameters, result, and which parameters are `&mut`.
     Fn(Vec<Ty>, Box<Ty>, Vec<bool>),
+    /// `{ str: V }` or `{ int: V }`: a key's value, built in. Only the parser and
+    /// the linker see one: before code is made each is the class the prelude's
+    /// map is made into for that pair (`crate::maps`).
+    Map(Box<Ty>, Box<Ty>),
 }
 
 impl Ty {
@@ -84,6 +88,8 @@ pub(crate) enum ExprKind {
     StructLit(String, Vec<(String, Expr)>),
     ArrayLit(Vec<Expr>),
     ArrayRepeat(Box<Expr>, Box<Expr>),
+    /// `{k: v, ..}`, typed by where it goes.
+    MapLit(Vec<(Expr, Expr)>),
     If(Box<Expr>, Block, Option<Block>),
     Cast(Box<Expr>, Ty),
     Await(Box<Expr>),
@@ -203,4 +209,8 @@ pub(crate) struct Program {
     pub linked: Vec<String>,
     /// A linked function's key, and the file it came from.
     pub origin: Vec<(String, String)>,
+    /// A linked class's name, and the file that declares it.
+    pub class_origin: Vec<(String, String)>,
+    /// Functions compiled in only once a call reaches them: the prelude's.
+    pub lazy: Vec<FnDecl>,
 }

@@ -43,7 +43,7 @@ fn move_every_instance(c: &mut Criterion) {
     .unwrap();
     components::add(&app.engine, entity, "multimesh3d", Some(&params)).unwrap();
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(entity), "s.bs")
+    host.attach(balaur_core::node_id_of(entity), "bench.bs")
         .unwrap();
     group.bench_function("set_buffer", |b| b.iter(|| host.update(1.0 / 60.0)));
     group.finish();

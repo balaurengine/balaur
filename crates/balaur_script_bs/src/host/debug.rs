@@ -72,7 +72,7 @@ impl BsHost {
                 if let Err(e) = ScriptHost::reload(self, &key) {
                     tracing::error!("{e:#}");
                 }
-            } else if let Ok(mut rt) = file.rt.try_borrow_mut() {
+            } else if let Ok(mut rt) = file.home.rt.try_borrow_mut() {
                 rt.debugger().keep_locals(on);
             }
         }
@@ -138,6 +138,7 @@ impl BsHost {
         args: &[L],
     ) -> Result<Option<Value>> {
         let mut rt = file
+            .home
             .rt
             .try_borrow_mut()
             .map_err(|_| anyhow!("[{}] {method}: the file is busy", inst.path))?;
@@ -195,7 +196,7 @@ impl BsHost {
             return Ok(lines.to_vec());
         };
         let landed = landed(&file.compiled, lines);
-        let mut rt = file.rt.borrow_mut();
+        let mut rt = file.home.rt.borrow_mut();
         let mut debugger = rt.debugger();
         debugger.clear_breakpoints();
         for line in &landed {
@@ -224,7 +225,7 @@ impl BsHost {
                 continue;
             }
             if let Some(file) = self.inner.files.borrow().get(&key) {
-                file.rt.borrow_mut().debugger().pause();
+                file.home.rt.borrow_mut().debugger().pause();
             }
         }
     }
@@ -235,7 +236,7 @@ impl BsHost {
         match &held.stop {
             Stop::Parked { .. } => {
                 let file = self.inner.files.borrow().get(&held.path).cloned()?;
-                let paused = file.rt.borrow().paused()?;
+                let paused = file.home.rt.borrow().paused()?;
                 Some(pause_of(held, &paused, String::new()))
             }
             Stop::Error { paused, message } => Some(pause_of(held, paused, message.clone())),
@@ -255,7 +256,7 @@ impl BsHost {
             self.inner.engine.set_frozen(false);
             return;
         };
-        let mut rt = file.rt.borrow_mut();
+        let mut rt = file.home.rt.borrow_mut();
         let step = match &mut task {
             Some(p) => rt.resume_task(command(mode), &mut p.task, Some(&mut obj)),
             None => rt.resume(command(mode), &mut obj),

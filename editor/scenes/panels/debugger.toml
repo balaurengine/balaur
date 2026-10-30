@@ -128,7 +128,7 @@ parent = "panel"
 kind = "tree"
 grow = 1
 text = ""
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 visible = false
 
 [nodes.widget.touch]

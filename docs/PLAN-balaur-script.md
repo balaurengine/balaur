@@ -6,6 +6,8 @@
 > template, `bs-web` on the web). Desktop and Android run it on wasmtime, at
 > 1.5 times Rust; an iOS export compiles it to native code, at 1.1 to 1.3. hello's `scripts/spinner.bs` turns its spinner to the bit
 > its Rune original did, from source, from an export pack and as native code.
+> §9, everything a script does at native cost and not only its arithmetic,
+> planned 2026-10-27; step 1 is built.
 
 # Plan: Balaur Script, a scripting language compiled to WebAssembly
 
@@ -24,7 +26,7 @@ extern fn action_just_pressed(name: str) -> bool;
 extern fn set_rotation_euler(node: Node, x: float, y: float, z: float);
 extern async fn wait(seconds: float);
 
-pub struct Spinner { node: Node, speed: float, angle: float, direction: float }
+pub class Spinner { node: Node, speed: float, angle: float, direction: float }
 
 impl Spinner {
     pub fn update(dt: float) {
@@ -53,6 +55,8 @@ impl Spinner {
 | `int` meets `float` as `float` with no cast; `as` for the rest | |
 | `"hp {self.hp}"` interpolation, `+` on strings, `==` on strings | |
 | array literals, `[v; n]`, `push`, `pop`, `len`, `arr[i].x += 1` | |
+| struct literals naming what differs: a field left out takes its declared default, or nil when it is optional | |
+| `{ str: V }` and `{ int: V }`: `{ "a": 1 }` where one is wanted, `m[k]` as a `V?`, `m[k] = v`, `m[k] += 1` (a missing key traps), `has`, `remove`, `len`, `keys` and `values` in the order keys were first set; a `{ str: V }` goes into an `any` and back | a key of another type; a `V?` value |
 | `async fn`, `await` on host calls and on script async fns, with values | |
 | `sqrt`, `abs`, `floor`, `ceil`, `min`, `max` native; `sin` … `pow` through `libm` | |
 
@@ -83,12 +87,24 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
 
 ## 3. Host and state
 
-- `&mut self` is copy-in, copy-out: the host holds each object's fields and a
-  method hands them back. A reload is a new instance plus a copy of each field
-  that kept its name and type; strings and arrays are copied across memories.
-- The compiler emits `Struct.method$batch(base, count, args)` for a public
-  method with plain arguments: one host call runs it over every instance laid
-  out in wasm memory.
+- A node's script is the `class` named after its file: the host holds its
+  object's pointer, and a method changes the object where it lives, so a
+  call copies nothing in or out (§9 step 3). A reload is a new instance plus
+  a copy of each field that kept its name and type; strings and arrays are
+  copied across memories, and a field that held another script's object
+  holds that object's replacement.
+- Every script of a project is a unit of one instance (§9 step 4), so one
+  script holds another's object as its class:
+  `let tree: scene_tree::SceneTree? = node.script;` is the node's object
+  when it runs that file's class, else nil, and a call on it is a direct
+  call. `node.script` read with no class wanted does not compile. A file
+  built whole, for a debugger, a profiler, a browser or a native export,
+  is an instance of its own, where `node.script` finds only its own file's
+  nodes. Two scripts holding each other is a cycle the counts never free.
+- The compiler emits `Class.method$batch(base, count, args)` for a public
+  method with plain arguments: one host call runs it over `count` objects
+  whose pointers sit at `base`, for each run of nodes in scene order sharing
+  a script.
 - A host call borrows its string arguments. A string or array it returns is
   allocated in the module by calling the module's own allocator back from
   inside the host call, and the script owns it.
@@ -98,7 +114,7 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
   release, reload and the debugger read it like a string. Ints, floats,
   bools, strings, nodes and `[any]` box into one where one is wanted; a
   script reads it with `kind`, `as_int`, `get`, `at`, `a["k"]`, `a[0]` and
-  the rest, and builds one with `map().with("k", v)`. `get` and `at` share
+  the rest, and builds one with `map().with("k", v)` until §9 step 5. `get` and `at` share
   the child cell rather than copying it. `m.set("k", v)` and `l.push(v)`
   change a map or a list in place, so every holder of it sees the change;
   on nil or another kind they return false and change nothing.
@@ -311,7 +327,7 @@ and 0.17 ms on wasmi. The spike's harness is outside the tree.
 5. **The language's gaps.** Done: `insert` and `remove` on arrays, and on
    strings `contains`, `starts_with`, `ends_with`, `find`, `slice`, `to_upper`,
    `to_lower`, `trim`, `replace`, `split`, `parse_int` and `parse_float`, run by
-   the host in `src/strings.rs`, `any` (§3), awaits that hand back strings,
+   the host in `src/strings.rs` until §9 step 1, `any` (§3), awaits that hand back strings,
    arrays and `any`, and strings inside a `{..}` interpolation, and `set`
    and `push` on an `any` in place. Tasks across a reload are not planned
    (§4).
@@ -336,6 +352,129 @@ and 0.17 ms on wasmi. The spike's harness is outside the tree.
 7. **The GDScript translator**, retargeted from Rune.
 8. **The editor**, after the widget kinds of `docs/PLAN-editor-performance.md`
    have taken its per-row work into Rust.
+
+## 9. Native efficiency
+
+Typed code is native code: a loop, a struct's field, a class's field and a
+call between script functions cost what they cost in Rust (§7). Everything
+a script does through an `any`, a string's method, a conversion, the engine
+or another script does not, and the editor is written mostly in that part.
+
+Measured 2026-10-27 on wasmtime, macOS: instructions retired per operation,
+an empty run subtracted. Before is the editor build of `a8f03337`; after
+step 1 is the compiler's suite with the prelude in.
+
+| operation | before | after step 1 |
+| --- | ---: | ---: |
+| two struct field writes and a loop step | 14 | |
+| a class field write | 10 | |
+| a script function call | 15 | |
+| `"ab" + "cd"`, then `==` | 1,400 | 440 |
+| `s.contains(t)` | 5,200 | 2,700 |
+| `a.get(k)` on a map of 8 | 19,000 | 1,400 |
+| `a.set(k, v)` | 30,000 | 1,400 |
+| `a.with(k, v)` on a map of 8 | 176,000 | 6,500 |
+| `a.with(k, v)` on a map of 32 | 593,000 | |
+| a map of 8 keys built with `with` | 1,054,000 | 35,000 |
+| a struct into an `any` | 90,000 | 2,500 |
+| an `any` into a struct | 36,000 | 5,200 |
+| `engine::time()` | 2,000 | |
+| `node.transform.position = v` | 10,000 | |
+| `node.text2d.text = s` | 68,000 | |
+| reading `node.text2d.text` | 66,000 | |
+
+After step 1 nothing in the table calls out but the engine rows. What is
+left inside the module is reference counting: a script function owns its
+arguments, so each call into the prelude counts a string up and down, and a
+key is found by comparing every key. Step 5's maps and the compiler not
+counting a borrowed argument take it the rest of the way.
+
+Where it goes:
+
+- **The host answers by name.** `any` methods, string methods and conversions
+  are imports (`runtime/anys.rs`, `strings.rs`, `runtime/host.rs`): the host
+  reads the value out into Rust and writes the answer back in. `with` reads
+  the whole map, nested maps too, and writes all of it back; comparing a key
+  allocates a `String`; a conversion parses its type from text.
+- **Every string handed back is a call back in**, to the module's `__alloc`,
+  looked up by name through wasmtime's untyped `Func::call`.
+- **An engine call converts three times**: module memory to `L`, `L` to the
+  neutral `Value`, `Value` to the component's table. A property write is
+  `patch_component` with a one-key table; a read is `get_component` by name.
+- **`self` is copied** in and out of a struct's method (§3).
+- **Each script is an instance of its own** (PLAN-bs-linking), so a call to
+  another script is `node.call`, its arguments deep-copied through the
+  neutral `Value`. The editor is about 40 such scripts.
+- **A browser's host reads module memory through JavaScript**, a `Uint8Array`
+  for each read (`runtime/web_engine.rs`).
+
+The rule: a module calls out only to touch the engine or for a pure
+function the host keeps (maths, number text), and that is one typed call. The steps, each leaving the suite green and measured against
+the table:
+
+1. **The prelude is the standard library.** The prelude (`src/prelude/`)
+   gains the string and `any` methods, written in `.bs` on a few built-ins
+   only the prelude may call: a string's byte, a new string, a cell's parts.
+   `s.m(..)` calls `str::#m`, the private name `prefix` gives a module's
+   function, and a program compiles in only the ones it names. A conversion
+   between a typed value and an `any` is a function generated per type, as a
+   release is. Case mapping reads tables `build.rs` writes from Rust's own.
+   `strings.rs`, the host half of `anys.rs`, `__box` and `__unbox` go.
+   Number text, in and out, stays the host's beside `sin` and `pow`: a pure
+   function with no state, which step 2 makes a cheap call. Rust's
+   shortest round-trip needs bit operations the language does not have, and
+   a big-number version costs more than the call.
+2. **One typed engine interface.** A binding registered with Rust types
+   reads its arguments where the script left them (`balaur_script::Args`,
+   `runtime/args.rs`): a number, a flag or a node from its slot, a string
+   borrowed; only an argument of another kind becomes a `Value`, which stays
+   the engine's value for open data, as an `any` is the script's. A string or
+   array the engine hands back is written through the module's allocator,
+   bound once. wasmtime calls each import through raw slots, nothing
+   converted. `Mixed`, which ran `.bs` beside Rune, goes with the old copy.
+   What a property read or write costs is the component's whole table until
+   the derive gives it an index (step 8 below, PLAN-property-types §5).
+3. **State lives in the module.** Built: a node's script is the class named
+   after its file (`spinner.bs`'s `Spinner`), which replaces "its first
+   struct with methods". The host holds the object's pointer and copies
+   nothing in or out, so a call back into the same node needs no second
+   holder. The engine runs `update` through the `$batch` exports, one call
+   for each run of nodes in scene order that share a script.
+4. **One instance per project.** Built: PLAN-bs-linking's units, made once
+   for the project rather than once per script: one memory, one table. A
+   call to another script goes through a link slot, typed by a checked
+   cast: `let tree: scene_tree::SceneTree? = node.script;`. `node.call`
+   stays only between instances: the editor and a plugin, the editor and
+   the game it plays.
+5. **A stricter language.**
+   - An `any` holds data from outside: a file, the network, TOML, JSON, a
+     plugin's payload. The 405 engine functions that take or give an `any`
+     get records, but where the data is open: a reply's body, a gamend
+     record, JSON.
+   - `map()` and `with` go. A spec is a struct, and a struct literal leaves
+     out the fields that have defaults (built 2026-10-28: a declared
+     default, or nil for an optional field).
+   - `{ str: T }` and `{ int: T }` are maps as `[T]` is a list: built in, typed,
+     a hash table in the module, the property schema's `map`
+     (PLAN-property-types §1). An `any` map is a `{ str: any }`. Built
+     2026-10-28: each pair a program names is the prelude's `map.bs` made
+     for it, a class compiled in as the program's own (`crate::maps`); a
+     read costs under half an `any` map's, with no call out.
+   - A script calls another by its type, never by a method's name in a
+     string.
+6. **The derive's index.** `node.c.p` resolves at load to the component and
+   the property's index in its schema (PLAN-property-types §5): a read or a
+   write of one field. A component or property the schema lacks does not
+   compile.
+7. **The editor runs native.** CI builds the editor's scripts through §7a's
+   C into the editor. A project's scripts stay on the JIT while edited and go
+   native at export. A browser keeps its own engine.
+8. **Budgets.** `tests/suite/budgets.rs` holds, per operation, the fuel
+   wasmi charges and the host calls made, and CI gates on it (QUALITY.md
+   §Performance).
+
+Targets once step 5 is in: `any.get` about 50 instructions, a string search
+tens, an engine call about 50, a property write about 150.
 
 ## Open questions
 

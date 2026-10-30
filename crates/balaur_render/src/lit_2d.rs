@@ -1,107 +1,68 @@
-//! Normal-mapped 2D lighting: a `sprite` or `shape2d` naming a `normal_map`
-//! draws with kiss3d's `LitMaterial2d`, lit per pixel by every `light2d`.
+//! Normal-mapped 2D lighting: a `sprite` or `shape2d` whose material has no
+//! shader and a `normal` map draws with kiss3d's `LitMaterial2d`, lit per
+//! pixel by every `light2d`.
 //!
 //! Such a node lights itself, so the 2D order puts it after the light map's
 //! composite, as it does particles: it draws over every node the light map
 //! lit, whatever its `z_index`. kiss3d's light set is one per thread, so every
 //! camera sees the same lights, and none of them casts a shadow on it.
 
-use crate::vocabulary::keys as k;
-use balaur_core::components::{prop_f32, prop_str};
-
 /// What a normal-mapped node draws with.
+#[cfg(feature = "window")]
 #[derive(Clone, Debug, PartialEq)]
-pub struct Lit2d {
-    pub normal_map: String,
-    pub specular_strength: f32,
-    pub shininess: f32,
-    pub normal_strength: f32,
+pub(crate) struct Lit2d {
+    pub(crate) normal_map: String,
+    pub(crate) specular_strength: f32,
+    pub(crate) shininess: f32,
+    pub(crate) normal_strength: f32,
 }
 
-/// The rows a drawable that `LitMaterial2d` can draw appends to its schema.
-pub(crate) fn rows() -> Vec<(&'static str, String)> {
-    vec![
-        (
-            k::NORMAL_MAP,
-            format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "A tangent-space normal map: the node then draws lit per pixel by every `light2d`, after the light map and over what it lit, with no shadow. Empty leaves it to the light map. Give the image `srgb = false`" }}"#,
-                balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-            ),
-        ),
-        (
-            k::SPECULAR_STRENGTH,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "How bright a light's highlight is on a normal-mapped node; zero draws none" }"#.to_string(),
-        ),
-        (
-            k::SHININESS,
-            r#"{ type = "float", default = 16.0, min = 1.0, description = "How tight the highlight is on a normal-mapped node; higher is smaller and sharper" }"#.to_string(),
-        ),
-        (
-            k::NORMAL_STRENGTH,
-            r#"{ type = "float", default = 1.0, min = 0.0, description = "How far the normal map bends the surface; zero lights it flat" }"#.to_string(),
-        ),
-    ]
-}
-
-/// The lit settings `params` asks for; `None` when it names no normal map.
-pub(crate) fn from_params(params: &toml::Value) -> Option<Lit2d> {
-    let normal_map = prop_str(params, k::NORMAL_MAP);
-    (!normal_map.is_empty()).then(|| Lit2d {
-        normal_map: normal_map.to_string(),
-        specular_strength: prop_f32(params, k::SPECULAR_STRENGTH).max(0.0),
-        shininess: prop_f32(params, k::SHININESS).max(1.0),
-        normal_strength: prop_f32(params, k::NORMAL_STRENGTH).max(0.0),
+/// The lit settings a node's material gives it: a shader-less material
+/// whose `normal` slot names a normal map, with its strengths. `None` for
+/// any other material, and for none.
+#[cfg(feature = "window")]
+pub(crate) fn of(eng: &balaur_core::Engine, reference: &str) -> Option<Lit2d> {
+    let builtin = crate::material::builtin_of(eng, reference)?;
+    let slot = crate::material::TEXTURE_SLOTS
+        .iter()
+        .position(|name| *name == NORMAL_SLOT)?;
+    let normal_map = builtin.maps.get(slot)?.clone()?;
+    Some(Lit2d {
+        normal_map,
+        specular_strength: builtin.specular_strength,
+        shininess: builtin.shininess,
+        normal_strength: builtin.normal_strength,
     })
 }
 
-/// Put the lit settings on the node's renderable; a change rebuilds its node,
-/// because it moves the node onto another material.
-pub(crate) fn set_lit(
-    eng: &balaur_core::Engine,
-    entity: balaur_core::hecs::Entity,
-    params: &toml::Value,
-) {
-    let next = from_params(params);
-    let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut crate::Renderable2d>(entity)
-        && r.lit != next
-    {
-        r.lit = next;
-        r.version += 1;
-    }
-}
-
-/// The lit rows read back.
-pub(crate) fn to_map(lit: Option<&Lit2d>, map: &mut toml::map::Map<String, toml::Value>) {
-    let fallback = Lit2d {
-        normal_map: String::new(),
-        specular_strength: 0.0,
-        shininess: 16.0,
-        normal_strength: 1.0,
-    };
-    let lit = lit.unwrap_or(&fallback);
-    map.insert(
-        k::NORMAL_MAP.into(),
-        toml::Value::String(lit.normal_map.clone()),
-    );
-    for (key, value) in [
-        (k::SPECULAR_STRENGTH, lit.specular_strength),
-        (k::SHININESS, lit.shininess),
-        (k::NORMAL_STRENGTH, lit.normal_strength),
-    ] {
-        map.insert(key.into(), toml::Value::Float(f64::from(value)));
-    }
-}
+/// The texture slot a 2D node's normal map is read from: the 3D one's.
+#[cfg(feature = "window")]
+const NORMAL_SLOT: &str = "normal";
 
 /// Whether a node lights itself and so draws after the light map.
 #[cfg(feature = "window")]
 pub(crate) fn lights_itself(
+    eng: &balaur_core::Engine,
     world: &balaur_core::hecs::World,
     entity: balaur_core::hecs::Entity,
 ) -> bool {
-    world
-        .get::<&crate::Renderable2d>(entity)
-        .is_ok_and(|r| r.lit.is_some() && r.shape != crate::Shape2d::Polygon)
+    let Ok(renderable) = world.get::<&crate::Renderable2d>(entity) else {
+        return false;
+    };
+    if renderable.shape == crate::Shape2d::Polygon {
+        return false;
+    }
+    let reference = if renderable.material.is_empty() {
+        world
+            .get::<&balaur_core::GlobalAppearance>(entity)
+            .map_or_else(
+                |_| String::new(),
+                |appearance| appearance.material.reference().to_string(),
+            )
+    } else {
+        renderable.material.clone()
+    };
+    of(eng, &reference).is_some()
 }
 
 /// Move a freshly built node onto `LitMaterial2d`, with its normal map.

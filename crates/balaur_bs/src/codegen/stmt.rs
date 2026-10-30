@@ -145,6 +145,27 @@ impl FnGen<'_> {
             self.set_owned(&lv);
             return Ok(());
         }
+        // `map[key] = value`; `op=` works on what is there, and a missing key
+        // traps.
+        if let ExprKind::Index(base, key) = &target.kind
+            && self.map_class(base).is_some()
+        {
+            let value = match op {
+                Some(op) => {
+                    let held = Expr {
+                        kind: ExprKind::Method(Box::new(target.clone()), "unwrap".into(), vec![]),
+                        pos,
+                    };
+                    Expr {
+                        kind: ExprKind::Bin(op, Box::new(held), Box::new(value.clone())),
+                        pos,
+                    }
+                }
+                None => value.clone(),
+            };
+            self.method(base, "set", &[(**key).clone(), value], pos)?;
+            return Ok(());
+        }
         // `a.key = v`, `a[k] = v` or `a.get(k) = v` on an `any`: set in place.
         if let Some((base, key, method)) = self.any_slot(target)? {
             let v = match op {

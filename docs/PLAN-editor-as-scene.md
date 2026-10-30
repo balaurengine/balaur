@@ -6,7 +6,8 @@
 > the scene still states 78 sizes the theme should hold. §9, decided
 > 2026-10-18, is now the target and governs the rest: every panel its own
 > scene and script, nothing drawn, nothing polled. It is built, phases 0 to
-> 10, 2026-10-18.
+> 10, 2026-10-18. §9.2 and §9.4 changed and §10, the live scene as the
+> document, was planned 2026-10-27 and designed 2026-10-28.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
 > It was code, and §0 is what moving the views took.
@@ -538,7 +539,7 @@ sharing, and writing the kit before there is one to share guesses at it.
 
 **Decided 2026-10-18.** The UI is nodes and nothing else. Each panel is a
 scene of its own, `editor/scenes/panels/<panel>.toml`, placed in `main.toml`
-with `instance`, and carries one script, `editor/scripts/panels/<panel>.rn`,
+with `instance`, and carries one script, `editor/scripts/panels/<panel>.bs`,
 that answers every control under it and fills them. The Editor node is the one
 controller: it owns the document, the selection and the history, tells the
 panels when they moved, and is told what they picked. Three things are out:
@@ -574,14 +575,32 @@ Built 2026-10-18, phase 0:
 
 ### 9.2 How a panel talks to the controller
 
-The controller emits from the Editor node, once a frame however many edits
-the frame made: `signals.bs` holds each word and its guard, which the Editor
-clears by hearing its own event. A panel listens in its `init`, and on the
-word asks the Editor for what it shows (`editor.call("outline_view", query,
-facet)`), then writes its nodes. A pick goes the other way as a call
-(`editor.call("outline_pick", row)`). The rows are still built by the
-Editor's modules, which own the model; the panel owns what it alone decides,
-here the query and the facet.
+Built 2026-10-18: the controller emits a word from the Editor node once a
+frame (`signals.bs`, a word and its guard each), and a panel asks the Editor
+for what it shows by name (`editor.call("outline_view", query, facet)`). A
+word says only that something moved, so every panel listening redoes all
+its work, and every answer is deep-copied between instances.
+
+Planned 2026-10-27:
+
+- **The document's changes come from the engine.** A panel reads the frame's
+  change log (PLAN-events §5) for the entries it shows: the tree the
+  structure and names, the Inspector its node. Built 2026-10-28 for a
+  property edit (`model::follow_changes`): it sends no `outline_changed`, the
+  Inspector rewrites the rows of the properties the log names
+  (`ui::reread` with them), and fills its whole form once a run of edits
+  stops; a node added, freed, renamed or moved, or a component put on or
+  taken off, still wakes the outline.
+- **The Editor's own state says what moved.** The selection, the tool, the
+  workspace and play each have an event of their own carrying the new value
+  (`selection_changed` with the selection), sent when it changes. `signals.bs`,
+  its words and their guards go.
+- **A panel calls the Editor by type**, in the editor's one instance
+  (PLAN-bs-linking): `let ed: Editor? = editor.script;`, a direct call that
+  hands back a typed view. A pick is a call the same way.
+
+The rows are still built by the Editor's modules, which own the model; the
+panel owns what it alone decides, here the query and the facet.
 
 ### 9.3 The Scene panel, the pilot
 
@@ -598,27 +617,54 @@ shows and hides the panel on `docks_changed` (9.5).
 
 ### 9.4 The Inspector
 
-Built 2026-10-18. `scenes/panels/inspector.toml` holds the head (the node's
-mark and name, its type), the search, the "nothing selected" note, the form's
-scroll and host, and "Add component"; `scripts/panels/inspector.bs` answers
-them. It listens for `outline_changed` and `inspector_changed`, the second
-emitted where the workspace, the tool, play, the polygon being edited, the
-clip, the doc tab or the screen's class is written, and only when the key
-they make moved; while the scene plays it is emitted every frame, since every
-live value may have. On either it asks the Editor for the head
-(`inspector_view`) and to fill its form (`inspector_fill`), and has the
-native rows read their components again with `ui.reread`, which names the
-panel for all of them. A control in the form is heard through
-`on_widget_event` after its own handler ran, and the form is filled again.
+Built 2026-10-18 on the `inspector` widget kind
+(`balaur_ui/src/widget/inspector`): the panel asks the Editor to fill the
+whole form on every word, hidden or not, and every frame while the scene
+plays (PLAN-editor-performance §10).
 
-- The `inspector` kind reads its component only when told: its widget
-  written, a row edited, its width moved, or `ui.reread`. It read every
-  inspector's whole component every pass before.
-- The drawn rows are labels: headings, notes, the hook chips, the physics
-  notes. The physics pills are buttons on form rows, wrapped by a width
-  estimate instead of measured as they drew.
-- A plugin's inspector section returns rows instead of drawing.
+Planned 2026-10-27: the Inspector is a viewer of components and nothing
+else. The `inspector` kind and the special sections of
+`editor/scripts/inspector.bs` go.
+
+- **One scene, one script.** For the selected node, a section per
+  component. In it, the component's properties in schema order, folded by
+  `group` (PLAN-property-types §5). A row is a label and one control picked
+  by the property's type, the drawers of PLAN-property-types §2 step 6. The
+  section's head carries the component's `enabled` (PLAN-component-enabled).
+- **An asset property shows its asset's properties** the same way, inline,
+  with where an inherited one comes from (PLAN-inherited-material §4).
+- **A script's exported fields** are the `script` component's properties:
+  rows like any other.
+- **An edit is one property write** by index (PLAN-balaur-script §9 step 6)
+  and one undo entry (§10). The frame's change log rewrites the rows it
+  names and nothing else. A hidden Inspector does nothing.
+- **What is not a property leaves.** Trace outline, populate, soft body,
+  attach script and skeleton go to the node's context menu and the palette.
+  A warning or a prefab override is a mark on its row. The hook chips are
+  the Events view's.
+- **No row shows on a condition.** A component whose properties do not all
+  apply together is split in two (PLAN-property-types §5).
+- **A plugin's section** is its own component's rows.
 - Import keeps the right sheet's own form and its drawn head (phase 4).
+
+Built 2026-10-28: what is not a property left. The Inspector is the node's
+components, then its script (its path and what it sets), whatever the
+workspace; the per-workspace sections went. A node's verbs are the
+palette's, first in it and offered by what the node carries: its rig's
+(a bone, the rest pose, mirror, a physical skeleton), its polygon's (trace,
+sync bones, mirror, deform), a sprite traced into a polygon, and what its
+mesh collides and deforms as. The tree menu's Actions opens the palette.
+The Polygon tool's own state (the bone painted, the brush, the trace's
+tolerance) is in the viewport's strip beside its modes, and a clip's
+length and loop are the Timeline's head. The UI workspace's safe area was
+already a chip, and the hook chips the Events view's.
+
+Still to come, each on what it needs: a row by property index, which the
+derive gives (PLAN-property-types §5), and with it the `inspector` kind's
+end; the `script` component, whose fields are then rows like any other; a
+component split where its rows apply apart (PLAN-component-order §4); a
+plugin section as its own component's rows; and a warning or an override
+as a mark on its row rather than a note under it.
 
 ### 9.5 The docks
 
@@ -827,3 +873,102 @@ What the update still does on a frame it runs: the document's revision, the
 mirror's live nodes, the splash, a capture, a replay, a showcase, a running
 self-test, an animation preview, and the lint deadline. Under the lazy shell a
 frame runs when something asked for one.
+
+## 10. The live scene is the document
+
+Planned 2026-10-27; PLAN-editor-performance §10 measures why. Built
+2026-10-28: the engine writes a scene back from its nodes and keeps what
+each write replaced, and the Editor's `S.doc`, `S.refs`, `build_mirror`,
+the revision and its settle, `absolute_files` and `id_paths` are gone. The Editor
+keeps the scene three times: the script's document `S.doc`, the live nodes
+it mirrors that into, and the engine's `Authored`. A structural edit, an
+undo, a drop or a type change destroys every live node and makes the scene
+again from the document (`model::build_mirror`, 20 call sites), and history
+keeps a whole document per step (`history.bs`, up to 100).
+
+- **The live nodes are the document.** An edit is the write a game makes,
+  on the node (PLAN-balaur-script §9 step 2). `S.doc`, `build_mirror`, the
+  revision and its settle go.
+- **Undo is a list of changes.** A step is the frame's change-log entries
+  (PLAN-events §5) with the value each replaced, plus what restores an added,
+  freed, renamed or moved node. One action is one step; typing coalesces as
+  it does now. A step costs what it changed, not the document.
+- **Play is a copy of the scene.** Play keeps `scene.to_toml` of the edited
+  scene and stop builds it again: the same path a save and an open take, so
+  nothing restores state a different way. Designed 2026-10-28, replacing the
+  rollback snapshot, whose restore covers fewer components and has its own
+  open bugs (PLAN-hardening: sibling order, properties lost on a respawn).
+- **Save is the engine's.** It writes the scene from its nodes, keeping the
+  file's comments and key order as `toml.patch` does now.
+- **Panels follow the change log** (§9.2), and the Inspector is a viewer
+  (§9.4).
+
+### 10.1 What the engine writes back
+
+Designed 2026-10-28. `scene.to_toml(root, opts)` is the scene under `root`
+as a scene file's text, `root` its root: what `scene.instantiate` builds
+again.
+
+- **A node as it was asked for.** Each component is what the scene and every
+  write since asked of it (`Authored`), not its live state read back. The
+  node keys (`visible`, `tint`, `z_index`, `z_as_relative`, `process`,
+  `interpolate`, `tags`) are read off the node and written where they are
+  not the default. A key nothing handles is kept from the file as it was.
+- **Its script.** `{ scripts: false }` still names each node's script, so a
+  node carries its script whether or not it runs: `node.script_path` and
+  `node.script_props` read it, `node.set_script` names one without running
+  it, and `scene.attach_scripts(root)` runs every one under a root, children
+  first, as an instantiate does.
+- **Files from the root that owns them.** `opts.root` on `instantiate` is
+  the project the text names its files from, and every path is made
+  absolute against it, an `id://` resolved; the same `opts.root` on
+  `to_toml` writes them back as that project spells them, an `id://` as it
+  was read. A node in the content scope reads and writes its paths as the
+  game spells them (`node.authored`, `script_path`, `instance`, a component
+  write). The editor's `absolute_files` and `id_paths` go.
+- **A prefab by what it changes.** The node that names a prefab keeps
+  `instance`; the nodes the prefab built are not written. Their `overrides`
+  are each node's components, node keys and script properties where they
+  differ from what the prefab asks, read again from its file; the prefab
+  root's own keys, what the node asks over it. `node.instance()` names the
+  prefab a node instances.
+
+### 10.2 What a step holds
+
+Designed 2026-10-28. The change log's entries carry what each write
+replaced, so a step is those entries and undo writes them back:
+
+| entry | carries | undo | redo |
+| --- | --- | --- | --- |
+| `component` | the asked table before the write | set it back | set the table it held at undo |
+| `attached` | | take it off | set the table it held at undo |
+| `removed` | the asked table | set it back | take it off |
+| `added` | | the subtree's text kept, then freed | built again from the text |
+| `freed` | the subtree's text, its parent, its place | built again from the text | freed |
+| `renamed` | the name before | renamed back | renamed again |
+| `moved` | the parent and place before | moved back | moved again |
+
+Each entry names its node by stable id, so a step outlives the node it
+built and freed. The `changed` event is a frame late and merges a node's
+writes, so a step is not read from it: `scene.keep_changes(root)` keeps
+every change under the edited scene as it happens, with what it replaced,
+and `scene.take_changes()` hands them over. The editor opens a step when an
+action starts (`history::record`) and takes what was kept into it at once,
+so an undo in the frame of its edit finds it; undo and redo take theirs and
+drop them. Play stops the keeping: nothing a game does is undone.
+
+### 10.3 In the editor
+
+Built 2026-10-28. The rows are the live nodes in tree order, `S.nodes`,
+listed again when the structure moves (`model::reindex`); the selection
+stays a list of rows, carried by node across a listing and by id across a
+build. A row's name, id, parent and components are the node's own reads,
+`authored` where the scene's spelling matters. Every node the editor makes
+is built from a one-node scene table with a fresh id (`model::spawn`), so
+its id survives a save and a play. A tool that changes a table in place (a
+polygon's mesh, a tilemap's cells, a clip) holds it for the frame
+(`model::edited`) and hands it back whole; a recipe rewriting several
+components does the same with all of them (`row_of`, `write_row`).
+Isolate's hides are no step's and a save leaves isolate first. What the
+file held beside the scene stays on `S`: its `[[assets]]` blocks, which an
+undo that moves them builds the scene again for, and the locks.

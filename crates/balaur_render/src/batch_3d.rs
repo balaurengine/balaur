@@ -37,8 +37,9 @@ pub(crate) struct BatchKey3d {
     pub(crate) shadows: bool,
     pub(crate) layers: u32,
     pub(crate) render_layers: u32,
-    /// The wireframe, vertices and node flags, which are the object's.
+    /// The node flags and the debug drawing, which are the object's.
     pub(crate) overlay: crate::overlay::Overlay3d,
+    pub(crate) debug: crate::debug_draw::DebugDraw,
 }
 
 /// Whether a node can hand its pose to an instance instead of an object.
@@ -47,11 +48,14 @@ pub(crate) struct BatchKey3d {
 /// that node alone has, and a node scaled unevenly needs a normal matrix of
 /// its own -- the instance's 3x3 goes through the normals as well as the
 /// positions, and only an even scale comes out of that unchanged.
-pub(crate) fn batchable(renderable: &Renderable3d, global: &GlobalTransform) -> bool {
-    // An overlay under a material is drawn by a companion child of the node,
-    // which a shared object has no one node to hang from.
-    let companion = !renderable.material.is_empty()
-        && (renderable.overlay.wireframe_width > 0.0 || renderable.overlay.dot_size > 0.0);
+pub(crate) fn batchable(
+    renderable: &Renderable3d,
+    debug: &crate::debug_draw::DebugDraw,
+    global: &GlobalTransform,
+) -> bool {
+    // A debug drawing under a material is drawn by a companion child of the
+    // node, which a shared object has no one node to hang from.
+    let companion = !renderable.material.is_empty() && debug.draws_lines();
     renderable.skeleton.is_empty()
         && renderable.shape != crate::Shape3d::Built
         && even(global.scale)
@@ -69,7 +73,11 @@ fn even(scale: Vec3) -> bool {
 }
 
 /// The key a batchable node joins a group by.
-pub(crate) fn key_of(renderable: &Renderable3d, material: &str) -> BatchKey3d {
+pub(crate) fn key_of(
+    renderable: &Renderable3d,
+    debug: crate::debug_draw::DebugDraw,
+    material: &str,
+) -> BatchKey3d {
     BatchKey3d {
         shape: renderable.shape,
         mesh: renderable.mesh.clone(),
@@ -79,6 +87,7 @@ pub(crate) fn key_of(renderable: &Renderable3d, material: &str) -> BatchKey3d {
         layers: renderable.layers,
         render_layers: renderable.render_layers,
         overlay: renderable.overlay,
+        debug,
     }
 }
 
@@ -188,7 +197,8 @@ pub(crate) fn cut_groups(
     for (entity, renderable, global) in
         &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
     {
-        if !batchable(renderable, global) {
+        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
+        if !batchable(renderable, &debug, global) {
             continue;
         }
         // The fork sorts a surface into the transparency pass by its object's
@@ -208,7 +218,7 @@ pub(crate) fn cut_groups(
         {
             continue;
         }
-        let key = key_of(renderable, &material_of(&world, entity, renderable));
+        let key = key_of(renderable, debug, &material_of(&world, entity, renderable));
         if batches.refused.contains(&key) {
             continue;
         }
@@ -292,7 +302,7 @@ fn build_group(
     }
     let surface = crate::material::surface_of(&app.engine, &key.material);
     crate::kiss3d_backend::apply_surface(&mut node, &surface);
-    crate::overlay::apply_3d(&mut node, &key.overlay);
+    crate::overlay::apply_3d(&mut node, key.overlay, &key.debug);
     if let Some(builtin) = crate::material::builtin_of(&app.engine, &key.material) {
         crate::builtin_material::apply(app, &mut node, Some(&builtin), None);
     }

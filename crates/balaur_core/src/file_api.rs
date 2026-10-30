@@ -71,7 +71,7 @@ fn roots(eng: &Engine) -> Vec<PathBuf> {
 ///
 /// # Errors
 /// When the path lands outside every root the host declared.
-pub(crate) fn resolve(eng: &Engine, path: &str) -> Result<PathBuf> {
+pub fn resolve(eng: &Engine, path: &str) -> Result<PathBuf> {
     let named = Path::new(path);
     let joined = if crate::files::rooted(named) {
         named.to_path_buf()
@@ -276,6 +276,35 @@ pub(crate) fn toml_patch(_: &Engine, args: &[Value]) -> Result<Value> {
         doc[&key] = item;
     }
     Ok(Value::Str(doc.to_string()))
+}
+
+/// A whole document written over `existing`: a key `table` no longer holds
+/// goes, a key whose value moved is written again, and every other key keeps
+/// its text, its comments and its place.
+pub(crate) fn rewritten(
+    existing: &str,
+    table: &toml::map::Map<String, toml::Value>,
+) -> Result<String> {
+    let before: toml::map::Map<String, toml::Value> =
+        toml::from_str(existing).context("parsing the document")?;
+    let mut doc: toml_edit::DocumentMut = existing.parse().context("parsing the document")?;
+    let gone: Vec<String> = before
+        .keys()
+        .filter(|key| !table.contains_key(*key))
+        .cloned()
+        .collect();
+    for key in gone {
+        doc.remove(&key);
+    }
+    for (key, value) in table {
+        if before.get(key) == Some(value) {
+            continue;
+        }
+        let mut item = as_item(value);
+        keep_leading_comment(doc.get(key), &mut item);
+        doc[key] = item;
+    }
+    Ok(doc.to_string())
 }
 
 /// Carry the comment above a list's first `[[block]]` over to the list that

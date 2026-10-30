@@ -10,15 +10,15 @@
 //! the same triangles a windowed one draws.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use balaur_core::mesh::{MeshData, TextShape};
-use cosmic_text::{FontSystem, fontdb};
+use cosmic_text::fontdb;
 use swash::scale::ScaleContext;
 use swash::zeno::{Command, PathData};
 
-use crate::shape::{Chain, Chains, Tweaks, shape_into};
+use crate::ProjectFonts;
+use crate::shape::shape_into;
 
 /// The pixel size a run is shaped at before it is scaled into world units.
 /// Big enough that a glyph's grid quantisation is far below the flattening
@@ -62,93 +62,47 @@ impl Key {
     }
 }
 
-/// The shaper, the outline scaler and what they have already built.
+/// The outline scaler and what it has already built. The faces are a
+/// project's, measured as a script's numbers are: its own, never the
+/// machine's.
+#[derive(Default)]
 pub struct GlyphMesher {
-    fonts: FontSystem,
-    /// Each face's import `scale` and `y_offset`, by the id `fonts` gave it.
-    tweaks: Tweaks,
-    chains: Chains,
     scale: ScaleContext,
     built: HashMap<Key, MeshData>,
+    /// The fonts generation `built` was made under: faces read again may
+    /// draw the same word differently.
+    built_under: u64,
 }
 
 impl GlyphMesher {
-    /// A mesher over the project's faces, in chain order.
-    pub fn new(faces: &[crate::fonts::FontFace], locale: &str) -> Self {
-        let mut db = fontdb::Database::new();
-        // The family each role loaded under. A request that names no font takes
-        // the default family, and an empty database answers with whatever it
-        // has: the icon face, which draws no letters, sorts before `ui-`.
-        let mut role: std::collections::HashMap<&str, String> = HashMap::new();
-        let mut tweaks = Tweaks::default();
-        let mut chains = HashMap::new();
-        for face in faces {
-            let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
-            let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
-            let loaded = db.load_font_source(fontdb::Source::Binary(data));
-            tweaks.add(&loaded, face.tweak);
-            if face.chain == "icon" {
-                continue;
-            }
-            let Some(info) = loaded.first().and_then(|id| db.face(*id)) else {
-                continue;
-            };
-            let Some((family, _)) = info.families.first() else {
-                continue;
-            };
-            chains
-                .entry(face.chain.to_string())
-                .or_insert_with(|| Chain {
-                    family: family.clone(),
-                    scale: face.tweak.scale,
-                    weight: info.weight.0,
-                });
-            role.entry(face.chain).or_insert_with(|| family.clone());
-        }
-        let text = ["ui", "heading", "system", "mono"]
-            .into_iter()
-            .find_map(|chain| role.get(chain))
-            .cloned();
-        if let Some(text) = text {
-            db.set_sans_serif_family(text.clone());
-            db.set_serif_family(text.clone());
-            db.set_cursive_family(text.clone());
-            db.set_fantasy_family(text);
-        }
-        if let Some(mono) = role.get("mono") {
-            db.set_monospace_family(mono.clone());
-        }
-        Self {
-            fonts: FontSystem::new_with_locale_and_db(locale.to_string(), db),
-            tweaks,
-            chains: Chains(chains),
-            scale: ScaleContext::new(),
-            built: HashMap::new(),
-        }
-    }
-
     /// The mesh for one request, shaped once and kept.
     ///
     /// # Errors
     /// If the string is empty, or no face in the project draws any of it.
-    pub fn mesh(&mut self, shape: &TextShape) -> Result<MeshData> {
+    pub fn mesh(
+        &mut self,
+        fonts: &mut ProjectFonts,
+        generation: u64,
+        shape: &TextShape,
+    ) -> Result<MeshData> {
+        if generation != self.built_under {
+            self.built.clear();
+            self.built_under = generation;
+        }
         let key = Key::of(shape);
         if let Some(mesh) = self.built.get(&key) {
             return Ok(mesh.clone());
         }
-        let mesh = self.build(shape)?;
+        let mesh = self.build(fonts, shape)?;
         self.built.insert(key, mesh.clone());
         Ok(mesh)
     }
 
     /// Every contour of every glyph and every decoration bar, in world units
     /// with y up. Shaped the way a label is, so a face's import `scale` and
-    /// `y_offset` and a chain's weight reach a word as they reach a label.
-    fn contours(&mut self, shape: &TextShape) -> Vec<Vec<[f32; 2]>> {
-        let mut options = crate::Options {
-            font_name: shape.font.clone(),
-            ..crate::Options::default()
-        };
+    /// `y_offset` and a font's weight reach a word as they reach a label.
+    fn contours(&mut self, fonts: &mut ProjectFonts, shape: &TextShape) -> Vec<Vec<[f32; 2]>> {
+        let mut options = crate::Options::default();
         options.decoration.underline = crate::Underline::of(&shape.underline);
         options.decoration.strikethrough = shape.strikethrough;
         options.decoration.overline = shape.overline;
@@ -165,8 +119,8 @@ impl GlyphMesher {
             truncate: false,
             align: crate::Align::Start,
             markup: false,
-            font: "",
-            family: "",
+            font: &shape.font,
+            project: crate::FontProject::Host,
             // Baseline to baseline at one em, as a mesh's lines have always sat.
             line_height: 1.0,
             letter_spacing: 0.0,
@@ -176,8 +130,9 @@ impl GlyphMesher {
         // and scaling a glyph needs it back.
         let mut placed: Vec<(fontdb::ID, fontdb::Weight, u16, f32, [f32; 2])> = Vec::new();
         let mut bars: Vec<[[f32; 2]; 4]> = Vec::new();
+        let (system, tweaks, table) = fonts.measuring();
         {
-            let buffer = shape_into(&mut self.fonts, &self.tweaks, &self.chains, &request);
+            let buffer = shape_into(system, tweaks, table, &request);
             // The shaper measures down from the block's top and the outline
             // measures up from the baseline. The mesh is y up and sits on the
             // first line's baseline, the way a font places a word.
@@ -186,7 +141,7 @@ impl GlyphMesher {
                 let base = *first.get_or_insert(run.line_y);
                 for glyph in run.glyphs {
                     // `y_offset` lowers the glyph, never the line.
-                    let lower = glyph.font_size * self.tweaks.of(glyph.font_id).y_offset;
+                    let lower = glyph.font_size * tweaks.of(glyph.font_id).y_offset;
                     let origin = [glyph.x, base - run.line_y - glyph.y - lower];
                     placed.push((
                         glyph.font_id,
@@ -210,7 +165,7 @@ impl GlyphMesher {
         let unit = shape.size / SHAPING_PIXELS;
         let mut out = Vec::new();
         for (font_id, font_weight, glyph_id, size, origin) in placed {
-            let Some(font) = self.fonts.get_font(font_id, font_weight) else {
+            let Some(font) = system.get_font(font_id, font_weight) else {
                 continue;
             };
             let mut scaler = self
@@ -239,11 +194,11 @@ impl GlyphMesher {
 
     /// Shape, flatten and fill. The contours go in together so a counter --
     /// the hole in an `o` -- is subtracted rather than filled over.
-    fn build(&mut self, shape: &TextShape) -> Result<MeshData> {
+    fn build(&mut self, fonts: &mut ProjectFonts, shape: &TextShape) -> Result<MeshData> {
         if shape.text.trim().is_empty() {
             return Err(anyhow!("a text mesh needs something to say"));
         }
-        let contours = self.contours(shape);
+        let contours = self.contours(fonts, shape);
         if contours.is_empty() {
             return Err(anyhow!(
                 "no font in this project draws '{}', so it has no outline",
@@ -382,23 +337,22 @@ fn cubic(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2], t: f32) -> [f32; 2]
 
 /// Fill in core's text seam with this crate's shaper.
 ///
-/// The mesher is built on the first word asked for, not here: the faces come
-/// from the project's `fonts/` directory, and no project is open when a
-/// plugin declares itself.
+/// The words are shaped over the project's faces in the shaper, read on the
+/// first word asked for: they come from the project's `fonts/` directory, and
+/// no project is open when a plugin declares itself. A text mesh is real
+/// geometry — colliders fit it and rays pick it — so it is shaped as a
+/// measurement is, and the machine's own fonts never reach it.
 pub fn install(reg: &mut balaur_plugin::Registry<'_>) {
-    let mesher: std::cell::RefCell<Option<GlyphMesher>> = std::cell::RefCell::new(None);
+    let mesher = std::cell::RefCell::new(GlyphMesher::default());
     reg.insert_resource(balaur_core::mesh::TextGeometry(Box::new(
         move |eng, shape| {
-            let mut slot = mesher.borrow_mut();
-            let mesher = slot.get_or_insert_with(|| {
-                // The project's and the bundled faces only: a text mesh is
-                // real geometry — colliders fit it and rays pick it — so the
-                // machine's own fonts must not reach it.
-                let mut faces = crate::fonts::font_faces(eng);
-                faces.retain(|face| face.chain != "system");
-                GlyphMesher::new(&faces, &balaur_core::strings::locale(eng))
-            });
-            mesher.mesh(shape)
+            let state = crate::shaper(eng);
+            let mut state = state.borrow_mut();
+            state.load_font(eng, crate::FontProject::Host, &shape.font);
+            let generation = state.fonts_generation;
+            mesher
+                .borrow_mut()
+                .mesh(state.host_fonts(), generation, shape)
         },
     )));
 }
@@ -407,16 +361,32 @@ pub fn install(reg: &mut balaur_plugin::Registry<'_>) {
 mod tests {
     use super::*;
 
-    fn mesher(tweak: crate::fonts::FaceTweak) -> GlyphMesher {
+    /// A mesher and the faces it shapes with.
+    struct Meshing {
+        mesher: GlyphMesher,
+        fonts: ProjectFonts,
+    }
+
+    impl Meshing {
+        fn mesh(&mut self, shape: &TextShape) -> Result<MeshData> {
+            self.mesher.mesh(&mut self.fonts, 0, shape)
+        }
+    }
+
+    fn mesher(tweak: crate::fonts::FaceTweak) -> Meshing {
         let face = crate::fonts::FontFace {
-            name: "ui-SourceSans3-Regular".into(),
-            chain: "ui",
-            bytes: Arc::new(
-                include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
+            name: "SourceSans3-Regular".into(),
+            path: "fonts/SourceSans3-Regular.ttf".into(),
+            system: false,
+            bytes: std::sync::Arc::new(
+                include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec(),
             ),
             tweak,
         };
-        GlyphMesher::new(&[face], "en-US")
+        Meshing {
+            mesher: GlyphMesher::default(),
+            fonts: ProjectFonts::new(&[face], "en-US"),
+        }
     }
 
     fn word(text: &str) -> TextShape {

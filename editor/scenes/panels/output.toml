@@ -83,7 +83,7 @@ kind = "list"
 grow = 1
 text = ""
 row_height = 18
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 
 [nodes.widget.touch]
 row_height = 33

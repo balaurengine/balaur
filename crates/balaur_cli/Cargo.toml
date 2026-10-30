@@ -81,6 +81,8 @@ balaur_core.workspace = true
 balaur_export = { workspace = true, optional = true }
 balaur_plugin.workspace = true
 balaur_script.workspace = true
+# The faces a desktop has installed, which the editor's font picker lists.
+balaur_text.workspace = true
 # The importers, on every target that asks for them: they are pure Rust and a
 # browser tab reads a model through the same code a desktop does.
 balaur_import = { workspace = true, optional = true }

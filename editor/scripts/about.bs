@@ -3,7 +3,6 @@
 // the sheet and the start screen say the same thing.
 
 use editor;
-use inspector;
 use manager;
 use pool;
 use util;
@@ -19,26 +18,26 @@ const LABEL_W: float = 96.0;
 
 /// Show the sheet. Opening it is asking, so the feed is read once here unless
 /// the start screen already read it.
-pub fn open(S: &mut editor::State) {
-    window::show(S, SHEET);
-    if !S.manager.asked && !manager::in_tab() {
-        manager::check(S);
+pub fn open(state: &mut editor::State) {
+    window::show(state, SHEET);
+    if !state.manager.asked && !manager::in_tab() {
+        manager::check(state);
     }
 }
 
 /// Fill the sheet: what its script asks for when About is up.
-pub fn fill(S: &mut editor::State) {
-    let hosts = window::sheet_form(S, SHEET, "About Balaur", []);
+pub fn fill(state: &mut editor::State) {
+    let hosts = window::sheet_form(state, SHEET, "About Balaur", []);
     if util::is_nil(hosts) {
         return;
     }
     let hosts = hosts.unwrap();
-    pool::sync(S, hosts.form, specs(S), LABEL_W, false);
+    pool::sync(state, hosts.form, specs(state), LABEL_W, false);
 }
 
 /// Every row the sheet shows: which build this is, the line it follows, and
 /// where to read more.
-fn specs(S: editor::State) -> [any] {
+fn specs(state: editor::State) -> [any] {
     let mine = util::obj(release::installed());
     let out = [
         map()
@@ -68,7 +67,7 @@ fn specs(S: editor::State) -> [any] {
     fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
     if !manager::in_tab() {
-        update_rows(S, mine, out);
+        update_rows(state, mine, out);
     }
     out.push(map()
         .with("full", true)
@@ -103,10 +102,10 @@ fn link(text: str, url: str) -> any {
         .with("text", text)
         .with("tooltip", url)
         .with("on", "handle")
-        .with("data", map().with("fn", link_on_0).with("url", url))
+        .with("data", map().with("fn", on_link_clicked).with("url", url))
 }
 
-fn link_on_0(S: any, data: any, _0: any) {
+fn on_link_clicked(state: any, data: any, _value: any) {
     let url: str = data.url;
     engine::open_url(url);
 }
@@ -114,11 +113,11 @@ fn link_on_0(S: any, data: any, _0: any) {
 // Where this build's line stands, the press that asks again, and the newest
 // release on it when there is one to move to; then what the check said and
 // how far an install has got.
-fn update_rows(S: editor::State, mine: any, out: [any]) {
-    let k = S.theme;
+fn update_rows(state: editor::State, mine: any, out: [any]) {
+    let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine.get("channel").as_str() == "" { "nightly" } else { mine.get("channel") };
-    let newest = manager::newest_on(S, line.as_str());
+    let newest = manager::newest_on(state, line.as_str());
     let fresh = newest.get("order").as_str() == "newer";
     let controls: [any] = [
         map()
@@ -126,12 +125,12 @@ fn update_rows(S: editor::State, mine: any, out: [any]) {
             .with("role", "text_code")
             .with("font_size", 11)
             .with("grow", 1)
-            .with("text", line.as_str() + ": " + manager::standing(S, line.as_str()))
-            .with("text_color", (if fresh { k.get("success_text") } else { k.get("text_subtle") }).as_str()),
+            .with("text", line.as_str() + ": " + manager::standing(state, line.as_str()))
+            .with("text_color", (if fresh { tokens.get("success_text") } else { tokens.get("text_subtle") }).as_str()),
     ];
     // Up to date already says it; only a release to move to gets a press.
     if newest.get("id").as_str() != "" && newest.get("order").as_str() != "same" {
-        let press = manager::press_spec(S, newest, mine);
+        let press = manager::press_spec(state, newest, mine);
         if press.kind() == "map" {
             controls.push(press);
         }
@@ -139,28 +138,28 @@ fn update_rows(S: editor::State, mine: any, out: [any]) {
     controls.push(map()
         .with("kind", "button")
         .with("role", "action_form")
-        .with("text", if S.manager.reading { "Checking" } else { "Check" })
+        .with("text", if state.manager.reading { "Checking" } else { "Check" })
         .with("on", "handle")
-        .with("data", map().with("fn", update_rows_on_1)));
+        .with("data", map().with("fn", on_check_clicked)));
     out.push(map().with("full", true).with("height", 30).with("slot_role", "layout_actions").with("controls", controls));
     if mine.get("held").as_str() != "" {
-        out.push(say(mine.get("held").as_str(), k.get("text_subtle").as_str()));
+        out.push(say(mine.get("held").as_str(), tokens.get("text_subtle").as_str()));
     }
-    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
+    let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     if said != "" {
-        out.push(say(said, (if S.manager.failed != "" { k.get("warning_text") } else { k.get("text_subtle") }).as_str()));
+        out.push(say(said, (if state.manager.failed != "" { tokens.get("warning_text") } else { tokens.get("text_subtle") }).as_str()));
     }
-    if manager::installing(S) {
+    if manager::installing(state) {
         out.push(map()
             .with("full", true)
             .with("height", 22)
             .with("slot_role", "layout_actions")
-            .with("controls", manager::progress_controls(S)));
+            .with("controls", manager::progress_controls(state)));
     }
 }
 
-fn update_rows_on_1(S: &mut editor::State, data: any, _0: any) {
-    manager::check(S);
+fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
+    manager::check(state);
 }
 
 fn say(text: str, ink: str) -> any {

@@ -102,6 +102,20 @@ impl<'a> Registry<'a> {
         self.app.register_asset_type(name, directory, doc, parse);
     }
 
+    /// An asset type whose definition is a record of `schema`'s properties,
+    /// drawn and filled in as a component's are (`App::register_record_asset`).
+    pub fn register_record_asset(
+        &mut self,
+        name: &str,
+        directory: &str,
+        doc: &'static str,
+        schema: std::rc::Rc<balaur_core::components::Schema>,
+        parse: fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>>,
+    ) {
+        self.app
+            .register_record_asset(name, directory, doc, schema, parse);
+    }
+
     /// What this plugin loads rather than simulates, restored once before the
     /// first tick: bindings, a locale, an audio mix.
     ///

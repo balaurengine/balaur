@@ -4,7 +4,7 @@
 
 use screen;
 
-pub struct Rows {
+pub class Rows {
     /// Where a picture of the screen goes, for the manual's shot.
     /// `--shot=<path>` after `--` says where; without it the screen is a
     /// screen, as `shot.bs` has it for the other two scenes here.

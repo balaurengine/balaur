@@ -2,7 +2,7 @@
 // the character already stands on, so a flat level needs no navmesh to point
 // at and nothing has to be baked first.
 
-pub struct ClickToMove {
+pub class ClickToMove {
     node: Node,
     pub speed: float = 4.0,
     pub gravity: float = 24.0,

@@ -13,6 +13,7 @@ use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
 mod forge;
+mod picture;
 mod release;
 
 /// How many projects the list keeps. Past this the oldest falls off: the
@@ -63,7 +64,9 @@ impl balaur_plugin::Plugin for ProjectPlugin {
         let mut m = reg.script_module("project")?;
         install_project_api(&mut *m);
         install_project_verbs(&mut *m);
+        install_font_verbs(&mut *m);
         drop(m);
+        picture::declare(reg)?;
         release::declare(reg)?;
         forge::declare(reg)
     }
@@ -104,6 +107,11 @@ fn project_records(m: &mut dyn Bindings<Engine>) {
             "Opened",
             "{ error: string? }",
             "What opening a project answers: an error, or nothing when the editor is on its way to it.",
+        ),
+        (
+            "SystemFont",
+            "{ family: string, style: string, path: string }",
+            "A face the operating system has installed: its family, its weight and slant in words, and its file.",
         ),
     ]);
 }
@@ -190,12 +198,59 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         ),
         (
+            "system_fonts",
+            &[],
+            "-> [SystemFont]",
+            "The faces this machine has installed, by family and style: what the font picker offers to copy into a project, since an exported game cannot count on a face being installed. Empty in a browser tab.",
+        ),
+        (
+            "copy_system_font",
+            &[],
+            "(path: string, to: string) -> bool",
+            "Copy an installed face, one `system_fonts` lists, to `to` inside the project. Answers whether it was copied; a path the list does not name is refused.",
+        ),
+        (
             "use_data",
             &[],
             "(name: string?) -> string?",
             "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
         ),
     ]);
+}
+
+/// The faces this machine has installed, and copying one into a project.
+fn install_font_verbs(m: &mut dyn Bindings<Engine>) {
+    m.function("system_fonts", |_: &Engine, ()| {
+        Ok(Value::List(
+            balaur_text::fonts::installed_faces()
+                .into_iter()
+                .map(|face| {
+                    Value::Map(vec![
+                        ("family".into(), Value::text(face.family)),
+                        ("style".into(), Value::text(face.style)),
+                        ("path".into(), Value::text(face.path.to_string_lossy())),
+                    ])
+                })
+                .collect(),
+        ))
+    });
+    // Only a face the list names: a script reading any file it names off the
+    // disk is what `fs`'s roots are there to stop.
+    m.function(
+        "copy_system_font",
+        |eng: &Engine, (path, to): (String, String)| {
+            let installed = balaur_text::fonts::installed_faces()
+                .into_iter()
+                .any(|face| face.path == std::path::Path::new(&path));
+            if !installed {
+                return Ok(false);
+            }
+            let to = balaur::file_api::resolve(eng, &to)?;
+            let bytes = std::fs::read(&path)?; // os files: an installed face, checked above
+            balaur_core::files::backend(eng).write(&to, &bytes)?;
+            Ok(true)
+        },
+    );
 }
 
 fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
@@ -640,7 +695,7 @@ fn templates() -> Vec<Value> {
 
 fn create(home: &Path, path: &Path, template: &str) -> Value {
     let template = (!template.is_empty()).then_some(template);
-    if let Err(e) = crate::new_project::create(path, template) {
+    if let Err(e) = crate::new_project::create(path, template, None) {
         return Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]);
     }
     let name = name_of(path);

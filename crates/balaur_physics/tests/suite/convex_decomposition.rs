@@ -24,7 +24,7 @@ fn table_app(extra: &str) -> App {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -172,18 +172,18 @@ fn a_script_can_ask_for_the_pieces() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"N\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        r#"pub struct S { node: Node }
-impl S {
+        dir.path().join("scripts/scenario.bs"),
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let l = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
         let plain = geometry2d::convex_decomposition(l, map().with("overlap", 0.0));
@@ -223,7 +223,7 @@ fn wedged_beam(overlap: &str) -> f32 {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

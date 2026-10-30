@@ -2,7 +2,7 @@
 // at load, and a blend tweened between the clip and the simulation. Nothing
 // else here is a script, because everything else is what a scene file says.
 
-pub struct Fall {
+pub class Fall {
     node: Node,
     at: float,
     limp: bool,

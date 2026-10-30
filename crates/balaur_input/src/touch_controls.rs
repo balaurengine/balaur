@@ -136,9 +136,10 @@ impl Visibility {
 pub struct TouchButton {
     pub action: String,
     pub anchor: Anchor,
-    /// From the anchor, in design pixels, x right and y down. The control is
-    /// centred on the point this reaches.
-    pub offset: [f32; 2],
+    /// Inward from the edges the anchor names to the control's own, in
+    /// design pixels, as a widget's `x` and `y` are; from the middle on an
+    /// axis the anchor centres, x right and y down.
+    pub inward: [f32; 2],
     pub width: f32,
     pub height: f32,
     pub shape: Shape,
@@ -163,7 +164,8 @@ pub struct TouchStick {
     /// screen pixels count.
     pub action_y: String,
     pub anchor: Anchor,
-    pub offset: [f32; 2],
+    /// As a button's: inward from the anchored edges to the stick's own.
+    pub inward: [f32; 2],
     /// The throw, in design pixels: how far the knob travels for a full 1.
     pub radius: f32,
     pub knob_radius: f32,
@@ -196,11 +198,8 @@ impl TouchButton {
     pub fn placement(&self, eng: &Engine) -> Option<((f32, f32), (f32, f32))> {
         let area = area(eng).filter(|_| self.visibility.live(has_touchscreen(eng)))?;
         let scale = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
-        let center = center_of(self.anchor, self.offset, area, scale);
-        Some((
-            center,
-            (self.width * scale / 2.0, self.height * scale / 2.0),
-        ))
+        let half = (self.width * scale / 2.0, self.height * scale / 2.0);
+        Some((center_of(self.anchor, self.inward, half, area, scale), half))
     }
 }
 
@@ -247,10 +246,31 @@ fn area(eng: &Engine) -> Option<[f32; 4]> {
     (out[2] > out[0] && out[3] > out[1]).then_some(out)
 }
 
-/// Where a control's centre lands, in physical pixels.
-fn center_of(anchor: Anchor, offset: [f32; 2], area: [f32; 4], scale: f32) -> (f32, f32) {
+/// Where a control's centre lands, in physical pixels, for a control
+/// `half` across and down: its edge `inward` design pixels in from each edge
+/// the anchor names, or its centre that far from the middle, as a widget's.
+fn center_of(
+    anchor: Anchor,
+    inward: [f32; 2],
+    half: (f32, f32),
+    area: [f32; 4],
+    scale: f32,
+) -> (f32, f32) {
     let (x, y) = anchor.point(area);
-    (x + offset[0] * scale, y + offset[1] * scale)
+    let (left, top, right, bottom) = (area[0], area[1], area[2], area[3]);
+    let along = |at: f32, low: f32, high: f32, inward: f32, half: f32| {
+        if at <= low {
+            at + inward * scale + half
+        } else if at >= high {
+            at - inward * scale - half
+        } else {
+            at + inward * scale
+        }
+    };
+    (
+        along(x, left, right, inward[0], half.0),
+        along(y, top, bottom, inward[1], half.1),
+    )
 }
 
 /// Whether a point is inside a control's own box.
@@ -326,8 +346,8 @@ fn press(
         button.finger = None;
         return;
     };
-    let center = center_of(button.anchor, button.offset, area, scale);
     let half = (button.width * scale / 2.0, button.height * scale / 2.0);
+    let center = center_of(button.anchor, button.inward, half, area, scale);
     if button.finger.is_some_and(|id| ended.contains(&id)) {
         button.finger = None;
     }
@@ -364,7 +384,10 @@ fn push(
 ) {
     let home = area
         .filter(|_| stick.visibility.live(touchscreen))
-        .map(|area| center_of(stick.anchor, stick.offset, area, scale));
+        .map(|area| {
+            let reach = stick.radius * scale;
+            center_of(stick.anchor, stick.inward, (reach, reach), area, scale)
+        });
     let Some(home) = home else {
         stick.finger = None;
         stick.value = [0.0; 2];
@@ -465,26 +488,6 @@ fn color_toml(color: [f32; 4]) -> toml::Value {
     )
 }
 
-/// The two numbers a `vec2` property holds, or `fallback`.
-fn vec2_of(params: &toml::Value, key: &str, fallback: [f32; 2]) -> [f32; 2] {
-    let axis = |i: usize| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback[i], |v| v as f32)
-    };
-    [axis(0), axis(1)]
-}
-
-fn vec2_toml(v: [f32; 2]) -> toml::Value {
-    toml::Value::Array(vec![
-        toml::Value::Float(f64::from(v[0])),
-        toml::Value::Float(f64::from(v[1])),
-    ])
-}
-
 /// A number a scene may have left out, where zero is a real setting rather
 /// than "unset". `prop_f64` cannot tell those apart.
 fn number(params: &toml::Value, key: &str, fallback: f32) -> f32 {
@@ -506,19 +509,20 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "An on-screen button that presses an `action` while a finger is on it. `anchor` and `offset` place it inside the screen's safe area.",
+            doc: "An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.",
             schema: ComponentDef::parse_schema(
                 w::TOUCH_BUTTON,
                 &ComponentDef::schema(&[
                     (k::ACTION, r#"{ type = "string", default = "", description = "The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding" }"#),
-                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner or edge the offset is measured from, inside the safe area" }}"#, w::BOTTOM_RIGHT, ComponentDef::options(w::ANCHORS))),
-                    (k::OFFSET, r#"{ type = "vec2", default = [-110.0, -110.0], description = "From the anchor to the button's centre, in design pixels, x right and y down" }"#),
-                    (k::WIDTH, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area width in design pixels" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area height in design pixels" }"#),
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The touch area's outline; a circle uses the larger half of the box" }}"#, w::CIRCLE, ComponentDef::options(w::SHAPES))),
                     (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.25], description = "Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::PRESSED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.5], description = "Fill while a finger is on it" }"#),
+                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner, edge or middle the button sits against, inside the safe area", group = "placement" }}"#, w::BOTTOM_RIGHT, ComponentDef::options(w::ANCHORS))),
+                    (k::X, r#"{ type = "float", default = 50.0, description = "Inward from the anchored side to the button's own, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
+                    (k::Y, r#"{ type = "float", default = 50.0, description = "Inward from the anchored top or bottom to the button's own, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
+                    (k::WIDTH, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area width in design pixels", group = "placement" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area height in design pixels", group = "placement" }"#),
+                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.25], description = "Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa", group = "paint" }"#),
+                    (k::PRESSED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.5], description = "Fill while a finger is on it", group = "paint" }"#),
                 ]),
             ),
             tags: &[
@@ -530,7 +534,7 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                 let button = TouchButton {
                     action: prop_str(params, k::ACTION).to_string(),
                     anchor: Anchor::parse(prop_str(params, k::ANCHOR)),
-                    offset: vec2_of(params, k::OFFSET, [-110.0, -110.0]),
+                    inward: [number(params, k::X, 50.0), number(params, k::Y, 50.0)],
                     width: number(params, k::WIDTH, 120.0).max(0.0),
                     height: number(params, k::HEIGHT, 120.0).max(0.0),
                     shape: if prop_str(params, k::KIND) == w::RECTANGLE {
@@ -560,7 +564,8 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                     k::ANCHOR.into(),
                     toml::Value::String(button.anchor.word().into()),
                 );
-                out.insert(k::OFFSET.into(), vec2_toml(button.offset));
+                out.insert(k::X.into(), toml::Value::Float(f64::from(button.inward[0])));
+                out.insert(k::Y.into(), toml::Value::Float(f64::from(button.inward[1])));
                 out.insert(
                     k::WIDTH.into(),
                     toml::Value::Float(f64::from(button.width)),
@@ -598,21 +603,22 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor` and `offset` place it.",
+            doc: "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.",
             schema: ComponentDef::parse_schema(
                 w::TOUCH_STICK,
                 &ComponentDef::schema(&[
                     (k::ACTION_X, r#"{ type = "string", default = "", description = "The action the stick's left and right feed, -1 at the left of its throw" }"#),
                     (k::ACTION_Y, r#"{ type = "string", default = "", description = "The action the stick's up and down feed, 1 pushed away from the player" }"#),
-                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner or edge the offset is measured from, inside the safe area" }}"#, w::BOTTOM_LEFT, ComponentDef::options(w::ANCHORS))),
-                    (k::OFFSET, r#"{ type = "vec2", default = [130.0, -130.0], description = "From the anchor to the stick's centre, in design pixels, x right and y down" }"#),
-                    (k::RADIUS, r#"{ type = "float", default = 90.0, min = 1.0, description = "The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in" }"#),
-                    (k::KNOB_RADIUS, r#"{ type = "float", default = 38.0, min = 1.0, description = "The knob's own radius in design pixels; drawing only" }"#),
+                    (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
                     (k::DEADZONE, r#"{ type = "float", default = 0.15, min = 0.0, max = 0.95, description = "Fraction of the throw that reads zero, so a resting thumb does not drift; the rest is rescaled so the first live reading is near zero" }"#),
                     (k::RECENTER, r#"{ type = "bool", default = false, description = "Move the stick's centre to the thumb that grabbed it, so an off-centre grab does not jerk" }"#),
-                    (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.18], description = "The base circle's fill, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::KNOB_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.45], description = "The knob's fill" }"#),
+                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner, edge or middle the stick sits against, inside the safe area", group = "placement" }}"#, w::BOTTOM_LEFT, ComponentDef::options(w::ANCHORS))),
+                    (k::X, r#"{ type = "float", default = 40.0, description = "Inward from the anchored side to the stick's throw, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
+                    (k::Y, r#"{ type = "float", default = 40.0, description = "Inward from the anchored top or bottom to the stick's throw, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = 90.0, min = 1.0, description = "The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in", group = "placement" }"#),
+                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.18], description = "The base circle's fill, as channel floats or #rrggbb / #rrggbbaa", group = "paint" }"#),
+                    (k::KNOB_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.45], description = "The knob's fill", group = "paint" }"#),
+                    (k::KNOB_RADIUS, r#"{ type = "float", default = 38.0, min = 1.0, description = "The knob's own radius in design pixels; drawing only", group = "paint" }"#),
                 ]),
             ),
             tags: &[
@@ -625,7 +631,7 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
                     action_x: prop_str(params, k::ACTION_X).to_string(),
                     action_y: prop_str(params, k::ACTION_Y).to_string(),
                     anchor: Anchor::parse(prop_str(params, k::ANCHOR)),
-                    offset: vec2_of(params, k::OFFSET, [130.0, -130.0]),
+                    inward: [number(params, k::X, 40.0), number(params, k::Y, 40.0)],
                     radius: number(params, k::RADIUS, 90.0).max(1.0),
                     knob_radius: number(params, k::KNOB_RADIUS, 38.0).max(1.0),
                     deadzone: number(params, k::DEADZONE, 0.15).clamp(0.0, 0.95),
@@ -661,7 +667,8 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
                     k::ANCHOR.into(),
                     toml::Value::String(stick.anchor.word().into()),
                 );
-                out.insert(k::OFFSET.into(), vec2_toml(stick.offset));
+                out.insert(k::X.into(), toml::Value::Float(f64::from(stick.inward[0])));
+                out.insert(k::Y.into(), toml::Value::Float(f64::from(stick.inward[1])));
                 out.insert(
                     k::RADIUS.into(),
                     toml::Value::Float(f64::from(stick.radius)),

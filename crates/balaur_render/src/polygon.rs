@@ -53,39 +53,35 @@ impl PolygonMesh {
 }
 
 fn polygon_schema() -> String {
-    let overlay = crate::overlay::schema_2d(crate::overlay::Drawn::Pipeline);
-    balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
-        &[
-            (
-                k::MESH,
-                &format!(
-                    r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#,
-                    balaur_core::mesh::MESH_ASSET_TYPE
-                ),
+    balaur_core::components::ComponentDef::schema(&[
+        (
+            k::MESH,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#,
+                balaur_core::mesh::MESH_ASSET_TYPE
             ),
-            (
-                k::TEXTURE,
-                &format!(
-                    r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the tint alone" }}"#,
-                    balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-                ),
+        ),
+        (
+            k::TEXTURE,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the tint alone" }}"#,
+                balaur_core::texture_asset::TEXTURE_ASSET_TYPE
             ),
-            (
-                k::PIXELS_PER_UNIT,
-                r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping" }"#,
-            ),
-            (
-                k::SKELETON,
-                r#"{ type = "node", default = "", description = "The rig root; empty means this node" }"#,
-            ),
-            (
-                k::COLOR,
-                r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-            ),
-            (k::MATERIAL, &crate::material::material_line_2d()),
-        ],
-        &overlay,
-    ))
+        ),
+        (
+            k::COLOR,
+            r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+        ),
+        (k::MATERIAL, &crate::material::material_line_2d()),
+        (
+            k::SKELETON,
+            r#"{ type = "node", default = "", description = "The rig root; empty means this node" }"#,
+        ),
+        (
+            k::PIXELS_PER_UNIT,
+            r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping", group = "placement" }"#,
+        ),
+    ])
 }
 
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
@@ -127,7 +123,6 @@ fn apply_polygon(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
     let polygon = resolve(eng, text("mesh"), text(k::TEXTURE), text(k::SKELETON), ppu)?;
     set_polygon(eng, entity, Arc::new(polygon))?;
     set_color(eng, entity, color_from_params(params))?;
-    crate::overlay_from_params(eng, entity, params)?;
     crate::material::set_material_2d(eng, entity, &text(k::MATERIAL))
 }
 
@@ -226,7 +221,6 @@ fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         k::MATERIAL.into(),
         toml::Value::String(renderable.material.clone()),
     );
-    crate::overlay::overlay_2d_to_map(&renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 

@@ -9,39 +9,12 @@ use cosmic_text::{
 };
 
 use crate::RequestRef;
+use crate::fonts::{FontTable, LoadedFont};
 use crate::markup::{self, Align};
 use crate::options::{Options, TruncateAt, Underline};
 
 /// Line height as a multiple of the font size: what browsers call `normal`.
 const LINE_HEIGHT: f32 = 1.25;
-
-/// A named chain as a request shapes with it: its first face's family, that
-/// face's `scale`, which sizes the line as well as its own glyphs, and its
-/// weight, which is what 400 means in the chain.
-#[derive(Clone)]
-pub(crate) struct Chain {
-    pub(crate) family: String,
-    pub(crate) scale: f32,
-    pub(crate) weight: u16,
-}
-
-/// Every named chain by name: what a request's `family` and a `[font]` mark
-/// resolve through. A name with no chain of its own takes `ui`.
-#[derive(Default)]
-pub(crate) struct Chains(pub(crate) HashMap<String, Chain>);
-
-impl Chains {
-    pub(crate) fn of(&self, name: &str) -> Option<&Chain> {
-        let name = if name.is_empty() {
-            crate::fonts::UI_CHAIN
-        } else {
-            name
-        };
-        self.0
-            .get(name)
-            .or_else(|| self.0.get(crate::fonts::UI_CHAIN))
-    }
-}
 
 /// Each face's import settings, by the id one font system gave it: ids are
 /// per system, so the drawing and the measuring system each keep their own.
@@ -78,10 +51,11 @@ pub(crate) fn runs<'b>(
     buffer.layout_runs().take(kept)
 }
 
-/// How wide a laid-out line draws: its glyphs' reach, which a resized
-/// monospace face takes past the width cosmic-text broke the line at.
-pub(crate) fn line_width(run: &LayoutRun<'_>, options: &Options) -> f32 {
-    if options.monospace_width.is_none() {
+/// How wide a laid-out line draws: its glyphs' reach, which a monospace face
+/// resized to `monospace_width` takes past the width cosmic-text broke the
+/// line at.
+pub(crate) fn line_width(run: &LayoutRun<'_>, monospace_width: Option<f32>) -> f32 {
+    if monospace_width.is_none() {
         return run.line_w;
     }
     run.glyphs
@@ -120,25 +94,27 @@ fn cosmic_color(color: egui::Color32) -> cosmic_text::Color {
     cosmic_text::Color::rgba(r, g, b, a)
 }
 
+/// The family a font asks the database for: its face's, else whatever the
+/// database answers sans-serif with.
+fn family_of(font: &LoadedFont) -> Family<'_> {
+    if font.family.is_empty() {
+        Family::SansSerif
+    } else {
+        Family::Name(&font.family)
+    }
+}
+
 /// The block's own attributes: family, weight, slant, width, features and
 /// the lines it draws, before any mark.
-fn base_attrs<'a>(request: &RequestRef<'a>, chain: Option<&'a Chain>, em: f32) -> Attrs<'a> {
+fn base_attrs<'a>(request: &RequestRef<'a>, font: &'a LoadedFont, em: f32) -> Attrs<'a> {
     let options = request.options;
-    let family = if options.font_name.is_empty() {
-        chain.map_or(Family::SansSerif, |c| Family::Name(&c.family))
-    } else {
-        Family::Name(&options.font_name)
-    };
     let mut base = Attrs::new()
-        .family(family)
-        .weight(Weight(crate::fonts::chain_weight(
-            request.weight,
-            chain.map(|c| c.weight),
-        )))
+        .family(family_of(font))
+        .weight(Weight(font.weight_for(request.weight)))
         .style(request.slant.style())
-        .stretch(options.stretch.cosmic());
-    if !options.features.is_empty() {
-        base = base.font_features(options.font_features());
+        .stretch(font.settings.stretch.cosmic());
+    if !font.settings.features.is_empty() {
+        base = base.font_features(font.settings.font_features());
     }
     if request.letter_spacing != 0.0 {
         base = base.letter_spacing(request.letter_spacing / em);
@@ -171,33 +147,28 @@ fn base_attrs<'a>(request: &RequestRef<'a>, chain: Option<&'a Chain>, em: f32) -
 /// a drawing can never lay the same text out differently.
 ///
 /// A face's `scale` sizes its glyphs the way egui's `FontTweak` does: the
-/// chain's first face sets the size of every glyph it draws and the line's
-/// height, and a fallback face's glyphs are shaped again at its own scale.
+/// font's face sets the size of every glyph it draws and the line's height,
+/// and a fallback face's glyphs are shaped again at its own scale.
 pub(crate) fn shape_into(
     fonts: &mut FontSystem,
     tweaks: &Tweaks,
-    chains: &Chains,
+    table: &FontTable,
     request: &RequestRef<'_>,
 ) -> Buffer {
     let parsed = spans_of(request);
     let align = parsed.align.unwrap_or(request.align);
     let options = request.options;
-    let chain = chains.of(request.family);
+    let font = table.of(request.font);
     let size = request.size.max(1.0);
-    // A named face is not the chain's first, so the chain's scale is not its.
-    let chain_scale = if options.font_name.is_empty() {
-        chain.map_or(1.0, |c| c.scale)
-    } else {
-        1.0
-    };
-    let em = size * chain_scale;
+    let font_scale = font.scale;
+    let em = size * font_scale;
     let factor = if request.line_height > 0.0 {
         request.line_height
     } else {
         LINE_HEIGHT
     };
     let line_height = em * factor;
-    let base = base_attrs(request, chain, em);
+    let base = base_attrs(request, font, em);
     let mut buffer = Buffer::new(fonts, Metrics::new(em, line_height));
     let alignment = match align {
         Align::Start => None,
@@ -219,8 +190,8 @@ pub(crate) fn shape_into(
         .collect();
     let marked = Marked {
         parsed: &parsed,
-        chains,
-        chain_scale,
+        table,
+        font_scale,
         em,
         factor,
         letter_spacing: request.letter_spacing,
@@ -231,12 +202,12 @@ pub(crate) fn shape_into(
         borrowed.set_wrap(wrap);
         borrowed.set_ellipsize(cut);
         borrowed.set_size(request.width, options.max_height);
-        borrowed.set_hinting(if options.snap_advances {
+        borrowed.set_hinting(if font.settings.snap_advances {
             Hinting::Enabled
         } else {
             Hinting::Disabled
         });
-        borrowed.set_monospace_width(options.monospace_width);
+        borrowed.set_monospace_width(font.settings.monospace_width);
         borrowed.set_tab_width(options.tab_width.max(1));
         let spans: Vec<(&str, Attrs<'_>)> = pieces
             .iter()
@@ -248,7 +219,7 @@ pub(crate) fn shape_into(
                 )
             })
             .collect();
-        borrowed.set_rich_text(spans, &base, options.shaping.cosmic(), alignment);
+        borrowed.set_rich_text(spans, &base, font.settings.shaping.cosmic(), alignment);
         borrowed.shape_until_scroll(true);
     };
     lay(&mut buffer, fonts, &whole);
@@ -267,16 +238,16 @@ struct Piece {
     /// Its bytes within that span's text.
     range: std::ops::Range<usize>,
     /// Its own size, where a face drawing it scales differently from the
-    /// chain's first; `None` takes its span's.
+    /// font's; `None` takes its span's.
     size: Option<f32>,
 }
 
-/// What every piece's attributes are worked out from: the marks, the chains
+/// What every piece's attributes are worked out from: the marks, the fonts
 /// a `[font]` names, and the block's own size and spacing.
 struct Marked<'p> {
     parsed: &'p markup::Markup,
-    chains: &'p Chains,
-    chain_scale: f32,
+    table: &'p FontTable,
+    font_scale: f32,
     em: f32,
     /// Line height as a multiple of the size.
     factor: f32,
@@ -284,10 +255,10 @@ struct Marked<'p> {
 }
 
 impl<'p> Marked<'p> {
-    /// The em a span is drawn at: its `[size]` in the chain's scale, else
-    /// the block's.
+    /// The em a span is drawn at: its `[size]` in the font's scale, else the
+    /// block's.
     fn em_of(&self, span: &markup::Span) -> f32 {
-        span.size.map_or(self.em, |size| size * self.chain_scale)
+        span.size.map_or(self.em, |size| size * self.font_scale)
     }
 
     /// One piece's attributes over the block's own. Spans are told apart by
@@ -311,9 +282,9 @@ impl<'p> Marked<'p> {
         if self.letter_spacing != 0.0 {
             attrs = attrs.letter_spacing(self.letter_spacing / size);
         }
-        let chains: &'p Chains = self.chains;
-        if let Some(chain) = span.font.as_deref().and_then(|name| chains.of(name)) {
-            attrs = attrs.family(Family::Name(&chain.family));
+        let table: &'p FontTable = self.table;
+        if let Some(reference) = span.font.as_deref() {
+            attrs = attrs.family(family_of(table.of(reference)));
         }
         if span.bold {
             attrs = attrs.weight(Weight::BOLD);
@@ -346,8 +317,8 @@ impl<'p> Marked<'p> {
     }
 }
 
-/// The spans cut where a face whose `scale` is not the chain's first face's
-/// drew a glyph, each such stretch at that face's size. `None` when every
+/// The spans cut where a face whose `scale` is not the font's face's drew a
+/// glyph, each such stretch at that face's size. `None` when every
 /// glyph came from a face at its span's scale.
 fn rescaled(
     buffer: &Buffer,

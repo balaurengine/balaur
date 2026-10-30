@@ -128,6 +128,15 @@ pub fn set(eng: &Engine, entity: Entity, want: Option<bool>) {
     }
 }
 
+/// What the node's own `interpolate` key said, `None` when it said nothing.
+#[must_use]
+pub fn own(eng: &Engine, entity: Entity) -> Option<bool> {
+    eng.world()
+        .get::<&Pinned>(entity)
+        .ok()
+        .map(|pinned| pinned.0)
+}
+
 /// Whether the node is drawn between steps right now.
 #[must_use]
 pub fn is_on(eng: &Engine, entity: Entity) -> bool {

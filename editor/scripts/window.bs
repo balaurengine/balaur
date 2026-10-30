@@ -4,6 +4,7 @@
 use about;
 use editor;
 use exporter;
+use fonts;
 use left;
 use manager;
 use newnode;
@@ -17,8 +18,8 @@ use themewin;
 use util;
 
 pub struct Size {
-    w: float,
-    h: float,
+    width: float,
+    height: float,
 }
 
 pub class WindowState {
@@ -54,20 +55,20 @@ const PAD_X: float = 18.0;
 
 /// A sheet's own box. The floor is what a form needs and the screen is what
 /// there is: on a phone the second wins, less the margin around it.
-pub fn size(S: editor::State) -> Size {
+pub fn size(state: editor::State) -> Size {
     let screen = ui::window_size();
     let room = util::max(screen.x - 2.0 * MARGIN, 240.0);
     let tall = util::max(screen.y - 2.0 * MARGIN, 200.0);
     Size {
-        w: util::min(util::clamp(screen.x * WIDTH_FRACTION, MIN_WIDTH, MAX_WIDTH), room),
-        h: util::min(util::clamp(screen.y * HEIGHT_FRACTION, MIN_HEIGHT, screen.y - 120.0), tall),
+        width: util::min(util::clamp(screen.x * WIDTH_FRACTION, MIN_WIDTH, MAX_WIDTH), room),
+        height: util::min(util::clamp(screen.y * HEIGHT_FRACTION, MIN_HEIGHT, screen.y - 120.0), tall),
     }
 }
 
 /// What a sheet leaves inside itself: what a body measures its columns
 /// against, since a row with no stated width reads the whole layer instead.
-pub fn inner_w(S: editor::State) -> float {
-    util::max(size(S).w - 2.0 * PAD_X, 120.0)
+pub fn inner_w(state: editor::State) -> float {
+    util::max(size(state).width - 2.0 * PAD_X, 120.0)
 }
 
 /// Every open window, so one place decides what is on top and `esc` has
@@ -78,56 +79,56 @@ pub fn state() -> WindowState {
 }
 
 /// Put the screen `id` up, which fills the sheet at the next word.
-pub fn show(S: &mut editor::State, id: str) {
-    S.window.open = id;
-    changed(S);
+pub fn show(state: &mut editor::State, id: str) {
+    state.window.open = id;
+    changed(state);
 }
 
-pub fn hide(S: &mut editor::State) {
-    S.window.open = "";
-    S.window.drawn = "";
+pub fn hide(state: &mut editor::State) {
+    state.window.open = "";
+    state.window.drawn = "";
     util::fill(SHEET, map().with("open", false));
 }
 
-pub fn showing(S: editor::State, id: str) -> bool {
-    S.window.open == id
+pub fn showing(state: editor::State, id: str) -> bool {
+    state.window.open == id
 }
 
 /// What the screen up shows moved: the word its sheet fills on.
-pub fn changed(S: &mut editor::State) {
-    signals::changed(S, "sheet");
+pub fn changed(state: &mut editor::State) {
+    signals::changed(state, "sheet");
 }
 
 const SHEET: str = "Editor/Sheet";
 
 /// Fill whichever screen is up: what the sheet's script asks for.
-pub fn fill(S: &mut editor::State) {
-    if S.window.open == "settings" {
-        settings::fill(S);
-    } else if S.window.open == "theme" {
-        themewin::fill(S);
-    } else if S.window.open == "export" {
-        exporter::fill(S);
-    } else if S.window.open == "about" {
-        about::fill(S);
-    } else if S.window.open == "populate" {
-        populate::fill(S);
-    } else if S.window.open == "manager-new" {
-        manager::new_fill(S);
+pub fn fill(state: &mut editor::State) {
+    if state.window.open == "settings" {
+        settings::fill(state);
+    } else if state.window.open == "theme" {
+        themewin::fill(state);
+    } else if state.window.open == "export" {
+        exporter::fill(state);
+    } else if state.window.open == "about" {
+        about::fill(state);
+    } else if state.window.open == "populate" {
+        populate::fill(state);
+    } else if state.window.open == "manager-new" {
+        manager::new_fill(state);
     }
 }
 
 /// The sheet shut itself, on Escape or a click on the dim: the screen that
 /// was up is not any more.
-pub fn closed(S: &mut editor::State) {
-    if S.window.open != "" && util::prop(SHEET, "open").as_bool() == false {
-        S.window.open = "";
-        S.window.drawn = "";
+pub fn closed(state: &mut editor::State) {
+    if state.window.open != "" && util::prop(SHEET, "open").as_bool() == false {
+        state.window.open = "";
+        state.window.drawn = "";
     }
 }
 
 /// The bar across a sheet: its name, the verbs it carries, and the close.
-fn bar_controls(S: editor::State, title: str, actions: [any]) -> [any] {
+fn bar_controls(state: editor::State, title: str, actions: [any]) -> [any] {
     let out = [
         map().with("kind", "label").with("role", "text_title_dialog").with("text", title),
         map().with("kind", "row").with("grow", 1),
@@ -140,31 +141,31 @@ fn bar_controls(S: editor::State, title: str, actions: [any]) -> [any] {
         .with("role", "icon_action_dialog")
         .with("text", "Close")
         .with("on", "handle")
-        .with("data", map().with("fn", bar_controls_on_0)));
+        .with("data", map().with("fn", on_close_clicked)));
     out
 }
 
-fn bar_controls_on_0(S: &mut editor::State, data: any, _0: any) {
-    hide(S);
+fn on_close_clicked(state: &mut editor::State, data: any, _value: any) {
+    hide(state);
 }
 
 /// The hosts a screen fills: its own column down the left, and the rows
 /// beside it. Opens the sheet for `id`, with `actions`, control specs, beside
 /// its close; `()` when another screen is up.
-pub fn sheet_form(S: &mut editor::State, id: str, title: str, actions: [any]) -> Hosts? {
-    if !showing(S, id) {
+pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [any]) -> Hosts? {
+    if !showing(state, id) {
         return nil;
     }
     // Every screen fills the same hosts, so what another one drew last is not
     // this one's: a fill keyed on its inputs writes its own rows again.
-    if S.window.drawn != id {
-        S.pool_keys.remove(SIDE_ROWS);
-        S.pool_keys.remove(FORM);
-        S.window.drawn = id;
+    if state.window.drawn != id {
+        state.pool_keys.remove(SIDE_ROWS);
+        state.pool_keys.remove(FORM);
+        state.window.drawn = id;
     }
-    let box = size(S);
-    util::fill(SHEET, map().with("open", true).with("width", box.w).with("height", box.h));
-    pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title, actions));
+    let box = size(state);
+    util::fill(SHEET, map().with("open", true).with("width", box.width).with("height", box.height));
+    pool::strip(state, SHEET + "/SheetBar", bar_controls(state, title, actions));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -177,14 +178,15 @@ const SIDE_ROWS: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRow
 
 const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 
-// A query and what it matches, over everything: the command palette and the
-// node picker take turns on it, since only one of them is ever up.
+// A query and what it matches, over everything: the command palette, the
+// node picker, rename and the font catalogue take turns on it, since only
+// one of them is ever up.
 const PICKER: str = "Editor/Picker";
 
 /// Shut the picker, for the screen that was using it.
-pub fn picker_shut(S: &mut editor::State) {
+pub fn picker_shut(state: &mut editor::State) {
     util::fill(PICKER, map().with("open", false));
-    S.picker_focused = false;
+    state.picker_focused = false;
 }
 
 /// Open the picker and answer where its rows go.
@@ -192,11 +194,11 @@ pub fn picker_shut(S: &mut editor::State) {
 /// `opts` names the glyph before the query, the `placeholder` behind it, the
 /// `query` itself and what to do with an edit (`on`) and an Enter
 /// (`on_submit`), the `width` it would like, and how tall its rows are.
-pub fn picker(S: &mut editor::State, opts: any) -> str {
+pub fn picker(state: &mut editor::State, opts: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
-    let width = util::min(util::f(opts.width), util::max(screen.x - 32.0, 240.0));
+    let width = util::min(opts.width.as_float(), util::max(screen.x - 32.0, 240.0));
     util::fill(PICKER, map().with("open", true).with("width", width));
     let field = map()
         .with("kind", "text_field")
@@ -207,52 +209,56 @@ pub fn picker(S: &mut editor::State, opts: any) -> str {
         .with("on", opts.on)
         .with("on_submit", opts.on_submit)
         .with("data", opts.data);
-    pool::strip(S, PICKER + "/PickerHead", [
+    pool::strip(state, PICKER + "/PickerHead", [
         map().with("kind", "label").with("role", "text_mark_picker").with("text", opts.mark.as_str()),
         field,
         map().with("kind", "label").with("role", "chip").with("text", "esc"),
     ]);
     util::fill(PICKER + "/PickerScroll", map()
         .with("visible", true)
-        .with("height", util::min(util::max(screen.y * 0.5, 160.0), util::f(opts.rows_h))));
+        .with("height", util::min(util::max(screen.y * 0.5, 160.0), opts.rows_h.as_float())));
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
-    if !S.picker_focused {
+    if !state.picker_focused {
         let node = scene::get_node(PICKER + "/PickerHead/C1");
         if node.is_valid() {
             ui::set_focus(node);
-            S.picker_focused = true;
+            state.picker_focused = true;
         }
     }
     PICKER + "/PickerScroll/PickerRows"
 }
 
 /// What the picker shows moved: the word its script fills on.
-pub fn picker_changed(S: &mut editor::State) {
-    signals::changed(S, "picker");
+pub fn picker_changed(state: &mut editor::State) {
+    signals::changed(state, "picker");
 }
 
 /// Fill whichever of the palette, the node picker and rename is up.
-pub fn picker_fill(S: &mut editor::State) {
-    if S.palette {
-        palette::fill(S);
-    } else if S.newnode {
-        newnode::fill(S);
-    } else if S.renaming {
-        left::rename_fill(S);
+pub fn picker_fill(state: &mut editor::State) {
+    if state.palette {
+        palette::fill(state);
+    } else if state.newnode {
+        newnode::fill(state);
+    } else if state.renaming {
+        left::rename_fill(state);
+    } else if fonts::finding(state) {
+        fonts::fill(state);
     }
 }
 
 /// The picker shut itself, on Escape or a click on the dim.
-pub fn picker_closed(S: &mut editor::State) {
+pub fn picker_closed(state: &mut editor::State) {
     if util::prop(PICKER, "open").as_bool() != false {
         return;
     }
-    if S.palette {
-        shell::close_palette(S);
-    } else if S.newnode {
-        newnode::close(S);
-    } else if S.renaming {
-        left::rename_close(S);
+    if state.palette {
+        shell::close_palette(state);
+    } else if state.newnode {
+        newnode::close(state);
+    } else if state.renaming {
+        left::rename_close(state);
+    } else if fonts::finding(state) {
+        fonts::close(state);
     }
 }

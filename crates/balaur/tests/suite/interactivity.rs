@@ -15,7 +15,7 @@ fn app_from(scene: &str) -> (tempfile::TempDir, balaur::App) {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
@@ -33,7 +33,7 @@ fn app_with_scripts(scene: &str, scripts: &[(&str, &str)]) -> (tempfile::TempDir
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
@@ -58,16 +58,16 @@ id = "n_scene"
 name = "Scene"
 
 [[nodes]]
-id = "n_a"
-name = "A"
+id = "n_bystander"
+name = "Bystander"
 parent = "n_scene"
-script = { source = "scripts/a.bs" }
+script = { source = "scripts/bystander.bs" }
 
 [[nodes]]
-id = "n_b"
-name = "B"
+id = "n_gatekeeper"
+name = "Gatekeeper"
 parent = "n_scene"
-script = { source = "scripts/b.bs" }
+script = { source = "scripts/gatekeeper.bs" }
 "#;
 
 /// Adds `by` to `hits`.
@@ -76,17 +76,17 @@ const HIT: &str = r#"fn hit(by: int) {
 }
 "#;
 
-/// A hears what reaches it and takes nothing.
-const A_HEARS: &str = r"pub struct A { node: Node }
-impl A {
+/// The bystander hears what reaches it and takes nothing.
+const BYSTANDER_HEARS: &str = r"pub class Bystander { node: Node }
+impl Bystander {
     pub fn on_key_down(key: any) { hit(1); }
     pub fn on_pointer_down(button: any) { hit(10); }
 }
 ";
 
-/// B hears first, takes the key, and lets every press through.
-const B_HEARS: &str = r"pub struct B { node: Node }
-impl B {
+/// The gatekeeper hears first, takes the key, and lets every press through.
+const GATEKEEPER_HEARS: &str = r"pub class Gatekeeper { node: Node }
+impl Gatekeeper {
     pub fn on_key_down(key: any) -> bool {
         hit(1);
         true
@@ -105,9 +105,9 @@ fn hits(app: &balaur::App) -> i64 {
         .map_or(-1.0, balaur_core::variables::as_num) as i64
 }
 
-/// A that feeds a press from its own update, once, and hears like A.
-const A_FEEDS: &str = r#"pub struct A { node: Node }
-impl A {
+/// A bystander that feeds a press from its own update, once, and hears as the other does.
+const BYSTANDER_FEEDS: &str = r#"pub class Bystander { node: Node }
+impl Bystander {
     fn update(dt: float) {
         if scene::variable("hits").as_int() == 0 {
             input::feed_mouse_button(0, true);
@@ -121,7 +121,10 @@ impl A {
 fn a_press_a_script_feeds_reaches_the_hooks_on_the_next_frame() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.bs", A_FEEDS), ("scripts/b.bs", B_HEARS)],
+        &[
+            ("scripts/bystander.bs", BYSTANDER_FEEDS),
+            ("scripts/gatekeeper.bs", GATEKEEPER_HEARS),
+        ],
     );
     app.tick(1.0 / 60.0);
     assert_eq!(hits(&app), 0, "fed during the tick, so not this frame's");
@@ -139,7 +142,10 @@ fn a_press_a_script_feeds_reaches_the_hooks_on_the_next_frame() {
 fn a_hook_that_answers_true_ends_the_broadcast() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
+        &[
+            ("scripts/bystander.bs", BYSTANDER_HEARS),
+            ("scripts/gatekeeper.bs", GATEKEEPER_HEARS),
+        ],
     );
     app.tick(1.0 / 60.0);
     {
@@ -156,7 +162,10 @@ fn a_hook_that_answers_true_ends_the_broadcast() {
 fn a_press_over_nothing_reaches_every_node() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
+        &[
+            ("scripts/bystander.bs", BYSTANDER_HEARS),
+            ("scripts/gatekeeper.bs", GATEKEEPER_HEARS),
+        ],
     );
     app.tick(1.0 / 60.0);
     {
@@ -203,7 +212,10 @@ fn press_at(app: &mut balaur::App, at: egui::Pos2, down: bool) {
 fn a_press_on_a_widget_reaches_no_node() {
     let (_dir, mut app) = app_with_scripts(
         HEARERS,
-        &[("scripts/a.bs", A_HEARS), ("scripts/b.bs", B_HEARS)],
+        &[
+            ("scripts/bystander.bs", BYSTANDER_HEARS),
+            ("scripts/gatekeeper.bs", GATEKEEPER_HEARS),
+        ],
     );
     let button = {
         let root = app.engine.root();
@@ -366,7 +378,7 @@ fn a_variable_change_reaches_the_nodes_that_declare_the_hook() {
     std::fs::write(
         dir.path().join("scripts/watch.bs"),
         r"
-pub struct Watch { node: Node, seen: int, last: float }
+pub class Watch { node: Node, seen: int, last: float }
 
 impl Watch {
     pub fn on_variable_changed(name: str, value: any) {
@@ -637,13 +649,13 @@ fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), ONCE).unwrap();
     std::fs::write(
         dir.path().join("scenes/wave.bs"),
-        r#"pub struct Wave { node: Node }
+        r#"pub class Wave { node: Node }
 impl Wave {
     fn init() { events::listen(self.node, "animation_finished", self.node); }
     pub fn on_animation_finished(clip: any) {
@@ -739,17 +751,17 @@ fn a_node_offers_the_events_its_components_announce() {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("scenes/main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Clock\"\nscript = { source = \"scenes/c.bs\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
+        "[[nodes]]\nid = \"clock\"\nname = \"Clock\"\nscript = { source = \"scenes/clock.bs\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scenes/c.bs"),
-        "pub struct Clock { node: Node }\n\
+        dir.path().join("scenes/clock.bs"),
+        "pub class Clock { node: Node }\n\
          impl Clock { pub fn offered() -> [str] { scene::bindable_events(self.node) } }\n",
     )
     .unwrap();

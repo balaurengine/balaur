@@ -209,6 +209,7 @@ pub(crate) fn link(
     root.fns.append(&mut out.fns);
     root.consts.append(&mut out.consts);
     root.origin.append(&mut out.origin);
+    root.class_origin.append(&mut out.class_origin);
     for x in out.externs {
         if !root.externs.iter().any(|e| e.name == x.name) {
             root.externs.push(x);
@@ -327,6 +328,13 @@ impl Linker<'_> {
         pos: Pos,
     ) -> Result<(), Error> {
         let name = name.to_string();
+        // Its functions would take the names of a built-in type's methods.
+        if crate::prelude::owns(&format!("{name}::")) {
+            return Err(Error {
+                pos,
+                msg: format!("`{name}` is a built-in type: give the module another name"),
+            });
+        }
         {
             let seen = self.stack.iter().chain(&self.done);
             if let Some((_, other)) = seen.clone().find(|(k, _)| *k == key) {
@@ -380,6 +388,7 @@ impl Linker<'_> {
             self.out.consts.append(&mut m.consts);
             self.out.externs.append(&mut m.externs);
             self.out.origin.append(&mut m.origin);
+            self.out.class_origin.append(&mut m.class_origin);
         }
         Ok(())
     }
@@ -419,6 +428,10 @@ impl Linker<'_> {
                     }
                 }
                 Ty::Array(e) | Ty::Optional(e) => walk(e, out),
+                Ty::Map(key, value) => {
+                    walk(key, out);
+                    walk(value, out);
+                }
                 Ty::Fn(params, ret, _) => {
                     for p in params {
                         walk(p, out);
@@ -466,6 +479,10 @@ trait Rename {
                 }
             }
             Ty::Array(e) | Ty::Optional(e) => self.ty(e),
+            Ty::Map(key, value) => {
+                self.ty(key);
+                self.ty(value);
+            }
             Ty::Fn(params, ret, _) => {
                 for p in params {
                     self.ty(p);
@@ -588,7 +605,7 @@ fn unalias(prog: &mut Program, aliases: &[String], made: &Made) {
     }
 }
 
-fn prefix(m: &mut Program, name: &str, key: &str) {
+pub(crate) fn prefix(m: &mut Program, name: &str, key: &str) {
     let free = m.fns.iter().filter(|f| f.owner.is_none());
     let (public, private): (Vec<_>, Vec<_>) = free.partition(|f| f.public);
     let names = Names {
@@ -609,6 +626,7 @@ fn prefix(m: &mut Program, name: &str, key: &str) {
     }
     for n in &mut m.classes {
         *n = format!("{name}::{n}");
+        m.class_origin.push((n.clone(), key.to_string()));
     }
     for (n, e) in &mut m.consts {
         expr(&names, &mut vec![], e);
@@ -734,6 +752,12 @@ fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
         ExprKind::ArrayLit(items) => {
             for i in items {
                 expr(n, scope, i);
+            }
+        }
+        ExprKind::MapLit(entries) => {
+            for (key, value) in entries {
+                expr(n, scope, key);
+                expr(n, scope, value);
             }
         }
         ExprKind::If(c, then, els) => {

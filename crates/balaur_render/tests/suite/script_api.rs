@@ -36,12 +36,14 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        format!("pub struct N {{ node: Node }}\nimpl N {{\nfn init() {{\n{body}\n}}\n}}\n"),
+        dir.path().join("scripts/scenario.bs"),
+        format!(
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\nfn init() {{\n{body}\n}}\n}}\n"
+        ),
     )
     .unwrap();
 
@@ -332,13 +334,13 @@ fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
     .unwrap();
     std::fs::write(
         root.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        root.join("scripts/s.bs"),
-        r#"pub struct N { node: Node }
-impl N {
+        root.join("scripts/scenario.bs"),
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         if render::texture_pixels_per_unit("art/set.png") != 64.0 { log::error("the import setting was not read"); }
         if render::texture_pixels_per_unit("art/plain.png") != 100.0 { log::error("an image with none is not at 100"); }
@@ -388,16 +390,16 @@ fn a_traced_island_winds_counter_clockwise_and_a_hole_clockwise() {
     image.save(root.join("art/shapes.png")).unwrap();
     std::fs::write(
         root.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         root.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        root.join("scripts/s.bs"),
+        root.join("scripts/scenario.bs"),
         r#"fn windings(loops: [[Vec2]]) -> [str] {
     let out: [str] = [];
     for found in loops {
@@ -418,8 +420,8 @@ fn count(words: [str], word: str) -> int {
     return n;
 }
 
-pub struct N { node: Node }
-impl N {
+pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let all = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0).with("holes", true)));
         let largest = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0)));

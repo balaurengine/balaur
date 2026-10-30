@@ -44,18 +44,16 @@ pub(crate) struct BatchKey {
     pub(crate) texture: String,
     /// The material asset, the node's own or the one it inherited.
     pub(crate) material: String,
-    /// The blend, wireframe, vertices and culling, which are the object's.
-    pub(crate) overlay: crate::overlay::Overlay2d,
+    /// The debug drawing, which is the object's.
+    pub(crate) debug: crate::debug_draw::DebugDraw,
 }
 
 /// The mesh a node would draw through, or `None` where it cannot join a run.
 ///
 /// A polygon and a polyline carry geometry of their own, so each is a draw
-/// whatever else is beside it.
+/// whatever else is beside it. A node its material lights per pixel draws
+/// on its own too, which the caller asks of the material.
 pub(crate) fn batchable(renderable: &Renderable2d) -> Option<Mesh> {
-    if renderable.lit.is_some() {
-        return None;
-    }
     match renderable.shape {
         Shape2d::Flat(flat) => Some(Mesh::Flat(flat)),
         Shape2d::Sprite { .. } => renderable.sprite.as_ref().map(|_| Mesh::Quad),
@@ -67,6 +65,7 @@ pub(crate) fn batchable(renderable: &Renderable2d) -> Option<Mesh> {
 pub(crate) fn key_of(
     renderable: &Renderable2d,
     mesh: Mesh,
+    debug: crate::debug_draw::DebugDraw,
     inherited: balaur_core::scene::MaterialId,
 ) -> BatchKey {
     let material = if renderable.material.is_empty() {
@@ -81,7 +80,7 @@ pub(crate) fn key_of(
             .as_ref()
             .map_or_else(|| renderable.texture.clone(), |sprite| sprite.path.clone()),
         material,
-        overlay: renderable.overlay,
+        debug,
     }
 }
 
@@ -187,7 +186,7 @@ mod tests {
             }),
             texture: name.to_string(),
             material: String::new(),
-            overlay: crate::overlay::Overlay2d::default(),
+            debug: crate::debug_draw::DebugDraw::default(),
         }
     }
 

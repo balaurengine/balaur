@@ -117,10 +117,11 @@ fn a_probe_with_no_size_is_widened_to_something_a_ray_can_meet() {
 fn a_material_that_says_nothing_about_its_surface_is_plain_and_opaque() {
     let plain = surface(r#"shader = "shaders/x.wesl""#);
     assert_eq!(plain, Surface::default());
-    assert_eq!(plain.alpha, AlphaMode::Opaque);
+    // `auto`, which a 3D node naming the material draws solid.
+    assert_eq!(plain.alpha, AlphaMode::Auto);
     assert!(!plain.refracts());
     assert!(!plain.mirror);
-    assert!(!plain.double_sided);
+    assert_eq!(plain.double_sided, None);
 }
 
 #[test]
@@ -291,7 +292,7 @@ fn a_probe_turns_with_its_node_and_captures_its_own_layers_and_planes() {
         &app,
         entity,
         "reflection_probe",
-        "capture_layers = 2\ncapture_near = 0.5\ncapture_far = 40.0",
+        "capture_layers = [\"2\"]\ncapture_near = 0.5\ncapture_far = 40.0",
     );
     let turn = balaur_core::glamx::Quat::from_rotation_y(0.7);
     app.engine
@@ -308,7 +309,10 @@ fn a_probe_turns_with_its_node_and_captures_its_own_layers_and_planes() {
     assert_eq!(found[0].capture_layers, 2);
     assert_eq!(found[0].clip_planes, Some((0.5, 40.0)));
     let read = components::get(&app.engine, entity, "reflection_probe").unwrap();
-    assert_eq!(read["capture_layers"].as_integer(), Some(2));
+    assert_eq!(
+        read["capture_layers"],
+        toml::Value::Array(vec![toml::Value::String("2".into())])
+    );
 
     let plain = node(&app);
     add(&app, plain, "reflection_probe", "capture_far = 40.0");

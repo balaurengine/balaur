@@ -17,6 +17,7 @@ use crate::scalar::{self, Pose2, Real, Rotation2};
 
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::collider::spec;
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
@@ -141,7 +142,8 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         w::HEIGHTFIELD => shapes::heightfield_collider(eng, params)?,
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
-    let builder = with_material(builder, params);
+    let material = crate::material::of(eng, params)?;
+    let builder = with_material(builder, params, &material);
     Ok(match mass {
         // `mass` pins the total itself, and wins where it is written.
         Some(mass) if v::f(params, k::MASS, 0.0) <= 0.0 => builder.mass_properties(mass),
@@ -209,21 +211,17 @@ pub(crate) fn with_events_2d(builder: ColliderBuilder2, params: &toml::Value) ->
 /// The 2D half of `crate::collider::with_material`. The flag tables are
 /// shared (`crate::vocabulary::flags`); only the types they are poured into
 /// are per-dimension.
-pub(crate) fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
+pub(crate) fn with_material(
+    builder: ColliderBuilder2,
+    params: &toml::Value,
+    material: &crate::material::PhysicsMaterial,
+) -> ColliderBuilder2 {
     let mut builder = builder
-        .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0).max(0.0)))
-        .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
+        .restitution(scalar::real(material.restitution))
+        .friction(scalar::real(material.friction))
         .density(scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)))
-        .friction_combine_rule(combine_rule(v::text(
-            params,
-            k::FRICTION_COMBINE,
-            w::AVERAGE,
-        )))
-        .restitution_combine_rule(combine_rule(v::text(
-            params,
-            k::RESTITUTION_COMBINE,
-            w::AVERAGE,
-        )))
+        .friction_combine_rule(combine_rule(&material.friction_combine))
+        .restitution_combine_rule(combine_rule(&material.restitution_combine))
         .contact_skin(scalar::real(
             v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
         ))
@@ -258,6 +256,45 @@ pub(crate) fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> 
         builder = builder.mass(mass);
     }
     builder
+}
+
+/// Build again each collider and soft body naming a material file once the
+/// asset cache has moved, so a material saved in the editor shows on every
+/// body naming it, as a re-read tile map's cells do.
+pub(crate) fn reread_materials(eng: &Engine) {
+    let stale: Vec<(Entity, toml::Value, bool)> = {
+        let state = eng.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        let generation = balaur_core::assets::generation(eng);
+        if state.materials_read == generation {
+            return;
+        }
+        state.materials_read = generation;
+        let surface = [k::PHYSICS_MATERIAL];
+        let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
+        let colliders = state
+            .collider_params
+            .iter()
+            .filter(|(_, p)| crate::material::names_a_file(p, &surface));
+        let soft = state
+            .soft_params
+            .iter()
+            .filter(|(_, p)| crate::material::names_a_file(p, &both));
+        colliders
+            .map(|(entity, params)| (*entity, params.clone(), false))
+            .chain(soft.map(|(entity, params)| (*entity, params.clone(), true)))
+            .collect()
+    };
+    for (entity, params, soft) in stale {
+        let rebuilt = if soft {
+            crate::dim2::softbody::apply_softbody_2d(eng, entity, &params)
+        } else {
+            apply_collider(eng, entity, &params)
+        };
+        if let Err(why) = rebuilt {
+            tracing::warn!("physics_material: {why:#}");
+        }
+    }
 }
 
 /// Build and insert the collider described by `params`, replacing any
@@ -449,40 +486,56 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
+            (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle" }"#),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.0, description = "Length tip to tip, when kind is capsule; height 0 runs the capsule from a to b instead" }"#),
+            (k::SENSOR, &spec::sensor()),
+            (k::ENABLED, &spec::enabled()),
+            (k::PHYSICS_MATERIAL, &crate::material::row_spec()),
+            (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
+            (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, unit = "degrees", description = "How the shape is turned relative to the node; radians in the file", group = "shape" }"#),
             (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{y}", options = [{axes}], description = "The axis a capsule lies along", group = "shape" }}"#)),
-            (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle" }"#),
             (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition's pieces by this radius, so it slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec2", default = [0.0, 0.0], description = "First corner, when kind is triangle or segment, and a capsule's first end when its height is 0", group = "shape" }"#),
             (k::B, r#"{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0", group = "shape" }"#),
             (k::C, r#"{ type = "vec2", default = [0.0, 1.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
             (k::NORMAL, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is world_boundary", group = "shape" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-            (k::EDGES, &format!(r#"{{ type = "enum", default = "{chain}", options = [{edges}], description = "Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them", group = "shape" }}"#)),
-            (k::KEEP_COLLINEAR, r#"{ type = "bool", default = false, description = "Keep the points that lie on a straight edge of a convex_polygon instead of dropping them", group = "shape" }"#),
-            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at", group = "shape" }}"#)),
-            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground, with the asset's holes cut out", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
-            (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield", group = "shape" }"#),
-            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
-            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points", group = "shape" }"#),
-            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition", group = "shape" }}"#)),
-            (k::FILL_CAVITIES, r#"{ type = "bool", default = false, description = "When a solid fill floods an outline, leave the holes it walls off empty", group = "shape" }"#),
-            (k::FIX_SELF_INTERSECTIONS, r#"{ type = "bool", default = false, description = "When a solid fill floods an outline, handle the places it crosses itself", group = "shape" }"#),
+        ]),
+        crate::collider::filtering_schema(),
+        v::schema(&[
+            (k::ONE_WAY, &spec::one_way()),
+            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The side a one-way platform holds bodies on, in the collider's own axes: [0, 1] lands them from above and lets them up through from below", group = "contacts" }"#),
+            (k::ONE_WAY_ANGLE, &spec::one_way_angle()),
+            (k::SURFACE_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], description = "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
+            (k::COLLISION_MARGIN, &spec::collision_margin()),
             (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them", group = "contacts" }"#),
-            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "shape" }"#),
-            (k::OVERLAP, r#"{ type = "float", default = 0.9, min = 0.0, max = 1.0, description = "How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it", group = "decomposition" }"#),
-            (k::METHOD, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts", group = "decomposition" }}"#, w::EXACT, v::options(w::DECOMPOSITION_METHODS))),
+            (k::TWO_SIDED_EDGES, &spec::two_sided_edges()),
+            (k::DENSITY, &spec::density()),
+            (k::MASS, &spec::mass()),
             (k::CENTER_OF_MASS, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where this collider's mass sits, in its own space; read with inertia, and both 0 keep the shape's own", group = "mass" }"#),
             (k::INERTIA, r#"{ type = "float", default = 0.0, min = 0.0, description = "This collider's resistance to spin; 0 with a center_of_mass takes the shape's own about that centre", group = "mass" }"#),
-            (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
-            (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, unit = "degrees", description = "How the shape is turned relative to the node; radians in the file", group = "shape" }"#),
-            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The side a one-way platform holds bodies on, in the collider's own axes: [0, 1] lands them from above and lets them up through from below", group = "contacts" }"#),
-            (k::SURFACE_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], description = "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
         ]),
-        crate::collider::vhacd_schema(vhacd.resolution, scalar::f32_of(vhacd.concavity), vhacd.max_convex_hulls),
-        crate::collider::trimesh_schema(),
-        crate::collider::shared_collider_schema(),
+        crate::collider::events_schema(),
+        v::schema(&[
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws", group = "mesh" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at", group = "mesh" }}"#)),
+            (k::EDGES, &format!(r#"{{ type = "enum", default = "{chain}", options = [{edges}], description = "Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them", group = "mesh" }}"#)),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "mesh" }"#),
+            (k::KEEP_COLLINEAR, r#"{ type = "bool", default = false, description = "Keep the points that lie on a straight edge of a convex_polygon instead of dropping them", group = "mesh" }"#),
+            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition", group = "mesh" }}"#)),
+            (k::FILL_CAVITIES, r#"{ type = "bool", default = false, description = "When a solid fill floods an outline, leave the holes it walls off empty", group = "mesh" }"#),
+            (k::FIX_SELF_INTERSECTIONS, r#"{ type = "bool", default = false, description = "When a solid fill floods an outline, handle the places it crosses itself", group = "mesh" }"#),
+            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground, with the asset's holes cut out", group = "mesh" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
+            (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield", group = "mesh" }"#),
+            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "mesh" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
+            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points", group = "mesh" }"#),
+        ]),
+        crate::collider::mesh_cleanup_schema(),
+        v::schema(&[
+            (k::METHOD, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts", group = "decomposition" }}"#, w::EXACT, v::options(w::DECOMPOSITION_METHODS))),
+            (k::OVERLAP, r#"{ type = "float", default = 0.9, min = 0.0, max = 1.0, description = "How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it", group = "decomposition" }"#),
+        ]),
+        crate::collider::decomposition_schema(vhacd.resolution, scalar::f32_of(vhacd.concavity), vhacd.max_convex_hulls),
     ]
     .join("\n");
     reg.register_component(

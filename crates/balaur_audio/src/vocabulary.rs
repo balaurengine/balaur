@@ -26,7 +26,7 @@ pub(crate) mod keys {
     pub(crate) const FILE: &str = "file";
     pub(crate) const HIGH_PASS_HZ: &str = "high_pass_hz";
     pub(crate) const HIGH_PASS_Q: &str = "high_pass_q";
-    pub(crate) const LAYERS: &str = "layers";
+    pub(crate) const STEMS: &str = "stems";
     pub(crate) const LOOP: &str = "loop";
     pub(crate) const LOOP_OFFSET: &str = "loop_offset";
     pub(crate) const LOW_PASS_HZ: &str = "low_pass_hz";

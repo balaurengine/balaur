@@ -356,7 +356,7 @@ def method_row(module, function, signature, doc):
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-def gen_components(components, tags, docs=None, methods=None, events=None):
+def gen_components(components, tags, docs=None, methods=None, events=None, order=None):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -404,7 +404,8 @@ def gen_components(components, tags, docs=None, methods=None, events=None):
         out.append(f"## {label}\n\n")
         for name in groups[label]:
             schema = components[name]
-            props = sorted(schema)
+            # In the order the component writes them, which the inspector shows.
+            props = (order or {}).get(name) or sorted(schema)
             rows = "\n".join(component_row(p, schema[p]) for p in props)
             facets = " · ".join(f"`{t}`" for t in tags.get(name, [])) or "untagged"
             summary = (docs or {}).get(name, "")
@@ -497,6 +498,15 @@ def gen_assets(asset_types, functions, components):
         doc = info.get("doc", "").strip()
         if doc:
             out.append(doc + "\n\n")
+        # A record's rows, as a component's are listed, in the order it
+        # writes them.
+        schema = info.get("schema")
+        if schema:
+            rows = "\n".join(component_row(p, schema[p]) for p in info.get("order") or sorted(schema))
+            out.append(
+                "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
+                f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
+            )
     if functions:
         listed = ", ".join(f"`{f}`" for f in sorted(functions))
         out.append(
@@ -683,6 +693,7 @@ def main():
             api.get("component_docs", {}),
             component_methods(api),
             api.get("component_events", {}),
+            api.get("component_order", {}),
         ),
         "assets.md": gen_assets(
             api.get("asset_types", {}),

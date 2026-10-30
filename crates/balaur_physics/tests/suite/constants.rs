@@ -14,18 +14,21 @@ use balaur_physics::{
     SOFT_KINDS_2D, SOFT_SOLVERS, TENSION_MODES, TEST_MODES, TILE_FIT_MODES_2D,
 };
 
-/// The enum or flags options a registered component actually declares. A
-/// dotted `field` reaches into a list of records: `axes.motor`.
+/// The enum or flags options a registered component, or a record asset,
+/// actually declares. A dotted `field` reaches into a list of records:
+/// `axes.motor`.
 fn registered_options(component: &str, field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
-    let registry = registry.borrow();
-    let def = registry
+    let schema = registry
+        .borrow()
         .def(component)
+        .map(|def| std::rc::Rc::clone(&def.schema))
+        .or_else(|| balaur_core::assets::schema(&app.engine, component))
         .unwrap_or_else(|| panic!("`{component}` is registered"));
     let mut path = field.split('.');
-    let first = def.schema.get(path.next().unwrap_or_default());
+    let first = schema.get(path.next().unwrap_or_default());
     let spec = path.fold(first, |spec, name| {
         spec.and_then(|s| s.get("of"))
             .and_then(|of| of.get("fields"))
@@ -62,13 +65,13 @@ fn every_constant_table_matches_the_registered_schema() {
         (
             "COMBINE_RULES",
             COMBINE_RULES,
-            "collider3d",
+            "physics_material",
             "friction_combine",
         ),
         (
             "COMBINE_RULES",
             COMBINE_RULES,
-            "collider2d",
+            "physics_material",
             "restitution_combine",
         ),
         ("MOTOR_MODES", MOTOR_MODES, "joint3d", "axes.motor"),
@@ -79,7 +82,7 @@ fn every_constant_table_matches_the_registered_schema() {
         (
             "SHAPE_MATCHING_MODES",
             SHAPE_MATCHING_MODES,
-            "softbody3d",
+            "soft_material",
             "shape_matching",
         ),
         ("TENSION_MODES", TENSION_MODES, "softbody3d", "tension_only"),
@@ -87,18 +90,8 @@ fn every_constant_table_matches_the_registered_schema() {
         ("IGNORES", IGNORES, "character3d", "ignore"),
         ("IGNORES", IGNORES, "character2d", "ignore"),
         ("IGNORES", IGNORES, "vehicle3d", "ignore"),
-        (
-            "LENGTH_MODES",
-            LENGTH_MODES,
-            "character3d",
-            "safe_margin_lengths",
-        ),
-        (
-            "LENGTH_MODES",
-            LENGTH_MODES,
-            "character2d",
-            "floor_snap_lengths",
-        ),
+        ("LENGTH_MODES", LENGTH_MODES, "character3d", "lengths"),
+        ("LENGTH_MODES", LENGTH_MODES, "character2d", "lengths"),
         ("FILL_MODES", FILL_MODES, "collider3d", "fill"),
         ("FILL_MODES", FILL_MODES, "collider2d", "fill"),
         ("FIT_MODES", FIT_MODES, "collider3d", "fit"),
@@ -135,11 +128,11 @@ fn every_constant_table_matches_the_registered_schema() {
         ("SOFT_KINDS_2D", SOFT_KINDS_2D, "softbody2d", "kind"),
         ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody3d", "solver"),
         ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody2d", "solver"),
-        ("CELL_MODELS", CELL_MODELS, "softbody3d", "cell_model"),
+        ("CELL_MODELS", CELL_MODELS, "soft_material", "cell_model"),
         (
             "PLASTIC_FLOWS",
             PLASTIC_FLOWS,
-            "softbody2d",
+            "soft_material",
             "edge_plastic_flow",
         ),
     ];

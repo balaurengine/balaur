@@ -21,11 +21,11 @@ fn run(scene: &str, script: &str, frames: u32) -> App {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..frames {
@@ -195,7 +195,7 @@ one_way = true
 id = "n_body_a"
 name = "BodyA"
 parent = "n_level"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [0.0, -2.0, 0.0]
@@ -211,7 +211,7 @@ radius = 0.3
 id = "n_body_b"
 name = "BodyB"
 parent = "n_level"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [10.0, -2.0, 0.0]
@@ -237,8 +237,8 @@ size = [8.0, 0.2]
 one_way = true
 "#;
 
-const RISE: &str = r"pub struct S { node: Node }
-impl S {
+const RISE: &str = r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.body2d.set_linear_velocity(0.0, 15.0);
     }

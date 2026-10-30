@@ -8,7 +8,7 @@ use logs;
 const REPORT_KEY: str = "gamend:logs";
 const FLUSH_KEY: str = "gamend:logs_flush";
 
-pub struct LogSink {
+pub class LogSink {
     node: Node,
     sink: logs::Sink,
     report_in: int,

@@ -1,7 +1,10 @@
 // Editing a `text2d` or `text3d` where it is drawn: double-click one in the
-// viewport and type over it, rather than crossing to the inspector for a word.
+// viewport, or add one, and type over it rather than crossing to the
+// inspector for a word. Enter or a click away keeps what was typed; Escape
+// drops it.
 
 use editor;
+use gizmo;
 use model;
 use selection;
 use signals;
@@ -9,22 +12,28 @@ use util;
 use viewport;
 
 pub class TexteditState {
-    at: float,
-    x: float,
-    y: float,
+    added: int,
+    clicked_at: float,
+    click_x: float,
+    click_y: float,
     node: int,
     buffer: str,
     box_x: float,
     box_y: float,
+    box_w: float,
+    size: float,
 }
 
+/// The field: where it is in design px, the text it opens with, and the size
+/// its letters are typed at, 0 for the size its role carries.
 pub struct View {
     open: bool,
     x: float,
     y: float,
-    w: float,
-    h: float,
+    width: float,
+    height: float,
     text: str,
+    size: float,
 }
 
 // Two clicks closer together than this many seconds, and this many design
@@ -33,20 +42,38 @@ const GAP: float = 0.4;
 
 const SLOP: float = 6.0;
 
-// The field's box, in design pixels, opened over the point clicked.
-const W: float = 260.0;
+// The field's narrowest box, in design pixels, and its height at the size
+// its role carries.
+const MIN_WIDTH: float = 260.0;
 
-const H: float = 34.0;
+const HEIGHT: float = 34.0;
+
+// What a 2D text's letters are typed at, between these: the size they are
+// drawn at, unless that is too small to read or too big to fit.
+const MIN_SIZE: float = 14.0;
+
+const MAX_SIZE: float = 96.0;
+
+// Room the panel and the field keep around the words, in design pixels.
+const PAD_W: float = 40.0;
+
+const PAD_H: float = 16.0;
 
 pub fn state() -> TexteditState {
-    TexteditState { at: -1.0, x: 0.0, y: 0.0, node: -1, buffer: "", box_x: 0.0, box_y: 0.0 }
+    TexteditState { added: -1, clicked_at: -1.0, click_x: 0.0, click_y: 0.0, node: -1, buffer: "", box_x: 0.0, box_y: 0.0, box_w: MIN_WIDTH, size: 0.0 }
+}
+
+fn shut() -> View {
+    View { open: false, x: 0.0, y: 0.0, width: 0.0, height: 0.0, text: "", size: 0.0 }
 }
 
 // The text component on a node, whichever dimension it is in; "" for none.
-fn component(node: any) -> str {
-    if node.has("text2d") {
+fn component(found: Node) -> str {
+    if !found.is_valid() {
+        ""
+    } else if found.has_component("text2d") {
         "text2d"
-    } else if node.has("text3d") {
+    } else if found.has_component("text3d") {
         "text3d"
     } else {
         ""
@@ -54,84 +81,144 @@ fn component(node: any) -> str {
 }
 
 /// Whether the selection carries text, so the shell can offer the verb.
-pub fn editable(S: editor::State) -> bool {
-    S.sel >= 0 && S.sel < S.doc.len() && component(S.doc[S.sel]) != ""
+pub fn editable(state: editor::State) -> bool {
+    component(model::selected_node(state)) != ""
+}
+
+/// Open the field over a text added last frame, once a frame whatever the
+/// pointer did.
+pub fn step(state: &mut editor::State) {
+    if state.textedit.added < 0 {
+        return;
+    }
+    let rect = gizmo::viewport_rect(state);
+    open(state, state.textedit.added, rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+    state.textedit.added = -1;
+}
+
+/// Whether a text added waits for its field, which asks for the next frame.
+pub fn waiting(state: editor::State) -> bool {
+    state.textedit.added >= 0
 }
 
 // Watch for the second click of a pair over the selected text node.
-pub fn update(S: &mut editor::State) {
-    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
+pub fn update(state: &mut editor::State) {
+    if state.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         return;
     }
-    let pointer = input::mouse_position();
-    let scale = util::max(S.ui_scale, 0.01);
-    let x = pointer.x / scale;
-    let y = pointer.y / scale;
+    let pointer = viewport::pointer(state);
     let now = engine::unix_time();
-    let quick = now - S.textedit.at < GAP;
-    let near = util::abs(x - S.textedit.x) < SLOP && util::abs(y - S.textedit.y) < SLOP;
-    S.textedit.at = now;
-    S.textedit.x = x;
-    S.textedit.y = y;
-    if !quick || !near || !viewport::owns_pointer(S, x, y) || !editable(S) {
+    let quick = now - state.textedit.clicked_at < GAP;
+    let near = util::abs(pointer.x - state.textedit.click_x) < SLOP && util::abs(pointer.y - state.textedit.click_y) < SLOP;
+    state.textedit.clicked_at = now;
+    state.textedit.click_x = pointer.x;
+    state.textedit.click_y = pointer.y;
+    if !quick || !near || !viewport::owns_pointer(state, pointer.x, pointer.y) || !editable(state) {
         return;
     }
-    let comp = S.doc[S.sel].get(component(S.doc[S.sel]));
-    S.textedit.node = S.sel;
-    S.textedit.buffer = comp.text.as_str();
-    // Opened where it was clicked, which is over the text itself: the 2D and
-    // 3D cameras project differently and the pointer does not.
-    S.textedit.box_x = x - W / 2.0;
-    S.textedit.box_y = y - H / 2.0;
-    signals::changed(S, "textedit");
+    // Over the point clicked, which is over the text itself, unless the
+    // text's own box on screen is known.
+    open(state, state.sel, pointer.x, pointer.y);
 }
 
-/// What the field over the point clicked shows: where it is, and the text it
-/// opens with. A node that went, or a selection moved off it, shuts it.
-pub fn view(S: &mut editor::State) -> View {
-    if S.textedit.node < 0 {
-        return View { open: false, x: 0.0, y: 0.0, w: 0.0, h: 0.0, text: "" };
+/// Open the field over a text just added, which is the selection, on the
+/// next frame, once its words are laid out: where a 2D one is drawn, and a
+/// 3D one at the middle of the view, where an added node lands. Anything
+/// else added opens nothing.
+pub fn open_added(state: &mut editor::State) {
+    if editable(state) {
+        state.textedit.added = state.sel;
     }
-    if S.textedit.node >= S.doc.len() || component(S.doc[S.textedit.node]) == "" {
-        close(S);
-        return View { open: false, x: 0.0, y: 0.0, w: 0.0, h: 0.0, text: "" };
+}
+
+// Open the field on row `row`, centred on (`design_x`, `design_y`) in design px or, for a 2D
+// text, on the box it is drawn in, its letters at the size they are drawn.
+fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
+    let found = model::node(state, row);
+    let name = component(found);
+    let edit = state.textedit;
+    edit.node = row;
+    edit.buffer = found.get_component(name, "text").as_str();
+    edit.size = 0.0;
+    let centre_x = design_x;
+    let centre_y = design_y;
+    let drawn_w = 0.0;
+    // The 2D camera's zoom, which a frame with no window has not got.
+    if name == "text2d" && found.has_component("transform") && render::camera_2d().z > 0.0 {
+        let per_px = viewport::world_per_px(state);
+        let scale = found.transform.global_scale();
+        let font = found.get_component(name, "font_size").as_float();
+        let per_unit = util::max(found.get_component(name, "pixels_per_unit").as_float(), 0.01);
+        edit.size = util::clamp(font / per_unit * util::abs(scale.y) / per_px, MIN_SIZE, MAX_SIZE);
+        let laid = render::bounds(found);
+        let known = laid.is_some() && laid.unwrap().len() == 2;
+        let local = if known { laid.unwrap()[0] } else { Vec3 { x: 0.0, y: 0.0, z: 0.0 } };
+        if known {
+            drawn_w = 2.0 * laid.unwrap()[1].x * util::abs(scale.x) / per_px;
+        }
+        let world = util::to_world(util::frame_of(found), local.x, local.y);
+        let at = viewport::screen_of_2d(state, world.x, world.y);
+        centre_x = at.x;
+        centre_y = at.y;
     }
-    View { open: true, x: S.textedit.box_x, y: S.textedit.box_y, w: W, h: H, text: S.textedit.buffer }
+    // Wide enough for the words as drawn, or as typed at this size.
+    let typed_w = (edit.buffer.len() as float) * util::max(edit.size, MIN_SIZE) * 0.6;
+    edit.box_w = util::max(MIN_WIDTH, util::max(drawn_w, typed_w) + PAD_W);
+    edit.box_x = centre_x - edit.box_w / 2.0;
+    edit.box_y = centre_y - height(edit.size) / 2.0;
+    signals::changed(state, "textedit");
 }
 
-/// What was typed so far, kept for Enter.
-pub fn typed(S: &mut editor::State, text: str) {
-    S.textedit.buffer = text;
+// The field's height for letters of `size`, 0 being its role's.
+fn height(size: float) -> float {
+    if size > 0.0 { size * 1.3 + PAD_H } else { HEIGHT }
 }
 
-/// Enter keeps the text; leaving the field without it drops it.
-pub fn submit(S: &mut editor::State, text: str) {
-    S.textedit.buffer = text;
-    commit(S);
-}
-
-fn commit(S: &mut editor::State) {
-    let i = S.textedit.node;
-    if i < 0 || i >= S.doc.len() {
-        close(S);
-        return;
+/// What the field shows: where it is, the text it opens with, and its size.
+/// A node that went shuts it.
+pub fn view(state: &mut editor::State) -> View {
+    if state.textedit.node < 0 {
+        return shut();
     }
-    let name = component(S.doc[i]);
+    if component(model::node(state, state.textedit.node)) == "" {
+        close(state);
+        return shut();
+    }
+    let edit = state.textedit;
+    View { open: true, x: edit.box_x, y: edit.box_y, width: edit.box_w, height: height(edit.size), text: edit.buffer, size: edit.size }
+}
+
+/// What was typed so far.
+pub fn typed(state: &mut editor::State, text: str) {
+    state.textedit.buffer = text;
+}
+
+/// Enter or a click away keeps the text.
+pub fn submit(state: &mut editor::State, text: str) {
+    state.textedit.buffer = text;
+    commit(state);
+}
+
+fn commit(state: &mut editor::State) {
+    let row = state.textedit.node;
+    let name = component(model::node(state, row));
     if name != "" {
         // `set_component_prop` writes the selection's node, which is this one.
-        let was = S.sel;
-        selection::only(S, i);
-        model::set_component_prop(S, name, "text", S.textedit.buffer);
-        selection::only(S, was);
+        let was = state.sel;
+        selection::only(state, row);
+        model::set_component_prop(state, name, "text", state.textedit.buffer);
+        selection::only(state, was);
     }
-    close(S);
+    close(state);
 }
 
-pub fn close(S: &mut editor::State) {
-    if S.textedit.node < 0 {
+/// Shut the field, keeping nothing it had not kept already: all Escape
+/// leaves, and what a click away leaves once it kept the text.
+pub fn close(state: &mut editor::State) {
+    if state.textedit.node < 0 {
         return;
     }
-    S.textedit.node = -1;
-    S.textedit.buffer = "";
-    signals::changed(S, "textedit");
+    state.textedit.node = -1;
+    state.textedit.buffer = "";
+    signals::changed(state, "textedit");
 }

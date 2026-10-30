@@ -2,7 +2,7 @@
 // for the three docks, each told its side by the node it is on; the Editor
 // owns which panels a dock holds and fills its row when asked.
 
-pub struct Dock {
+pub class Dock {
     node: Node,
     side: str,
     editor: Node,

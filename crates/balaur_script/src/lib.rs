@@ -12,8 +12,10 @@ mod tools;
 mod value;
 
 pub use bindings::CallbackHost;
-pub use bindings::{Bindings, BindingsExt, BoundFn, FnDoc, NoBindings, OwnedFn, RecordDoc};
+pub use bindings::{Bindings, BindingsExt, BoundFn, FnDoc, NoBindings, RecordDoc, TypedFn};
 pub use debug::{Frame, Pause, PauseReason, StepMode};
 pub use language::{ScriptCompiler, ScriptHost};
 pub use tools::{Diagnostic, Item, LanguageTools, Location, Symbol, tool_answer};
-pub use value::{CallbackId, FromArg, FromArgs, IntoValue, NodeId, Value, expect_arity};
+pub use value::{
+    Args, CallbackId, FromArg, FromArgs, IntoValue, NodeId, Value, Values, expect_arity,
+};

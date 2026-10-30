@@ -1,6 +1,6 @@
 // Reading the pointer and an action, which every player-controlled node does.
 
-pub struct InputRead {
+pub class InputRead {
     node: Node,
     x: float,
 }

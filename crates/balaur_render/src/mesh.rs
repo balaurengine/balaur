@@ -91,15 +91,15 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
                     &[
                         (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-                        (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
-                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                         (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint the texture and the material are multiplied by, as channel floats or #rrggbb / #rrggbbaa; an alpha below one draws it see-through" }"#),
-                        (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                        (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
-                        (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
+                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
+                        (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
+                        (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
+                        (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
+                        (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
                     ],
-                    &crate::overlay::schema_3d(crate::overlay::Drawn::Builtin),
+                    &crate::overlay::schema_3d(),
                 )),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -159,13 +159,13 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                 map.insert(
                     k::LIGHT_LAYERS.into(),
-                    toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
+                    balaur_core::layers::names(renderable.layers),
                 );
                 map.insert(
                     k::RENDER_LAYERS.into(),
-                    toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
+                    balaur_core::layers::names(renderable.render_layers),
                 );
-                crate::overlay::overlay_3d_to_map(&renderable.overlay, &mut map);
+                crate::overlay::overlay_3d_to_map(renderable.overlay, &mut map);
                 // One key per shape the mesh can blend towards, so a clip
                 // track spells `mesh/morph.smile` and a patch keeps the rest.
                 if let Ok(morphs) = world.get::<&MorphWeights>(entity) {

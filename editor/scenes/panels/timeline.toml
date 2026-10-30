@@ -85,6 +85,27 @@ role = "chip"
 text = "− Key"
 tooltip = "Delete keyframe at playhead"
 
+# The clip's own settings: how long it runs and what it does at its end.
+[[nodes]]
+id = "length"
+name = "Length"
+parent = "head"
+[nodes.widget]
+kind = "number_field"
+width = 72
+drag_speed = 0.01
+suffix = " s"
+tooltip = "How long the clip runs"
+
+[[nodes]]
+id = "loop"
+name = "Loop"
+parent = "head"
+[nodes.widget]
+kind = "dropdown"
+width = 92
+tooltip = "What the clip does at its end"
+
 [[nodes]]
 id = "gap"
 name = "Gap"

@@ -26,16 +26,15 @@ fn editor_pack() -> Pack {
     };
     pack.scenes.insert(
         "scenes/main.toml".into(),
-        "texture = \"assets/balaur-logo.png\"\nfont = \"fonts/ui-SourceSans3-Regular.ttf\"\n"
-            .into(),
+        "texture = \"assets/balaur-logo.png\"\nfont = \"fonts/SourceSans3-Regular.ttf\"\n".into(),
     );
     pack.assets.insert(
         "assets/balaur-logo.png".into(),
         repo_file("editor/assets/balaur-logo.png"),
     );
     pack.assets.insert(
-        "fonts/ui-SourceSans3-Regular.ttf".into(),
-        repo_file("editor/fonts/ui-SourceSans3-Regular.ttf"),
+        "fonts/SourceSans3-Regular.ttf".into(),
+        repo_file("editor/fonts/SourceSans3-Regular.ttf"),
     );
     pack
 }

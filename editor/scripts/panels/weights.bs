@@ -2,7 +2,7 @@
 // pick or the selection moved, and it hands back the verbs. A weight's own
 // field writes itself, and a vertex's or bone's own button picks it.
 
-pub struct Weights {
+pub class Weights {
     node: Node,
     editor: Node,
 }

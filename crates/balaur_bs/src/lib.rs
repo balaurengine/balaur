@@ -15,11 +15,12 @@ mod ast;
 pub mod c;
 mod codegen;
 pub mod fmt;
+mod maps;
 mod modules;
 mod parse;
+mod prelude;
 pub mod runtime;
 mod stored;
-mod strings;
 pub mod words;
 
 pub use ast::{Pos, Ty};
@@ -35,6 +36,24 @@ pub fn module_hash(wasm: &[u8]) -> String {
         fnv(wasm, 0xcbf2_9ce4_8422_2325),
         fnv(wasm, 0x6c62_272e_07bb_0142)
     )
+}
+
+/// The class a script file declares, named after the file:
+/// `scripts/rail_drag.bs` declares `RailDrag`. A node running the file is an
+/// object of it; a file without it is a module others `use`.
+#[must_use]
+pub fn script_class(key: &str) -> String {
+    let stem = key.rsplit('/').next().unwrap_or(key);
+    let stem = stem.strip_suffix(".bs").unwrap_or(stem);
+    stem.split(['_', '-'])
+        .map(|part| {
+            let mut chars = part.chars();
+            chars
+                .next()
+                .map(|first| first.to_uppercase().chain(chars).collect::<String>())
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 pub(crate) fn fnv(bytes: &[u8], seed: u64) -> u64 {
@@ -341,12 +360,6 @@ pub struct VarInfo {
     pub offset: u32,
 }
 
-/// Built-in value types the engine's vectors and colours arrive as.
-const PRELUDE: &str = "pub struct Vec2 { x: float, y: float }
-pub struct Vec3 { x: float, y: float, z: float }
-pub struct Color { r: float, g: float, b: float, a: float }
-";
-
 // The engine's records as structs, but for one the file declares itself.
 fn host_structs(host: &HostApi, prog: &ast::Program) -> Vec<(String, Vec<ast::Field>)> {
     host.structs
@@ -419,13 +432,10 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
             options.parsed.as_ref(),
         )?
     };
-    let prelude = parse::parse(PRELUDE).map_err(|e| Error {
-        pos: e.pos,
-        msg: format!("prelude: {}", e.msg),
-    })?;
-    let mut structs = prelude.structs;
-    structs.extend(host_structs(&options.host, &prog));
+    let mut structs = host_structs(&options.host, &prog);
     structs.append(&mut prog.structs);
     prog.structs = structs;
+    prelude::add(&mut prog)?;
+    maps::lower(&mut prog)?;
     Ok((prog, uses))
 }

@@ -727,7 +727,7 @@ fn settle_clicks(
         // `accept`. One in a group is a radio: it ticks and stays ticked, and
         // the pass below unticks the rest of its group.
         if flips(widget) {
-            let grouped = !widget.group.is_empty();
+            let grouped = !widget.radio_group.is_empty();
             let was = widget.checked;
             // Grouped, a click picks: it ticks and a second click leaves it
             // ticked, because something in the group has to be. On its own, a
@@ -745,7 +745,7 @@ fn settle_clicks(
                 }
             }
             if grouped {
-                ticked.push((entity, widget.group.clone()));
+                ticked.push((entity, widget.radio_group.clone()));
             }
         }
         if !widget.on_click.is_empty() {
@@ -754,7 +754,7 @@ fn settle_clicks(
     }
     for (struck, group) in &ticked {
         for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
-            if entity == *struck || !flips(widget) || widget.group != *group {
+            if entity == *struck || !flips(widget) || widget.radio_group != *group {
                 continue;
             }
             if !widget.checked {

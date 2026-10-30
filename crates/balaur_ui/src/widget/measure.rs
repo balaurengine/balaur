@@ -5,7 +5,6 @@
 //! asks the font atlas instead, so a row sizes itself to a label that changed
 //! this frame rather than to the one it showed last.
 
-use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget::arena::Placed;
 use crate::widget::arrange::padding_of;
@@ -455,7 +454,7 @@ impl<'a> Measure<'a> {
         } else {
             let face = egui::FontId::new(
                 crate::widget::text::icon_px(widget, font.size),
-                family(w::ICON),
+                look.icon.clone(),
             );
             self.painter
                 .line_of(widget.icon.to_string(), face, egui::Color32::WHITE)
@@ -565,7 +564,7 @@ impl<'a> Measure<'a> {
             .ctx()
             .fonts_mut(|fonts| fonts.row_height(&look.font));
         let title = caption(self.eng, widget);
-        let slant = crate::widget::theme::slanted(&look.style, widget);
+        let slant = crate::widget::theme::slanted(&look.style, (widget, look.project));
         let words = crate::widget::theme::galley(&self.painter, &title, &look.font, slant).size();
         let marks = [widget.egui.collapsible, widget.egui.closable]
             .iter()
@@ -588,7 +587,7 @@ impl<'a> Measure<'a> {
                     return 0.0;
                 }
                 let look = crate::widget::arena::look_of(self.arena, index, theme);
-                let slant = crate::widget::theme::slanted(&look.style, widget);
+                let slant = crate::widget::theme::slanted(&look.style, (widget, look.project));
                 crate::widget::theme::galley(&self.painter, &title, &look.font, slant)
                     .size()
                     .y
@@ -635,7 +634,13 @@ impl<'a> Measure<'a> {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         if let Some(state) = balaur_text::state(self.eng) {
-            let request = crate::widget::text::text_request(widget, text, width, &font, style);
+            let request = crate::widget::text::text_request(
+                (widget, self.arena[index].project),
+                text,
+                width,
+                &font,
+                style,
+            );
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)
@@ -666,8 +671,13 @@ impl<'a> Measure<'a> {
         let Some(state) = balaur_text::state(self.eng) else {
             return self.galley_in(index, text, widget, theme, Some(room));
         };
-        let request =
-            crate::widget::text::caption_request(widget, text, Some(room), &look.font, &look.style);
+        let request = crate::widget::text::caption_request(
+            (widget, self.arena[index].project),
+            text,
+            Some(room),
+            &look.font,
+            &look.style,
+        );
         state
             .borrow_mut()
             .shape_for_egui(&self.painter.ctx().clone(), &request)

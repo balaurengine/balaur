@@ -58,7 +58,6 @@ const DEFAULT_THICKNESS: f32 = 0.25;
 struct Recipe {
     thickness: f32,
     density: f32,
-    friction: f32,
     blend: f32,
     shape: String,
     articulation: bool,
@@ -139,11 +138,19 @@ impl Recipe {
             let on = opts.boolean(k::CONTINUOUS_COLLISION, false);
             body.insert(k::CONTINUOUS_COLLISION.into(), on.into());
         }
-        let mut collider = toml::map::Map::new();
+        // What every bone's surface is made of, written inline on each
+        // collider as a `physics_material`.
+        let mut surface = toml::map::Map::new();
+        surface.insert(
+            k::FRICTION.into(),
+            toml::Value::Float(f64::from(number(k::FRICTION, 0.5).max(0.0))),
+        );
         if opts.get(k::RESTITUTION).is_some() {
             let bounce = number(k::RESTITUTION, 0.0).clamp(0.0, 1.0);
-            collider.insert(k::RESTITUTION.into(), toml::Value::Float(f64::from(bounce)));
+            surface.insert(k::RESTITUTION.into(), toml::Value::Float(f64::from(bounce)));
         }
+        let mut collider = toml::map::Map::new();
+        collider.insert(k::PHYSICS_MATERIAL.into(), toml::Value::Table(surface));
         for key in [k::COLLISION_LAYER, k::COLLISION_MASK] {
             if let Some(items) = opts.list(key) {
                 collider.insert(key.into(), layers(items)?);
@@ -152,7 +159,6 @@ impl Recipe {
         Ok(Self {
             thickness: number(k::THICKNESS, DEFAULT_THICKNESS).max(0.001),
             density: number(k::DENSITY, 1.0).max(0.0),
-            friction: number(k::FRICTION, 0.5).max(0.0),
             blend: number(INFLUENCE, 1.0).clamp(0.0, 1.0),
             shape,
             articulation: opts.boolean(k::ARTICULATION, false),
@@ -315,6 +321,13 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         let root = eng.root();
         scene::spawn_node(&mut world, &format!("{rig_name}{CONTAINER_SUFFIX}"), root)
     };
+    // Where the bodies are kept: the root, which a running game wants, or
+    // the node the options name, which an editor building them into its
+    // scene does. Moved there once they are built, keeping where they are.
+    let parent = Opts(opts)
+        .node(k::PARENT)
+        .map(|bits| entity_of(NodeId(bits)))
+        .transpose()?;
     let mut made = Vec::with_capacity(segments.len());
     // Bodies first, every one of them, and joints after: a joint names the
     // node at its other end, and that node has to exist to be named.
@@ -340,6 +353,12 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     }
     if let Some(follow) = &recipe.follow {
         add_follows(eng, &made, follow, dim3)?;
+    }
+    if let Some(parent) = parent {
+        let before = scene::child_count(&eng.world(), parent);
+        scene::reparent(&mut eng.world_mut(), container, parent)?;
+        balaur_core::components::refile(eng, container, balaur_core::transform::COMPONENT);
+        scene::announce_added_since(eng, parent, before);
     }
     let bodies = relative_path(&eng.world(), rig, container);
     let mut params = toml::map::Map::new();
@@ -411,10 +430,6 @@ fn spawn_body(
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),
-    );
-    shape.insert(
-        k::FRICTION.into(),
-        toml::Value::Float(f64::from(recipe.friction)),
     );
     shape.insert(k::OFFSET.into(), vector(along * 0.5, dim3));
     // A capsule stands along its own y.
@@ -587,8 +602,8 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 RAGDOLL,
                 &ComponentDef::schema(&[
-                    (INFLUENCE, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
                     (BODIES, r#"{ type = "node", default = "", description = "The node holding the bodies, one per bone, named after it" }"#),
+                    (INFLUENCE, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::PHYSICS],
@@ -746,7 +761,8 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
          joints; `drive` (`none`, or `motors`: a position motor on every turn towards the built \
          pose, of `stiffness` 100 and `damping` 20 unless given; or `follow`: a `follow3d` on \
          every body towards its bone, so the bodies chase the clip, its keys in a `follow` \
-         table); and `influence`. Answers the body nodes it made."
+         table); `influence`; and `parent`, the node the bodies' container is kept under, \
+         the root unless given. Answers the body nodes it made."
     } else {
         "Build a 2D ragdoll from the rig under this node: a body and a shape per bone, hinged to \
          its parent's with the hinge's zero at the pose the rig is in. Options as in 3D, with \

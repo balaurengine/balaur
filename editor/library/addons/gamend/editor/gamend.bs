@@ -30,7 +30,7 @@ const MUTED: str = "text_note";
 const FAILED: str = "text_caption_primary";
 const SIGNED_IN: str = "text_code_success";
 
-pub struct Gamend {
+pub class Gamend {
     node: Node,
     // Each GET the dock made, by key: its request id, and its reply once one
     // came back, kept here since the engine keeps only the newest.

@@ -1,4 +1,5 @@
-//! The `flags` properties: rapier's flag tables, and the 32 collision layers.
+//! The `flags` properties: rapier's flag tables. The 32 layers are
+//! `balaur_core::layers`, shared with rendering.
 
 use crate::vocabulary::flag;
 
@@ -87,54 +88,4 @@ pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::V
             .map(|(name, _)| toml::Value::String((*name).to_string()))
             .collect(),
     )
-}
-
-/// The 32 collision layers a `flags` property names, as a bit set. Layers
-/// count from 1, as Godot's do: layer 1 is the lowest bit.
-///
-/// An empty membership means layer 1 and an empty filter means every layer:
-/// the alternative is 32 strings in every scene file that wants the default.
-pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) -> u32 {
-    let mut bits = 0u32;
-    for name in balaur_core::components::as_flags(params.get(key)) {
-        if let Some(bit) = layer_bit(name.parse::<u32>().ok()) {
-            bits |= bit;
-        }
-    }
-    if bits != 0 {
-        bits
-    } else if empty_is_all {
-        u32::MAX
-    } else {
-        1
-    }
-}
-
-/// A layer set as the numbers a `flags` property holds; every layer reads back
-/// as the empty list, which is how the schema spells "everything".
-pub(crate) fn layer_names(bits: u32) -> toml::Value {
-    if bits == u32::MAX {
-        return toml::Value::Array(Vec::new());
-    }
-    toml::Value::Array(
-        (0..32)
-            .filter(|bit| bits & (1 << bit) != 0)
-            .map(|bit| toml::Value::String((bit + 1).to_string()))
-            .collect(),
-    )
-}
-
-/// The bit a layer number sets, for a number from 1 to 32.
-pub(crate) fn layer_bit(layer: Option<u32>) -> Option<u32> {
-    layer.filter(|l| (1..=32).contains(l)).map(|l| 1 << (l - 1))
-}
-
-/// The 32 collision layers, as an `options` list for a `flags` property.
-/// Numbers rather than names: a name would have to come from the project file,
-/// and no other component resolves its options at inspector time.
-pub(crate) fn layer_options() -> String {
-    (1..=32)
-        .map(|i| format!("\"{i}\""))
-        .collect::<Vec<_>>()
-        .join(", ")
 }

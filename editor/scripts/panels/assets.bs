@@ -1,14 +1,14 @@
 // The Assets tab's one script: it fills the cards and the strip over them
 // from what the Editor, which owns the files, hands it, and answers both.
 
-pub struct Assets {
+pub class Assets {
     node: Node,
     query: str,
     renaming: bool,
     editor: Node,
 }
 
-pub struct Field2 {
+pub struct Field {
     visible: any,
     text: any,
 }
@@ -49,7 +49,7 @@ impl Assets {
             self.editor.call("assets_dropped", value);
         } else if name == "Name" && event == "submit" {
             self.editor.call("assets_verb", "rename_to", value);
-        } else if event == "click" && on_widget_event_any_0(name, VERBS()) {
+        } else if event == "click" && is_verb(name, VERBS()) {
             self.editor.call("assets_verb", name, "");
         }
     }
@@ -70,7 +70,7 @@ impl Assets {
         tools.get_node("Where").patch_component("widget", map().with("visible", !view.get("renaming").as_bool()).with("text", view.get("where")));
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
-        let field = Field2 { visible: view.get("renaming"), text: nil };
+        let field = Field { visible: view.get("renaming"), text: nil };
         if view.get("renaming") && !self.renaming {
             field.text = view.get("name");
         }
@@ -100,7 +100,7 @@ impl Assets {
     }
 }
 
-fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+fn is_verb(name: str, items: [str]) -> bool {
     for verb in items {
         if verb == name {
             return true;

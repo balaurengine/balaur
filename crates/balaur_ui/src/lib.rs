@@ -60,7 +60,7 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 /// bar overflows and the icons stop matching; the zoom grows all three.
 pub const TOUCH_TARGET: f32 = 44.0;
 
-pub use api::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
+pub use api::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 /// Where this project puts the lines between the screen classes, and whether
 /// the reader's own text size counts. Read once, after the project has
@@ -182,6 +182,11 @@ impl Default for UiConfig {
 #[derive(Default)]
 pub struct UiState {
     pub fonts_installed: bool,
+    /// The shaper's fonts generation egui's faces were taken under: a face
+    /// file written since is read again into both.
+    fonts_taken_at: u64,
+    /// The asset generation the widgets' text styles were last read under.
+    text_styles_read_at: u64,
     pub text_buffers: HashMap<String, String>,
     /// The value each seeded field was last filled from, so a field re-seeds
     /// when its source changes but not while someone is typing into it.
@@ -290,6 +295,8 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
         balaur_text::glyph::install(reg);
+        balaur_text::font::register_font_asset(reg);
+        balaur_text::text_style::register_text_style_asset(reg);
         reg.register_asset_type(
             widget::theme::ASSET_TYPE,
             "themes",
@@ -351,13 +358,23 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     };
     {
         let mut state = state.borrow_mut();
+        // Once a pass: egui takes the families given last pass, the shaper
+        // reads the fonts a widget asked egui for and follows the files under
+        // `fonts/`, and egui is given families again whenever it read any.
+        theme::take_fonts(eng, ctx);
+        widget::schema::reread_text_styles(eng, &mut state.text_styles_read_at);
+        let shaper = balaur_text::shaper(eng);
+        let generation = shaper.borrow().fonts_generation;
+        if state.fonts_installed && state.fonts_taken_at != generation {
+            theme::load_fonts(ctx, &shaper.borrow());
+            state.fonts_taken_at = generation;
+        }
         if !state.fonts_installed {
             // Fonts registered mid-pass only take effect next pass; skip one
             // frame of drawing so widgets never see unbound families.
-            let faces = balaur_text::fonts::font_faces(eng);
-            theme::load_fonts(ctx, &faces);
-            balaur_text::shaper(eng);
+            theme::load_fonts(ctx, &shaper.borrow());
             state.fonts_installed = true;
+            state.fonts_taken_at = generation;
             // A host that reruns the pass draws this frame with the fonts
             // bound; three passes, since a root's first pass only measures.
             ctx.options_mut(|options| {

@@ -55,7 +55,7 @@ start_time = 0.25
 end_time = 0.75
 delay = 0.5
 loop_offset = 0.125
-layers = ["a.wav", "b.wav"]
+stems = ["a.wav", "b.wav"]
 queue = ["c.wav"]
 fade_in_time = 0.5
 fade_out_time = 1.5
@@ -130,7 +130,7 @@ auto_gain_floor = 0.25
             .map(|v| v.as_str().unwrap().to_string())
             .collect()
     };
-    assert_eq!(files("layers"), ["a.wav", "b.wav"]);
+    assert_eq!(files("stems"), ["a.wav", "b.wav"]);
     assert_eq!(files("queue"), ["c.wav"]);
 }
 
@@ -291,19 +291,19 @@ fn a_queue_is_counted_file_by_file_to_its_end() {
 }
 
 #[test]
-fn layers_play_as_long_as_the_longest_file() {
+fn stems_play_as_long_as_the_longest_file() {
     let dir = tempfile::tempdir().unwrap();
     write_wav_of(dir.path(), "short.wav", tenths(1));
     write_wav_of(dir.path(), "long.wav", tenths(2));
     let mut app = app_in(dir.path());
     let entity = sound_node(
         &app,
-        "file = \"short.wav\"\nautoplay = true\nlayers = [\"long.wav\"]\n",
+        "file = \"short.wav\"\nautoplay = true\nstems = [\"long.wav\"]\n",
     );
     let steps = steps_to_end(&mut app, entity, 60);
     assert!(
         (12..=13).contains(&steps),
-        "the layer's two tenths took {steps} steps"
+        "the stem's two tenths took {steps} steps"
     );
 }
 

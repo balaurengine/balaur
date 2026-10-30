@@ -100,7 +100,7 @@ kind = "tree"
 reorderable = true
 on_move = "on_move"
 row_height = 22
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
 
 [[nodes]]
@@ -137,7 +137,7 @@ sortable = true
 sort = "size"
 widths = ["2", "1.4", "1"]
 row_height = 22
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
 
 [[nodes]]

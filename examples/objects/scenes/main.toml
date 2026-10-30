@@ -76,6 +76,7 @@ id = "title"
 type = "mesh"
 kind = "text"
 text = "balaur"
+font = "fonts/SourceSans3-Semibold.ttf"
 size = 0.9
 
 # A triangle whose corners are red, green and blue, and one shape it can be
@@ -448,6 +449,7 @@ kind = "label"
 anchor = "top_left"
 x = 16
 y = 16
+font = "fonts/SourceSans3-Semibold.ttf"
 font_size = 16
 text = "objects: every shape built headless"
 text_color = "#f9f4ed"

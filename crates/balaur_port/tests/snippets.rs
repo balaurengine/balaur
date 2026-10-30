@@ -345,7 +345,7 @@ pub fn run() {
 }
 
 #[test]
-fn a_script_is_a_struct_with_its_hooks_as_methods() {
+fn a_script_is_a_class_with_its_hooks_as_methods() {
     let out = body(
         r"
 pub fn exports() {
@@ -369,7 +369,7 @@ fn spin(this) {
     );
     has(
         &out,
-        "pub struct Snippet {\n    pub speed: float = 2.0,\n    pub clockwise: bool = true,\n    node: Node,\n    angle: float,\n    direction: float,\n}",
+        "pub class Snippet {\n    pub speed: float = 2.0,\n    pub clockwise: bool = true,\n    node: Node,\n    angle: float,\n    direction: float,\n}",
     );
     has(
         &out,

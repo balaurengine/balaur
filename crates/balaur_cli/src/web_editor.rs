@@ -176,6 +176,50 @@ pub fn download_project() -> Result<js_sys::Array, JsValue> {
     ))
 }
 
+/// Where the files a page hands the editor are written, a folder a hand.
+/// Outside the project, so nothing is kept of them but what a drop copies in.
+const HANDED_ROOT: &str = "/handed";
+
+/// Files the page was given — dropped on it, pasted, or picked with its file
+/// picker — handed to the editor as `[name, bytes]` pairs: each is written
+/// under a folder of its own and said as dropped on the next frame, so it is
+/// placed as a file dropped on a desktop's window is.
+#[wasm_bindgen]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub fn hand_files(files: &js_sys::Array) -> Result<(), JsValue> {
+    thread_local! {
+        static HANDS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+    let hand = HANDS.with(|count| {
+        count.set(count.get() + 1);
+        count.get()
+    });
+    let fs = balaur::files::default_backend();
+    let mut paths = Vec::new();
+    for pair in files.iter() {
+        let pair = js_sys::Array::from(&pair);
+        let name = pair
+            .get(0)
+            .as_string()
+            .ok_or_else(|| JsValue::from_str("a handed file needs a name"))?;
+        // The name alone: a page's name for a file is not a path to write to.
+        let name = name
+            .rsplit(['/', '\\'])
+            .next()
+            .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+            .ok_or_else(|| JsValue::from_str("a handed file's name is empty"))?;
+        let bytes = js_sys::Uint8Array::new(&pair.get(1)).to_vec();
+        let path = format!("{HANDED_ROOT}/{hand}/{name}");
+        fs.write(Path::new(&path), &bytes).map_err(err)?;
+        paths.push(path);
+    }
+    balaur::input::hand_files(paths);
+    Ok(())
+}
+
 /// One file of the open project, project-relative, or nothing for a path
 /// that is not there. What a page reads after `balaur-project-kept` names it.
 #[wasm_bindgen]

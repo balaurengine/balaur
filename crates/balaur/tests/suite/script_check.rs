@@ -13,7 +13,7 @@ fn project(script: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -30,7 +30,7 @@ fn project(script: &str) -> tempfile::TempDir {
 /// A script whose `init` is `body`, its first line on line 4.
 fn script(body: &str) -> String {
     format!(
-        "pub struct Crate {{ node: Node }}\nimpl Crate {{\n    fn init() {{\n{body}\n    }}\n}}\n"
+        "pub class Crate {{ node: Node }}\nimpl Crate {{\n    fn init() {{\n{body}\n    }}\n}}\n"
     )
 }
 
@@ -152,7 +152,7 @@ fn a_nested_project_is_not_part_of_this_one() {
     std::fs::create_dir_all(nested.join("scenes")).unwrap();
     std::fs::write(
         nested.join("project.toml"),
-        "[application]\nname = \"s\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -186,7 +186,7 @@ fn a_node_that_will_not_parse_leaves_its_components_unknown() {
 #[test]
 fn a_project_can_ask_for_strict_checking_in_its_manifest() {
     use balaur_core::project::ProjectManifest;
-    let plain = "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n";
+    let plain = "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n";
     assert!(!ProjectManifest::parse(plain).unwrap().check.strict);
     let strict = format!("{plain}\n[check]\nstrict = true\n");
     assert!(ProjectManifest::parse(&strict).unwrap().check.strict);
@@ -218,7 +218,7 @@ fn a_module_the_project_ignores_is_an_error_on_its_user() {
     ));
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\nignore = [\"addons/**\"]\n",
     )
     .unwrap();
     std::fs::create_dir_all(dir.path().join("addons")).unwrap();

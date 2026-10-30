@@ -27,14 +27,14 @@ const LABEL_W: float = 140.0;
 
 /// A plugin's word that what its docks and dialogs show moved: they fill
 /// again on it, as the editor's own panels do on theirs.
-pub fn changed(S: &mut editor::State) {
-    signals::changed(S, "plugins");
+pub fn changed(state: &mut editor::State) {
+    signals::changed(state, "plugins");
 }
 
 /// Put a plugin's dialog up, by the id it registered it under.
-pub fn open_dialog(S: &mut editor::State, id: str) {
-    S.registry.open.set(id, true);
-    changed(S);
+pub fn open_dialog(state: &mut editor::State, id: str) {
+    state.registry.open.set(id, true);
+    changed(state);
 }
 
 /// Hand a plugin control's edit to the method its `data` names on the node
@@ -49,24 +49,24 @@ pub fn relay(data: any, value: any) {
 /// Point `save::` at the game's own user data directory, and let `fs` reach
 /// it, so a game played here and the same game run alone keep one set of
 /// saves, and the User data dock can open them.
-pub fn adopt_game_data(S: editor::State) {
-    if S.game_root == "" {
+pub fn adopt_game_data(state: editor::State) {
+    if state.game_root == "" {
         project::use_data(nil);
         return;
     }
-    project::use_data(game_name(S));
+    project::use_data(game_name(state));
 }
 
 /// The user data directory the open game has when it runs on its own.
-pub fn game_data(S: editor::State) -> str {
-    if S.game_root == "" {
+pub fn game_data(state: editor::State) -> str {
+    if state.game_root == "" {
         return engine::user_data_directory();
     }
-    engine::user_data_directory_of(game_name(S))
+    engine::user_data_directory_of(game_name(state))
 }
 
-fn game_name(S: editor::State) -> str {
-    let text = fs::read(S.game_root + "/project.toml");
+fn game_name(state: editor::State) -> str {
+    let text = fs::read(state.game_root + "/project.toml");
     if text.is_none() {
         return "";
     }
@@ -74,11 +74,11 @@ fn game_name(S: editor::State) -> str {
 }
 
 /// What a verb remembers between frames: open tabs, open branches, drafts.
-fn memory(S: &mut editor::State) -> any {
-    if S.kit_state.is_nil() {
-        S.kit_state = map();
+fn memory(state: &mut editor::State) -> any {
+    if state.kit_state.is_nil() {
+        state.kit_state = map();
     }
-    S.kit_state
+    state.kit_state
 }
 
 fn option(opts: any, key: str, fallback: any) -> any {
@@ -103,14 +103,14 @@ fn host_path(host: str, name: str) -> str {
 
 /// A row of controls on a named part of the host: `head`, `foot`, or the
 /// `body` that everything else means.
-pub fn bar(S: editor::State, host: str, name: str, controls: any) {
-    pool::strip(S, host_path(host, name), controls);
+pub fn bar(state: editor::State, host: str, name: str, controls: any) {
+    pool::strip(state, host_path(host, name), controls);
 }
 
 /// Rows on a named part of the host. A spec is what `pool::sync` takes:
 /// `{ label, controls }`, or `full` for a row across both columns.
-pub fn rows(S: editor::State, host: str, name: str, specs: any) {
-    pool::sync(S, host_path(host, name), specs, LABEL_W, false);
+pub fn rows(state: editor::State, host: str, name: str, specs: any) {
+    pool::sync(state, host_path(host, name), specs, LABEL_W, false);
 }
 
 /// The node itself, for a plugin that wants to `add_child` a shape the kit
@@ -120,26 +120,26 @@ pub fn area(host: str, name: str) -> Node {
 }
 
 // A tab or a page button, which remembers itself picked per `id`.
-fn pick_button(S: &mut editor::State, id: str, name: str, role: str, on: bool) -> any {
+fn pick_button(state: &mut editor::State, id: str, name: str, role: str, on: bool) -> any {
     let button = map().with("kind", "button").with("text", name).with("role", role).with("checked", on);
     pool::on(button, picked, map().with("key", "tab:" + id).with("name", name))
 }
 
-fn picked(S: &mut editor::State, data: any, _value: any) {
-    memory(S).set(data.key.as_str(), data.name);
-    changed(S);
+fn picked(state: &mut editor::State, data: any, _value: any) {
+    memory(state).set(data.key.as_str(), data.name);
+    changed(state);
 }
 
 // The name remembered for `id`, while it is still one of `names`; the first
 // of them otherwise.
-fn current_of(S: &mut editor::State, id: str, names: [str]) -> str {
-    let held = memory(S).get("tab:" + id);
+fn current_of(state: &mut editor::State, id: str, names: [str]) -> str {
+    let held = memory(state).get("tab:" + id);
     if held.kind() == "str" && util::contains(names, held.as_str()) { held.as_str() } else { names[0] }
 }
 
 /// Rows of tabs across the host's head, wrapped to the width there is;
 /// answers the one that is open, remembered per `id`.
-pub fn tabs(S: &mut editor::State, host: str, id: str, names: any) -> str {
+pub fn tabs(state: &mut editor::State, host: str, id: str, names: any) -> str {
     let list: [str] = [];
     for name in util::vec(names) {
         list.push(name.as_str());
@@ -147,13 +147,13 @@ pub fn tabs(S: &mut editor::State, host: str, id: str, names: any) -> str {
     if list.len() == 0 {
         return "";
     }
-    let current = current_of(S, id, list);
+    let current = current_of(state, id, list);
     let controls: [any] = [];
     for name in list {
-        controls.push(pick_button(S, id, name, "chip", name == current));
+        controls.push(pick_button(state, id, name, "chip", name == current));
     }
-    bar(S, host, "head", controls);
-    memory(S).set("tab:" + id, current);
+    bar(state, host, "head", controls);
+    memory(state).set("tab:" + id, current);
     current
 }
 
@@ -161,7 +161,7 @@ pub fn tabs(S: &mut editor::State, host: str, id: str, names: any) -> str {
 /// laid out: what a panel with many views and little height wants. `groups`
 /// is `[{ title, names }]`, and the answer is the page that is open, which
 /// the plugin then fills the body with.
-pub fn pages(S: &mut editor::State, host: str, id: str, groups: any) -> str {
+pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str {
     let names: [str] = [];
     for group in util::vec(groups) {
         for name in util::vec(group.names) {
@@ -172,19 +172,19 @@ pub fn pages(S: &mut editor::State, host: str, id: str, groups: any) -> str {
         util::hide(host_path(host, "side"));
         return "";
     }
-    let current = current_of(S, id, names);
+    let current = current_of(state, id, names);
     let controls: [any] = [];
     for group in util::vec(groups) {
         if group.title.as_str() != "" {
             controls.push(map().with("kind", "label").with("role", "text_caption").with("text", group.title));
         }
         for name in util::vec(group.names) {
-            controls.push(pick_button(S, id, name.as_str(), "item_sidebar", name.as_str() == current));
+            controls.push(pick_button(state, id, name.as_str(), "item_sidebar", name.as_str() == current));
         }
     }
-    bar(S, host, "side", controls);
+    bar(state, host, "side", controls);
     util::fill(host + "/Split/Side", map().with("visible", true));
-    memory(S).set("tab:" + id, current);
+    memory(state).set("tab:" + id, current);
     current
 }
 
@@ -213,24 +213,24 @@ pub fn empty(text: str) -> any {
 
 /// Write the editor's own settings file, after a plugin set an editor-scope
 /// setting it wants kept.
-pub fn save_prefs(S: editor::State) {
-    settings::commit_prefs(S);
+pub fn save_prefs(state: editor::State) {
+    settings::commit_prefs(state);
 }
 
 /// Write the game's `project.toml`, after a plugin set a project-scope
 /// setting the person chose: the Gamend dock's server picker.
-pub fn save_project(S: editor::State) {
-    settings::commit_project(S);
+pub fn save_project(state: editor::State) {
+    settings::commit_project(state);
 }
 
 /// A labelled value. `mask` hides all but its ends until `show` is pressed,
 /// `copy` adds a copy mark (copying `copy_text` when given), and `role`
 /// dresses the value where the theme has a role for what it says.
-pub fn field(S: &mut editor::State, label: str, value: any, opts: any) -> any {
+pub fn field(state: &mut editor::State, label: str, value: any, opts: any) -> any {
     let text = shown(value);
     let masked = option(opts, "mask", false).as_bool();
     let key = "shown:" + label;
-    let revealed = memory(S).get(key).as_bool();
+    let revealed = memory(state).get(key).as_bool();
     let controls: [any] = [
         map()
             .with("kind", "label")
@@ -251,14 +251,14 @@ pub fn field(S: &mut editor::State, label: str, value: any, opts: any) -> any {
     map().with("label", label).with("height", 22).with("slot_role", "layout_actions").with("controls", controls)
 }
 
-fn field_toggled(S: &mut editor::State, data: any, _value: any) {
+fn field_toggled(state: &mut editor::State, data: any, _value: any) {
     let key = data.key.as_str();
-    let m = memory(S);
-    m.set(key, !m.get(key).as_bool());
-    changed(S);
+    let remembered = memory(state);
+    remembered.set(key, !remembered.get(key).as_bool());
+    changed(state);
 }
 
-fn field_copied(S: &mut editor::State, data: any, _value: any) {
+fn field_copied(state: &mut editor::State, data: any, _value: any) {
     ui::set_clipboard(data.whole.as_str());
 }
 
@@ -269,9 +269,9 @@ fn mask(text: str) -> str {
     }
     let head = "";
     let tail = "";
-    for n in 0..4 {
-        head = head + chars[n];
-        tail = tail + chars[chars.len() - 4 + n];
+    for index in 0..4 {
+        head = head + chars[index];
+        tail = tail + chars[chars.len() - 4 + index];
     }
     head + "••••••••" + tail
 }
@@ -284,8 +284,8 @@ fn head_of(text: str, most: int) -> str {
         return text;
     }
     let out = "";
-    for n in 0..most {
-        out = out + chars[n];
+    for index in 0..most {
+        out = out + chars[index];
     }
     out + "…"
 }
@@ -309,26 +309,26 @@ fn shown(value: any) -> str {
 /// is changed in place and handed whole to `write`, `{ to, method }` naming
 /// the plugin's method that keeps it. Answers `{ specs, value, changed }`;
 /// the caller puts the specs on its host.
-pub fn tree(S: &mut editor::State, id: str, value: any, opts: any) -> any {
+pub fn tree(state: &mut editor::State, id: str, value: any, opts: any) -> any {
     let none: [any] = [];
     let out = map().with("specs", none).with("value", value).with("changed", false).with("write", option(opts, "write", nil));
     let edit = option(opts, "edit", false).as_bool();
     let label = option(opts, "label", "").as_str();
-    branch(S, out, id, [], label, value, edit, 0);
+    branch(state, out, id, [], label, value, edit, 0);
     out
 }
 
-fn branch(S: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
+fn branch(state: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
     if value.kind() == "map" || value.kind() == "list" {
-        container(S, out, path, keys, label, value, edit, depth);
+        container(state, out, path, keys, label, value, edit, depth);
     } else {
         leaf(out, keys, label, value, edit, depth);
     }
 }
 
-fn container(S: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
+fn container(state: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
     let key = "open:" + path;
-    let held = memory(S).get(key);
+    let held = memory(state).get(key);
     let open = if held.is_nil() { depth == 0 } else { held.as_bool() };
     let count = if value.kind() == "map" { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
@@ -352,26 +352,26 @@ fn container(S: &mut editor::State, out: any, path: str, keys: [any], label: str
     let inner = if titled { depth + 1 } else { depth };
     if value.kind() == "map" {
         for name in util::keys_sorted(value) {
-            branch(S, out, path + "/" + name, with(keys, name), name, value.get(name), edit, inner);
+            branch(state, out, path + "/" + name, with(keys, name), name, value.get(name), edit, inner);
         }
     } else {
-        for n in 0..value.len() {
-            branch(S, out, path + "/{n}", with(keys, n), "{n}", value.at(n), edit, inner);
+        for index in 0..value.len() {
+            branch(state, out, path + "/{index}", with(keys, index), "{index}", value.at(index), edit, inner);
         }
     }
 }
 
-fn folded(S: &mut editor::State, data: any, _value: any) {
-    memory(S).set(data.key.as_str(), !data.open.as_bool());
-    changed(S);
+fn folded(state: &mut editor::State, data: any, _value: any) {
+    memory(state).set(data.key.as_str(), !data.open.as_bool());
+    changed(state);
 }
 
 // The keys down to a child, as a list of their own: a list shared between
 // siblings would end with the last one's key.
 fn with(keys: [any], key: any) -> [any] {
     let out: [any] = [];
-    for k in keys {
-        out.push(k);
+    for earlier in keys {
+        out.push(earlier);
     }
     out.push(key);
     out
@@ -394,7 +394,7 @@ fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
     out.specs.push(map().with("height", 22).with("controls", [control]).with("label", indent(depth) + label));
 }
 
-fn typed(S: &mut editor::State, data: any, now: any) {
+fn typed(state: &mut editor::State, data: any, now: any) {
     if now.as_str() != data.text.as_str() {
         let keys: [any] = data.keys;
         put(data.out, keys, parsed(data.value, now.as_str()));
@@ -409,8 +409,8 @@ fn put(out: any, keys: [any], now: any) {
         out.set("value", now);
     } else {
         let at = out.value;
-        for n in 0..keys.len() - 1 {
-            at = if keys[n].kind() == "int" { at.at(keys[n].as_int()) } else { at.get(keys[n].as_str()) };
+        for index in 0..keys.len() - 1 {
+            at = if keys[index].kind() == "int" { at.at(keys[index].as_int()) } else { at.get(keys[index].as_str()) };
         }
         let last = keys[keys.len() - 1];
         if last.kind() == "int" {
@@ -448,8 +448,8 @@ fn parsed(was: any, typed: str) -> any {
 /// where it is TOML or JSON, edited in place and written back. `opts`:
 /// `root` (default this game's user data directory), `only` (file names to
 /// show), `edit`.
-pub fn files(S: &mut editor::State, id: str, opts: any) -> [any] {
-    let root = option(opts, "root", game_data(S)).as_str();
+pub fn files(state: &mut editor::State, id: str, opts: any) -> [any] {
+    let root = option(opts, "root", game_data(state)).as_str();
     let only: [str] = [];
     for name in util::vec(opts.only) {
         only.push(name.as_str());
@@ -465,19 +465,19 @@ pub fn files(S: &mut editor::State, id: str, opts: any) -> [any] {
                 pool::on(reveal_root, revealed, map().with("path", root)),
             ]),
     ];
-    let drawn = folder(S, id, root, "", only, option(opts, "edit", true).as_bool(), 0, out);
+    let drawn = folder(state, id, root, "", only, option(opts, "edit", true).as_bool(), 0, out);
     if drawn == 0 {
         out.push(empty("nothing kept yet"));
     }
     out
 }
 
-fn revealed(S: &mut editor::State, data: any, _value: any) {
+fn revealed(state: &mut editor::State, data: any, _value: any) {
     engine::reveal(data.path.as_str());
 }
 
 /// One directory's entries; answers how many files it put rows on.
-fn folder(S: &mut editor::State, id: str, dir: str, rel: str, only: [str], edit: bool, depth: int, out: [any]) -> int {
+fn folder(state: &mut editor::State, id: str, dir: str, rel: str, only: [str], edit: bool, depth: int, out: [any]) -> int {
     let drawn = 0;
     for entry in util::vec(fs::list(dir)) {
         let name = entry.name.as_str();
@@ -485,22 +485,22 @@ fn folder(S: &mut editor::State, id: str, dir: str, rel: str, only: [str], edit:
         let here = if rel == "" { name } else { rel + "/" + name };
         if entry.is_dir.as_bool() {
             if depth < FOLDER_DEPTH {
-                drawn += folder(S, id, path, here, only, edit, depth + 1, out);
+                drawn += folder(state, id, path, here, only, edit, depth + 1, out);
             }
             continue;
         }
         if only.len() > 0 && !util::contains(only, name) {
             continue;
         }
-        file_rows(S, id + ":" + here, path, here, edit, out);
+        file_rows(state, id + ":" + here, path, here, edit, out);
         drawn += 1;
     }
     drawn
 }
 
-fn file_rows(S: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [any]) {
+fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [any]) {
     let key = "file:" + id;
-    let open = memory(S).get(key).as_bool();
+    let open = memory(state).get(key).as_bool();
     let toggle = map().with("kind", "button").with("role", "chip").with("text", (if open { "▾ " } else { "▸ " }) + rel);
     let controls = [pool::on(toggle, folded, map().with("key", key).with("open", open))];
     let when = fs::modified_time(path);
@@ -511,12 +511,12 @@ fn file_rows(S: &mut editor::State, id: str, path: str, rel: str, edit: bool, ou
     controls.push(pool::on(reveal, revealed, map().with("path", path)));
     out.push(map().with("full", true).with("height", 24).with("controls", controls).with("slot_role", "layout_actions"));
     if open {
-        document(S, id, path, edit, out);
+        document(state, id, path, edit, out);
     }
 }
 
 /// A file opened: rows for TOML and JSON, its text otherwise.
-fn document(S: &mut editor::State, id: str, path: str, edit: bool, out: [any]) {
+fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [any]) {
     let text = fs::read(path);
     if text.is_none() {
         out.push(empty("cannot read this file"));
@@ -538,7 +538,7 @@ fn document(S: &mut editor::State, id: str, path: str, edit: bool, out: [any]) {
         return;
     }
     let keep = map().with("file", path).with("toml", as_toml);
-    for spec in util::vec(tree(S, id, value, map().with("edit", edit).with("write", keep)).specs) {
+    for spec in util::vec(tree(state, id, value, map().with("edit", edit).with("write", keep)).specs) {
         out.push(spec);
     }
 }

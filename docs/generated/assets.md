@@ -88,6 +88,101 @@ Spine = "Armature/Hips/Spine"
 Head = "Armature/Hips/Spine/Neck/Head"
 ```
 
+### `camera_effects`
+
+Files: `camera_effects/`. Used by: `camera2d.effects`, `camera3d.effects`.
+
+The passes a camera's frame resolves through, in order, and how each is tuned. A `camera3d` or `camera2d` names one in its `effects` row, or writes one inline:
+
+```toml
+type = "camera_effects"
+post = ["bloom", "tonemap"]
+bloom_intensity = 0.8
+```
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate, crt, grayscale, waves, loupe, stereo, edges, gi name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, `gi` is 2D only and lights the frame in place of the `light2d` light map, and where those and `bloom` run is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame. The rest run in the order given. `tonemap` is where the film becomes a picture: a pass before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
+<tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
+<tr><td><code>bloom_knee</code></td><td>float</td><td><code>0.5</code></td><td>Width of the soft band around `bloom_threshold` a pixel starts to bloom in; 0 is a hard cut At least 0.0.</td></tr>
+<tr><td><code>bloom_mips</code></td><td>int</td><td><code>5</code></td><td>Levels in the bloom chain, each half the size of the last; more spreads the glow wider Range 1–12.</td></tr>
+<tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
+<tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
+<tr><td><code>dof_focus_distance</code></td><td>float</td><td><code>10.0</code></td><td>Distance from the camera to the plane that stays sharp, in world units At least 0.0.</td></tr>
+<tr><td><code>dof_aperture_f_stops</code></td><td>float</td><td><code>0.125</code></td><td>The lens aperture in f-stops; smaller blurs more At least 0.001.</td></tr>
+<tr><td><code>dof_mode</code></td><td>enum</td><td><code>bokeh</code></td><td>How the `dof` pass blurs: a uniform disc with sharp highlights, or a soft gaussian falloff One of <code>bokeh</code>, <code>gaussian</code>.</td></tr>
+<tr><td><code>dof_max_blur_pixels</code></td><td>float</td><td><code>64.0</code></td><td>The widest a blur circle grows, in pixels At least 0.0.</td></tr>
+<tr><td><code>dof_taps</code></td><td>int</td><td><code>48</code></td><td>Samples the blur gathers per pixel; more is smoother and costs more At least 1.</td></tr>
+<tr><td><code>dof_sensor_height</code></td><td>float</td><td><code>0.01866</code></td><td>Sensor height in world units; with the field of view it fixes the focal length At least 1e-06.</td></tr>
+<tr><td><code>dof_max_depth</code></td><td>float</td><td><code>1000000.0</code></td><td>Anything farther is blurred as if it were at this distance, in world units At least 0.0.</td></tr>
+<tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
+<tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
+<tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
+<tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
+<tr><td><code>ssr_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on every screen-space reflection At least 0.0.</td></tr>
+<tr><td><code>ssr_max_distance</code></td><td>float</td><td><code>60.0</code></td><td>The longest a reflection ray travels, in view-space units At least 0.0.</td></tr>
+<tr><td><code>ssr_max_steps</code></td><td>int</td><td><code>48</code></td><td>Steps the `ssr` pass marches a reflection ray before it gives up At least 1.</td></tr>
+<tr><td><code>ssr_thickness</code></td><td>float</td><td><code>0.5</code></td><td>How far behind a surface, in view-space units, the ray still counts as hitting it At least 0.0.</td></tr>
+<tr><td><code>ssr_roughness_cutoff</code></td><td>float</td><td><code>0.6</code></td><td>Surfaces rougher than this reflect nothing on screen, and fade out approaching it Range 0.0–1.0.</td></tr>
+<tr><td><code>ssr_edge_fade</code></td><td>float</td><td><code>0.12</code></td><td>Width of the band at the frame&#x27;s edge reflections fade over, as a fraction of the frame At least 0.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold</code></td><td>float</td><td><code>0.125</code></td><td>The `fxaa` pass smooths an edge whose contrast passes this fraction of the brightest pixel near it At least 0.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold_min</code></td><td>float</td><td><code>0.0312</code></td><td>Contrast below this is left alone by `fxaa`, so dark noise is not smoothed At least 0.0.</td></tr>
+<tr><td><code>sharpen_amount</code></td><td>float</td><td><code>0.5</code></td><td>How hard the `sharpen` pass sharpens Range 0.0–1.0.</td></tr>
+<tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
+<tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
+<tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
+<tr><td><code>crt_curvature</code></td><td>float</td><td><code>0.12</code></td><td>How far the `crt` pass bends the frame like a tube&#x27;s glass; 0 is flat At least 0.0.</td></tr>
+<tr><td><code>crt_scanline_count</code></td><td>float</td><td><code>480.0</code></td><td>How many scanlines `crt` draws down the frame At least 1.0.</td></tr>
+<tr><td><code>crt_scanline_intensity</code></td><td>float</td><td><code>0.25</code></td><td>How dark the `crt` pass draws its scanlines; 0 draws none Range 0.0–1.0.</td></tr>
+<tr><td><code>crt_vignette</code></td><td>float</td><td><code>0.35</code></td><td>How dark `crt` draws the corners Range 0.0–1.0.</td></tr>
+<tr><td><code>crt_aberration</code></td><td>float</td><td><code>0.004</code></td><td>How far `crt` splits the colours at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
+<tr><td><code>edges_threshold</code></td><td>float</td><td><code>4.0</code></td><td>How sharp a change in depth the `edges` pass outlines; lower outlines more At least 0.0.</td></tr>
+<tr><td><code>loupe_zoom</code></td><td>float</td><td><code>8.0</code></td><td>How many times the `loupe` pass magnifies At least 1.0.</td></tr>
+<tr><td><code>loupe_focus</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point the `loupe` magnifies, [0, 0] at the frame&#x27;s top-left and [1, 1] at its bottom-right</td></tr>
+<tr><td><code>loupe_size</code></td><td>float</td><td><code>0.4</code></td><td>The inset&#x27;s side, as a fraction of the frame&#x27;s shorter side Range 0.01–1.0.</td></tr>
+<tr><td><code>loupe_corner</code></td><td>enum</td><td><code>bottom_right</code></td><td>The corner the `loupe` draws its inset in One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>.</td></tr>
+<tr><td><code>loupe_border_color</code></td><td>color</td><td><code>[1.0, 0.9, 0.2, 1.0]</code></td><td>The colour of the `loupe`&#x27;s frame and of the outline round what it magnifies; alpha is ignored</td></tr>
+<tr><td><code>gi_solver</code></td><td>enum</td><td><code>ray_march</code></td><td>A ray march per pixel, or radiance cascades: probe grids that gather farther light for less One of <code>ray_march</code>, <code>cascades</code>.</td></tr>
+<tr><td><code>gi_rays</code></td><td>int</td><td><code>8</code></td><td>Rays the `gi` pass casts per pixel each frame; the temporal blend adds up the frames At least 1.</td></tr>
+<tr><td><code>gi_max_steps</code></td><td>int</td><td><code>32</code></td><td>Steps a `gi` ray takes before it gives up At least 1.</td></tr>
+<tr><td><code>gi_max_distance</code></td><td>float</td><td><code>2000.0</code></td><td>The farthest a `gi` ray marches, in world units At least 0.0.</td></tr>
+<tr><td><code>gi_temporal_blend</code></td><td>float</td><td><code>0.85</code></td><td>How much of last frame&#x27;s `gi` light is kept; higher is smoother and trails behind motion. The cascade solver ignores it Range 0.0–0.99.</td></tr>
+<tr><td><code>gi_downscale</code></td><td>int</td><td><code>2</code></td><td>How many times smaller than the frame the `gi` light field is; larger is faster and softer At least 1.</td></tr>
+<tr><td><code>gi_screen_occluders</code></td><td>bool</td><td><code>false</code></td><td>Bake the occluders into a distance field each frame, so their count costs nothing; an occluder off screen then casts no shadow</td></tr>
+<tr><td><code>gi_cascade_count</code></td><td>int</td><td><code>5</code></td><td>Levels of radiance cascades; more reach farther light Range 1–8.</td></tr>
+<tr><td><code>gi_cascade_directions</code></td><td>int</td><td><code>16</code></td><td>Directions the first cascade gathers from, rounded to a square of a power of two; more sharpens shadow edges At least 4.</td></tr>
+<tr><td><code>gi_probe_spacing</code></td><td>int</td><td><code>2</code></td><td>Field pixels between the first cascade&#x27;s probes, rounded up to a power of two; finer resolves sharper light Range 1–16.</td></tr>
+</tbody>
+</table>
+
+### `font`
+
+Files: `fonts/`. Used by: `text2d.font`, `text3d.font`, `widget.font`.
+
+The face a text draws in and how its glyphs are picked and drawn. A face file — `.ttf`, `.otf`, `.ttc`, or a `.fnt` bitmap face — is a font of itself, so a `font` row takes its path as it is; a definition shapes one differently. `font_size`, `font_weight` and `font_style` stay on the text: weight and style pick a face of the font's family among the project's `fonts/`.
+
+```toml
+type = "font"
+source = "fonts/Inter-Regular.ttf"
+features = ["smcp", "liga=0"]
+```
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>source</code></td><td>string</td><td>—</td><td>The face: a `.ttf`, `.otf` or `.ttc` file, or a `.fnt` bitmap face. Empty takes the default font&#x27;s face</td></tr>
+<tr><td><code>features</code></td><td>list of string</td><td><code>[]</code></td><td>OpenType features: `smcp` turns one on, `liga=0` turns one off, `salt=2` picks an alternate</td></tr>
+<tr><td><code>stretch</code></td><td>enum</td><td><code>normal</code></td><td>How wide a face is picked among the faces its family ships; nothing is stretched that no face draws One of <code>ultra_condensed</code>, <code>extra_condensed</code>, <code>condensed</code>, <code>semi_condensed</code>, <code>normal</code>, <code>semi_expanded</code>, <code>expanded</code>, <code>extra_expanded</code>, <code>ultra_expanded</code>.</td></tr>
+<tr><td><code>shaping</code></td><td>enum</td><td><code>complex</code></td><td>Complex shaping joins the scripts that need it and falls back to another face; simple does neither One of <code>complex</code>, <code>simple</code>.</td></tr>
+<tr><td><code>hinting</code></td><td>enum</td><td><code>auto</code></td><td>Snap outlines to the pixel grid; auto takes the face&#x27;s import setting One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
+<tr><td><code>pixel_snap</code></td><td>bool</td><td><code>false</code></td><td>Rasterise on whole pixels, for a pixel face</td></tr>
+<tr><td><code>snap_advances</code></td><td>bool</td><td><code>false</code></td><td>Round each glyph&#x27;s advance to a whole pixel</td></tr>
+<tr><td><code>monospace_width</code></td><td>float</td><td><code>0.0</code></td><td>Pixels a monospace face&#x27;s advance is set to; zero keeps its own At least 0.0.</td></tr>
+</tbody>
+</table>
+
 ### `heightfield`
 
 Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
@@ -108,7 +203,7 @@ holes = [[1, 1]]
 
 Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
 
-A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws as if none were named.
+A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws the built-in material, lit per pixel by every `light2d` when its `normal` slot names a normal map. Its `[surface]` is read in both dimensions: how a node blends, which sides draw and whether the scene hides it.
 
 ```toml
 [[assets]]
@@ -121,10 +216,13 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 # How a node drawing it rasterizes, rather than what colour it comes out.
 [surface]
-alpha = "blend"              # opaque, mask (a cutout), blend, or premultiplied, a blend
-                             # whose colour carries its alpha (a shader draws it as blend)
+alpha = "blend"              # auto (the default: solid in 3D, in 2D as the texture was uploaded),
+                             # opaque, mask (a cutout), blend, premultiplied (a blend whose colour
+                             # carries its alpha; a shader draws it as blend), or the 2D blends
+                             # add, multiply and screen, which a 3D surface draws as blend
 alpha_cutoff = 0.5           # what a mask drops a fragment below
-double_sided = true
+double_sided = true          # unset is the node's own: the front alone in 3D, both sides in 2D and on text
+depth_test = true            # off draws it over everything drawn before it
 transmission = 0.9           # above zero is glass: it refracts the scene behind it
 ior = 1.5                    # how sharply it bends light
 thickness = 0.2              # how far light travels inside it, in world units
@@ -135,7 +233,7 @@ mirror_intensity = 1.0
 mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
 mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
 mirror_resolution_scale = 1.0     # the mirror's picture against the viewport, 0.01 to 4
-mirror_render_layers = 3          # what the mirror draws, by render_layers; unset follows the camera
+mirror_render_layers = ["1", "2"] # what the mirror draws, by render_layers; unset follows the camera
 trace_surface = "glass"      # what the path tracer takes it for: opaque, glass, metal or light
 ssr = true                   # take screen-space reflections, while the camera's post has `ssr`;
                              # a node with a shader material writes none yet
@@ -165,7 +263,11 @@ anisotropy = 0.0             # -1 to 1 stretches the highlight across or along t
 anisotropy_rotation_degrees = 0.0
 subsurface = 0.0             # read by the path tracer only
 subsurface_radius = 0.0      # read by nothing yet
-normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height
+normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height;
+                             # on a 2D node, `normal` lights it per pixel by every light2d
+normal_strength = 1.0        # 2D: how far the normal map bends the surface; zero lights it flat
+shininess = 16.0             # 2D: how tight a light's highlight is; higher is smaller and sharper
+specular_strength = 0.0      # 2D: how bright the highlight is; zero draws none
 height = "art/panel_h.png"
 parallax_scale = 0.1         # how deep the height map reads, in UV units
 parallax_layers = 16
@@ -257,6 +359,28 @@ points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone
 # A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.
 ```
 
+### `physics_material`
+
+Files: `physics_materials/`. Used by: `collider2d.physics_material`, `collider3d.physics_material`, `softbody2d.physics_material`, `softbody3d.physics_material`, `tile_collision.physics_material`.
+
+What a collider's surface is made of: `friction` and `restitution`, and how each combines with the surface it touches. A collider, a `tile_collision` or a soft body names one in its `physics_material` row, or writes one inline:
+
+```toml
+type = "physics_material"
+friction = 0.05
+friction_combine = "min"
+```
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound, and above 1 each bounce gains energy At least 0.0.</td></tr>
+<tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+</tbody>
+</table>
+
 ### `skeleton_profile`
 
 Files: `animations/`. Used by: no component property yet.
@@ -274,6 +398,57 @@ rest_position = [0.0, 1.0, 0.0]   # its length scales a retargeted position trac
 name = "Spine"
 rest_rotation = [0.0, 0.0, 0.0]   # euler radians
 ```
+
+### `soft_material`
+
+Files: `soft_materials/`. Used by: `softbody2d.soft_material`, `softbody3d.soft_material`.
+
+What a soft body is made of: how its cells resist, its springs, how it keeps its volume, how it yields and when it tears. A `softbody2d` or `softbody3d` names one in its `soft_material` row, or writes one inline:
+
+```toml
+type = "soft_material"
+cell_model = "neo_hookean"
+young_modulus = 50000.0
+```
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>cell_model</code></td><td>enum</td><td><code>volume</code></td><td>What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises One of <code>volume</code>, <code>corotational</code>, <code>neo_hookean</code>.</td></tr>
+<tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
+<tr><td><code>poisson_ratio</code></td><td>float</td><td><code>0.3</code></td><td>How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all Range 0.0–0.499.</td></tr>
+<tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
+<tr><td><code>edge_hz</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
+<tr><td><code>bend_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>bend_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the bending springs Range 0.0–100.0.</td></tr>
+<tr><td><code>shear_hz</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s resistance to being skewed, in hertz; 0 takes edge_hz At least 0.0.</td></tr>
+<tr><td><code>shear_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the shear springs; 0 takes edge_damping At least 0.0.</td></tr>
+<tr><td><code>warp_hz</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_hz At least 0.0.</td></tr>
+<tr><td><code>warp_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the warp springs; 0 takes edge_damping. Any of the six woven keys set gives the cloth its own springs At least 0.0.</td></tr>
+<tr><td><code>weft_hz</code></td><td>float</td><td><code>0.0</code></td><td>The same across it, along the weft; 0 takes edge_hz At least 0.0.</td></tr>
+<tr><td><code>weft_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the weft springs; 0 takes edge_damping At least 0.0.</td></tr>
+<tr><td><code>volume_hz</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
+<tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>shape_matching_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>shape_matching</code></td><td>enum</td><td><code>auto</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly; auto keeps the layout&#x27;s own choice, on for a triangle_mesh or a polyline One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
+<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>true</code></td><td>Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in</td></tr>
+<tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
+<tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
+<tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
+<tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, an edge&#x27;s excess strain is absorbed into its rest length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_max</code></td><td>float</td><td><code>0.5</code></td><td>The largest permanent set an edge may take, as a fraction of its first length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_flow</code></td><td>enum</td><td><code>both</code></td><td>Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched One of <code>both</code>, <code>compression</code>, <code>tension</code>.</td></tr>
+<tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
+<tr><td><code>tear_strain</code></td><td>float</td><td><code>0.0</code></td><td>The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable At least 0.0.</td></tr>
+<tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
+<tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
+</tbody>
+</table>
 
 ### `sprite_sheet`
 
@@ -337,9 +512,40 @@ to = "end"
 blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
 ```
 
+### `text_style`
+
+Files: `text_styles/`. Used by: `text2d.text_style`, `text3d.text_style`, `widget.text_style`.
+
+How a text is dressed past its font: the space between its lines and its glyphs, the lines drawn with them, an outline and a shadow. `text2d`, `text3d` and a widget name one in their `text_style` row, or write one inline:
+
+```toml
+type = "text_style"
+outline_size = 2.0
+shadow_offset_y = 3.0
+```
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>line_height</code></td><td>float</td><td><code>0.0</code></td><td>Baseline to baseline as a multiple of the size; zero takes the default At least 0.0.</td></tr>
+<tr><td><code>letter_spacing</code></td><td>float</td><td><code>0.0</code></td><td>Extra space between glyphs, in the text&#x27;s pixels</td></tr>
+<tr><td><code>outline_size</code></td><td>float</td><td><code>0.0</code></td><td>Pixels the outline reaches round the glyphs; zero draws none At least 0.0.</td></tr>
+<tr><td><code>outline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>The outline&#x27;s colour</td></tr>
+<tr><td><code>shadow_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.5]</code></td><td>The shadow&#x27;s colour</td></tr>
+<tr><td><code>shadow_offset_x</code></td><td>float</td><td><code>0.0</code></td><td>Pixels the shadow is moved along x; zero with y draws none</td></tr>
+<tr><td><code>shadow_offset_y</code></td><td>float</td><td><code>0.0</code></td><td>Pixels the shadow is moved along y</td></tr>
+<tr><td><code>underline</code></td><td>enum</td><td><code>none</code></td><td>A line under the glyphs, once or twice One of <code>none</code>, <code>single</code>, <code>double</code>.</td></tr>
+<tr><td><code>underline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The underline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>overline</code></td><td>bool</td><td><code>false</code></td><td>A line over the glyphs</td></tr>
+<tr><td><code>overline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The overline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>strikethrough</code></td><td>bool</td><td><code>false</code></td><td>A line through the glyphs</td></tr>
+<tr><td><code>strikethrough_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The strikethrough&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+</tbody>
+</table>
+
 ### `texture`
 
-Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.normal_map`, `shape2d.texture`, `shape3d.texture`, `sprite.normal_map`, `sprite.texture`.
+Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.texture`, `shape3d.texture`, `sprite.texture`.
 
 An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
 
@@ -397,7 +603,7 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
+How each widget kind is drawn, one table per kind. `[colors]`, `[sizes]` and `[fonts]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
 
 ```toml
 type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
@@ -419,6 +625,10 @@ tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
 font_size = 16                   # font_size_small, font_size_large and font_size_title follow
 radius = 6                       # radius_small and radius_large follow
 
+[fonts]                          # fonts by name; `default` is every text naming none, `icon` the glyphs
+default = "fonts/Inter-Regular.ttf"  # a widget draws beside its caption, `heading` and `mono` egui's own
+heading = "fonts/Inter-Semibold.ttf"
+
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "primary_fill"
 stroke = "border_default"
@@ -429,7 +639,7 @@ gap = 4.0
 font_size = "font_size_large"
 text_color = "text_on_primary"
 icon_color = "text_on_primary"
-font_family = "ui"               # ui, heading, mono or icon
+font = "heading"                 # a name [fonts] gives a font, or a font itself
 font_weight = 700
 text_align = "center"            # start, center or end
 cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
@@ -463,7 +673,7 @@ text_color = "text_on_danger"
 
 ## The `assets` script module
 
-`assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`.
+`assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `kind_of`, `load`, `path`, `reload`, `rename`, `save`, `schema`.
 
 ## Import settings
 

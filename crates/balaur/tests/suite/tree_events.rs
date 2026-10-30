@@ -39,7 +39,7 @@ fn add(n: int) {
     scene::set_variable("score", scene::variable("score").as_int() + n);
 }
 
-pub struct Nest { node: Node }
+pub class Nest { node: Node }
 
 impl Nest {
     fn update(dt: float) {
@@ -99,7 +99,7 @@ fn a_tree_edit_is_heard_by_the_parent_and_the_node_it_moved() {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), NEST).unwrap();

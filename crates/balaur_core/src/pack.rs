@@ -14,11 +14,12 @@ use anyhow::{Context, Result, anyhow, bail};
 
 const MAGIC: &[u8; 5] = b"BPAK\x02";
 
-/// File extensions that ship inside a pack. A game's textures, sounds, fonts
-/// and the data it reads have to travel with it; source art and notes do not.
+/// File extensions that ship inside a pack, beside every outline face
+/// ([`crate::import::FACE_EXTENSIONS`]). A game's textures, sounds, fonts and
+/// the data it reads have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "webp", "svg", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf",
-    "fnt", "glb", "gltf", "bin", "obj", "json", "csv",
+    "png", "jpg", "jpeg", "webp", "svg", "bmp", "tga", "ogg", "wav", "mp3", "flac", "fnt", "glb",
+    "gltf", "bin", "obj", "json", "csv",
 ];
 
 /// How many of the heaviest entries a report names: enough to see where the
@@ -26,7 +27,8 @@ pub const ASSET_EXTENSIONS: &[&str] = &[
 const LARGEST_ENTRIES: usize = 10;
 
 /// Directories the engine reads without a document naming their contents:
-/// `balaur_ui` loads every face under `fonts/` when the UI starts, and a build
+/// the shaper reads every face under `fonts/`, whose weights a font picks
+/// among, and a build
 /// with no shader linker reads the shaders an export linked under `.balaur/`.
 /// Stripping one of these would take a project's text or shaders with it.
 pub const LOADED_WHOLE: &[&str] = &["fonts/", ".balaur/"];
@@ -128,6 +130,11 @@ impl Pack {
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
+                // A text file under `fonts/` is a face's licence, which ships
+                // with the face it covers.
+                Some("txt") if rel.starts_with("fonts/") => {
+                    pack.assets.insert(rel, fs.read(&path)?);
+                }
                 Some(ext) if compiler.extensions().contains(&ext) => {
                     let source = text(&*fs, &path)?;
                     // A nested project's scripts are its own: they resolve
@@ -174,19 +181,16 @@ impl Pack {
                 Some("wesl") => {
                     pack.scenes.insert(rel, text(&*fs, &path)?);
                 }
-                Some(ext) if ASSET_EXTENSIONS.contains(&ext) => {
+                Some(ext)
+                    if ASSET_EXTENSIONS.contains(&ext)
+                        || crate::import::FACE_EXTENSIONS.contains(&ext) =>
+                {
                     pack.assets.insert(rel, fs.read(&path)?);
                 }
                 _ => {}
             }
         }
-        if !failed.is_empty() {
-            bail!(
-                "{} script(s) did not compile:\n{}",
-                failed.len(),
-                failed.join("\n")
-            );
-        }
+        every_one_compiled(&failed)?;
         // A script compiled against the project, where an ignored module is
         // still on disk; the runtime finds its imports in the pack alone.
         let dropped: Vec<String> = used
@@ -854,6 +858,19 @@ pub fn glob_matches(pattern: &str, text: &str) -> bool {
 /// One file's text, wherever the backend keeps it.
 fn text(fs: &dyn crate::files::FileBackend, path: &Path) -> Result<String> {
     String::from_utf8(fs.read(path)?).with_context(|| format!("'{}' is not text", path.display()))
+}
+
+/// Every script that did not compile, named at once, so one export lists
+/// them all rather than the first.
+fn every_one_compiled(failed: &[String]) -> Result<()> {
+    if failed.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "{} script(s) did not compile:\n{}",
+        failed.len(),
+        failed.join("\n")
+    )
 }
 
 /// The directory prefixes of every project nested inside this one, each with

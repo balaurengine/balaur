@@ -20,11 +20,12 @@ macro_rules! functions {
             up: $Vector,
         ) -> KinematicCharacterController {
             use crate::vocabulary::words as w;
-            // Each length reads its own mode key: world units, or a fraction of
-            // the character's own size.
-            let length = |key: &str, mode: &str, default: f32| {
+            // Every length is world units, or every one a fraction of the
+            // character's own size, as `lengths` says.
+            let relative = crate::vocabulary::text(params, k::LENGTHS, w::ABSOLUTE) == w::RELATIVE;
+            let length = |key: &str, default: f32| {
                 let value = scalar::real(crate::vocabulary::f(params, key, default));
-                if crate::vocabulary::text(params, mode, w::ABSOLUTE) == w::RELATIVE {
+                if relative {
                     CharacterLength::Relative(value)
                 } else {
                     CharacterLength::Absolute(value)
@@ -33,11 +34,11 @@ macro_rules! functions {
             let autostep_height = crate::vocabulary::f(params, k::STEP_HEIGHT, 0.3);
             KinematicCharacterController {
                 up,
-                offset: length(k::SAFE_MARGIN, k::SAFE_MARGIN_LENGTHS, 0.01),
+                offset: length(k::SAFE_MARGIN, 0.01),
                 slide: crate::vocabulary::boolean(params, k::SLIDE, true),
                 autostep: (autostep_height > 0.0).then(|| CharacterAutostep {
-                    max_height: length(k::STEP_HEIGHT, k::STEP_HEIGHT_LENGTHS, 0.3),
-                    min_width: length(k::STEP_MIN_WIDTH, k::STEP_MIN_WIDTH_LENGTHS, 0.2),
+                    max_height: length(k::STEP_HEIGHT, 0.3),
+                    min_width: length(k::STEP_MIN_WIDTH, 0.2),
                     include_dynamic_bodies: crate::vocabulary::boolean(
                         params,
                         k::STEP_ON_DYNAMIC,
@@ -57,7 +58,7 @@ macro_rules! functions {
                 snap_to_ground: {
                     let distance = crate::vocabulary::f(params, k::FLOOR_SNAP_LENGTH, 0.2);
                     (distance > 0.0)
-                        .then(|| length(k::FLOOR_SNAP_LENGTH, k::FLOOR_SNAP_LENGTHS, 0.2))
+                        .then(|| length(k::FLOOR_SNAP_LENGTH, 0.2))
                 },
                 normal_nudge_factor: scalar::real(crate::vocabulary::f(
                     params,

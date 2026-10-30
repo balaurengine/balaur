@@ -255,6 +255,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::rollback::Resimulating::default());
     eng.insert_resource(crate::rollback::Clock::default());
     eng.insert_resource(crate::events::EventState::default());
+    eng.insert_resource(crate::changes::Changes::default());
     eng.insert_resource(crate::digest::DigestRegistry::default());
     eng.insert_resource(crate::replay::ReplayRegistry::default());
     eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -655,7 +656,6 @@ impl App {
         name: &str,
         def: crate::components::ComponentDef,
     ) -> &mut Self {
-        let schema = def.schema.clone();
         {
             let registry = self
                 .engine
@@ -672,11 +672,11 @@ impl App {
             crate::components::resolve_property_hooks(&self.engine, name, index);
         }
         let component = name.to_string();
+        // Through the one write a script makes, so what the scene asked is
+        // what a save writes back (PLAN-editor-as-scene §10.1).
         self.scene_key_handler(name, move |eng, entity, value| {
-            crate::components::refuse_unknown_keys(eng, &component, Some(value))?;
-            let full = crate::components::properties(eng, &schema, Some(value))
-                .with_context(|| format!("component `{component}`"))?;
-            crate::components::apply_full(eng, entity, &component, &full)
+            crate::components::add(eng, entity, &component, Some(value))
+                .with_context(|| format!("component `{component}`"))
         });
         self
     }
@@ -712,13 +712,39 @@ impl App {
         doc: &'static str,
         parse: impl Fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>> + 'static,
     ) -> &mut Self {
+        self.push_asset_type(name, directory, doc, None, Box::new(parse))
+    }
+
+    /// An asset type whose definition is a record of `schema`'s properties:
+    /// `parse` is handed the definition with every property at its value or
+    /// its default, and an Inspector draws it as it draws a component.
+    pub fn register_record_asset(
+        &mut self,
+        name: &str,
+        directory: &str,
+        doc: &'static str,
+        schema: std::rc::Rc<crate::components::Schema>,
+        parse: impl Fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>> + 'static,
+    ) -> &mut Self {
+        self.push_asset_type(name, directory, doc, Some(schema), Box::new(parse))
+    }
+
+    fn push_asset_type(
+        &mut self,
+        name: &str,
+        directory: &str,
+        doc: &'static str,
+        schema: Option<std::rc::Rc<crate::components::Schema>>,
+        parse: crate::assets::AssetParseFn,
+    ) -> &mut Self {
         let registry = self.engine.resource::<crate::assets::AssetTypeRegistry>();
         registry.borrow_mut().0.push((
             name.to_string(),
             crate::assets::AssetType {
-                parse: Box::new(parse),
+                parse,
                 directory: directory.to_string(),
                 doc,
+                schema,
             },
         ));
         self

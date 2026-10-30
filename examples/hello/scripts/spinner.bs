@@ -1,7 +1,7 @@
 // spinner.rn in Balaur Script. Spins in place; the `reverse` action (Space, or
 // the pad's south button) flips it. `speed` and `clockwise` are exported.
 
-pub struct Spinner {
+pub class Spinner {
     pub speed: float = 2.0,
     pub clockwise: bool = true,
     node: Node,

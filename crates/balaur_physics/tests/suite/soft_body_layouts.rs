@@ -191,7 +191,7 @@ fn a_tube_narrows_to_its_end_radius_and_cloth_takes_its_woven_damping() {
         "{ends:?}"
     );
     let damped = built3(
-        "kind = \"cloth\"\ncells = [3.0, 3.0, 1.0]\nwarp_damping = 0.3",
+        "kind = \"cloth\"\ncells = [3.0, 3.0, 1.0]\nsoft_material = { warp_damping = 0.3 }",
         |b| {
             b.edges()
                 .iter()
@@ -234,7 +234,10 @@ fn switching_a_soft_body_off_and_editing_its_surface_keep_it_built() {
     let patch = |app: &App, text: &str| {
         components::patch(&app.engine, e, "softbody3d", &toml::from_str(text).unwrap()).unwrap();
     };
-    patch(&app, "enabled = false\nfriction = 0.9\nsensor = true");
+    patch(
+        &app,
+        "enabled = false\nphysics_material = { friction = 0.9 }\nsensor = true",
+    );
     for _ in 0..30 {
         app.tick(1.0 / 60.0);
     }
@@ -269,7 +272,7 @@ fn run_checked(body: &str, script: &str, ticks: u32, done: &str) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -325,7 +328,7 @@ cells = [1.0, 1.0]
 id = "n_soft"
 name = "Soft"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 
 [nodes.softbody3d]
 {body}
@@ -333,7 +336,7 @@ script = {{ source = "scripts/s.bs" }}
         ),
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
@@ -356,8 +359,8 @@ script = {{ source = "scripts/s.bs" }}
 fn a_sensor_soft_body_passes_through_the_floor() {
     run_checked(
         "kind = \"box\"\ncells = [1.0, 1.0, 1.0]\nsensor = true",
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 90 {
@@ -377,8 +380,8 @@ impl S {
 fn a_volumetric_crust_holds_fewer_particles_than_a_solid_fill() {
     run_checked(
         "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube").with("cell_size", 0.2));
@@ -400,9 +403,9 @@ impl S {
 #[test]
 fn a_script_reads_every_particle_edge_and_cell_row() {
     run_checked(
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]\ntear_strain = 10.0",
-        r#"pub struct S { node: Node }
-impl S {
+        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]\nsoft_material = { tear_strain = 10.0 }",
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         let p = n.softbody3d.softbody_particle(0);
@@ -461,8 +464,8 @@ impl S {
 fn a_cut_splits_the_body_and_its_pieces_stay_reachable() {
     run_checked(
         "kind = \"rope\"\nparticle_count = 6\ngravity_scale = 0.0",
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         let before = n.softbody3d.softbody_particles();
@@ -493,8 +496,8 @@ impl S {
 fn a_2d_polyline_takes_its_meshs_triangle_edges_when_asked() {
     run_checked(
         "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let flat = scene::get_node("World/Flat");
         flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_POLYLINE).with("mesh", "#square"));
@@ -511,4 +514,73 @@ impl S {
         1,
         "checked: polyline",
     );
+}
+
+/// What a soft body is made of is its `soft_material`, inline here: every
+/// row reaches rapier's body, and the body keeps naming the definition.
+#[test]
+fn an_inline_soft_material_reaches_the_solver() {
+    use balaur_physics::rapier3d::prelude::{SoftBodyCellModel, SoftEdgePlasticFlow};
+    let made = "soft_material = { edge_hz = 120.0, bend_damping = 0.4, cell_model = \"corotational\", young_modulus = 50000.0, poisson_ratio = 0.45, plastic_yield = 0.2, edge_plastic_flow = \"compression\", tear_strain = 0.6, volume_preservation = false, volume_factor = 1.5 }";
+    built3(
+        &format!("kind = \"box\"\ncells = [1.0, 1.0, 1.0]\n{made}"),
+        |body| {
+            let material = body.material();
+            assert!((material.edge_softness.natural_frequency - 120.0).abs() < 1e-4);
+            assert!((material.bend_softness.damping_ratio - 0.4).abs() < 1e-6);
+            assert!(matches!(body.cell_model(), SoftBodyCellModel::Corotational));
+            assert!((material.young_modulus - 50_000.0).abs() < 1e-2);
+            assert!((material.poisson_ratio - 0.45).abs() < 1e-6);
+            assert!((material.plastic_yield - 0.2).abs() < 1e-6);
+            assert!(matches!(
+                material.edge_plastic_flow,
+                SoftEdgePlasticFlow::Compression
+            ));
+            assert!(
+                material
+                    .tear_strain
+                    .is_some_and(|strain| (strain - 0.6).abs() < 1e-6)
+            );
+            assert!(!body.volume_preservation_enabled());
+            assert!((body.volume_factor() - 1.5).abs() < 1e-6);
+        },
+    );
+}
+
+/// A soft material changed on a live body is taken in place, as a stiffness
+/// tuned during play must be: the body is not built again from rest.
+#[test]
+fn a_new_soft_material_is_taken_in_place() {
+    let app = app();
+    let e = node(&app, "Soft", [0.0, 2.0, 0.0]);
+    add(
+        &app,
+        e,
+        "softbody3d",
+        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
+    )
+    .unwrap();
+    let handle = |app: &App| {
+        let state = app.engine.resource::<PhysicsState3d>();
+        state.borrow().soft_bodies[&e]
+    };
+    let before = handle(&app);
+    components::patch(
+        &app.engine,
+        e,
+        "softbody3d",
+        &toml::from_str("soft_material = { edge_hz = 7.0 }").unwrap(),
+    )
+    .unwrap();
+    assert!(
+        handle(&app) == before,
+        "the new material built the body again"
+    );
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let hz = state.world.soft_bodies[before]
+        .material()
+        .edge_softness
+        .natural_frequency;
+    assert!((hz - 7.0).abs() < 1e-5, "edge_hz {hz}");
 }

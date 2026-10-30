@@ -7,25 +7,25 @@ use editor;
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either. Its edit comes
 /// back to the Editor's `search_typed` with the `id` it carries.
-pub fn control(S: editor::State, id: str, placeholder: str, width: float) -> any {
+pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> any {
     map()
         .with("kind", "text_field")
         .with("role", "input_dock")
         .with("width", width)
-        .with("text", query(S, id))
+        .with("text", query(state, id))
         .with("placeholder", placeholder)
         .with("on", "search_typed")
         .with("data", id)
 }
 
 /// What a search control's edit writes: the query under its `id`.
-pub fn typed(S: &mut editor::State, id: str, text: str) {
-    S.search.set(id, text);
+pub fn typed(state: &mut editor::State, id: str, text: str) {
+    state.search.set(id, text);
 }
 
 /// The query a dock is filtering by, "" when it is not.
-pub fn query(S: editor::State, id: str) -> str {
-    let held = S.search.get(id);
+pub fn query(state: editor::State, id: str) -> str {
+    let held = state.search.get(id);
     if held.is_nil() { "" } else { held.as_str() }
 }
 

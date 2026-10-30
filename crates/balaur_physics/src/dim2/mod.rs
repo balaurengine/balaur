@@ -71,6 +71,9 @@ pub struct PhysicsState2d {
     pub joint_params: DetHashMap<Entity, toml::Value>,
     /// What the contact hook reads per collider, as in 3D.
     pub(crate) surfaces: events::Surfaces,
+    /// The asset generation the material files were last read at
+    /// (`collider::reread_materials`).
+    pub(crate) materials_read: u64,
     /// What the last `move_character` found under each character's feet, as
     /// in 3D, so `is_on_floor` reads rather than moves.
     pub grounded: DetHashMap<Entity, bool>,
@@ -108,6 +111,7 @@ impl PhysicsState2d {
             tile_colliders: DetHashMap::default(),
             joint_params: DetHashMap::default(),
             surfaces: events::Surfaces::default(),
+            materials_read: 0,
             grounded: DetHashMap::default(),
             follows: DetHashMap::default(),
             paused: false,
@@ -160,6 +164,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     // A map whose cells moved rebuilds once, before the step that has to
     // collide with them.
     tiles::sync_tile_colliders(eng);
+    collider::reread_materials(eng);
     {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
@@ -362,7 +367,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_2D,
-                Some("kind = \"grid\"\ncell_model = \"corotational\"\nshape_matching = \"on\""),
+                Some("kind = \"grid\"\nsoft_material = { cell_model = \"corotational\", shape_matching = \"on\" }"),
             )],
         )?,
     );

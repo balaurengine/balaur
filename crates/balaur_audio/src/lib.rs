@@ -80,7 +80,7 @@ pub struct Sound {
     pub delay: f32,
     /// Below 0 takes the file's own `loop_offset`.
     pub loop_offset: f32,
-    pub layers: Vec<String>,
+    pub stems: Vec<String>,
     pub queue: Vec<String>,
     pub fade_in_time: f32,
     pub fade_out_time: f32,
@@ -111,7 +111,7 @@ impl Default for Sound {
             end_time: 0.0,
             delay: 0.0,
             loop_offset: -1.0,
-            layers: Vec::new(),
+            stems: Vec::new(),
             queue: Vec::new(),
             fade_in_time: 0.0,
             fade_out_time: 0.0,
@@ -260,7 +260,7 @@ pub struct Playback {
     /// Where repeats start; `None` takes the file's own.
     pub loop_offset: Option<f32>,
     pub effects: Effects,
-    pub layers: Vec<Clip>,
+    pub stems: Vec<Clip>,
     pub queue: Vec<Clip>,
 }
 
@@ -282,7 +282,7 @@ impl Default for Playback {
             fade_out_time: 0.0,
             loop_offset: None,
             effects: Effects::default(),
-            layers: Vec::new(),
+            stems: Vec::new(),
             queue: Vec::new(),
         }
     }
@@ -417,7 +417,7 @@ impl AudioState {
         let placed = placement.unwrap_or_default();
         let program = Program {
             main: Clip::new(bytes, playback.file),
-            layers: playback.layers,
+            stems: playback.stems,
             queue: playback.queue,
             looped: playback.looped,
             loop_offset: playback.loop_offset,
@@ -782,11 +782,11 @@ impl AudioState {
     }
 }
 
-/// Each file's length in a program: `main` mixed with its layers runs as
+/// Each file's length in a program: `main` mixed with its stems runs as
 /// long as the longest of them, unknown if any one is.
 fn lengths(program: &Program) -> Vec<Option<f64>> {
     let main = std::iter::once(&program.main)
-        .chain(&program.layers)
+        .chain(&program.stems)
         .map(backend::length_of)
         .try_fold(0.0_f64, |longest, length| length.map(|l| longest.max(l)));
     std::iter::once(main)
@@ -850,7 +850,7 @@ pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result
         let bytes = read_sound(eng, path).with_context(|| format!("sound file `{path}`"))?;
         Ok(Clip::new(bytes, FileSettings::of(eng, path)))
     };
-    let layers = sound.layers.iter().map(clip).collect::<Result<Vec<_>>>()?;
+    let stems = sound.stems.iter().map(clip).collect::<Result<Vec<_>>>()?;
     let queue = sound.queue.iter().map(clip).collect::<Result<Vec<_>>>()?;
     let bytes = read_sound(eng, &sound.file)?;
     let emitter = sound.positional.then(|| {
@@ -887,7 +887,7 @@ pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result
         fade_out_time: sound.fade_out_time,
         loop_offset: (sound.loop_offset >= 0.0).then_some(sound.loop_offset),
         effects: sound.effects,
-        layers,
+        stems,
         queue,
     };
     let state = eng.resource::<AudioState>();

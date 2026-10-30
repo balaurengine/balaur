@@ -1,6 +1,6 @@
 // Walking what is under the node, which a controller does to find its parts.
 
-pub struct Children {
+pub class Children {
     node: Node,
     seen: int,
 }

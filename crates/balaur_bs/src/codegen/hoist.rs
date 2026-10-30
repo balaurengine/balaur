@@ -140,6 +140,10 @@ impl Scan<'_, '_> {
             }
             ExprKind::StructLit(_, fields) => fields.iter().for_each(|(_, v)| self.expr(v)),
             ExprKind::ArrayLit(items) => items.iter().for_each(|v| self.expr(v)),
+            ExprKind::MapLit(entries) => entries.iter().for_each(|(key, value)| {
+                self.expr(key);
+                self.expr(value);
+            }),
             ExprKind::If(c, t, el) => {
                 self.expr(c);
                 self.block(t);

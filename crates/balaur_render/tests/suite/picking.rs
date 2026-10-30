@@ -18,7 +18,7 @@ indices = [[0, 1, 2]]
 [[nodes]]
 id = "n_wedge"
 name = "Wedge"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/wedge.bs" }
 
 [nodes.mesh]
 source = "#wedge"
@@ -26,7 +26,7 @@ source = "#wedge"
 
 /// The move at the end is the control: a script that never ran leaves the
 /// node where the scene put it, and the assertions below would hold vacuously.
-const SCRIPT: &str = r#"pub struct Wedge { node: Node }
+const SCRIPT: &str = r#"pub class Wedge { node: Node }
 impl Wedge {
     fn init() {
         let through = render::pick_ray(-0.5, -0.5, 5.0, 0.0, 0.0, -1.0);
@@ -54,7 +54,7 @@ fn run() -> (App, Vec<String>) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.path().join("scripts/wedge.bs"), SCRIPT).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());

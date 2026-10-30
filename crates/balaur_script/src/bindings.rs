@@ -2,17 +2,17 @@
 
 use anyhow::Result;
 
-use crate::value::{CallbackId, FromArgs, IntoValue, Value};
+use crate::value::{Args, CallbackId, FromArgs, IntoValue, Value, Values};
 
 /// A registered entry point, after type erasure. `C` is the host context the
 /// engine hands every binding — `balaur_core::Engine` in practice. It is a
 /// parameter so this crate depends on nothing.
 pub type BoundFn<C> = Box<dyn Fn(&C, &[Value]) -> Result<Value>>;
 
-/// An entry point that may move its arguments out of their slots, which the
-/// backend built for this one call. Every typed binding is one, so a table or
-/// a string an argument carries crosses the seam once.
-pub type OwnedFn<C> = Box<dyn Fn(&C, &mut [Value]) -> Result<Value>>;
+/// An entry point that reads its arguments where the backend holds them
+/// ([`Args`]). Every typed binding is one, so a number crosses as a number and
+/// a string is borrowed, with no [`Value`] built for either.
+pub type TypedFn<C> = Box<dyn Fn(&C, &dyn Args) -> Result<Value>>;
 
 /// A named group of bindings — `physics`, `render`, `ui`.
 ///
@@ -20,15 +20,15 @@ pub type OwnedFn<C> = Box<dyn Fn(&C, &mut [Value]) -> Result<Value>>;
 /// which boxes down to `function_raw`: a generic method here would make
 /// `&mut dyn Bindings<C>` impossible, and gdext already proved where that leads.
 pub trait Bindings<C: ?Sized> {
-    fn function_raw(&mut self, name: &str, f: BoundFn<C>);
-    /// `function_raw` for an entry point that takes its arguments. A backend
-    /// that builds the slots for each call hands them over; this default
-    /// copies them first, which is what reading them borrowed cost anyway.
-    fn function_owned(&mut self, name: &str, f: OwnedFn<C>)
+    fn function_raw(&mut self, name: &str, func: BoundFn<C>);
+    /// `function_raw` for an entry point that reads its arguments as it needs
+    /// them. A backend that holds them otherwise than as values hands them
+    /// over where they are; this default reads them from the values.
+    fn function_typed(&mut self, name: &str, func: TypedFn<C>)
     where
         C: 'static,
     {
-        self.function_raw(name, Box::new(move |ctx, args| f(ctx, &mut args.to_vec())));
+        self.function_raw(name, Box::new(move |ctx, args| func(ctx, &Values(args))));
     }
     fn constant(&mut self, name: &str, value: Value);
     /// The argument and return types of `name`, as Rust spells them, for the
@@ -74,18 +74,18 @@ pub type FnDoc = (
 
 /// Typed registration. Blanket-implemented, so every backend gets it free.
 pub trait BindingsExt<C: ?Sized>: Bindings<C> {
-    fn function<A, R, F>(&mut self, name: &str, f: F)
+    fn function<A, R, F>(&mut self, name: &str, func: F)
     where
         A: FromArgs + 'static,
         R: IntoValue + 'static,
         F: Fn(&C, A) -> Result<R> + 'static,
         C: 'static,
     {
-        self.function_owned(
+        self.function_typed(
             name,
             Box::new(move |ctx, args| {
-                let typed = A::take_args(args)?;
-                Ok(f(ctx, typed)?.into_value())
+                let typed = A::read_args(args)?;
+                Ok(func(ctx, typed)?.into_value())
             }),
         );
         self.signature(
@@ -129,14 +129,14 @@ pub(crate) fn short_type(name: &str) -> String {
 macro_rules! forward_bindings {
     ($($pointer:ty),*) => {$(
         impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for $pointer {
-            fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
-                (**self).function_raw(name, f);
+            fn function_raw(&mut self, name: &str, func: BoundFn<C>) {
+                (**self).function_raw(name, func);
             }
-            fn function_owned(&mut self, name: &str, f: OwnedFn<C>)
+            fn function_typed(&mut self, name: &str, func: TypedFn<C>)
             where
                 C: 'static,
             {
-                (**self).function_owned(name, f);
+                (**self).function_typed(name, func);
             }
             fn constant(&mut self, name: &str, value: Value) {
                 (**self).constant(name, value);

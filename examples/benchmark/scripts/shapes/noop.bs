@@ -1,6 +1,6 @@
 // The floor: an `update` the host calls every frame that does nothing.
 
-pub struct Noop {
+pub class Noop {
     node: Node,
 }
 

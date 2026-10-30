@@ -1,7 +1,7 @@
 // The Outline tab's one script: it fills its list from the rows the Editor
 // builds for the workspace, and hands it a pick.
 
-pub struct Outline {
+pub class Outline {
     node: Node,
     editor: Node,
 }

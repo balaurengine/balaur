@@ -45,8 +45,8 @@ pub struct Terrain {
 /// The tile set behind a map: its texture, tile size and columns.
 pub struct Set {
     texture: str,
-    w: float,
-    h: float,
+    width: float,
+    height: float,
     columns: int,
     spacing: float,
     margin: float,
@@ -62,10 +62,10 @@ pub struct Sheet {
 pub struct Frame {
     x: float,
     y: float,
-    c: float,
-    s: float,
-    sx: float,
-    sy: float,
+    cosine: float,
+    sine: float,
+    scale_x: float,
+    scale_y: float,
     tw: float,
     th: float,
     columns: int,
@@ -88,7 +88,7 @@ pub struct Palette {
     sheet: str,
 }
 
-/// The tool's own state, hung on `S.tiles`. `stroke` is the button held down
+/// The tool's own state, hung on `state.tiles`. `stroke` is the button held down
 /// ("" for none), `anchor` the cell a rectangle was started at, `sheet` the
 /// cached size of the atlas image.
 pub fn state() -> TilesState {
@@ -140,8 +140,8 @@ pub fn mode_name(id: str) -> str {
 // The tile set's definition: an inline table is the definition itself; a
 // string names a file, which the engine reads by absolute path because the
 // editor's own project root is not the game's. Nil when there is none.
-fn tileset_def(S: editor::State) -> any {
-    let comp = component(model::selected_node(S));
+fn tileset_def(state: editor::State) -> any {
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() {
         return nil;
     }
@@ -152,22 +152,22 @@ fn tileset_def(S: editor::State) -> any {
     if named.kind() != "str" || named.as_str() == "" {
         return nil;
     }
-    let loaded = assets::load(util::engine_path(S.game_root, named.as_str()));
+    let loaded = assets::load(util::engine_path(state.game_root, named.as_str()));
     if loaded.kind() == "map" { loaded } else { nil }
 }
 
 /// The terrains the tile set names, for the brush to choose between.
-pub fn terrains(S: editor::State) -> [Terrain] {
+pub fn terrains(state: editor::State) -> [Terrain] {
     let out: [Terrain] = [];
-    let def = tileset_def(S);
+    let def = tileset_def(state);
     if def.is_nil() {
         return out;
     }
     let list = util::vec(def.terrains);
-    for i in 0..list.len() {
-        let entry = list[i];
+    for index in 0..list.len() {
+        let entry = list[index];
         if entry.kind() == "map" {
-            let value = if entry.value.is_nil() { i + 1 } else { entry.value.as_int() };
+            let value = if entry.value.is_nil() { index + 1 } else { entry.value.as_int() };
             out.push(Terrain { name: entry.name.as_str(), value: value });
         }
     }
@@ -176,14 +176,14 @@ pub fn terrains(S: editor::State) -> [Terrain] {
 
 /// Every cell the fill reaches: the ones holding what the first one held,
 /// four-connected, inside the map the tool can see.
-fn flood(S: editor::State, x: int, y: int) -> [Cell] {
-    let want = cell(S, x, y);
-    let rows = grid(S);
-    let start = origin(S);
+fn flood(state: editor::State, column: int, row: int) -> [Cell] {
+    let want = cell(state, column, row);
+    let rows = grid(state);
+    let start = origin(state);
     let wide = columns(rows);
     let tall = rows.len();
     let seen = map();
-    let queue = [Cell { x: x, y: y }];
+    let queue = [Cell { x: column, y: row }];
     let out: [Cell] = [];
     while queue.len() > 0 && out.len() < FILL_LIMIT {
         let at = queue.remove(0);
@@ -195,7 +195,7 @@ fn flood(S: editor::State, x: int, y: int) -> [Cell] {
         if at.x < start.x || at.y < start.y || at.x >= start.x + wide || at.y >= start.y + tall {
             continue;
         }
-        if cell(S, at.x, at.y) != want {
+        if cell(state, at.x, at.y) != want {
             continue;
         }
         out.push(at);
@@ -214,24 +214,24 @@ fn line_cells(from: Cell, to: Cell) -> [Cell] {
     let sx = if from.x < to.x { 1 } else { -1 };
     let sy = if from.y < to.y { 1 } else { -1 };
     let err = dx - dy;
-    let x = from.x;
-    let y = from.y;
+    let column = from.x;
+    let row = from.y;
     let out: [Cell] = [];
     let guard = 0;
     while guard < FILL_LIMIT {
         guard += 1;
-        out.push(Cell { x: x, y: y });
-        if x == to.x && y == to.y {
+        out.push(Cell { x: column, y: row });
+        if column == to.x && row == to.y {
             break;
         }
         let twice = err * 2;
         if twice > -dy {
             err -= dy;
-            x += sx;
+            column += sx;
         }
         if twice < dx {
             err += dx;
-            y += sy;
+            row += sy;
         }
     }
     out
@@ -239,18 +239,18 @@ fn line_cells(from: Cell, to: Cell) -> [Cell] {
 
 /// Put the block of tiles the palette selection spans, its top-left corner at
 /// a cell: a stamp is the selected tile and the ones right and below it.
-pub fn stamp_at(S: &mut editor::State, x: int, y: int) -> bool {
-    let set_or = tileset(S);
+pub fn stamp_at(state: &mut editor::State, left: int, top: int) -> bool {
+    let set_or = tileset(state);
     if set_or.is_none() {
         return false;
     }
     let set = set_or.unwrap();
-    let first = S.tiles.tile;
-    let count = tile_count(S);
+    let first = state.tiles.tile;
+    let count = tile_count(state);
     let rows: [[int]] = [];
-    for row in 0..S.tiles.stamp.tall {
+    for row in 0..state.tiles.stamp.tall {
         let line: [int] = [];
-        for column in 0..S.tiles.stamp.wide {
+        for column in 0..state.tiles.stamp.wide {
             let id = first + row * set.columns + column;
             // A stamp that runs off the sheet's row wraps nowhere: it stops.
             let over_edge = (first % set.columns) + column >= set.columns;
@@ -258,18 +258,18 @@ pub fn stamp_at(S: &mut editor::State, x: int, y: int) -> bool {
         }
         rows.push(line);
     }
-    write_block(S, x, y, rows, "stamp tiles")
+    write_block(state, left, top, rows, "stamp tiles")
 }
 
 /// Write a block of tiles in one step, growing the map to hold it.
-fn write_block(S: &mut editor::State, x: int, y: int, rows: [[int]], label: str) -> bool {
+fn write_block(state: &mut editor::State, left: int, top: int, rows: [[int]], label: str) -> bool {
     let changed = false;
     for row in 0..rows.len() {
         let line = rows[row];
         for column in 0..line.len() {
             let id = line[column];
             // One key, so the whole block is one undo step.
-            if id >= 0 && write_cells(S, [Cell { x: x + column, y: y + row }], id, label, "stamp") {
+            if id >= 0 && write_cells(state, [Cell { x: left + column, y: top + row }], id, label, "stamp") {
                 changed = true;
             }
         }
@@ -279,21 +279,21 @@ fn write_block(S: &mut editor::State, x: int, y: int, rows: [[int]], label: str)
 
 /// Paint a terrain value and let the engine's own rules pick the tiles, then
 /// take the cells it resolved back into the document.
-pub fn paint_terrain(S: &mut editor::State, x: int, y: int, value: int) -> bool {
-    if !model::has_selection(S) {
+pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: int) -> bool {
+    if !model::has_selection(state) {
         return false;
     }
-    let found = model::live(S, S.sel);
-    let comp = component(S.doc[S.sel]);
+    let found = model::selected_node(state);
+    let comp = component(state, model::selected_node(state));
     if !found.is_valid() || comp.is_nil() {
         return false;
     }
-    found.tilemap.set_terrain(x, y, value);
+    history::record(state, if value < 0 { "erase terrain" } else { "paint terrain" }, "terrain");
+    found.tilemap.set_terrain(column, row, value);
     let table = found.get_component("tilemap", nil);
     if table.kind() != "map" {
         return false;
     }
-    history::record(S, if value < 0 { "erase terrain" } else { "paint terrain" }, "terrain");
     if !table.cells.is_nil() {
         comp.set("cells", table.cells);
     }
@@ -306,22 +306,24 @@ pub fn paint_terrain(S: &mut editor::State, x: int, y: int, value: int) -> bool 
     if table.flags.kind() == "list" {
         comp.set("flags", table.flags);
     }
+    apply(state);
     true
 }
 
-/// The `tilemap` table on a node, or nil for a node that carries none.
-pub fn component(node: any) -> any {
-    let comp = node.tilemap;
-    if comp.kind() == "map" { comp } else { nil }
+/// The `tilemap` table a node asks for, held for the frame so every call of
+/// one edit changes the same table (`model::edited`); nil for a node that
+/// carries none.
+pub fn component(state: editor::State, found: Node) -> any {
+    model::edited(state, found, COMPONENT)
 }
+
+/// The component a tilemap is.
+const COMPONENT: str = "tilemap";
 
 /// A tilemap whose cells are inline rows. One naming a `.cells` file is
 /// left alone: a paint would write rows into the scene over the file.
-pub fn editable(S: editor::State) -> bool {
-    if S.sel < 0 || S.sel >= S.doc.len() {
-        return false;
-    }
-    let comp = component(S.doc[S.sel]);
+pub fn editable(state: editor::State) -> bool {
+    let comp = component(state, model::selected_node(state));
     !comp.is_nil() && !file_backed(comp)
 }
 
@@ -332,8 +334,8 @@ fn file_backed(comp: any) -> bool {
 }
 
 /// The tile set behind the selected map: its texture, tile size and columns.
-pub fn tileset(S: editor::State) -> Set? {
-    let def = tileset_def(S);
+pub fn tileset(state: editor::State) -> Set? {
+    let def = tileset_def(state);
     if def.is_nil() {
         return nil;
     }
@@ -345,8 +347,8 @@ pub fn tileset(S: editor::State) -> Set? {
     }
     Set {
         texture: texture,
-        w: size[0],
-        h: size[1],
+        width: size[0],
+        height: size[1],
         columns: columns,
         spacing: gap(def, "spacing"),
         margin: gap(def, "margin"),
@@ -357,15 +359,15 @@ pub fn tileset(S: editor::State) -> Set? {
 /// a sheet whose tiles are not one. The same two forms the engine reads.
 fn tile_extent(size: any) -> [float] {
     if size.kind() == "list" && size.len() >= 2 {
-        return [util::f(size[0]), util::f(size[1])];
+        return [size[0].as_float(), size[1].as_float()];
     }
-    let edge = util::f(size);
+    let edge = size.as_float();
     return [edge, edge];
 }
 
 /// A gutter or a border in sheet pixels, zero when the sheet names none.
 fn gap(def: any, key: str) -> float {
-    util::max(util::f(def.get(key)), 0.0)
+    util::max(def.get(key).as_float(), 0.0)
 }
 
 /// Where one tile sits on the sheet, in pixels: the gutter between tiles and
@@ -374,34 +376,34 @@ pub fn tile_rect(set: Set, tile: int) -> [float] {
     let column = (tile % set.columns) as float;
     let row = (tile / set.columns) as float;
     return [
-        set.margin + column * (set.w + set.spacing),
-        set.margin + row * (set.h + set.spacing),
-        set.w,
-        set.h,
+        set.margin + column * (set.width + set.spacing),
+        set.margin + row * (set.height + set.spacing),
+        set.width,
+        set.height,
     ];
 }
 
 /// How many tiles the atlas holds: its columns times the rows its height
 /// makes. Cached by path, because it costs a file read.
-pub fn tile_count(S: &mut editor::State) -> int {
-    let set_or = tileset(S);
+pub fn tile_count(state: &mut editor::State) -> int {
+    let set_or = tileset(state);
     if set_or.is_none() {
         return 0;
     }
     let set = set_or.unwrap();
-    if S.tiles.sheet.is_none() || S.tiles.sheet.unwrap().path != set.texture {
-        let size = render::texture_size(util::engine_path(S.game_root, set.texture));
+    if state.tiles.sheet.is_none() || state.tiles.sheet.unwrap().path != set.texture {
+        let size = render::texture_size(util::engine_path(state.game_root, set.texture));
         let height = 0.0;
         if size.len() == 2 {
             height = size[1] as float;
         } else {
             log::warn("tile set texture {set.texture}: no size");
         }
-        S.tiles.sheet = Sheet { path: set.texture, height: height };
+        state.tiles.sheet = Sheet { path: set.texture, height: height };
     }
     // As many rows as fit under the border, counting the gutter between them.
-    let step = set.h + set.spacing;
-    let room = S.tiles.sheet.unwrap().height - set.margin - set.h;
+    let step = set.height + set.spacing;
+    let room = state.tiles.sheet.unwrap().height - set.margin - set.height;
     if step <= 0.0 || room < 0.0 {
         return 0;
     }
@@ -409,19 +411,19 @@ pub fn tile_count(S: &mut editor::State) -> int {
     set.columns * util::imax(rows, 0)
 }
 
-fn pixels_per_unit(S: editor::State) -> float {
-    let comp = component(model::selected_node(S));
+fn pixels_per_unit(state: editor::State) -> float {
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() || comp.pixels_per_unit.is_nil() {
         return util::DEFAULT_PIXELS_PER_UNIT;
     }
-    util::max(util::f(comp.pixels_per_unit), 0.01)
+    util::max(comp.pixels_per_unit.as_float(), 0.01)
 }
 
 /// The grid as rows of tile ids, whichever form the document wrote. Empty is
 /// -1, the same spelling `cells` takes as a list.
-pub fn grid(S: editor::State) -> [[int]] {
+pub fn grid(state: editor::State) -> [[int]] {
     let rows: [[int]] = [];
-    let comp = component(model::selected_node(S));
+    let comp = component(state, model::selected_node(state));
     // A string is the schema's empty default or a `.cells` file name, and
     // neither holds rows to edit here.
     if comp.is_nil() || comp.cells.kind() != "list" {
@@ -450,31 +452,31 @@ pub fn columns(rows: [[int]]) -> int {
 ///
 /// Cell 0,0 has its top-left corner on the node, so a cell's place is its
 /// coordinate alone and the map may grow in any direction.
-pub fn frame(S: editor::State) -> Frame? {
-    let found = model::live(S, S.sel);
+pub fn frame(state: editor::State) -> Frame? {
+    let found = model::selected_node(state);
     if !found.is_valid() {
         return nil;
     }
-    let set_or = tileset(S);
+    let set_or = tileset(state);
     if set_or.is_none() {
         return nil;
     }
     let set = set_or.unwrap();
-    let rows = grid(S);
-    let p = found.transform.global_position();
+    let rows = grid(state);
+    let position = found.transform.global_position();
     let angle = found.transform.global_rotation_euler().z;
     let scale = found.transform.global_scale();
-    let start = origin(S);
-    let ppu = pixels_per_unit(S);
+    let start = origin(state);
+    let ppu = pixels_per_unit(state);
     Frame {
-        x: p.x,
-        y: p.y,
-        c: math::cos(angle),
-        s: math::sin(angle),
-        sx: scale.x,
-        sy: scale.y,
-        tw: set.w / ppu,
-        th: set.h / ppu,
+        x: position.x,
+        y: position.y,
+        cosine: math::cos(angle),
+        sine: math::sin(angle),
+        scale_x: scale.x,
+        scale_y: scale.y,
+        tw: set.width / ppu,
+        th: set.height / ppu,
         columns: util::imax(columns(rows), 1),
         rows: util::imax(rows.len(), 1),
         ox: start.x,
@@ -482,32 +484,32 @@ pub fn frame(S: editor::State) -> Frame? {
     }
 }
 
-fn to_local(f: Frame, wx: float, wy: float) -> [float] {
-    let dx = wx - f.x;
-    let dy = wy - f.y;
-    let px = f.c * dx + f.s * dy;
-    let py = -f.s * dx + f.c * dy;
-    let sx = if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 };
-    let sy = if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
+fn to_local(frame: Frame, wx: float, wy: float) -> [float] {
+    let dx = wx - frame.x;
+    let dy = wy - frame.y;
+    let px = frame.cosine * dx + frame.sine * dy;
+    let py = -frame.sine * dx + frame.cosine * dy;
+    let sx = if util::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
+    let sy = if util::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
     return [px / sx, py / sy];
 }
 
-fn to_world(f: Frame, lx: float, ly: float) -> [float] {
-    let px = lx * f.sx;
-    let py = ly * f.sy;
-    return [f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py];
+fn to_world(frame: Frame, lx: float, ly: float) -> [float] {
+    let px = lx * frame.scale_x;
+    let py = ly * frame.scale_y;
+    return [frame.x + frame.cosine * px - frame.sine * py, frame.y + frame.sine * px + frame.cosine * py];
 }
 
 /// The cell a world point falls in, counted from the top left. Outside the
 /// grid is still a cell: painting there is what grows the map.
-pub fn cell_at(S: editor::State, f: Frame, wx: float, wy: float) -> Cell {
-    let l = to_local(f, wx, wy);
-    Cell { x: math::floor(l[0] / f.tw) as int, y: math::floor(-l[1] / f.th) as int }
+pub fn cell_at(state: editor::State, frame: Frame, wx: float, wy: float) -> Cell {
+    let local = to_local(frame, wx, wy);
+    Cell { x: math::floor(local[0] / frame.tw) as int, y: math::floor(-local[1] / frame.th) as int }
 }
 
 /// The coordinate of the map's first stored cell.
-pub fn origin(S: editor::State) -> Cell {
-    let comp = component(model::selected_node(S));
+pub fn origin(state: editor::State) -> Cell {
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() {
         return Cell { x: 0, y: 0 };
     }
@@ -518,19 +520,20 @@ pub fn origin(S: editor::State) -> Cell {
 }
 
 /// A cell's four corners in world space, for the hover outline.
-fn cell_corners(f: Frame, column: int, row: int) -> [[float]] {
-    let x0 = (column as float) * f.tw;
-    let y1 = -(row as float) * f.th;
+fn cell_corners(frame: Frame, column: int, row: int) -> [[float]] {
+    let left = (column as float) * frame.tw;
+    let top = -(row as float) * frame.th;
     [
-        to_world(f, x0, y1),
-        to_world(f, x0 + f.tw, y1),
-        to_world(f, x0 + f.tw, y1 - f.th),
-        to_world(f, x0, y1 - f.th),
+        to_world(frame, left, top),
+        to_world(frame, left + frame.tw, top),
+        to_world(frame, left + frame.tw, top - frame.th),
+        to_world(frame, left, top - frame.th),
     ]
 }
 
-fn apply(S: &mut editor::State) {
-    model::apply_component(S, "tilemap");
+/// Hand the edited tilemap back to the selected node, as one write.
+fn apply(state: &mut editor::State) {
+    model::write_edited(state, model::selected_node(state), COMPONENT);
 }
 
 /// Put `tile` in every one of `cells`, growing the map to reach them; false
@@ -540,16 +543,16 @@ fn apply(S: &mut editor::State) {
 /// cells is one document write rather than fifty. History is recorded here
 /// and only when something actually changes: clicking a cell that already
 /// holds the tile must not cost an undo step.
-pub fn write_cells(S: &mut editor::State, cells: [Cell], tile: int, label: str, key: str?) -> bool {
-    if !model::has_selection(S) {
+pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: str, key: str?) -> bool {
+    if !model::has_selection(state) {
         return false;
     }
-    let comp = component(S.doc[S.sel]);
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() {
         return false;
     }
-    let rows = grid(S);
-    let start = origin(S);
+    let rows = grid(state);
+    let start = origin(state);
     // Reach every cell first: the rows grow left and up by moving the origin,
     // which is what keeps the tiles already down where they are.
     let low_x = start.x;
@@ -563,11 +566,11 @@ pub fn write_cells(S: &mut editor::State, cells: [Cell], tile: int, label: str, 
         high_y = util::imax(high_y, at.y + 1);
     }
     let grown: [[int]] = [];
-    for y in low_y..high_y {
+    for row in low_y..high_y {
         let line: [int] = [];
-        for x in low_x..high_x {
-            let dy = y - start.y;
-            let dx = x - start.x;
+        for column in low_x..high_x {
+            let dy = row - start.y;
+            let dx = column - start.x;
             let held = if dy >= 0 && dy < rows.len() && dx >= 0 && dx < rows[dy].len() { rows[dy][dx] } else { -1 };
             line.push(held);
         }
@@ -587,239 +590,239 @@ pub fn write_cells(S: &mut editor::State, cells: [Cell], tile: int, label: str, 
     // Recorded with the document still as it was: everything below is the
     // step this undoes. Every row is as wide as the widest: a ragged grid
     // draws the same, but a diff of one reads badly; `grown` already is.
-    history::record(S, label, key);
+    history::record(state, label, key);
     comp.set("cells", grown);
     comp.set("origin", [low_x as float, low_y as float]);
-    apply(S);
+    apply(state);
     true
 }
 
 /// The tile at a cell, or -1 for an empty one or one off the grid.
-pub fn cell(S: editor::State, x: int, y: int) -> int {
-    let rows = grid(S);
-    let start = origin(S);
-    let dy = y - start.y;
-    let dx = x - start.x;
+pub fn cell(state: editor::State, column: int, row: int) -> int {
+    let rows = grid(state);
+    let start = origin(state);
+    let dy = row - start.y;
+    let dx = column - start.x;
     if dy < 0 || dy >= rows.len() {
         return -1;
     }
-    let row = rows[dy];
-    if dx < 0 || dx >= row.len() {
+    let line = rows[dy];
+    if dx < 0 || dx >= line.len() {
         return -1;
     }
-    row[dx]
+    line[dx]
 }
 
 /// One cell. Every cell of one drag shares a history key, so the stroke is
 /// one undo step however many cells it crossed.
-pub fn paint(S: &mut editor::State, x: int, y: int, tile: int) -> bool {
-    write_cells(S, [Cell { x: x, y: y }], tile, if tile < 0 { "erase tiles" } else { "paint tiles" }, "tiles")
+pub fn paint(state: &mut editor::State, column: int, row: int, tile: int) -> bool {
+    write_cells(state, [Cell { x: column, y: row }], tile, if tile < 0 { "erase tiles" } else { "paint tiles" }, "tiles")
 }
 
 /// Every cell of the rectangle between two corners, as one step.
-pub fn fill_rect(S: &mut editor::State, from: Cell, to: Cell, tile: int) -> bool {
+pub fn fill_rect(state: &mut editor::State, from: Cell, to: Cell, tile: int) -> bool {
     let cells: [Cell] = [];
-    for y in util::imin(from.y, to.y)..(util::imax(from.y, to.y) + 1) {
-        for x in util::imin(from.x, to.x)..(util::imax(from.x, to.x) + 1) {
-            cells.push(Cell { x: x, y: y });
+    for row in util::imin(from.y, to.y)..(util::imax(from.y, to.y) + 1) {
+        for column in util::imin(from.x, to.x)..(util::imax(from.x, to.x) + 1) {
+            cells.push(Cell { x: column, y: row });
         }
     }
-    write_cells(S, cells, tile, if tile < 0 { "erase tiles" } else { "fill tiles" }, nil)
+    write_cells(state, cells, tile, if tile < 0 { "erase tiles" } else { "fill tiles" }, nil)
 }
 
 /// A second map beside this one, same tile set and same place, with no tiles
 /// in it: what a layer is. Duplicating is what gives it the parent, the
 /// transform and a name nothing else has.
-pub fn add_layer(S: &mut editor::State) -> bool {
-    if !model::has_selection(S) {
+pub fn add_layer(state: &mut editor::State) -> bool {
+    if !model::has_selection(state) {
         return false;
     }
-    if !editable(S) {
+    if !editable(state) {
         log::warn("select a tilemap to add a layer beside it");
         return false;
     }
-    model::duplicate_selected(S);
-    let comp = component(S.doc[S.sel]);
+    model::duplicate_selected(state);
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() {
         return false;
     }
     let none: [any] = [];
     comp.set("cells", none);
-    apply(S);
+    apply(state);
     true
 }
 
 /// Every tilemap under the selected map's parent: the layers of one map.
-pub fn layers(S: editor::State) -> [Layer] {
+pub fn layers(state: editor::State) -> [Layer] {
     let out: [Layer] = [];
-    if !editable(S) {
+    if !editable(state) {
         return out;
     }
-    let parent = model::selected_node(S).parent.as_str();
-    for i in 0..S.doc.len() {
-        let node = S.doc[i];
-        if !component(node).is_nil() && node.parent.as_str() == parent {
-            out.push(Layer { index: i, name: node.name.as_str() });
+    let parent = model::selected_node(state).parent();
+    for index in 0..state.nodes.len() {
+        let found = state.nodes[index];
+        if found.has_component(COMPONENT) && found.parent() == parent {
+            out.push(Layer { index: index, name: found.name() });
         }
     }
     out
 }
 
-pub fn set_mode(S: &mut editor::State, mode: str) {
+pub fn set_mode(state: &mut editor::State, mode: str) {
     if util::contains(MODES(), mode) {
-        S.tiles.mode = mode;
-        S.tiles.anchor = nil;
-        signals::changed(S, "tiles");
+        state.tiles.mode = mode;
+        state.tiles.anchor = nil;
+        signals::changed(state, "tiles");
     }
 }
 
-pub fn cancel(S: &mut editor::State) {
-    S.tiles.stroke = "";
-    S.tiles.anchor = nil;
+pub fn cancel(state: &mut editor::State) {
+    state.tiles.stroke = "";
+    state.tiles.anchor = nil;
 }
 
 /// The pointer over the viewport, once per frame. The Tiles tool owns the
 /// click the way the Polygon tool does: no gizmo, no camera drag.
-pub fn update(S: &mut editor::State, over_viewport: bool, mx: float, my: float) {
-    let f = frame(S);
-    if f.is_none() {
-        S.tiles.hover = nil;
+pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: float) {
+    let map_frame = frame(state);
+    if map_frame.is_none() {
+        state.tiles.hover = nil;
         return;
     }
-    let at = cell_at(S, f.unwrap(), mx, my);
-    let x = at.x;
-    let y = at.y;
-    S.tiles.hover = if over_viewport { at } else { nil };
+    let at = cell_at(state, map_frame.unwrap(), mx, my);
+    let column = at.x;
+    let row = at.y;
+    state.tiles.hover = if over_viewport { at } else { nil };
     let left = input::mouse_down(input::MOUSE_BUTTON_LEFT);
     let right = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
     if !left && !right {
         // A rectangle is drawn on release, from the cell the drag began in.
-        if S.tiles.anchor.is_some() {
-            let anchor = S.tiles.anchor.unwrap();
-            let tile = if S.tiles.stroke == "erase" { -1 } else { S.tiles.tile };
-            if S.tiles.mode == "line" {
-                write_cells(S, line_cells(anchor, at), tile, "draw tiles", nil);
+        if state.tiles.anchor.is_some() {
+            let anchor = state.tiles.anchor.unwrap();
+            let tile = if state.tiles.stroke == "erase" { -1 } else { state.tiles.tile };
+            if state.tiles.mode == "line" {
+                write_cells(state, line_cells(anchor, at), tile, "draw tiles", nil);
             } else {
-                fill_rect(S, anchor, at, tile);
+                fill_rect(state, anchor, at, tile);
             }
         }
-        cancel(S);
-        history::commit(S);
+        cancel(state);
+        history::commit(state);
         return;
     }
-    if !over_viewport && S.tiles.stroke == "" {
+    if !over_viewport && state.tiles.stroke == "" {
         return;
     }
     let stroke = if left { "paint" } else { "erase" };
-    let tile = if left { S.tiles.tile } else { -1 };
-    let mode = S.tiles.mode;
+    let tile = if left { state.tiles.tile } else { -1 };
+    let mode = state.tiles.mode;
     if mode == "pick" {
-        if S.tiles.stroke == "" {
-            let held = cell(S, x, y);
+        if state.tiles.stroke == "" {
+            let held = cell(state, column, row);
             if held >= 0 {
-                S.tiles.tile = held;
-                signals::changed(S, "tiles");
+                state.tiles.tile = held;
+                signals::changed(state, "tiles");
             }
-            S.tiles.stroke = stroke;
+            state.tiles.stroke = stroke;
         }
         return;
     }
     if mode == "terrain" {
-        S.tiles.stroke = stroke;
-        paint_terrain(S, x, y, if left { S.tiles.terrain } else { -1 });
+        state.tiles.stroke = stroke;
+        paint_terrain(state, column, row, if left { state.tiles.terrain } else { -1 });
         return;
     }
     if mode == "stamp" {
-        S.tiles.stroke = stroke;
+        state.tiles.stroke = stroke;
         if left {
-            stamp_at(S, x, y);
+            stamp_at(state, column, row);
         } else {
-            fill_rect(S, at, Cell { x: x + S.tiles.stamp.wide - 1, y: y + S.tiles.stamp.tall - 1 }, -1);
+            fill_rect(state, at, Cell { x: column + state.tiles.stamp.wide - 1, y: row + state.tiles.stamp.tall - 1 }, -1);
         }
         return;
     }
     if mode == "bucket" {
-        if S.tiles.stroke == "" {
-            S.tiles.stroke = stroke;
-            write_cells(S, flood(S, x, y), tile, "fill tiles", nil);
+        if state.tiles.stroke == "" {
+            state.tiles.stroke = stroke;
+            write_cells(state, flood(state, column, row), tile, "fill tiles", nil);
         }
         return;
     }
     if mode == "line" || mode == "rect" {
-        if S.tiles.anchor.is_none() {
-            S.tiles.anchor = at;
-            S.tiles.stroke = stroke;
+        if state.tiles.anchor.is_none() {
+            state.tiles.anchor = at;
+            state.tiles.stroke = stroke;
         }
         return;
     }
-    S.tiles.stroke = stroke;
-    paint(S, x, y, tile);
+    state.tiles.stroke = stroke;
+    paint(state, column, row, tile);
 }
 
-fn line(a: [float], b: [float], color: [float], width: float) {
-    render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
+fn line(from: [float], to: [float], color: [float], width: float) {
+    render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], width);
 }
 
-fn outline(f: Frame, x: int, y: int, color: [float], width: float) {
-    let corners = cell_corners(f, x, y);
-    for i in 0..4 {
-        line(corners[i], corners[(i + 1) % 4], color, width);
+fn outline(frame: Frame, column: int, row: int, color: [float], width: float) {
+    let corners = cell_corners(frame, column, row);
+    for corner in 0..4 {
+        line(corners[corner], corners[(corner + 1) % 4], color, width);
     }
 }
 
 /// The grid over the map, the cell under the pointer, and the rectangle a
 /// drag has swept so far.
-pub fn draw(S: editor::State) {
-    if S.tool != "tiles" || !S.mode2d {
+pub fn draw(state: editor::State) {
+    if state.tool != "tiles" || !state.mode2d {
         return;
     }
-    let f_or = frame(S);
-    if f_or.is_none() {
+    let frame_or = frame(state);
+    if frame_or.is_none() {
         return;
     }
-    let f = f_or.unwrap();
-    let k = S.theme;
-    let faint = util::rgb(k.text_subtle.as_str());
-    let accent = util::rgb(k.primary_text.as_str());
-    let w = viewport::world_per_px(S);
+    let map_frame = frame_or.unwrap();
+    let tokens = state.theme;
+    let faint = util::rgb(tokens.text_subtle.as_str());
+    let accent = util::rgb(tokens.primary_text.as_str());
+    let world_per_px = viewport::world_per_px(state);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
-    if f.tw / w >= 6.0 {
-        let last_x = f.ox + f.columns - 1;
-        let last_y = f.oy + f.rows - 1;
-        for row in f.oy..(f.oy + f.rows + 1) {
-            line(cell_corners(f, f.ox, row)[0], cell_corners(f, last_x, row)[1], faint, 1.0);
+    if map_frame.tw / world_per_px >= 6.0 {
+        let last_x = map_frame.ox + map_frame.columns - 1;
+        let last_y = map_frame.oy + map_frame.rows - 1;
+        for row in map_frame.oy..(map_frame.oy + map_frame.rows + 1) {
+            line(cell_corners(map_frame, map_frame.ox, row)[0], cell_corners(map_frame, last_x, row)[1], faint, 1.0);
         }
-        for column in f.ox..(f.ox + f.columns + 1) {
-            line(cell_corners(f, column, f.oy)[0], cell_corners(f, column, last_y)[3], faint, 1.0);
+        for column in map_frame.ox..(map_frame.ox + map_frame.columns + 1) {
+            line(cell_corners(map_frame, column, map_frame.oy)[0], cell_corners(map_frame, column, last_y)[3], faint, 1.0);
         }
     }
-    if S.tiles.hover.is_none() {
+    if state.tiles.hover.is_none() {
         return;
     }
-    let hover = S.tiles.hover.unwrap();
-    if S.tiles.anchor.is_none() {
-        outline(f, hover.x, hover.y, viewport::hover_color(), 2.0);
+    let hover = state.tiles.hover.unwrap();
+    if state.tiles.anchor.is_none() {
+        outline(map_frame, hover.x, hover.y, viewport::hover_color(), 2.0);
         return;
     }
-    let anchor = S.tiles.anchor.unwrap();
-    if S.tiles.mode == "line" {
+    let anchor = state.tiles.anchor.unwrap();
+    if state.tiles.mode == "line" {
         for at in line_cells(anchor, hover) {
-            outline(f, at.x, at.y, accent, 1.5);
+            outline(map_frame, at.x, at.y, accent, 1.5);
         }
         return;
     }
-    for y in util::imin(anchor.y, hover.y)..(util::imax(anchor.y, hover.y) + 1) {
-        for x in util::imin(anchor.x, hover.x)..(util::imax(anchor.x, hover.x) + 1) {
-            outline(f, x, y, accent, 1.5);
+    for row in util::imin(anchor.y, hover.y)..(util::imax(anchor.y, hover.y) + 1) {
+        for column in util::imin(anchor.x, hover.x)..(util::imax(anchor.x, hover.x) + 1) {
+            outline(map_frame, column, row, accent, 1.5);
         }
     }
 }
 
 /// The tile set behind the map, as a file to write back to: an inline
 /// definition is edited on the node instead, and has no file of its own.
-fn tileset_file(S: editor::State) -> str? {
-    let comp = component(model::selected_node(S));
+fn tileset_file(state: editor::State) -> str? {
+    let comp = component(state, model::selected_node(state));
     if comp.is_nil() || comp.tileset.kind() != "str" {
         return nil;
     }
@@ -832,20 +835,20 @@ fn tileset_file(S: editor::State) -> str? {
 ///
 /// The set is a file the game owns, not a node, so this edits it in place
 /// rather than through the document's history.
-fn edit_tile(S: &mut editor::State, key: str, value: any) -> bool {
-    let rel = tileset_file(S);
+fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
+    let rel = tileset_file(state);
     if rel.is_none() {
         log::warn("this map's tile set is written on the node, so there is no file to edit");
         return false;
     }
-    let path = util::engine_path(S.game_root, rel.unwrap());
+    let path = util::engine_path(state.game_root, rel.unwrap());
     let definition = assets::load(path);
     if definition.kind() != "map" {
         log::warn("the tile set will not load: {definition}");
         return false;
     }
     let tiles = if definition.tiles.kind() == "map" { definition.tiles } else { map() };
-    let id = "{S.tiles.tile}";
+    let id = "{state.tiles.tile}";
     let tile = if tiles.get(id).kind() == "map" { tiles.get(id) } else { map() };
     if value.is_nil() {
         tile.remove(key);
@@ -856,37 +859,37 @@ fn edit_tile(S: &mut editor::State, key: str, value: any) -> bool {
     definition.set("tiles", tiles);
     assets::save(path, definition);
     // The map is built from the file, so it has to be read again.
-    apply(S);
+    apply(state);
     true
 }
 
 /// What the selected tile says about itself, out of the tile set's file.
-fn tile_table(S: editor::State) -> any {
-    let rel = tileset_file(S);
+fn tile_table(state: editor::State) -> any {
+    let rel = tileset_file(state);
     if rel.is_none() {
         return map();
     }
-    let definition = assets::load(util::engine_path(S.game_root, rel.unwrap()));
+    let definition = assets::load(util::engine_path(state.game_root, rel.unwrap()));
     if definition.kind() != "map" {
         return map();
     }
-    let found = definition.tiles.get("{S.tiles.tile}");
+    let found = definition.tiles.get("{state.tiles.tile}");
     if found.kind() == "map" { found } else { map() }
 }
 
 /// The Set rows: what the selected tile is, written back to the tile set.
-fn set_rows(S: editor::State, out: [[any]]) {
-    let tile = tile_table(S);
+fn set_rows(state: editor::State, out: [[any]]) {
+    let tile = tile_table(state);
     let solid = tile.collision.as_str() == "full";
     let one_way = tile.one_way.as_bool();
     let occluder = tile.occluder.as_bool();
     out.push([
-        note("tile {S.tiles.tile}"),
+        note("tile {state.tiles.tile}"),
         flag_chip("Solid", solid, "collision", if solid { nil } else { "full" }),
         flag_chip("One-way", one_way, "one_way", if one_way { nil } else { true }),
         flag_chip("Blocks light", occluder, "occluder", if occluder { nil } else { true }),
     ]);
-    let named = terrains(S);
+    let named = terrains(state);
     if named.len() == 0 {
         return;
     }
@@ -900,17 +903,17 @@ fn set_rows(S: editor::State, out: [[any]]) {
 
 // One of the tile's own flags, written back as it is pressed.
 fn flag_chip(text: str, on: bool, key: str, value: any) -> any {
-    chip(text, on, flag_chip_on_0, map().with("key", key).with("value", value))
+    chip(text, on, on_flag_chip_clicked, map().with("key", key).with("value", value))
 }
 
-fn flag_chip_on_0(S: &mut editor::State, data: any, _0: any) {
-    edit_tile(S, data.key.as_str(), data.value);
+fn on_flag_chip_clicked(state: &mut editor::State, data: any, _value: any) {
+    edit_tile(state, data.key.as_str(), data.value);
 }
 
-/// A chip that is on or off, and what pressing it does: `f` with `data`. The
+/// A chip that is on or off, and what pressing it does: `handler` with `data`. The
 /// theme dresses both states; nothing here names a colour.
-fn chip(text: str, on: bool, f: fn(&mut editor::State, any, any), data: any) -> any {
-    pool::on(map().with("kind", "button").with("text", text).with("role", "chip").with("checked", on), f, data)
+fn chip(text: str, on: bool, handler: fn(&mut editor::State, any, any), data: any) -> any {
+    pool::on(map().with("kind", "button").with("text", text).with("role", "chip").with("checked", on), handler, data)
 }
 
 // The Tiles panel's strip of chips, which the pool makes into nodes.
@@ -919,41 +922,41 @@ const CHROME: str = "Editor/Shell/Body/Centre/Bottom/Tiles/Chrome";
 /// The palette: the two modes and the layers of the map as the Tiles panel's
 /// rows of chips, filled here, and the tile set's texture cut into tiles to
 /// pick from, handed back for the panel's cards.
-pub fn palette(S: &mut editor::State) -> Palette {
+pub fn palette(state: &mut editor::State) -> Palette {
     let none = Palette { items: [], picked: "", sheet: "" };
-    if !editable(S) {
-        docks::toolbar(S, CHROME, [[note("Select a node with a tilemap to paint it.")]]);
+    if !editable(state) {
+        docks::toolbar(state, CHROME, [[note("Select a node with a tilemap to paint it.")]]);
         return none;
     }
-    let set_or = tileset(S);
+    let set_or = tileset(state);
     if set_or.is_none() {
-        docks::toolbar(S, CHROME, [[note("This tilemap names no tile set, or one that will not load.")]]);
+        docks::toolbar(state, CHROME, [[note("This tilemap names no tile set, or one that will not load.")]]);
         return none;
     }
     let set = set_or.unwrap();
     let rows: [[any]] = [];
-    mode_row(S, rows);
-    if S.tiles.mode == "stamp" {
-        stamp_row(S, rows);
+    mode_row(state, rows);
+    if state.tiles.mode == "stamp" {
+        stamp_row(state, rows);
     }
-    if S.tiles.mode == "terrain" {
-        terrain_row(S, rows);
+    if state.tiles.mode == "terrain" {
+        terrain_row(state, rows);
     }
-    if S.tiles.editing {
-        set_rows(S, rows);
+    if state.tiles.editing {
+        set_rows(state, rows);
     }
-    let found = layers(S);
+    let found = layers(state);
     if found.len() > 1 {
-        layer_row(S, found, rows);
+        layer_row(state, found, rows);
     }
-    let count = tile_count(S);
+    let count = tile_count(state);
     if count < 1 {
         rows.push([note("The tile set's texture could not be measured.")]);
-        docks::toolbar(S, CHROME, rows);
+        docks::toolbar(state, CHROME, rows);
         return none;
     }
-    docks::toolbar(S, CHROME, rows);
-    swatches(S, set, count)
+    docks::toolbar(state, CHROME, rows);
+    swatches(state, set, count)
 }
 
 fn note(text: str) -> any {
@@ -961,97 +964,97 @@ fn note(text: str) -> any {
 }
 
 // The row every mode is on: the tools, the two verbs, and which tile is held.
-fn mode_row(S: editor::State, out: [[any]]) {
+fn mode_row(state: editor::State, out: [[any]]) {
     let row: [any] = [];
     for id in MODES() {
-        row.push(chip(mode_name(id), S.tiles.mode == id, mode_row_on_1, map().with("id", id)));
+        row.push(chip(mode_name(id), state.tiles.mode == id, on_mode_chip_clicked, map().with("id", id)));
     }
-    row.push(chip("Add layer", false, mode_row_on_2, map()));
-    row.push(chip("Set", S.tiles.editing, mode_row_on_3, map()));
+    row.push(chip("Add layer", false, on_add_layer_clicked, map()));
+    row.push(chip("Set", state.tiles.editing, on_set_clicked, map()));
     row.push(map().with("kind", "row").with("grow", 1));
-    row.push(note("tile {S.tiles.tile}"));
+    row.push(note("tile {state.tiles.tile}"));
     out.push(row);
 }
 
-fn mode_row_on_1(S: &mut editor::State, data: any, _0: any) {
-    set_mode(S, data.id.as_str());
+fn on_mode_chip_clicked(state: &mut editor::State, data: any, _value: any) {
+    set_mode(state, data.id.as_str());
 }
 
-fn mode_row_on_2(S: &mut editor::State, data: any, _0: any) {
-    add_layer(S);
+fn on_add_layer_clicked(state: &mut editor::State, data: any, _value: any) {
+    add_layer(state);
 }
 
-fn mode_row_on_3(S: &mut editor::State, data: any, _0: any) {
-    S.tiles.editing = !S.tiles.editing;
+fn on_set_clicked(state: &mut editor::State, data: any, _value: any) {
+    state.tiles.editing = !state.tiles.editing;
 }
 
 // How many cells the stamp lays down, across and down.
-fn stamp_row(S: editor::State, out: [[any]]) {
+fn stamp_row(state: editor::State, out: [[any]]) {
     let row = [note("block")];
-    for n in [1, 2, 3, 4] {
-        row.push(chip("{n} wide", S.tiles.stamp.wide == n, stamp_row_on_4, map().with("wide", n).with("tall", S.tiles.stamp.tall)));
+    for wide in [1, 2, 3, 4] {
+        row.push(chip("{wide} wide", state.tiles.stamp.wide == wide, on_stamp_size_clicked, map().with("wide", wide).with("tall", state.tiles.stamp.tall)));
     }
-    for n in [1, 2, 3, 4] {
-        row.push(chip("{n} tall", S.tiles.stamp.tall == n, stamp_row_on_4, map().with("wide", S.tiles.stamp.wide).with("tall", n)));
+    for tall in [1, 2, 3, 4] {
+        row.push(chip("{tall} tall", state.tiles.stamp.tall == tall, on_stamp_size_clicked, map().with("wide", state.tiles.stamp.wide).with("tall", tall)));
     }
     out.push(row);
 }
 
-fn stamp_row_on_4(S: &mut editor::State, data: any, _0: any) {
-    S.tiles.stamp = Block { wide: data.wide.as_int(), tall: data.tall.as_int() };
+fn on_stamp_size_clicked(state: &mut editor::State, data: any, _value: any) {
+    state.tiles.stamp = Block { wide: data.wide.as_int(), tall: data.tall.as_int() };
 }
 
-fn terrain_row(S: editor::State, out: [[any]]) {
-    let named = terrains(S);
+fn terrain_row(state: editor::State, out: [[any]]) {
+    let named = terrains(state);
     if named.len() == 0 {
         out.push([note("This tile set names no terrains, so there is nothing to paint.")]);
         return;
     }
     let row: [any] = [];
     for entry in named {
-        row.push(chip(entry.name, S.tiles.terrain == entry.value, terrain_row_on_5, map().with("value", entry.value)));
+        row.push(chip(entry.name, state.tiles.terrain == entry.value, on_terrain_clicked, map().with("value", entry.value)));
     }
     out.push(row);
 }
 
-fn terrain_row_on_5(S: &mut editor::State, data: any, _0: any) {
-    S.tiles.terrain = data.value.as_int();
+fn on_terrain_clicked(state: &mut editor::State, data: any, _value: any) {
+    state.tiles.terrain = data.value.as_int();
 }
 
 // Which layer of the map is being painted, where the node has more than one.
-fn layer_row(S: editor::State, found: [Layer], out: [[any]]) {
+fn layer_row(state: editor::State, found: [Layer], out: [[any]]) {
     let row = [note("layers")];
     for layer in found {
-        row.push(chip(layer.name, layer.index == S.sel, layer_row_on_6, map().with("index", layer.index)));
+        row.push(chip(layer.name, layer.index == state.sel, on_layer_clicked, map().with("index", layer.index)));
     }
     out.push(row);
 }
 
-fn layer_row_on_6(S: &mut editor::State, data: any, _0: any) {
-    selection::only(S, data.index.as_int());
+fn on_layer_clicked(state: &mut editor::State, data: any, _value: any) {
+    selection::only(state, data.index.as_int());
 }
 
 // The atlas as the panel's cards. A row's first field is the tile's rect in
 // the sheet's own pixels, which the card draws in place of a glyph because
 // the panel names the sheet as its `source`.
-fn swatches(S: &mut editor::State, set: Set, count: int) -> Palette {
-    let tint = S.theme.text_muted.as_str();
+fn swatches(state: &mut editor::State, set: Set, count: int) -> Palette {
+    let tint = state.theme.text_muted.as_str();
     let items: [str] = [];
     for tile in 0..count {
-        let r = tile_rect(set, tile);
-        items.push(util::row("{r[0]},{r[1]},{r[2]},{r[3]}", "{tile}", "tile {tile}", tint));
+        let rect = tile_rect(set, tile);
+        items.push(util::row("{rect[0]},{rect[1]},{rect[2]},{rect[3]}", "{tile}", "tile {tile}", tint));
     }
-    S.tiles.cards = items;
-    let picked = if S.tiles.tile >= 0 && S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
-    Palette { items: items, picked: picked, sheet: util::engine_path(S.game_root, set.texture) }
+    state.tiles.cards = items;
+    let picked = if state.tiles.tile >= 0 && state.tiles.tile < items.len() { items[state.tiles.tile] } else { "" };
+    Palette { items: items, picked: picked, sheet: util::engine_path(state.game_root, set.texture) }
 }
 
 /// A card picked: the tile the brush lays down.
-pub fn pick(S: &mut editor::State, row: str) {
-    for n in 0..S.tiles.cards.len() {
-        if S.tiles.cards[n] == row {
-            S.tiles.tile = n;
-            signals::changed(S, "tiles");
+pub fn pick(state: &mut editor::State, row: str) {
+    for index in 0..state.tiles.cards.len() {
+        if state.tiles.cards[index] == row {
+            state.tiles.tile = index;
+            signals::changed(state, "tiles");
         }
     }
 }

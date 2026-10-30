@@ -70,17 +70,17 @@ fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
 /// an ancestor, and the click has to find it there.
 #[test]
 fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
-    let script = "pub struct Owner { node: Node, hits: int }
+    let script = "pub class Owner { node: Node, hits: int }
 impl Owner {
     pub fn on_go() { self.hits += 1; }
     pub fn hits() -> int { self.hits }
 }
 ";
-    let (_dir, mut app) = app_with_script(script);
+    let (_dir, mut app) = app_with_script("owner.bs", script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
+    host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let column = add_child_widget(
         &app,
@@ -113,7 +113,7 @@ impl Owner {
 /// `on_widget_event`, with no handler named on any of them.
 #[test]
 fn a_panel_script_hears_every_control_under_it_through_on_widget_event() {
-    let script = "pub struct Panel { node: Node, heard: int, last: str }
+    let script = "pub class Panel { node: Node, heard: int, last: str }
 impl Panel {
     pub fn on_widget_event(event: str, node: Node, value: any) {
         self.heard += 1;
@@ -123,11 +123,11 @@ impl Panel {
     pub fn heard() -> int { self.heard }
 }
 ";
-    let (_dir, mut app) = app_with_script(script);
+    let (_dir, mut app) = app_with_script("panel.bs", script);
     let root = app.engine.root();
     let panel = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Panel", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(panel), "scripts/paint.bs")
+    host.attach(balaur::node_id_of(panel), "scripts/panel.bs")
         .unwrap();
     let column = add_child_widget(
         &app,
@@ -282,7 +282,8 @@ fn a_toggle_button_stays_down_and_lets_its_group_up() {
     let tabs: Vec<_> = ["Food", "Verbs"]
         .into_iter()
         .map(|text| {
-            let params = toml::toml! { kind = "button" text = text toggle = true group = "tabs" };
+            let params =
+                toml::toml! { kind = "button" text = text toggle = true radio_group = "tabs" };
             add_widget(&app, &params.into())
         })
         .collect();

@@ -4,7 +4,7 @@
 
 use balaur_core::components::ComponentDef;
 
-/// The closed word sets: what a `kind`, `anchor`, `align_items` or `font_family` may be.
+/// The closed word sets: what a `kind`, `anchor`, `align_items` or `font_style` may be.
 pub(crate) mod words {
     pub(crate) const LABEL: &str = "label";
     pub(crate) const BUTTON: &str = "button";
@@ -316,13 +316,6 @@ pub(crate) mod words {
     pub(crate) const OBLIQUE: &str = "oblique";
     pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 
-    pub(crate) const MONO: &str = "mono";
-    pub(crate) const HEADING: &str = "heading";
-    pub(crate) const ICON: &str = "icon";
-    pub(crate) const UI: &str = "ui";
-    /// The families a widget may draw in, as the picker offers them.
-    pub(crate) const WIDGET_FONTS: &[&str] = &[UI, MONO, HEADING, ICON];
-
     /// Where a dragged row landed, as `on_move` reports it.
     pub(crate) const BEFORE: &str = "before";
     pub(crate) const INTO: &str = "into";
@@ -434,7 +427,7 @@ pub(crate) mod keys {
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
-    pub(crate) const GROUP: &str = "group";
+    pub(crate) const RADIO_GROUP: &str = "radio_group";
     pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
@@ -449,7 +442,10 @@ pub(crate) mod keys {
     pub(crate) const DURATION: &str = "duration";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";
-    pub(crate) const FONT_FAMILY: &str = "font_family";
+    pub(crate) const FONT: &str = "font";
+    /// A theme's table of fonts by name, as `[colors]` is of colours: the
+    /// shaper reads its default from it too.
+    pub(crate) const FONTS: &str = balaur_text::fonts::THEME_FONTS;
     pub(crate) const FONT_SIZE: &str = "font_size";
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
@@ -476,32 +472,11 @@ pub(crate) mod keys {
     pub(crate) const KIND: &str = "kind";
     pub(crate) const LANGUAGE: &str = "language";
     pub(crate) const LAYER: &str = "layer";
-    pub(crate) const LINE_HEIGHT: &str = "line_height";
-    pub(crate) const LETTER_SPACING: &str = "letter_spacing";
-    pub(crate) const BITMAP_FONT: &str = "bitmap_font";
-    pub(crate) const OUTLINE_SIZE: &str = "outline_size";
-    pub(crate) const OUTLINE_COLOR: &str = "outline_color";
-    pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
-    pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
-    pub(crate) const SHADOW_COLOR: &str = "shadow_color";
     pub(crate) const TEXT_BACKGROUND: &str = "text_background";
-    pub(crate) const FONT_STRETCH: &str = "font_stretch";
-    pub(crate) const FONT_NAME: &str = "font_name";
-    pub(crate) const FONT_FEATURES: &str = "font_features";
-    pub(crate) const UNDERLINE: &str = "underline";
-    pub(crate) const UNDERLINE_COLOR: &str = "underline_color";
-    pub(crate) const STRIKETHROUGH: &str = "strikethrough";
-    pub(crate) const STRIKETHROUGH_COLOR: &str = "strikethrough_color";
-    pub(crate) const OVERLINE: &str = "overline";
-    pub(crate) const OVERLINE_COLOR: &str = "overline_color";
+    pub(crate) const TEXT_STYLE: &str = "text_style";
     pub(crate) const LINE_BREAK: &str = "line_break";
     pub(crate) const TRUNCATE_AT: &str = "truncate_at";
     pub(crate) const MAX_LINES: &str = "max_lines";
-    pub(crate) const SHAPING: &str = "shaping";
-    pub(crate) const SNAP_ADVANCES: &str = "snap_advances";
-    pub(crate) const HINTING: &str = "hinting";
-    pub(crate) const PIXEL_SNAP: &str = "pixel_snap";
-    pub(crate) const MONOSPACE_WIDTH: &str = "monospace_width";
     pub(crate) const TAB_WIDTH: &str = "tab_width";
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX: &str = "max";
@@ -551,7 +526,6 @@ pub(crate) mod keys {
     pub(crate) const COMPONENT: &str = "component";
     pub(crate) const LABEL_WIDTH: &str = "label_width";
     pub(crate) const RELATIVE_TO: &str = "relative_to";
-    pub(crate) const ALIASES: &str = "aliases";
     pub(crate) const TITLES: &str = "titles";
     pub(crate) const TITLE_BAR: &str = "title_bar";
     pub(crate) const WIDTHS: &str = "widths";
@@ -839,6 +813,14 @@ pub(crate) mod tokens {
     pub(crate) const NODE_DEFAULT: &str = "node_default";
     pub(crate) const BRAND_PLATE: &str = "brand_plate";
     pub(crate) const INPUT_RIPPLE: &str = "input_ripple";
+
+    /// The fonts a theme's `[fonts]` names that egui's own text draws in:
+    /// the default every text without one takes, the one its headings and
+    /// code take, and the icons'.
+    pub(crate) const FONT_DEFAULT: &str = balaur_text::fonts::DEFAULT_FONT;
+    pub(crate) const FONT_HEADING: &str = "heading";
+    pub(crate) const FONT_MONO: &str = "mono";
+    pub(crate) const FONT_ICON: &str = "icon";
 
     pub(crate) const FONT_SIZE_SMALL: &str = "font_size_small";
     pub(crate) const FONT_SIZE_LARGE: &str = "font_size_large";

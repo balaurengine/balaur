@@ -24,7 +24,7 @@ use crate::widget::node::Widget;
 
 mod form;
 
-use form::{Form, channels, empty_table, label_of, texts};
+use form::{Form, Span, channels, empty_table, label_of, texts};
 
 /// The share of its width a label takes where the widget states none.
 const LABEL_SHARE: f32 = 0.34;
@@ -44,6 +44,11 @@ struct Filled {
     /// An edit was heard since: the next pass writes what the node holds,
     /// even where that is what it held before.
     stale: bool,
+    /// The rows each property took, for a pass that fills some of them.
+    spans: Vec<Span>,
+    /// Properties said to have moved since, whose rows alone the next pass
+    /// writes again where nothing else moved.
+    moved: Vec<String>,
 }
 
 /// Everything one inspector's rows are built from.
@@ -56,7 +61,6 @@ struct Asked {
     stacked: bool,
     row_height: f32,
     relative_to: SmolStr,
-    aliases: Vec<SmolStr>,
     data: Option<toml::Value>,
 }
 
@@ -70,7 +74,6 @@ impl Asked {
             && self.stacked == other.stacked
             && self.row_height.to_bits() == other.row_height.to_bits()
             && self.relative_to == other.relative_to
-            && self.aliases == other.aliases
     }
 }
 
@@ -175,7 +178,6 @@ struct Asking {
     stacked: bool,
     row_height: f32,
     relative_to: SmolStr,
-    aliases: Vec<SmolStr>,
 }
 
 impl Asking {
@@ -190,7 +192,6 @@ impl Asking {
             stacked: widget.wrap,
             row_height: widget.row_height,
             relative_to: inspect.relative_to.clone(),
-            aliases: inspect.aliases.clone(),
         }
     }
 }
@@ -232,8 +233,15 @@ pub(crate) fn noticed(eng: &Engine, entity: Entity) {
 
 /// Fill every inspector at or under `entity` again at the next pass, which
 /// they owe: the nodes they show changed in a way no widget says. A panel
-/// names itself to have its whole form read again. False where there is none.
-pub fn reread(eng: &Engine, entity: Entity) -> bool {
+/// names itself to have its whole form read again, `component` narrows that
+/// to the inspectors showing it, and `properties` to those properties' rows.
+/// False where there is none.
+pub fn reread(
+    eng: &Engine,
+    entity: Entity,
+    component: Option<&str>,
+    properties: Option<&[String]>,
+) -> bool {
     let Some(state) = eng.try_resource::<InspectorState>() else {
         return false;
     };
@@ -242,16 +250,26 @@ pub fn reread(eng: &Engine, entity: Entity) -> bool {
         balaur_core::scene::collect_subtree(&world, entity)
             .into_iter()
             .filter(|&one| {
-                world
-                    .get::<&Widget>(one)
-                    .is_ok_and(|widget| widget.kind == w::INSPECTOR)
+                world.get::<&Widget>(one).is_ok_and(|widget| {
+                    widget.kind == w::INSPECTOR
+                        && component.is_none_or(|name| widget.inspect.component == name)
+                })
             })
             .collect()
     };
     let mut state = state.borrow_mut();
     for &one in &inspectors {
         if let Some(filled) = state.filled.get_mut(&balaur_core::node_id_of(one).0) {
-            filled.stale = true;
+            match properties {
+                Some(names) if !filled.stale => {
+                    for name in names {
+                        if !filled.moved.contains(name) {
+                            filled.moved.push(name.clone());
+                        }
+                    }
+                }
+                _ => filled.stale = true,
+            }
         }
         crate::widget::arena::widget_changed(one);
     }
@@ -338,22 +356,29 @@ fn refresh_one(eng: &Engine, one: &Asking) -> anyhow::Result<()> {
         stacked: one.stacked,
         row_height: one.row_height,
         relative_to: one.relative_to.clone(),
-        aliases: one.aliases.clone(),
         data: None,
     };
     let id = balaur_core::node_id_of(one.entity).0;
     // The component is read only when something said it may have moved: the
     // read builds the whole table, and doing it every pass was the polling.
-    let same = {
+    let (same, moved, spans) = {
         let state = eng.resource::<InspectorState>();
-        let state = state.borrow();
-        state
-            .filled
-            .get(&id)
-            .is_some_and(|filled| !filled.stale && filled.asked.same_shape(&asked))
+        let mut state = state.borrow_mut();
+        match state.filled.get_mut(&id) {
+            Some(filled) if !filled.stale && filled.asked.same_shape(&asked) => (
+                true,
+                std::mem::take(&mut filled.moved),
+                filled.spans.clone(),
+            ),
+            _ => (false, Vec::new(), Vec::new()),
+        }
     };
     if same {
-        return Ok(());
+        // Some properties moved: their rows alone, where they still take
+        // the rows they took.
+        if moved.is_empty() || refill_moved(eng, one, &asked, id, &moved, &spans)? {
+            return Ok(());
+        }
     }
     asked.data = target.and_then(|node| balaur_core::components::get(eng, node, &one.component));
     let schema = {
@@ -364,9 +389,10 @@ fn refresh_one(eng: &Engine, one: &Asking) -> anyhow::Result<()> {
             .map(|def| std::rc::Rc::clone(&def.schema))
     };
     let mut form = Form::new(eng, &asked, id);
-    if let (Some(schema), Some(data)) = (schema.as_deref(), asked.data.as_ref()) {
-        form.component(schema, data, &one.options);
-    }
+    let spans = match (schema.as_deref(), asked.data.as_ref()) {
+        (Some(schema), Some(data)) => form.component(schema, data, &one.options),
+        _ => Vec::new(),
+    };
     let Form { rows, .. } = form;
     let specs: Vec<Value> = rows.iter().map(|row| row.spec.clone()).collect();
     let nodes = crate::widget::pool::fill_rows_on(
@@ -391,9 +417,76 @@ fn refresh_one(eng: &Engine, one: &Asking) -> anyhow::Result<()> {
         Filled {
             asked,
             stale: false,
+            spans,
+            moved: Vec::new(),
         },
     );
     Ok(())
+}
+
+// The rows of the properties in `moved` written again in place, each from
+// what the node holds now. False when one now takes another number of rows,
+// a list that grew, which a whole fill answers.
+fn refill_moved(
+    eng: &Engine,
+    one: &Asking,
+    asked: &Asked,
+    id: u64,
+    moved: &[String],
+    spans: &[Span],
+) -> anyhow::Result<bool> {
+    let Some(node) = asked.target else {
+        return Ok(false);
+    };
+    let Some(schema) = ({
+        let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
+        let registry = registry.borrow();
+        registry
+            .def(&one.component)
+            .map(|def| std::rc::Rc::clone(&def.schema))
+    }) else {
+        return Ok(false);
+    };
+    let mut written = Vec::new();
+    let mut heard = Vec::new();
+    for name in moved {
+        // A property this inspector does not show has no rows to write.
+        let Some(span) = spans.iter().find(|span| span.property == *name) else {
+            continue;
+        };
+        let Some(spec) = schema.get(name) else {
+            return Ok(false);
+        };
+        let value = balaur_core::components::property(eng, node, &one.component, name)
+            .or_else(|| spec.get(i::DEFAULT).cloned())
+            .unwrap_or_else(|| toml::Value::String(String::new()));
+        let mut form = Form::new(eng, asked, id);
+        form.property(name, spec, &value);
+        if form.rows.len() != span.count {
+            return Ok(false);
+        }
+        for (offset, row) in form.rows.into_iter().enumerate() {
+            written.push((span.first + offset, row.spec));
+            heard.push(row.heard);
+        }
+    }
+    let nodes = crate::widget::pool::fill_rows_at(
+        eng,
+        one.entity,
+        &written,
+        f64::from(asked.label_width),
+        asked.stacked,
+    )?;
+    let state = eng.resource::<InspectorState>();
+    let mut state = state.borrow_mut();
+    for (row, controls) in heard.into_iter().zip(nodes) {
+        for (heard, node) in row.into_iter().zip(controls) {
+            if let Some(heard) = heard {
+                state.heard.insert(balaur_core::node_id_of(node).0, heard);
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// The node a `target` names: a path as `scene.get_node` takes it, or as

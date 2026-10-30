@@ -1,6 +1,6 @@
 // Turns whatever is parented to it.
 
-pub struct Turntable {
+pub class Turntable {
     node: Node,
     pub turns_per_minute: float = 6.0,
 }

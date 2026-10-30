@@ -3,7 +3,7 @@
 use crate::rapier2d::control::{PdController, PidController};
 use crate::rapier2d::dynamics::{AxesMask, RigidBodyVelocity};
 use crate::scalar::{self, Real};
-use balaur_core::components::{ComponentDef, as_node, prop_bool, prop_f32, prop_str, prop_vec2};
+use balaur_core::components::{ComponentDef, as_node, prop_f32, prop_str, prop_vec2};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage, entity_of, fixed_dt};
 use balaur_plugin::Registry;
@@ -24,20 +24,20 @@ pub enum FollowRef2d {
 
 fn controller_of(params: &toml::Value) -> FollowRef2d {
     let gain = |key: &str| scalar::v2a(prop_vec2(params, key));
-    let named = |word: &str| {
+    let named = |key: &str, word: &str| {
         params
-            .get(k::TRANSLATION_AXES)
+            .get(key)
             .and_then(toml::Value::as_array)
             .is_some_and(|words| words.iter().any(|named| named.as_str() == Some(word)))
     };
     let mut mask = AxesMask::empty();
-    if named(w::X) {
+    if named(k::TRANSLATION_AXES, w::X) {
         mask |= AxesMask::LIN_X;
     }
-    if named(w::Y) {
+    if named(k::TRANSLATION_AXES, w::Y) {
         mask |= AxesMask::LIN_Y;
     }
-    if prop_bool(params, k::FOLLOW_ROTATION) {
+    if named(k::ROTATION_AXES, w::ROTATION) {
         mask |= AxesMask::ANG_Z;
     }
     let pd = PdController {
@@ -127,47 +127,15 @@ fn schema() -> String {
     let axes = v::options(w::LOCK_AXES_2D);
     v::schema(&[
         (
+            k::TARGET,
+            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
+        ),
+        (
             k::KIND,
             &format!(
                 r#"{{ type = "enum", default = "{}", options = [{kinds}], description = "Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push" }}"#,
                 w::PD
             ),
-        ),
-        (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
-        ),
-        (
-            k::TARGET_LINEAR_VELOCITY,
-            r#"{ type = "vec2", default = [0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second" }"#,
-        ),
-        (
-            k::TARGET_ANGULAR_VELOCITY,
-            r#"{ type = "float", default = 0.0, unit = "degrees", description = "The spin the body is pulled to match, radians a second in the file" }"#,
-        ),
-        (
-            k::POSITION_GAIN,
-            r#"{ type = "vec2", default = [60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step" }"#,
-        ),
-        (
-            k::VELOCITY_GAIN,
-            r#"{ type = "vec2", default = [0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it" }"#,
-        ),
-        (
-            k::INTEGRAL_GAIN,
-            r#"{ type = "vec2", default = [1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`" }"#,
-        ),
-        (
-            k::ROTATION_GAIN,
-            r#"{ type = "float", default = 60.0, description = "How hard a gap in rotation pulls" }"#,
-        ),
-        (
-            k::SPIN_GAIN,
-            r#"{ type = "float", default = 0.8, description = "How much of a gap in spin a step corrects" }"#,
-        ),
-        (
-            k::ROTATION_INTEGRAL_GAIN,
-            r#"{ type = "float", default = 1.0, description = "How hard the gap in rotation summed over time pulls, with `pid`" }"#,
         ),
         (
             k::TRANSLATION_AXES,
@@ -178,8 +146,43 @@ fn schema() -> String {
             ),
         ),
         (
-            k::FOLLOW_ROTATION,
-            r#"{ type = "bool", default = true, description = "Whether the body is turned to the target's rotation too" }"#,
+            k::ROTATION_AXES,
+            &format!(
+                r#"{{ type = "flags", default = ["{rotation}"], options = ["{rotation}"], description = "Whether the body is turned to the target's rotation too: the one turn a 2D body has, as a 2D joint names it" }}"#,
+                rotation = w::ROTATION
+            ),
+        ),
+        (
+            k::POSITION_GAIN,
+            r#"{ type = "vec2", default = [60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step", group = "gains" }"#,
+        ),
+        (
+            k::VELOCITY_GAIN,
+            r#"{ type = "vec2", default = [0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it", group = "gains" }"#,
+        ),
+        (
+            k::ROTATION_GAIN,
+            r#"{ type = "float", default = 60.0, description = "How hard a gap in rotation pulls", group = "gains" }"#,
+        ),
+        (
+            k::SPIN_GAIN,
+            r#"{ type = "float", default = 0.8, description = "How much of a gap in spin a step corrects", group = "gains" }"#,
+        ),
+        (
+            k::INTEGRAL_GAIN,
+            r#"{ type = "vec2", default = [1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`", group = "gains" }"#,
+        ),
+        (
+            k::ROTATION_INTEGRAL_GAIN,
+            r#"{ type = "float", default = 1.0, description = "How hard the gap in rotation summed over time pulls, with `pid`", group = "gains" }"#,
+        ),
+        (
+            k::TARGET_LINEAR_VELOCITY,
+            r#"{ type = "vec2", default = [0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second", group = "velocity" }"#,
+        ),
+        (
+            k::TARGET_ANGULAR_VELOCITY,
+            r#"{ type = "float", default = 0.0, unit = "degrees", description = "The spin the body is pulled to match, radians a second in the file", group = "velocity" }"#,
         ),
     ])
 }

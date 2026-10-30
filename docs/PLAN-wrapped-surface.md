@@ -443,7 +443,10 @@ Exposed: component `source`, `texture`, `material`, `cast_shadow`,
 Exposed: the text and font keys, `billboard`, `double_sided`, `depth_test`
 (defect 2), `pixels_per_unit`, outline and shadow keys. kiss3d's
 `TextRenderer` is screen-space only (`kiss3d: text/renderer.rs:270`), so there
-is no other kiss3d text to wrap; the shaping side is section 13.
+is no other kiss3d text to wrap; the shaping side is section 13. Planned
+2026-10-27: `double_sided`, `depth_test` and `alpha_cutoff` move to the
+material, the face keys to a `font` asset and the outline and shadow keys to
+a `text_style` asset (PLAN-component-order §2, PLAN-fonts).
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
@@ -491,7 +494,10 @@ On `sprite`, `shape2d`, `polygon`, `tilemap`, `text2d`, `multimesh2d`,
 (`kiss3d: scene/object2d.rs:88-104`). Each joins `BatchKey`
 (`crates/balaur_render/src/batch_2d.rs:38-45`) or rides an instance override.
 On the `SkinnedMaterial` nodes and any node with a `material` asset each is
-**pipeline**. The names match section 3.
+**pipeline**. The names match section 3. Planned 2026-10-27: `blend_mode`,
+`cull_back_faces` and the lit keys move to the material, as section 3 has
+the 3D ones, and the wireframe and dot keys to a `debug_draw` component
+(PLAN-component-order §2).
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |

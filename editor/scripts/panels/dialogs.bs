@@ -1,7 +1,7 @@
 // The plugin dialogs' one script: the Editor fills them when a plugin says
 // what they show moved, the document moved, or the stage they sit on did.
 
-pub struct Dialogs {
+pub class Dialogs {
     node: Node,
     editor: Node,
 }

@@ -2,6 +2,8 @@
 //! and the knobs beside it. `camera3d` and `camera2d` share every key here, so
 //! a pass is spelled one way whichever view draws it.
 
+use std::rc::Rc;
+
 use balaur_core::Engine;
 use balaur_core::components::{prop_f32, prop_i64, prop_str, prop_vec2, prop_vec3};
 
@@ -48,18 +50,6 @@ impl PostPass {
                 (_, Some(finish)) => Self::Finish(finish),
                 _ => Self::Material(other.to_string()),
             },
-        }
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            Self::Bloom => words::BLOOM,
-            Self::Ssao => words::SSAO,
-            Self::Ssr => words::SSR,
-            Self::Dof => words::DOF,
-            Self::Tonemap => words::TONEMAP,
-            Self::Effect(name) | Self::Finish(name) => name,
-            Self::Material(id) => id,
         }
     }
 }
@@ -218,13 +208,6 @@ impl LoupeCorner {
         (Self::BottomLeft, words::BOTTOM_LEFT),
         (Self::BottomRight, words::BOTTOM_RIGHT),
     ];
-
-    fn word(self) -> &'static str {
-        Self::ALL
-            .iter()
-            .find(|(corner, _)| *corner == self)
-            .map_or(words::BOTTOM_RIGHT, |(_, word)| word)
-    }
 
     fn parse(word: &str) -> Self {
         Self::ALL
@@ -488,54 +471,6 @@ impl Post {
         }
         (film, screen)
     }
-
-    /// The plain numbers beside `post`, paired with the key each is spelled by.
-    fn knobs(&self) -> Vec<(&'static str, f32)> {
-        let (f, o, r, d, e) = (
-            &self.finish,
-            &self.occlusion,
-            &self.reflections,
-            &self.depth_of_field,
-            &self.effects,
-        );
-        vec![
-            (k::BLOOM_THRESHOLD, self.bloom_threshold),
-            (k::BLOOM_INTENSITY, self.bloom_intensity),
-            (k::BLOOM_KNEE, self.bloom_knee),
-            (k::VIGNETTE_AMOUNT, f.vignette_amount),
-            (k::VIGNETTE_ROUNDNESS, f.vignette_roundness),
-            (k::ABERRATION_AMOUNT, f.aberration_amount),
-            (k::GRAIN_AMOUNT, f.grain_amount),
-            (k::PIXELATE_SIZE, f.pixelate_size),
-            (k::SSAO_RADIUS, o.radius),
-            (k::SSAO_BIAS, o.bias),
-            (k::SSAO_INTENSITY, o.intensity),
-            (k::SSAO_POWER, o.power),
-            (k::SSR_THICKNESS, r.thickness),
-            (k::SSR_MAX_DISTANCE, r.max_distance),
-            (k::SSR_ROUGHNESS_CUTOFF, r.roughness_cutoff),
-            (k::SSR_EDGE_FADE, r.edge_fade),
-            (k::SSR_INTENSITY, r.intensity),
-            (k::DOF_FOCUS_DISTANCE, d.focus_distance),
-            (k::DOF_APERTURE_F_STOPS, d.aperture_f_stops),
-            (k::DOF_SENSOR_HEIGHT, d.sensor_height),
-            (k::DOF_MAX_BLUR_PIXELS, d.max_blur_pixels),
-            (k::DOF_MAX_DEPTH, d.max_depth),
-            (k::FXAA_EDGE_THRESHOLD, e.fxaa_edge_threshold),
-            (k::FXAA_EDGE_THRESHOLD_MIN, e.fxaa_edge_threshold_min),
-            (k::SHARPEN_AMOUNT, e.sharpen_amount),
-            (k::CRT_CURVATURE, e.crt_curvature),
-            (k::CRT_ABERRATION, e.crt_aberration),
-            (k::CRT_SCANLINE_INTENSITY, e.crt_scanline_intensity),
-            (k::CRT_SCANLINE_COUNT, e.crt_scanline_count),
-            (k::CRT_VIGNETTE, e.crt_vignette),
-            (k::EDGES_THRESHOLD, e.edges_threshold),
-            (k::LOUPE_ZOOM, e.loupe_zoom),
-            (k::LOUPE_SIZE, e.loupe_size),
-            (k::GI_MAX_DISTANCE, e.gi.max_distance),
-            (k::GI_TEMPORAL_BLEND, e.gi.temporal_blend),
-        ]
-    }
 }
 
 impl Default for Post {
@@ -693,159 +628,163 @@ pub(crate) fn post_from_params(params: &toml::Value) -> Post {
     }
 }
 
-/// The post-chain properties both cameras carry, spelled once: the two
-/// schemas differ only where the two views actually differ.
-pub(crate) fn post_schema() -> String {
+const EFFECTS_DOC: &str = "The passes a camera's frame resolves through, in order, and how each is tuned. A `camera3d` or `camera2d` names one in its `effects` row, or writes one inline:\n\n```toml\ntype = \"camera_effects\"\npost = [\"bloom\", \"tonemap\"]\nbloom_intensity = 0.8\n```";
+
+/// A definition with every row filled in, as the asset layer hands it over.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the asset layer's parser type, which other assets fail through"
+)]
+fn parse_effects(table: &toml::Value) -> anyhow::Result<Rc<dyn std::any::Any>> {
+    Ok(Rc::new(post_from_params(table)))
+}
+
+pub(crate) fn register_camera_effects_asset(reg: &mut balaur_plugin::Registry<'_>) {
+    reg.register_record_asset(
+        k::CAMERA_EFFECTS,
+        "camera_effects",
+        EFFECTS_DOC,
+        effects_schema(),
+        parse_effects,
+    );
+}
+
+/// The row a camera names its effects in.
+pub(crate) fn effects_row() -> String {
     format!(
-        r#"current = {{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }}
-post = {{ type = "list", of = {{ type = "string" }}, default = [], description = "The frame's passes, in order. {effects} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, `gi` is 2D only and lights the frame in place of the `light2d` light map, and where those and `bloom` run is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame. The rest run in the order given. `tonemap` is where the film becomes a picture: a pass before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}
+        r#"{{ type = "asset", asset = "{}", default = "", description = "The passes the frame resolves through and how each is tuned; empty draws the frame as it is" }}"#,
+        k::CAMERA_EFFECTS
+    )
+}
+
+/// The effects the current camera's row named, read again only when the row
+/// or the asset cache moved: a saved file shows, and a reference that does
+/// not resolve is reported once rather than every frame.
+#[derive(Default)]
+pub(crate) struct EffectsRead {
+    reference: String,
+    generation: u64,
+    post: Option<Rc<Post>>,
+}
+
+/// The effects `reference` names: the asset, or none at their defaults.
+pub(crate) fn effects_of(eng: &Engine, reference: &str) -> Rc<Post> {
+    let generation = balaur_core::assets::generation(eng);
+    let read = eng.resource::<EffectsRead>();
+    if let Some(post) = {
+        let read = read.borrow();
+        read.post
+            .as_ref()
+            .filter(|_| read.reference == reference && read.generation == generation)
+            .map(Rc::clone)
+    } {
+        return post;
+    }
+    let row = toml::Value::String(reference.to_owned());
+    let post = balaur_core::assets::record::<Post>(eng, Some(&row), k::CAMERA_EFFECTS)
+        .or_else(|why| {
+            tracing::warn!("camera effects '{reference}': {why:#}");
+            balaur_core::assets::record::<Post>(eng, None, k::CAMERA_EFFECTS)
+        })
+        .unwrap_or_else(|_| Rc::new(Post::default()));
+    *read.borrow_mut() = EffectsRead {
+        reference: reference.to_owned(),
+        generation,
+        post: Some(Rc::clone(&post)),
+    };
+    post
+}
+
+/// The `camera_effects` asset's rows: the passes a frame resolves through,
+/// then each pass's own, in the order the pass list names them. Split across
+/// the functions below under `MAX_FN_LINES`.
+fn effects_schema() -> Rc<balaur_core::components::Schema> {
+    let rows = [
+        passes_and_lenses(),
+        screen_rows(),
+        display_rows(),
+        light_rows(),
+    ];
+    balaur_core::components::ComponentDef::parse_schema(k::CAMERA_EFFECTS, &rows.join("\n"))
+}
+
+/// The pass list, then the bloom, the vignette and the depth of field.
+fn passes_and_lenses() -> String {
+    format!(
+        r#"post = {{ type = "list", of = {{ type = "string" }}, default = [], description = "The frame's passes, in order. {effects} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, `gi` is 2D only and lights the frame in place of the `light2d` light map, and where those and `bloom` run is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame. The rest run in the order given. `tonemap` is where the film becomes a picture: a pass before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}
 bloom_threshold = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }}
 bloom_intensity = {{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }}
 bloom_knee = {{ type = "float", default = 0.5, min = 0.0, description = "Width of the soft band around `bloom_threshold` a pixel starts to bloom in; 0 is a hard cut" }}
 bloom_mips = {{ type = "int", default = 5, min = 1, max = 12, description = "Levels in the bloom chain, each half the size of the last; more spreads the glow wider" }}
 vignette_amount = {{ type = "float", default = 0.35, min = 0.0, max = 1.0, description = "How dark the corners go under the `vignette` pass" }}
 vignette_roundness = {{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "1 darkens in a circle whatever shape the frame is; 0 follows the frame" }}
-aberration_amount = {{ type = "float", default = 0.004, min = 0.0, description = "How far `aberration` slides red from blue at the frame's edge, as a fraction of it" }}
-grain_amount = {{ type = "float", default = 0.06, min = 0.0, description = "How much the `grain` pass lightens and darkens a pixel" }}
-pixelate_size = {{ type = "float", default = 4.0, min = 1.0, description = "The side of one block the `pixelate` pass reads the frame back in, in pixels" }}
-ssao_radius = {{ type = "float", default = 0.5, min = 0.001, description = "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene" }}
-ssao_bias = {{ type = "float", default = 0.025, min = 0.0, description = "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black" }}
-ssao_intensity = {{ type = "float", default = 1.2, min = 0.0, description = "How strongly the `ssao` pass darkens" }}
-ssao_power = {{ type = "float", default = 1.5, min = 0.001, description = "The contrast the occlusion is raised to" }}
-{reflections}
-{focus}
-{effects_schema}"#,
-        effects = words::POST_EFFECTS.join(", "),
-        reflections = reflections_schema(),
-        focus = focus_schema(),
-        effects_schema = effects_schema(),
-    )
-}
-
-fn reflections_schema() -> &'static str {
-    r#"ssr_max_steps = { type = "int", default = 48, min = 1, description = "Steps the `ssr` pass marches a reflection ray before it gives up" }
-ssr_thickness = { type = "float", default = 0.5, min = 0.0, description = "How far behind a surface, in view-space units, the ray still counts as hitting it" }
-ssr_max_distance = { type = "float", default = 60.0, min = 0.0, description = "The longest a reflection ray travels, in view-space units" }
-ssr_roughness_cutoff = { type = "float", default = 0.6, min = 0.0, max = 1.0, description = "Surfaces rougher than this reflect nothing on screen, and fade out approaching it" }
-ssr_edge_fade = { type = "float", default = 0.12, min = 0.0, description = "Width of the band at the frame's edge reflections fade over, as a fraction of the frame" }
-ssr_intensity = { type = "float", default = 1.0, min = 0.0, description = "Multiplier on every screen-space reflection" }"#
-}
-
-fn focus_schema() -> String {
-    format!(
-        r#"dof_mode = {{ type = "enum", default = "{bokeh}", options = [{modes}], description = "How the `dof` pass blurs: a uniform disc with sharp highlights, or a soft gaussian falloff" }}
 dof_focus_distance = {{ type = "float", default = 10.0, min = 0.0, description = "Distance from the camera to the plane that stays sharp, in world units" }}
 dof_aperture_f_stops = {{ type = "float", default = 0.125, min = 0.001, description = "The lens aperture in f-stops; smaller blurs more" }}
-dof_sensor_height = {{ type = "float", default = 0.01866, min = 0.000001, description = "Sensor height in world units; with the field of view it fixes the focal length" }}
+dof_mode = {{ type = "enum", default = "{bokeh}", options = [{modes}], description = "How the `dof` pass blurs: a uniform disc with sharp highlights, or a soft gaussian falloff" }}
 dof_max_blur_pixels = {{ type = "float", default = 64.0, min = 0.0, description = "The widest a blur circle grows, in pixels" }}
-dof_max_depth = {{ type = "float", default = 1000000.0, min = 0.0, description = "Anything farther is blurred as if it were at this distance, in world units" }}
-dof_taps = {{ type = "int", default = 48, min = 1, description = "Samples the blur gathers per pixel; more is smoother and costs more" }}"#,
+dof_taps = {{ type = "int", default = 48, min = 1, description = "Samples the blur gathers per pixel; more is smoother and costs more" }}
+dof_sensor_height = {{ type = "float", default = 0.01866, min = 0.000001, description = "Sensor height in world units; with the field of view it fixes the focal length" }}
+dof_max_depth = {{ type = "float", default = 1000000.0, min = 0.0, description = "Anything farther is blurred as if it were at this distance, in world units" }}"#,
+        effects = words::POST_EFFECTS.join(", "),
         bokeh = words::BOKEH,
         modes = crate::vocabulary::options(words::DOF_MODES),
     )
 }
 
-fn effects_schema() -> String {
+/// Occlusion, reflections, smoothing and the finishing passes.
+fn screen_rows() -> String {
+    r#"ssao_intensity = { type = "float", default = 1.2, min = 0.0, description = "How strongly the `ssao` pass darkens" }
+ssao_radius = { type = "float", default = 0.5, min = 0.001, description = "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene" }
+ssao_bias = { type = "float", default = 0.025, min = 0.0, description = "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black" }
+ssao_power = { type = "float", default = 1.5, min = 0.001, description = "The contrast the occlusion is raised to" }
+ssr_intensity = { type = "float", default = 1.0, min = 0.0, description = "Multiplier on every screen-space reflection" }
+ssr_max_distance = { type = "float", default = 60.0, min = 0.0, description = "The longest a reflection ray travels, in view-space units" }
+ssr_max_steps = { type = "int", default = 48, min = 1, description = "Steps the `ssr` pass marches a reflection ray before it gives up" }
+ssr_thickness = { type = "float", default = 0.5, min = 0.0, description = "How far behind a surface, in view-space units, the ray still counts as hitting it" }
+ssr_roughness_cutoff = { type = "float", default = 0.6, min = 0.0, max = 1.0, description = "Surfaces rougher than this reflect nothing on screen, and fade out approaching it" }
+ssr_edge_fade = { type = "float", default = 0.12, min = 0.0, description = "Width of the band at the frame's edge reflections fade over, as a fraction of the frame" }
+fxaa_edge_threshold = { type = "float", default = 0.125, min = 0.0, description = "The `fxaa` pass smooths an edge whose contrast passes this fraction of the brightest pixel near it" }
+fxaa_edge_threshold_min = { type = "float", default = 0.0312, min = 0.0, description = "Contrast below this is left alone by `fxaa`, so dark noise is not smoothed" }
+sharpen_amount = { type = "float", default = 0.5, min = 0.0, max = 1.0, description = "How hard the `sharpen` pass sharpens" }
+aberration_amount = { type = "float", default = 0.004, min = 0.0, description = "How far `aberration` slides red from blue at the frame's edge, as a fraction of it" }
+grain_amount = { type = "float", default = 0.06, min = 0.0, description = "How much the `grain` pass lightens and darkens a pixel" }
+pixelate_size = { type = "float", default = 4.0, min = 1.0, description = "The side of one block the `pixelate` pass reads the frame back in, in pixels" }"#
+    .to_owned()
+}
+
+/// The display-shaped passes: the old screen, the edges and the loupe.
+fn display_rows() -> String {
     format!(
-        r#"fxaa_edge_threshold = {{ type = "float", default = 0.125, min = 0.0, description = "The `fxaa` pass smooths an edge whose contrast passes this fraction of the brightest pixel near it" }}
-fxaa_edge_threshold_min = {{ type = "float", default = 0.0312, min = 0.0, description = "Contrast below this is left alone by `fxaa`, so dark noise is not smoothed" }}
-sharpen_amount = {{ type = "float", default = 0.5, min = 0.0, max = 1.0, description = "How hard the `sharpen` pass sharpens" }}
-crt_curvature = {{ type = "float", default = 0.12, min = 0.0, description = "How far the `crt` pass bends the frame like a tube's glass; 0 is flat" }}
-crt_aberration = {{ type = "float", default = 0.004, min = 0.0, description = "How far `crt` splits the colours at the frame's edge, as a fraction of it" }}
-crt_scanline_intensity = {{ type = "float", default = 0.25, min = 0.0, max = 1.0, description = "How dark the `crt` pass draws its scanlines; 0 draws none" }}
+        r#"crt_curvature = {{ type = "float", default = 0.12, min = 0.0, description = "How far the `crt` pass bends the frame like a tube's glass; 0 is flat" }}
 crt_scanline_count = {{ type = "float", default = 480.0, min = 1.0, description = "How many scanlines `crt` draws down the frame" }}
+crt_scanline_intensity = {{ type = "float", default = 0.25, min = 0.0, max = 1.0, description = "How dark the `crt` pass draws its scanlines; 0 draws none" }}
 crt_vignette = {{ type = "float", default = 0.35, min = 0.0, max = 1.0, description = "How dark `crt` draws the corners" }}
+crt_aberration = {{ type = "float", default = 0.004, min = 0.0, description = "How far `crt` splits the colours at the frame's edge, as a fraction of it" }}
 edges_threshold = {{ type = "float", default = 4.0, min = 0.0, description = "How sharp a change in depth the `edges` pass outlines; lower outlines more" }}
 loupe_zoom = {{ type = "float", default = 8.0, min = 1.0, description = "How many times the `loupe` pass magnifies" }}
 loupe_focus = {{ type = "vec2", default = [0.5, 0.5], description = "The point the `loupe` magnifies, [0, 0] at the frame's top-left and [1, 1] at its bottom-right" }}
-loupe_corner = {{ type = "enum", default = "{bottom_right}", options = [{corners}], description = "The corner the `loupe` draws its inset in" }}
 loupe_size = {{ type = "float", default = 0.4, min = 0.01, max = 1.0, description = "The inset's side, as a fraction of the frame's shorter side" }}
-loupe_border_color = {{ type = "color", default = [1.0, 0.9, 0.2, 1.0], description = "The colour of the `loupe`'s frame and of the outline round what it magnifies; alpha is ignored" }}
-{gi}"#,
+loupe_corner = {{ type = "enum", default = "{bottom_right}", options = [{corners}], description = "The corner the `loupe` draws its inset in" }}
+loupe_border_color = {{ type = "color", default = [1.0, 0.9, 0.2, 1.0], description = "The colour of the `loupe`'s frame and of the outline round what it magnifies; alpha is ignored" }}"#,
         bottom_right = words::BOTTOM_RIGHT,
         corners = crate::vocabulary::options(words::LOUPE_CORNERS),
-        gi = gi_schema(),
     )
 }
 
-fn gi_schema() -> String {
+/// Global illumination.
+fn light_rows() -> String {
     format!(
-        r#"gi_rays = {{ type = "int", default = 8, min = 1, description = "Rays the `gi` pass casts per pixel each frame; the temporal blend adds up the frames" }}
-gi_max_distance = {{ type = "float", default = 2000.0, min = 0.0, description = "The farthest a `gi` ray marches, in world units" }}
+        r#"gi_solver = {{ type = "enum", default = "{ray_march}", options = [{solvers}], description = "A ray march per pixel, or radiance cascades: probe grids that gather farther light for less" }}
+gi_rays = {{ type = "int", default = 8, min = 1, description = "Rays the `gi` pass casts per pixel each frame; the temporal blend adds up the frames" }}
 gi_max_steps = {{ type = "int", default = 32, min = 1, description = "Steps a `gi` ray takes before it gives up" }}
-gi_downscale = {{ type = "int", default = 2, min = 1, description = "How many times smaller than the frame the `gi` light field is; larger is faster and softer" }}
+gi_max_distance = {{ type = "float", default = 2000.0, min = 0.0, description = "The farthest a `gi` ray marches, in world units" }}
 gi_temporal_blend = {{ type = "float", default = 0.85, min = 0.0, max = 0.99, description = "How much of last frame's `gi` light is kept; higher is smoother and trails behind motion. The cascade solver ignores it" }}
-gi_solver = {{ type = "enum", default = "{ray_march}", options = [{solvers}], description = "A ray march per pixel, or radiance cascades: probe grids that gather farther light for less" }}
+gi_downscale = {{ type = "int", default = 2, min = 1, description = "How many times smaller than the frame the `gi` light field is; larger is faster and softer" }}
+gi_screen_occluders = {{ type = "bool", default = false, description = "Bake the occluders into a distance field each frame, so their count costs nothing; an occluder off screen then casts no shadow" }}
 gi_cascade_count = {{ type = "int", default = 5, min = 1, max = 8, description = "Levels of radiance cascades; more reach farther light" }}
 gi_cascade_directions = {{ type = "int", default = 16, min = 4, description = "Directions the first cascade gathers from, rounded to a square of a power of two; more sharpens shadow edges" }}
-gi_screen_occluders = {{ type = "bool", default = false, description = "Bake the occluders into a distance field each frame, so their count costs nothing; an occluder off screen then casts no shadow" }}
 gi_probe_spacing = {{ type = "int", default = 2, min = 1, max = 16, description = "Field pixels between the first cascade's probes, rounded up to a power of two; finer resolves sharper light" }}"#,
         ray_march = words::RAY_MARCH,
         solvers = crate::vocabulary::options(words::GI_SOLVERS),
     )
-}
-
-/// The post chain read back, which both `get` closures end with.
-pub(crate) fn post_to_map(post: &Post, map: &mut toml::map::Map<String, toml::Value>) {
-    map.insert(
-        k::POST.into(),
-        toml::Value::Array(
-            post.passes
-                .iter()
-                .map(|pass| toml::Value::String(pass.name().into()))
-                .collect(),
-        ),
-    );
-    // The inspector reads this, so the knobs beside `post` are here too
-    // rather than only in the table the scene handed over.
-    for (key, value) in post.knobs() {
-        map.insert(key.into(), toml::Value::Float(f64::from(value)));
-    }
-    let (r, d, e) = (&post.reflections, &post.depth_of_field, &post.effects);
-    let int = |n: u32| toml::Value::Integer(i64::from(n));
-    let word = |w: &str| toml::Value::String(w.into());
-    let mode = match d.mode {
-        FocusBlur::Bokeh => words::BOKEH,
-        FocusBlur::Gaussian => words::GAUSSIAN,
-    };
-    let [fx, fy] = e.loupe_focus;
-    let [cr, cg, cb] = e.loupe_border_color;
-    map.insert(k::BLOOM_MIPS.into(), int(post.bloom_mips));
-    map.insert(k::SSR_MAX_STEPS.into(), int(r.max_steps));
-    map.insert(k::DOF_TAPS.into(), int(d.taps));
-    map.insert(k::DOF_MODE.into(), word(mode));
-    map.insert(k::LOUPE_CORNER.into(), word(e.loupe_corner.word()));
-    let solver = if e.gi.cascades {
-        words::CASCADES
-    } else {
-        words::RAY_MARCH
-    };
-    map.insert(k::GI_SOLVER.into(), word(solver));
-    map.insert(
-        k::GI_SCREEN_OCCLUDERS.into(),
-        toml::Value::Boolean(e.gi.screen_occluders),
-    );
-    for (key, n) in [
-        (k::GI_RAYS, e.gi.rays),
-        (k::GI_MAX_STEPS, e.gi.max_steps),
-        (k::GI_DOWNSCALE, e.gi.downscale),
-        (k::GI_CASCADE_COUNT, e.gi.cascade_count),
-        (k::GI_CASCADE_DIRECTIONS, e.gi.cascade_directions),
-        (k::GI_PROBE_SPACING, e.gi.probe_spacing),
-    ] {
-        map.insert(key.into(), int(n));
-    }
-    map.insert(
-        k::LOUPE_FOCUS.into(),
-        toml::Value::Array(
-            vec![fx, fy]
-                .into_iter()
-                .map(|v| toml::Value::Float(f64::from(v)))
-                .collect(),
-        ),
-    );
-    map.insert(
-        k::LOUPE_BORDER_COLOR.into(),
-        crate::color_to_toml([cr, cg, cb, 1.0]),
-    );
 }

@@ -1,0 +1,16 @@
+[application]
+name = "{{name}}"
+main_scene = "scenes/main.toml"
+
+# The page's size in pixels: the window opens at it, and a picture of the
+# page is written at it.
+[window]
+width = "{{width}}"
+height = "{{height}}"
+
+# What an export re-encodes on the way into the pack. Every one is off, so a
+# build ships the bytes you gave it.
+[export]
+image_recode = "original"
+font_recode = "original"
+audio_recode = "original"

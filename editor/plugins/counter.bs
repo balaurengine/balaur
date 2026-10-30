@@ -2,7 +2,7 @@
 // plugin seam holds: how many nodes carry a script, as a dock tab, a palette
 // command, a floating window and a start-up state that asserts the count.
 
-pub struct Counter {
+pub class Counter {
     node: Node,
     // What the last count found; -1 before anyone asked.
     shown: int = -1,
@@ -15,15 +15,15 @@ fn editor() -> Node {
     scene::get_node("Editor")
 }
 
-// How many rows of the document carry a script.
+// How many nodes of the scene name a script.
 fn scripted() -> int {
-    let n = 0;
-    for row in editor().call("document") {
-        if row.has("script") {
-            n += 1;
+    let count = 0;
+    for found in editor().call("nodes") {
+        if found.as_node().script_path() != "" {
+            count += 1;
         }
     }
-    n
+    count
 }
 
 impl Counter {

@@ -303,7 +303,27 @@ impl InputSnapshot {
     pub fn file_drop_event(&mut self, path: String) {
         self.dropped_files.push(path);
     }
+}
 
+thread_local! {
+    /// Files a page handed the engine since the last frame read them.
+    static HANDED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Files a page handed the engine, already written where the engine's `fs`
+/// reads them, said as dropped on the next frame: a browser's drop, paste and
+/// file picker, whose files have no path on the machine to drop.
+pub fn hand_files(paths: impl IntoIterator<Item = String>) {
+    HANDED.with(|handed| handed.borrow_mut().extend(paths));
+}
+
+/// The files handed since the last call, taken.
+#[must_use]
+pub fn take_handed() -> Vec<String> {
+    HANDED.with(|handed| std::mem::take(&mut *handed.borrow_mut()))
+}
+
+impl InputSnapshot {
     /// One character the window backend received. Control characters are the
     /// backend's to filter: what reaches here is what was typed.
     pub fn char_event(&mut self, c: char) {
@@ -914,6 +934,18 @@ pub(crate) fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) 
 #[cfg(test)]
 mod tests {
     use super::{EITHER_SIDE, Fed, InputSnapshot, KEYS, MOUSE_BUTTON_CONSTANTS, is_known_key};
+
+    /// What a page hands over is taken once, in the order it was handed.
+    #[test]
+    fn handed_files_are_taken_once_in_order() {
+        super::hand_files(["/handed/1/a.ttf".to_string()]);
+        super::hand_files(["/handed/2/b.png".to_string()]);
+        assert_eq!(
+            super::take_handed(),
+            ["/handed/1/a.ttf".to_string(), "/handed/2/b.png".to_string()]
+        );
+        assert!(super::take_handed().is_empty());
+    }
 
     #[test]
     fn a_fed_press_is_next_frame_s_edge_and_stays_down_after_it() {

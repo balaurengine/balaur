@@ -249,16 +249,6 @@ pub(crate) fn parse(src: &str) -> Result<Program, Error> {
 }
 
 /// One expression on its own: what an editor finds before a `.`.
-/// A type as `show` writes it: `[str]`, `ui::Rect?`.
-pub(crate) fn parse_type(src: &str) -> Option<Ty> {
-    let mut p = Parser {
-        toks: lex(src, Pos { line: 1, col: 1 }).ok()?,
-        i: 0,
-    };
-    let t = p.ty().ok()?;
-    (p.peek() == &Tok::Eof).then_some(t)
-}
-
 pub(crate) fn parse_expr(src: &str) -> Result<Expr, Error> {
     let mut p = Parser {
         toks: lex(src, Pos { line: 1, col: 1 })?,
@@ -498,6 +488,19 @@ impl Parser {
             let t = self.ty()?;
             self.want("]")?;
             return Ok(Ty::Array(Box::new(t)));
+        }
+        if self.eat("{") {
+            let key = self.ty()?;
+            if !matches!(key, Ty::Str | Ty::Int) {
+                return self.fail("a map's key is a `str` or an `int`");
+            }
+            self.want(":")?;
+            let value = self.ty()?;
+            if matches!(value, Ty::Optional(_)) {
+                return self.fail("a map's value is never nil: a missing key is");
+            }
+            self.want("}")?;
+            return Ok(Ty::Map(Box::new(key), Box::new(value)));
         }
         let mut n = self.ident()?;
         // A module's struct: `util::Rect`.
@@ -742,6 +745,21 @@ impl Parser {
         Ok(ExprKind::ArrayLit(items))
     }
 
+    // `{k: v, ..}`, past its `{`.
+    fn map(&mut self) -> Result<ExprKind, Error> {
+        let mut entries = Vec::new();
+        while !self.eat("}") {
+            let key = self.expr(false)?;
+            self.want(":")?;
+            entries.push((key, self.expr(false)?));
+            if !self.eat(",") {
+                self.want("}")?;
+                break;
+            }
+        }
+        Ok(ExprKind::MapLit(entries))
+    }
+
     fn primary(&mut self, ns: bool) -> Result<Expr, Error> {
         let pos = self.pos();
         let kind = match self.peek().clone() {
@@ -766,6 +784,10 @@ impl Parser {
             Tok::P("[") => {
                 self.i += 1;
                 self.array()?
+            }
+            Tok::P("{") if !ns => {
+                self.i += 1;
+                self.map()?
             }
             Tok::Ident(s) if s == "true" || s == "false" => {
                 self.i += 1;

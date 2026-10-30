@@ -8,13 +8,13 @@ fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) 
     let lang = language.map_or(String::new(), |l| format!("script_language = \"{l}\"\n"));
     std::fs::write(
         dir.join("project.toml"),
-        format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n{lang}"),
+        format!("[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n{lang}"),
     )
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"scripts/{}\" }}\n",
+            "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = {{ source = \"scripts/{}\" }}\n",
             script.0
         ),
     )
@@ -23,8 +23,8 @@ fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) 
 }
 
 const SCRIPT: (&str, &str) = (
-    "s.bs",
-    "pub struct Root { node: Node, ran: bool }\nimpl Root { fn init() { self.ran = true; } }\n",
+    "root.bs",
+    "pub class Root { node: Node, ran: bool }\nimpl Root { fn init() { self.ran = true; } }\n",
 );
 
 /// The scene's `Root`, the node the project's script is attached to.
@@ -308,8 +308,8 @@ fn a_project_whose_script_calls_the_engine_can_be_exported() {
         dir.path(),
         None,
         (
-            "s.bs",
-            "pub struct Root { node: Node, ran: bool }\n\
+            "root.bs",
+            "pub class Root { node: Node, ran: bool }\n\
              impl Root {\n\
              \x20   fn init() {\n\
              \x20       if input::key_just_pressed(input::KEY_SPACE) {\n\
@@ -320,7 +320,7 @@ fn a_project_whose_script_calls_the_engine_can_be_exported() {
         ),
     );
     let pack = balaur::build_pack(dir.path()).unwrap();
-    assert!(pack.scripts.contains_key("scripts/s.bs"));
+    assert!(pack.scripts.contains_key("scripts/root.bs"));
 }
 
 #[test]
@@ -329,14 +329,14 @@ fn a_script_can_attach_another_script() {
     project(dir.path(), None, SCRIPT);
     std::fs::write(
         dir.path().join("scripts/other.bs"),
-        "pub struct Other { node: Node, other_ran: int }\n\
+        "pub class Other { node: Node, other_ran: int }\n\
          impl Other { fn init() { self.other_ran = 1; } }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
+        dir.path().join("scripts/root.bs"),
         r#"
-        pub struct Root { node: Node }
+        pub class Root { node: Node }
 
         impl Root {
             fn init() {
@@ -364,19 +364,18 @@ fn a_script_can_attach_another_script() {
 }
 
 #[test]
-#[ignore = "needs engine: the .bs host records no ScriptAttachment, so script_path answers nil"]
 fn script_path_names_the_script_a_node_was_given() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), None, SCRIPT);
     std::fs::write(
         dir.path().join("scripts/other.bs"),
-        "pub struct Other { node: Node }\n",
+        "pub class Other { node: Node }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
+        dir.path().join("scripts/root.bs"),
         r#"
-        pub struct Root { node: Node, own_path: str, fresh_path: str, kid_path: str }
+        pub class Root { node: Node, own_path: str, fresh_path: str, kid_path: str }
 
         impl Root {
             fn init() {
@@ -394,7 +393,7 @@ fn script_path_names_the_script_a_node_was_given() {
     app.load_project().unwrap();
     let root = root_node(&app);
     let text = |s: &str| Some(balaur_script::Value::Str(s.into()));
-    assert_eq!(field(&app, root, "own_path"), text("scripts/s.bs"));
+    assert_eq!(field(&app, root, "own_path"), text("scripts/root.bs"));
     assert_eq!(
         field(&app, root, "fresh_path"),
         text(""),
@@ -415,19 +414,19 @@ fn reload_script_picks_up_a_rewritten_file() {
     // an editor would.
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.bs\" }\n\n\
-         [[nodes]]\nid = \"e\"\nname = \"Editor\"\nparent = \"n\"\nscript = { source = \"scripts/e.bs\" }\n",
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"scripts/root.bs\" }\n\n\
+         [[nodes]]\nid = \"editor\"\nname = \"Editor\"\nparent = \"root\"\nscript = { source = \"scripts/editor.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/e.bs"),
-        "pub struct Editor { node: Node }\n\
-         impl Editor { pub fn reload() { engine::reload_script(\"scripts/s.bs\"); } }\n",
+        dir.path().join("scripts/editor.bs"),
+        "pub class Editor { node: Node }\n\
+         impl Editor { pub fn reload() { engine::reload_script(\"scripts/root.bs\"); } }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct Root { node: Node, version: int }\n\
+        dir.path().join("scripts/root.bs"),
+        "pub class Root { node: Node, version: int }\n\
          impl Root {\n\
              fn init() { self.version = 1; }\n\
              fn update(dt: float) {}\n\
@@ -446,8 +445,8 @@ fn reload_script_picks_up_a_rewritten_file() {
     );
 
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct Root { node: Node, version: int }\n\
+        dir.path().join("scripts/root.bs"),
+        "pub class Root { node: Node, version: int }\n\
          impl Root {\n\
              fn init() { self.version = 2; }\n\
              fn update(dt: float) { self.version = 2; }\n\
@@ -479,8 +478,8 @@ fn mouse_position_is_readable_without_a_window() {
         dir.path(),
         None,
         (
-            "s.bs",
-            "pub struct Root { node: Node, done: int }\n\
+            "root.bs",
+            "pub class Root { node: Node, done: int }\n\
              impl Root {\n\
              \x20   fn init() {\n\
              \x20       let at = input::mouse_position();\n\
@@ -520,7 +519,7 @@ fn a_packed_project_reads_its_image_sidecars() {
     std::fs::create_dir_all(root.join("scenes")).unwrap();
     std::fs::write(
         root.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

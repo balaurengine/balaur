@@ -55,12 +55,12 @@ pub fn state() -> CompleteState {
     CompleteState { open: false, items: [], pick: 0, at_index: -1, rel: "", x: 0.0, y: 0.0, source: "", signature: nil }
 }
 
-/// The module's own slice of `S`, at `S.complete`.
-pub fn reset(S: &mut editor::State) {
-    S.complete.open = false;
-    S.complete.items = [];
-    S.complete.pick = 0;
-    S.complete.at_index = -1;
+/// The module's own slice of `state`, at `state.complete`.
+pub fn reset(state: &mut editor::State) {
+    state.complete.open = false;
+    state.complete.items = [];
+    state.complete.pick = 0;
+    state.complete.at_index = -1;
 }
 
 /// The 1-based line and column of a character index into `source`.
@@ -80,8 +80,8 @@ pub fn line_col(source: str, index: int) -> LineCol {
 }
 
 // Whether a one-character string is part of a name.
-fn word_char(c: str) -> bool {
-    c != "" && "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_".contains(c)
+fn word_char(character: str) -> bool {
+    character != "" && "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_".contains(character)
 }
 
 // The word being typed, so an empty prefix after a space does not open a list
@@ -112,88 +112,88 @@ fn after_dot(source: str, index: int) -> bool {
 
 /// Ask the host what completes at the caret, and open the list when there is
 /// something to show. Called from the code pane once the editor reports one.
-pub fn update(S: &mut editor::State, rel: str, source: str, caret: Caret) {
+pub fn update(state: &mut editor::State, rel: str, source: str, caret: Caret) {
     let index = caret.index;
     // Same caret, same text: the answer cannot have changed.
-    if S.complete.open && S.complete.at_index == index && S.complete.source == source {
+    if state.complete.open && state.complete.at_index == index && state.complete.source == source {
         return;
     }
-    S.complete.x = caret.x;
-    S.complete.y = caret.y;
-    S.complete.at_index = index;
-    S.complete.source = source;
-    S.complete.rel = rel;
+    state.complete.x = caret.x;
+    state.complete.y = caret.y;
+    state.complete.at_index = index;
+    state.complete.source = source;
+    state.complete.rel = rel;
     if prefix_at(source, index) == "" && !after_dot(source, index) {
-        S.complete.open = false;
-        S.complete.items = [];
+        state.complete.open = false;
+        state.complete.items = [];
         return;
     }
     let at = line_col(source, index);
     let found = script::complete(rel, source, at.line, at.col);
-    S.complete.items = found;
-    S.complete.pick = 0;
-    S.complete.open = found.len() > 0;
-    S.complete.signature = script::signature(rel, source, at.line, at.col);
+    state.complete.items = found;
+    state.complete.pick = 0;
+    state.complete.open = found.len() > 0;
+    state.complete.signature = script::signature(rel, source, at.line, at.col);
 }
 
 /// The list's keys while it is up: the arrows move the pick, Enter and Tab
 /// accept it, and Escape closes the list.
-pub fn key(S: &mut editor::State, name: str) {
-    if !S.complete.open {
+pub fn key(state: &mut editor::State, name: str) {
+    if !state.complete.open {
         return;
     }
-    let count = S.complete.items.len();
+    let count = state.complete.items.len();
     if name == "Down" {
-        S.complete.pick = (S.complete.pick + 1) % count;
+        state.complete.pick = (state.complete.pick + 1) % count;
     } else if name == "Up" {
-        S.complete.pick = (S.complete.pick + count - 1) % count;
+        state.complete.pick = (state.complete.pick + count - 1) % count;
     } else if name == "Accept" || name == "Tab" {
-        accept(S);
+        accept(state);
     } else {
-        reset(S);
+        reset(state);
     }
-    signals::changed(S, "complete");
+    signals::changed(state, "complete");
 }
 
 /// A row clicked: accept that one.
-pub fn pick(S: &mut editor::State, row: str) {
-    let shown = rows(S);
-    for i in 0..shown.len() {
-        if shown[i] == row {
-            S.complete.pick = i;
-            accept(S);
-            signals::changed(S, "complete");
+pub fn pick(state: &mut editor::State, row: str) {
+    let shown = rows(state);
+    for index in 0..shown.len() {
+        if shown[index] == row {
+            state.complete.pick = index;
+            accept(state);
+            signals::changed(state, "complete");
             return;
         }
     }
 }
 
 // Replace the prefix under the caret with the chosen item.
-fn accept(S: &mut editor::State) {
-    let i = S.complete.pick;
-    if i < 0 || i >= S.complete.items.len() {
-        reset(S);
+fn accept(state: &mut editor::State) {
+    let picked = state.complete.pick;
+    if picked < 0 || picked >= state.complete.items.len() {
+        reset(state);
         return;
     }
-    let index = S.complete.at_index;
-    let chars = S.complete.source.chars();
-    let start = index - prefix_at(S.complete.source, index).chars().len();
+    let index = state.complete.at_index;
+    let chars = state.complete.source.chars();
+    let start = index - prefix_at(state.complete.source, index).chars().len();
     let head = "";
     let tail = "";
-    for n in 0..chars.len() {
-        if n < start {
-            head = head + chars[n];
-        } else if n >= index {
-            tail = tail + chars[n];
+    for position in 0..chars.len() {
+        if position < start {
+            head = head + chars[position];
+        } else if position >= index {
+            tail = tail + chars[position];
         }
     }
-    let path = S.game_root + "/" + S.complete.rel;
-    S.script_buffers.set(path, head + S.complete.items[i].insert + tail);
-    S.script_dirty.set(path, true);
-    lint::touched(S);
-    signals::bars(S);
-    center::code_written(S);
-    reset(S);
+    let path = state.game_root + "/" + state.complete.rel;
+    state.script_buffers.set(path, head + state.complete.items[picked].insert + tail);
+    state.script_dirty.set(path, true);
+    lint::touched(state);
+    signals::bars(state);
+    center::code_written(state);
+    reset(state);
 }
 
 // A row's leading glyph, by what the completion is.
@@ -220,10 +220,10 @@ fn glyph(kind: str) -> str {
 /// The list, under the caret, with the picked entry's doc line under it. One
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
-fn rows(S: editor::State) -> [str] {
-    let tint = S.theme.text_muted.as_str();
+fn rows(state: editor::State) -> [str] {
+    let tint = state.theme.text_muted.as_str();
     let out: [str] = [];
-    for one in S.complete.items {
+    for one in state.complete.items {
         out.push(util::row(glyph(one.kind), one.label, one.detail, tint));
     }
     out
@@ -231,17 +231,17 @@ fn rows(S: editor::State) -> [str] {
 
 /// What the list shows: where it opens, under the caret, its rows, the one
 /// picked, and the doc line of that one.
-pub fn view(S: editor::State) -> View {
-    if !S.complete.open || S.complete.items.len() == 0 {
+pub fn view(state: editor::State) -> View {
+    if !state.complete.open || state.complete.items.len() == 0 {
         return View { open: false, x: 0.0, y: 0.0, items: [], picked: "", list_h: 0.0, doc: "" };
     }
-    let items = rows(S);
-    let pick = util::imin(S.complete.pick, items.len() - 1);
-    let doc = S.complete.items[pick].doc;
+    let items = rows(state);
+    let pick = util::imin(state.complete.pick, items.len() - 1);
+    let doc = state.complete.items[pick].doc;
     View {
         open: true,
-        x: S.complete.x,
-        y: S.complete.y + 4.0,
+        x: state.complete.x,
+        y: state.complete.y + 4.0,
         items: items,
         picked: items[pick],
         list_h: (util::imin(items.len(), MAX_ROWS) as float) * ROW,
@@ -251,14 +251,14 @@ pub fn view(S: editor::State) -> View {
 
 // The doc line is one sentence in a 320 px sheet; the rest is in the Docs
 // dock, which has room for it.
-fn clip(text: str, n: int) -> str {
+fn clip(text: str, limit: int) -> str {
     let chars = text.chars();
-    if chars.len() <= n {
+    if chars.len() <= limit {
         return text;
     }
     let out = "";
-    for i in 0..n {
-        out = out + chars[i];
+    for index in 0..limit {
+        out = out + chars[index];
     }
     out + "…"
 }

@@ -79,7 +79,7 @@ color = [0.45, 0.63, 0.35, 1.0]
 [nodes.collider2d]
 kind = "rectangle"
 size = [28, 1.0]
-friction = 0.9
+physics_material = { friction = 0.9 }
 
 [[nodes]]
 id = "n_slingpost"
@@ -111,9 +111,8 @@ color = [0.85, 0.2, 0.18, 1.0]
 [nodes.collider2d]
 kind = "circle"
 radius = 0.4
-restitution = 0.3
-friction = 0.7
 density = 2.5
+physics_material = { friction = 0.7, restitution = 0.3 }
 
 [[nodes]]
 id = "n_columnl"
@@ -132,7 +131,7 @@ color = [0.74, 0.57, 0.32, 1.0]
 [nodes.collider2d]
 kind = "rectangle"
 size = [0.32, 2.0]
-friction = 0.7
+physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
 id = "n_columnr"
@@ -151,7 +150,7 @@ color = [0.74, 0.57, 0.32, 1.0]
 [nodes.collider2d]
 kind = "rectangle"
 size = [0.32, 2.0]
-friction = 0.7
+physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
 id = "n_plank"
@@ -170,7 +169,7 @@ color = [0.68, 0.5, 0.28, 1.0]
 [nodes.collider2d]
 kind = "rectangle"
 size = [2.6, 0.28]
-friction = 0.7
+physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
 id = "n_table"
@@ -190,7 +189,7 @@ color = [0.72, 0.53, 0.3, 1.0]
 [nodes.collider2d]
 kind = "convex_decomposition"
 mesh = "#table"
-friction = 0.7
+physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
 id = "n_pig1"
@@ -209,8 +208,7 @@ color = [0.36, 0.72, 0.25, 1.0]
 [nodes.collider2d]
 kind = "circle"
 radius = 0.45
-restitution = 0.2
-friction = 0.6
+physics_material = "physics_materials/pig.toml"
 
 
 [[nodes]]
@@ -321,8 +319,7 @@ color = [0.36, 0.72, 0.25, 1.0]
 [nodes.collider2d]
 kind = "circle"
 radius = 0.4
-restitution = 0.2
-friction = 0.6
+physics_material = "physics_materials/pig.toml"
 
 
 [[nodes]]
@@ -433,8 +430,7 @@ color = [0.36, 0.72, 0.25, 1.0]
 [nodes.collider2d]
 kind = "circle"
 radius = 0.36
-restitution = 0.2
-friction = 0.6
+physics_material = "physics_materials/pig.toml"
 
 [[nodes]]
 id = "n_riml_3"

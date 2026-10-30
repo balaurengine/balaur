@@ -1,6 +1,7 @@
 > **Status:** done 2026-09-21. Written from the question "why is `nodes` a
 > datatype and not an array of nodes, and what happens to a map or a custom
-> class?".
+> class?". §5, a component's order, groups and the derive, planned
+> 2026-10-27.
 
 # Plan: properties that hold other properties
 
@@ -117,3 +118,42 @@ is, and a recording has to be plain data. An export is the path that knows.
   one, so a list entry is not a keyframe target.
 - **A key type beyond int and string.** TOML keys are text and everything else
   would be an encoding nobody can read in the file.
+
+## 5. Order, groups and the derive
+
+Planned 2026-10-27. A component is written three times today: its struct;
+its schema, TOML text in its `ComponentDef` (70 of them in 53 files); and its
+`apply` and `get`, which convert between the two by hand. Readers then sort
+the schema by name (`util::keys_sorted`, `sorted_keys` in
+`widget/inspector/form.rs`), so the order a user sees is the alphabet's.
+`group` exists (`components.rs`) and few properties use it, under names
+that differ for one idea. `Authored` keeps what a scene asked for beside
+every component, for a save, and `PropertyReaders`/`PropertyWriters` give
+`transform` and `widget` a path the other components lack.
+
+- **The struct is the schema.** `#[derive(Component)]` on the struct writes
+  the spec: a property per field, in field order, its doc comment as
+  `description`, and `#[property(group = "font", min = 0, unit = "px")]`
+  for the rest of §1's keys. Field order is the one order: the Inspector's,
+  the reference's and a saved file's.
+- **A property has an index**, its field's place. The derive writes a read
+  and a write of one field by index, and `to_toml`/`from_toml` for a file.
+  The write by index is the one way a component changes, and it records the
+  change (PLAN-events §5).
+- **Groups are one vocabulary.** A component uses the shared name when the
+  idea is the one the name means (PLAN-component-order §1).
+- **No property shows on a condition.** Properties that apply only beside
+  one value of another are a component of their own: `widget` is one
+  component per kind (PLAN-widgets), and the rest are listed in
+  PLAN-component-order §4.
+- **Derived state is a system's cache**, keyed on the change log, never a
+  field: a shaped text, a built mesh.
+- **What goes**: each component's hand-written `apply` and `get`, the
+  alphabetical sorts (gone 2026-10-28: a schema keeps the order it is
+  written in), `PropertyReaders` and `PropertyWriters`, and
+  `Authored`: a save reads the typed value, which keeps an asset as the file
+  named it.
+
+A component's order is what a user changes most first, then its groups.
+PLAN-component-order lists all 55 components, 1,429 properties, in that
+order; each moves into the derive one component at a time.

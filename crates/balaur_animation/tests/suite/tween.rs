@@ -979,7 +979,7 @@ fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
 /// A script whose tween names one of its methods, which counts each time it
 /// runs.
 const MOVER: &str = r#"
-pub struct Mover { node: Node, landed: int, ready: bool }
+pub class Mover { node: Node, landed: int, ready: bool }
 impl Mover {
     fn init() {
         let rise = map().with("property", "position").with("to", [0.0, 10.0, 0.0]).with("duration", 0.5);

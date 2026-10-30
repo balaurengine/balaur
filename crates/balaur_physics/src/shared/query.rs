@@ -74,7 +74,7 @@ macro_rules! functions {
                         Value::Str(s) => s.parse().ok(),
                         _ => None,
                     };
-                    if let Some(bit) = crate::vocabulary::layer_bit(layer) {
+                    if let Some(bit) = balaur_core::layers::bit(layer) {
                         bits |= bit;
                     }
                 }

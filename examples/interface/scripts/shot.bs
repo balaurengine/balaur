@@ -2,7 +2,7 @@
 // `--shot=<path>` after `--` says where it goes; without it the screen is a
 // screen, and nothing is written.
 
-pub struct Shot {
+pub class Shot {
     node: Node,
     frame: int,
     shot: str,

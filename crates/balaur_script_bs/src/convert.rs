@@ -2,7 +2,7 @@
 
 use crate::api::Structs;
 use balaur_bs::Ty;
-use balaur_bs::runtime::Value as L;
+use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_script::Value as N;
 
 const VEC: [(&str, &[&str]); 3] = [
@@ -158,4 +158,44 @@ fn record(name: &str, fields: &[(String, Ty)], v: &N, structs: &Structs) -> L {
         })
         .collect();
     L::Struct(name.to_string(), values)
+}
+
+/// Every argument of a call as the seam's values, for an engine function
+/// that takes them all: a node operation, a raw binding.
+pub(crate) fn neutral(args: &dyn CallArgs) -> smallvec::SmallVec<[N; 4]> {
+    (0..args.len())
+        .map(|index| to_neutral(&args.value(index)))
+        .collect()
+}
+
+/// A script's arguments as a typed binding reads them: a number, a flag, a
+/// node or a string straight from the call, anything else converted when it
+/// is asked for.
+pub(crate) struct Seam<'a>(pub &'a dyn CallArgs);
+
+impl balaur_script::Args for Seam<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn int(&self, index: usize) -> Option<i64> {
+        self.0.int(index)
+    }
+    fn num(&self, index: usize) -> Option<f64> {
+        self.0.float(index)
+    }
+    fn flag(&self, index: usize) -> Option<bool> {
+        self.0.bool(index)
+    }
+    fn node(&self, index: usize) -> Option<u64> {
+        self.0.node(index).map(i64::cast_unsigned)
+    }
+    fn text(&self, index: usize) -> Option<&str> {
+        self.0.text(index)
+    }
+    fn is_nil(&self, index: usize) -> bool {
+        self.0.is_nil(index)
+    }
+    fn value(&self, index: usize) -> N {
+        to_neutral(&self.0.value(index))
+    }
 }

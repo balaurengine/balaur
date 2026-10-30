@@ -161,7 +161,7 @@ parent = "type_row"
 [nodes.widget]
 kind = "label"
 text = "mono"
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 
 [[nodes]]
 id = "t_caption"
@@ -375,7 +375,7 @@ parent = "pages"
 text = "Outline"
 kind = "tree"
 height = 196
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 
 [[nodes]]
 id = "table"
@@ -385,7 +385,7 @@ parent = "pages"
 text = "Table"
 kind = "table"
 height = 196
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 # The column names, and with them how many columns the table has.
 titles = ["name", "kind", "size"]
 

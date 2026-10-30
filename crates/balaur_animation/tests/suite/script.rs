@@ -42,7 +42,7 @@ tracks = [
 /// accessor: what the finished signal reached is proven by what is playing
 /// afterwards.
 const HERO: &str = r#"
-pub struct Hero { node: Node }
+pub class Hero { node: Node }
 impl Hero {
     fn init() {
         self.node.animation.play("hop", map().with("speed_scale", 1.0));
@@ -191,7 +191,7 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
 #[test]
 fn a_script_reads_the_playhead_back_through_the_module() {
     let script = r#"
-pub struct Watch { node: Node, clip: str, playing: bool, elapsed: float, ended: str }
+pub class Watch { node: Node, clip: str, playing: bool, elapsed: float, ended: str }
 impl Watch {
     fn init() {
         self.node.animation.play("hop");
@@ -240,7 +240,7 @@ impl Watch {
 #[test]
 fn a_script_defines_a_clip_of_its_own_and_plays_it() {
     let script = r#"
-pub struct Define { node: Node }
+pub class Define { node: Node }
 impl Define {
     fn init() {
         let keys = [
@@ -275,7 +275,7 @@ impl Define {
 #[test]
 fn a_script_queues_a_clip_behind_the_one_playing() {
     let script = r#"
-pub struct Queue { node: Node }
+pub class Queue { node: Node }
 impl Queue {
     fn init() {
         self.node.animation.play("hop");
@@ -302,7 +302,7 @@ impl Queue {
 #[test]
 fn a_script_pauses_and_resumes_a_clip() {
     let script = r#"
-pub struct Hold { node: Node, held: bool, woken: bool }
+pub class Hold { node: Node, held: bool, woken: bool }
 impl Hold {
     fn init() {
         self.node.animation.play("wave");
@@ -337,7 +337,7 @@ impl Hold {
 #[test]
 fn a_script_stops_a_clip_and_nothing_is_current_afterwards() {
     let script = r#"
-pub struct Halt { node: Node }
+pub class Halt { node: Node }
 impl Halt {
     fn init() {
         self.node.animation.play("wave");
@@ -368,7 +368,7 @@ impl Halt {
 /// animation system is stepping. `halt` is what Rust calls to stop the tween
 /// by its handle from outside.
 const TWEEN: &str = r#"
-pub struct Mover { node: Node, handle: int, running: bool }
+pub class Mover { node: Node, handle: int, running: bool }
 impl Mover {
     fn init() {
         let rise = map().with("property", "position").with("to", [0.0, 6.0, 0.0])
@@ -449,7 +449,7 @@ fn a_script_reads_a_tween_handle_back_and_stops_by_it() {
 #[test]
 fn a_script_reaches_for_the_shorter_spelling() {
     let script = r#"
-pub struct Hop { node: Node }
+pub class Hop { node: Node }
 impl Hop {
     fn init() {
         let step = map().with("property", "position").with("to", [0.0, 4.0, 0.0])
@@ -479,7 +479,7 @@ impl Hop {
 /// The finished callback carries the handle, so a script holding several
 /// tweens knows which one ran out; a value tween is read each frame.
 const FINISHED: &str = r#"
-pub struct Mover { node: Node, handle: int, finished: int, meter: int, read: float, over: bool }
+pub class Mover { node: Node, handle: int, finished: int, meter: int, read: float, over: bool }
 impl Mover {
     fn init() {
         let step = map().with("property", "position").with("to", [0.0, 6.0, 0.0])
@@ -528,7 +528,7 @@ fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
 
 /// Spells every word through the module's constants rather than as a string.
 const CONSTANTS: &str = r#"
-pub struct Constants { node: Node }
+pub class Constants { node: Node }
 impl Constants {
     fn init() {
         let keys = [

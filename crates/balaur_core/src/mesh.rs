@@ -160,7 +160,8 @@ pub struct PathShape {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextShape {
     pub text: String,
-    /// The family to shape in, or empty for the project's own.
+    /// The font to shape in, as a text's `font` row names one; empty takes
+    /// the default font.
     pub font: String,
     /// The em size in world units: a capital letter is a little under this.
     pub size: f32,

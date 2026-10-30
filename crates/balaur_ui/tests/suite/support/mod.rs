@@ -17,7 +17,7 @@ pub fn app() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -32,7 +32,7 @@ pub fn app_with_editor_fonts() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n\n[ui]\nsystem_fonts = false\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n\n[ui]\nsystem_fonts = false\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -191,17 +191,18 @@ pub fn settle(app: &App, ctx: &egui::Context) {
     pass(app, ctx, vec![]);
 }
 
-/// An app whose project also holds `scripts/paint.bs`, for the `draw` kind.
-pub fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
+/// An app whose project also holds `scripts/<file>`, the class `body`
+/// declares named after it.
+pub fn app_with_script(file: &str, body: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(dir.path().join("scripts/paint.bs"), body).unwrap();
+    std::fs::write(dir.path().join("scripts").join(file), body).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     (dir, standard_app(config).unwrap())

@@ -2,7 +2,7 @@
 // `balaur run examples/objects -- shots=<dir>` writes one PNG per pose there,
 // which is how the website's pictures of this example are made.
 
-pub struct Tour {
+pub class Tour {
     node: Node,
     root: Node,
     clock: float,

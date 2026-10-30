@@ -13,8 +13,8 @@ impl BsHost {
         inner.tally.borrow_mut().clear();
         if inner.profiling.get() == on {
             if on {
-                for file in inner.files.borrow().values() {
-                    if let Ok(mut rt) = file.rt.try_borrow_mut() {
+                for home in self.homes() {
+                    if let Ok(mut rt) = home.rt.try_borrow_mut() {
                         rt.clear_profile();
                     }
                 }
@@ -68,8 +68,8 @@ impl BsHost {
             return Vec::new();
         }
         let mut summed: HashMap<String, (u64, u64)> = HashMap::new();
-        for file in self.inner.files.borrow().values() {
-            let Ok(mut rt) = file.rt.try_borrow_mut() else {
+        for home in self.homes() {
+            let Ok(mut rt) = home.rt.try_borrow_mut() else {
                 continue;
             };
             for (name, calls, own) in rt.function_costs() {

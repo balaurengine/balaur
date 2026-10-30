@@ -1,7 +1,7 @@
 // The Problems tab's one script: it fills its list when the check's findings
 // move, and hands the Editor a pick to open.
 
-pub struct Problems {
+pub class Problems {
     node: Node,
     editor: Node,
 }

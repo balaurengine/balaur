@@ -6,10 +6,6 @@ pub struct Workspace {
     icon: str,
 }
 
-pub struct WorkspaceInspector {
-    sections: [str],
-}
-
 /// A viewport chip: its key, its label, and what it starts as; nil for one
 /// the engine backs, which `shell::chip_value` reads live each frame.
 pub struct Chip {
@@ -88,33 +84,15 @@ fn docks(left: [str], bottom: [str], right: [str]) -> any {
 }
 
 pub fn workspace_name(id: str) -> str {
-    for p in workspaces() {
-        if p.id == id {
-            return p.name;
+    for workspace in workspaces() {
+        if workspace.id == id {
+            return workspace.name;
         }
     }
     id
 }
 
-/// The hand-written sections a workspace's inspector draws beside the
-/// components. Every workspace lists every component the node carries.
-pub fn workspace_inspector(id: str) -> WorkspaceInspector {
-    if id == "script" {
-        WorkspaceInspector { sections: ["script", "events"] }
-    } else if id == "animation" {
-        WorkspaceInspector { sections: ["skeleton", "polygon", "animation"] }
-    } else if id == "physics" {
-        WorkspaceInspector { sections: ["physics"] }
-    } else if id == "ui" {
-        WorkspaceInspector { sections: ["interface"] }
-    } else {
-        // Scene is the one workspace that also shows the script a node
-        // carries: a scene file holds it.
-        WorkspaceInspector { sections: ["skeleton", "polygon", "script"] }
-    }
-}
-
-// Only tools something reads: a button that sets `S.tool` and is then ignored
+// Only tools something reads: a button that sets `state.tool` and is then ignored
 // advertises an editor that does not exist. Re-add each on its `gizmo` handler.
 pub fn tools(workspace: str) -> [str] {
     if workspace == "scene" {
@@ -180,17 +158,17 @@ pub fn chips(workspace: str) -> [Chip] {
     }
 }
 
-/// Whether a chip is on in a workspace: what `state`, the editor's chip
-/// state by workspace, holds for it, or what `chips` starts it as before the
-/// chip is first drawn.
-pub fn chip_on(state: any, workspace: str, key: str) -> bool {
-    let held = state.get(workspace).get(key);
+/// Whether a chip is on in a workspace: what `chip_states`, the editor's
+/// `chip_state` by workspace, holds for it, or what `chips` starts it as
+/// before the chip is first drawn.
+pub fn chip_on(chip_states: any, workspace: str, key: str) -> bool {
+    let held = chip_states.get(workspace).get(key);
     if !held.is_nil() {
         return held.as_bool();
     }
-    for c in chips(workspace) {
-        if c.key == key {
-            return c.starts.or(false);
+    for chip in chips(workspace) {
+        if chip.key == key {
+            return chip.starts.or(false);
         }
     }
     false

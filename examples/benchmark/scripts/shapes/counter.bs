@@ -1,6 +1,6 @@
 // One field, read and written. The smallest thing a script actually does.
 
-pub struct Counter {
+pub class Counter {
     node: Node,
     t: float,
 }

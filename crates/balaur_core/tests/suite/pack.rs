@@ -205,6 +205,26 @@ fn the_backend_decides_what_a_script_compiles_to() {
     );
 }
 
+/// A face's licence travels with it, and a text file anywhere else does not.
+#[test]
+fn a_font_s_licence_ships_beside_it() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("fonts")).unwrap();
+    std::fs::write(dir.path().join("fonts/Inter.ttc"), b"face").unwrap();
+    std::fs::write(
+        dir.path().join("fonts/Inter.OFL.txt"),
+        "SIL Open Font License",
+    )
+    .unwrap();
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    assert!(
+        pack.assets.contains_key("fonts/Inter.ttc"),
+        "a collection is a face"
+    );
+    assert!(pack.assets.contains_key("fonts/Inter.OFL.txt"));
+    assert!(!pack.assets.contains_key("s.txt"));
+}
+
 #[test]
 fn unclaimed_extensions_are_left_alone() {
     let dir = project();

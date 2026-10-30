@@ -1,0 +1,4 @@
+# A pig: a little grip and a little bounce.
+type = "physics_material"
+friction = 0.6
+restitution = 0.2

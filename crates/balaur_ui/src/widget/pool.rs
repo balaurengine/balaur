@@ -270,10 +270,13 @@ impl Pool<'_> {
         }
     }
 
-    /// Write `spec` to `node` unless it is what was written last pass.
+    /// Write `spec` to `node` unless it is what was written last pass; a
+    /// patch carries only what differs from that, so a control whose one
+    /// property moved takes the one property's write.
     fn patched(&self, key: &str, node: &Value, spec: &Spec) -> Result<()> {
         let mark = format!("{key}#");
         let value = as_value(spec);
+        let before = self.with_memo(|memo| memo.written.get(&mark).cloned());
         if !self.noted(&mark, &value) {
             return Ok(());
         }
@@ -302,8 +305,23 @@ impl Pool<'_> {
             worn.extend(spec.keys().cloned());
             whole
         });
-        let op = if whole { self.ops.set } else { self.ops.patch };
-        self.write(op, node, value)
+        if whole {
+            return self.write(self.ops.set, node, value);
+        }
+        let moved = match (&before, &value) {
+            (Some(Value::Map(before)), Value::Map(now)) => Value::Map(
+                now.iter()
+                    .filter(|(name, held)| {
+                        !before
+                            .iter()
+                            .any(|(was, written)| was == name && written == held)
+                    })
+                    .cloned()
+                    .collect(),
+            ),
+            _ => value,
+        };
+        self.write(self.ops.patch, node, moved)
     }
 
     /// An `inspector` fills its own children with rows, so a slot turning
@@ -821,6 +839,45 @@ pub(crate) fn fill_rows_on(
         .iter()
         .map(|row| row.iter().filter_map(entity).collect())
         .collect())
+}
+
+/// [`fill_rows_on`] for some of the rows a fill made: each spec written to
+/// the row at its index, and the control nodes under each. A row past what
+/// was made is an error, which the caller answers with a whole fill.
+pub(crate) fn fill_rows_at(
+    eng: &Engine,
+    host: balaur_core::hecs::Entity,
+    rows: &[(usize, Value)],
+    label_w: f64,
+    stacked: bool,
+) -> Result<Vec<Vec<balaur_core::hecs::Entity>>> {
+    let ops = ops().ok_or_else(|| anyhow!("the pool cannot find the node operations"))?;
+    let node = Value::Node(balaur_core::node_id_of(host).0);
+    let Some((pool, host)) = open_node(eng, ops, node)? else {
+        return Ok(Vec::new());
+    };
+    let made = pool.children(&host);
+    let label_w = Value::Num(label_w);
+    let entity = |node: &Value| match node {
+        Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
+        _ => None,
+    };
+    let mut controls = Vec::with_capacity(rows.len());
+    for (index, spec) in rows {
+        let row = made
+            .get(*index)
+            .ok_or_else(|| anyhow!("row {index} was never made"))?;
+        pool.row(*index, row, spec, &label_w, stacked)?;
+        let column = pool.child(row, "H");
+        let slot = pool.child(&column, "C");
+        let under = if slot == Value::Nil {
+            Vec::new()
+        } else {
+            pool.children(&slot)
+        };
+        controls.push(under.iter().filter_map(entity).collect());
+    }
+    Ok(controls)
 }
 
 /// `ui.fill_strip` and `ui.fill_rows`.

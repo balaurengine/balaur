@@ -6,8 +6,8 @@ use crate::soft_bodies::{run, run_checked};
 #[test]
 fn pinning_a_free_particle_holds_it_and_unpinning_lets_it_fall() {
     run_checked(
-        r#"pub struct S { node: Node, first: float, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, first: float, ticks: int }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8));
@@ -38,8 +38,8 @@ impl S {
 #[test]
 fn a_held_particle_is_dragged_to_its_target() {
     run_checked(
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8).with("pinned_particles", [0]));
@@ -64,8 +64,8 @@ impl S {
 #[test]
 fn an_impulse_kicks_the_body_and_the_edges_report_their_stress() {
     run_checked(
-        r#"pub struct S { node: Node, first: float, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, first: float, ticks: int }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8).with("pinned_particles", [0]));
@@ -95,8 +95,8 @@ impl S {
 #[test]
 fn a_particle_tied_to_a_body_hangs_from_it() {
     run_checked(
-        r#"pub struct S { node: Node, hook: Node, ticks: int, first: float }
-impl S {
+        r#"pub class Scenario { node: Node, hook: Node, ticks: int, first: float }
+impl Scenario {
     fn init() {
         let hook = self.node.add_child("Hook");
         hook.set_component("transform", map().with("position", [0.0, 0.0, 0.0]));
@@ -128,8 +128,8 @@ impl S {
 #[test]
 fn the_2d_body_takes_the_same_calls() {
     run_checked(
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
         blob.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_ROPE).with("particle_count", 6));
@@ -156,8 +156,8 @@ impl S {
 #[test]
 fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
     run_checked(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map()
             .with("kind", physics3d::SOFT_ROPE).with("particle_count", 4)
@@ -172,16 +172,16 @@ impl S {
         1,
         "checked: rows built",
     );
-    let short = run(r#"pub struct S { node: Node }
-impl S {
+    let short = run(r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("masses", [1.0, 2.0]));
     }
 }
 "#);
     assert!(short.iter().any(|e| e.contains("masses")), "{short:#?}");
-    let stray = run(r#"pub struct S { node: Node }
-impl S {
+    let stray = run(r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("tear_resistance", [map().with("a", 0).with("b", 3).with("resistance", 0.5)]));
     }

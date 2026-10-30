@@ -35,132 +35,126 @@ pub fn state() -> RefactorState {
 }
 
 /// Open over the word the caret is on, so a rename starts already filled in.
-pub fn open(S: &mut editor::State, mode: str) {
-    let rel = active_rel(S);
+pub fn open(state: &mut editor::State, mode: str) {
+    let rel = active_rel(state);
     if rel == "" {
         return;
     }
-    S.refactor.open = true;
-    S.refactor.mode = mode;
-    S.refactor.from = if mode == "rename" { word_at_caret(S, rel) } else { "" };
-    S.refactor.to = "";
-    S.refactor.hits = [];
-    S.refactor.written = [];
-    preview(S);
-    signals::changed(S, "refactor");
+    state.refactor.open = true;
+    state.refactor.mode = mode;
+    state.refactor.from = if mode == "rename" { word_at_caret(state, rel) } else { "" };
+    state.refactor.to = "";
+    state.refactor.hits = [];
+    state.refactor.written = [];
+    preview(state);
+    signals::changed(state, "refactor");
 }
 
-pub fn close(S: &mut editor::State) {
-    S.refactor.open = false;
-    S.refactor.hits = [];
-    S.refactor.written = [];
-    signals::changed(S, "refactor");
+pub fn close(state: &mut editor::State) {
+    state.refactor.open = false;
+    state.refactor.hits = [];
+    state.refactor.written = [];
+    signals::changed(state, "refactor");
 }
 
 // The script the code pane is showing, "" when it is showing none.
-fn active_rel(S: editor::State) -> str {
-    if S.sel < 0 || S.sel >= S.doc.len() {
-        return "";
-    }
-    let node = S.doc[S.sel];
-    if !node.has("script") {
-        return "";
-    }
-    model::script_rel(node).as_str()
+fn active_rel(state: editor::State) -> str {
+    let rel = model::script_rel(model::selected_node(state));
+    if rel.is_nil() { "" } else { rel.as_str() }
 }
 
-fn source_of(S: &mut editor::State, rel: str) -> str {
-    let buffer = S.script_buffers.get(S.game_root + "/" + rel);
-    if buffer.is_nil() { model::source(S, rel).as_str() } else { buffer.as_str() }
+fn source_of(state: &mut editor::State, rel: str) -> str {
+    let buffer = state.script_buffers.get(state.game_root + "/" + rel);
+    if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
 // The identifier under the caret, which is what a rename means by default.
 // The same word the completion list opens on, so both read one definition of
 // where an identifier starts.
-fn word_at_caret(S: &mut editor::State, rel: str) -> str {
-    let index = S.complete.at_index;
+fn word_at_caret(state: &mut editor::State, rel: str) -> str {
+    let index = state.complete.at_index;
     if index < 0 {
         return "";
     }
-    complete::prefix_at(source_of(S, rel), index)
+    complete::prefix_at(source_of(state, rel), index)
 }
 
 /// Every place the name appears, and what a rename would write.
-pub fn preview(S: &mut editor::State) {
-    let rel = active_rel(S);
-    if rel == "" || S.refactor.from == "" {
-        S.refactor.hits = [];
-        S.refactor.written = [];
+pub fn preview(state: &mut editor::State) {
+    let rel = active_rel(state);
+    if rel == "" || state.refactor.from == "" {
+        state.refactor.hits = [];
+        state.refactor.written = [];
         return;
     }
-    let source = source_of(S, rel);
-    let renaming = S.refactor.mode == "rename";
-    S.refactor.hits = if renaming {
-        script::references(rel, source, S.refactor.from)
+    let source = source_of(state, rel);
+    let renaming = state.refactor.mode == "rename";
+    state.refactor.hits = if renaming {
+        script::references(rel, source, state.refactor.from)
     } else {
-        script::find(rel, source, S.refactor.from)
+        script::find(rel, source, state.refactor.from)
     };
-    if S.refactor.to == "" {
-        S.refactor.written = [];
+    if state.refactor.to == "" {
+        state.refactor.written = [];
         return;
     }
-    S.refactor.written = if renaming {
-        script::rename(rel, source, S.refactor.from, S.refactor.to)
+    state.refactor.written = if renaming {
+        script::rename(rel, source, state.refactor.from, state.refactor.to)
     } else {
-        script::replace(rel, source, S.refactor.from, S.refactor.to)
+        script::replace(rel, source, state.refactor.from, state.refactor.to)
     };
 }
 
 /// Write every file the preview listed, into the buffers rather than to disk:
 /// a rename is undone with the same ⌘S that saves it.
-pub fn apply(S: &mut editor::State) {
-    if S.refactor.written.len() == 0 {
+pub fn apply(state: &mut editor::State) {
+    if state.refactor.written.len() == 0 {
         return;
     }
-    for one in S.refactor.written {
-        let abs = S.game_root + "/" + one.file;
-        S.script_buffers.set(abs, one.source);
-        S.script_dirty.set(abs, true);
-        lint::touched(S);
-        signals::bars(S);
+    for one in state.refactor.written {
+        let abs = state.game_root + "/" + one.file;
+        state.script_buffers.set(abs, one.source);
+        state.script_dirty.set(abs, true);
+        lint::touched(state);
+        signals::bars(state);
     }
-    center::code_written(S);
-    let did = if S.refactor.mode == "rename" { "renamed" } else { "replaced" };
-    log::info("{did} {S.refactor.from} to {S.refactor.to} in {S.refactor.written.len()} files");
-    close(S);
+    center::code_written(state);
+    let did = if state.refactor.mode == "rename" { "renamed" } else { "replaced" };
+    log::info("{did} {state.refactor.from} to {state.refactor.to} in {state.refactor.written.len()} files");
+    close(state);
 }
 
 /// What the sheet shows: its fields as it opens, every place the name is,
 /// and whether there is anything to apply.
-pub fn view(S: editor::State) -> View {
-    if !S.refactor.open {
+pub fn view(state: editor::State) -> View {
+    if !state.refactor.open {
         return View { open: false, title: "", from: "", to: "", from_hint: "", to_hint: "", count: "", hits: [], ready: false };
     }
-    let renaming = S.refactor.mode == "rename";
+    let renaming = state.refactor.mode == "rename";
     let hits: [str] = [];
-    for hit in S.refactor.hits {
+    for hit in state.refactor.hits {
         hits.push("{hit.file}:{hit.line}");
     }
     View {
         open: true,
         title: if renaming { "RENAME" } else { "REPLACE" },
-        from: S.refactor.from,
-        to: S.refactor.to,
+        from: state.refactor.from,
+        to: state.refactor.to,
         from_hint: if renaming { "name" } else { "text to find" },
         to_hint: if renaming { "new name" } else { "replace with" },
-        count: "{S.refactor.hits.len()} matches in {S.refactor.written.len()} files",
+        count: "{state.refactor.hits.len()} matches in {state.refactor.written.len()} files",
         hits: hits,
-        ready: S.refactor.to != "" && S.refactor.written.len() > 0,
+        ready: state.refactor.to != "" && state.refactor.written.len() > 0,
     }
 }
 
 /// One of the two fields, as it is typed.
-pub fn set(S: &mut editor::State, field: str, text: str) {
+pub fn set(state: &mut editor::State, field: str, text: str) {
     if field == "From" {
-        S.refactor.from = text;
+        state.refactor.from = text;
     } else {
-        S.refactor.to = text;
+        state.refactor.to = text;
     }
-    preview(S);
-    signals::changed(S, "refactor");
+    preview(state);
+    signals::changed(state, "refactor");
 }

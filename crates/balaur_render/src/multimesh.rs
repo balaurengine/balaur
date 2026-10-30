@@ -655,7 +655,6 @@ fn apply_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     )?;
     crate::set_polygon(eng, entity, Arc::new(polygon))?;
     crate::set_color(eng, entity, crate::color_from_params(params))?;
-    crate::overlay_from_params(eng, entity, params)?;
     crate::material::set_material_2d(eng, entity, &text(params, k::MATERIAL))
 }
 
@@ -686,13 +685,13 @@ fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     );
     map.insert(
         k::LIGHT_LAYERS.into(),
-        toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
+        balaur_core::layers::names(renderable.layers),
     );
     map.insert(
         k::RENDER_LAYERS.into(),
-        toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
+        balaur_core::layers::names(renderable.render_layers),
     );
-    crate::overlay::overlay_3d_to_map(&renderable.overlay, &mut map);
+    crate::overlay::overlay_3d_to_map(renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 
@@ -724,7 +723,6 @@ fn get_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         k::MATERIAL.into(),
         toml::Value::String(renderable.material.clone()),
     );
-    crate::overlay::overlay_2d_to_map(&renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 
@@ -766,13 +764,13 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
                 MULTIMESH_3D,
                 &ComponentDef::schema(&crate::overlay::with_rows(&[
                     (k::SOURCE, &source_line()),
-                    (k::TEXTURE, &texture_line()),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
+                    (k::TEXTURE, &texture_line()),
                     (k::MATERIAL, &material_line),
-                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether the instances cast a shadow from the lights that cast" }"#),
-                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
-                    (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
-                ], &crate::overlay::schema_3d(crate::overlay::Drawn::Builtin))),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether the instances cast a shadow from the lights that cast", group = "shadows" }"#),
+                    (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
+                    (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
+                ], &crate::overlay::schema_3d())),
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
@@ -794,13 +792,13 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
             doc: "Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
             schema: ComponentDef::parse_schema(
                 MULTIMESH_2D,
-                &ComponentDef::schema(&crate::overlay::with_rows(&[
+                &ComponentDef::schema(&[
                     (k::SOURCE, &source_line()),
-                    (k::TEXTURE, &texture_line()),
-                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for a mesh that carries no UVs of its own" }"#),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
+                    (k::TEXTURE, &texture_line()),
                     (k::MATERIAL, &crate::material::material_line_2d()),
-                ], &crate::overlay::schema_2d(crate::overlay::Drawn::Pipeline))),
+                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for a mesh that carries no UVs of its own", group = "placement" }"#),
+                ]),
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],

@@ -1,7 +1,7 @@
 // The Tiles tab's one script: it has the Editor fill its chips and its atlas
 // when the tilemap, the selection or the brush moved, and answers a tile pick.
 
-pub struct Tiles {
+pub class Tiles {
     node: Node,
     editor: Node,
 }

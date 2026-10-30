@@ -16,7 +16,7 @@ fn app() -> (tempfile::TempDir, App) {
 
 fn node(app: &App) -> Entity {
     let root = app.engine.root();
-    scene::spawn_node(&mut app.engine.world_mut(), "N", root)
+    scene::spawn_node(&mut app.engine.world_mut(), "Scenario", root)
 }
 
 fn add(app: &App, entity: Entity, key: &str, params: &str) {
@@ -245,18 +245,18 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct N { node: Node }\n\
-         impl N {\n    fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
+        dir.path().join("scripts/scenario.bs"),
+        "pub class Scenario { node: Node }\n\
+         impl Scenario {\n    fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
@@ -272,12 +272,13 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     assert!(request.path.ends_with("shots/n.png"));
 }
 
-/// The wireframe, vertex and node keys reach the renderable of every 3D
-/// component that draws one, and read back as written.
+/// A 3D renderable's own flags reach its renderable, a `debug_draw` beside
+/// it is the node's own component, and both read back as written.
 #[test]
-fn every_3d_renderable_takes_the_overlay_keys_and_reads_them_back() {
+fn every_3d_renderable_takes_its_flags_and_a_debug_drawing_beside_it() {
     let (_dir, app) = app();
-    let keys = "wireframe_width = 2.0\nwireframe_sizing = \"screen\"\nwireframe_color = [0.0, 1.0, 0.0, 1.0]\ndot_size = 3.0\ndraw_surface = false\nsegmentation_id = 9\nreceive_shadows = false";
+    let keys = "segmentation_id = 9\nreceive_shadows = false";
+    let drawing = "wireframe_width = 2.0\nwireframe_sizing = \"screen\"\nwireframe_color = [0.0, 1.0, 0.0, 1.0]\ndot_size = 3.0\ndraw_surface = false";
     let solid = node(&app);
     add(&app, solid, "shape3d", &format!("kind = \"box\"\n{keys}"));
     let cut = node(&app);
@@ -288,79 +289,82 @@ fn every_3d_renderable_takes_the_overlay_keys_and_reads_them_back() {
         &format!("operation = \"union\"\n{keys}"),
     );
     let words = node(&app);
-    add(
-        &app,
-        words,
-        "text3d",
-        &format!("text = \"hi\"\ndepth_test = false\n{keys}"),
-    );
+    add(&app, words, "text3d", &format!("text = \"hi\"\n{keys}"));
+    for entity in [solid, cut, words] {
+        add(&app, entity, "debug_draw", drawing);
+    }
     {
         let world = app.engine.world();
         let overlay = world.get::<&Renderable3d>(solid).unwrap().overlay;
-        assert!(!overlay.draw_surface);
         assert!(!overlay.receive_shadows);
         assert_eq!(overlay.segmentation_id, 9);
+        let debug = *world
+            .get::<&balaur_render::debug_draw::DebugDraw>(solid)
+            .unwrap();
+        assert!(!debug.draw_surface);
         assert_eq!(
-            overlay.wireframe_sizing,
-            balaur_render::overlay::Sizing::Screen
+            debug.wireframe_sizing,
+            balaur_render::debug_draw::Sizing::Screen
         );
         let text = world
             .get::<&balaur_render::world_text::TextRenderable>(words)
             .unwrap();
-        // Only the depth test differs: the block turned it off.
-        assert_eq!(
-            text.overlay_3d,
-            balaur_render::overlay::Overlay3d {
-                depth_test: false,
-                ..overlay
-            }
-        );
-        assert!(overlay.depth_test);
-        assert!(!text.in_space.depth_test);
+        assert_eq!(text.overlay_3d, overlay);
     }
     for (entity, key) in [(solid, "shape3d"), (cut, "boolean3d"), (words, "text3d")] {
-        let read = read(&app, entity, key);
+        let read_back = read(&app, entity, key);
+        assert_eq!(read_back["receive_shadows"].as_bool(), Some(false), "{key}");
+        assert_eq!(read_back["segmentation_id"].as_integer(), Some(9), "{key}");
+        let drawn = read(&app, entity, "debug_draw");
         assert!(
-            (read["wireframe_width"].as_float().unwrap() - 2.0).abs() < 1e-6,
+            (drawn["wireframe_width"].as_float().unwrap() - 2.0).abs() < 1e-6,
             "{key}"
         );
-        assert_eq!(read["receive_shadows"].as_bool(), Some(false), "{key}");
-        assert_eq!(read["segmentation_id"].as_integer(), Some(9), "{key}");
     }
 }
 
-/// The blend, wireframe, vertex and culling keys reach every 2D drawable,
-/// and a blend that is none of the words is refused.
+/// How a 2D drawable blends and culls is its material's `[surface]`: an
+/// inline one reaches the surface the node draws with, a node naming none
+/// leaves the blend to its texture and draws both sides, and a blend that is
+/// none of the words is refused.
 #[test]
-fn every_2d_drawable_takes_the_overlay_keys_and_refuses_an_unknown_blend() {
+fn a_2d_drawable_blends_and_culls_as_its_material_says() {
     let (_dir, app) = app();
-    let keys = "blend_mode = \"add\"\nwireframe_width = 1.5\ndot_color = [1.0, 0.0, 0.0, 1.0]\ncull_back_faces = true";
+    let material = "material = { surface = { alpha = \"add\", double_sided = false } }";
     let flat = node(&app);
-    add(&app, flat, "shape2d", &format!("kind = \"circle\"\n{keys}"));
+    add(
+        &app,
+        flat,
+        "shape2d",
+        &format!("kind = \"circle\"\n{material}"),
+    );
     let quad = node(&app);
-    add(&app, quad, "sprite", keys);
-    let sparks = node(&app);
-    add(&app, sparks, "particles2d", keys);
-    {
-        let world = app.engine.world();
-        let overlay = world.get::<&Renderable2d>(flat).unwrap().overlay;
-        assert_eq!(overlay.blend, balaur_render::overlay::BlendMode::Add);
-        assert!(overlay.cull_back_faces);
-        assert_eq!(world.get::<&Renderable2d>(quad).unwrap().overlay, overlay);
+    add(&app, quad, "sprite", material);
+    let named = |entity, key: &str| {
+        read(&app, entity, key)["material"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    for (entity, key) in [(flat, "shape2d"), (quad, "sprite")] {
+        let surface = balaur_render::material::flat_surface_of(&app.engine, &named(entity, key));
         assert_eq!(
-            world
-                .get::<&balaur_render::Particles>(sparks)
-                .unwrap()
-                .overlay,
-            overlay
+            surface.alpha,
+            balaur_render::material::AlphaMode::Add,
+            "{key}"
         );
+        assert!(!surface.double_sided_or(true), "{key} draws its back faces");
     }
-    for (entity, key) in [(flat, "shape2d"), (quad, "sprite"), (sparks, "particles2d")] {
-        let read = read(&app, entity, key);
-        assert_eq!(read["blend_mode"].as_str(), Some("add"), "{key}");
-        assert_eq!(read["cull_back_faces"].as_bool(), Some(true), "{key}");
-    }
+    let plain = balaur_render::material::flat_surface_of(&app.engine, "");
+    assert_eq!(plain.alpha, balaur_render::material::AlphaMode::Auto);
+    assert!(plain.double_sided_or(true), "a 2D node naming none culls");
     let refused = node(&app);
-    let table: toml::Value = toml::from_str("kind = \"circle\"\nblend_mode = \"lighten\"").unwrap();
-    assert!(components::add(&app.engine, refused, "shape2d", Some(&table)).is_err());
+    add(
+        &app,
+        refused,
+        "shape2d",
+        "kind = \"circle\"\nmaterial = { surface = { alpha = \"lighten\" } }",
+    );
+    let why = balaur_core::assets::load(&app.engine, &named(refused, "shape2d")).unwrap_err();
+    assert!(format!("{why:#}").contains("lighten"), "{why:#}");
 }

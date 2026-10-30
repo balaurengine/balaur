@@ -37,6 +37,7 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 
+use crate::components::Schema;
 use crate::engine::Engine;
 use crate::tags::{OVERRIDE, Tags};
 
@@ -128,15 +129,13 @@ pub fn define(eng: &Engine, def: SettingDef) {
     moved(eng);
 }
 
-/// Define a group at once: every key in `schema` becomes `<prefix>/<key>`.
+/// Define a group at once: every key in `schema` becomes `<prefix>/<key>`,
+/// in the order the schema writes them.
 ///
 /// A key may itself contain slashes, so one block can declare
 /// `appearance/theme` and `recordings/keep` under the same prefix.
-pub fn define_group(eng: &Engine, prefix: &str, scope: Scope, schema: &toml::Value) {
-    let Some(table) = schema.as_table() else {
-        return;
-    };
-    for (key, spec) in table {
+pub fn define_group(eng: &Engine, prefix: &str, scope: Scope, schema: &Schema) {
+    for (key, spec) in schema.ordered() {
         define(
             eng,
             SettingDef {
@@ -691,7 +690,7 @@ verify = { type = "bool", default = false, order = 11, help = "Hash the world ev
 /// `[import.<kind>]`: the defaults every file of a kind is read with, which a
 /// sidecar beside one file then overrides. The manifest is parsed once while
 /// starting, so a change here reaches the picture on the next run.
-fn build_import_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+fn build_import_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<Schema>) {
     define_group(
         eng,
         "import/texture",
@@ -756,7 +755,7 @@ lod_distance = { type = "float", default = 20.0, min = 0.01, order = 3, applies 
 
 /// `[time]`: how fast the simulation ticks, and whether the frames between
 /// two ticks are drawn.
-fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<Schema>) {
     define_group(
         eng,
         "time",
@@ -773,7 +772,7 @@ interpolate = { type = "bool", default = false, order = 2, applies = "restart", 
 
 /// `[window]` and `[ui]`: what a windowed build opens and draws with, which
 /// is the table a platform most often answers differently.
-fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<Schema>) {
     define_group(
         eng,
         "window",

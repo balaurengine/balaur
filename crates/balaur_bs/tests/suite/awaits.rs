@@ -9,7 +9,7 @@ const SCRIPT: &str = r#"
     extern async fn roll() -> int;
     extern fn say(text: str);
 
-    pub struct Guard { name: str, hp: int, log: [str] }
+    pub class Guard { name: str, hp: int, log: [str] }
 
     impl Guard {
         // Patrols `rounds` times, healing by whatever the host rolls each round.

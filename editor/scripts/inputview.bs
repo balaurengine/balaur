@@ -11,7 +11,7 @@ use util;
 /// What marks an action's name among the keys held: the panel's `ACTION`.
 pub const ACTION: str = "action:";
 
-pub struct View7 {
+pub struct View {
     shown: bool,
     factor: float,
     chips_x: float,
@@ -171,26 +171,26 @@ fn key_label(key: str) -> str {
 /// pixels a design pixel is, and where its chips sit, under the viewport
 /// where there is one. The start screen lays out none and focus mode gives
 /// the code the window, so in both they go by the window instead.
-pub fn view(S: editor::State) -> View7 {
-    let v = S.viewport;
-    let sh_1 = ui::window_size();
-    let sh = sh_1.at(1);
-    let staged = !manager::showing(S) && !S.focus && util::f(v.w) > 0.0;
-    let vx = if staged { util::f(v.x) } else { 0.0 };
-    let vy = if staged { util::f(v.y) } else { 0.0 };
-    let vh = if staged { util::f(v.h) } else { sh };
-    let dpi_2 = render::camera_pose();
-    let dpi = dpi_2.at(7);
-    View7 { shown: S.show_input, factor: dpi.as_float() * S.ui_scale, chips_x: vx + 130.0, chips_y: vy + vh.as_float() - 46.0 }
+pub fn view(state: editor::State) -> View {
+    let viewport_rect = state.viewport;
+    let window_size = ui::window_size();
+    let sh = window_size.at(1);
+    let staged = !manager::showing(state) && !state.focus && viewport_rect.width.as_float() > 0.0;
+    let vx = if staged { viewport_rect.x.as_float() } else { 0.0 };
+    let vy = if staged { viewport_rect.y.as_float() } else { 0.0 };
+    let vh = if staged { viewport_rect.height.as_float() } else { sh };
+    let pose = render::camera_pose();
+    let dpi = pose.at(7);
+    View { shown: state.show_input, factor: dpi.as_float() * state.ui_scale, chips_x: vx + 130.0, chips_y: vy + vh.as_float() - 46.0 }
 }
 
 /// A key's chip, or "" for a key worth none: the rest of the key list is
 /// media and numpad keys.
 pub fn chip_of(key: str) -> str {
-    if chip_of_any_0(key, KEYS()) { key_label(key) } else { "" }
+    if is_known_key(key, KEYS()) { key_label(key) } else { "" }
 }
 
-fn chip_of_any_0(key: str, items: [str]) -> bool {
+fn is_known_key(key: str, items: [str]) -> bool {
     for known in items {
         if known == key {
             return true;
@@ -201,8 +201,8 @@ fn chip_of_any_0(key: str, items: [str]) -> bool {
 
 /// Put a chip a name on the overlay's row: a key or a button held, an action
 /// pressed, each in the look it had.
-pub fn fill_chips(S: editor::State, names: [any]) {
-    let k = S.theme;
+pub fn fill_chips(state: editor::State, names: [any]) {
+    let tokens = state.theme;
     let out: [any] = [];
     for name in names {
         let action = name.starts_with(ACTION);
@@ -213,9 +213,9 @@ pub fn fill_chips(S: editor::State, names: [any]) {
             .with("font_size", style::MD)
             .with("font_weight", 700)
             .with("interactive", false)
-            .with("fill", (if action { k.get("bg_control") } else { k.get("primary_fill") }).as_str())
-            .with("stroke", (if action { k.get("primary_text") } else { "" }).as_str())
-            .with("text_color", (if action { k.get("primary_text") } else { k.get("text_on_primary") }).as_str()));
+            .with("fill", (if action { tokens.get("bg_control") } else { tokens.get("primary_fill") }).as_str())
+            .with("stroke", (if action { tokens.get("primary_text") } else { "" }).as_str())
+            .with("text_color", (if action { tokens.get("primary_text") } else { tokens.get("text_on_primary") }).as_str()));
     }
-    pool::strip(S, "Editor/InputView/Chips", out);
+    pool::strip(state, "Editor/InputView/Chips", out);
 }

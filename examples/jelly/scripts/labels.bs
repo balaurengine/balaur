@@ -1,7 +1,7 @@
 // Labels over each body, and the pictures the manual takes. The physics is
 // the scene's; nothing here moves anything.
 
-pub struct Labels {
+pub class Labels {
     pub shot: str = "",
     pub frames: str = "",
     node: Node,

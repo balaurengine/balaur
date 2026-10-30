@@ -61,18 +61,6 @@ pub(crate) fn slides(params: &toml::Value) -> bool {
 
 macro_rules! functions {
     (state = $State:ty, refit = $refit:path) => {
-        fn combine_name(rule: CoefficientCombineRule) -> &'static str {
-            use crate::vocabulary::words as w;
-            match rule {
-                CoefficientCombineRule::Min => w::MIN,
-                CoefficientCombineRule::Multiply => w::MULTIPLY,
-                CoefficientCombineRule::Max => w::MAX,
-                CoefficientCombineRule::ClampedSum => w::CLAMPED_SUM,
-                CoefficientCombineRule::GeometricMean => w::GEOMETRIC_MEAN,
-                CoefficientCombineRule::Average => w::AVERAGE,
-            }
-        }
-
         fn combine_rule(name: &str) -> CoefficientCombineRule {
             use crate::vocabulary::words as w;
             match name {
@@ -121,8 +109,11 @@ macro_rules! functions {
             test_key: &str,
         ) -> InteractionGroups {
             InteractionGroups::new(
-                Group::from_bits_truncate(v::layer_bits(params, memberships_key, false)),
-                Group::from_bits_truncate(v::layer_bits(params, filter_key, true)),
+                Group::from_bits_truncate(balaur_core::layers::bits(
+                    params.get(memberships_key),
+                    false,
+                )),
+                Group::from_bits_truncate(balaur_core::layers::bits(params.get(filter_key), true)),
                 test_mode(v::text(params, test_key, crate::vocabulary::words::BOTH)),
             )
         }
@@ -197,8 +188,6 @@ macro_rules! functions {
             map: &mut toml::map::Map<String, toml::Value>,
         ) {
             let f = |value: Real| toml::Value::Float(f64::from(value));
-            map.insert(k::RESTITUTION.into(), f(collider.restitution()));
-            map.insert(k::FRICTION.into(), f(collider.friction()));
             // Each of `mass` and `density` is derived from the other, so
             // reporting both would pin one on the next patch or re-save.
             let authored = |key: &str| map.get(key).and_then(balaur_core::components::as_f64);
@@ -227,29 +216,24 @@ macro_rules! functions {
             );
             map.insert(k::SENSOR.into(), collider.is_sensor().into());
             map.insert(k::ENABLED.into(), collider.is_enabled().into());
-            map.insert(
-                k::FRICTION_COMBINE.into(),
-                combine_name(collider.friction_combine_rule()).into(),
-            );
-            map.insert(
-                k::RESTITUTION_COMBINE.into(),
-                combine_name(collider.restitution_combine_rule()).into(),
-            );
             let groups = collider.collision_groups();
             map.insert(
                 k::COLLISION_LAYER.into(),
-                v::layer_names(groups.memberships.bits()),
+                balaur_core::layers::names(groups.memberships.bits()),
             );
             map.insert(
                 k::COLLISION_MASK.into(),
-                v::layer_names(groups.filter.bits()),
+                balaur_core::layers::names(groups.filter.bits()),
             );
             let solver = collider.solver_groups();
             map.insert(
                 k::SOLVER_LAYER.into(),
-                v::layer_names(solver.memberships.bits()),
+                balaur_core::layers::names(solver.memberships.bits()),
             );
-            map.insert(k::SOLVER_MASK.into(), v::layer_names(solver.filter.bits()));
+            map.insert(
+                k::SOLVER_MASK.into(),
+                balaur_core::layers::names(solver.filter.bits()),
+            );
             map.insert(
                 k::COLLISION_TEST.into(),
                 test_mode_name(groups.test_mode).into(),

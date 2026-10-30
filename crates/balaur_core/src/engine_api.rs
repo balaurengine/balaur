@@ -13,11 +13,11 @@ use balaur_script::{Bindings as _, Value};
 
 use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
-    assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
-    dark_mode, device_id, encoding_base64, encoding_from_base64, environment, focused, hash_sha256,
-    hash_sha256_text, log_clear, log_error, log_file, log_info, log_print, log_recent, log_since,
-    log_warn, platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
-    strings_system_locale, unix_time,
+    assets_invalidate, assets_kind_of, assets_load, assets_path, assets_reload, assets_rename,
+    assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_from_base64,
+    environment, focused, hash_sha256, hash_sha256_text, log_clear, log_error, log_file, log_info,
+    log_print, log_recent, log_since, log_warn, platform, rng_int, rng_random, rng_range, rng_seed,
+    rng_uuid, scene_tagged, strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -96,6 +96,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
+        name: "set_content_root",
+        call: engine_set_content_root,
+    },
+    EngineOp {
+        module: "engine",
         name: "environment",
         call: environment,
     },
@@ -168,6 +173,26 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "scene",
         name: "instantiate",
         call: instantiate,
+    },
+    EngineOp {
+        module: "scene",
+        name: "to_toml",
+        call: to_toml,
+    },
+    EngineOp {
+        module: "scene",
+        name: "attach_scripts",
+        call: attach_scripts,
+    },
+    EngineOp {
+        module: "scene",
+        name: "keep_changes",
+        call: keep_changes,
+    },
+    EngineOp {
+        module: "scene",
+        name: "take_changes",
+        call: take_changes,
     },
     EngineOp {
         module: "scene",
@@ -356,11 +381,6 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "strings",
-        name: "set_root",
-        call: strings_set_root,
-    },
-    EngineOp {
-        module: "strings",
         name: "system_locale",
         call: strings_system_locale,
     },
@@ -418,6 +438,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "assets",
         name: "directory",
         call: assets_directory,
+    },
+    EngineOp {
+        module: "assets",
+        name: "schema",
+        call: assets_schema,
+    },
+    EngineOp {
+        module: "assets",
+        name: "kind_of",
+        call: assets_kind_of,
     },
     EngineOp {
         module: "assets",
@@ -904,15 +934,57 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
-    let attach = match args.get(2) {
-        Some(Value::Map(pairs)) => !pairs
-            .iter()
-            .any(|(k, v)| k == "scripts" && matches!(v, Value::Bool(false))),
-        _ => true,
-    };
+    let attach = !matches!(option(args, 2, "scripts"), Some(Value::Bool(false)));
     let before = scene::child_count(&eng.world(), base);
-    crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?;
+    match option(args, 2, "root") {
+        Some(Value::Str(root)) => crate::project::instantiate_scene_from_root(
+            eng,
+            text(args, 0)?,
+            base,
+            attach,
+            std::path::Path::new(root.as_str()),
+        )?,
+        _ => crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?,
+    }
     scene::announce_added_since(eng, base, before);
+    Ok(Value::Nil)
+}
+
+/// One entry of the options table at `i`, nil when there is no table.
+fn option<'a>(args: &'a [Value], i: usize, key: &str) -> Option<&'a Value> {
+    match args.get(i) {
+        Some(Value::Map(pairs)) => pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+        _ => None,
+    }
+}
+
+/// `scene.to_toml(root, opts)`: the scene under a node as a scene file's text.
+fn to_toml(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let root =
+        optional_node(args, 0)?.ok_or_else(|| anyhow!("to_toml needs the scene's root node"))?;
+    let owner = match option(args, 1, "root") {
+        Some(Value::Str(owner)) => Some(std::path::PathBuf::from(owner.as_str())),
+        _ => None,
+    };
+    let document = crate::scene_toml::to_toml(eng, root, owner.as_deref())?;
+    Ok(Value::Str(toml::to_string(&document)?))
+}
+
+/// `scene.keep_changes(root)`: keep every change under a node, nil stops.
+fn keep_changes(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::changes::keep_changes(eng, optional_node(args, 0)?);
+    Ok(Value::Nil)
+}
+
+/// `scene.take_changes()`: the changes kept since the last take.
+fn take_changes(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::List(crate::changes::take_changes(eng)))
+}
+
+/// `scene.attach_scripts(root)`: run every script the nodes under it name.
+fn attach_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let root = optional_node(args, 0)?.ok_or_else(|| anyhow!("attach_scripts needs a node"))?;
+    crate::project::attach_scripts(eng, root)?;
     Ok(Value::Nil)
 }
 
@@ -1045,8 +1117,14 @@ fn warnings(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     let registry = eng.resource::<crate::components::ComponentRegistry>();
     let registry = registry.borrow();
+    // In the order the schema writes them, which is the order to show them.
     registry.def(text(args, 0)?).map_or(Ok(Value::Nil), |def| {
-        crate::node_api::from_toml(&def.schema)
+        Ok(Value::Map(
+            def.schema
+                .ordered()
+                .map(|(name, spec)| Ok((name.into(), crate::node_api::from_toml(spec)?)))
+                .collect::<Result<_>>()?,
+        ))
     })
 }
 
@@ -1076,8 +1154,8 @@ fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-fn strings_set_root(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::strings::set_root(eng, text(args, 0)?);
+fn engine_set_content_root(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::project::set_content_root(eng, text(args, 0)?);
     Ok(Value::Nil)
 }
 

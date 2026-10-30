@@ -151,8 +151,8 @@ impl Scope<'_> {
             Recv::Ty(Ty::Node) => self.host.function(&format!("node.{name}"))?.ret.clone(),
             Recv::Component(c) => self.host.function(&format!("node.{c}.{name}"))?.ret.clone(),
             Recv::Ty(Ty::Str) if name == "len" => Ty::Int,
-            Recv::Ty(Ty::Str) => crate::strings::ty(crate::strings::method(name)?.ret),
-            Recv::Ty(Ty::Any) => crate::anys::ty(crate::anys::method(name)?.ret),
+            Recv::Ty(Ty::Str) => prelude_ret("str", name)?,
+            Recv::Ty(Ty::Any) => prelude_ret("any", name)?,
             Recv::Ty(Ty::Array(t)) => match name {
                 "len" => Ty::Int,
                 "pop" | "remove" => (**t).clone(),
@@ -274,23 +274,13 @@ impl Scope<'_> {
             }
             Recv::Ty(Ty::Str) => {
                 add("len", Kind::Method, "fn len() -> int".into());
-                for m in crate::strings::METHODS {
-                    let params: Vec<Ty> = m.params.iter().map(|k| crate::strings::ty(*k)).collect();
-                    add(
-                        m.name,
-                        Kind::Method,
-                        signature(m.name, &params, &crate::strings::ty(m.ret)),
-                    );
+                for (name, params, ret) in crate::prelude::methods("str") {
+                    add(&name, Kind::Method, signature(&name, &params, &ret));
                 }
             }
             Recv::Ty(Ty::Any) => {
-                for m in crate::anys::METHODS {
-                    let params: Vec<Ty> = m.params.iter().map(|a| crate::anys::ty(*a)).collect();
-                    add(
-                        m.name,
-                        Kind::Method,
-                        signature(m.name, &params, &crate::anys::ty(m.ret)),
-                    );
+                for (name, params, ret) in crate::prelude::methods("any") {
+                    add(&name, Kind::Method, signature(&name, &params, &ret));
                 }
             }
             Recv::Ty(Ty::Array(_)) => {
@@ -309,4 +299,12 @@ impl Scope<'_> {
         }
         out
     }
+}
+
+// What the prelude's method `name` of a built-in type gives.
+fn prelude_ret(ty: &str, name: &str) -> Option<Ty> {
+    crate::prelude::methods(ty)
+        .into_iter()
+        .find(|method| method.0 == name)
+        .map(|method| method.2)
 }

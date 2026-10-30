@@ -1,0 +1,49 @@
+// Nothing to save: an edit to the scene is written to its file once the
+// edits stop for a moment, so a closed tab or a crash loses at most that
+// moment. A script stays the code panel's to write, since writing one is
+// compiling it.
+
+use anim;
+use editor;
+use history;
+use manager;
+use model;
+
+// Seconds without a new edit before the scene is written: past a drag's last
+// frame and a typed number's last key, short of anyone reaching for a save.
+pub const SETTLE: float = 0.6;
+
+/// Write the scene if it has changed and the edits have settled by `now`, a
+/// wall clock in seconds; answers whether it wrote. Not while a game plays,
+/// whose scene is the run's rather than the file's, nor while isolate hides
+/// part of it, nor mid-drag, nor for a dependency's scene, which is read-only.
+pub fn write_settled(state: &mut editor::State, now: float) -> bool {
+    if !history::dirty(state) || state.playing || state.isolated || state.gizmo.drag.is_some() || manager::showing(state) || model::read_only(state) {
+        return false;
+    }
+    if now - state.history.at < SETTLE {
+        return false;
+    }
+    anim::save(state);
+    model::write(state);
+    true
+}
+
+/// Once a frame. A run started with `--state` is a script's, a self-test's
+/// or a showcase's, and keeps its edits off the project's files: a suite's
+/// states each open the project as the last one left it on disk.
+pub fn step(state: &mut editor::State) {
+    if scripted(state) {
+        return;
+    }
+    write_settled(state, engine::unix_time());
+}
+
+fn scripted(state: editor::State) -> bool {
+    state.start_states != "" || state.suite.is_some()
+}
+
+/// Whether an edit waits to be written, which asks for the frame that writes it.
+pub fn waiting(state: editor::State) -> bool {
+    !scripted(state) && history::dirty(state) && !state.playing && !state.isolated && !manager::showing(state) && !model::read_only(state)
+}

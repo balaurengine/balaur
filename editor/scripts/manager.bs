@@ -4,7 +4,6 @@
 
 use editor;
 use icons;
-use inspector;
 use pool;
 use signals;
 use style;
@@ -122,70 +121,70 @@ pub fn in_tab() -> bool {
 }
 
 /// The `manager` start state: show the screen instead of the docks.
-pub fn open(S: &mut editor::State) {
-    S.manager.on = true;
-    S.manager.read = false;
-    S.manager.back = false;
-    told(S);
+pub fn open(state: &mut editor::State) {
+    state.manager.on = true;
+    state.manager.read = false;
+    state.manager.back = false;
+    told(state);
     // The other two pages are not offered in a tab, so neither is a state
     // that left the screen on one of them.
     if in_tab() {
-        S.manager.tab = "projects";
+        state.manager.tab = "projects";
     }
 }
 
 /// The screen, on its examples half.
-pub fn open_examples(S: &mut editor::State) {
-    open(S);
-    S.manager.tab = "examples";
-    told(S);
+pub fn open_examples(state: &mut editor::State) {
+    open(state);
+    state.manager.tab = "examples";
+    told(state);
 }
 
 /// The screen with the New project sheet up, for a shot and for the palette.
-pub fn open_new(S: &mut editor::State) {
-    open(S);
-    window::show(S, NEW_SHEET);
+pub fn open_new(state: &mut editor::State) {
+    open(state);
+    window::show(state, NEW_SHEET);
 }
 
 /// The screen, on its engine half: what `--state versions` opens.
-pub fn open_versions(S: &mut editor::State) {
-    open(S);
-    S.manager.tab = "engine";
-    told(S);
+pub fn open_versions(state: &mut editor::State) {
+    open(state);
+    state.manager.tab = "engine";
+    told(state);
 }
 
 /// Ask for a folder and open what is in it, without the screen in between.
-pub fn pick(S: &mut editor::State) {
+pub fn pick(state: &mut editor::State) {
     let picked = project::pick_directory();
     if picked.is_some() {
-        go(S, picked.unwrap());
+        go(state, picked.unwrap());
         return;
     }
-    open_over(S);
+    open_over(state);
 }
 
 /// The screen over the open project, with the way back to it: what the
 /// palette opens. A start state opens the screen a bare launch shows.
-pub fn open_over(S: &mut editor::State) {
-    open(S);
-    S.manager.back = S.game_root != "";
-    told(S);
+pub fn open_over(state: &mut editor::State) {
+    open(state);
+    state.manager.back = state.game_root != "";
+    told(state);
 }
 
 /// Back to the project the screen was opened over. Opening another quits
 /// this process, so without this the only way out was a restart.
-pub fn close(S: &mut editor::State) {
-    if S.manager.back {
-        S.manager.on = false;
-        S.manager.back = false;
-        told(S);
+pub fn close(state: &mut editor::State) {
+    if state.manager.back {
+        state.manager.on = false;
+        state.manager.back = false;
+        told(state);
     }
 }
 
 /// Where a control the showcase points at sits, in design px, by the name it
 /// knows it as: a tab by its id, or one of the Projects tab's verbs; `None`
 /// before it has drawn.
-pub fn spot(S: editor::State, name: str) -> Spot? {
+pub fn spot(state: editor::State, name: str) -> Spot? {
     let node = if name == "new" {
         scene::get_node(TOOLS() + "/New")
     } else {
@@ -207,9 +206,9 @@ fn tab_node(id: str) -> Node {
     }
     let ids = tabs();
     let kids = host.children();
-    for i in 0..ids.len() {
-        if ids[i][0] == id && i < kids.len() {
-            return kids[i];
+    for index in 0..ids.len() {
+        if ids[index][0] == id && index < kids.len() {
+            return kids[index];
         }
     }
     nil
@@ -217,8 +216,8 @@ fn tab_node(id: str) -> Node {
 
 /// Whether the screen has the window. A run with no project is the screen
 /// whether or not anybody asked for it: there is nothing else to hold.
-pub fn showing(S: editor::State) -> bool {
-    S.manager.on || S.game_root == ""
+pub fn showing(state: editor::State) -> bool {
+    state.manager.on || state.game_root == ""
 }
 
 fn tabs() -> [[str]] {
@@ -236,18 +235,18 @@ fn narrow(col: float) -> bool {
     col < 600.0
 }
 
-fn refresh(S: &mut editor::State) {
-    if S.manager.read {
+fn refresh(state: &mut editor::State) {
+    if state.manager.read {
         return;
     }
-    S.manager.read = true;
-    S.manager.recent = project::recent();
-    if S.manager.parent == "" {
-        S.manager.parent = project::home();
+    state.manager.read = true;
+    state.manager.recent = project::recent();
+    if state.manager.parent == "" {
+        state.manager.parent = project::home();
     }
-    if S.manager.follow == "" {
+    if state.manager.follow == "" {
         let mine = util::obj(release::installed()).get("channel").as_str();
-        S.manager.follow = if mine == "" { "nightly" } else { mine };
+        state.manager.follow = if mine == "" { "nightly" } else { mine };
     }
 }
 
@@ -286,33 +285,33 @@ fn PAGE() -> str {
 /// Fill the start screen: its head, its tabs and the page under them, from
 /// what this machine has opened, the examples and the release feed. What
 /// its script asks for on `manager_changed` and when it was resized.
-pub fn fill(S: &mut editor::State) {
-    if !S.manager.on {
+pub fn fill(state: &mut editor::State) {
+    if !state.manager.on {
         util::hide(GROUND);
-        cover(S, false);
+        cover(state, false);
         return;
     }
-    refresh(S);
-    let k = S.theme;
+    refresh(state);
+    let tokens = state.theme;
     // The screen is the window: a project's own widgets are not behind this.
     ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);
     util::fill(GROUND, map().with("visible", true));
-    cover(S, true);
-    pool::strip(S, HEAD_NODE(), head_controls(S, k));
-    pool::strip(S, TABS_NODE(), tab_controls(S));
+    cover(state, true);
+    pool::strip(state, HEAD_NODE(), head_controls(state, tokens));
+    pool::strip(state, TABS_NODE(), tab_controls(state));
     let col = page_w();
-    head_note(S, k);
-    tools(S);
-    let specs = if S.manager.tab == "engine" {
-        engine_specs(S, k, col)
-    } else if S.manager.tab == "examples" {
-        examples_specs(S, k, col)
-    } else if S.manager.tab == "forge" {
-        forge_specs(S, k, col)
+    head_note(state, tokens);
+    tools(state);
+    let specs = if state.manager.tab == "engine" {
+        engine_specs(state, tokens, col)
+    } else if state.manager.tab == "examples" {
+        examples_specs(state, tokens, col)
+    } else if state.manager.tab == "forge" {
+        forge_specs(state, tokens, col)
     } else {
-        projects_specs(S, k, col)
+        projects_specs(state, tokens, col)
     };
-    pool::sync(S, PAGE(), specs, 0.0, false);
+    pool::sync(state, PAGE(), specs, 0.0, false);
 }
 
 // The page's width, as it was laid out: the widest the screen draws, whatever
@@ -327,51 +326,51 @@ fn page_w() -> float {
 }
 
 /// The Projects tab's filter, as it is typed.
-pub fn set_filter(S: &mut editor::State, text: str) {
-    S.manager.filter = text;
-    told(S);
+pub fn set_filter(state: &mut editor::State, text: str) {
+    state.manager.filter = text;
+    told(state);
 }
 
 /// The Projects tab's verbs, by the name of the button pressed.
-pub fn verb(S: &mut editor::State, name: str) {
+pub fn verb(state: &mut editor::State, name: str) {
     if name == "New" {
-        window::show(S, NEW_SHEET);
+        window::show(state, NEW_SHEET);
         return;
     }
     let picked = project::pick_directory();
     if picked.is_none() {
         return;
     }
-    go(S, picked.unwrap());
-    told(S);
+    go(state, picked.unwrap());
+    told(state);
 }
 
 // What the head says under itself: a note or a failure, and a job's bar.
-fn head_note(S: editor::State, k: any) {
-    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
+fn head_note(state: editor::State, tokens: any) {
+    let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     util::fill(NOTE(), map()
         .with("visible", said != "")
         .with("text", said)
-        .with("text_color", if S.manager.failed != "" { k.get("warning_text") } else { k.get("text_subtle") }));
-    let controls = if installing(S) {
-        progress_controls(S)
+        .with("text_color", if state.manager.failed != "" { tokens.get("warning_text") } else { tokens.get("text_subtle") }));
+    let controls = if installing(state) {
+        progress_controls(state)
     } else {
         []
     };
     util::fill(PROGRESS(), map().with("visible", controls.len() > 0));
-    pool::strip(S, PROGRESS(), controls);
+    pool::strip(state, PROGRESS(), controls);
 }
 
 // The filter and the three verbs, up on the Projects tab. A tab has no folder
 // picker and nowhere to write a template: the page it runs in is what starts
 // a project there, and this screen reopens one.
-fn tools(S: editor::State) {
-    let up = S.manager.tab == "projects";
+fn tools(state: editor::State) {
+    let up = state.manager.tab == "projects";
     let acting = !in_tab();
     util::fill(TOOLS(), map().with("visible", up));
-    util::fill(TOOLS() + "/Filter", map().with("text", S.manager.filter));
+    util::fill(TOOLS() + "/Filter", map().with("text", state.manager.filter));
     util::fill(TOOLS() + "/Open", map()
-        .with("visible", acting && !S.touchscreen)
+        .with("visible", acting && !state.touchscreen)
         .with("icon", icons::panel("assets")));
     util::fill(TOOLS() + "/New", map().with("visible", acting).with("icon", icons::ui("add")));
 }
@@ -399,21 +398,21 @@ fn rule() -> any {
         .with("controls", [map().with("kind", "separator").with("grow", 1)])
 }
 
-fn projects_specs(S: editor::State, k: any, col: float) -> [any] {
-    let rows: [any] = shown(S);
+fn projects_specs(state: editor::State, tokens: any, col: float) -> [any] {
+    let rows: [any] = shown(state);
     if rows.len() == 0 {
         let empty = if in_tab() {
             "This browser keeps no projects yet. The page opens one, and it is listed here after that."
         } else {
             "Nothing opened on this machine yet. Start from an example, or make one."
         };
-        let why = if S.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
-        let none = [say(why, k.get("text_subtle").as_str())];
+        let why = if state.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
+        let none = [say(why, tokens.get("text_subtle").as_str())];
         return none;
     }
     let out: [any] = [];
     for row in rows {
-        out.push(project_spec(S, k, col, util::obj(row)));
+        out.push(project_spec(state, tokens, col, util::obj(row)));
         out.push(rule());
     }
     out
@@ -422,12 +421,12 @@ fn projects_specs(S: editor::State, k: any, col: float) -> [any] {
 // Two lines: the name a click opens, and the folder under it. What a row says
 // about itself, when and with which engine, sits at the right edge, and a
 // phone shows when it was opened and nothing else.
-fn project_spec(S: editor::State, k: any, col: float, row: any) -> any {
+fn project_spec(state: editor::State, tokens: any, col: float, row: any) -> any {
     let here = row.get("path");
-    let got1 = row.get("exists");
-    let gone = if got1.is_nil() { true } else { got1.as_bool() } != true;
+    let exists = row.get("exists");
+    let gone = if exists.is_nil() { true } else { exists.as_bool() } != true;
     let built = row.get("version").as_str();
-    let line = util::max(style::row_h(S), 28.0);
+    let line = util::max(style::row_h(state), 28.0);
     let controls: [any] = [
         // The engine's mark: a project keeps its own icon, and none of them
         // is open, so the row wears the editor's.
@@ -448,9 +447,9 @@ fn project_spec(S: editor::State, k: any, col: float, row: any) -> any {
                     .with("text_align", "start")
                     .with("icon", if gone { icons::panel("problems") } else { "" })
                     .with("tooltip", here)
-                    .with("text_color", if gone { k.get("text_subtle") } else { k.get("text_default") })
+                    .with("text_color", if gone { tokens.get("text_subtle") } else { tokens.get("text_default") })
                     .with("on", "handle")
-                    .with("data", map().with("fn", project_spec_on_1).with("gone", gone).with("here", here)),
+                    .with("data", map().with("fn", on_project_pressed).with("gone", gone).with("here", here)),
                 map()
                     .with("kind", "label")
                     .with("role", "text_code_quiet")
@@ -476,7 +475,7 @@ fn project_spec(S: editor::State, k: any, col: float, row: any) -> any {
         .with("icon", icons::ui("close"))
         .with("tooltip", "Forget this project")
         .with("on", "handle")
-        .with("data", map().with("fn", project_spec_on_2).with("here", here)));
+        .with("data", map().with("fn", on_forget_pressed).with("here", here)));
     map()
         .with("full", true)
         .with("height", util::max(line + 22.0, 56.0))
@@ -484,40 +483,40 @@ fn project_spec(S: editor::State, k: any, col: float, row: any) -> any {
         .with("controls", controls)
 }
 
-fn project_spec_on_1(S: &mut editor::State, data: any, _0: any) {
+fn on_project_pressed(state: &mut editor::State, data: any, _value: any) {
     let gone: bool = data.gone;
     let here: any = data.here;
     if !gone {
-        go(S, here.as_str());
+        go(state, here.as_str());
     }
 }
 
-fn project_spec_on_2(S: &mut editor::State, data: any, _0: any) {
+fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
     let here: any = data.here;
     project::forget(here.as_str());
-    S.manager.read = false;
-    told(S);
+    state.manager.read = false;
+    told(state);
 }
 
-fn examples_specs(S: editor::State, k: any, col: float) -> [any] {
+fn examples_specs(state: editor::State, tokens: any, col: float) -> [any] {
     let rows = util::vec(project::examples());
     if rows.len() == 0 {
-        let none = [say("No examples ship beside this build.", k.get("text_subtle").as_str())];
+        let none = [say("No examples ship beside this build.", tokens.get("text_subtle").as_str())];
         return none;
     }
     let across = if narrow(col) { 1 } else if col < 760.0 { 2 } else { 3 };
     // Floored: three cards and two seams have to add up to the column, and a
     // third of a pixel each puts the last one past its edge.
-    let card_w = math::floor((col - util::f(across - 1) * SEAM) / util::f(across));
+    let card_w = math::floor((col - (across - 1).as_float() * SEAM) / across.as_float());
     let cover_h = math::floor(card_w / COVER_ASPECT);
     let out: [any] = [];
-    let n = 0;
-    while n < rows.len() {
+    let start = 0;
+    while start < rows.len() {
         let cards: [any] = [];
-        let c = 0;
-        while c < across && n + c < rows.len() {
-            cards.push(example_card(S, k, card_w, cover_h, util::obj(rows.at(n + c))));
-            c += 1;
+        let column = 0;
+        while column < across && start + column < rows.len() {
+            cards.push(example_card(state, tokens, card_w, cover_h, util::obj(rows.at(start + column))));
+            column += 1;
         }
         out.push(map()
             .with("full", true)
@@ -525,22 +524,22 @@ fn examples_specs(S: editor::State, k: any, col: float) -> [any] {
             .with("controls", [
                 map().with("kind", "row").with("gap", [SEAM, SEAM]).with("controls", cards),
             ]));
-        n += across;
+        start += across;
     }
-    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", k.get("text_subtle").as_str()));
+    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", tokens.get("text_subtle").as_str()));
     out
 }
 
 // The picture, the name and the line under it, on a panel the whole of which
 // a click opens a copy of: a button with nothing in it laid over the card.
-fn example_card(S: editor::State, k: any, w: float, cover_h: float, row: any) -> any {
+fn example_card(state: editor::State, tokens: any, width: float, cover_h: float, row: any) -> any {
     let id = row.get("id");
     let cover = row.get("cover").as_str();
     let picture = if cover != "" {
         map()
             .with("kind", "image")
             .with("image", cover)
-            .with("width", w)
+            .with("width", width)
             .with("height", cover_h)
             .with("fit", "cover")
             .with("corner_radius", 12)
@@ -550,7 +549,7 @@ fn example_card(S: editor::State, k: any, w: float, cover_h: float, row: any) ->
         // as a project rather than a blank.
         map()
             .with("kind", "row")
-            .with("width", w)
+            .with("width", width)
             .with("height", cover_h)
             .with("corner_radius", 0)
             .with("justify", "center")
@@ -562,10 +561,10 @@ fn example_card(S: editor::State, k: any, w: float, cover_h: float, row: any) ->
     };
     map()
         .with("kind", "panel")
-        .with("fill", k.get("bg_panel"))
+        .with("fill", tokens.get("bg_panel"))
         .with("corner_radius", 12)
         .with("padding", 0)
-        .with("width", w)
+        .with("width", width)
         .with("gap", [0, 2])
         .with("controls", [
             picture,
@@ -591,32 +590,32 @@ fn example_card(S: editor::State, k: any, w: float, cover_h: float, row: any) ->
                 .with("text", "")
                 .with("absolute", true)
                 .with("inset", [0.0, 0.0, 0.0, 0.0])
-                .with("tooltip", "Copy into " + S.manager.parent)
+                .with("tooltip", "Copy into " + state.manager.parent)
                 .with("on", "handle")
-                .with("data", map().with("fn", example_card_on_3).with("id", id)),
+                .with("data", map().with("fn", on_example_pressed).with("id", id)),
         ])
 }
 
-fn example_card_on_3(S: &mut editor::State, data: any, _0: any) {
+fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
     let id: any = data.id;
-    open_example(S, id.as_str());
+    open_example(state, id.as_str());
 }
 
 // Public projects on Forge, one row each, a click opening a copy in the
 // projects folder as an example does. The first look asks Forge.
-fn forge_specs(S: &mut editor::State, k: any, col: float) -> [any] {
-    if !S.manager.forge_asked {
-        S.manager.forge_asked = forge::search("", "");
+fn forge_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
+    if !state.manager.forge_asked {
+        state.manager.forge_asked = forge::search("", "");
     }
     let out: [any] = [];
-    if S.manager.copying != "" {
-        out.push(say("Copying {S.manager.copying} into {S.manager.parent}", k.get("text_subtle").as_str()));
+    if state.manager.copying != "" {
+        out.push(say("Copying {state.manager.copying} into {state.manager.parent}", tokens.get("text_subtle").as_str()));
     }
-    if S.manager.forge.len() == 0 {
-        out.push(say(if S.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, k.get("text_subtle").as_str()));
+    if state.manager.forge.len() == 0 {
+        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, tokens.get("text_subtle").as_str()));
         return out;
     }
-    for row in S.manager.forge {
+    for row in state.manager.forge {
         let project = row.get("project").as_str();
         let tags = "";
         for tag in util::vec(row.get("tags")) {
@@ -629,7 +628,7 @@ fn forge_specs(S: &mut editor::State, k: any, col: float) -> [any] {
             .with("controls", [
                 map()
                     .with("kind", "panel")
-                    .with("fill", k.get("bg_panel"))
+                    .with("fill", tokens.get("bg_panel"))
                     .with("corner_radius", 10)
                     .with("padding", [12, 6, 12, 6])
                     .with("width", col)
@@ -644,65 +643,65 @@ fn forge_specs(S: &mut editor::State, k: any, col: float) -> [any] {
                             .with("text", "")
                             .with("absolute", true)
                             .with("inset", [0.0, 0.0, 0.0, 0.0])
-                            .with("tooltip", "Copy into " + S.manager.parent)
+                            .with("tooltip", "Copy into " + state.manager.parent)
                             .with("on", "handle")
-                            .with("data", map().with("fn", forge_row_on).with("project", project)),
+                            .with("data", map().with("fn", copy_forge_project).with("project", project)),
                     ]),
             ]));
     }
-    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", k.get("text_subtle").as_str()));
+    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", tokens.get("text_subtle").as_str()));
     out
 }
 
-fn forge_row_on(S: &mut editor::State, data: any, _0: any) {
+fn copy_forge_project(state: &mut editor::State, data: any, _value: any) {
     let project = data.get("project").as_str();
-    if S.manager.copying == "" && forge::copy(project, S.manager.parent) {
-        S.manager.copying = project;
-        told(S);
+    if state.manager.copying == "" && forge::copy(project, state.manager.parent) {
+        state.manager.copying = project;
+        told(state);
     }
 }
 
 /// A Forge job reported: the projects a search found, or a copy made.
-pub fn forge_heard(S: &mut editor::State, e: any) {
-    let kind = e.get("kind").as_str();
+pub fn forge_heard(state: &mut editor::State, event: any) {
+    let kind = event.get("kind").as_str();
     if kind == "listed" {
-        S.manager.forge = util::vec(e.get("rows"));
+        state.manager.forge = util::vec(event.get("rows"));
     } else if kind == "copied" {
-        S.manager.copying = "";
-        go(S, e.get("path").as_str());
+        state.manager.copying = "";
+        go(state, event.get("path").as_str());
         return;
-    } else if kind == "failed" && (e.get("job").as_str() == "copy" || e.get("job").as_str() == "search") {
-        S.manager.copying = "";
-        S.manager.failed = e.get("message").as_str();
+    } else if kind == "failed" && (event.get("job").as_str() == "copy" || event.get("job").as_str() == "search") {
+        state.manager.copying = "";
+        state.manager.failed = event.get("message").as_str();
     } else {
         return;
     }
-    told(S);
+    told(state);
 }
 
 /// Copy an example into the projects folder and open the copy.
-fn open_example(S: &mut editor::State, id: str) {
-    let made = util::obj(project::copy_example(id, S.manager.parent));
+fn open_example(state: &mut editor::State, id: str) {
+    let made = util::obj(project::copy_example(id, state.manager.parent));
     let failed = made.get("error");
     if !failed.is_nil() {
         let why = failed;
-        S.manager.failed = why.as_str();
-        told(S);
+        state.manager.failed = why.as_str();
+        told(state);
         return;
     }
-    go(S, made.get("path").as_str());
+    go(state, made.get("path").as_str());
 }
 
 // What this build is, which line it follows, and every release the project
 // has published. The same code `balaur update` runs, so the screen and the
 // command cannot disagree.
-fn engine_specs(S: &mut editor::State, k: any, col: float) -> [any] {
-    if !S.manager.asked {
-        check(S);
+fn engine_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
+    if !state.manager.asked {
+        check(state);
     }
     let mine = util::obj(release::installed());
-    let h = util::max(style::row_h(S), 30.0);
-    let newest = newest_on(S, S.manager.follow);
+    let row_height = util::max(style::row_h(state), 30.0);
+    let newest = newest_on(state, state.manager.follow);
     let head: [any] = [
         map()
             .with("kind", "column")
@@ -718,19 +717,19 @@ fn engine_specs(S: &mut editor::State, k: any, col: float) -> [any] {
             .with("kind", "label")
             .with("role", "text_code_quiet")
             .with("font_size", 11)
-            .with("text", standing(S, S.manager.follow))
-            .with("text_color", (if fresh { k.get("success_text") } else { k.get("text_subtle") }).as_str()));
+            .with("text", standing(state, state.manager.follow))
+            .with("text_color", (if fresh { tokens.get("success_text") } else { tokens.get("text_subtle") }).as_str()));
     }
     head.push(map()
         .with("kind", "button")
         .with("role", "action_form")
         .with("icon", icons::ui("reset"))
-        .with("text", if S.manager.reading { "Checking" } else { "Check" })
+        .with("text", if state.manager.reading { "Checking" } else { "Check" })
         .with("on", "handle")
-        .with("data", map().with("fn", engine_specs_on_4)));
+        .with("data", map().with("fn", on_check_pressed)));
     let out = [map().with("full", true).with("height", 44).with("slot_role", "layout_actions").with("controls", head)];
     if mine.get("held").as_str() != "" {
-        out.push(say(mine.get("held").as_str(), k.get("text_subtle").as_str()));
+        out.push(say(mine.get("held").as_str(), tokens.get("text_subtle").as_str()));
     }
     let lines: [any] = [map().with("kind", "label").with("role", "text_caption").with("text", "Follow").with("width", 60)];
     for name in util::vec(release::channels()) {
@@ -740,36 +739,36 @@ fn engine_specs(S: &mut editor::State, k: any, col: float) -> [any] {
             .with("kind", "button")
             .with("role", "chip")
             .with("text", line)
-            .with("checked", S.manager.follow == line.as_str())
+            .with("checked", state.manager.follow == line.as_str())
             .with("on", "handle")
-            .with("data", map().with("fn", engine_specs_on_5).with("line", line)));
+            .with("data", map().with("fn", on_line_pressed).with("line", line)));
     }
-    out.push(map().with("full", true).with("height", h + 6.0).with("slot_role", "layout_actions").with("controls", lines));
-    release_specs(S, k, h, mine, out);
+    out.push(map().with("full", true).with("height", row_height + 6.0).with("slot_role", "layout_actions").with("controls", lines));
+    release_specs(state, tokens, row_height, mine, out);
     out
 }
 
-fn engine_specs_on_4(S: &mut editor::State, data: any, _0: any) {
-    check(S);
+fn on_check_pressed(state: &mut editor::State, data: any, _value: any) {
+    check(state);
 }
 
-fn engine_specs_on_5(S: &mut editor::State, data: any, _0: any) {
+fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
     let line: any = data.line;
-    S.manager.follow = line.as_str();
-    told(S);
+    state.manager.follow = line.as_str();
+    told(state);
 }
 
-fn release_specs(S: editor::State, k: any, h: float, mine: any, out: [any]) {
+fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [any]) {
     let rows: [any] = [];
-    for entry in S.manager.releases {
+    for entry in state.manager.releases {
         let row = util::obj(entry);
-        if row.get("channel").as_str() == S.manager.follow {
+        if row.get("channel").as_str() == state.manager.follow {
             rows.push(row);
         }
     }
     if rows.len() == 0 {
-        let empty = if S.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
-        out.push(say(empty, k.get("text_subtle").as_str()));
+        let empty = if state.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
+        out.push(say(empty, tokens.get("text_subtle").as_str()));
     }
     for row in rows {
         let current = row.get("current").as_bool() == true;
@@ -783,93 +782,93 @@ fn release_specs(S: editor::State, k: any, h: float, mine: any, out: [any]) {
                         .with("role", "text_title")
                         .with("font_size", 13)
                         .with("text", row.get("id").as_str())
-                        .with("text_color", (if current { k.get("primary_text") } else { k.get("text_default") }).as_str()),
+                        .with("text_color", (if current { tokens.get("primary_text") } else { tokens.get("text_default") }).as_str()),
                     map().with("kind", "label").with("role", "text_code_quiet").with("font_size", 11).with("text", row.get("when").as_str()),
                 ]),
         ];
-        let press = press_spec(S, row, mine);
+        let press = press_spec(state, row, mine);
         if press.kind() == "map" {
             controls.push(press);
         }
-        out.push(map().with("full", true).with("height", h + 14.0).with("slot_role", "layout_actions").with("controls", controls));
+        out.push(map().with("full", true).with("height", row_height + 14.0).with("slot_role", "layout_actions").with("controls", controls));
         out.push(rule());
     }
     // An install that cannot replace itself has nothing to name a release for.
-    if mine.get("held").as_str() != "" || installing(S) {
+    if mine.get("held").as_str() != "" || installing(state) {
         return;
     }
     out.push(map()
         .with("full", false)
-        .with("height", h)
+        .with("height", row_height)
         .with("controls", [
             map()
                 .with("kind", "text_field")
                 .with("role", "input_form")
                 .with("grow", 1)
-                .with("text", S.manager.tag)
+                .with("text", state.manager.tag)
                 .with("placeholder", "v0.2.0")
                 .with("on", "handle")
-                .with("data", map().with("fn", release_specs_on_6)),
+                .with("data", map().with("fn", on_tag_typed)),
             map()
                 .with("kind", "button")
                 .with("role", "action_form")
                 .with("text", "Install")
                 .with("min_width", 88)
                 .with("on", "handle")
-                .with("data", map().with("fn", release_specs_on_7)),
+                .with("data", map().with("fn", on_install_typed_pressed)),
         ])
         .with("label", "Or a release by name"));
 }
 
-fn release_specs_on_6(S: &mut editor::State, data: any, text: any) {
-    S.manager.tag = text.as_str();
+fn on_tag_typed(state: &mut editor::State, data: any, text: any) {
+    state.manager.tag = text.as_str();
 }
 
-fn release_specs_on_7(S: &mut editor::State, data: any, _0: any) {
-    if S.manager.tag == "" {
-        S.manager.failed = "type a release tag first, like v0.2.0";
-        told(S);
+fn on_install_typed_pressed(state: &mut editor::State, data: any, _value: any) {
+    if state.manager.tag == "" {
+        state.manager.failed = "type a release tag first, like v0.2.0";
+        told(state);
         return;
     }
-    put(S, "", S.manager.tag);
+    put(state, "", state.manager.tag);
 }
 
 /// Hide the shell while the screen is up and show it again after: under the
 /// screen its docks would still draw a project that is not open.
-pub fn cover(S: &mut editor::State, up: bool) {
-    if S.manager.covering != up {
-        S.manager.covering = up;
+pub fn cover(state: &mut editor::State, up: bool) {
+    if state.manager.covering != up {
+        state.manager.covering = up;
         util::fill(SHELL, map().with("visible", !up));
     }
 }
 
 /// The head strip: the mark, the name, the version, and the way back.
-fn head_controls(S: editor::State, k: any) -> [any] {
-    let ink = if k.get("dark").as_bool() { LOGO_DARK } else { LOGO };
+fn head_controls(state: editor::State, tokens: any) -> [any] {
+    let ink = if tokens.get("dark").as_bool() { LOGO_DARK } else { LOGO };
     let out: [any] = [
         map().with("kind", "image").with("role", "layout_mark").with("image", ink),
         map().with("kind", "label").with("role", "text_title").with("text", "Balaur"),
         map().with("kind", "label").with("role", "text_caption").with("text", project::version()),
         map().with("kind", "row").with("grow", 1),
     ];
-    if S.manager.back {
+    if state.manager.back {
         out.push(map()
             .with("kind", "button")
             .with("role", "action_manager")
             .with("tooltip", "Esc")
-            .with("text", "Back to " + S.game_name)
+            .with("text", "Back to " + state.game_name)
             .with("on", "handle")
-            .with("data", map().with("fn", head_controls_on_8)));
+            .with("data", map().with("fn", on_back_pressed)));
     }
     out
 }
 
-fn head_controls_on_8(S: &mut editor::State, data: any, _0: any) {
-    close(S);
+fn on_back_pressed(state: &mut editor::State, data: any, _value: any) {
+    close(state);
 }
 
 // The shell's own tab shape: a pill per page, the open one filled.
-fn tab_controls(S: editor::State) -> [any] {
+fn tab_controls(state: editor::State) -> [any] {
     let out: [any] = [];
     for row in tabs() {
         // Bound afresh: a closure made in a loop captures the binding.
@@ -878,25 +877,25 @@ fn tab_controls(S: editor::State) -> [any] {
             .with("kind", "button")
             .with("text", row[1])
             .with("role", "tab_manager")
-            .with("checked", S.manager.tab == id)
+            .with("checked", state.manager.tab == id)
             .with("on", "handle")
-            .with("data", map().with("fn", tab_controls_on_9).with("id", id)));
+            .with("data", map().with("fn", on_page_picked).with("id", id)));
     }
     out
 }
 
-fn tab_controls_on_9(S: &mut editor::State, data: any, _0: any) {
+fn on_page_picked(state: &mut editor::State, data: any, _value: any) {
     let id: str = data.id;
-    S.manager.tab = id;
+    state.manager.tab = id;
 }
 
-fn shown(S: editor::State) -> [any] {
-    let query = S.manager.filter.to_lower();
+fn shown(state: editor::State) -> [any] {
+    let query = state.manager.filter.to_lower();
     if query == "" {
-        return S.manager.recent;
+        return state.manager.recent;
     }
     let out: [any] = [];
-    for entry in S.manager.recent {
+    for entry in state.manager.recent {
         let row = util::obj(entry);
         let hay = (row.get("name").as_str() + " " + row.get("path").as_str()).to_lower();
         if hay.contains(query) {
@@ -917,25 +916,25 @@ pub fn build_line(mine: any) -> str {
 
 /// Ask the feed what every line holds, unless a read is already out. The
 /// answer arrives in `heard`.
-pub fn check(S: &mut editor::State) {
-    if S.manager.reading {
+pub fn check(state: &mut editor::State) {
+    if state.manager.reading {
         return;
     }
-    S.manager.asked = true;
-    S.manager.reading = release::check();
-    told(S);
+    state.manager.asked = true;
+    state.manager.reading = release::check();
+    told(state);
 }
 
 // The start screen and the About sheet both show what a check and an install
 // keep, so each moving says so to both.
-fn told(S: &mut editor::State) {
-    window::changed(S);
-    signals::changed(S, "manager");
+fn told(state: &mut editor::State) {
+    window::changed(state);
+    signals::changed(state, "manager");
 }
 
 /// Whether an install is in flight.
-pub fn installing(S: editor::State) -> bool {
-    S.manager.installing.tag != ""
+pub fn installing(state: editor::State) -> bool {
+    state.manager.installing.tag != ""
 }
 
 fn no_install() -> Installing {
@@ -944,44 +943,44 @@ fn no_install() -> Installing {
 
 /// A report on a check or an install. The start screen and the About sheet
 /// both read what this keeps.
-pub fn heard(S: &mut editor::State, e: any) {
-    let ev = util::obj(e);
+pub fn heard(state: &mut editor::State, report: any) {
+    let ev = util::obj(report);
     let kind = ev.kind.as_str();
     if kind == "listed" {
         let rows: [any] = [];
         for row in util::vec(ev.rows) {
             rows.push(row);
         }
-        S.manager.releases = rows;
-        S.manager.reading = false;
+        state.manager.releases = rows;
+        state.manager.reading = false;
     } else if kind == "downloading" {
-        S.manager.installing = Installing {
+        state.manager.installing = Installing {
             tag: ev.get("tag").as_str(),
             done: ev.get("done").as_int(),
             total: ev.get("total").as_int(),
             unpacking: false,
         };
     } else if kind == "unpacking" {
-        S.manager.installing.unpacking = true;
+        state.manager.installing.unpacking = true;
     } else if kind == "installed" {
-        S.manager.installing = no_install();
-        S.manager.failed = "";
-        S.manager.note = ev.get("note").as_str();
-        log::info(S.manager.note);
+        state.manager.installing = no_install();
+        state.manager.failed = "";
+        state.manager.note = ev.get("note").as_str();
+        log::info(state.manager.note);
     } else if kind == "failed" {
         if ev.get("job").as_str() == "install" {
-            S.manager.installing = no_install();
+            state.manager.installing = no_install();
         } else {
-            S.manager.reading = false;
+            state.manager.reading = false;
         }
-        S.manager.failed = ev.get("message").as_str();
+        state.manager.failed = ev.get("message").as_str();
     }
-    told(S);
+    told(state);
 }
 
 /// The newest release on a line, or an empty table when it holds none.
-pub fn newest_on(S: editor::State, channel: str) -> any {
-    for entry in S.manager.releases {
+pub fn newest_on(state: editor::State, channel: str) -> any {
+    for entry in state.manager.releases {
         let row = util::obj(entry);
         if row.get("channel").as_str() == channel {
             return row;
@@ -991,11 +990,11 @@ pub fn newest_on(S: editor::State, channel: str) -> any {
 }
 
 /// What the newest release on a line means for this build, in a few words.
-pub fn standing(S: editor::State, channel: str) -> str {
-    let newest = newest_on(S, channel);
+pub fn standing(state: editor::State, channel: str) -> str {
+    let newest = newest_on(state, channel);
     let id = newest.get("id").as_str();
     if id == "" {
-        return if S.manager.reading { "checking" } else { "no release on this line" };
+        return if state.manager.reading { "checking" } else { "no release on this line" };
     }
     let order = newest.get("order").as_str();
     if order == "same" {
@@ -1012,11 +1011,11 @@ pub fn standing(S: editor::State, channel: str) -> str {
 
 /// The verb a release row carries, as a control: what `row_press` draws.
 /// `()` where there is none: an install already running, or a held build.
-pub fn press_spec(S: editor::State, row: any, mine: any) -> any {
+pub fn press_spec(state: editor::State, row: any, mine: any) -> any {
     if row.get("current").as_bool() == true {
         return map().with("kind", "label").with("role", "text_code_quiet").with("font_size", 11).with("text", "installed");
     }
-    if installing(S) {
+    if installing(state) {
         return nil;
     }
     let download = row.get("download").as_str();
@@ -1027,7 +1026,7 @@ pub fn press_spec(S: editor::State, row: any, mine: any) -> any {
             .with("text", "Download")
             .with("min_width", 88)
             .with("on", "handle")
-            .with("data", map().with("fn", press_spec_on_10).with("download", download));
+            .with("data", map().with("fn", on_download_pressed).with("download", download));
     }
     if mine.get("held").as_str() != "" {
         return nil;
@@ -1039,23 +1038,23 @@ pub fn press_spec(S: editor::State, row: any, mine: any) -> any {
         .with("min_width", 88)
         .with("text", if row.get("order").as_str() == "older" { "Downgrade" } else { "Install" })
         .with("on", "handle")
-        .with("data", map().with("fn", press_spec_on_11).with("tag", tag))
+        .with("data", map().with("fn", on_install_row_pressed).with("tag", tag))
 }
 
-fn press_spec_on_10(S: &mut editor::State, data: any, _0: any) {
+fn on_download_pressed(state: &mut editor::State, data: any, _value: any) {
     let download: str = data.download;
     engine::open_url(download);
 }
 
-fn press_spec_on_11(S: &mut editor::State, data: any, _0: any) {
+fn on_install_row_pressed(state: &mut editor::State, data: any, _value: any) {
     let tag: str = data.tag;
-    put(S, "", tag);
+    put(state, "", tag);
 }
 
 /// How far an install has got, as a row of controls: the megabytes as they
 /// arrive, then the unpack, and a bar for it.
-pub fn progress_controls(S: editor::State) -> [any] {
-    let job = S.manager.installing;
+pub fn progress_controls(state: editor::State) -> [any] {
+    let job = state.manager.installing;
     let said = if job.unpacking {
         "unpacking " + job.tag
     } else if job.total > 0 {
@@ -1066,7 +1065,7 @@ pub fn progress_controls(S: editor::State) -> [any] {
     let part = if job.unpacking {
         1.0
     } else if job.total > 0 {
-        util::f(job.done) / util::f(job.total)
+        job.done.as_float() / job.total.as_float()
     } else {
         0.0
     };
@@ -1078,15 +1077,15 @@ pub fn progress_controls(S: editor::State) -> [any] {
 
 // A new project is named in the shell's own sheet, which is what Settings is
 // and what a phone needs: one screen at a time.
-pub fn new_fill(S: &mut editor::State) {
-    let hosts: any = window::sheet_form(S, NEW_SHEET, "New project", []);
+pub fn new_fill(state: &mut editor::State) {
+    let hosts: any = window::sheet_form(state, NEW_SHEET, "New project", []);
     if util::is_nil(hosts) {
         return;
     }
     // The sheet can be up before the screen under it has read where a new
     // project goes.
-    if S.manager.parent == "" {
-        S.manager.parent = project::home();
+    if state.manager.parent == "" {
+        state.manager.parent = project::home();
     }
     let ids: [any] = [];
     for row in util::vec(project::templates()) {
@@ -1095,39 +1094,39 @@ pub fn new_fill(S: &mut editor::State) {
     if ids.len() == 0 {
         ids.push("empty");
     }
-    let h = util::max(style::row_h(S), 30.0);
+    let row_height = util::max(style::row_h(state), 30.0);
     let specs = [
         map()
             .with("full", false)
-            .with("height", h)
+            .with("height", row_height)
             .with("controls", [
                 map()
                     .with("kind", "text_field")
                     .with("role", "input_form")
                     .with("grow", 1)
-                    .with("text", S.manager.name)
+                    .with("text", state.manager.name)
                     .with("placeholder", "my-game")
                     .with("on", "handle")
-                    .with("data", map().with("fn", new_fill_on_12)),
+                    .with("data", map().with("fn", on_name_typed)),
             ])
             .with("label", "name"),
         map()
             .with("full", false)
-            .with("height", h)
+            .with("height", row_height)
             .with("controls", [
                 map()
                     .with("kind", "dropdown")
                     .with("role", "choice_form")
                     .with("grow", 1)
-                    .with("text", S.manager.template)
+                    .with("text", state.manager.template)
                     .with("options", ids)
                     .with("on", "handle")
-                    .with("data", map().with("fn", new_fill_on_13)),
+                    .with("data", map().with("fn", on_template_picked)),
             ])
             .with("label", "from"),
         map()
             .with("full", false)
-            .with("height", h)
+            .with("height", row_height)
             .with("controls", [
                 map()
                     .with("kind", "label")
@@ -1135,11 +1134,11 @@ pub fn new_fill(S: &mut editor::State) {
                     .with("font_size", 11)
                     .with("grow", 1)
                     .with("truncate", true)
-                    .with("text", S.manager.parent),
+                    .with("text", state.manager.parent),
             ])
             .with("label", "in"),
     ];
-    if S.manager.failed != "" {
+    if state.manager.failed != "" {
         specs.push(map()
             .with("full", true)
             .with("height", 0)
@@ -1149,12 +1148,12 @@ pub fn new_fill(S: &mut editor::State) {
                     .with("role", "note_warning")
                     .with("grow", 1)
                     .with("wrap", true)
-                    .with("text", S.manager.failed),
+                    .with("text", state.manager.failed),
             ]));
     }
     specs.push(map()
         .with("full", true)
-        .with("height", h)
+        .with("height", row_height)
         .with("slot_role", "layout_actions")
         .with("controls", [
             map().with("kind", "row").with("grow", 1),
@@ -1164,71 +1163,71 @@ pub fn new_fill(S: &mut editor::State) {
                 .with("text", "Create")
                 .with("min_width", 140)
                 .with("on", "handle")
-                .with("data", map().with("fn", new_fill_on_14)),
+                .with("data", map().with("fn", on_create_pressed)),
         ]));
-    pool::sync(S, hosts.get("form"), specs, 72.0, false);
+    pool::sync(state, hosts.get("form"), specs, 72.0, false);
 }
 
-fn new_fill_on_12(S: &mut editor::State, data: any, text: any) {
-    S.manager.name = text.as_str();
+fn on_name_typed(state: &mut editor::State, data: any, text: any) {
+    state.manager.name = text.as_str();
 }
 
-fn new_fill_on_13(S: &mut editor::State, data: any, picked: any) {
-    S.manager.template = picked.as_str();
+fn on_template_picked(state: &mut editor::State, data: any, picked: any) {
+    state.manager.template = picked.as_str();
 }
 
-fn new_fill_on_14(S: &mut editor::State, data: any, _0: any) {
-    create(S);
+fn on_create_pressed(state: &mut editor::State, data: any, _value: any) {
+    create(state);
 }
 
-fn create(S: &mut editor::State) {
-    let name = if S.manager.name == "" { "my-game" } else { S.manager.name };
-    let path = S.manager.parent + "/" + name;
-    let made = util::obj(project::create(path, S.manager.template));
+fn create(state: &mut editor::State) {
+    let name = if state.manager.name == "" { "my-game" } else { state.manager.name };
+    let path = state.manager.parent + "/" + name;
+    let made = util::obj(project::create(path, state.manager.template));
     let failed = made.get("error");
     if !failed.is_nil() {
         let why = failed;
-        S.manager.failed = why.as_str();
-        window::changed(S);
+        state.manager.failed = why.as_str();
+        window::changed(state);
         return;
     }
-    S.manager.failed = "";
-    go(S, path);
+    state.manager.failed = "";
+    go(state, path);
 }
 
 // Replace this install, on a thread; `heard` follows it. The reader pressed
 // it, so a downgrade is allowed: the press said Downgrade where it is one.
-pub fn put(S: &mut editor::State, channel: str, tag: str) {
-    if installing(S) {
+pub fn put(state: &mut editor::State, channel: str, tag: str) {
+    if installing(state) {
         return;
     }
     if !release::install(channel, tag, map().with("allow_downgrade", true)) {
-        S.manager.failed = "nothing installs while a recording plays";
+        state.manager.failed = "nothing installs while a recording plays";
         return;
     }
     let named = if tag == "" { channel } else { tag };
-    S.manager.failed = "";
-    S.manager.note = "installing " + named;
-    S.manager.installing = Installing { tag: named, done: 0, total: 0, unpacking: false };
-    told(S);
+    state.manager.failed = "";
+    state.manager.note = "installing " + named;
+    state.manager.installing = Installing { tag: named, done: 0, total: 0, unpacking: false };
+    told(state);
 }
 
 /// Open a project: the module remembers it, starts the editor on it and asks
 /// this process to quit.
-pub fn go(S: &mut editor::State, path: str) {
+pub fn go(state: &mut editor::State, path: str) {
     // Opening quits this process, which would leave an install half swapped in.
-    if installing(S) {
-        S.manager.failed = "wait for the install to finish";
-        told(S);
+    if installing(state) {
+        state.manager.failed = "wait for the install to finish";
+        told(state);
         return;
     }
     let answer = util::obj(project::open(path));
     let failed = answer.get("error");
     if !failed.is_nil() {
         let why = failed;
-        S.manager.failed = why.as_str();
-        told(S);
+        state.manager.failed = why.as_str();
+        told(state);
         return;
     }
-    S.manager.failed = "";
+    state.manager.failed = "";
 }

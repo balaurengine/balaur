@@ -237,14 +237,14 @@ fn light_schema() -> String {
     let default = words::POINT;
     format!(
         r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node's rotation aims, down at rest" }}
-inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees" }}
-outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees" }}
 color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
-range = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
 intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}
-height = {{ type = "float", default = 1.0, min = 0.0, description = "How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node with a `normal_map` reads it" }}
-source_radius = {{ type = "float", default = 0.25, min = 0.0, description = "The disc a camera's `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form" }}"#
+range = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
+height = {{ type = "float", default = 1.0, min = 0.0, description = "How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node whose material names a `normal` map reads it" }}
+inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees", group = "cone" }}
+outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees", group = "cone" }}
+shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light", group = "shadows" }}
+source_radius = {{ type = "float", default = 0.25, min = 0.0, description = "The disc a camera's `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form", group = "shadows" }}"#
     )
 }
 

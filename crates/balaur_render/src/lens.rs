@@ -52,17 +52,34 @@ fn float(value: f32) -> toml::Value {
     toml::Value::Float(f64::from(value))
 }
 
-/// The lens rows `camera3d` adds to its schema.
+/// The rows `camera3d` adds past `current`: how it projects, where it looks,
+/// the effects its frame resolves through, and what it draws.
 pub(crate) fn lens_schema() -> String {
     let d = Lens3d::default();
     let projections = crate::vocabulary::options(w::PROJECTIONS);
     ComponentDef::schema(&[
         (
+            k::PROJECTION,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{projections}], description = "Perspective, or parallel lines that stay parallel" }}"#,
+                w::PERSPECTIVE_PROJECTION
+            ),
+        ),
+        (
             k::FOV_DEGREES,
             &format!(
-                r#"{{ type = "float", default = {:.1}, min = 1.0, max = 179.0, description = "The vertical field of view; in orthographic, how much of the distance to the point looked at the frame covers", group = "lens" }}"#,
+                r#"{{ type = "float", default = {:.1}, min = 1.0, max = 179.0, description = "The vertical field of view; in orthographic, how much of the distance to the point looked at the frame covers" }}"#,
                 d.fov_degrees
             ),
+        ),
+        (
+            k::LOOK_AT,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the camera looks at" }"#,
+        ),
+        (k::EFFECTS, &crate::post::effects_row()),
+        (
+            k::ORTHOGRAPHIC_HEIGHT,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The orthographic frame's full height in world units; zero sizes it from the distance to the point looked at and `fov_degrees`", group = "lens" }"#,
         ),
         (
             k::NEAR,
@@ -79,27 +96,19 @@ pub(crate) fn lens_schema() -> String {
             ),
         ),
         (
-            k::PROJECTION,
-            &format!(
-                r#"{{ type = "enum", default = "{}", options = [{projections}], description = "Perspective, or parallel lines that stay parallel", group = "lens" }}"#,
-                w::PERSPECTIVE_PROJECTION
-            ),
-        ),
-        (
-            k::ORTHOGRAPHIC_HEIGHT,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The orthographic frame's full height in world units; zero sizes it from the distance to the point looked at and `fov_degrees`", group = "lens" }"#,
-        ),
-        (
             k::UP,
             r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction the camera keeps up", group = "lens" }"#,
         ),
         (
-            k::RENDER_LAYERS,
-            r#"{ type = "int", default = -1, description = "Layer bitmask: this camera draws a node whose `render_layers` share a bit with it. -1 is every layer", group = "lens" }"#,
-        ),
-        (
             k::EYE_SEPARATION,
             r#"{ type = "float", default = 0.0, min = 0.0, description = "Above zero, a stereo pair this far apart in world units: one eye in each half of the frame, both converging on the point looked at. A stereo camera ignores `projection` and keeps +y up", group = "lens" }"#,
+        ),
+        (
+            k::RENDER_LAYERS,
+            &balaur_core::layers::row_of_all(
+                "The layers this camera draws: a node whose `render_layers` share one",
+                "layers",
+            ),
         ),
     ])
 }
@@ -144,8 +153,9 @@ pub(crate) fn lens_from_params(params: &toml::Value) -> Result<Lens3d> {
         up: up.normalize(),
         render_layers: params
             .get(k::RENDER_LAYERS)
-            .and_then(as_f64)
-            .map_or(d.render_layers, |v| v as i64 as u32),
+            .map_or(d.render_layers, |layers| {
+                balaur_core::layers::bits(Some(layers), true)
+            }),
         eye_separation: number(params, k::EYE_SEPARATION, d.eye_separation).max(0.0),
     })
 }
@@ -171,7 +181,7 @@ pub(crate) fn lens_to_map(lens: &Lens3d, map: &mut toml::map::Map<String, toml::
     );
     map.insert(
         k::RENDER_LAYERS.into(),
-        toml::Value::Integer(i64::from(lens.render_layers.cast_signed())),
+        balaur_core::layers::names(lens.render_layers),
     );
     map.insert(k::EYE_SEPARATION.into(), float(lens.eye_separation));
 }
@@ -192,7 +202,7 @@ mod tests {
     #[test]
     fn a_lens_reads_every_row_it_states() {
         let params: toml::Value = toml::from_str(
-            "fov_degrees = 70.0\nnear = 0.5\nfar = 50.0\nprojection = \"orthographic\"\nrender_layers = 3\neye_separation = 0.1",
+            "fov_degrees = 70.0\nnear = 0.5\nfar = 50.0\nprojection = \"orthographic\"\nrender_layers = [\"1\", \"2\"]\neye_separation = 0.1",
         )
         .unwrap();
         let lens = lens_from_params(&params).unwrap();

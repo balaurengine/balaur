@@ -76,27 +76,104 @@ impl Value {
     }
 }
 
+/// A call's arguments as the backend holds them, each read as the binding
+/// asks for it: a number, a flag or a node crosses with no value built for
+/// it, a string is borrowed, and only an argument of another kind becomes a
+/// [`Value`]. A backend answers `None` for an argument not of that kind.
+pub trait Args {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn int(&self, _index: usize) -> Option<i64> {
+        None
+    }
+    fn num(&self, _index: usize) -> Option<f64> {
+        None
+    }
+    fn flag(&self, _index: usize) -> Option<bool> {
+        None
+    }
+    fn node(&self, _index: usize) -> Option<u64> {
+        None
+    }
+    fn text(&self, _index: usize) -> Option<&str> {
+        None
+    }
+    /// Missing, or nil.
+    fn is_nil(&self, index: usize) -> bool;
+    /// The argument whatever its kind; nil past the last.
+    fn value(&self, index: usize) -> Value;
+}
+
+/// Values a backend built, read as [`Args`].
+pub struct Values<'a>(pub &'a [Value]);
+
+impl Args for Values<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn int(&self, index: usize) -> Option<i64> {
+        match self.0.get(index) {
+            Some(Value::Int(number)) => Some(*number),
+            _ => None,
+        }
+    }
+    fn num(&self, index: usize) -> Option<f64> {
+        match self.0.get(index) {
+            Some(Value::Num(number)) => Some(*number),
+            _ => None,
+        }
+    }
+    fn flag(&self, index: usize) -> Option<bool> {
+        match self.0.get(index) {
+            Some(Value::Bool(flag)) => Some(*flag),
+            _ => None,
+        }
+    }
+    fn node(&self, index: usize) -> Option<u64> {
+        match self.0.get(index) {
+            Some(Value::Node(bits)) => Some(*bits),
+            _ => None,
+        }
+    }
+    fn text(&self, index: usize) -> Option<&str> {
+        match self.0.get(index) {
+            Some(Value::Str(text)) => Some(text),
+            _ => None,
+        }
+    }
+    fn is_nil(&self, index: usize) -> bool {
+        matches!(self.0.get(index), None | Some(Value::Nil))
+    }
+    fn value(&self, index: usize) -> Value {
+        self.0.get(index).cloned().unwrap_or(Value::Nil)
+    }
+}
+
 /// One positional argument.
 pub trait FromArg: Sized {
     fn from_arg(v: Option<&Value>) -> Result<Self>;
 
-    /// The same, moving the value out of its slot and leaving `Nil` there:
-    /// what a binding reads when the backend built the slots for this one
-    /// call, so a string or a table crosses once rather than being copied
-    /// again on this side.
-    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
-        Self::from_arg(v.map(|v| &*v))
+    /// Argument `index` where the backend holds it. A type with a cheaper read
+    /// than a whole value says so.
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        if index < args.len() {
+            Self::from_arg(Some(&args.value(index)))
+        } else {
+            Self::from_arg(None)
+        }
     }
 }
 
 /// A whole argument list. Implemented for scalars (one argument) and for
 /// tuples (one argument each, positionally).
 pub trait FromArgs: Sized {
-    fn from_args(args: &[Value]) -> Result<Self>;
+    fn read_args(args: &dyn Args) -> Result<Self>;
 
-    /// [`FromArg::take_arg`] for each argument.
-    fn take_args(args: &mut [Value]) -> Result<Self> {
-        Self::from_args(args)
+    /// The same from values a caller built.
+    fn from_args(args: &[Value]) -> Result<Self> {
+        Self::read_args(&Values(args))
     }
 }
 
@@ -122,6 +199,13 @@ macro_rules! num_arg {
                     other => Err(want(other, "number")),
                 }
             }
+            fn read(args: &dyn Args, index: usize) -> Result<Self> {
+                match (args.num(index), args.int(index)) {
+                    (Some(number), _) => Ok(number as Self),
+                    (_, Some(whole)) => Ok(whole as Self),
+                    _ => Self::from_arg((index < args.len()).then(|| args.value(index)).as_ref()),
+                }
+            }
         }
         impl IntoValue for $t {
             #[allow(clippy::cast_lossless, reason = "f32 to f64 widens; f64 is identity")]
@@ -142,6 +226,14 @@ macro_rules! int_arg {
                     other => Err(want(other, "integer")),
                 }
             }
+            fn read(args: &dyn Args, index: usize) -> Result<Self> {
+                match (args.int(index), args.num(index)) {
+                    (Some(whole), _) => Self::try_from(whole)
+                        .map_err(|_| anyhow::anyhow!("{whole} is out of range for {}", stringify!($t))),
+                    (_, Some(number)) => Ok(number as Self),
+                    _ => Self::from_arg((index < args.len()).then(|| args.value(index)).as_ref()),
+                }
+            }
         }
         impl IntoValue for $t {
             // The neutral integer is i64; u64/usize past i64::MAX are not a
@@ -160,6 +252,12 @@ impl FromArg for bool {
             other => Err(want(other, "bool")),
         }
     }
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        match args.flag(index) {
+            Some(flag) => Ok(flag),
+            None => Self::from_arg((index < args.len()).then(|| args.value(index)).as_ref()),
+        }
+    }
 }
 
 impl FromArg for String {
@@ -169,15 +267,10 @@ impl FromArg for String {
             other => Err(want(other, "string")),
         }
     }
-    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
-        match v {
-            Some(slot) if matches!(slot, Value::Str(_)) => {
-                match std::mem::replace(slot, Value::Nil) {
-                    Value::Str(s) => Ok(s),
-                    other => Err(want(Some(&other), "string")),
-                }
-            }
-            other => Err(want(other.map(|v| &*v), "string")),
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        match args.text(index) {
+            Some(text) => Ok(text.to_string()),
+            None => Self::from_arg((index < args.len()).then(|| args.value(index)).as_ref()),
         }
     }
 }
@@ -206,14 +299,20 @@ impl FromArg for NodeId {
             other => Err(want(other, "node")),
         }
     }
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        match args.node(index) {
+            Some(bits) => Ok(Self(bits)),
+            None => Self::from_arg((index < args.len()).then(|| args.value(index)).as_ref()),
+        }
+    }
 }
 
 impl FromArg for Value {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         Ok(v.cloned().unwrap_or(Value::Nil))
     }
-    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
-        Ok(v.map_or(Value::Nil, |v| std::mem::replace(v, Value::Nil)))
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        Ok(args.value(index))
     }
 }
 
@@ -225,11 +324,11 @@ impl<T: FromArg> FromArg for Option<T> {
             some => T::from_arg(some).map(Some),
         }
     }
-    fn take_arg(v: Option<&mut Value>) -> Result<Self> {
-        match v {
-            None | Some(Value::Nil) => Ok(None),
-            some => T::take_arg(some).map(Some),
+    fn read(args: &dyn Args, index: usize) -> Result<Self> {
+        if args.is_nil(index) {
+            return Ok(None);
         }
+        T::read(args, index).map(Some)
     }
 }
 
@@ -275,7 +374,7 @@ impl<T: IntoValue> IntoValue for Vec<T> {
 }
 
 impl FromArgs for () {
-    fn from_args(_: &[Value]) -> Result<Self> {
+    fn read_args(_: &dyn Args) -> Result<Self> {
         Ok(())
     }
 }
@@ -284,8 +383,7 @@ impl FromArgs for () {
 macro_rules! scalar_args {
     ($($t:ty),*) => { $(
         impl FromArgs for $t {
-            fn from_args(args: &[Value]) -> Result<Self> { Self::from_arg(args.first()) }
-            fn take_args(args: &mut [Value]) -> Result<Self> { Self::take_arg(args.first_mut()) }
+            fn read_args(args: &dyn Args) -> Result<Self> { Self::read(args, 0) }
         }
     )* };
 }
@@ -294,11 +392,8 @@ scalar_args!(
 );
 
 impl<T: FromArg> FromArgs for Option<T> {
-    fn from_args(args: &[Value]) -> Result<Self> {
-        Self::from_arg(args.first())
-    }
-    fn take_args(args: &mut [Value]) -> Result<Self> {
-        Self::take_arg(args.first_mut())
+    fn read_args(args: &dyn Args) -> Result<Self> {
+        Self::read(args, 0)
     }
 }
 
@@ -306,11 +401,8 @@ impl<T: FromArg> FromArgs for Option<T> {
 macro_rules! tuple_args {
     ($($n:tt $name:ident),+) => {
         impl<$($name: FromArg),+> FromArgs for ($($name,)+) {
-            fn from_args(args: &[Value]) -> Result<Self> {
-                Ok(($($name::from_arg(args.get($n))?,)+))
-            }
-            fn take_args(args: &mut [Value]) -> Result<Self> {
-                Ok(($($name::take_arg(args.get_mut($n))?,)+))
+            fn read_args(args: &dyn Args) -> Result<Self> {
+                Ok(($($name::read(args, $n)?,)+))
             }
         }
         impl<$($name: IntoValue),+> IntoValue for ($($name,)+) {

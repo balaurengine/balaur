@@ -1,0 +1,551 @@
+// The methods of an `any`, compiled into a program that calls them. An `any`
+// is a counted cell holding its kind, then the value or the arrays it points
+// at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
+// `remove` change a map or a list in place, so every holder of it sees the
+// change; `with` and `sorted` make new ones.
+
+const BOOL: int = 1;
+const INT: int = 2;
+const FLOAT: int = 3;
+const STR: int = 4;
+const LIST: int = 5;
+const MAP: int = 6;
+const NODE: int = 7;
+
+pub fn kind(value: any) -> str {
+    let tag = __tag(value);
+    if tag == BOOL {
+        "bool"
+    } else if tag == INT {
+        "int"
+    } else if tag == FLOAT {
+        "float"
+    } else if tag == STR {
+        "str"
+    } else if tag == LIST {
+        "list"
+    } else if tag == MAP {
+        "map"
+    } else if tag == NODE {
+        "node"
+    } else {
+        "nil"
+    }
+}
+
+pub fn is_nil(value: any) -> bool {
+    __tag(value) == 0
+}
+
+pub fn as_int(value: any) -> int {
+    let tag = __tag(value);
+    if tag == INT {
+        __int(value)
+    } else if tag == FLOAT {
+        __float(value) as int
+    } else if tag == BOOL && __bool(value) {
+        1
+    } else {
+        0
+    }
+}
+
+pub fn as_float(value: any) -> float {
+    let tag = __tag(value);
+    if tag == FLOAT {
+        __float(value)
+    } else if tag == INT {
+        __int(value) as float
+    } else {
+        0.0
+    }
+}
+
+pub fn as_bool(value: any) -> bool {
+    __tag(value) == BOOL && __bool(value)
+}
+
+pub fn as_str(value: any) -> str {
+    if __tag(value) == STR {
+        __str(value)
+    } else {
+        ""
+    }
+}
+
+// Anything else is the invalid node.
+pub fn as_node(value: any) -> Node {
+    if __tag(value) == NODE {
+        return __node(value);
+    }
+    nil
+}
+
+pub fn len(value: any) -> int {
+    let tag = __tag(value);
+    if tag == LIST {
+        __items(value).len()
+    } else if tag == MAP {
+        __keys(value).len()
+    } else if tag == STR {
+        __str(value).len()
+    } else {
+        0
+    }
+}
+
+pub fn get(map: any, key: str) -> any {
+    if __tag(map) != MAP {
+        return nil;
+    }
+    let index = index_of(__keys(map), key);
+    if index < 0 {
+        nil
+    } else {
+        __vals(map)[index]
+    }
+}
+
+pub fn at(list: any, index: int) -> any {
+    if __tag(list) != LIST {
+        return nil;
+    }
+    let items = __items(list);
+    if index < 0 || index >= items.len() {
+        nil
+    } else {
+        items[index]
+    }
+}
+
+pub fn has(map: any, key: str) -> bool {
+    __tag(map) == MAP && index_of(__keys(map), key) >= 0
+}
+
+pub fn keys(map: any) -> [str] {
+    let out: [str] = [];
+    if __tag(map) == MAP {
+        for key in __keys(map) {
+            out.push(key);
+        }
+    }
+    out
+}
+
+// A string as it is; anything else written out, its strings quoted.
+pub fn text(value: any) -> str {
+    if __tag(value) == STR {
+        __str(value)
+    } else {
+        quoted(value)
+    }
+}
+
+// A new map: this one's entries copied, with `key` set. Nil counts as empty.
+pub fn with(map: any, key: str, item: any) -> any {
+    let keys: [str] = [];
+    let vals: [any] = [];
+    if __tag(map) == MAP {
+        let old_keys = __keys(map);
+        let old_vals = __vals(map);
+        let index = 0;
+        while index < old_keys.len() {
+            keys.push(old_keys[index]);
+            vals.push(copy(old_vals[index]));
+            index += 1;
+        }
+    }
+    let index = index_of(keys, key);
+    if index < 0 {
+        keys.push(key);
+        vals.push(copy(item));
+    } else {
+        vals[index] = copy(item);
+    }
+    __map(keys, vals)
+}
+
+pub fn set(map: any, key: str, item: any) -> bool {
+    if __tag(map) != MAP {
+        return false;
+    }
+    let keys = __keys(map);
+    let index = index_of(keys, key);
+    if index < 0 {
+        keys.push(key);
+        __vals(map).push(item);
+    } else {
+        let vals = __vals(map);
+        vals[index] = item;
+    }
+    true
+}
+
+pub fn push(list: any, item: any) -> bool {
+    if __tag(list) != LIST {
+        return false;
+    }
+    __items(list).push(item);
+    true
+}
+
+// A list's element at `index` replaced; false past its end.
+pub fn put(list: any, index: int, item: any) -> bool {
+    if __tag(list) != LIST {
+        return false;
+    }
+    let items = __items(list);
+    if index < 0 || index >= items.len() {
+        return false;
+    }
+    items[index] = item;
+    true
+}
+
+// `item` slid in at `index`, the rest moved up; `index` at the end appends.
+pub fn insert(list: any, index: int, item: any) -> bool {
+    if __tag(list) != LIST {
+        return false;
+    }
+    let items = __items(list);
+    if index < 0 || index > items.len() {
+        return false;
+    }
+    items.insert(index, item);
+    true
+}
+
+// A map's entry by key, or a list's element by index, taken out and handed
+// back; nil when there is none.
+pub fn remove(value: any, key: any) -> any {
+    let tag = __tag(value);
+    if tag == LIST && __tag(key) == INT {
+        let items = __items(value);
+        let index = __int(key);
+        if index < 0 || index >= items.len() {
+            return nil;
+        }
+        return items.remove(index);
+    }
+    if tag != MAP || __tag(key) != STR {
+        return nil;
+    }
+    let keys = __keys(value);
+    let index = index_of(keys, __str(key));
+    if index < 0 {
+        return nil;
+    }
+    keys.remove(index);
+    __vals(value).remove(index)
+}
+
+// The same value: numbers by number whatever their kind, maps by key
+// whatever their order, lists by their elements, nil only to nil.
+pub fn equals(value: any, other: any) -> bool {
+    same(value, other)
+}
+
+// A new list of this one's elements in order: numbers by value, strings by
+// their text, and values of different kinds by how they are written.
+pub fn sorted(list: any) -> any {
+    let items: [any] = [];
+    if __tag(list) == LIST {
+        for item in __items(list) {
+            items.push(copy(item));
+        }
+    }
+    let out: any = merge_sort(items);
+    out
+}
+
+fn index_of(keys: [str], key: str) -> int {
+    let index = 0;
+    while index < keys.len() {
+        if keys[index] == key {
+            return index;
+        }
+        index += 1;
+    }
+    return -1;
+}
+
+// A map or a list made again, all the way down; anything else is shared,
+// since nothing changes it in place.
+fn copy(value: any) -> any {
+    let tag = __tag(value);
+    if tag == LIST {
+        let items: [any] = [];
+        for item in __items(value) {
+            items.push(copy(item));
+        }
+        let out: any = items;
+        return out;
+    }
+    if tag != MAP {
+        return value;
+    }
+    let keys: [str] = [];
+    let vals: [any] = [];
+    let old_keys = __keys(value);
+    let old_vals = __vals(value);
+    let index = 0;
+    while index < old_keys.len() {
+        keys.push(old_keys[index]);
+        vals.push(copy(old_vals[index]));
+        index += 1;
+    }
+    __map(keys, vals)
+}
+
+fn same(value: any, other: any) -> bool {
+    let tag = __tag(value);
+    let other_tag = __tag(other);
+    if tag == INT && other_tag == FLOAT {
+        return same_bits(__int(value) as float, __float(other));
+    }
+    if tag == FLOAT && other_tag == INT {
+        return same_bits(__int(other) as float, __float(value));
+    }
+    if tag != other_tag {
+        return false;
+    }
+    if tag == 0 {
+        return true;
+    }
+    if tag == BOOL {
+        return __bool(value) == __bool(other);
+    }
+    if tag == INT || tag == NODE {
+        return __int(value) == __int(other);
+    }
+    if tag == FLOAT {
+        return __float(value) == __float(other);
+    }
+    if tag == STR {
+        return __str(value) == __str(other);
+    }
+    if tag == LIST {
+        let items = __items(value);
+        let other_items = __items(other);
+        if items.len() != other_items.len() {
+            return false;
+        }
+        let index = 0;
+        while index < items.len() {
+            if !same(items[index], other_items[index]) {
+                return false;
+            }
+            index += 1;
+        }
+        return true;
+    }
+    let keys = __keys(value);
+    let other_keys = __keys(other);
+    if keys.len() != other_keys.len() {
+        return false;
+    }
+    let vals = __vals(value);
+    let other_vals = __vals(other);
+    let index = 0;
+    while index < keys.len() {
+        let found = index_of(other_keys, keys[index]);
+        if found < 0 || !same(vals[index], other_vals[found]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+// An int against a float: equal only to the same float, so not to -0.0.
+fn same_bits(whole: float, number: float) -> bool {
+    whole == number && !(number == 0.0 && 1.0 / number < 0.0)
+}
+
+// Stable, as Rust's `sort_by`.
+fn merge_sort(items: [any]) -> [any] {
+    let count = items.len();
+    if count < 2 {
+        return items;
+    }
+    let left: [any] = [];
+    let right: [any] = [];
+    let index = 0;
+    while index < count {
+        if index < count / 2 {
+            left.push(items[index]);
+        } else {
+            right.push(items[index]);
+        }
+        index += 1;
+    }
+    let left_sorted = merge_sort(left);
+    let right_sorted = merge_sort(right);
+    let out: [any] = [];
+    let from_left = 0;
+    let from_right = 0;
+    while from_left < left_sorted.len() || from_right < right_sorted.len() {
+        let left_first = from_right == right_sorted.len()
+            || (from_left < left_sorted.len()
+                && order(left_sorted[from_left], right_sorted[from_right]) <= 0);
+        if left_first {
+            out.push(left_sorted[from_left]);
+            from_left += 1;
+        } else {
+            out.push(right_sorted[from_right]);
+            from_right += 1;
+        }
+    }
+    out
+}
+
+// Numbers by value, -0.0 before 0.0 and NaN last; two strings by their
+// bytes; anything else by how it is written.
+fn order(value: any, other: any) -> int {
+    let tag = __tag(value);
+    let other_tag = __tag(other);
+    if (tag == INT || tag == FLOAT) && (other_tag == INT || other_tag == FLOAT) {
+        return order_numbers(as_float(value), as_float(other));
+    }
+    if tag == STR && other_tag == STR {
+        return order_bytes(__str(value), __str(other));
+    }
+    order_bytes(quoted(value), quoted(other))
+}
+
+fn order_numbers(number: float, other: float) -> int {
+    if number < other {
+        return -1;
+    }
+    if number > other {
+        return 1;
+    }
+    let number_nan = number != number;
+    let other_nan = other != other;
+    if number_nan || other_nan {
+        if number_nan && other_nan {
+            return 0;
+        }
+        if number_nan {
+            return 1;
+        }
+        return -1;
+    }
+    // Equal: only a zero's sign tells them apart.
+    if number == 0.0 {
+        let number_negative = 1.0 / number < 0.0;
+        let other_negative = 1.0 / other < 0.0;
+        if number_negative && !other_negative {
+            return -1;
+        }
+        if other_negative && !number_negative {
+            return 1;
+        }
+    }
+    0
+}
+
+fn order_bytes(first: str, second: str) -> int {
+    let at = 0;
+    while at < first.len() && at < second.len() {
+        let difference = __byte(first, at) - __byte(second, at);
+        if difference != 0 {
+            return difference;
+        }
+        at += 1;
+    }
+    first.len() - second.len()
+}
+
+// A value written out, the strings inside it in quotes.
+fn quoted(value: any) -> str {
+    let tag = __tag(value);
+    if tag == 0 {
+        return "nil";
+    }
+    if tag == BOOL {
+        return if __bool(value) { "true" } else { "false" };
+    }
+    if tag == INT {
+        return "{__int(value)}";
+    }
+    if tag == FLOAT {
+        return "{__float(value)}";
+    }
+    if tag == NODE {
+        return "node#{__int(value)}";
+    }
+    if tag == STR {
+        return escaped(__str(value));
+    }
+    let parts: [str] = [];
+    if tag == LIST {
+        for item in __items(value) {
+            parts.push(quoted(item));
+        }
+        return "[" + joined(parts) + "]";
+    }
+    let keys = __keys(value);
+    let vals = __vals(value);
+    let index = 0;
+    while index < keys.len() {
+        parts.push(escaped(keys[index]) + ": " + quoted(vals[index]));
+        index += 1;
+    }
+    "{{" + joined(parts) + "}}"
+}
+
+fn joined(parts: [str]) -> str {
+    let out = "";
+    let index = 0;
+    while index < parts.len() {
+        if index > 0 {
+            out = out + ", ";
+        }
+        out = out + parts[index];
+        index += 1;
+    }
+    out
+}
+
+// In double quotes, a quote, a backslash and the control characters escaped
+// as Rust writes them.
+fn escaped(raw: str) -> str {
+    let out = "\"";
+    let start = 0;
+    let at = 0;
+    while at < raw.len() {
+        let byte = __byte(raw, at);
+        let escape = if byte == 34 {
+            "\\\""
+        } else if byte == 92 {
+            "\\\\"
+        } else if byte == 10 {
+            "\\n"
+        } else if byte == 13 {
+            "\\r"
+        } else if byte == 9 {
+            "\\t"
+        } else if byte == 0 {
+            "\\0"
+        } else if byte < 32 || byte == 127 {
+            "\\u{{" + hex_digits(byte) + "}}"
+        } else {
+            ""
+        };
+        if escape != "" {
+            out = out + raw.slice(start, at) + escape;
+            start = at + 1;
+        }
+        at += 1;
+    }
+    out + raw.slice(start, raw.len()) + "\""
+}
+
+fn hex_digits(number: int) -> str {
+    let digits = "0123456789abcdef";
+    if number < 16 {
+        return digits.slice(number, number + 1);
+    }
+    hex_digits(number / 16) + digits.slice(number % 16, number % 16 + 1)
+}

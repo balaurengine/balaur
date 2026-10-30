@@ -16,7 +16,7 @@ use hecs::Entity;
 
 use crate::engine::{Command, Engine};
 use crate::scene::{
-    self, Appearance, Children, GlobalTransform, Name, Parent, ScriptAttachment, Tags, Transform,
+    self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags, Transform,
 };
 
 /// One node operation, as a plain function pointer so the list stays a `const`.
@@ -100,6 +100,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: patch_component,
     },
     NodeOp {
+        name: "try_patch_component",
+        call: try_patch_component,
+    },
+    NodeOp {
         name: "set_state",
         call: go_to_state,
     },
@@ -136,6 +140,20 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: script_path,
     },
     NodeOp {
+        name: "script_props",
+        call: script_props,
+    },
+    NodeOp {
+        // N8: what it names is read in two halves, `script_path` and
+        // `script_props`, the way a scene's `script` key spells it.
+        name: "set_script",
+        call: set_script,
+    },
+    NodeOp {
+        name: "instance",
+        call: instance,
+    },
+    NodeOp {
         name: "has_method",
         call: has_method,
     },
@@ -163,6 +181,14 @@ pub const NODE_OPS: &[NodeOp] = &[
     NodeOp {
         name: "queue_free",
         call: queue_free,
+    },
+    NodeOp {
+        name: "free",
+        call: free,
+    },
+    NodeOp {
+        name: "authored",
+        call: authored,
     },
     NodeOp {
         name: "visible",
@@ -278,18 +304,22 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent."),
         ("sibling_index", &[], "()", "Where the node sits among its parent's children, counting from zero; 0 at the root."),
         ("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest."),
-        ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
+        ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame."),
         ("try_set_component", &[], "(component: string, params: any?)", "As `set_component`, answering whether the component took the table rather than failing when it refuses it: an editor writing what a reader typed asks this."),
         ("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
         ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
+        ("try_patch_component", &[], "(component: string, params: table) -> bool", "As `patch_component`, answering whether the component took the change rather than failing when it refuses it: an editor writing one property a reader typed asks this."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
         ("get_component", &[], "(component: string, key: string?)", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
         ("component_names", &[], "()", "The names of every component on the node."),
         ("stable_id", &[], "()", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not."),
         ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
-        ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
+        ("script_path", &[], "()", "The path of the script the node names, nil when it names none; named whether or not it runs."),
+        ("script_props", &[], "()", "What the node sets over its script's exported defaults, as a table; empty when it sets nothing."),
+        ("set_script", &[], "(path: string?, props: any?)", "Name the node's script and what it sets, without running it: what a scene's `script` key says and `attach_script` also starts. Nil takes the script off."),
+        ("instance", &[], "()", "The prefab file the node instances, nil when it instances none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("script_field", &[], "(name: string)", "A member the node's script instance holds, read by another script: GDScript's `node.speed`. Nil for no script or no such member."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
@@ -298,6 +328,8 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
+        ("free", &[], "()", "Destroy the node and its subtree now, scripts detached first: what a tool editing a scene does, where no script of the subtree is running. A game frees with `queue_free`."),
+        ("authored", &[], "(component: string)", "What the scene and every write since asked of the component, as the table a save writes: not its live state, which `get_component` reads. Nil when the node does not carry it."),
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
         ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides."),
         ("visible_in_tree", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
@@ -398,7 +430,9 @@ fn visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = flag(args, 1)?;
-    if !crate::scene::set_visible(eng, node(args)?, on) {
+    let e = node(args)?;
+    crate::changes::node_keys(eng, e);
+    if !crate::scene::set_visible(eng, e, on) {
         bail!("node is dead");
     }
     Ok(Value::Nil)
@@ -451,6 +485,7 @@ fn set_process(eng: &Engine, args: &[Value]) -> Result<Value> {
     let mode = crate::process::ProcessMode::parse(named)
         .ok_or_else(|| anyhow!("'{named}' is not a process mode"))?;
     let e = node(args)?;
+    crate::changes::node_keys(eng, e);
     crate::process::set(&mut eng.world_mut(), e, mode);
     Ok(Value::Nil)
 }
@@ -468,6 +503,7 @@ fn interpolate(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn set_interpolate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = flag(args, 1)?;
     let e = node(args)?;
+    crate::changes::node_keys(eng, e);
     crate::interpolate::set(eng, e, Some(on));
     Ok(Value::Nil)
 }
@@ -492,7 +528,9 @@ fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
         1.0
     };
     let colour = glamx::Vec4::new(number(args, 1)?, number(args, 2)?, number(args, 3)?, alpha);
-    with_appearance(eng, node(args)?, |a| a.tint = colour)?;
+    let e = node(args)?;
+    crate::changes::node_keys(eng, e);
+    with_appearance(eng, e, |a| a.tint = colour)?;
     Ok(Value::Nil)
 }
 
@@ -542,7 +580,9 @@ fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(other) => bail!("`z_as_relative` should be a bool, got {other:?}"),
         None => true,
     };
-    with_appearance(eng, node(args)?, |a| {
+    let e = node(args)?;
+    crate::changes::node_keys(eng, e);
+    with_appearance(eng, e, |a| {
         a.z_index = z;
         a.z_as_relative = relative;
     })?;
@@ -580,6 +620,7 @@ fn add_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
     if tag.is_empty() {
         bail!("a tag needs a name");
     }
+    crate::changes::node_keys(eng, e);
     let mut world = eng.world_mut();
     if let Ok(mut tags) = world.get::<&mut Tags>(e) {
         tags.add(&tag);
@@ -596,6 +637,7 @@ fn add_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let tag = text(args, 1)?;
+    crate::changes::node_keys(eng, e);
     let world = eng.world();
     if let Ok(mut tags) = world.get::<&mut Tags>(e) {
         tags.remove(tag);
@@ -654,7 +696,7 @@ fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     scene::rename(&eng.world(), e, name);
     if was != name {
-        crate::events::announce(eng, e, RENAMED_EVENT, Value::Str(was));
+        crate::changes::renamed(eng, e, was);
     }
     Ok(Value::Nil)
 }
@@ -720,9 +762,8 @@ fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
         format!("added {name}"),
         Some(serde_json::json!({ "name": name })),
     );
-    let made = Value::Node(crate::node_id_of(child).0);
-    crate::events::announce(eng, e, CHILD_ADDED_EVENT, made.clone());
-    Ok(made)
+    crate::changes::added(eng, e, child);
+    Ok(Value::Node(crate::node_id_of(child).0))
 }
 
 fn parent(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -742,18 +783,19 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id))?,
         other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
     };
-    let left = eng.world().get::<&Parent>(e).ok().map(|p| p.0);
+    let stood = crate::changes::Stood::of(&eng.world(), e);
+    let placed = crate::components::has(eng, e, crate::transform::COMPONENT);
     scene::reparent(&mut eng.world_mut(), e, parent)?;
-    if left == Some(parent) {
-        return Ok(Value::Nil);
+    // Keeping the world pose wrote the local one behind the component's back,
+    // and gave a node that had none a transform to hold it in.
+    if placed {
+        crate::components::refile(eng, e, crate::transform::COMPONENT);
+    } else if let Some(held) = crate::components::get(eng, e, crate::transform::COMPONENT) {
+        crate::components::add(eng, e, crate::transform::COMPONENT, Some(&held))?;
     }
-    let moved = Value::Node(crate::node_id_of(e).0);
-    let left = left.map_or(Value::Nil, |old| {
-        crate::events::announce(eng, old, CHILD_REMOVED_EVENT, moved.clone());
-        Value::Node(crate::node_id_of(old).0)
-    });
-    crate::events::announce(eng, parent, CHILD_ADDED_EVENT, moved);
-    crate::events::announce(eng, e, REPARENTED_EVENT, left);
+    if stood.as_ref().map(|stood| stood.parent) != Some(parent) {
+        crate::changes::moved(eng, e, stood.as_ref(), parent);
+    }
     Ok(Value::Nil)
 }
 
@@ -783,11 +825,13 @@ fn set_sibling_index(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Num(n)) => *n as usize,
         other => return Err(anyhow!("argument 1 should be an index, got {other:?}")),
     };
-    let world = eng.world_mut();
-    let Ok(parent) = world.get::<&Parent>(e).map(|p| p.0) else {
+    let Some(stood) = crate::changes::Stood::of(&eng.world(), e) else {
         return Ok(Value::Nil);
     };
-    scene::move_child_to(&world, parent, e, index);
+    scene::move_child_to(&eng.world_mut(), stood.parent, e, index);
+    if crate::changes::Stood::of(&eng.world(), e).is_some_and(|now| now.place != stood.place) {
+        crate::changes::reordered(eng, e, &stood);
+    }
     Ok(Value::Nil)
 }
 
@@ -848,6 +892,11 @@ pub fn set_property_at(
     value: &Value,
 ) -> Result<()> {
     crate::components::set_property_at(eng, entity, index, key, &to_toml(value)?)
+}
+
+fn try_patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
+    node(args)?;
+    Ok(Value::Bool(patch_component(eng, args).is_ok()))
 }
 
 fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -959,10 +1008,72 @@ fn descendants(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
-    Ok(world
-        .get::<&ScriptAttachment>(e)
+    let path = world
+        .get::<&NodeScript>(e)
         .ok()
-        .map_or(Value::Nil, |a| Value::Str(a.path.clone())))
+        .map(|script| script.path.clone());
+    drop(world);
+    Ok(path.map_or(Value::Nil, |path| Value::Str(spelled(eng, e, path))))
+}
+
+fn script_props(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Map(
+        world
+            .get::<&NodeScript>(e)
+            .map(|script| script.props.clone())
+            .unwrap_or_default(),
+    ))
+}
+
+fn set_script(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let props = match args.get(2) {
+        None | Some(Value::Nil) => Vec::new(),
+        Some(Value::Map(fields)) => fields.clone(),
+        Some(other) => bail!(
+            "set_script props must be a table, got {}",
+            other.type_name()
+        ),
+    };
+    crate::changes::scripted(eng, e);
+    match args.get(1) {
+        None | Some(Value::Nil) => scene::name_script(eng, e, None),
+        Some(_) => {
+            let path = rooted(eng, e, text(args, 1)?);
+            scene::name_script(eng, e, Some((&path, &props)));
+        }
+    }
+    Ok(Value::Nil)
+}
+
+fn instance(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let source = eng
+        .world()
+        .get::<&crate::scene_toml::Instanced>(e)
+        .ok()
+        .map(|instanced| instanced.source.clone());
+    Ok(source.map_or(Value::Nil, |source| Value::Str(spelled(eng, e, source))))
+}
+
+/// A path read off a node, as the project whose content it plays spells it.
+fn spelled(eng: &Engine, e: Entity, path: String) -> String {
+    let mut value = toml::Value::String(path);
+    crate::document_paths::read_off(eng, e, &mut value);
+    match value {
+        toml::Value::String(path) => path,
+        _ => unreachable!("a string stays a string"),
+    }
+}
+
+/// A path written onto a node, made absolute when it plays another project.
+fn rooted(eng: &Engine, e: Entity, path: &str) -> String {
+    match crate::document_paths::written_on(eng, e, &toml::Value::String(path.to_string())) {
+        Some(toml::Value::String(path)) => path,
+        _ => path.to_string(),
+    }
 }
 
 /// Whether the node's script declares a method, which `call` cannot say: it
@@ -1041,8 +1152,10 @@ fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
-    scene::remember_script_props(eng, e, &props);
-    host.attach_with_props(crate::node_id_of(e), text(args, 1)?, &props)?;
+    let path = rooted(eng, e, text(args, 1)?);
+    crate::changes::scripted(eng, e);
+    scene::name_script(eng, e, Some((&path, &props)));
+    host.attach_with_props(crate::node_id_of(e), &path, &props)?;
     Ok(Value::Nil)
 }
 
@@ -1063,6 +1176,27 @@ fn detach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
     eng.push_command(Command::Free(node(args)?));
     Ok(Value::Nil)
+}
+
+fn free(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    scene::announce_leaving(eng, &[e]);
+    scene::free_node(eng, e);
+    Ok(Value::Nil)
+}
+
+fn authored(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let name = text(args, 1)?;
+    if !crate::components::has(eng, e, name) {
+        return Ok(Value::Nil);
+    }
+    let index = crate::components::index_of(eng, name)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    let mut asked = crate::components::asked_at(eng, e, index)
+        .unwrap_or_else(|| toml::Value::Table(toml::Table::new()));
+    crate::document_paths::read_off(eng, e, &mut asked);
+    from_toml(&asked)
 }
 
 /// One property a script declared, against the component schema vocabulary,

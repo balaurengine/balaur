@@ -51,12 +51,12 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"scripts/root.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct Root { node: Node, said: str, count: int }\n\
+        dir.path().join("scripts/root.bs"),
+        "pub class Root { node: Node, said: str, count: int }\n\
          impl Root {\n\
              fn init() { self.said = greeter::greet(\"world\"); }\n\
              fn update(dt: float) { self.count = greeter::greetings(); }\n\
@@ -113,8 +113,8 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
 fn a_project_without_extensions_still_boots() {
     let dir = project(false);
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct Root { node: Node }\n",
+        dir.path().join("scripts/root.bs"),
+        "pub class Root { node: Node }\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();

@@ -3,7 +3,7 @@ use balaur_bs::{HostApi, HostSignature, Options, Ty, compile};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const SCRIPT: &str = "pub struct Counter { n: int, name: str }
+const SCRIPT: &str = "pub class Counter { n: int, name: str }
 impl Counter {
     pub fn poke_other(k: int) -> int {
         let got = other::poke(k);

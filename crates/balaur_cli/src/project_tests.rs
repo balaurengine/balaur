@@ -104,9 +104,12 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join("main.toml"), "").unwrap();
         std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        // A test is a script, its class named after its file.
         let test = |name: &str, body: &str| {
-            let source =
-                format!("pub struct T {{ node: Node }}\nimpl T {{ fn init() {{ {body} }} }}\n");
+            let class = name[..1].to_uppercase() + &name[1..];
+            let source = format!(
+                "pub class {class} {{ node: Node }}\nimpl {class} {{ fn init() {{ {body} }} }}\n"
+            );
             std::fs::write(dir.path().join(format!("tests/{name}.bs")), source).unwrap();
         };
         test("pass", "if 1 + 1 != 2 { log::error(\"sums\"); }");

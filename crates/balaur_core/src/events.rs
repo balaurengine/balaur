@@ -50,6 +50,9 @@ struct Queued {
     /// Sent by [`announce`], which already ran the emitter's rows and its own
     /// hook, so the pump skips both.
     announced: bool,
+    /// Said for the emitter's own subscribers alone: the catch-all hears a
+    /// whole one of its own (`changed` under a root).
+    scoped: bool,
 }
 
 /// Who hears what, what is waiting, and what the last pump handed over.
@@ -103,6 +106,17 @@ pub const SAVED: &str = "saved";
 /// or nil: what an editor's debugger view listens for instead of asking. A
 /// stop after a `resume` is new even where it is the same line again.
 pub const DEBUGGER_STOPPED: &str = "debugger_stopped";
+
+/// What the scene says from no node when a write changed it since the last
+/// pump: a list of `{node, kind, ..}` maps, one for each node and component
+/// however often it was written (`crate::changes`). `kind` is `component`
+/// (with `component` and `properties`, nil for the whole component),
+/// `attached` and `removed` (with `component`), `added`, `freed` and `moved` (with
+/// `parent`), or `renamed` (with `was`). Kept only while someone listens,
+/// from the frame after the first listener. Heard from a node, it is said
+/// from that node with the entries under it alone: a tool editing one scene
+/// hears that scene, not its own widgets.
+pub const CHANGED: &str = "changed";
 
 /// A token `task.wait` parks on until `name` is next delivered, from `from`
 /// or from anyone, and wakes with that event's payload.
@@ -186,6 +200,7 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
         from,
         payload,
         announced: false,
+        scoped: false,
     });
     // Delivered at the next pump, which a loop sleeping under
     // `low_processor` would otherwise not run until some input came.
@@ -229,6 +244,7 @@ pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
         from: Some(entity),
         payload,
         announced: true,
+        scoped: false,
     });
     crate::wake::wake();
 }
@@ -293,6 +309,7 @@ fn say_if_heard(state: &mut EventState, name: &'static str, payload: impl FnOnce
             from: None,
             payload: payload(),
             announced: false,
+            scoped: false,
         });
     }
 }
@@ -302,7 +319,8 @@ fn count(n: u64) -> Value {
 }
 
 /// What moved that nobody emitted: lines logged, a file reloaded, a script
-/// stopped or let go. Each is said once, at the pump after it moved.
+/// stopped or let go, the scene written. Each is said once, at the pump
+/// after it moved.
 fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Pause>) {
     let logs = crate::logbuf::total();
     if logs != state.logs_seen {
@@ -326,6 +344,64 @@ fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Paus
         });
         state.stop_seen = stop;
     }
+    // Once for each scope it is heard from: all of it, or a root's.
+    let scopes: Vec<Option<Entity>> = state
+        .listeners
+        .iter()
+        .filter(|((name, _), heard)| name == CHANGED && !heard.is_empty())
+        .map(|((_, from), _)| *from)
+        .collect();
+    for (scope, changed) in crate::changes::take(eng, &scopes) {
+        state.queued.push(Queued {
+            name: CHANGED.into(),
+            from: scope,
+            payload: changed,
+            announced: false,
+            scoped: scope.is_some(),
+        });
+    }
+}
+
+// Who hears `name` from `from`: the emitter's own subscribers and, unless the
+// event was said for them alone, the catch-all's, merged on the sequence they
+// subscribed at. Both buckets ascend already, so this is a walk, not a sort.
+fn hearing(
+    eng: &Engine,
+    name: &SmolStr,
+    from: Option<Entity>,
+    announced: bool,
+    scoped: bool,
+) -> Vec<Entity> {
+    let state = eng.resource::<EventState>();
+    let state = state.borrow();
+    let mut targeted = from
+        .and_then(|from| state.listeners.get(&(name.clone(), Some(from))))
+        .map_or(&[][..], Vec::as_slice)
+        .iter()
+        .peekable();
+    let mut any = state
+        .listeners
+        .get(&(name.clone(), None))
+        .filter(|_| !scoped)
+        .map_or(&[][..], Vec::as_slice)
+        .iter()
+        .peekable();
+    let mut merged = Vec::with_capacity(targeted.len() + any.len());
+    loop {
+        let next = match (targeted.peek(), any.peek()) {
+            (Some(t), Some(a)) if t.seq <= a.seq => targeted.next(),
+            (Some(_), None) => targeted.next(),
+            (None, None) => break,
+            _ => any.next(),
+        };
+        // An announced event already called the emitter's own hook.
+        if let Some(listener) = next
+            && !(announced && Some(listener.entity) == from)
+        {
+            merged.push(listener.entity);
+        }
+    }
+    merged
 }
 
 pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
@@ -347,6 +423,7 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
     for event in &queued {
         if let Some(from) = event.from
             && !event.announced
+            && !event.scoped
             && !crate::hooks::BINDABLE.contains(&event.name.as_str())
         {
             let row = format!("{}{}", crate::hooks::EMITTED, event.name);
@@ -361,42 +438,10 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
         from,
         payload,
         announced,
+        scoped,
     } in queued
     {
-        let listeners = {
-            let state = eng.resource::<EventState>();
-            let state = state.borrow();
-            // The emitter's own subscribers and the catch-all's, merged on
-            // the sequence they subscribed at. Both buckets ascend already,
-            // so this is a walk, not a sort.
-            let mut targeted = from
-                .and_then(|from| state.listeners.get(&(name.clone(), Some(from))))
-                .map_or(&[][..], Vec::as_slice)
-                .iter()
-                .peekable();
-            let mut any = state
-                .listeners
-                .get(&(name.clone(), None))
-                .map_or(&[][..], Vec::as_slice)
-                .iter()
-                .peekable();
-            let mut merged = Vec::with_capacity(targeted.len() + any.len());
-            loop {
-                let next = match (targeted.peek(), any.peek()) {
-                    (Some(t), Some(a)) if t.seq <= a.seq => targeted.next(),
-                    (Some(_), None) => targeted.next(),
-                    (None, None) => break,
-                    _ => any.next(),
-                };
-                // An announced event already called the emitter's own hook.
-                if let Some(listener) = next
-                    && !(announced && Some(listener.entity) == from)
-                {
-                    merged.push(listener.entity);
-                }
-            }
-            merged
-        };
+        let listeners = hearing(eng, &name, from, announced, scoped);
         let method = format!("on_{name}");
         if let Some(host) = &host {
             for entity in listeners {
@@ -415,7 +460,11 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             let mut state = state.borrow_mut();
             let mut woken = Vec::new();
             state.waiters.retain(|(waited, emitter, token)| {
-                let hit = *waited == name && emitter.is_none_or(|e| Some(e) == from);
+                let hit = *waited == name
+                    && match emitter {
+                        None => !scoped,
+                        Some(e) => Some(*e) == from,
+                    };
                 if hit {
                     woken.push(*token);
                 }

@@ -11,13 +11,13 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | --- | ---: | ---: |
 | [`animation`](#animation) | 20 | 80 |
 | [`apple`](#apple) | 20 | 25 |
-| [`assets`](#assets) | 11 | 0 |
+| [`assets`](#assets) | 13 | 0 |
 | [`audio`](#audio) | 23 | 1 |
 | [`browser`](#browser) | 8 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 2 | 0 |
-| [`engine`](#engine) | 28 | 0 |
+| [`engine`](#engine) | 29 | 0 |
 | [`events`](#events) | 6 | 0 |
 | [`export`](#export) | 6 | 0 |
 | [`forge`](#forge) | 6 | 0 |
@@ -33,27 +33,28 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 57 | 0 |
+| [`node`](#node) | 63 | 0 |
 | [`physics`](#physics) | 14 | 0 |
 | [`physics2d`](#physics2d) | 132 | 113 |
 | [`physics3d`](#physics3d) | 142 | 120 |
+| [`picture`](#picture) | 2 | 0 |
 | [`platform`](#platform) | 11 | 7 |
-| [`project`](#project) | 14 | 0 |
+| [`project`](#project) | 16 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 5 | 0 |
-| [`render`](#render) | 73 | 46 |
+| [`render`](#render) | 74 | 46 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
-| [`scene`](#scene) | 22 | 0 |
+| [`scene`](#scene) | 26 | 0 |
 | [`script`](#script) | 15 | 0 |
 | [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
-| [`strings`](#strings) | 6 | 0 |
+| [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 33 | 68 |
+| [`ui`](#ui) | 33 | 66 |
 | [`websocket`](#websocket) | 4 | 9 |
 | [`window`](#window) | 8 | 0 |
 
@@ -185,11 +186,13 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 | `exists` | `(str) -> bool` |
 | `id` | `(str) -> str?` |
 | `invalidate` | `()` |
+| `kind_of` | `(str) -> str` |
 | `load` | `(str) -> any` |
 | `path` | `(str) -> str` |
 | `reload` | `(str)` |
 | `rename` | `(str, str) -> [str]` |
 | `save` | `(str, any)` |
+| `schema` | `(str) -> any` |
 
 ## `audio`
 
@@ -311,6 +314,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `reload_script` | `(str) -> str` |
 | `reveal` | `(str)` |
 | `script_costs` | `() -> [engine::ScriptCost]` |
+| `set_content_root` | `(str)` |
 | `set_paused` | `(bool)` |
 | `set_script_profiling` | `(bool)` |
 | `set_time_scale` | `(float)` |
@@ -700,6 +704,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `add_child` | `(Node, str) -> Node` |
 | `add_tag` | `(Node, str)` |
 | `attach_script` | `(Node, str, any)` |
+| `authored` | `(Node, str) -> any` |
 | `call` | `(Node, str, any, any, any, any) -> any` |
 | `call_async` | `(Node, str, any, any, any, any) -> int` |
 | `children` | `(Node) -> [Node]` |
@@ -710,6 +715,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `effective_tint` | `(Node) -> Color` |
 | `effective_z_index` | `(Node) -> int` |
 | `emit` | `(Node, str, any)` |
+| `free` | `(Node)` |
 | `get_component` | `(Node, str, str?) -> any` |
 | `get_node` | `(Node, str) -> Node` |
 | `global_position` | `(Node) -> Vec3` |
@@ -718,6 +724,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `has_component` | `(Node, str) -> bool` |
 | `has_method` | `(Node, str) -> bool` |
 | `has_tag` | `(Node, str) -> bool` |
+| `instance` | `(Node) -> str?` |
 | `interpolate` | `(Node) -> bool` |
 | `is_valid` | `(Node) -> bool` |
 | `material` | `(Node) -> str` |
@@ -732,17 +739,19 @@ What every node has: name, path, transform, children, components and script. Eac
 | `reset_interpolation` | `(Node)` |
 | `script_field` | `(Node, str) -> any` |
 | `script_path` | `(Node) -> str` |
+| `script_props` | `(Node) -> any` |
 | `set_component` | `(Node, str, any)` |
 | `set_interpolate` | `(Node, bool)` |
 | `set_material` | `(Node, str)` |
 | `set_name` | `(Node, str)` |
 | `set_parent` | `(Node, Node)` |
 | `set_process` | `(Node, str)` |
+| `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
 | `set_state` | `(Node, str)` |
 | `set_tint` | `(Node, float, float, float, float)` |
 | `set_visible` | `(Node, bool)` |
-| `set_z_index` | `(Node, int)` |
+| `set_z_index` | `(Node, int, any)` |
 | `sibling_index` | `(Node) -> int` |
 | `stable_id` | `(Node) -> str` |
 | `state` | `(Node) -> str` |
@@ -750,6 +759,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `ticking` | `(Node) -> bool` |
 | `tint` | `(Node) -> Color` |
 | `translate` | `(Node, float, float, float)` |
+| `try_patch_component` | `(Node, str, any) -> bool` |
 | `try_set_component` | `(Node, str, any) -> bool` |
 | `visible` | `(Node) -> bool` |
 | `visible_in_tree` | `(Node) -> bool` |
@@ -1126,6 +1136,15 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 …and 96 more.
 
+## `picture`
+
+A picture of a project: its scene through its current camera, at its `[window]` size, written to a PNG by a second process running `balaur run --offscreen --shot`.
+
+| Function | Signature |
+| --- | --- |
+| `listen` | `(Node, any)` |
+| `write` | `(str, str) -> str?` |
+
 ## `platform`
 
 Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.
@@ -1163,6 +1182,7 @@ The projects this machine has opened, the templates a new one starts from, and t
 | Function | Signature |
 | --- | --- |
 | `copy_example` | `(str, str) -> project::Project` |
+| `copy_system_font` | `(str, str) -> bool` |
 | `create` | `(str, str) -> project::Project` |
 | `editor_data_directory` | `() -> str` |
 | `examples` | `() -> [project::Example]` |
@@ -1173,6 +1193,7 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `open_beside` | `(str) -> project::Opened` |
 | `pick_directory` | `() -> str?` |
 | `recent` | `() -> [project::Recent]` |
+| `system_fonts` | `() -> [project::SystemFont]` |
 | `templates` | `() -> [project::Template]` |
 | `use_data` | `(str?) -> str?` |
 | `version` | `() -> str` |
@@ -1247,6 +1268,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `draw_text_3d` | `(float, float, float, str, any)` |
 | `draw_texture_2d` | `(str, float, float, float, float, any, any)` |
 | `end_retained` | `()` |
+| `hold_cameras` | `(Node?)` |
 | `instance_color` | `(Node, int) -> any` |
 | `instance_count` | `(Node) -> int` |
 | `instance_custom_data` | `(Node, int) -> any` |
@@ -1387,6 +1409,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | Function | Signature |
 | --- | --- |
 | `apply_preset` | `(Node, str)` |
+| `attach_scripts` | `(Node)` |
 | `bindable_events` | `(Node?) -> [str]` |
 | `binding_actions` | `() -> [str]` |
 | `component_expects` | `(str) -> [str]?` |
@@ -1396,6 +1419,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `component_types` | `() -> [str]` |
 | `get_node` | `(str) -> Node` |
 | `instantiate` | `(str, Node?, any)` |
+| `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `preset_info` | `(str) -> scene::Preset?` |
 | `presets` | `() -> [str]` |
@@ -1404,6 +1428,8 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `source` | `(str) -> str?` |
 | `switch` | `(str, any)` |
 | `tagged` | `(str) -> [Node]` |
+| `take_changes` | `() -> [any]` |
+| `to_toml` | `(Node, any) -> str` |
 | `variable` | `(str) -> any` |
 | `variables` | `() -> [scene::Variable]` |
 | `warnings` | `(Node) -> [scene::Warning]` |
@@ -1469,7 +1495,6 @@ Localization: one `strings/<locale>.toml` per language, keys to strings. `[local
 | `locale` | `() -> str` |
 | `locales` | `() -> [str]` |
 | `set_locale` | `(str)` |
-| `set_root` | `(str)` |
 | `system_locale` | `() -> str?` |
 | `tr` | `(str, any) -> str` |
 
@@ -1514,7 +1539,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
 | `request_repaint` | `(any)` |
-| `reread` | `(Node) -> bool` |
+| `reread` | `(Node, str?, any) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
 | `set_focus` | `(Node)` |
@@ -1533,7 +1558,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (68):
+**Constants** (66):
 
 | Name | Value |
 | --- | --- |
@@ -1558,11 +1583,11 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `ANCHOR_FILL_TOP` | `"fill_top"` |
 | `ANCHOR_TOP_LEFT` | `"top_left"` |
 | `ANCHOR_TOP_RIGHT` | `"top_right"` |
-| `FONT_HEADING` | `"heading"` |
-| `FONT_MONO` | `"mono"` |
 | `FONT_STYLE_ITALIC` | `"italic"` |
+| `FONT_STYLE_NORMAL` | `"normal"` |
+| `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 44 more.
+…and 42 more.
 
 ## `websocket`
 

@@ -1,6 +1,8 @@
-// The Animation workspace's adapter between the scene document and the engine's
+// The Animation workspace's adapter between the scene and the engine's
 // `assets` / `animation` modules: scrubbing seeks the engine, nothing here
 // samples. The clip belongs to the player (`player`), keyed by node path.
+// An inline clip is the player's `animation` table as asked, held for the
+// frame (`model::edited`) and handed back whole by `arm`.
 
 use editor;
 use history;
@@ -8,10 +10,9 @@ use model;
 use signals;
 use util;
 
-/// The animation timeline's own state, hung on `S.anim`.
+/// The animation timeline's own state, hung on `state.anim`.
 pub class AnimState {
     time: float,
-    rebind: bool,
 }
 
 /// The library the Timeline edits, cached for the player at `index`: what
@@ -25,16 +26,18 @@ pub class Clip {
     dirty: bool,
 }
 
-/// The player's document node, its live node and its doc index.
+/// The player's node and its row.
 pub struct Player {
-    node: any,
     found: Node,
     index: int,
 }
 
 pub fn state() -> AnimState {
-    AnimState { time: 0.0, rebind: false }
+    AnimState { time: 0.0 }
 }
+
+/// The component a player is.
+const COMPONENT: str = "animation";
 
 // The asset type `balaur_animation` registers, written into the document so a
 // promoted file declares what it is.
@@ -49,60 +52,57 @@ const SAME_TIME: float = 0.021;
 // A hand-edited file can name a parent that names it back.
 const MAX_DEPTH: int = 256;
 
-/// The `animation` component as authored in the document, or nil.
-pub fn component(node: any) -> any {
-    let comp = node.animation;
-    if comp.kind() == "map" { comp } else { nil }
+/// The `animation` component as `found` asks for it, held for the frame so
+/// an edit's calls change one table; nil for a node without one.
+pub fn component(state: editor::State, found: Node) -> any {
+    model::edited(state, found, COMPONENT)
 }
 
 /// Doc index of the node whose clip the Timeline edits: the selection when
 /// it carries `animation`, else its nearest ancestor that does, else the
 /// selection itself (the node a new clip would be created on).
-pub fn player_index(S: editor::State) -> int {
-    let i = S.sel;
+pub fn player_index(state: editor::State) -> int {
+    let selected = state.sel;
     // Nothing selected: no clip is being edited, and -1 is not an index.
-    if i < 0 {
-        return i;
+    if selected < 0 {
+        return selected;
     }
-    for _i in 0..MAX_DEPTH {
-        if i >= S.doc.len() {
+    let current = model::node(state, selected);
+    for _depth in 0..MAX_DEPTH {
+        if !current.is_valid() {
             break;
         }
-        let node = S.doc[i];
-        if !component(node).is_nil() {
-            return i;
+        if current.has_component(COMPONENT) {
+            return model::index_of_node(state, current).unwrap_or(state.sel);
         }
-        let parent = model::index_of_id(S.doc, node.parent.as_str());
-        if node.parent.as_str() == "" || parent.is_none() {
+        if model::is_scene_root(state, current) {
             break;
         }
-        i = parent.unwrap();
+        current = current.parent();
     }
-    S.sel
+    state.sel
 }
 
-pub fn player(S: editor::State) -> Player {
-    let i = player_index(S);
-    if i < 0 {
-        return Player { node: map().with("name", "").with("id", ""), found: nil, index: i };
-    }
-    Player { node: S.doc[i], found: model::live(S, i), index: i }
+pub fn player(state: editor::State) -> Player {
+    let index = player_index(state);
+    Player { found: model::node(state, index), index: index }
 }
 
 /// The selection's node path relative to the player: what a track's
 /// `target` says. Empty when the selection is the player.
-pub fn target_path(S: editor::State, player_i: int) -> str {
-    if player_i == S.sel || S.sel < 0 {
+pub fn target_path(state: editor::State, player_i: int) -> str {
+    if player_i == state.sel || state.sel < 0 {
         return "";
     }
     let names: [str] = [];
-    let node = S.doc[S.sel];
-    for _i in 0..MAX_DEPTH {
-        if node.is_nil() || node.id.as_str() == S.doc[player_i].id.as_str() {
+    let player = model::node(state, player_i);
+    let current = model::selected_node(state);
+    for _depth in 0..MAX_DEPTH {
+        if !current.is_valid() || current == player {
             break;
         }
-        names.insert(0, node.name.as_str());
-        node = model::by_id(S.doc, node.parent.as_str());
+        names.insert(0, current.name());
+        current = current.parent();
     }
     util::join(names, "/")
 }
@@ -110,8 +110,8 @@ pub fn target_path(S: editor::State, player_i: int) -> str {
 /// The clip the Timeline edits: the one the scene starts. An empty name means
 /// the library reference is itself the clip, which is what a single-clip file
 /// and an anonymous inline table each are.
-pub fn clip_name(node: any) -> str {
-    let comp = component(node);
+pub fn clip_name(state: editor::State, found: Node) -> str {
+    let comp = component(state, found);
     if comp.is_nil() {
         return "";
     }
@@ -120,8 +120,8 @@ pub fn clip_name(node: any) -> str {
 }
 
 /// Where the library lives, for display: a path, or nil when it is inline.
-pub fn library_path(node: any) -> str? {
-    let comp = component(node);
+pub fn library_path(state: editor::State, found: Node) -> str? {
+    let comp = component(state, found);
     if comp.is_nil() {
         return nil;
     }
@@ -148,8 +148,8 @@ fn entry_of(doc: any, name: str) -> any {
     nil
 }
 
-fn same(a: any, b: any) -> bool {
-    a.kind() == b.kind() && (a.kind() == "map" || a.kind() == "str") && a == b
+fn same(first: any, second: any) -> bool {
+    first.kind() == second.kind() && (first.kind() == "map" || first.kind() == "str") && first == second
 }
 
 fn library_of(comp: any) -> any {
@@ -157,53 +157,61 @@ fn library_of(comp: any) -> any {
     if library.is_nil() { "" } else { library }
 }
 
-fn cache(S: &mut editor::State, index: int, source: any, doc: any, path: str?) {
-    S.clip = Clip { index: index, source: source, doc: doc, path: path, dirty: false };
-    signals::inspector(S);
+fn cache(state: &mut editor::State, index: int, source: any, doc: any, path: str?) {
+    state.clip = Clip { index: index, source: source, doc: doc, path: path, dirty: false };
+    signals::inspector(state);
 }
 
-/// The library document for the player, cached on `S.clip`, or nil. Inline
-/// it *is* the scene document's own table; external it is written back by
-/// `save`.
-pub fn document(S: &mut editor::State) -> any {
-    let p = player(S);
-    let comp = component(p.node);
+/// The library document for the player, cached on `state.clip`, or nil. Inline
+/// it *is* the player's own table, as held for the frame; external it is
+/// written back by `save`.
+pub fn document(state: &mut editor::State) -> any {
+    let owner = player(state);
+    let comp = component(state, owner.found);
     if comp.is_nil() {
         return nil;
     }
     let library = library_of(comp);
-    if S.clip.is_some() {
-        let cached = S.clip.unwrap();
-        if cached.index == p.index && same(cached.source, library) {
+    if library.kind() == "map" {
+        // The held table and not a copy from an earlier frame: what an edit
+        // changes is what `arm` hands back.
+        if state.clip.is_some() && state.clip.unwrap().index == owner.index && state.clip.unwrap().path.is_none() {
+            let cached = state.clip.unwrap();
+            cached.source = library;
+            cached.doc = library;
+        } else {
+            cache(state, owner.index, library, library, nil);
+        }
+        return library;
+    }
+    if state.clip.is_some() {
+        let cached = state.clip.unwrap();
+        if cached.index == owner.index && same(cached.source, library) {
             return cached.doc;
         }
     }
-    if library.kind() == "map" {
-        cache(S, p.index, library, library, nil);
-        return library;
-    }
     if library.kind() == "str" && library.as_str() != "" {
         let path = library.as_str();
-        let loaded = assets::load(util::engine_path(S.game_root, path));
+        let loaded = assets::load(util::engine_path(state.game_root, path));
         if loaded.kind() != "map" {
             log::warn("clip {path}: {loaded}");
             // Cached as a failure so the warning is printed once rather than
             // once a frame.
-            cache(S, p.index, library, nil, path);
+            cache(state, owner.index, library, nil, path);
             return nil;
         }
-        cache(S, p.index, library, loaded, path);
+        cache(state, owner.index, library, loaded, path);
         return loaded;
     }
-    cache(S, p.index, library, nil, nil);
+    cache(state, owner.index, library, nil, nil);
     nil
 }
 
 /// Every clip the player's library holds, by name: the entries one level
 /// down, as the engine finds them.
-pub fn clip_names(S: &mut editor::State) -> [str] {
+pub fn clip_names(state: &mut editor::State) -> [str] {
     let out: [str] = [];
-    let doc = document(S);
+    let doc = document(state);
     if doc.is_nil() {
         return out;
     }
@@ -222,9 +230,9 @@ pub fn clip_names(S: &mut editor::State) -> [str] {
 }
 
 /// The clip definition under edit: length, loop, tracks; nil for none.
-pub fn definition(S: &mut editor::State) -> any {
-    let doc = document(S);
-    if doc.is_nil() { nil } else { entry_of(doc, clip_name(S.doc[player_index(S)])) }
+pub fn definition(state: &mut editor::State) -> any {
+    let doc = document(state);
+    if doc.is_nil() { nil } else { entry_of(doc, clip_name(state, model::node(state, player_index(state)))) }
 }
 
 pub fn tracks(def: any) -> any {
@@ -246,11 +254,11 @@ pub fn length(def: any) -> float {
 }
 
 pub fn key_count(def: any) -> int {
-    let n = 0;
+    let count = 0;
     for track in tracks(def) {
-        n += util::vec(track.keys).len();
+        count += util::vec(track.keys).len();
     }
-    n
+    count
 }
 
 fn component_params(comp: any, library: any) -> any {
@@ -265,71 +273,76 @@ fn component_params(comp: any, library: any) -> any {
 /// Put the edited clip in front of the engine and hold it at the playhead:
 /// `animation::add_clip` hands over the editor's in-memory table, edits
 /// included.
-pub fn arm(S: &mut editor::State) {
-    let p = player(S);
-    let comp = component(p.node);
+pub fn arm(state: &mut editor::State) {
+    let owner = player(state);
+    let comp = component(state, owner.found);
     if comp.is_nil() {
-        cache(S, p.index, "", nil, nil);
+        cache(state, owner.index, "", nil, nil);
         return;
     }
-    if !p.found.is_valid() {
+    if !owner.found.is_valid() {
         // Nothing live to push the clip to. The document still reads, so
         // the Timeline shows it; filling the cache is what stops the
         // re-arm loop.
-        document(S);
+        document(state);
         return;
     }
     let library = library_of(comp);
     if library.kind() == "str" && library.as_str() != "" {
-        library = util::engine_path(S.game_root, library.as_str());
+        library = util::engine_path(state.game_root, library.as_str());
     }
-    p.found.set_component("animation", component_params(comp, library));
-    let def = definition(S);
+    owner.found.set_component("animation", component_params(comp, library));
+    let def = definition(state);
     if def.is_nil() {
         return;
     }
-    let name = clip_name(p.node);
-    p.found.animation.add_clip(name, def);
+    let name = clip_name(state, owner.found);
+    owner.found.animation.add_clip(name, def);
     // While the scene is running it is the game's transport, not the editor's:
     // restarting the clip to show the playhead would be the editor animating
     // over the thing it is supposed to be previewing.
-    if S.playing {
+    if state.playing {
         return;
     }
-    p.found.animation.play(name);
-    p.found.animation.pause();
-    p.found.animation.seek(S.anim.time);
+    owner.found.animation.play(name);
+    owner.found.animation.pause();
+    owner.found.animation.seek(state.anim.time);
 }
 
 /// The clip changed: the scene needs saving, an external clip needs writing,
 /// and the engine needs the new table.
-pub fn touch(S: &mut editor::State) {
-    if S.clip.is_some() {
-        let clip = S.clip.unwrap();
+pub fn touch(state: &mut editor::State) {
+    if state.clip.is_some() {
+        let clip = state.clip.unwrap();
         clip.dirty = true;
     }
-    arm(S);
-    signals::changed(S, "timeline");
+    arm(state);
+    signals::changed(state, "timeline");
 }
 
 /// Create an inline clip on the player, named after it. With no player above
 /// the selection, the selection becomes one.
-pub fn ensure_clip(S: &mut editor::State) -> any {
-    let node = S.doc[player_index(S)];
-    if !component(node).is_nil() {
-        return definition(S);
+pub fn ensure_clip(state: &mut editor::State) -> any {
+    let found = model::node(state, player_index(state));
+    if !found.is_valid() {
+        return nil;
     }
-    history::record(S, "create clip", nil);
-    let name = node.name.as_str().to_lower();
+    if !component(state, found).is_nil() {
+        return definition(state);
+    }
+    history::record(state, "create clip", nil);
+    let name = found.name().to_lower();
     let clips = map().with(name, map().with("length", 2.0).with("loop_mode", animation::LOOP_LINEAR));
     let library = map().with("type", CLIP_TYPE).with(GROUP, clips);
-    node.set("animation", map().with("library", library).with("autoplay", name).with("speed_scale", 1.0).with("root_node", ""));
-    S.clip = nil;
-    signals::inspector(S);
-    signals::changed(S, "timeline");
-    arm(S);
-    log::info("created clip '{name}' on {node.name}");
-    definition(S)
+    found.set_component(COMPONENT, map().with("library", library).with("autoplay", name).with("speed_scale", 1.0).with("root_node", ""));
+    // The node carries the component now, which the frame's held read did not.
+    model::drop_edited(state);
+    state.clip = nil;
+    signals::inspector(state);
+    signals::changed(state, "timeline");
+    arm(state);
+    log::info("created clip '{name}' on {found.name()}");
+    definition(state)
 }
 
 fn track_for(def: any, property: str, target: str) -> any {
@@ -349,20 +362,20 @@ fn track_for(def: any, property: str, target: str) -> any {
     track
 }
 
-fn put_key(track: any, t: float, value: any) {
-    let key = map().with("time", t).with("value", value);
+fn put_key(track: any, time: float, value: any) {
+    let key = map().with("time", time).with("value", value);
     let keys = util::vec(track.keys);
     let out: [any] = [];
     let placed = false;
-    for i in 0..keys.len() {
-        let old = keys.at(i);
+    for index in 0..keys.len() {
+        let old = keys.at(index);
         let kt = old.time.as_float();
-        if !placed && util::abs(kt - t) < SAME_TIME {
+        if !placed && util::abs(kt - time) < SAME_TIME {
             out.push(key);
             placed = true;
             continue;
         }
-        if !placed && kt > t {
+        if !placed && kt > time {
             out.push(key);
             placed = true;
         }
@@ -374,39 +387,36 @@ fn put_key(track: any, t: float, value: any) {
     track.set("keys", out);
 }
 
-/// Insert (or replace) a key at `t` from the selection's current transform,
+/// Insert (or replace) a key at `time` from the selection's current transform,
 /// on the player's clip, addressed by path. A bone keys its rotation alone:
 /// its position is its rest, and a key there would tear the rig.
-pub fn add_key(S: &mut editor::State, t: float) {
-    let def = ensure_clip(S);
-    let node = model::selected_node(S);
-    let found = model::live(S, S.sel);
+pub fn add_key(state: &mut editor::State, time: float) {
+    let def = ensure_clip(state);
+    let found = model::selected_node(state);
     if !found.is_valid() {
-        // A key is a snapshot of the live node, so there has to be one.
-        log::warn("{node.name}: no live node to read a transform from");
         return;
     }
-    let player_i = player_index(S);
+    let player_i = player_index(state);
     if def.is_nil() {
-        log::warn("{node.name}: the library has no clip called '{clip_name(S.doc[player_i])}'");
+        log::warn("{found.name()}: the library has no clip called '{clip_name(state, model::node(state, player_i))}'");
         return;
     }
-    history::record(S, "insert keyframe", nil);
-    let target = target_path(S, player_i);
-    put_key(track_for(def, animation::PROPERTY_ROTATION_EULER, target), t, util::xyz(found.transform.rotation_euler));
-    if !node.has("bone2d") && !node.has("bone3d") {
-        put_key(track_for(def, animation::PROPERTY_POSITION, target), t, util::xyz(found.transform.position));
+    history::record(state, "insert keyframe", nil);
+    let target = target_path(state, player_i);
+    put_key(track_for(def, animation::PROPERTY_ROTATION_EULER, target), time, util::xyz(found.transform.rotation_euler));
+    if !found.has_component("bone2d") && !found.has_component("bone3d") {
+        put_key(track_for(def, animation::PROPERTY_POSITION, target), time, util::xyz(found.transform.position));
     }
-    if t > length(def) {
-        def.set("length", t);
+    if time > length(def) {
+        def.set("length", time);
     }
-    touch(S);
-    log::info("key at {seconds(t)}s ({key_count(def)} keys)");
+    touch(state);
+    log::info("key at {seconds(time)}s ({key_count(def)} keys)");
 }
 
 // A time to two places, as a log line gives one.
-fn seconds(t: float) -> str {
-    let hundredths = math::round(t * 100.0) as int;
+fn seconds(time: float) -> str {
+    let hundredths = math::round(time * 100.0) as int;
     let frac = hundredths % 100;
     "{hundredths / 100}.{if frac < 10 { "0" } else { "" }}{frac}"
 }
@@ -414,35 +424,35 @@ fn seconds(t: float) -> str {
 /// Insert (or replace) a key on one named property of the selection, for a
 /// tool that keys something a transform snapshot does not cover: the Polygon
 /// tool's `polygon/deform` is the first.
-pub fn key_property(S: &mut editor::State, t: float, property: str, value: any) {
-    let def = ensure_clip(S);
-    let player_i = player_index(S);
+pub fn key_property(state: &mut editor::State, time: float, property: str, value: any) {
+    let def = ensure_clip(state);
+    let player_i = player_index(state);
     if def.is_nil() {
-        log::warn("the library has no clip called '{clip_name(S.doc[player_i])}'");
+        log::warn("the library has no clip called '{clip_name(state, model::node(state, player_i))}'");
         return;
     }
-    history::record(S, "key {property}", nil);
-    put_key(track_for(def, property, target_path(S, player_i)), t, value);
-    if t > length(def) {
-        def.set("length", t);
+    history::record(state, "key {property}", nil);
+    put_key(track_for(def, property, target_path(state, player_i)), time, value);
+    if time > length(def) {
+        def.set("length", time);
     }
-    touch(S);
-    log::info("{property} keyed at {seconds(t)}s");
+    touch(state);
+    log::info("{property} keyed at {seconds(time)}s");
 }
 
 /// Delete the selection's keys at the playhead; other nodes' lanes keep theirs.
-pub fn delete_key_at(S: &mut editor::State, t: float) {
-    let def = definition(S);
+pub fn delete_key_at(state: &mut editor::State, time: float) {
+    let def = definition(state);
     if def.is_nil() {
         return;
     }
-    history::record(S, "delete keyframe", nil);
-    let target = target_path(S, player_index(S));
+    history::record(state, "delete keyframe", nil);
+    let target = target_path(state, player_index(state));
     let kept: [any] = [];
     for track in tracks(def) {
         let keys: [any] = [];
         for key in util::vec(track.keys) {
-            if track.target.as_str() != target || util::abs(key.time.as_float() - t) >= 0.05 {
+            if track.target.as_str() != target || util::abs(key.time.as_float() - time) >= 0.05 {
                 keys.push(key);
             }
         }
@@ -458,54 +468,54 @@ pub fn delete_key_at(S: &mut editor::State, t: float) {
     } else {
         def.remove("tracks");
     }
-    touch(S);
+    touch(state);
 }
 
 /// Move the playhead. The engine poses the node; the editor samples nothing.
-pub fn seek(S: &mut editor::State, t: float) {
-    S.anim.time = t;
-    signals::changed(S, "timeline");
-    let p = player(S);
-    if p.found.is_valid() && !component(p.node).is_nil() {
-        p.found.animation.seek(t);
+pub fn seek(state: &mut editor::State, time: float) {
+    state.anim.time = time;
+    signals::changed(state, "timeline");
+    let owner = player(state);
+    if owner.found.is_valid() && !component(state, owner.found).is_nil() {
+        owner.found.animation.seek(time);
     }
 }
 
 /// Inline to external: the same table, in a file of its own.
-pub fn promote(S: &mut editor::State) {
-    let p = player(S);
-    let comp = component(p.node);
-    let doc = document(S);
+pub fn promote(state: &mut editor::State) {
+    let owner = player(state);
+    let comp = component(state, owner.found);
+    let doc = document(state);
     if comp.is_nil() || doc.is_nil() {
         return;
     }
-    history::record(S, "save clip as file", nil);
+    history::record(state, "save clip as file", nil);
     if library_of(comp).kind() != "map" {
         log::warn("this clip is already a file");
         return;
     }
-    let rel = "animations/" + p.node.name.as_str().to_lower() + ".toml";
+    let rel = "animations/" + owner.found.name().to_lower() + ".toml";
     doc.set("type", CLIP_TYPE);
-    fs::write(util::engine_path(S.game_root, rel), toml::encode(doc));
-    assets::reload(util::engine_path(S.game_root, rel));
+    fs::write(util::engine_path(state.game_root, rel), toml::encode(doc));
+    assets::reload(util::engine_path(state.game_root, rel));
     comp.set("library", rel);
-    S.clip = nil;
-    signals::inspector(S);
-    arm(S);
+    state.clip = nil;
+    signals::inspector(state);
+    arm(state);
     log::info("saved " + rel + " (undo detaches it; the file stays)");
 }
 
 /// External to inline: a private copy of the document, owned by this node.
-pub fn make_inline(S: &mut editor::State) {
-    let p = player(S);
-    let comp = component(p.node);
-    let rel = library_path(p.node);
+pub fn make_inline(state: &mut editor::State) {
+    let owner = player(state);
+    let comp = component(state, owner.found);
+    let rel = library_path(state, owner.found);
     if comp.is_nil() || rel.is_none() {
         log::warn("this clip is already embedded");
         return;
     }
-    history::record(S, "embed clip", nil);
-    let copy = assets::duplicate(util::engine_path(S.game_root, rel.unwrap()));
+    history::record(state, "embed clip", nil);
+    let copy = assets::duplicate(util::engine_path(state.game_root, rel.unwrap()));
     if copy.kind() != "map" {
         log::warn("cannot embed {rel.unwrap()}: {copy}");
         return;
@@ -520,52 +530,34 @@ pub fn make_inline(S: &mut editor::State) {
     }
     copy.set("type", CLIP_TYPE);
     comp.set("library", copy);
-    S.clip = nil;
-    signals::inspector(S);
-    arm(S);
-    log::info("clip is now embedded in {p.node.name}");
+    state.clip = nil;
+    signals::inspector(state);
+    arm(state);
+    log::info("clip is now embedded in {owner.found.name()}");
 }
 
 /// Write an external clip back to its file. An inline clip is saved with the
 /// scene, so there is nothing separate to write.
-pub fn save(S: &mut editor::State) {
-    if S.clip.is_none() {
+pub fn save(state: &mut editor::State) {
+    if state.clip.is_none() {
         return;
     }
-    let clip = S.clip.unwrap();
+    let clip = state.clip.unwrap();
     if clip.path.is_none() || clip.doc.is_nil() || !clip.dirty {
         return;
     }
     let path = clip.path.unwrap();
-    fs::write(util::engine_path(S.game_root, path), toml::encode(clip.doc));
-    assets::reload(util::engine_path(S.game_root, path));
+    fs::write(util::engine_path(state.game_root, path), toml::encode(clip.doc));
+    assets::reload(util::engine_path(state.game_root, path));
     clip.dirty = false;
     log::info("saved " + path);
 }
 
-/// After a mirror rebuild, re-apply each animated `library` as an absolute
-/// path: game-relative references do not resolve in the editor's engine.
-pub fn rebind(S: &mut editor::State) {
-    for i in 0..S.doc.len() {
-        let node = S.doc[i];
-        let comp = component(node);
-        let found = model::live(S, i);
-        let rel = library_path(node);
-        if found.is_valid() && !comp.is_nil() && rel.is_some() {
-            found.set_component("animation", component_params(comp, util::engine_path(S.game_root, rel.unwrap())));
-            if !S.playing {
-                found.animation.pause();
-            }
-        }
-    }
-}
-
-/// Let the mirrored players run again (F5). `arm` paused them; the mirror is
-/// built paused so the edited scene does not animate under the inspector.
-pub fn resume_all(S: editor::State) {
-    for i in 0..S.doc.len() {
-        let found = model::live(S, i);
-        if found.is_valid() && !component(S.doc[i]).is_nil() {
+/// Let the scene's players run again (F5). `arm` paused them; the scene is
+/// built paused so it does not animate under the inspector.
+pub fn resume_all(state: editor::State) {
+    for found in state.nodes {
+        if found.is_valid() && found.has_component(COMPONENT) {
             found.animation.resume();
         }
     }
@@ -574,27 +566,23 @@ pub fn resume_all(S: editor::State) {
 /// The engine advances every player itself. All the editor does per frame is
 /// follow the playhead while the scene runs, and re-arm when the selection
 /// moves to another player.
-pub fn update(S: &mut editor::State) {
-    if S.anim.rebind {
-        S.anim.rebind = false;
-        rebind(S);
-    }
-    let player_i = player_index(S);
-    if S.playing {
-        let p = player(S);
-        if p.found.is_valid() && !component(p.node).is_nil() {
-            S.anim.time = p.found.animation.time();
+pub fn update(state: &mut editor::State) {
+    let player_i = player_index(state);
+    if state.playing {
+        let owner = player(state);
+        if owner.found.is_valid() && owner.found.has_component(COMPONENT) {
+            state.anim.time = owner.found.animation.time();
         }
         return;
     }
-    let stale = S.clip.is_none() || S.clip.unwrap().index != player_i;
+    let stale = state.clip.is_none() || state.clip.unwrap().index != player_i;
     if stale {
         // The cache is about to be replaced, so an external clip edited but
         // not yet written goes to its file now rather than being dropped.
-        save(S);
-        S.clip = nil;
-        signals::inspector(S);
-        signals::changed(S, "timeline");
-        arm(S);
+        save(state);
+        state.clip = nil;
+        signals::inspector(state);
+        signals::changed(state, "timeline");
+        arm(state);
     }
 }

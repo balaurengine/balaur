@@ -39,12 +39,40 @@ impl Raw {
 pub(crate) trait Wasm {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String>;
     fn has_func(&mut self, name: &str) -> bool;
+    /// [`Wasm::call`] on unit `unit` of a script built as units, made now if
+    /// this is its first call; unit 0 is the script's own.
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        if unit != 0 {
+            return Err("this script is not built as units".into());
+        }
+        self.call(name, args, results)
+    }
+    /// Whether unit `unit` exports `name`.
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        unit == 0 && self.has_func(name)
+    }
+    /// The unit `key` as a unit of this script, added unless it is one: its
+    /// index. Its static data takes a block of the heap, since the space
+    /// before the heap was laid out for the units known when it was made.
+    fn link(&mut self, key: &str, _unit: std::sync::Arc<crate::Compiled>) -> Result<usize, String> {
+        Err(format!("{key}: this script is not built as units"))
+    }
     fn read(&self, at: usize, len: usize) -> Vec<u8>;
     fn memory_len(&self) -> usize;
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);
     fn set_fuel(&mut self, fuel: u64);
+    /// What the engine's fuel has left, on one that meters it.
+    fn fuel(&mut self) -> Option<u64> {
+        None
+    }
     /// Whether a call can stop partway and carry on later: what a debugger
     /// needs to hold a script at a line while the frame loop runs.
     fn can_park(&self) -> bool {
@@ -85,6 +113,36 @@ pub(crate) trait ImportCtx {
     /// how a host function allocates the string or array it hands back.
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String>;
     fn has_func(&mut self, name: &str) -> bool;
+    /// [`ImportCtx::call`] on unit `unit` of a script built as units: a host
+    /// function reaching another script of the same instance.
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        if unit != 0 {
+            return Err("this script is not built as units".into());
+        }
+        self.call(name, args, results)
+    }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        unit == 0 && self.has_func(name)
+    }
+    /// [`Wasm::link`] from inside a host function: a script loaded while
+    /// another runs.
+    fn link(&mut self, key: &str, _unit: std::sync::Arc<crate::Compiled>) -> Result<usize, String> {
+        Err(format!("{key}: this script is not built as units"))
+    }
+    /// `size` bytes from the module's own allocator, for the host to fill:
+    /// what a string or an array it hands back is written into.
+    fn alloc(&mut self, size: usize) -> Result<usize, String> {
+        let returned = self.call(crate::words::ALLOC, &[Raw::I32(size as i32)], 1)?;
+        Ok(returned
+            .first()
+            .map_or(0, |pointer| pointer.i32() as u32 as usize))
+    }
 }
 
 /// Reads past the end of memory come back as zeros, as an unwritten slot would.

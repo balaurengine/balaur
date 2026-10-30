@@ -1,7 +1,7 @@
 // Work every thirtieth frame instead of every one: the shape of an actor
 // that thinks on a tick rather than on a frame.
 
-pub struct TimerWait {
+pub class TimerWait {
     node: Node,
     n: int,
     out: float,

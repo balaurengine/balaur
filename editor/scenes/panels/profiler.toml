@@ -50,7 +50,7 @@ parent = "panel"
 kind = "table"
 grow = 1
 row_height = 18
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 sortable = true
 
 [nodes.widget.touch]

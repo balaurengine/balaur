@@ -44,9 +44,9 @@ pub fn hear_own(editor: Node) {
 
 /// Have the Editor hear when one of the shell's boxes moved, which lays the
 /// shell out again.
-pub fn hear_boxes(S: editor::State, editor: Node) {
+pub fn hear_boxes(state: editor::State, editor: Node) {
     for id in layout::watched() {
-        let found = layout::box_node(S, id);
+        let found = layout::box_node(state, id);
         if !util::is_nil(found) {
             events::listen(editor, "resized", found);
         }
@@ -68,50 +68,57 @@ pub fn hear_engine(editor: Node) {
 }
 
 /// Clear the guard on `name`, as the Editor hears it back.
-pub fn heard(S: &mut editor::State, name: str) {
-    S.told.set(name, false);
+pub fn heard(state: &mut editor::State, name: str) {
+    state.told.set(name, false);
 }
 
-fn tell(S: &mut editor::State, name: str) {
-    let held = S.told.get(name);
+fn tell(state: &mut editor::State, name: str) {
+    let held = state.told.get(name);
     if !held.is_nil() && held.as_bool() {
         return;
     }
-    S.told.set(name, true);
+    state.told.set(name, true);
     scene::get_node("Editor").emit(name, nil);
 }
 
 /// The document, the selection, a lock or a warning moved: what a panel
 /// showing the document's outline listens for.
-pub fn outline(S: &mut editor::State) {
-    tell(S, OUTLINE);
-    bars(S);
+pub fn outline(state: &mut editor::State) {
+    tell(state, OUTLINE);
+    bars(state);
 }
 
 /// What the Inspector's form is built from beside the outline moved: the
 /// workspace, the tool, play, the polygon being edited, the clip, the doc tab
 /// or the screen's class. Called wherever one is written, so a write that
 /// leaves it as it was says nothing.
-pub fn inspector(S: &mut editor::State) {
-    let polygon: any = S.polygon;
+pub fn inspector(state: &mut editor::State) {
+    let polygon: any = state.polygon;
     let key: any = [
-        S.workspace, S.tool, S.playing, polygon, "{S.clip}",
-        S.shader_rel, S.doctab, S.compact, S.touchscreen,
+        state.workspace, state.tool, state.playing, polygon, "{state.clip}",
+        state.shader_rel, state.doctab, state.compact, state.touchscreen,
     ];
-    if key == S.inspector_key {
+    if key == state.inspector_key {
         return;
     }
-    S.inspector_key = key;
-    tell(S, INSPECTOR);
-    bars(S);
+    state.inspector_key = key;
+    tell(state, INSPECTOR);
+    bars(state);
+}
+
+/// The Inspector's whole form filled again, its key or not: a run of edits
+/// its rows followed alone has stopped (`model::follow_changes`).
+pub fn refill_inspector(state: &mut editor::State) {
+    tell(state, INSPECTOR);
+    bars(state);
 }
 
 /// A frame of play: every live value the Inspector and the state machine
 /// show may have moved.
-pub fn playing_frame(S: &mut editor::State) {
-    tell(S, INSPECTOR);
-    tell(S, PLAY);
-    bars(S);
+pub fn playing_frame(state: &mut editor::State) {
+    tell(state, INSPECTOR);
+    tell(state, PLAY);
+    bars(state);
 }
 
 /// What a dock's tab row and its panel are built from moved: which panels
@@ -119,96 +126,96 @@ pub fn playing_frame(S: &mut editor::State) {
 /// outline's tab), the screen's class, the Problems count, a plugin's dock,
 /// and whether a recording is open, which the Recordings tab gives way to.
 /// Called wherever one is written; a write that leaves the key says nothing.
-pub fn docks(S: &mut editor::State) {
-    let counts = lint::counts(S);
-    // The text, not the map: a key holding `S.docks` itself is the map it is
+pub fn docks(state: &mut editor::State) {
+    let counts = lint::counts(state);
+    // The text, not the map: a key holding `state.docks` itself is the map it is
     // compared against, and never differs from it.
     let key: any = [
-        "{S.docks}", S.layout.left.w, S.layout.right.w, S.layout.bottom.w,
-        S.workspace, S.compact, counts._0 + counts._1, S.registry.panels.len(),
-        session::loaded(S),
+        "{state.docks}", state.layout.left.width, state.layout.right.width, state.layout.bottom.width,
+        state.workspace, state.compact, counts.errors + counts.warnings, state.registry.panels.len(),
+        session::loaded(state),
     ];
-    if key == S.docks_key {
+    if key == state.docks_key {
         return;
     }
-    S.docks_key = key;
-    tell(S, DOCKS);
-    bars(S);
+    state.docks_key = key;
+    tell(state, DOCKS);
+    bars(state);
 }
 
 /// Whether what the viewport's lines are drawn from beside the outline and
 /// the Inspector's words moved: the tools' hover, a drag, the box select.
 /// Asked after the pointer did something, and true whenever a drag is under
 /// way or the pointer is over the stage, where a tool's lines follow it.
-pub fn overlays_moved(S: &mut editor::State, over: bool) -> bool {
-    let hot: any = viewport::hot_part(S);
-    let marquee: any = S.gizmo.marquee;
-    let rig: any = S.rig.hover;
-    let pen: any = S.pen.hover;
-    let tile: any = S.tiles.hover;
-    let anchor: any = S.tiles.anchor;
-    let polygon: any = S.polygon.hover;
+pub fn overlays_moved(state: &mut editor::State, over: bool) -> bool {
+    let hot: any = viewport::hot_part(state);
+    let marquee: any = state.gizmo.marquee;
+    let rig: any = state.rig.hover;
+    let pen: any = state.pen.hover;
+    let tile: any = state.tiles.hover;
+    let anchor: any = state.tiles.anchor;
+    let polygon: any = state.polygon.hover;
     // Their text: a hover the state keeps as a map is the one the last key
     // held, and never differs from it.
     let key: any = "{[hot, marquee, rig, pen, tile, anchor, polygon]}";
-    let moving = S.gizmo.drag.is_some() || S.camera_drag >= 0;
-    if !over && !moving && key == S.overlays_key {
+    let moving = state.gizmo.drag.is_some() || state.camera_drag >= 0;
+    if !over && !moving && key == state.overlays_key {
         return false;
     }
-    S.overlays_key = key;
+    state.overlays_key = key;
     true
 }
 
 /// What one panel shows moved, `what` being one of `panels()`: emitted as
 /// `<what>_changed`, once a frame.
-pub fn changed(S: &mut editor::State, what: str) {
-    tell(S, "{what}_changed");
-    bars(S);
+pub fn changed(state: &mut editor::State, what: str) {
+    tell(state, "{what}_changed");
+    bars(state);
 }
 
 /// The top bar, the status strip, the rail and the stage chrome are built
 /// from what the other words cover and a little besides, so each of those
 /// asks after both; each says only when its own key moved. Called where the
 /// little besides is written.
-pub fn bars(S: &mut editor::State) {
-    chrome(S);
-    status(S);
-    rail(S);
-    stage(S);
+pub fn bars(state: &mut editor::State) {
+    chrome(state);
+    status(state);
+    rail(state);
+    stage(state);
 }
 
-fn stage(S: &mut editor::State) {
-    let key: any = center::stage_key(S);
-    if key == S.stage_key {
+fn stage(state: &mut editor::State) {
+    let key: any = center::stage_key(state);
+    if key == state.stage_key {
         return;
     }
-    S.stage_key = key;
-    tell(S, STAGE);
+    state.stage_key = key;
+    tell(state, STAGE);
 }
 
-fn rail(S: &mut editor::State) {
-    let key: any = center::rail_key(S);
-    if key == S.rail_key {
+fn rail(state: &mut editor::State) {
+    let key: any = center::rail_key(state);
+    if key == state.rail_key {
         return;
     }
-    S.rail_key = key;
-    tell(S, RAIL);
+    state.rail_key = key;
+    tell(state, RAIL);
 }
 
-fn chrome(S: &mut editor::State) {
-    let key: any = chrome::key(S);
-    if key == S.chrome_key {
+fn chrome(state: &mut editor::State) {
+    let key: any = chrome::key(state);
+    if key == state.chrome_key {
         return;
     }
-    S.chrome_key = key;
-    tell(S, CHROME);
+    state.chrome_key = key;
+    tell(state, CHROME);
 }
 
-fn status(S: &mut editor::State) {
-    let key: any = chrome::status_key(S);
-    if key == S.status_key {
+fn status(state: &mut editor::State) {
+    let key: any = chrome::status_key(state);
+    if key == state.status_key {
         return;
     }
-    S.status_key = key;
-    tell(S, STATUS);
+    state.status_key = key;
+    tell(state, STATUS);
 }

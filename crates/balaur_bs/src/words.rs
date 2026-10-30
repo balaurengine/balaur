@@ -21,14 +21,13 @@ pub const AWAIT_I64: &str = "__await_i64";
 pub const AWAIT_F64: &str = "__await_f64";
 pub const AWAIT_I32: &str = "__await_i32";
 pub const AWAIT_HEAP: &str = "__await_heap";
+/// A string's number, which the host reads.
+pub const PARSE_F64: &str = "__parse_f64";
+/// `node.script` as a class: the node's script object when it runs that
+/// file's class in this instance, retained, else 0.
+pub const SCRIPT_OF: &str = "__script_of";
 pub const MATH_PREFIX: &str = "__math_";
-pub const STR_PREFIX: &str = "__str_";
-pub const ANY_PREFIX: &str = "__any_";
 pub const DBG_PROBE: &str = "__dbg_probe";
-/// A typed value written to memory, read back by the host as an `any`.
-pub const BOX: &str = "__box";
-/// An `any` as a typed value, which the host writes to memory.
-pub const UNBOX: &str = "__unbox";
 /// Loop passes and calls left before a metered module traps.
 pub const FUEL: &str = "__fuel";
 /// A profiled module: the statements it has run, wrapping.

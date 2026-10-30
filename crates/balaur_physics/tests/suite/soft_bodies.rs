@@ -31,7 +31,7 @@ pub(crate) fn boot(script: &str, ticks: u32) -> (tempfile::TempDir, balaur_core:
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -57,7 +57,7 @@ indices = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]
 [[nodes]]
 id = "n_blob"
 name = "Blob"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.softbody3d]
 kind = "box"
@@ -74,7 +74,7 @@ cells = [2.0, 2.0]
 "#,
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -106,8 +106,8 @@ fn run_clean_for(script: &str, ticks: u32) {
 #[test]
 fn a_cuboid_soft_body_has_the_particles_its_cell_counts_ask_for() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         // Three particles an axis for two cells an axis.
         if self.node.softbody3d.softbody_particles() != 27 { log::error("the cuboid was not 3x3x3 particles"); }
@@ -120,8 +120,8 @@ impl S {
 #[test]
 fn every_3d_layout_builds() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_SPHERE).with("radius", 0.5).with("subdivisions", 1));
@@ -145,8 +145,8 @@ impl S {
 #[test]
 fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#wedge").with("cell_size", 0.2));
@@ -162,8 +162,8 @@ impl S {
 #[test]
 fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let n = self.node;
         n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#wedge").with("cell_size", 0.4));
@@ -180,8 +180,8 @@ impl S {
 /// hang: the numbers come from a text field.
 #[test]
 fn a_layout_past_the_particle_cap_is_refused() {
-    let errors = run(r#"pub struct S { node: Node }
-impl S {
+    let errors = run(r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [400.0, 400.0, 400.0]));
     }
@@ -195,8 +195,8 @@ impl S {
 
 #[test]
 fn a_cell_count_no_integer_holds_is_refused_rather_than_built() {
-    let errors = run(r#"pub struct S { node: Node }
-impl S {
+    let errors = run(r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_CLOTH).with("cells", [1.0e30, 1.0e30, 1.0]));
     }
@@ -213,8 +213,8 @@ impl S {
 #[test]
 fn a_falling_soft_body_moves_its_particles() {
     run_clean(
-        r#"pub struct S { node: Node, first: Vec3, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
+impl Scenario {
     fn init() {
         self.first = self.node.softbody3d.softbody_position(0);
     }
@@ -236,8 +236,8 @@ impl S {
 #[test]
 fn a_pinned_particle_stays_where_it_was_put() {
     run_clean(
-        r#"pub struct S { node: Node, first: Vec3, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8).with("pinned_particles", [0]));
         self.first = self.node.softbody3d.softbody_position(0);
@@ -256,64 +256,11 @@ impl S {
     );
 }
 
-/// Every mechanical row round-trips: what is written is what the component
-/// reads back, so an inspector edit is not silently dropped.
-#[test]
-fn the_material_rows_are_set_and_read_back() {
-    run_clean(
-        r#"pub struct S { node: Node }
-impl S {
-    fn init() {
-        let n = self.node;
-        n.softbody3d.edge_hz = 120.0;
-        n.softbody3d.bend_damping = 0.4;
-        n.softbody3d.cell_model = physics3d::CELL_COROTATIONAL;
-        n.softbody3d.young_modulus = 50000.0;
-        n.softbody3d.poisson_ratio = 0.45;
-        n.softbody3d.plastic_yield = 0.2;
-        n.softbody3d.edge_plastic_flow = physics3d::FLOW_COMPRESSION;
-        n.softbody3d.tear_strain = 0.6;
-        n.softbody3d.shape_matching = physics3d::SHAPE_MATCHING_ON;
-        if n.softbody3d.edge_hz != 120.0 { log::error("edge_hz did not stick"); }
-        if n.softbody3d.bend_damping != 0.4 { log::error("bend_damping did not stick"); }
-        if n.softbody3d.cell_model != physics3d::CELL_COROTATIONAL { log::error("cell_model did not stick"); }
-        if n.softbody3d.young_modulus != 50000.0 { log::error("young_modulus did not stick"); }
-        if n.softbody3d.poisson_ratio != 0.45 { log::error("poisson_ratio did not stick"); }
-        if n.softbody3d.plastic_yield != 0.2 { log::error("plastic_yield did not stick"); }
-        if n.softbody3d.edge_plastic_flow != physics3d::FLOW_COMPRESSION { log::error("edge_plastic_flow did not stick"); }
-        if n.softbody3d.tear_strain != 0.6 { log::error("tear_strain did not stick"); }
-        if n.softbody3d.shape_matching != physics3d::SHAPE_MATCHING_ON { log::error("shape_matching did not stick"); }
-    }
-}
-"#,
-    );
-}
-
-/// Volume preservation is what keeps a jelly from collapsing, and the read
-/// side has to report it from the solver rather than from what was authored.
-#[test]
-fn volume_preservation_reads_back_from_the_solver() {
-    run_clean(
-        r#"pub struct S { node: Node }
-impl S {
-    fn init() {
-        let n = self.node;
-        n.softbody3d.volume_preservation = false;
-        n.softbody3d.volume_factor = 1.5;
-        if n.softbody3d.volume_preservation { log::error("volume_preservation did not stick"); }
-        if n.softbody3d.volume_factor != 1.5 { log::error("volume_factor did not stick"); }
-        if n.softbody3d.softbody_rest_volume() <= 0.0 { log::error("the block encloses nothing at rest"); }
-    }
-}
-"#,
-    );
-}
-
 #[test]
 fn the_2d_world_has_the_same_shape_of_api() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
         if blob.softbody2d.softbody_particles() != 9 { log::error("the grid was not 3x3 particles"); }
@@ -335,8 +282,8 @@ impl S {
 #[test]
 fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
         blob.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square").with("cell_size", 0.2));
@@ -354,15 +301,15 @@ impl S {
 #[test]
 fn a_rope_past_its_tear_strain_comes_apart() {
     run_clean_for(
-        r#"pub struct S { node: Node, torn: int, ticks: int, before: int }
-impl S {
+        r#"pub class Scenario { node: Node, torn: int, ticks: int, before: int }
+impl Scenario {
     fn init() {
         // One end pinned, a heavy free end, and edges that break at a tenth of
         // their rest length: the rope cannot hold itself up.
         self.node.softbody3d.set_softbody(map()
             .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
-            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0));
+            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0)));
         self.before = self.node.softbody3d.softbody_particles();
     }
 
@@ -572,8 +519,8 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
 #[test]
 fn an_automatic_particle_radius_reads_back_as_automatic() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [2.0, 2.0, 2.0]).with("particle_radius", 0.0));
         let read = self.node.get_component("softbody3d");
@@ -591,7 +538,7 @@ fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let (_dir, app) = boot("pub struct S { node: Node }\n", 2);
+    let (_dir, app) = boot("pub class Scenario { node: Node }\n", 2);
     let world = app.engine.world();
     let node = balaur_core::ids::find(&world, app.engine.root(), "n_blob2d").expect("the 2D blob");
     let drawn = world
@@ -614,10 +561,10 @@ fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
 #[test]
 fn a_body_on_the_implicit_solver_falls() {
     let errors = run_for(
-        r#"pub struct S { node: Node, first: Vec3, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
+impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [2.0, 2.0, 2.0]).with("solver", physics3d::SOFT_SOLVER_FEM).with("cell_model", physics3d::CELL_COROTATIONAL));
+        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [2.0, 2.0, 2.0]).with("solver", physics3d::SOFT_SOLVER_FEM).with("soft_material", map().with("cell_model", physics3d::CELL_COROTATIONAL)));
         let read = self.node.get_component("softbody3d");
         if read.get("solver").as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
         self.first = self.node.softbody3d.softbody_position(0);
@@ -645,8 +592,8 @@ impl S {
 #[test]
 fn a_skinned_body_can_collide_through_its_skin() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#wedge").with("cell_size", 0.2).with("skin", true).with("skin_collision", true));
         if self.node.softbody3d.softbody_particles() <= 0 { log::error("the skinned body has no particles"); }
@@ -661,8 +608,8 @@ impl S {
 #[test]
 fn a_disk_keeps_its_area_when_it_lands() {
     let errors = run_for(
-        r#"pub struct S { node: Node, before: float, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, before: float, ticks: int }
+impl Scenario {
     fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", map().with("position", [0.0, -0.8, 0.0]));
@@ -710,8 +657,8 @@ fn solved_2d(script: &str, ticks: u32) -> balaur_core::mesh::SolvedPolygon {
 #[test]
 fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
     let solved = solved_2d(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.get_node("Blob2d").softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square").with("cell_size", 0.2));
     }
@@ -736,8 +683,8 @@ impl S {
 #[test]
 fn a_2d_rope_hands_over_a_ribbon() {
     let solved = solved_2d(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.get_node("Blob2d").softbody2d.set_softbody(map().with("kind", physics2d::SOFT_ROPE).with("a", [0.0, 0.0]).with("b", [1.0, 0.0]).with("particle_count", 5));
     }
@@ -754,8 +701,8 @@ impl S {
 #[test]
 fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
     let solved = solved_2d(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", map().with("position", [0.0, -0.8, 0.0]));
@@ -789,8 +736,8 @@ fn a_generated_body_is_drawn_in_its_color() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_dir, app) = boot(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.get_node("Blob2d").softbody2d.color = color(0.9, 0.3, 0.2, 1.0);
     }
@@ -820,8 +767,8 @@ impl S {
 #[test]
 fn a_ray_that_meets_a_soft_body_names_its_node() {
     let errors = run_for(
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
@@ -849,13 +796,13 @@ fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_dir, mut app) = boot(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map()
             .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
-            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0));
+            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0)));
     }
 }
 "#,
@@ -900,17 +847,18 @@ impl S {
 #[test]
 fn a_material_change_does_not_rebuild_the_body_from_rest() {
     let errors = run_for(
-        r#"pub struct S { node: Node, ticks: int, before: float }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int, before: float }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 6 {
             self.before = n.softbody3d.softbody_position(0).y;
-            n.softbody3d.edge_hz = 20.0;
+            n.patch_component("softbody3d", map().with("soft_material", map().with("edge_hz", 20.0)));
         }
         if self.ticks == 7 {
-            if n.softbody3d.edge_hz != 20.0 { log::error("the stiffness did not take"); }
+            let made = assets::load(n.softbody3d.soft_material);
+            if made.edge_hz.as_float() != 20.0 { log::error("the stiffness did not take"); }
             if n.softbody3d.softbody_position(0).y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
             log::error("checked: tuned in place");
         }
@@ -937,8 +885,8 @@ pub(crate) fn run_checked(script: &str, ticks: u32, done: &str) {
 #[test]
 fn a_body_that_does_not_collide_lets_a_ray_through() {
     run_checked(
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [2.0, 2.0, 2.0]).with("collides", false));
     }
@@ -961,10 +909,10 @@ impl S {
 #[test]
 fn a_woven_cloth_and_a_2d_skin_collision_build() {
     run_checked(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_CLOTH).with("cells", [4.0, 4.0, 1.0]).with("warp_hz", 80.0).with("weft_hz", 10.0));
+        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_CLOTH).with("cells", [4.0, 4.0, 1.0]).with("soft_material", map().with("warp_hz", 80.0).with("weft_hz", 10.0)));
         if self.node.softbody3d.softbody_particles() != 25 { log::error("a woven 4x4 cloth is not 5x5 particles"); }
         let flat = self.node.get_node("Blob2d");
         flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square").with("cell_size", 0.2).with("skin_collision", true));
@@ -1017,7 +965,7 @@ fn built_with(script: &str) -> (bool, bool) {
 fn orientation_picks_a_solid_or_a_shell() {
     let sphere = |orientation: &str| {
         built_with(&format!(
-            "pub struct S {{ node: Node }}\nimpl S {{ fn init() {{ self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_SPHERE).with(\"radius\", 0.5).with(\"subdivisions\", 1).with(\"orientation\", {orientation})); }} }}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ fn init() {{ self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_SPHERE).with(\"radius\", 0.5).with(\"subdivisions\", 1).with(\"orientation\", {orientation})); }} }}\n"
         ))
         .0
     };
@@ -1041,7 +989,7 @@ fn orientation_picks_a_solid_or_a_shell() {
 fn shape_matching_auto_keeps_the_layouts_own_choice() {
     let mesh = |matching: &str| {
         built_with(&format!(
-            "pub struct S {{ node: Node }}\nimpl S {{ fn init() {{ self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_TRIANGLE_MESH).with(\"mesh\", \"#wedge\").with(\"shape_matching\", {matching})); }} }}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ fn init() {{ self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_TRIANGLE_MESH).with(\"mesh\", \"#wedge\").with(\"soft_material\", map().with(\"shape_matching\", {matching}))); }} }}\n"
         ))
         .1
     };
@@ -1051,7 +999,7 @@ fn shape_matching_auto_keeps_the_layouts_own_choice() {
     );
     assert!(!mesh("physics3d::SHAPE_MATCHING_OFF"), "off kept it");
     let cuboid = built_with(
-        "pub struct S { node: Node }\nimpl S { fn init() { self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_BOX).with(\"cells\", [2.0, 2.0, 2.0]).with(\"shape_matching\", physics3d::SHAPE_MATCHING_ON)); } }\n",
+        "pub class Scenario { node: Node }\nimpl Scenario { fn init() { self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_BOX).with(\"cells\", [2.0, 2.0, 2.0]).with(\"soft_material\", map().with(\"shape_matching\", physics3d::SHAPE_MATCHING_ON))); } }\n",
     );
     assert!(cuboid.1, "on did not turn shape matching on for a cuboid");
 }

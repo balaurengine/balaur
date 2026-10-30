@@ -46,10 +46,10 @@ pub(super) fn sense<'a>(ui: &egui::Ui, item: &'a str, slot: usize, rect: Rect) -
 pub(super) fn draw(
     ui: &egui::Ui,
     marks: &[Mark<'_>],
-    size: f32,
+    (size, icon): (f32, &egui::FontFamily),
     (ink, wash): (Color32, &Ink),
 ) -> Option<String> {
-    let glyph_font = egui::FontId::new(size, crate::theme::family("icon"));
+    let glyph_font = egui::FontId::new(size, icon.clone());
     let mut clicked = None;
     for (name, glyph, sensed) in marks {
         if sensed.hovered() {

@@ -2,7 +2,7 @@
 // filled by the Editor when what they show moved or the screen was resized.
 // The toolbar's verbs are this panel's own; a row's run their own handlers.
 
-pub struct Manager {
+pub class Manager {
     node: Node,
     editor: Node,
 }
@@ -31,7 +31,7 @@ impl Manager {
         let name = node.name();
         if name == "Filter" && event == "change" {
             self.editor.call("manager_filter", value);
-        } else if event == "click" && on_widget_event_any_0(name, VERBS()) && node.parent().name() == "Tools" {
+        } else if event == "click" && is_verb(name, VERBS()) && node.parent().name() == "Tools" {
             self.editor.call("manager_verb", name);
         } else if event == "click" || event == "change" || event == "submit" {
             self.editor.call("manager_fill");
@@ -39,7 +39,7 @@ impl Manager {
     }
 }
 
-fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+fn is_verb(name: str, items: [str]) -> bool {
     for verb in items {
         if verb == name {
             return true;

@@ -14,6 +14,7 @@ pub mod assets;
 pub mod attachments;
 mod batteries_api;
 pub mod bindings;
+pub mod changes;
 pub mod collections;
 pub mod components;
 pub mod csg;
@@ -47,6 +48,7 @@ pub mod ids;
 pub mod ignore;
 pub mod import;
 pub mod interpolate;
+pub mod layers;
 pub mod logbuf;
 pub mod math_api;
 pub mod mesh;
@@ -72,6 +74,7 @@ pub mod save;
 pub mod scene;
 pub mod scene_api;
 pub mod scene_switch;
+pub mod scene_toml;
 pub mod settings;
 pub mod settings_api;
 pub mod skeleton;
@@ -115,8 +118,7 @@ pub use replay::{ReplayMode, ReplayRegistry};
 pub use resources::Resources;
 pub use rollback::Session;
 pub use scene::{
-    Appearance, Children, GlobalAppearance, GlobalTransform, Name, Parent, ScriptAttachment,
-    Transform,
+    Appearance, Children, GlobalAppearance, GlobalTransform, Name, NodeScript, Parent, Transform,
 };
 pub use snapshot::{Checkpoint, CheckpointRing, SnapshotRegistry};
 pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};

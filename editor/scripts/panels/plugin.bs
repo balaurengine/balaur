@@ -1,7 +1,7 @@
 // A plugin dock's one script, on the subtree the editor made for it: the
 // plugin fills it on these words and after its own controls, and never draws.
 
-pub struct Plugin {
+pub class Plugin {
     node: Node,
 }
 

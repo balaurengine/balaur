@@ -109,6 +109,7 @@ module name (`register_shape2d_component`).
 | N21 | A key or parameter carries its unit (`_seconds`, `_ticks`, `_hz`, `_pixels`, `_degrees`) unless it is the module's own. Radians and seconds are the default | settings-path, script-api, scene-file | `house_lints` setting-unit, on settings |
 | N22 | A bare hook is the engine asking (`init`, `update`, `exports`), `on_` is the engine telling, and a boolean change is `on_<reader>_changed` | script-api | `api_lints` hook-name |
 | N23 | The editor names a thing the way the API and the file do, in sentence case and US spelling, with the glossary's words for its own parts | editor-ui | — |
+| N24 | No name in a script is one letter: the editor's state is `state`, the theme's tokens it draws with are `tokens`, and an index, a coordinate or a loop variable is named for what it counts or holds. `balaur check` stands behind a rename that once had no compiler | script, editor | — |
 
 ## Deliberate exemptions
 
@@ -129,7 +130,6 @@ Recorded so each stops being cited as precedent for the next.
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
 | `Flat` / `Solid` | A word-pair that already says which dimension it is, in one file. Suffixing `Solid` alone would orphan `Flat` and make the pair read less consistently, not more |
 | `PostPass::Material` beside `Material3d` | A screen-space post pass is not a surface material and carries no dimension; the 3D asset took the suffix, which is what separates them (N1) |
-| The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.bs` instead |
 | The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | Godot 4's class names throughout, a deliberate affordance for Godot users; one table, `model::display_types` |
 | `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
 | `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
@@ -268,6 +268,7 @@ Every other token derives from seven source colours, a `contrast` step and four 
 | Good outcome, caution, error | `success`, `warning`, `danger` | daisyUI, Primer |
 | Lightness step between surfaces | `contrast` | Godot |
 | Body text size | `font_size`, and `font_size_small`, `font_size_large`, `font_size_title` | Godot |
+| Fonts by name, in `[fonts]` | `default`, and `heading`, `mono`, `icon` where egui's own text and a widget's glyphs draw | Godot (`default_font`), Tailwind |
 | Corner rounding | `radius`, and `radius_small`, `radius_large` | shadcn |
 | Control height | `control_height`, and `control_height_small`, `control_height_large`, `control_height_touch` | daisyUI |
 | Stroke width | `stroke_width` | Godot, daisyUI |
@@ -295,7 +296,7 @@ A theme key is the widget property it styles. `active` means held, as in CSS, an
 | Fill and outline | `fill`, `stroke`, `stroke_width` | SVG, Figma |
 | Text colour | `text_color` | CSS, Godot |
 | Icon colour and plate | `icon_color`, `icon_fill` | Godot |
-| Type | `font_family`, `font_size`, `font_weight` | CSS |
+| Type | `font` (a name in `[fonts]`, or a font), `font_size`, `font_weight` | CSS, Godot |
 | Text alignment | `text_align`: `start`, `center`, `end` | CSS |
 | Rounding | `corner_radius`: a number, a size name, or `full` | Godot, Tailwind |
 | Spacing | `padding`, `padding_x`, `padding_y`, `gap` | CSS, Unity USS |
@@ -352,8 +353,8 @@ An editor role is `<component>[_<context>][_<emphasis>]`, as in `action_form_dan
 | One drawable's own colour | `color` | Unity, Bevy |
 | Resolved through ancestors | `effective_tint`, `effective_material`, `effective_z_index` | none |
 | Draw order | `z_index`, `z_as_relative` | Godot |
-| Which lights reach a node | `light_layers` | Unity, Unreal |
-| Reserved: camera culling | `visibility_layers`, camera `cull_mask` | Godot, Unity, Bevy |
+| Which lights reach a node | `light_layers`: layer numbers 1 to 32, as `collision_layer` takes them, empty for every layer | Unity, Unreal |
+| Which cameras draw a node, and which nodes a camera or probe draws | `render_layers` on both, a probe's `capture_layers`: layer numbers, empty for every layer | Bevy |
 | Reserved: sorting layer | `canvas_layer` | Godot |
 
 A light's switch is `shadow_enabled`, and a caster's is `cast_shadow`.
@@ -396,9 +397,10 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Sprite sub-rectangle | `region_origin`, `region_size` | Godot |
 | Sheet frame, an int | `frame` | Godot |
 | Pixels in one world unit | `pixels_per_unit` | Unity |
-| Text layout | `text_align`, `font_family`, `bitmap_font`, `max_width`, `line_height`, `letter_spacing`, `markup` | CSS, Godot |
-| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y` | Godot |
-| Text shaping | `font_style` (`normal`, `italic`, `oblique`), `font_stretch`, `underline` (`single`, `double`), `strikethrough`, `overline`, `line_break`, `truncate`, `truncate_at`, `max_lines`, `hinting`, `tab_width` | CSS, cosmic-text |
+| Text layout | `text_align`, `max_width`, `markup` | CSS, Godot |
+| The face a text draws in, shared as an asset | `font`: `source`, `features`, `stretch`, `shaping`, `hinting`, `pixel_snap`, `snap_advances`, `monospace_width` | Godot (`FontFile`, `FontVariation`), CSS |
+| How a text is dressed, shared as an asset | `text_style`: `line_height`, `letter_spacing`, `outline_size`, `outline_color`, `shadow_color`, `shadow_offset_x`, `shadow_offset_y`, `underline`, `underline_color`, `overline`, `overline_color`, `strikethrough`, `strikethrough_color` | Godot (`LabelSettings`), CSS |
+| Text shaping | `font_style` (`normal`, `italic`, `oblique`), `line_break`, `truncate`, `truncate_at`, `max_lines`, `tab_width` | CSS, cosmic-text |
 | 3D text | `billboard`, `double_sided`, `depth_test` | Godot |
 | Particles | `particles2d`, `particles3d` with `billboard` | Godot |
 | Particles born per second | `rate` | Unity |
@@ -449,7 +451,8 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Shell around a shape | `collision_margin` | Godot |
 | Convex decomposition | `max_concavity`, `max_convex_hulls`, `resolution` | Godot |
 | Mesh cleanup on a collider | `merge_vertices`, `drop_degenerate_triangles`, `drop_duplicate_triangles`, `drop_bad_topology` | parry |
-| Matter | `density`, `mass`, `friction`, `restitution`, `*_combine` | Box2D, Jolt, PhysX |
+| Matter | `density`, `mass` | Box2D, Jolt, PhysX |
+| A surface, shared as an asset | `physics_material`: `friction`, `restitution`, `*_combine` | Godot (`PhysicsMaterial`), Box2D, Jolt |
 | Collider switches | `sensor`, `one_way`, `one_way_axis`, `offset`, `offset_rotation`, `fix_internal_edges`, `oriented` | Box2D, Jolt, Godot |
 | Layers a body is on and hits, numbered 1 to 32 | `collision_layer`, `collision_mask` | Godot |
 | Layers the solver alone reads | `solver_layer`, `solver_mask` | Unreal |
@@ -472,7 +475,7 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Slide limit, in radians | `min_slide_angle` | rapier |
 | Steps | `step_height`, `step_min_width`, `step_on_dynamic` | Unity, Unreal, PhysX |
 | Up | `up_direction` | Godot |
-| Move by a displacement | `move_character`, with `slide`, `push_bodies`, `push_mass`, `normal_nudge`, and `safe_margin_lengths`, `step_height_lengths`, `step_min_width_lengths`, `floor_snap_lengths` (`absolute`, `relative`) | Unity |
+| Move by a displacement | `move_character`, with `slide`, `push_bodies`, `push_mass`, `normal_nudge`, and one `lengths` (`absolute`, `relative`) for every length | Unity |
 | What a sweep passes through | `ignore` (flags `static`, `kinematic`, `dynamic`, `sensors`, `solids`), `ignore_nodes` | rapier |
 | Wheel suspension | `suspension_stiffness`, `suspension_travel`, `suspension_max_force`, `suspension_direction`, `damping_compression`, `damping_relaxation` | Godot |
 | Wheel | `radius`, `rest_length`, `friction_slip`, `side_friction`, `axle`, `in_contact` | Godot, Unity |
@@ -484,7 +487,7 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` (`auto`, `on`, `off`) | Box2D, Jolt, Godot |
 | Ragdoll weight, 0 to 1 | `influence`, `set_ragdoll_influence` | Godot, Unreal |
 | Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | rapier |
-| Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes`, `follow_rotation`, `reset_follow` | rapier |
+| Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes` (in 2D the one `rotation`, as a 2D joint names it), `reset_follow` | rapier |
 | Ray | `origin`, `direction`, `max_distance`, `hit_from_inside` | Unity, PhysX, Godot |
 | Query filter | `collision_mask`, `hit_sensors`, `hit_solids`, `exclude`, `only` | Godot, Unity |
 | Casts | `raycast`, `raycast_all`, `shapecast`, `time_of_impact` | Unity, Box2D |
@@ -531,6 +534,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
 | Sound component | `sound`, with `file`, `autoplay`, `loop`, `bus`, `positional`, `min_distance`, `max_distance` | Godot, Unity |
+| Files mixed into a sound for its whole length | `stems`, not `layers`, which is a scope's word for masks | music production |
 | Loudness, linear | `volume_linear`, `set_volume_linear` | Godot |
 | Pitch multiplier | `pitch_scale`, `set_pitch_scale` | Godot |
 | Doppler amount, 0 to 1 | `doppler_level` | Unity |
@@ -651,6 +655,11 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
 | The tick rollback cannot pass, the first one a replay missed | `multiplayer.settled_tick`, `replay.divergence_tick` | none |
 | Fold TOML text into the settings, write it back | `settings.merge_toml`, `settings.to_toml` | none |
+| A scene written back from its nodes | `scene.to_toml`, a node's `authored` table; `instantiate`'s `root` and `to_toml`'s are the project its files are spelled from | none |
+| What a write replaced, kept for an undo | `scene.keep_changes`, `scene.take_changes`; each change's `was` | none |
+| A node's script, named whether or not it runs | `node.set_script`, `node.script_path`, `node.script_props`; `scene.attach_scripts` runs them | none |
+| Free a node now, not at the frame's end | `node.free`, beside `queue_free` | Godot |
+| Cameras that drive no view while held | `render.hold_cameras` | none |
 | Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `save.directory`, `project.pick_directory` | none |
 | The seeded stream | `random.seed`, `random.float`, `random.range`, `random.int`, `random.uuid` | Godot, Unity |
 | Angle units and infinity | `math.to_degrees`, `math.to_radians`, `math.INFINITY` | Rust |

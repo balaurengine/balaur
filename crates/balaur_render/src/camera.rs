@@ -7,7 +7,7 @@ use balaur_core::hecs::{self, Entity};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
-use crate::post::{Post, drive_post, post_from_params, post_schema, post_to_map};
+use crate::post::{drive_post, effects_of, effects_row};
 use crate::vocabulary::keys as k;
 use crate::{CameraConfig2d, CameraConfig3d, color_to_toml};
 
@@ -43,10 +43,11 @@ pub struct Camera3d {
     pub current: bool,
     /// World point the camera looks at.
     pub look_at: glamx::Vec3,
-    /// Screen-space effects the frame resolves through. Not per-dimension:
-    /// the effects run over the whole film, so the last current camera of
-    /// either dimension sets them.
-    pub post: Post,
+    /// The `camera_effects` the frame resolves through: a file, an inline
+    /// definition, or empty for none. Not per-dimension: the effects run
+    /// over the whole film, so the last current camera of either dimension
+    /// sets them.
+    pub effects: String,
     pub lens: crate::lens::Lens3d,
 }
 
@@ -61,7 +62,7 @@ pub struct Camera2d {
     /// 2D pass, so only this dimension carries it.
     pub ambient: [f32; 4],
     /// As on [`Camera3d`], and read from whichever came last.
-    pub post: Post,
+    pub effects: String,
     /// Whether `zoom` counts logical pixels, scaled by the display, rather
     /// than physical ones.
     pub hidpi: bool,
@@ -78,21 +79,27 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         let mut flat = None;
         let mut post = None;
         let mut winners = (None, None);
-        for entity in current_cameras(&world, eng.root()) {
+        let held = eng.resource::<HeldCameras>().borrow().0;
+        let current = current_cameras(&world, eng.root())
+            .into_iter()
+            .filter(|&entity| {
+                held.is_none_or(|root| !balaur_core::scene::is_within(&world, entity, root))
+            });
+        for entity in current {
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
             };
             if let Ok(cam) = world.get::<&Camera3d>(entity)
                 && cam.current
             {
-                post = Some(cam.post.clone());
+                post = Some(cam.effects.clone());
                 spatial = Some((global.position, cam.look_at, cam.lens.clone()));
                 winners.0 = Some(entity);
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
             {
-                post = Some(cam.post.clone());
+                post = Some(cam.effects.clone());
                 flat = Some((
                     [global.position.x, global.position.y],
                     cam.zoom,
@@ -105,8 +112,8 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         (spatial, flat, post, winners)
     };
     announce_current(eng, winners);
-    if let Some(post) = post {
-        drive_post(eng, &post);
+    if let Some(effects) = post {
+        drive_post(eng, &effects_of(eng, &effects));
     }
     let lens = spatial.as_ref().map(|s| s.2.clone()).unwrap_or_default();
     {
@@ -150,6 +157,14 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
 /// What a camera announces when it becomes the one drawn from, `true`, and
 /// when another takes over, `false`.
 pub(crate) const CURRENT_CHANGED_EVENT: &str = "current_changed";
+
+/// The `current` row both cameras start with.
+const CURRENT: &str = r#"{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }"#;
+
+/// The subtree whose cameras drive no view while a caller holds it: an
+/// editor looking at a game through its own camera.
+#[derive(Default)]
+pub(crate) struct HeldCameras(pub Option<Entity>);
 
 /// The 3D and the 2D camera drawn from last frame.
 #[derive(Default)]
@@ -204,7 +219,7 @@ fn current_cameras(world: &hecs::World, root: Entity) -> Vec<Entity> {
     );
     match current.len() {
         0 => current,
-        1 if balaur_core::scene::is_under(world, current[0], root) => current,
+        1 if balaur_core::scene::is_within(world, current[0], root) => current,
         1 => Vec::new(),
         _ => balaur_core::scene::collect_subtree(world, root)
             .into_iter()
@@ -224,7 +239,7 @@ fn camera3d_from_params(params: &toml::Value) -> anyhow::Result<Camera3d> {
             .unwrap_or(0.0) as f32
     };
     Ok(Camera3d {
-        post: post_from_params(params),
+        effects: balaur_core::components::prop_str(params, k::EFFECTS).to_owned(),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
         look_at: glamx::Vec3::new(la(0), la(1), la(2)),
         lens: crate::lens::lens_from_params(params)?,
@@ -238,7 +253,7 @@ fn camera2d_from_params(params: &toml::Value) -> Camera2d {
         .and_then(balaur_core::components::as_f64)
         .unwrap_or(60.0) as f32;
     Camera2d {
-        post: post_from_params(params),
+        effects: balaur_core::components::prop_str(params, k::EFFECTS).to_owned(),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
         ambient: color_from_params_named(params, k::AMBIENT_COLOR),
         zoom: zoom.max(MIN_ZOOM_2D),
@@ -263,16 +278,12 @@ fn register_camera3d(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
-            doc: "The camera the scene is drawn from. `look_at` aims it, the lens rows say how it projects and what it draws, the control rows say how a mouse orbits, pans and zooms it, and the last `current` camera wins.",
+            doc: "The camera the scene is drawn from. `look_at` and `up` aim it, the lens rows say how it projects and what it draws, `effects` how the frame resolves, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera3d",
                 &[
-                    balaur_core::components::ComponentDef::schema(&[(
-                        k::LOOK_AT,
-                        r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the camera looks at" }"#,
-                    )]),
+                    balaur_core::components::ComponentDef::schema(&[(k::CURRENT, CURRENT)]),
                     crate::lens::lens_schema(),
-                    post_schema(),
                 ]
                 .join("\n"),
             ),
@@ -309,7 +320,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
                     ),
                 );
                 crate::lens::lens_to_map(&camera.lens, &mut map);
-                post_to_map(&camera.post, &mut map);
+                map.insert(k::EFFECTS.into(), toml::Value::String(camera.effects.clone()));
                 Some(toml::Value::Table(map))
             }),
         },
@@ -327,11 +338,12 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                 "camera2d",
                 &[
                     balaur_core::components::ComponentDef::schema(&[
+                        (k::CURRENT, CURRENT),
                         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
+                        (k::EFFECTS, &effects_row()),
                         (k::AMBIENT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; its alpha is ignored" }"#),
                         (k::HIDPI, r#"{ type = "bool", default = true, description = "Count `pixels_per_unit` in logical pixels, multiplied by the display's scale; off counts physical pixels, for pixel art that should land on the screen's own grid" }"#),
                     ]),
-                    post_schema(),
                 ]
                 .join("\n"),
             ),
@@ -361,7 +373,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                 map.insert(k::PIXELS_PER_UNIT.into(), toml::Value::Float(f64::from(camera.zoom)));
                 map.insert(k::AMBIENT_COLOR.into(), color_to_toml(camera.ambient));
                 map.insert(k::HIDPI.into(), toml::Value::Boolean(camera.hidpi));
-                post_to_map(&camera.post, &mut map);
+                map.insert(k::EFFECTS.into(), toml::Value::String(camera.effects.clone()));
                 Some(toml::Value::Table(map))
             }),
         },

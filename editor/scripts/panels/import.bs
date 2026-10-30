@@ -1,7 +1,7 @@
 // The Import tab's one script: the file the Assets tab has selected, filled
 // by the Editor when the selection, the file or a setting moved.
 
-pub struct Import {
+pub class Import {
     node: Node,
     editor: Node,
 }

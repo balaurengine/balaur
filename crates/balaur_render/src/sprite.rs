@@ -9,81 +9,76 @@ use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
 /// The `sprite` component's property schema, lifted out so the
 /// registration below stays readable.
-fn sprite_schema() -> std::rc::Rc<toml::Value> {
-    let mut overlay = crate::overlay::schema_2d(crate::overlay::Drawn::Builtin);
-    overlay.extend(crate::lit_2d::rows());
+fn sprite_schema() -> std::rc::Rc<balaur_core::components::Schema> {
     ComponentDef::parse_schema(
         "sprite",
-        &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
-            &[
-                (
-                    k::TEXTURE,
-                    &format!(
-                        r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing" }}"#,
-                        balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-                    ),
+        &balaur_core::components::ComponentDef::schema(&[
+            (
+                k::TEXTURE,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing" }}"#,
+                    balaur_core::texture_asset::TEXTURE_ASSET_TYPE
                 ),
-                (
-                    k::FRAME,
-                    r#"{ type = "int", default = 0, min = 0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
+            ),
+            (
+                k::COLOR,
+                r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+            ),
+            (
+                k::SHEET,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region" }}"#,
+                    crate::sheet::SPRITE_SHEET_ASSET_TYPE
                 ),
-                (
-                    k::FLIP_X,
-                    r#"{ type = "bool", default = false, description = "Mirror horizontally" }"#,
+            ),
+            (
+                k::FRAME,
+                r#"{ type = "int", default = 0, min = 0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
+            ),
+            (
+                k::FLIP_X,
+                r#"{ type = "bool", default = false, description = "Mirror horizontally" }"#,
+            ),
+            (
+                k::FLIP_Y,
+                r#"{ type = "bool", default = false, description = "Mirror vertically" }"#,
+            ),
+            (
+                k::MATERIAL,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#,
+                    crate::material::MATERIAL_ASSET_TYPE
                 ),
-                (
-                    k::FLIP_Y,
-                    r#"{ type = "bool", default = false, description = "Mirror vertically" }"#,
-                ),
-                (
-                    k::PIXELS_PER_UNIT,
-                    r#"{ type = "float", default = 0.0, min = 0.0, description = "Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says" }"#,
-                ),
-                (
-                    k::OFFSET,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the image sits against the node, in texture pixels with y down; turns and scales with the node" }"#,
-                ),
-                (
-                    k::CENTERED,
-                    r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there" }"#,
-                ),
-                (
-                    k::SIZE,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Whole size in world units; [0, 0] sizes from the texture" }"#,
-                ),
-                (
-                    k::SHEET,
-                    &format!(
-                        r#"{{ type = "asset", asset = "{}", default = "", description = "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region" }}"#,
-                        crate::sheet::SPRITE_SHEET_ASSET_TYPE
-                    ),
-                ),
-                (
-                    k::REGION_ORIGIN,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`" }"#,
-                ),
-                (
-                    k::REGION_SIZE,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell" }"#,
-                ),
-                (
-                    k::COLOR,
-                    r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-                ),
-                (
-                    k::MATERIAL,
-                    &format!(
-                        r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#,
-                        crate::material::MATERIAL_ASSET_TYPE
-                    ),
-                ),
-                (
-                    k::NINE_SLICE_MARGINS_PIXELS,
-                    r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, right, top and bottom margins in texture pixels: the corners keep their size at `pixels_per_unit` while the edges and the middle stretch to `size`. All zero takes the margins from the `sheet`'s first slice with a `center`, drawing that slice's part of the frame, and draws one plain quad without one" }"#,
-                ),
-            ],
-            &overlay,
-        )),
+            ),
+            (
+                k::CENTERED,
+                r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there", group = "placement" }"#,
+            ),
+            (
+                k::OFFSET,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the image sits against the node, in texture pixels with y down; turns and scales with the node", group = "placement" }"#,
+            ),
+            (
+                k::SIZE,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Whole size in world units; [0, 0] sizes from the texture", group = "placement" }"#,
+            ),
+            (
+                k::PIXELS_PER_UNIT,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says", group = "placement" }"#,
+            ),
+            (
+                k::REGION_ORIGIN,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`", group = "region" }"#,
+            ),
+            (
+                k::REGION_SIZE,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell", group = "region" }"#,
+            ),
+            (
+                k::NINE_SLICE_MARGINS_PIXELS,
+                r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, right, top and bottom margins in texture pixels: the corners keep their size at `pixels_per_unit` while the edges and the middle stretch to `size`. All zero takes the margins from the `sheet`'s first slice with a `center`, drawing that slice's part of the frame, and draws one plain quad without one", group = "region" }"#,
+            ),
+        ]),
     )
 }
 
@@ -182,8 +177,6 @@ fn apply_sprite(
         per,
     )?;
     crate::set_color(eng, entity, crate::color_from_params(params))?;
-    crate::overlay_from_params(eng, entity, params)?;
-    crate::lit_2d::set_lit(eng, entity, params);
     crate::material::set_material_2d(
         eng,
         entity,
@@ -387,8 +380,6 @@ fn read_sprite(
                 .collect(),
         ),
     );
-    crate::overlay::overlay_2d_to_map(&renderable.overlay, &mut map);
-    crate::lit_2d::to_map(renderable.lit.as_ref(), &mut map);
     Some(toml::Value::Table(map))
 }
 
