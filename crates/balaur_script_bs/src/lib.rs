@@ -82,10 +82,8 @@ pub(crate) fn bind(
         .filter(|(_, dir)| *dir == GET || *dir == SET)
         .and_then(|(path, dir)| Some((path.split_once('.')?, dir)));
     if let Some(((comp, prop), dir)) = property {
-        // Bound once to where the component and the property sit, so a read
-        // or a write pays no name's lookup and no node operation
-        // (PLAN-balaur-script §9 step 6): a derived component reads or
-        // writes the one field.
+        // Bound once to the property's place (PLAN-balaur-script §9 step 6):
+        // no name looked up and no node operation per call.
         if let Some(place) = balaur_core::components::place_of(&eng, comp, prop) {
             if dir == GET {
                 return Ok(Rc::new(move |args: &dyn CallArgs| {
