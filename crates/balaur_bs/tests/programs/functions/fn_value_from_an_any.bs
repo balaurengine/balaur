@@ -1,0 +1,7 @@
+// A module that calls a `fn` value it took out of an `any`, and names no
+// function as a value itself, still has the table the call goes through.
+
+fn through(x: any) -> int { let f: fn(int) -> int = x.get("f"); f(2) }
+pub fn plain() -> int { 1 }
+
+// expect: plain() == 1

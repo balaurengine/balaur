@@ -1,0 +1,5 @@
+// An unknown type is an error, not a crash.
+
+fn w() { if true { let x: Missing? = nil; } }
+
+// error: 3:20: unknown type `Missing`

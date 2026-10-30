@@ -1,0 +1,3 @@
+pub fn f() { let m: {str: int?} = {}; }
+
+// error: 1:31: a map's value is never nil: a missing key is, found `}`

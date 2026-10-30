@@ -1,0 +1,9 @@
+// Ints mix with floats without casts.
+
+pub fn half(n: int) -> float { n / 2.0 }
+pub fn scaled(speed: float) -> float { let x: float = 3; speed * 2 + x }
+pub fn pick(big: bool) -> float { if big { 10 } else { 0.5 } }
+
+// expect: half(3) == 1.5
+// expect: scaled(1.25) == 5.5
+// expect: pick(true) == 10.0

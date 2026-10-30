@@ -1,0 +1,8 @@
+fn holds(v: any) -> bool { !v.is_nil() }
+pub fn boxed() -> str {
+    let none: Node = nil;
+    let list: [any] = [none];
+    "{holds(none)} {list[0].is_nil()}"
+}
+
+// expect: boxed() == "false true"

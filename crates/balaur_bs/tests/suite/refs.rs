@@ -1,4 +1,4 @@
-use super::{compile_error, run};
+use super::run;
 use balaur_bs::runtime::Value;
 
 const EDITOR: &str = r#"
@@ -54,25 +54,6 @@ fn a_mut_parameter_is_the_callers_own_value() {
     );
     rt.drop_object(e);
     assert_eq!(rt.live(), base, "a `&mut` value leaked or was freed twice");
-}
-
-#[test]
-fn a_mut_argument_is_a_place_and_changed_once() {
-    let src = |body: &str| {
-        format!(
-            "pub struct I {{ n: int }}\nfn bump(i: &mut I) {{ i.n += 1; }}\n\
-             fn two(a: &mut I, b: &mut I) {{}}\n\
-             pub struct E {{ a: I }}\nimpl E {{\n    fn m(i: &mut I) {{}}\n    pub fn f() {{ {body} }}\n}}\n"
-        )
-    };
-    let e = compile_error(&src("bump(I { n: 1 });"));
-    assert!(e.contains("pass a variable or a field"), "{e}");
-    let e = compile_error(&src("two(self.a, self.a);"));
-    assert!(e.contains("change this twice"), "{e}");
-    let e = compile_error(&src("self.m(self.a);"));
-    assert!(e.contains("change this twice"), "{e}");
-    let e = compile_error("pub struct I { n: int }\nasync fn w(i: &mut I) {}");
-    assert!(e.contains("`async fn` takes no `&mut`"), "{e}");
 }
 
 #[test]

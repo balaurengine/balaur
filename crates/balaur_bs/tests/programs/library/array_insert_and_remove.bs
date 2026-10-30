@@ -1,0 +1,23 @@
+// Arrays insert and remove anywhere.
+
+pub fn shuffle() -> [int] {
+    let xs = [1, 2, 3];
+    xs.insert(0, 0);
+    xs.insert(4, 4);
+    xs.insert(2, 9);
+    let gone = xs.remove(2);
+    xs.push(gone);
+    xs
+}
+
+pub fn names() -> [str] {
+    let xs = ["a", "b", "c"];
+    let b = xs.remove(1);
+    xs.insert(0, b);
+    xs.insert(3, "{b}{b}");
+    xs
+}
+
+// expect: shuffle() == [0, 1, 2, 3, 4, 9]
+// expect: names() == ["b", "a", "c", "bb"]
+// live: 0

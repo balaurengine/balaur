@@ -139,6 +139,12 @@ three desktop platforms. Beyond `cargo test --workspace`:
   tested without them: nothing else exercises a subsystem switched off.
 - `cargo test -p balaur_render --features aseprite`, locally only:
   `precommit.sh` runs it and `test.yml` does not.
+- **The Balaur Script corpus** — `crates/balaur_bs/tests/programs/`, `.bs`
+  files whose `// expect:` lines are calls and their answers and whose
+  `// error:` lines are their compile errors, written out whole. Each runs on
+  every engine the build has (wasmi, wasmtime, native code through C), which
+  must agree to the bit; `cargo test --workspace` turns all three on.
+  `BLESS=1` rewrites the answers from what ran.
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
   on `BALAUR_E2E` so a local `cargo test` stays fast. The Gamend ones talk

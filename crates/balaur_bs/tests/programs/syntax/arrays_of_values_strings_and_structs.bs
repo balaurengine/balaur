@@ -1,0 +1,26 @@
+struct P { x: float, name: str }
+pub fn sum() -> float {
+    let xs = [1.0, 2.0, 3.5];
+    xs.push(4);
+    let total = 0.0;
+    for x in xs { total += x; }
+    total
+}
+pub fn names() -> str {
+    let ps: [P] = [];
+    ps.push(P { x: 1.0, name: "a" });
+    ps.push(P { x: 2.0, name: "b" });
+    ps[1].x += 40;
+    ps[0].name = ps[0].name + "!";
+    let last = ps.pop();
+    "{ps[0].name} {last.name} {last.x} {ps.len()}"
+}
+pub fn grid() -> int {
+    let g = [[0; 3]; 2];
+    g[1][2] = 5;
+    g[1][2] + g.len() + g[0].len()
+}
+
+// expect: sum() == 10.5
+// expect: names() == "a! b 42.0 1"
+// expect: grid() == 10

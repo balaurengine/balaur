@@ -1,0 +1,5 @@
+pub fn say(a: any) -> str { "got {a}!" }
+
+// expect: say(3) == "got 3!"
+// expect: say("hi") == "got hi!"
+// live: 0

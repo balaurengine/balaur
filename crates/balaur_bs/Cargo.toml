@@ -31,6 +31,10 @@ libloading = { version = "0.9", optional = true }
 js-sys = { version = "0.3.106", optional = true }
 wasm-bindgen = { version = "0.2.129", optional = true }
 
+[dev-dependencies]
+# The corpus runner validates every module it builds.
+wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
+
 [features]
 default = ["wasmi"]
 # An interpreter, on every platform: the engine when no faster one is built in.

@@ -37,6 +37,10 @@ STOPWORDS = {
     "from", "at", "if", "then", "else", "do", "no", "yes", "into", "than",
 }
 BANNER = re.compile(r"^[-=*#~ ]{4,}|[-=*#~]{4,}\s*$")
+# A corpus program's answers (crates/balaur_bs/tests/suite/programs.rs) are
+# directives the runner reads, not comments.
+CORPUS = "tests/programs/"
+DIRECTIVES = ("// expect:", "// error:", "// live:")
 
 
 def files():
@@ -79,12 +83,12 @@ def looks_like_code(text, marker):
     return bool(syntax) and text.rstrip().endswith((";", "{", "}"))
 
 
-def comment_runs(lines, marker, docs):
+def comment_runs(lines, marker, docs, directives=()):
     """(start index, length) of every run of consecutive plain-comment lines."""
     runs, start = [], None
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith(marker) and not stripped.startswith(docs):
+        if stripped.startswith(marker) and not stripped.startswith(docs + directives):
             if start is None:
                 start = i
         else:
@@ -101,8 +105,9 @@ def check(path):
     docs = DOC_PREFIXES.get(marker, ())
     rel = path.relative_to(ROOT)
     lines = path.read_text(errors="replace").splitlines()
+    directives = DIRECTIVES if path.suffix == ".bs" and CORPUS in rel.as_posix() else ()
     out = []
-    for start, length in comment_runs(lines, marker, docs):
+    for start, length in comment_runs(lines, marker, docs, directives):
         cap = MAX_RUN_SH_HEADER if path.suffix == ".sh" and start <= 2 else MAX_RUN
         if length > cap:
             out.append((rel, start + 1, "essay",
@@ -110,7 +115,7 @@ def check(path):
                         "ERROR"))
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if not stripped.startswith(marker) or stripped.startswith(docs):
+        if not stripped.startswith(marker) or stripped.startswith(docs + directives):
             continue
         body = stripped[len(marker):].strip()
         if not body:

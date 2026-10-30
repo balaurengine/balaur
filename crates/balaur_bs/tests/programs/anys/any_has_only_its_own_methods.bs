@@ -1,0 +1,3 @@
+fn f(a: any) -> int { a.size() }
+
+// error: 1:24: an `any` has `kind`, `is_nil`, `as_int`, `as_float`, `as_bool`, `as_str`, `as_node`, `len`, `get`, `at`, `has`, `keys`, `text`, `with`, `set`, `push`, `put`, `insert`, `remove`, `equals`, `sorted`, not `size`

@@ -1,0 +1,5 @@
+// An unknown type is an error, not a crash.
+
+fn w() { let x: [Missing] = []; }
+
+// error: 3:10: unknown type `Missing`

@@ -1,0 +1,16 @@
+// A map changed in a walk of an `any` list is changed in the list.
+
+pub fn walked() -> str {
+    let doc: any = map().with("assets", [map().with("id", "a").with("n", 1), map().with("id", "b").with("n", 1)]);
+    let seen = 0;
+    for block in doc.assets {
+        if block.id.as_str() == "a" {
+            block.set("n", 6);
+            continue;
+        }
+        seen += 1;
+    }
+    "{doc} {seen}"
+}
+
+// expect: walked() == "{\"assets\": [{\"id\": \"a\", \"n\": 6}, {\"id\": \"b\", \"n\": 1}]} 1"

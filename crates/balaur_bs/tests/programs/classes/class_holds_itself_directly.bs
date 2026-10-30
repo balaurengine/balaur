@@ -1,0 +1,3 @@
+pub class N { next: N }
+
+// error: 1:1: struct N contains itself through `next`; make it `N?`

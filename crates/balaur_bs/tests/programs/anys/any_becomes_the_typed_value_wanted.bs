@@ -1,0 +1,17 @@
+pub struct P { name: str, n: int, tags: [str] }
+fn label(s: str) -> str { "<{s}>" }
+pub fn scalars(a: any) -> str {
+    let n: int = a["n"];
+    let f: float = a["n"];
+    "{label(a["name"])} {n + 1} {f} {a["n"] + 2} {if n > 1 { a["name"] } else { "x" }}"
+}
+pub fn record(a: any) -> str {
+    let p: P = a;
+    let tags: [str] = a["tags"];
+    let missing: int? = a["nope"];
+    "{p.name} {p.n} {p.tags.len()} {tags[1]} {missing.is_none()}"
+}
+
+// expect: scalars({ "name": "orc", "n": 3, "tags": ["a", "b"] }) == "<orc> 4 3.0 5 orc"
+// expect: record({ "name": "orc", "n": 3, "tags": ["a", "b"] }) == "orc 3 2 b true"
+// live: 0

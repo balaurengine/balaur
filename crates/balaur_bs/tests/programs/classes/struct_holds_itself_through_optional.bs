@@ -1,0 +1,5 @@
+// Only a class may hold itself, and only through an optional or a list.
+
+pub struct A { next: A? }
+
+// error: 1:1: struct A contains itself through `next`; put it in an array, or make it a class

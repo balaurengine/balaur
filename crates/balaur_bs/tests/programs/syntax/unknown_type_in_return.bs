@@ -1,0 +1,5 @@
+// An unknown type is an error, not a crash.
+
+fn w() -> Nope { w() }
+
+// error: 3:1: unknown type `Nope`

@@ -1,4 +1,4 @@
-use super::{call, compile_error, run};
+use super::run;
 use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
 
@@ -183,12 +183,6 @@ fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
 }
 
 #[test]
-fn a_class_names_its_missing_field() {
-    let e = compile_error("pub class P { x: int }\nfn f(p: P) -> int { p.y }");
-    assert!(e.contains("class P has no field `y`"), "{e}");
-}
-
-#[test]
 fn a_stop_shows_a_class_by_its_fields() {
     use balaur_bs::runtime::Command;
     use std::cell::RefCell;
@@ -230,16 +224,6 @@ pub fn fill(k: int) -> int {
             vec![("n".into(), Value::Int(3))]
         ))
     );
-}
-
-#[test]
-fn only_a_class_may_hold_itself_through_an_optional() {
-    let e = compile_error("pub struct A { next: A? }");
-    assert!(e.contains("contains itself through `next`"), "{e}");
-    let e = compile_error("pub class N { next: N }");
-    assert!(e.contains("make it `N?`"), "{e}");
-    let ok = compile("pub class N { next: N?, kids: [N] }", &Options::default());
-    assert!(ok.is_ok(), "{:?}", ok.err());
 }
 
 // A script's own object is a class, so `self.node` is read out of memory:
@@ -294,29 +278,4 @@ impl Ball {
     assert_eq!(fields[1], ("y".to_string(), Value::Float(3.5)));
     rt.drop_object(ball);
     assert_eq!(rt.live(), 0);
-}
-
-// A spec is a struct: a literal names what differs from the declared
-// defaults, and an optional field it leaves out is nil.
-#[test]
-fn a_struct_literal_leaves_out_what_has_a_default() {
-    let mut rt = run(
-        r#"pub struct Label { kind: str = "label", size: int = 3, text: str, tip: str? }
-pub fn plain() -> str {
-    let label = Label { text: "hi" };
-    "{label.kind} {label.size} {label.text} {label.tip.is_none()}"
-}
-pub fn sized() -> int { Label { text: "x", size: 9 }.size }
-"#,
-    );
-    assert_eq!(
-        call(&mut rt, "plain", &[]),
-        Value::Str("label 3 hi true".into())
-    );
-    assert_eq!(call(&mut rt, "sized", &[]), Value::Int(9));
-    let missing = compile_error("pub struct Label { text: str }\npub fn f() { let l = Label {}; }");
-    assert!(
-        missing.contains("missing field `text` of Label"),
-        "{missing}"
-    );
 }

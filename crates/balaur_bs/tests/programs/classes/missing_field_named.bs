@@ -1,0 +1,4 @@
+pub class P { x: int }
+fn f(p: P) -> int { p.y }
+
+// error: 2:22: class P has no field `y`

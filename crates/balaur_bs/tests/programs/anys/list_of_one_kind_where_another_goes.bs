@@ -1,0 +1,11 @@
+fn count(xs: [any]) -> int { xs.len() }
+fn firsts(xs: [str]) -> str { xs[0] }
+fn some(xs: [int?]) -> int { xs[1].or(0) }
+pub fn run() -> str {
+    let mixed = [1, "two", true];
+    let back: [any] = ["a", "b"];
+    "{count([1.5, 2.5])} {firsts(back)} {some([4, 5])} {mixed.len()} {mixed[1].as_str()} {[1, 2.5][0]}"
+}
+
+// expect: run() == "2 a 5 3 two 1.0"
+// live: 0

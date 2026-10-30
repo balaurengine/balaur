@@ -1,0 +1,46 @@
+// A counted loop's array accesses lose their bounds checks only where one
+// test up front proves every index in range; these are the cases around it.
+
+pub fn sum_from(from: int, to: int) -> float {
+    let xs = [0.0; 8];
+    for i in 0..8 { xs[i] = i; }
+    let t = 0.0;
+    for i in from..to { t += xs[i]; }
+    t
+}
+
+pub fn grow() -> int {
+    let xs = [1, 2, 3];
+    for i in 0..3 {
+        xs.push(xs[i] * 10);
+    }
+    xs[5]
+}
+
+pub fn swap_out() -> int {
+    let xs = [1, 2, 3];
+    let total = 0;
+    for i in 0..3 {
+        total += xs[i];
+        xs = [100, 200, 300];
+    }
+    total
+}
+
+pub fn shadowed() -> int {
+    let xs = [1, 2, 3];
+    let total = 0;
+    for i in 0..3 {
+        let xs = [10, 20];
+        total += xs[i % 2];
+    }
+    total
+}
+
+// expect: sum_from(2, 5) == 9.0
+// expect: sum_from(0, 8) == 28.0
+// expect: sum_from(5, 2) == 0.0
+// expect: grow() == 30
+// expect: swap_out() == 501
+// expect: shadowed() == 40
+// live: 0

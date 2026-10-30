@@ -1,0 +1,3 @@
+pub fn f() -> any { let m: {int: int} = {}; let a: any = m; a }
+
+// error: 1:58: expected any, got { int: int }

@@ -1,4 +1,6 @@
-> **Status:** planned 2026-10-30, nothing built. Steps 1 to 7 are step 6 of
+> **Status:** planned 2026-10-30. Steps 1, 3 and 5 built 2026-10-30: 59
+> programs, 119 calls and 33 compile errors, on wasmi, wasmtime and native
+> code. Step 2 is part done (below). Steps 1 to 7 are step 6 of
 > PLAN-foundations, step 10 is in its step 7, steps 8 and 9 are its step 13.
 
 # Plan: Balaur Script's tests, and enums with `match`
@@ -26,15 +28,23 @@ Its promise is the same bits on every engine. What tests it on
 leading comments what it must print, return or fail with, or in a sibling
 file when the answer is long. One runner walks the tree, compiles each,
 validates the wasm with `wasmparser`, runs it, and reports every failure in
-one pass. `BLESS=1` rewrites the answers. Whether the runner is a
-`harness = false` test or a crate like `datatest-stable` is decided at the
-start.
+one pass. `BLESS=1` rewrites the answers. Built as one `#[test]` in the
+suite's binary (`tests/suite/programs.rs`), with no new crate but
+`wasmparser` as a dev-dependency; `// live: n` also holds how many objects
+the calls leave alive.
 
 ## 2. Today's string tests move in
 
 A test that is a program in and a value out becomes a file. What stays in
 Rust is what drives the host: the debugger, reload, the sandbox, budgets,
-re-entry, profiling.
+re-entry, profiling, and a class object the host makes and calls
+(`rt.object`, `call_method`). A test whose answer Rust computes (the string
+parity tests, the map counts) stays too: Rust is its oracle.
+
+Moved 2026-10-30: `anys`, `loops` and `optional` whole, and the free-function
+and compile-error tests of `classes`, `fnrefs`, `library`, `maps`, `memory`,
+`refs` and `syntax`. Left: `awaits`, `engine_api`, `modules`, `returns`,
+`units` and `tools`, which take host functions, modules or a `HostApi`.
 
 ## 3. Every engine, every program
 
@@ -50,8 +60,11 @@ the start: `wasm-bindgen-test`, or a Node script over the compiled modules.
 
 ## 5. Errors as written
 
-A program that must not compile carries the whole rendered error (line,
-column, caret, text) in a sibling file. The 33 substring checks move to it.
+A program that must not compile carries every error `balaur_bs::errors`
+gives, each as `line:col: message`, in `// error:` lines. The 33 substring
+checks moved to it, each still holding the text it checked. The caret is
+the CLI's and the editor's rendering, not the compiler's, so it is not
+compared.
 
 ## 6. Fuzzing
 

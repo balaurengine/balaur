@@ -1,0 +1,15 @@
+// Nil in one branch takes the other branch's type; nil where a node goes is
+// no node.
+
+pub fn pick(a: any, yes: bool) -> str {
+    let got = if yes { a } else { nil };
+    let n = if yes { 3 } else { nil };
+    "{got.is_nil()} {n.or(0)}"
+}
+pub fn none() -> Node { nil }
+pub fn early(x: int) -> Node { if x > 0 { return nil; } nil }
+
+// expect: pick(1, true) == "false 3"
+// expect: pick(1, false) == "true 0"
+// expect: none() == node(0)
+// expect: early(1) == node(0)

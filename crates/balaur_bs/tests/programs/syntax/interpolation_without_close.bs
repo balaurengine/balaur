@@ -1,0 +1,3 @@
+fn f() { "{x" }
+
+// error: 1:10: `{` without `}` in a string

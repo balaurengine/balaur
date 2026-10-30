@@ -1,0 +1,9 @@
+// A string of escaped braces alone is a constant; a code point is written as
+// Rust writes it.
+
+const T: str = "fn f() {{\n}}";
+pub fn t() -> str { T }
+pub fn points() -> str { "a\u{1f}b\u{e9}" }
+
+// expect: t() == "fn f() {\n}"
+// expect: points() == "a\u{1f}bé"
