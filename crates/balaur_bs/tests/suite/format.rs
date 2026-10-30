@@ -79,8 +79,13 @@ fn every_bs_file_in_the_repository_is_laid_out() {
 }
 
 fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let path = entry.path();
+    // An error is said rather than skipped: a folder that could not be read
+    // under load used to read as one with fewer files.
+    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .path();
         if path.is_dir() {
             collect(&path, out);
         } else if path.extension().is_some_and(|e| e == "bs") {
