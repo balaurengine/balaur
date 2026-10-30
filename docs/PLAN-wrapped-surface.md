@@ -1075,10 +1075,10 @@ Exposed: `file`, `autoplay`, `volume_linear`, `pitch_scale`, `loop`, `bus`,
 | `take_crossfade_with` (`source/mod.rs:431`) | `crossfade_time` | 0 | A new `file` stops the old handle outright today |
 | `ChannelVolume` for a flat sound (`rodio: source/channel_volume.rs:27,39`) | `pan` | 0, −1 to 1 | Only positional sounds get one, mixed to mono |
 | `amplify_decibel`, `amplify_normalized` (`source/mod.rs:301,315`) | `volume_db`, `volume_curve` | | **two spellings** with `volume_linear` |
-| `low_pass_with_q`, `high_pass_with_q` (`source/mod.rs:669-699`, `blt.rs:15-22`) | `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q` | 0 (off), 0.5 | Baked in at decode; a live change goes through `BltFilter::to_low_pass*` behind a handle, as pan is |
-| `reverb(duration, amplitude)` (`source/mod.rs:611`) | `reverb_time`, `reverb_level` | 0, 0 | Needs `buffered()`, the whole file in memory |
-| `distortion(gain, threshold)` (`source/mod.rs:709`) | `distortion_gain`, `distortion_threshold` | | |
-| `automatic_gain_control` (`source/mod.rs:407`, `agc.rs:72-79,365`) | `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max`, `auto_gain_floor` | false, 1.0, 4, 0, 7.0 | Attack and release cap at 10 s |
+| `low_pass_with_q`, `high_pass_with_q` (`source/mod.rs:669-699`, `blt.rs:15-22`) | on a bus: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q` | 0 (off), 0.5 | `BltFilter` keeps one history across interleaved channels; a bus's mix is as wide as the device, so the bus filters each channel with its own |
+| `reverb(duration, amplitude)` (`source/mod.rs:611`) | on a bus: `reverb_time`, `reverb_level` | 0, 0 | Its `buffered()` reads a mixer 32768 samples ahead; a bus holds the echo in a ring instead |
+| `distortion(gain, threshold)` (`source/mod.rs:709`) | on a bus: `distortion_gain`, `distortion_threshold` | | |
+| `automatic_gain_control` (`source/mod.rs:407`, `agc.rs:72-79,365`) | on a bus: `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max`, `auto_gain_floor` | false, 1.0, 4, 0, 7.0 | Attack and release cap at 10 s |
 | `limit(LimitSettings)` (`source/mod.rs:504`, `limit.rs:177-370`) | on a bus: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time`, `limit_release_time` | false, −1, 4, 0.005, 0.1 | Balaur's buses are gains (`crates/balaur_audio/src/bus.rs:16-18`); a per-bus effect needs a rodio `Mixer` per bus |
 | `dither(bits, algorithm)` (`source/mod.rs:229`) | `[audio] dither_bits` | 0 | An output-stage effect |
 | `mix` (`source/mod.rs:238`) | `layers` (list of file) | [] | |

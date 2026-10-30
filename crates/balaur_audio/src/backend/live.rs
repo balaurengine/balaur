@@ -1,18 +1,19 @@
-//! The settings a playing sound takes while it plays, and the adapters that
-//! read them on the audio thread.
+//! The settings a sound or a bus plays with, and the adapters that read them
+//! on the audio thread.
 //!
-//! The frame writes a [`Live`]; every adapter in the sound's chain polls the
-//! part it serves. Atomics rather than a lock, because the mixer callback must
-//! never wait on the frame that is writing them.
+//! The frame writes a sound's [`Live`] (its pan) and the device a bus's (its
+//! effects); every adapter in the chain polls the part it serves. Atomics
+//! rather than a lock, because the mixer callback must never wait on the
+//! frame that is writing them.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
-use rodio::source::{BltFilter, ChannelVolume, SeekError, Source};
+use rodio::source::{ChannelVolume, SeekError, Source};
 use rodio::{ChannelCount, Sample, SampleRate};
 
-use crate::playback::Effects;
+use crate::bus::{Effects, MIN_Q};
 
 /// How often an adapter that polls looks at its knobs: the period rodio's own
 /// `Player` controls run at.
@@ -35,7 +36,8 @@ impl Knob {
     }
 }
 
-/// Every setting of one sound that lands while it plays.
+/// Every setting of one sound or one bus that its chain reads as it plays: a
+/// sound's pan, a bus's effects.
 pub(crate) struct Live {
     /// The left and right gains, from a positional placement or a flat pan.
     pan: [Knob; 2],
@@ -57,7 +59,18 @@ pub(crate) struct Live {
 }
 
 impl Live {
-    pub(crate) fn new(effects: &Effects, gains: [f32; 2]) -> Self {
+    /// A sound's: its stereo gains. Its effects are its bus's.
+    pub(crate) fn of_sound(gains: [f32; 2]) -> Self {
+        Self::new(&Effects::default(), gains)
+    }
+
+    /// A bus's: its effects, with both channels at full, since a bus's mix is
+    /// not panned.
+    pub(crate) fn of_bus(effects: &Effects) -> Self {
+        Self::new(effects, [1.0, 1.0])
+    }
+
+    fn new(effects: &Effects, gains: [f32; 2]) -> Self {
         let live = Self {
             pan: [Knob::new(gains[0]), Knob::new(gains[1])],
             low_pass: [Knob::new(0.0), Knob::new(0.0)],
@@ -86,8 +99,8 @@ impl Live {
         [self.pan[0].get(), self.pan[1].get()]
     }
 
-    /// Everything but the pan, which a placement owns for a positional sound.
-    pub(crate) fn set_effects(&self, effects: &Effects) {
+    /// Everything but the pan.
+    fn set_effects(&self, effects: &Effects) {
         self.low_pass[0].set(effects.low_pass_hz);
         self.low_pass[1].set(effects.low_pass_q);
         self.high_pass[0].set(effects.high_pass_hz);
@@ -182,34 +195,96 @@ pub(super) enum Side {
     High,
 }
 
-/// A `BltFilter` that can be switched off and on while it plays. Retuning a
-/// running filter keeps its history (`to_low_pass_with_q`); switching it off
-/// hands the source straight through.
+/// rodio's `low_pass_with_q` and `high_pass_with_q` with a history per
+/// channel. rodio's `BltFilter` keeps one history across the interleaved
+/// samples, so on a stereo mix each channel is filtered with the other's
+/// samples; a bus's mix is as wide as the device. Retuned in place when its
+/// knobs move, keeping its history; below 1 Hz it hands the samples through.
 pub(super) struct Pass<S> {
-    stage: Option<Stage<S>>,
+    input: S,
     live: Arc<Live>,
     side: Side,
     revision: u32,
+    /// `None` while the filter is off.
+    coefficients: Option<Coefficients>,
+    histories: Vec<History>,
+    channel: usize,
 }
 
-enum Stage<S> {
-    Bare(S),
-    On(BltFilter<S>),
+/// One biquad's coefficients, rodio's own formulas (`blt.rs`) divided
+/// through by `a0`.
+#[derive(Clone, Copy)]
+struct Coefficients {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+}
+
+impl Coefficients {
+    /// Sine and cosine through `libm`: a platform's own library may round
+    /// them differently (DETERMINISM.md).
+    fn new(side: Side, hz: f32, q: f32, rate: f32) -> Self {
+        let angle = 2.0 * std::f32::consts::PI * hz / rate;
+        let cosine = libm::cosf(angle);
+        let alpha = libm::sinf(angle) / (2.0 * q);
+        let (b0, b1) = match side {
+            Side::Low => (f32::midpoint(1.0, -cosine), 1.0 - cosine),
+            Side::High => (f32::midpoint(1.0, cosine), -1.0 - cosine),
+        };
+        let a0 = 1.0 + alpha;
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b0 / a0,
+            a1: -2.0 * cosine / a0,
+            a2: (1.0 - alpha) / a0,
+        }
+    }
+}
+
+/// One channel's last two samples in and out.
+#[derive(Clone, Copy, Default)]
+struct History {
+    inputs: [f32; 2],
+    outputs: [f32; 2],
+}
+
+impl History {
+    fn apply(&mut self, coefficients: &Coefficients, sample: f32) -> f32 {
+        let Coefficients { b0, b1, b2, a1, a2 } = *coefficients;
+        let output = b0 * sample + b1 * self.inputs[0] + b2 * self.inputs[1]
+            - a1 * self.outputs[0]
+            - a2 * self.outputs[1];
+        self.inputs = [sample, self.inputs[0]];
+        self.outputs = [output, self.outputs[0]];
+        output
+    }
 }
 
 impl<S: Source> Pass<S> {
-    pub(super) fn new(source: S, live: &Arc<Live>, side: Side) -> Self {
+    pub(super) fn new(input: S, live: &Arc<Live>, side: Side) -> Self {
         let mut pass = Self {
-            stage: Some(Stage::Bare(source)),
+            input,
             live: live.clone(),
             side,
             revision: u32::MAX,
+            coefficients: None,
+            histories: Vec::new(),
+            channel: 0,
         };
         pass.retune();
         pass
     }
 
+    /// Read the knobs when they have moved. Called between frames, so every
+    /// channel of one frame is filtered alike.
     fn retune(&mut self) {
+        let channels = usize::from(self.input.channels().get());
+        if self.histories.len() != channels {
+            self.histories = vec![History::default(); channels];
+        }
         let revision = self.live.filter_revision.load(Ordering::Relaxed);
         if revision == self.revision {
             return;
@@ -219,42 +294,16 @@ impl<S: Source> Pass<S> {
             Side::Low => &self.live.low_pass,
             Side::High => &self.live.high_pass,
         };
-        let (hz, q) = (knobs[0].get(), knobs[1].get().max(0.01));
-        let Some(stage) = self.stage.take() else {
-            return;
-        };
-        let rate = match &stage {
-            Stage::Bare(source) => source.sample_rate(),
-            Stage::On(filter) => filter.sample_rate(),
-        };
+        let rate = self.input.sample_rate().get() as f32;
         // Past half the sample rate the bilinear transform has no stable
         // filter to give.
-        let hz = hz.min(rate.get() as f32 * 0.49);
-        self.stage = Some(match (stage, hz >= 1.0, self.side) {
-            (Stage::Bare(source), true, Side::Low) => {
-                Stage::On(source.low_pass_with_q(hz as u32, q))
-            }
-            (Stage::Bare(source), true, Side::High) => {
-                Stage::On(source.high_pass_with_q(hz as u32, q))
-            }
-            (Stage::On(mut filter), true, Side::Low) => {
-                filter.to_low_pass_with_q(hz as u32, q);
-                Stage::On(filter)
-            }
-            (Stage::On(mut filter), true, Side::High) => {
-                filter.to_high_pass_with_q(hz as u32, q);
-                Stage::On(filter)
-            }
-            (Stage::On(filter), false, _) => Stage::Bare(filter.into_inner()),
-            (bare @ Stage::Bare(_), false, _) => bare,
-        });
-    }
-
-    fn source(&self) -> &dyn Source {
-        match self.stage.as_ref() {
-            Some(Stage::Bare(source)) => source,
-            Some(Stage::On(filter)) => filter,
-            None => unreachable!("a stage is only taken while it is retuned"),
+        let hz = knobs[0].get().min(rate * 0.49);
+        let q = knobs[1].get().max(MIN_Q);
+        self.coefficients = (hz >= 1.0).then(|| Coefficients::new(self.side, hz, q, rate));
+        if self.coefficients.is_none() {
+            // Switched on again later, it starts from silence, as a fresh
+            // rodio filter would.
+            self.histories.fill(History::default());
         }
     }
 }
@@ -263,36 +312,97 @@ impl<S: Source> Iterator for Pass<S> {
     type Item = Sample;
 
     fn next(&mut self) -> Option<Sample> {
-        self.retune();
-        match self.stage.as_mut()? {
-            Stage::Bare(source) => source.next(),
-            Stage::On(filter) => filter.next(),
+        if self.channel == 0 {
+            self.retune();
         }
+        let sample = self.input.next()?;
+        let channel = self.channel;
+        self.channel = (self.channel + 1) % self.histories.len();
+        Some(match &self.coefficients {
+            Some(coefficients) => self.histories[channel].apply(coefficients, sample),
+            None => sample,
+        })
     }
 }
 
 impl<S: Source> Source for Pass<S> {
     fn current_span_len(&self) -> Option<usize> {
-        self.source().current_span_len()
+        self.input.current_span_len()
     }
 
     fn channels(&self) -> ChannelCount {
-        self.source().channels()
+        self.input.channels()
     }
 
     fn sample_rate(&self) -> SampleRate {
-        self.source().sample_rate()
+        self.input.sample_rate()
     }
 
     fn total_duration(&self) -> Option<Duration> {
-        self.source().total_duration()
+        self.input.total_duration()
     }
 
     fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
-        match self.stage.as_mut() {
-            Some(Stage::Bare(source)) => source.try_seek(pos),
-            Some(Stage::On(filter)) => filter.try_seek(pos),
-            None => Ok(()),
+        self.input.try_seek(pos)
+    }
+}
+
+/// rodio's `reverb` without its `buffered`: the echo is the same samples,
+/// held back `delay` and added at the level `live` holds. `buffered` reads a
+/// source that names no span 32768 samples at a time, and a mixer names
+/// none, so a sound joining a bus with a reverb would wait that long to be
+/// heard.
+pub(super) struct Echo<S> {
+    input: S,
+    live: Arc<Live>,
+    /// The last `delay` of samples, every channel interleaved; the oldest is
+    /// at `oldest`, next to be heard and overwritten.
+    held: Vec<Sample>,
+    oldest: usize,
+}
+
+impl<S: Source> Echo<S> {
+    pub(super) fn new(input: S, delay: Duration, live: &Arc<Live>) -> Self {
+        let channels = usize::from(input.channels().get());
+        let frames = (delay.as_secs_f64() * f64::from(input.sample_rate().get())).round() as usize;
+        Self {
+            held: vec![0.0; frames.max(1) * channels],
+            oldest: 0,
+            input,
+            live: live.clone(),
         }
+    }
+}
+
+impl<S: Source> Iterator for Echo<S> {
+    type Item = Sample;
+
+    fn next(&mut self) -> Option<Sample> {
+        let sample = self.input.next()?;
+        let echo = std::mem::replace(&mut self.held[self.oldest], sample);
+        self.oldest = (self.oldest + 1) % self.held.len();
+        Some(sample + echo * self.live.reverb_level.get())
+    }
+}
+
+impl<S: Source> Source for Echo<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.input.current_span_len()
+    }
+
+    fn channels(&self) -> ChannelCount {
+        self.input.channels()
+    }
+
+    fn sample_rate(&self) -> SampleRate {
+        self.input.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.input.total_duration()
+    }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
+        self.input.try_seek(pos)
     }
 }

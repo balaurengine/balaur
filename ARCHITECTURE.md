@@ -788,6 +788,11 @@ write. It walks widgets in scene order and wraps.
   between a mixer and a default; a handle remembers its bus and starting volume.
 - An undeclared bus is unity, not silence, so a typo stays audible and findable.
   A parent cycle is cut and reported.
+- **Effects are a bus's, not a sound's**: the filters, distortion, reverb and
+  automatic gain control (`low_pass_hz`, `reverb_time`, `auto_gain`, ...) and
+  the limiter are keys in `[audio.buses]`. A bus with any of them is mixed on
+  its own and passed through them once, before its parent; a sound wanting its
+  own plays on a bus of its own. They are built when the device opens.
 
 **Cues** are named sounds in `audio/cues.toml`. A script says
 `audio.play_cue("hit")`; which file, level and bus is the sound designer's.

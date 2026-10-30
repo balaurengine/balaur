@@ -1,7 +1,7 @@
 //! The `sound` keys that shape a play: where it starts and stops, what
-//! plays with it and after it, its fades, its pause, and the effects it
-//! passes through. Every assertion reads the intent the component keeps and
-//! the clock it counts on the fixed step, never a sink.
+//! plays with it and after it, its fades, its pause and its pan. Every
+//! assertion reads the intent the component keeps and the clock it counts on
+//! the fixed step, never a sink.
 
 use balaur_audio::AudioState;
 use balaur_core::hecs::Entity;
@@ -62,20 +62,6 @@ fade_out_time = 1.5
 crossfade_time = 2.0
 pan = -0.5
 attenuation = "inverse_square"
-low_pass_hz = 800.0
-low_pass_q = 0.75
-high_pass_hz = 60.0
-high_pass_q = 1.25
-distortion_gain = 3.0
-distortion_threshold = 0.5
-reverb_time = 0.25
-reverb_level = 0.5
-auto_gain = true
-auto_gain_target = 0.75
-auto_gain_attack_time = 2.0
-auto_gain_release_time = 0.5
-auto_gain_max = 5.0
-auto_gain_floor = 0.25
 "#,
     );
     let table = components::get(&app.engine, entity, "sound").unwrap();
@@ -89,19 +75,6 @@ auto_gain_floor = 0.25
         ("fade_out_time", 1.5),
         ("crossfade_time", 2.0),
         ("pan", -0.5),
-        ("low_pass_hz", 800.0),
-        ("low_pass_q", 0.75),
-        ("high_pass_hz", 60.0),
-        ("high_pass_q", 1.25),
-        ("distortion_gain", 3.0),
-        ("distortion_threshold", 0.5),
-        ("reverb_time", 0.25),
-        ("reverb_level", 0.5),
-        ("auto_gain_target", 0.75),
-        ("auto_gain_attack_time", 2.0),
-        ("auto_gain_release_time", 0.5),
-        ("auto_gain_max", 5.0),
-        ("auto_gain_floor", 0.25),
     ] {
         assert!(
             (number(key) - want).abs() < 1e-6,
@@ -111,10 +84,6 @@ auto_gain_floor = 0.25
     }
     assert_eq!(
         table.get("paused").and_then(toml::Value::as_bool),
-        Some(true)
-    );
-    assert_eq!(
-        table.get("auto_gain").and_then(toml::Value::as_bool),
         Some(true)
     );
     assert_eq!(
@@ -383,29 +352,38 @@ fn a_new_file_crossfades_with_the_old_one() {
 }
 
 #[test]
-fn effects_land_on_a_sound_already_playing() {
+fn pan_lands_on_a_sound_already_playing() {
     let dir = tempfile::tempdir().unwrap();
     write_wav_of(dir.path(), "tone.wav", tenths(5));
     let app = app_in(dir.path());
     let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\nloop = true\n");
     let handle = handle_of(&app, entity).unwrap();
-    patch(
-        &app,
-        entity,
-        "low_pass_hz = 500.0\nhigh_pass_hz = 80.0\ndistortion_threshold = 0.5\npan = 0.5\nreverb_level = 0.25\nauto_gain_target = 0.5",
-    );
+    patch(&app, entity, "pan = 0.5");
     assert_eq!(
         handle_of(&app, entity),
         Some(handle),
         "a retune does not restart"
     );
-    let effects = state(&app).borrow().effects_of(handle).unwrap();
-    assert!((effects.low_pass_hz - 500.0).abs() < 1e-6);
-    assert!((effects.high_pass_hz - 80.0).abs() < 1e-6);
-    assert!((effects.distortion_threshold - 0.5).abs() < 1e-6);
-    assert!((effects.pan - 0.5).abs() < 1e-6);
-    assert!((effects.reverb_level - 0.25).abs() < 1e-6);
-    assert!((effects.auto_gain.target - 0.5).abs() < 1e-6);
+    let pan = state(&app).borrow().pan_of(handle).unwrap();
+    assert!((pan - 0.5).abs() < 1e-6, "{pan}");
+}
+
+/// The filters, the reverb, the distortion and gain control are a bus's, so
+/// a sound that names one is refused by the key's name rather than played
+/// without it.
+#[test]
+fn an_effect_key_on_a_sound_is_refused_by_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    let entity = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Chime", root);
+    let params: toml::Value = toml::from_str("file = \"tone.wav\"\nlow_pass_hz = 800.0\n").unwrap();
+    let err = components::add(&app.engine, entity, "sound", Some(&params))
+        .expect_err("a sound has no low-pass of its own");
+    assert!(
+        format!("{err:#}").contains("`sound` has no property `low_pass_hz`"),
+        "{err:#}"
+    );
 }
 
 /// The component's `loop_offset` wins over the file's own, and below zero

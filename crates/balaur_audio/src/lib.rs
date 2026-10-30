@@ -40,7 +40,7 @@ use crate::vocabulary::keys as k;
 use backend::From;
 use bus::Buses;
 use output::OutputSettings;
-use playback::{Clip, Effects, Program, Timeline};
+use playback::{Clip, Program, Timeline};
 use spatial::{Attenuation, Emitter, Listener, ListenerPose, Placement};
 
 /// The floor `pitch_scale` is clamped to, matching the schema's `min`: rodio takes
@@ -85,7 +85,8 @@ pub struct Sound {
     pub fade_in_time: f32,
     pub fade_out_time: f32,
     pub crossfade_time: f32,
-    pub effects: Effects,
+    /// Balance when it is not positional: -1 left, 1 right.
+    pub pan: f32,
     /// The playback this node started, `None` until autoplay or `audio.play`
     /// starts one and again after `audio.stop`. A finished sink does not clear
     /// it: intent must read the same headless as with a device.
@@ -116,7 +117,7 @@ impl Default for Sound {
             fade_in_time: 0.0,
             fade_out_time: 0.0,
             crossfade_time: 0.0,
-            effects: Effects::default(),
+            pan: 0.0,
             handle: None,
         }
     }
@@ -216,7 +217,7 @@ impl Routed {
     fn gains(&self, placed: Option<&Placement>) -> [f32; 2] {
         match placed {
             Some(placed) => spatial::stereo_gains(placed.pan),
-            None => spatial::balance_gains(self.program.effects.pan),
+            None => spatial::balance_gains(self.program.pan),
         }
     }
 }
@@ -239,8 +240,8 @@ impl Release {
 pub const FINISHED_EVENT: &str = "finished";
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
-/// gain, and, for a positional sound, where it plays from; then what is done
-/// to the samples and what else plays with them.
+/// gain, and, for a positional sound, where it plays from; then where it
+/// starts and stops, its fades and pan, and what else plays with it.
 pub struct Playback {
     pub volume: f32,
     pub pitch: f32,
@@ -259,7 +260,8 @@ pub struct Playback {
     pub fade_out_time: f32,
     /// Where repeats start; `None` takes the file's own.
     pub loop_offset: Option<f32>,
-    pub effects: Effects,
+    /// Balance when it is not positional: -1 left, 1 right.
+    pub pan: f32,
     pub stems: Vec<Clip>,
     pub queue: Vec<Clip>,
 }
@@ -281,7 +283,7 @@ impl Default for Playback {
             fade_in_time: 0.0,
             fade_out_time: 0.0,
             loop_offset: None,
-            effects: Effects::default(),
+            pan: 0.0,
             stems: Vec::new(),
             queue: Vec::new(),
         }
@@ -425,7 +427,7 @@ impl AudioState {
             end_time: playback.end_time.max(0.0),
             delay: playback.delay.max(0.0),
             fade_in_time: playback.fade_in_time.max(0.0),
-            effects: playback.effects,
+            pan: playback.pan.clamp(-1.0, 1.0),
         };
         let timeline = Timeline::new(&program, &lengths(&program));
         let mut routed = Routed {
@@ -609,27 +611,24 @@ impl AudioState {
             .is_some_and(|routed| routed.paused)
     }
 
-    /// Retune what a live handle does to its samples. A flat sound takes the
-    /// pan; a positional one keeps the pan its placement gives it.
-    pub fn set_effects(&mut self, handle: u64, effects: Effects) {
+    /// Set a live handle's balance. A flat sound takes the pan; a positional
+    /// one keeps the pan its placement gives it.
+    pub fn set_pan(&mut self, handle: u64, pan: f32) {
         let Some(routed) = self.routing.get_mut(&handle) else {
             return;
         };
-        routed.program.effects = effects;
-        if let Some(sink) = self.playing.get(&handle) {
-            sink.set_effects(&effects);
-            if !routed.positional {
-                sink.set_pan(routed.gains(None));
-            }
+        routed.program.pan = pan.clamp(-1.0, 1.0);
+        if let Some(sink) = self.playing.get(&handle)
+            && !routed.positional
+        {
+            sink.set_pan(routed.gains(None));
         }
     }
 
-    /// The effects a live handle plays with.
+    /// The `pan` a live handle was given, positional or not.
     #[must_use]
-    pub fn effects_of(&self, handle: u64) -> Option<Effects> {
-        self.routing
-            .get(&handle)
-            .map(|routed| routed.program.effects)
+    pub fn pan_of(&self, handle: u64) -> Option<f32> {
+        self.routing.get(&handle).map(|routed| routed.program.pan)
     }
 
     /// Where a handle has got to in the file it is playing, in seconds of
@@ -706,15 +705,15 @@ impl AudioState {
     }
 
     /// Land everything a node's `sound` can change while it plays: volume,
-    /// pitch, pause, effects, its end fade and how far it carries.
+    /// pitch, pause, pan, its end fade and how far it carries.
     pub(crate) fn retune(&mut self, handle: u64, sound: &Sound, buses: &Buses) {
         self.set_volume(handle, sound.volume, buses);
         self.set_pitch(handle, sound.pitch);
         if self.is_paused(handle) != sound.paused {
             self.set_paused(handle, sound.paused);
         }
-        if self.effects_of(handle) != Some(sound.effects) {
-            self.set_effects(handle, sound.effects);
+        if self.pan_of(handle) != Some(sound.pan) {
+            self.set_pan(handle, sound.pan);
         }
         if let Some(routed) = self.routing.get_mut(&handle) {
             routed.fade_out_time = sound.fade_out_time;
@@ -886,7 +885,7 @@ pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result
         },
         fade_out_time: sound.fade_out_time,
         loop_offset: (sound.loop_offset >= 0.0).then_some(sound.loop_offset),
-        effects: sound.effects,
+        pan: sound.pan,
         stems,
         queue,
     };

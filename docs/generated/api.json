@@ -1913,6 +1913,10 @@
         "least": 1,
         "signature": "(str) -> any"
       },
+      "audio::bus_effects": {
+        "least": 1,
+        "signature": "(str) -> any"
+      },
       "audio::bus_limit": {
         "least": 1,
         "signature": "(str) -> any"
@@ -6858,7 +6862,7 @@
     "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
     "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
     "softbody3d": "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
-    "sound": "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. Filters, distortion, reverb and automatic gain control are rodio's.",
+    "sound": "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
     "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
     "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
@@ -7941,21 +7945,7 @@
       "stems",
       "fade_in_time",
       "fade_out_time",
-      "crossfade_time",
-      "low_pass_hz",
-      "low_pass_q",
-      "high_pass_hz",
-      "high_pass_q",
-      "reverb_time",
-      "reverb_level",
-      "distortion_gain",
-      "distortion_threshold",
-      "auto_gain",
-      "auto_gain_target",
-      "auto_gain_max",
-      "auto_gain_floor",
-      "auto_gain_attack_time",
-      "auto_gain_release_time"
+      "crossfade_time"
     ],
     "sprite": [
       "texture",
@@ -15305,49 +15295,6 @@
         ],
         "type": "enum"
       },
-      "auto_gain": {
-        "default": false,
-        "description": "Even the level out with automatic gain control. Read when it starts; turning it off while playing bypasses it",
-        "group": "auto gain",
-        "type": "bool"
-      },
-      "auto_gain_attack_time": {
-        "default": 4.0,
-        "description": "Seconds it takes to answer the level rising",
-        "group": "auto gain",
-        "max": 10.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "auto_gain_floor": {
-        "default": 0.0,
-        "description": "The least gain it applies",
-        "group": "auto gain",
-        "min": 0.0,
-        "type": "float"
-      },
-      "auto_gain_max": {
-        "default": 7.0,
-        "description": "The most gain it applies",
-        "group": "auto gain",
-        "min": 0.0,
-        "type": "float"
-      },
-      "auto_gain_release_time": {
-        "default": 0.0,
-        "description": "Seconds it takes to answer the level falling",
-        "group": "auto gain",
-        "max": 10.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "auto_gain_target": {
-        "default": 1.0,
-        "description": "The level it holds the sound at; 1 is the file's own",
-        "group": "auto gain",
-        "min": 0.0,
-        "type": "float"
-      },
       "autoplay": {
         "default": false,
         "description": "Start playing when the node enters the scene",
@@ -15369,21 +15316,6 @@
         "default": 0.0,
         "description": "Seconds of silence before the sound starts. Read when it starts",
         "group": "playback",
-        "min": 0.0,
-        "type": "float"
-      },
-      "distortion_gain": {
-        "default": 1.0,
-        "description": "Gain before the distortion's clip",
-        "group": "effects",
-        "min": 0.0,
-        "type": "float"
-      },
-      "distortion_threshold": {
-        "default": 0.0,
-        "description": "Level samples are clipped at after `distortion_gain`; 0 is off",
-        "group": "effects",
-        "max": 1.0,
         "min": 0.0,
         "type": "float"
       },
@@ -15420,20 +15352,6 @@
         "description": "Audio file, project-relative; required to play",
         "type": "string"
       },
-      "high_pass_hz": {
-        "default": 0.0,
-        "description": "Cut what is below this frequency; 0 is off",
-        "group": "filters",
-        "min": 0.0,
-        "type": "float"
-      },
-      "high_pass_q": {
-        "default": 0.5,
-        "description": "How sharply the high-pass turns at its cutoff; higher rings there",
-        "group": "filters",
-        "min": 0.01,
-        "type": "float"
-      },
       "loop": {
         "default": false,
         "description": "Restart the sound when it ends; with a `queue`, each file repeats until `node.sound.skip()` moves on",
@@ -15444,20 +15362,6 @@
         "description": "Seconds into `file` every repeat after the first starts from; below 0 takes the file's own `loop_offset` import setting. Read when it starts",
         "group": "playback",
         "min": -1.0,
-        "type": "float"
-      },
-      "low_pass_hz": {
-        "default": 0.0,
-        "description": "Cut what is above this frequency; 0 is off",
-        "group": "filters",
-        "min": 0.0,
-        "type": "float"
-      },
-      "low_pass_q": {
-        "default": 0.5,
-        "description": "How sharply the low-pass turns at its cutoff; higher rings there",
-        "group": "filters",
-        "min": 0.01,
         "type": "float"
       },
       "max_distance": {
@@ -15515,20 +15419,6 @@
           "type": "string"
         },
         "type": "list"
-      },
-      "reverb_level": {
-        "default": 0.0,
-        "description": "Gain of that echo",
-        "group": "effects",
-        "min": 0.0,
-        "type": "float"
-      },
-      "reverb_time": {
-        "default": 0.0,
-        "description": "Seconds an echo of the sound trails it by; 0 is off. Read when it starts",
-        "group": "effects",
-        "min": 0.0,
-        "type": "float"
       },
       "start_time": {
         "default": 0.0,
@@ -19482,6 +19372,7 @@
       ],
       "doc": "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
       "docs": {
+        "bus_effects": "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q`, `distortion_gain`, `distortion_threshold`, `reverb_time`, `reverb_level`, `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max` and `auto_gain_floor`. Built when the output device opens, as the limiter is. Nil for a bus with none switched on.",
         "bus_limit": "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none.",
         "bus_volume_linear": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
@@ -19507,6 +19398,7 @@
         "stop_playback": "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."
       },
       "functions": [
+        "bus_effects",
         "bus_limit",
         "bus_volume_linear",
         "buses",
@@ -19533,6 +19425,7 @@
       ],
       "name": "audio",
       "signatures": {
+        "bus_effects": "(str) -> any",
         "bus_limit": "(str) -> any",
         "bus_volume_linear": "(str) -> float",
         "buses": "() -> [str]",

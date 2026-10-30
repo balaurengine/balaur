@@ -6,7 +6,6 @@ use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str};
 use balaur_core::hecs::Entity;
 
 use crate::bus::Buses;
-use crate::playback::{AutoGain, Effects};
 use crate::spatial::Attenuation;
 use crate::vocabulary::{keys as k, words as w};
 use crate::{AudioState, FINISHED_EVENT, Sound, play_node};
@@ -29,7 +28,7 @@ pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
         ComponentDef {
             events: &[(FINISHED_EVENT, "the handle that played out")],
             warnings: None,
-            doc: "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. Filters, distortion, reverb and automatic gain control are rodio's.",
+            doc: "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.",
             schema: ComponentDef::parse_schema(
                 "sound",
                 &ComponentDef::schema(&[
@@ -56,20 +55,6 @@ pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
                     (k::FADE_IN_TIME, r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds the sound rises from silence over when it starts", group = "fades" }"#),
                     (k::FADE_OUT_TIME, r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop`", group = "fades" }"#),
                     (k::CROSSFADE_TIME, r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds a playing sound fades out over when `file` changes, while the new file, if `autoplay` starts it, fades in; 0 cuts", group = "fades" }"#),
-                    (k::LOW_PASS_HZ, r#"{ type = "float", default = 0.0, min = 0.0, description = "Cut what is above this frequency; 0 is off", group = "filters" }"#),
-                    (k::LOW_PASS_Q, r#"{ type = "float", default = 0.5, min = 0.01, description = "How sharply the low-pass turns at its cutoff; higher rings there", group = "filters" }"#),
-                    (k::HIGH_PASS_HZ, r#"{ type = "float", default = 0.0, min = 0.0, description = "Cut what is below this frequency; 0 is off", group = "filters" }"#),
-                    (k::HIGH_PASS_Q, r#"{ type = "float", default = 0.5, min = 0.01, description = "How sharply the high-pass turns at its cutoff; higher rings there", group = "filters" }"#),
-                    (k::REVERB_TIME, r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds an echo of the sound trails it by; 0 is off. Read when it starts", group = "effects" }"#),
-                    (k::REVERB_LEVEL, r#"{ type = "float", default = 0.0, min = 0.0, description = "Gain of that echo", group = "effects" }"#),
-                    (k::DISTORTION_GAIN, r#"{ type = "float", default = 1.0, min = 0.0, description = "Gain before the distortion's clip", group = "effects" }"#),
-                    (k::DISTORTION_THRESHOLD, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Level samples are clipped at after `distortion_gain`; 0 is off", group = "effects" }"#),
-                    (k::AUTO_GAIN, r#"{ type = "bool", default = false, description = "Even the level out with automatic gain control. Read when it starts; turning it off while playing bypasses it", group = "auto gain" }"#),
-                    (k::AUTO_GAIN_TARGET, r#"{ type = "float", default = 1.0, min = 0.0, description = "The level it holds the sound at; 1 is the file's own", group = "auto gain" }"#),
-                    (k::AUTO_GAIN_MAX, r#"{ type = "float", default = 7.0, min = 0.0, description = "The most gain it applies", group = "auto gain" }"#),
-                    (k::AUTO_GAIN_FLOOR, r#"{ type = "float", default = 0.0, min = 0.0, description = "The least gain it applies", group = "auto gain" }"#),
-                    (k::AUTO_GAIN_ATTACK_TIME, r#"{ type = "float", default = 4.0, min = 0.0, max = 10.0, description = "Seconds it takes to answer the level rising", group = "auto gain" }"#),
-                    (k::AUTO_GAIN_RELEASE_TIME, r#"{ type = "float", default = 0.0, min = 0.0, max = 10.0, description = "Seconds it takes to answer the level falling", group = "auto gain" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::AUDIO],
@@ -113,28 +98,6 @@ fn seconds(params: &toml::Value, key: &str) -> f32 {
     }
 }
 
-fn effects_of(params: &toml::Value) -> Effects {
-    Effects {
-        pan: prop_f32(params, k::PAN).clamp(-1.0, 1.0),
-        low_pass_hz: prop_f32(params, k::LOW_PASS_HZ).max(0.0),
-        low_pass_q: prop_f32(params, k::LOW_PASS_Q),
-        high_pass_hz: prop_f32(params, k::HIGH_PASS_HZ).max(0.0),
-        high_pass_q: prop_f32(params, k::HIGH_PASS_Q),
-        reverb_time: seconds(params, k::REVERB_TIME),
-        reverb_level: prop_f32(params, k::REVERB_LEVEL).max(0.0),
-        distortion_gain: prop_f32(params, k::DISTORTION_GAIN).max(0.0),
-        distortion_threshold: prop_f32(params, k::DISTORTION_THRESHOLD).clamp(0.0, 1.0),
-        auto_gain: AutoGain {
-            on: prop_bool(params, k::AUTO_GAIN),
-            target: prop_f32(params, k::AUTO_GAIN_TARGET).max(0.0),
-            attack_time: seconds(params, k::AUTO_GAIN_ATTACK_TIME).min(10.0),
-            release_time: seconds(params, k::AUTO_GAIN_RELEASE_TIME).min(10.0),
-            max: prop_f32(params, k::AUTO_GAIN_MAX).max(0.0),
-            floor: prop_f32(params, k::AUTO_GAIN_FLOOR).max(0.0),
-        },
-    }
-}
-
 /// A node's `sound` as its table describes it, with no playback yet.
 fn sound_from(params: &toml::Value) -> Sound {
     Sound {
@@ -159,7 +122,7 @@ fn sound_from(params: &toml::Value) -> Sound {
         fade_in_time: seconds(params, k::FADE_IN_TIME),
         fade_out_time: seconds(params, k::FADE_OUT_TIME),
         crossfade_time: seconds(params, k::CROSSFADE_TIME),
-        effects: effects_of(params),
+        pan: prop_f32(params, k::PAN).clamp(-1.0, 1.0),
         handle: None,
     }
 }
@@ -229,8 +192,6 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let list = |files: &[String]| {
         toml::Value::Array(files.iter().cloned().map(toml::Value::String).collect())
     };
-    let fx = &sound.effects;
-    let agc = &fx.auto_gain;
     let mut out = toml::map::Map::new();
     let mut put = |key: &str, value: toml::Value| {
         out.insert(key.into(), value);
@@ -248,7 +209,7 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     put(k::MAX_DISTANCE, f64::from(sound.max_distance).into());
     put(k::DOPPLER_LEVEL, f64::from(sound.doppler).into());
     put(k::ATTENUATION, sound.attenuation.word().into());
-    put(k::PAN, f64::from(fx.pan).into());
+    put(k::PAN, f64::from(sound.pan).into());
     put(k::START_TIME, f64::from(sound.start_time).into());
     put(k::END_TIME, f64::from(sound.end_time).into());
     put(k::DELAY, f64::from(sound.delay).into());
@@ -258,25 +219,5 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     put(k::FADE_IN_TIME, f64::from(sound.fade_in_time).into());
     put(k::FADE_OUT_TIME, f64::from(sound.fade_out_time).into());
     put(k::CROSSFADE_TIME, f64::from(sound.crossfade_time).into());
-    put(k::LOW_PASS_HZ, f64::from(fx.low_pass_hz).into());
-    put(k::LOW_PASS_Q, f64::from(fx.low_pass_q).into());
-    put(k::HIGH_PASS_HZ, f64::from(fx.high_pass_hz).into());
-    put(k::HIGH_PASS_Q, f64::from(fx.high_pass_q).into());
-    put(k::DISTORTION_GAIN, f64::from(fx.distortion_gain).into());
-    put(
-        k::DISTORTION_THRESHOLD,
-        f64::from(fx.distortion_threshold).into(),
-    );
-    put(k::REVERB_TIME, f64::from(fx.reverb_time).into());
-    put(k::REVERB_LEVEL, f64::from(fx.reverb_level).into());
-    put(k::AUTO_GAIN, agc.on.into());
-    put(k::AUTO_GAIN_TARGET, f64::from(agc.target).into());
-    put(k::AUTO_GAIN_ATTACK_TIME, f64::from(agc.attack_time).into());
-    put(
-        k::AUTO_GAIN_RELEASE_TIME,
-        f64::from(agc.release_time).into(),
-    );
-    put(k::AUTO_GAIN_MAX, f64::from(agc.max).into());
-    put(k::AUTO_GAIN_FLOOR, f64::from(agc.floor).into());
     Some(toml::Value::Table(out))
 }

@@ -6,7 +6,7 @@ use balaur_core::glamx::Vec3;
 use balaur_core::{Engine, entity_of};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::bus::{self, Buses};
+use crate::bus::{self, Buses, Effects, Limiter};
 use crate::cue;
 use crate::spatial::Emitter;
 use crate::vocabulary::keys as k;
@@ -166,6 +166,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
         ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
+        ("bus_effects", &[], "", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q`, `distortion_gain`, `distortion_threshold`, `reverb_time`, `reverb_level`, `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max` and `auto_gain_floor`. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
         ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
         ("play_cue", &[], "(name: string, options: map) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
@@ -226,23 +227,13 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("bus_limit", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
-        let Some(limit) = eng.resource::<bus::Buses>().borrow().limit(&name) else {
-            return Ok(Value::Nil);
-        };
-        let number = |value: f32| Value::Num(f64::from(value));
-        Ok(Value::Map(vec![
-            (k::LIMIT.to_string(), Value::Bool(true)),
-            (
-                k::LIMIT_THRESHOLD_DB.to_string(),
-                number(limit.threshold_db),
-            ),
-            (k::LIMIT_KNEE_DB.to_string(), number(limit.knee_db)),
-            (k::LIMIT_ATTACK_TIME.to_string(), number(limit.attack_time)),
-            (
-                k::LIMIT_RELEASE_TIME.to_string(),
-                number(limit.release_time),
-            ),
-        ]))
+        let limit = eng.resource::<bus::Buses>().borrow().limit(&name);
+        Ok(limit.map_or(Value::Nil, limit_table))
+    });
+    m.function("bus_effects", |eng: &Engine, name: String| {
+        bus::ensure_loaded(eng);
+        let effects = eng.resource::<bus::Buses>().borrow().effects(&name);
+        Ok(effects.map_or(Value::Nil, |effects| effects_table(&effects)))
     });
     m.function("bus_volume_linear", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
@@ -263,6 +254,53 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+}
+
+/// A table under the keys `[audio.buses]` spells, so a script reads a bus
+/// back in the words the project wrote it in.
+fn table(entries: Vec<(&str, Value)>) -> Value {
+    Value::Map(
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect(),
+    )
+}
+
+fn float(value: f32) -> Value {
+    Value::Num(f64::from(value))
+}
+
+/// What `audio.bus_limit` hands back.
+fn limit_table(limit: Limiter) -> Value {
+    table(vec![
+        (k::LIMIT, Value::Bool(true)),
+        (k::LIMIT_THRESHOLD_DB, float(limit.threshold_db)),
+        (k::LIMIT_KNEE_DB, float(limit.knee_db)),
+        (k::LIMIT_ATTACK_TIME, float(limit.attack_time)),
+        (k::LIMIT_RELEASE_TIME, float(limit.release_time)),
+    ])
+}
+
+/// What `audio.bus_effects` hands back.
+fn effects_table(effects: &Effects) -> Value {
+    let auto_gain = &effects.auto_gain;
+    table(vec![
+        (k::LOW_PASS_HZ, float(effects.low_pass_hz)),
+        (k::LOW_PASS_Q, float(effects.low_pass_q)),
+        (k::HIGH_PASS_HZ, float(effects.high_pass_hz)),
+        (k::HIGH_PASS_Q, float(effects.high_pass_q)),
+        (k::DISTORTION_GAIN, float(effects.distortion_gain)),
+        (k::DISTORTION_THRESHOLD, float(effects.distortion_threshold)),
+        (k::REVERB_TIME, float(effects.reverb_time)),
+        (k::REVERB_LEVEL, float(effects.reverb_level)),
+        (k::AUTO_GAIN, Value::Bool(auto_gain.on)),
+        (k::AUTO_GAIN_TARGET, float(auto_gain.target)),
+        (k::AUTO_GAIN_ATTACK_TIME, float(auto_gain.attack_time)),
+        (k::AUTO_GAIN_RELEASE_TIME, float(auto_gain.release_time)),
+        (k::AUTO_GAIN_MAX, float(auto_gain.max)),
+        (k::AUTO_GAIN_FLOOR, float(auto_gain.floor)),
+    ])
 }
 
 /// `audio.*`: where a sound is and where it is heard from.
@@ -326,8 +364,10 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
 
 #[cfg(test)]
 mod tests {
-    use balaur_core::Engine;
+    use balaur_core::{App, AppConfig, Engine};
     use balaur_script::{Bindings, BoundFn, FnDoc, Value};
+
+    use crate::vocabulary::keys as k;
 
     #[derive(Default)]
     struct Recorded {
@@ -358,6 +398,66 @@ mod tests {
             })
             .filter(|name| !name.is_empty())
             .collect()
+    }
+
+    /// Every function the module registers, kept so a test can call one.
+    #[derive(Default)]
+    struct Callable {
+        functions: Vec<(String, BoundFn<Engine>)>,
+    }
+
+    impl Bindings<Engine> for Callable {
+        fn function_raw(&mut self, name: &str, func: BoundFn<Engine>) {
+            self.functions.push((name.to_string(), func));
+        }
+        fn constant(&mut self, _: &str, _: Value) {}
+    }
+
+    impl Callable {
+        fn call(&self, eng: &Engine, name: &str, args: &[Value]) -> Value {
+            let (_, func) = self
+                .functions
+                .iter()
+                .find(|(registered, _)| registered == name)
+                .expect("registered");
+            func(eng, args).expect("the call succeeds")
+        }
+    }
+
+    /// `audio.bus_effects` hands back the keys `[audio.buses]` spells, so a
+    /// script reads a bus's effects by the names the project wrote them in.
+    #[test]
+    fn bus_effects_reads_back_a_buses_keys_and_nil_without_any() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"a\"\nmain_scene = \"main.toml\"\n\n[audio.buses]\ncave = { low_pass_hz = 800.0, reverb_time = 0.25, auto_gain = true }\nsfx = { volume_linear = 0.5 }\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
+        balaur_plugin::load(&mut app, &mut crate::AudioPlugin::default()).unwrap();
+        app.load_project().unwrap();
+        let mut callable = Callable::default();
+        super::install_audio_api(&mut callable);
+        let bus = |name: &str| callable.call(&app.engine, "bus_effects", &[Value::text(name)]);
+
+        let Value::Map(entries) = bus("cave") else {
+            panic!("a bus with effects reads back a map");
+        };
+        let entry = |key: &str| {
+            entries
+                .iter()
+                .find(|(named, _)| named == key)
+                .map(|(_, value)| value.clone())
+        };
+        assert_eq!(entry(k::LOW_PASS_HZ), Some(Value::Num(800.0)));
+        assert_eq!(entry(k::REVERB_TIME), Some(Value::Num(0.25)));
+        assert_eq!(entry(k::AUTO_GAIN), Some(Value::Bool(true)));
+        assert_eq!(entry(k::HIGH_PASS_HZ), Some(Value::Num(0.0)));
+        assert_eq!(entries.len(), 14, "every effect key, set or not");
+        assert_eq!(bus("sfx"), Value::Nil, "a bus with none switched on");
+        assert_eq!(bus("nobody"), Value::Nil, "a name nobody declared");
     }
 
     #[test]

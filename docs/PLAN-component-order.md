@@ -69,9 +69,6 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | `positional` | 3D placement of a sound | sound | audio |
 | `playback` | Where in the file and what plays next | sound | audio |
 | `fades` | Fade and crossfade times | sound | audio |
-| `filters` | Low/high pass | sound | audio |
-| `effects` | Reverb, distortion | sound | audio |
-| `auto gain` | Automatic gain control | sound | was audio `auto_gain` (space, like `fast motion`) |
 | `chain` | IK chain solver rows | modifier2d, modifier3d | new |
 | `jiggle` | Jiggle bone rows | modifier2d, modifier3d | new |
 | `follow` | Follow-node rows | modifier2d, modifier3d | new |
@@ -97,7 +94,7 @@ New asset-typed rows are written `+name` in the lists below; they are not in api
 Considered and not moved:
 - **Particle process asset** (Godot 4's ParticleProcessMaterial). Not moved. Every emitter row is the effect being made, so the extra hop costs the common case (a known Godot 4 complaint), and 2D/3D vector types differ. They get `emission`, `motion` and `paint` groups instead. Revisit if people want presets.
 - **Environment as an asset.** Not moved. The component is already the one shared atmosphere per scene. Its `quality` rows belong in project or per-platform settings, not an asset (Findings).
-- **Sound filters/effects/auto gain → bus or audio-effects asset.** Not moved: buses exist (`bus` row). Flagged in Findings.
+- **Sound filters/effects/auto gain → bus or audio-effects asset.** Not an asset: buses exist (`bus` row), and the rows went to the bus (Findings).
 - **Collider shape rows → asset.** Not moved: a shape is per node, and `mesh`/`heightfield`/`voxels` are assets already.
 
 ## 3. Per component
@@ -160,7 +157,7 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 - **environment `quality`** rows (cluster_grid, cluster_max_lights, probe_capture_size_pixels; arguably shadow_resolution, shadow_views, transmission_steps) were device budgets, not atmosphere. Resolved 2026-10-30: all six are `[render]` project settings, which a platform overrides under `[override.<tag>.render]`.
 - **camera2d `ambient_color`** was the 2D twin of environment `ambient_color`: 2D ambient lived on the camera, 3D ambient on the environment. Resolved 2026-10-30: the `environment` is both dimensions', and its one `ambient_color` lights a 2D scene before any `light2d`.
 - **camera3d doc** mentioned "control rows" for orbit, pan and zoom, but the schema has none. Resolved 2026-10-28: the doc names the rows it has.
-- **sound filters/effects/auto gain** (14 rows on every sound) duplicate what a bus is for.
+- **sound filters/effects/auto gain** (14 rows on every sound) duplicated what a bus is for. Resolved 2026-10-30: the fourteen rows are a bus's, in `[audio.buses]`, applied once to everything the bus mixes.
 - **Group-name style**: `auto_gain` (underscore) vs `fast motion` and `mesh cleanup` (spaces). Unified to spaces.
 - **physics `surface` vs material `[surface]`**: one word for friction and for rasterization. Resolved by the `physics_material` move (2026-10-28).
 - **tilemap** cells/terrain/flags are string-encoded grids painted by the tile editor, not values anyone types in an inspector row.

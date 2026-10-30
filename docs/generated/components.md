@@ -2141,9 +2141,9 @@ The point positional sounds are heard from: distance sets volume, offset across 
 
 ### `sound`
 
-`audio` · 37 properties · 4 methods
+`audio` · 23 properties · 4 methods
 
-A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. Filters, distortion, reverb and automatic gain control are rodio's.
+A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -2171,20 +2171,6 @@ A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its
 <tr><td><code>fade_in_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound rises from silence over when it starts At least 0.0.</td></tr>
 <tr><td><code>fade_out_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop` At least 0.0.</td></tr>
 <tr><td><code>crossfade_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a playing sound fades out over when `file` changes, while the new file, if `autoplay` starts it, fades in; 0 cuts At least 0.0.</td></tr>
-<tr><td><code>low_pass_hz</code></td><td>float</td><td><code>0.0</code></td><td>Cut what is above this frequency; 0 is off At least 0.0.</td></tr>
-<tr><td><code>low_pass_q</code></td><td>float</td><td><code>0.5</code></td><td>How sharply the low-pass turns at its cutoff; higher rings there At least 0.01.</td></tr>
-<tr><td><code>high_pass_hz</code></td><td>float</td><td><code>0.0</code></td><td>Cut what is below this frequency; 0 is off At least 0.0.</td></tr>
-<tr><td><code>high_pass_q</code></td><td>float</td><td><code>0.5</code></td><td>How sharply the high-pass turns at its cutoff; higher rings there At least 0.01.</td></tr>
-<tr><td><code>reverb_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds an echo of the sound trails it by; 0 is off. Read when it starts At least 0.0.</td></tr>
-<tr><td><code>reverb_level</code></td><td>float</td><td><code>0.0</code></td><td>Gain of that echo At least 0.0.</td></tr>
-<tr><td><code>distortion_gain</code></td><td>float</td><td><code>1.0</code></td><td>Gain before the distortion&#x27;s clip At least 0.0.</td></tr>
-<tr><td><code>distortion_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Level samples are clipped at after `distortion_gain`; 0 is off Range 0.0–1.0.</td></tr>
-<tr><td><code>auto_gain</code></td><td>bool</td><td><code>false</code></td><td>Even the level out with automatic gain control. Read when it starts; turning it off while playing bypasses it</td></tr>
-<tr><td><code>auto_gain_target</code></td><td>float</td><td><code>1.0</code></td><td>The level it holds the sound at; 1 is the file&#x27;s own At least 0.0.</td></tr>
-<tr><td><code>auto_gain_max</code></td><td>float</td><td><code>7.0</code></td><td>The most gain it applies At least 0.0.</td></tr>
-<tr><td><code>auto_gain_floor</code></td><td>float</td><td><code>0.0</code></td><td>The least gain it applies At least 0.0.</td></tr>
-<tr><td><code>auto_gain_attack_time</code></td><td>float</td><td><code>4.0</code></td><td>Seconds it takes to answer the level rising Range 0.0–10.0.</td></tr>
-<tr><td><code>auto_gain_release_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds it takes to answer the level falling Range 0.0–10.0.</td></tr>
 </tbody>
 </table>
 

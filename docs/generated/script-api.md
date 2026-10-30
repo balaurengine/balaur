@@ -12,7 +12,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`animation`](#animation) | 20 | 80 |
 | [`apple`](#apple) | 20 | 25 |
 | [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 23 | 1 |
+| [`audio`](#audio) | 24 | 1 |
 | [`browser`](#browser) | 8 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
@@ -200,6 +200,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 
 | Function | Signature |
 | --- | --- |
+| `bus_effects` | `(str) -> any` |
 | `bus_limit` | `(str) -> any` |
 | `bus_volume_linear` | `(str) -> float` |
 | `buses` | `() -> [str]` |

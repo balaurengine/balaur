@@ -1,5 +1,6 @@
 //! A play's files turned into one rodio source: decoded, mixed with their
-//! stems, trimmed, looped, queued, and passed through its effects.
+//! stems, trimmed, looped, queued and panned. And a bus's mix passed through
+//! its effects.
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -9,13 +10,11 @@ use anyhow::Result;
 use rodio::Source;
 use rodio::source::AutomaticGainControlSettings;
 
-use super::live::{self, Live, PERIOD, Pass, Side};
-use crate::playback::{Clip, Effects, Program};
+use super::live::{self, Echo, Live, PERIOD, Pass, Side};
+use crate::bus::{Effects, MAX_AUTO_GAIN_TIME, MAX_REVERB_TIME};
+use crate::playback::{Clip, Program};
 
-type Boxed = Box<dyn Source + Send>;
-
-/// rodio caps automatic gain control's attack and release here (`source/mod.rs`).
-const MAX_AUTO_GAIN_TIME: f32 = 10.0;
+pub(super) type Boxed = Box<dyn Source + Send>;
 
 /// A decoder over a clip's bytes, with the file's decoder settings and level.
 fn decoder(clip: &Clip) -> Result<rodio::Decoder<Cursor<Arc<[u8]>>>> {
@@ -106,8 +105,7 @@ pub(crate) struct From {
     pub fresh: bool,
 }
 
-/// The whole program as one source, from `from` on, through its effects and
-/// its pan.
+/// The whole program as one source, from `from` on, through its pan.
 pub(super) fn source(
     program: &Program,
     from: From,
@@ -123,11 +121,10 @@ pub(super) fn source(
         };
         queue.append(segment(program, index, at)?);
     }
-    let shaped = effects(Box::new(files), &program.effects, live);
     let placed: Boxed = if positional {
-        Box::new(live::spread(shaped, live))
+        Box::new(live::spread(files, live))
     } else {
-        live::balance(shaped, live)
+        live::balance(Box::new(files), live)
     };
     let faded: Boxed = if from.fresh && program.fade_in_time > 0.0 {
         Box::new(placed.fade_in(seconds(f64::from(program.fade_in_time))))
@@ -141,14 +138,14 @@ pub(super) fn source(
     })
 }
 
-/// Automatic gain control, the two filters, the distortion and the reverb,
-/// in that order: the level is evened out before anything shapes it, and the
-/// echo carries what the rest made.
+/// A bus's mix through automatic gain control, the two filters, the
+/// distortion and the reverb, in that order: the level is evened out before
+/// anything shapes it, and the echo carries what the rest made.
 ///
-/// Gain control and reverb join only when on as the play starts: each holds a
-/// buffer per play. The filters and the distortion are always in the chain, so
-/// switching one on while it plays lands.
-fn effects(source: Boxed, effects: &Effects, live: &Arc<Live>) -> Boxed {
+/// Built once, when the device opens. Gain control and the reverb join only
+/// when on, as each holds state of its own; the filters and the distortion
+/// read `live` as they play, and hand the mix through untouched while off.
+pub(super) fn effects(source: Boxed, effects: &Effects, live: &Arc<Live>) -> Boxed {
     let levelled: Boxed = if effects.auto_gain.on {
         let agc = &effects.auto_gain;
         let settings = AutomaticGainControlSettings {
@@ -200,18 +197,8 @@ fn effects(source: Boxed, effects: &Effects, live: &Arc<Live>) -> Boxed {
     if effects.reverb_time <= 0.0 {
         return Box::new(distorted);
     }
-    // rodio's `reverb`, composed by hand so the echo's level stays live: the
-    // echo is the same samples, delayed and scaled.
-    let dry = distorted.buffered();
-    let live = live.clone();
-    let wet = dry
-        .clone()
-        .amplify(effects.reverb_level)
-        .delay(seconds(f64::from(effects.reverb_time)))
-        .periodic_access(PERIOD, move |echo| {
-            echo.inner_mut().set_factor(live.reverb_level.get());
-        });
-    Box::new(dry.mix(wet))
+    let trail = effects.reverb_time.min(MAX_REVERB_TIME);
+    Box::new(Echo::new(distorted, seconds(f64::from(trail)), live))
 }
 
 /// The smoothing coefficient automatic gain control keeps for a time
