@@ -170,6 +170,8 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema("reflection_probe", &probe_schema()),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let next = probe_from_params(params);
                 let mut world = eng.world_mut();

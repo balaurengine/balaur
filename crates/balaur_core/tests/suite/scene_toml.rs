@@ -34,6 +34,8 @@ picture = { type = "string", default = "" }"#,
             ),
             tags: &[],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))

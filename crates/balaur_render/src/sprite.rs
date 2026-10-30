@@ -197,6 +197,8 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
             schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_sprite),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();

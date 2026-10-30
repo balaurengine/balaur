@@ -104,6 +104,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let text = |key: &str| {
                     params

@@ -281,6 +281,8 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
             expects: &[c::COLLIDER_3D],
             // Every property is read at move time, so applying one is
             // remembering it and nothing else.
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 // Moving a character writes the node's transform.
                 balaur_core::transform::ensure(eng, entity);

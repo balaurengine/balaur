@@ -45,6 +45,7 @@ regex-lite = "0.1"
 sha2 = "0.11"
 balaur_cfg = { path = "crates/balaur_cfg", version = "0.2.0" }
 balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
+balaur_derive = { path = "crates/balaur_derive", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
 balaur_bs = { path = "crates/balaur_bs", version = "0.2.0", default-features = false }

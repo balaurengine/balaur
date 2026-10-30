@@ -397,6 +397,8 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
             ),
             tags: &[balaur_core::components::tag::AUDIO],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 use balaur_core::components::{prop_bool, prop_f32};
                 let hearing = Listener {

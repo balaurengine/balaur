@@ -774,6 +774,8 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_3d),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -802,6 +804,8 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_2d),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();

@@ -69,6 +69,8 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &["tilemap"],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let state = eng.resource::<PhysicsState2d>();
                 state

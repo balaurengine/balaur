@@ -138,6 +138,8 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema("light3d", &light_schema()),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let kind = match prop_str(params, k::KIND) {
                     words::POINT => LightKind3d::Point,
@@ -598,6 +600,8 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
             // Both dimensions': a 2D scene's ambient is its environment's too.
             tags: &["render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let next = environment_from_params(params)?;
                 let mut world = eng.world_mut();
@@ -716,14 +720,34 @@ fn shadow_budget_to_map(env: &Environment, put: &mut impl FnMut(&str, toml::Valu
 /// `[render]`: what the device can afford, which a platform answers for
 /// itself through `[override.<tag>.render]`, rather than what a scene's
 /// atmosphere is.
-pub(crate) const BUDGET_SETTINGS: &str = r#"
-shadow_resolution = { type = "int", default = 2048, min = 256, order = 1, help = "Side of the shadow map, in texels." }
-shadow_views = { type = "int", default = 16, min = 1, max = 64, order = 2, help = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes." }
-transmission_steps = { type = "int", default = 1, min = 1, order = 3, help = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass." }
-cluster_grid = { type = "vec3", default = [16.0, 9.0, 24.0], order = 4, help = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute." }
-cluster_max_lights = { type = "int", default = 256, min = 1, order = 5, help = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer." }
-probe_capture_size_pixels = { type = "int", default = 256, min = 2, max = 4096, order = 6, help = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again." }
-"#;
+pub(crate) fn budget_settings() -> String {
+    balaur_core::ComponentDef::schema(&[
+        (
+            k::SHADOW_RESOLUTION,
+            r#"{ type = "int", default = 2048, min = 256, order = 1, help = "Side of the shadow map, in texels." }"#,
+        ),
+        (
+            k::SHADOW_VIEWS,
+            r#"{ type = "int", default = 16, min = 1, max = 64, order = 2, help = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes." }"#,
+        ),
+        (
+            k::TRANSMISSION_STEPS,
+            r#"{ type = "int", default = 1, min = 1, order = 3, help = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass." }"#,
+        ),
+        (
+            k::CLUSTER_GRID,
+            r#"{ type = "vec3", default = [16.0, 9.0, 24.0], order = 4, help = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute." }"#,
+        ),
+        (
+            k::CLUSTER_MAX_LIGHTS,
+            r#"{ type = "int", default = 256, min = 1, order = 5, help = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer." }"#,
+        ),
+        (
+            k::PROBE_CAPTURE_SIZE_PIXELS,
+            r#"{ type = "int", default = 256, min = 2, max = 4096, order = 6, help = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again." }"#,
+        ),
+    ])
+}
 
 /// The device budget `[render]` sets, over whichever environment draws.
 #[cfg(feature = "window")]

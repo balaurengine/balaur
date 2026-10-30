@@ -169,6 +169,8 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
         schema: ComponentDef::parse_schema("boolean3d", &boolean3d_schema()),
         tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
         expects: &[],
+        read: None,
+        write: None,
         apply: Box::new(|eng, entity, params| {
             let mut next = boolean3d_from_params(params)?;
             dress_3d(eng, entity, &next)?;
@@ -243,6 +245,8 @@ pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
         schema: ComponentDef::parse_schema("boolean2d", &boolean2d_schema()),
         tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
         expects: &[],
+        read: None,
+        write: None,
         apply: Box::new(|eng, entity, params| {
             let mut next = boolean2d_from_params(params)?;
             let mut world = eng.world_mut();

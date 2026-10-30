@@ -90,6 +90,8 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 set_shape(eng, entity, shape_from_params(params)?)?;
                 set_color(eng, entity, color_from_params(params))?;
@@ -247,6 +249,8 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let (shape, polyline) = shape2d_from_params(params)?;
                 match polyline {

@@ -29,6 +29,7 @@ indexmap.workspace = true
 smol_str.workspace = true
 rustc-hash.workspace = true
 balaur_script.workspace = true
+balaur_derive.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true

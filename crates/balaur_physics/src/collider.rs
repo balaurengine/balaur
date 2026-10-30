@@ -796,6 +796,8 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(c::COLLIDER_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {
                 remove_colliders(eng, entity);

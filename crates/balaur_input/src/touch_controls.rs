@@ -530,6 +530,8 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::UI,
             ],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let button = TouchButton {
                     action: prop_str(params, k::ACTION).to_string(),
@@ -626,6 +628,8 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::UI,
             ],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let stick = TouchStick {
                     action_x: prop_str(params, k::ACTION_X).to_string(),

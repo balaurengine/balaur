@@ -792,6 +792,8 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::RENDER,
             ],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_softbody),
             remove: Box::new(|eng, entity| {
                 remove_softbody(eng, entity);

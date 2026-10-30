@@ -485,6 +485,8 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::RENDER],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let reference = params
                     .get(crate::vocabulary::keys::SOURCE)

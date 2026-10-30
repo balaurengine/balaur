@@ -189,6 +189,8 @@ fn register_animation_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::ANIMATION],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 apply_animation(eng, entity, params);
                 Ok(())
@@ -224,6 +226,8 @@ fn register_machine_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::ANIMATION],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 machine::apply(eng, entity, params);
                 Ok(())

@@ -114,6 +114,8 @@ pub(crate) fn register_states_component(app: &mut App) {
             schema: ComponentDef::parse_schema("states", &schema()),
             tags: &["interaction"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let mut named = Vec::new();
                 if let Some(table) = params.as_table() {

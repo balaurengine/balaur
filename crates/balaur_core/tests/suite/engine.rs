@@ -144,6 +144,8 @@ fn app_with_mark() -> App {
             ),
             tags: &[],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng: &Engine, entity, _| {
                 eng.world_mut()
                     .insert_one(entity, Mark)

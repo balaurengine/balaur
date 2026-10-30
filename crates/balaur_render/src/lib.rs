@@ -939,7 +939,10 @@ impl balaur_plugin::Plugin for RenderPlugin {
             reg.engine(),
             "render",
             balaur_core::settings::Scope::Project,
-            &balaur_core::ComponentDef::parse_schema("settings.render", light3d::BUDGET_SETTINGS),
+            &balaur_core::ComponentDef::parse_schema(
+                "settings.render",
+                &light3d::budget_settings(),
+            ),
         );
         reg.insert_resource(CameraConfig3d::default());
         reg.insert_resource(ClearColorConfig {

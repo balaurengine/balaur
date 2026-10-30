@@ -266,6 +266,8 @@ fn register_camera3d(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::DIM_3D, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let camera = camera3d_from_params(params)?;
                 let mut world = eng.world_mut();
@@ -325,6 +327,8 @@ fn register_camera2d(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::DIM_2D, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let camera = camera2d_from_params(params);
                 let mut world = eng.world_mut();

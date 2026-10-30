@@ -97,6 +97,8 @@ pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema("polygon", &polygon_schema()),
             tags: &[words::ORTHOGRAPHIC, "render", "animation"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_polygon),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Renderable2d>(entity);

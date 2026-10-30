@@ -243,6 +243,8 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_widget),
             remove: Box::new(remove_widget),
             get: Box::new(read_widget),

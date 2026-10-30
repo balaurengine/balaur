@@ -259,6 +259,8 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::ANIMATION,
             ],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let params = params_of(params)?;
                 eng.world_mut()
@@ -293,6 +295,8 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::ANIMATION,
             ],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let params = params_of(params)?;
                 eng.world_mut()

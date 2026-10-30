@@ -188,6 +188,8 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(c::CHARACTER_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::COLLIDER_2D],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 // Moving a character writes the node's transform.
                 balaur_core::transform::ensure(eng, entity);

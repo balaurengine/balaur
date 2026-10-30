@@ -442,6 +442,8 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Vehicle3d(params.clone()));
                 Ok(())
@@ -483,6 +485,8 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::VEHICLE_3D],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Wheel3d(params.clone()));
                 Ok(())

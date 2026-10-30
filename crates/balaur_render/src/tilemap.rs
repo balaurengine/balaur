@@ -599,6 +599,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply_tilemap),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();

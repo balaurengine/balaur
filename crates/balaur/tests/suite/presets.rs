@@ -30,6 +30,8 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
         schema: d.schema.clone(),
         tags: d.tags,
         expects: d.expects,
+        read: None,
+        write: None,
         apply: Box::new(|_, _, _| Ok(())),
         remove: Box::new(|_, _| Ok(())),
         get: Box::new(|_, _| None),

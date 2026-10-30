@@ -608,6 +608,8 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::PHYSICS],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let ragdoll = Ragdoll {
                     blend: params

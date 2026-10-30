@@ -8,6 +8,10 @@
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
+// A derive's code names `::balaur_core`, which this crate's own components
+// reach through this.
+extern crate self as balaur_core;
+
 pub mod app;
 pub mod asset_index;
 pub mod assets;

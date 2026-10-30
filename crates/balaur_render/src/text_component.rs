@@ -179,6 +179,8 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 set_text(eng, entity, from_params(params, false))
             }),
@@ -217,6 +219,8 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 set_text(eng, entity, from_params(params, true))
             }),

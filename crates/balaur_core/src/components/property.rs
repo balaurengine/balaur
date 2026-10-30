@@ -63,6 +63,9 @@ impl PropertyReaders {
 /// happened.
 #[must_use]
 pub fn answers_alone(eng: &Engine, entity: Entity, index: usize, key: &str) -> bool {
+    if derived_read(eng, entity, index, key).is_some() {
+        return true;
+    }
     let Some(readers) = eng.try_resource::<PropertyReaders>() else {
         return false;
     };
@@ -170,7 +173,7 @@ pub fn set_property_at(
         .then(|| crate::document_paths::written_on(eng, entity, value))
         .flatten();
     let value = content.as_ref().unwrap_or(value);
-    let took = {
+    let took = derived_write(eng, entity, index, key, value) || {
         match eng.try_resource::<PropertyWriters>() {
             Some(writers) => {
                 let writers = writers.borrow();
@@ -196,6 +199,38 @@ pub fn set_property_at(
     Ok(())
 }
 
+/// Write one property through the component's own write by index, where it
+/// has one. `false` sends the caller to a whole patch: a node without the
+/// component, which the patch adds, or a value the field refuses, which the
+/// patch reports, or one it has to resolve first (an asset's definition).
+fn derived_write(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    key: &str,
+    value: &toml::Value,
+) -> bool {
+    let Some(registry) = eng.try_resource::<super::ComponentRegistry>() else {
+        return false;
+    };
+    let registry = registry.borrow();
+    let Some((_, def)) = registry.at(index) else {
+        return false;
+    };
+    let (Some(write), Some(at)) = (&def.write, def.schema.position(key)) else {
+        return false;
+    };
+    matches!(write(eng, entity, at, value), Ok(true))
+}
+
+/// One property by the component's own read by index, where it has one.
+fn derived_read(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option<toml::Value> {
+    let registry = eng.try_resource::<super::ComponentRegistry>()?;
+    let registry = registry.borrow();
+    let (_, def) = registry.at(index)?;
+    def.read.as_ref()?(eng, entity, def.schema.position(key)?)
+}
+
 /// One property of a component, without building the rest where the component
 /// knows how to answer: `get` and index is what happens otherwise.
 pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
@@ -212,6 +247,12 @@ pub(crate) fn holds_already(
     index: usize,
     asked: &toml::map::Map<String, toml::Value>,
 ) -> bool {
+    if asked
+        .iter()
+        .all(|(key, value)| derived_read(eng, entity, index, key).as_ref() == Some(value))
+    {
+        return true;
+    }
     let Some(readers) = eng.try_resource::<PropertyReaders>() else {
         return false;
     };
@@ -227,6 +268,9 @@ pub(crate) fn holds_already(
 /// [`property`] with the definition already resolved.
 #[must_use]
 pub fn property_at(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option<toml::Value> {
+    if let Some(found) = derived_read(eng, entity, index, key) {
+        return Some(found);
+    }
     if let Some(readers) = eng.try_resource::<PropertyReaders>() {
         let readers = readers.borrow();
         if let Some(Some(read)) = readers.by_index.get(index)

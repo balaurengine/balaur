@@ -260,6 +260,8 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let kind = match prop_str(params, k::KIND) {
                     words::POINT => LightKind2d::Point,
@@ -352,6 +354,8 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema("occluder2d", &occluder_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let mesh = prop_str(params, k::MESH).to_string();
                 let closed = prop_bool(params, k::CLOSED);

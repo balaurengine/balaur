@@ -673,6 +673,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_cfg",
+ "balaur_derive",
  "balaur_script",
  "base64 0.23.1",
  "dirs",
@@ -704,6 +705,15 @@ dependencies = [
  "tracing-subscriber",
  "web-sys",
  "web-time",
+]
+
+[[package]]
+name = "balaur_derive"
+version = "0.2.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

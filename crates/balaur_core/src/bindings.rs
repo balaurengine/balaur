@@ -352,6 +352,8 @@ pub(crate) fn register_bindings_component(app: &mut App) {
             ),
             tags: &["interaction"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let rows = match params.get("rows") {
                     Some(toml::Value::Array(rows)) => rows

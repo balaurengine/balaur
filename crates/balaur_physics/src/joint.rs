@@ -622,6 +622,8 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],
+            read: None,
+            write: None,
             apply: Box::new(apply_joint),
             remove: Box::new(|eng, entity| {
                 remove_joint(eng, entity);

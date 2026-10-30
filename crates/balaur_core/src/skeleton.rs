@@ -470,6 +470,8 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
                 crate::components::tag::ANIMATION,
             ],
             expects: &[crate::transform::COMPONENT],
+            read: None,
+            write: None,
             apply: Box::new(apply_bone2d),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Bone>(entity);
@@ -540,6 +542,8 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
                 crate::components::tag::ANIMATION,
             ],
             expects: &[crate::transform::COMPONENT],
+            read: None,
+            write: None,
             apply: Box::new(apply_bone3d),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Bone>(entity);

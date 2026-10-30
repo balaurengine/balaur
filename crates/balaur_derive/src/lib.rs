@@ -1,0 +1,462 @@
+//! A component written once: its struct is its schema (PLAN-property-types §5).
+//!
+//! `#[derive(Component)]` on a struct writes the property specs, a property a
+//! field in field order, each field's doc comment as its `description`; the
+//! struct's `Default`, from each field's `#[property(default = ...)]`; and a
+//! read and a write of one property by its index. `#[derive(Record)]` is the
+//! same for a struct a property holds, and `#[derive(Enum)]` makes a fieldless
+//! enum an `enum` property whose options are its variants.
+//!
+//! What the generated code reaches for lives in
+//! `balaur_core::components::derived`, so a crate deriving needs `balaur_core`
+//! and nothing else.
+
+use proc_macro::TokenStream;
+use proc_macro2::TokenStream as Tokens;
+use quote::quote;
+use syn::spanned::Spanned;
+use syn::{Data, DeriveInput, Expr, ExprLit, Fields, Lit, Meta, UnOp};
+
+/// `#[derive(Component)]`: see the crate docs. Needs `#[component(name = "...")]`.
+#[proc_macro_derive(Component, attributes(component, property))]
+pub fn derive_component(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    expand(&input, true)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// `#[derive(Record)]`: a struct a property holds, written as a table.
+#[proc_macro_derive(Record, attributes(property))]
+pub fn derive_record(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    expand(&input, false)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// `#[derive(Enum)]`: a fieldless enum as an `enum` property, each variant
+/// an option in snake case unless `#[option(name = "...")]` names it.
+#[proc_macro_derive(Enum, attributes(option))]
+pub fn derive_enum(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    expand_enum(&input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// The text of a run of `#[doc]` attributes: lines joined with a space, a
+/// blank line kept as a paragraph break.
+fn doc_of(attrs: &[syn::Attribute]) -> String {
+    let mut out = String::new();
+    for attr in attrs {
+        let Meta::NameValue(pair) = &attr.meta else {
+            continue;
+        };
+        if !pair.path.is_ident("doc") {
+            continue;
+        }
+        let Expr::Lit(ExprLit {
+            lit: Lit::Str(text),
+            ..
+        }) = &pair.value
+        else {
+            continue;
+        };
+        let line = text.value();
+        let line = line.trim();
+        if line.is_empty() {
+            if !out.is_empty() && !out.ends_with("\n\n") {
+                out.push_str("\n\n");
+            }
+        } else {
+            if !out.is_empty() && !out.ends_with('\n') {
+                out.push(' ');
+            }
+            out.push_str(line);
+        }
+    }
+    out.trim_end().to_owned()
+}
+
+/// A `snake_case` name for a `CamelCase` one.
+fn snake(name: &str) -> String {
+    let mut out = String::new();
+    for (at, letter) in name.char_indices() {
+        if letter.is_uppercase() {
+            if at > 0 {
+                out.push('_');
+            }
+            out.extend(letter.to_lowercase());
+        } else {
+            out.push(letter);
+        }
+    }
+    out
+}
+
+/// A spec key's value, written as the TOML value the spec holds.
+fn spec_value(value: &Expr) -> syn::Result<Tokens> {
+    let toml = quote!(::balaur_core::components::derived::toml);
+    Ok(match value {
+        Expr::Lit(ExprLit { lit, .. }) => match lit {
+            Lit::Str(text) => quote!(#toml::Value::String(::std::string::String::from(#text))),
+            Lit::Int(number) => quote!(#toml::Value::Integer(#number)),
+            Lit::Float(number) => quote!(#toml::Value::Float(#number)),
+            Lit::Bool(flag) => quote!(#toml::Value::Boolean(#flag)),
+            other => {
+                return Err(syn::Error::new(
+                    other.span(),
+                    "a spec takes text, a number or a flag",
+                ));
+            }
+        },
+        Expr::Unary(negative) if matches!(negative.op, UnOp::Neg(_)) => match &*negative.expr {
+            Expr::Lit(ExprLit {
+                lit: Lit::Int(number),
+                ..
+            }) => quote!(#toml::Value::Integer(-#number)),
+            Expr::Lit(ExprLit {
+                lit: Lit::Float(number),
+                ..
+            }) => quote!(#toml::Value::Float(-#number)),
+            other => return Err(syn::Error::new(other.span(), "only a number takes a minus")),
+        },
+        Expr::Array(list) => {
+            let entries = list
+                .elems
+                .iter()
+                .map(spec_value)
+                .collect::<syn::Result<Vec<_>>>()?;
+            quote!(#toml::Value::Array(::std::vec![#(#entries),*]))
+        }
+        other => {
+            return Err(syn::Error::new(
+                other.span(),
+                "a spec takes text, a number, a flag or a list of them",
+            ));
+        }
+    })
+}
+
+/// One field's `#[property(...)]`, read.
+#[derive(Default)]
+struct PropertyAttrs {
+    /// The property's name where it is not the field's.
+    name: Option<String>,
+    /// What a new component starts at, as a Rust expression of the field's
+    /// type; a text literal is turned into the field's type with `into`.
+    default: Option<Expr>,
+    /// Every other key, written into the spec as it stands.
+    keys: Vec<(String, Expr)>,
+}
+
+fn property_attrs(field: &syn::Field) -> syn::Result<PropertyAttrs> {
+    let mut found = PropertyAttrs::default();
+    for attr in &field.attrs {
+        if !attr.path().is_ident("property") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            let key = meta
+                .path
+                .get_ident()
+                .map(ToString::to_string)
+                .ok_or_else(|| meta.error("a property key is one word"))?;
+            let key = key.trim_start_matches("r#").to_owned();
+            if !meta.input.peek(syn::Token![=]) {
+                // A bare word names the type where the Rust one does not say
+                // it (`color` on four floats, `node` on a path), or is a
+                // flag: `readonly`.
+                match key.as_str() {
+                    "color" | "node" | "flags" => {
+                        found
+                            .keys
+                            .push(("type".to_owned(), syn::parse_quote!(#key)));
+                    }
+                    _ => found.keys.push((key, syn::parse_quote!(true))),
+                }
+                return Ok(());
+            }
+            let value: Expr = meta.value()?.parse()?;
+            match key.as_str() {
+                "name" => match &value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(text),
+                        ..
+                    }) => found.name = Some(text.value()),
+                    _ => return Err(meta.error("`name` takes text")),
+                },
+                "default" => found.default = Some(value),
+                "description" => {
+                    return Err(meta.error("a property's description is its doc comment"));
+                }
+                _ => found.keys.push((key, value)),
+            }
+            Ok(())
+        })?;
+    }
+    // A property naming its asset type is an asset.
+    if found.keys.iter().any(|(key, _)| key == "asset")
+        && !found.keys.iter().any(|(key, _)| key == "type")
+    {
+        found
+            .keys
+            .push(("type".to_owned(), syn::parse_quote!("asset")));
+    }
+    Ok(found)
+}
+
+/// `#[component(name = "...")]`, read.
+fn component_name(input: &DeriveInput) -> syn::Result<String> {
+    let mut name = None;
+    for attr in &input.attrs {
+        if !attr.path().is_ident("component") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("name") {
+                let text: syn::LitStr = meta.value()?.parse()?;
+                name = Some(text.value());
+                Ok(())
+            } else {
+                Err(meta.error("`component` takes `name`"))
+            }
+        })?;
+    }
+    name.ok_or_else(|| {
+        syn::Error::new(
+            input.ident.span(),
+            "a component names itself: #[component(name = \"...\")]",
+        )
+    })
+}
+
+/// What one field adds to each generated item.
+struct FieldParts {
+    name: String,
+    default: Tokens,
+    spec: Tokens,
+    read: Tokens,
+    write: Tokens,
+}
+
+fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
+    let derived = quote!(::balaur_core::components::derived);
+    let toml = quote!(#derived::toml);
+    let field_ident = field.ident.as_ref().expect("named fields have names");
+    let field_type = &field.ty;
+    let attrs = property_attrs(field)?;
+    let name = attrs
+        .name
+        .clone()
+        .unwrap_or_else(|| field_ident.to_string().trim_start_matches("r#").to_owned());
+    let default = match &attrs.default {
+        Some(Expr::Lit(ExprLit {
+            lit: Lit::Str(text),
+            ..
+        })) => quote!(#field_ident: ::core::convert::Into::into(#text)),
+        Some(value) => quote!(#field_ident: #value),
+        None => quote!(#field_ident: ::core::default::Default::default()),
+    };
+    let description = doc_of(&field.attrs);
+    let mut keys = Vec::new();
+    if !description.is_empty() {
+        keys.push(quote!(spec.insert(
+            ::std::string::String::from("description"),
+            #toml::Value::String(::std::string::String::from(#description)),
+        );));
+    }
+    for (key, value) in &attrs.keys {
+        let value = spec_value(value)?;
+        keys.push(quote!(spec.insert(::std::string::String::from(#key), #value);));
+    }
+    let spec = quote!({
+        let mut spec = #toml::map::Map::new();
+        #(#keys)*
+        <#field_type as #derived::Property>::describe(&mut spec);
+        spec.insert(
+            ::std::string::String::from("default"),
+            #derived::Property::to_value(&start.#field_ident),
+        );
+        #toml::Value::Table(spec)
+    });
+    let read = quote!(#index => ::core::option::Option::Some(#derived::Property::to_value(&self.#field_ident)),);
+    let write = quote!(#index => {
+        self.#field_ident = #derived::Property::from_value(value)
+            .map_err(|why| why.context(#name))?;
+    });
+    Ok(FieldParts {
+        name,
+        default,
+        spec,
+        read,
+        write,
+    })
+}
+
+fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
+    let Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "only a struct derives this",
+        ));
+    };
+    let Fields::Named(fields) = &data.fields else {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "only a struct with named fields derives this",
+        ));
+    };
+    let derived = quote!(::balaur_core::components::derived);
+    let toml = quote!(#derived::toml);
+    let ident = &input.ident;
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+
+    let mut names = Vec::new();
+    let mut defaults = Vec::new();
+    let mut specs = Vec::new();
+    let mut reads = Vec::new();
+    let mut writes = Vec::new();
+    for (index, field) in fields.named.iter().enumerate() {
+        let parts = field_parts(index, field)?;
+        names.push(parts.name);
+        defaults.push(parts.default);
+        specs.push(parts.spec);
+        reads.push(parts.read);
+        writes.push(parts.write);
+    }
+    let count = names.len();
+
+    let fields_impl = quote! {
+        impl #impl_generics ::core::default::Default for #ident #type_generics #where_clause {
+            fn default() -> Self {
+                Self { #(#defaults),* }
+            }
+        }
+
+        impl #impl_generics #derived::Fields for #ident #type_generics #where_clause {
+            const NAMES: &'static [&'static str] = &[#(#names),*];
+
+            fn specs() -> ::std::vec::Vec<#toml::Value> {
+                let start = <Self as ::core::default::Default>::default();
+                let mut out = ::std::vec::Vec::with_capacity(#count);
+                #(out.push(#specs);)*
+                out
+            }
+
+            fn read(&self, index: usize) -> ::core::option::Option<#toml::Value> {
+                match index {
+                    #(#reads)*
+                    _ => ::core::option::Option::None,
+                }
+            }
+
+            fn write(&mut self, index: usize, value: &#toml::Value) -> #derived::Result<()> {
+                match index {
+                    #(#writes)*
+                    _ => return ::core::result::Result::Err(#derived::no_property(index)),
+                }
+                ::core::result::Result::Ok(())
+            }
+        }
+    };
+
+    let kind_impl = if component {
+        let name = component_name(input)?;
+        let doc = doc_of(&input.attrs);
+        quote! {
+            impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
+                const NAME: &'static str = #name;
+                const DOC: &'static str = #doc;
+            }
+        }
+    } else {
+        quote! {
+            impl #impl_generics #derived::Property for #ident #type_generics #where_clause {
+                fn describe(spec: &mut #toml::map::Map<::std::string::String, #toml::Value>) {
+                    #derived::describe_record::<Self>(spec);
+                }
+
+                fn to_value(&self) -> #toml::Value {
+                    #derived::to_table(self)
+                }
+
+                fn from_value(value: &#toml::Value) -> #derived::Result<Self> {
+                    #derived::from_table(value)
+                }
+            }
+        }
+    };
+    Ok(quote! {
+        #fields_impl
+        #kind_impl
+    })
+}
+
+fn expand_enum(input: &DeriveInput) -> syn::Result<Tokens> {
+    let Data::Enum(data) = &input.data else {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "only an enum derives `Enum`",
+        ));
+    };
+    let derived = quote!(::balaur_core::components::derived);
+    let toml = quote!(#derived::toml);
+    let ident = &input.ident;
+    let mut options = Vec::new();
+    let mut variants = Vec::new();
+    for variant in &data.variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            return Err(syn::Error::new(variant.span(), "an option holds nothing"));
+        }
+        let mut name = snake(&variant.ident.to_string());
+        for attr in &variant.attrs {
+            if !attr.path().is_ident("option") {
+                continue;
+            }
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("name") {
+                    let text: syn::LitStr = meta.value()?.parse()?;
+                    name = text.value();
+                    Ok(())
+                } else {
+                    Err(meta.error("`option` takes `name`"))
+                }
+            })?;
+        }
+        options.push(name);
+        variants.push(&variant.ident);
+    }
+    Ok(quote! {
+        impl #ident {
+            /// Every option, in the order the enum declares them.
+            pub const OPTIONS: &'static [&'static str] = &[#(#options),*];
+
+            /// The option's name, as a file and a script spell it.
+            #[must_use]
+            pub const fn option(&self) -> &'static str {
+                match self {
+                    #(Self::#variants => #options,)*
+                }
+            }
+        }
+
+        impl #derived::Property for #ident {
+            fn describe(spec: &mut #toml::map::Map<::std::string::String, #toml::Value>) {
+                #derived::describe_enum(spec, Self::OPTIONS);
+            }
+
+            fn to_value(&self) -> #toml::Value {
+                #toml::Value::String(::std::string::String::from(self.option()))
+            }
+
+            fn from_value(value: &#toml::Value) -> #derived::Result<Self> {
+                match value.as_str() {
+                    #(::core::option::Option::Some(#options) => ::core::result::Result::Ok(Self::#variants),)*
+                    _ => ::core::result::Result::Err(#derived::not_an_option(value, Self::OPTIONS)),
+                }
+            }
+        }
+    })
+}

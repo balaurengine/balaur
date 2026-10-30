@@ -213,6 +213,8 @@ pub(crate) fn register_debug_draw_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(k::DEBUG_DRAW, &schema()),
             tags: &["render"],
             expects: DRAWABLES,
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, DebugDraw::from_params(params))

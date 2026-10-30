@@ -1,4 +1,4 @@
-//! `light2d`, `occluder2d` and the camera's `ambient`, without a window.
+//! `light2d`, `occluder2d` and the environment's ambient, without a window.
 //!
 //! The light map itself needs a GPU; everything it is built from — the world
 //! space lights, the outlines that occlude them, and the polygon an edge
@@ -351,19 +351,6 @@ fn the_components_round_trip() {
     let table = saved.as_table().unwrap();
     assert!(!table["closed"].as_bool().unwrap());
     assert_eq!(table["mesh"].as_str().unwrap(), "");
-
-    let cam = node(&app);
-    add(
-        &app,
-        cam,
-        "camera2d",
-        "ambient_color = [0.1, 0.2, 0.3, 1.0]",
-    );
-    let saved = components::get(&app.engine, cam, "camera2d").unwrap();
-    let ambient = saved.as_table().unwrap()["ambient_color"]
-        .as_array()
-        .unwrap();
-    assert!((ambient[1].as_float().unwrap() - 0.2).abs() < 1e-6);
 }
 
 #[test]

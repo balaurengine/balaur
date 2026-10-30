@@ -128,6 +128,8 @@ clicked = { type = "bool", default = false, readonly = true }
             ),
             tags: &[],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng: &balaur_core::Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))

@@ -74,6 +74,8 @@ pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::AUDIO],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 apply_sound(eng, entity, params);
                 Ok(())

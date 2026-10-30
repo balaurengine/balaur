@@ -10,6 +10,7 @@ mod classes;
 mod components;
 mod csg;
 mod dependencies;
+mod derive;
 mod digest;
 mod engine;
 mod engine_api;

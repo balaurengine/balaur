@@ -46,6 +46,8 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let offset = prop_vec2(params, k::OFFSET);
                 let size = prop_vec2(params, k::SIZE);

@@ -2,6 +2,8 @@
 //!
 //! A plugin registers a component under a name with a *schema* (property
 //! names, types, defaults — declared as TOML) plus apply/get/remove hooks.
+//! An engine component writes neither: `#[derive(Component)]` on its struct
+//! makes both from the fields ([`derived`]).
 //! Registration buys three things at once:
 //!
 //! 1. a scene-file key (`body = { kind = "dynamic" }`) applied at
@@ -99,6 +101,7 @@ use crate::engine::Engine;
 mod accepts;
 mod attached;
 mod authored;
+pub mod derived;
 mod property;
 mod schema;
 
@@ -266,6 +269,11 @@ pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings:
 /// without building its whole table. `None` means "ask the whole table",
 /// which is also the answer for a property the component does not hold.
 pub type PropertyFn = Box<dyn Fn(&Engine, Entity, &str) -> Option<toml::Value>>;
+/// Read one property by its index in the schema, without the rest.
+pub type ReadFn = Box<dyn Fn(&Engine, Entity, usize) -> Option<toml::Value>>;
+/// Write one property by its index in the schema. `false` is a node without
+/// the component, which a whole [`patch`] then adds.
+pub type WriteFn = Box<dyn Fn(&Engine, Entity, usize, &toml::Value) -> Result<bool>>;
 
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs), in the order it
@@ -305,6 +313,12 @@ pub struct ComponentDef {
     /// and defaults whatever it omits. Values the component derives are the
     /// exception, and must be left out for the same reason.
     pub get: GetFn,
+    /// One property by its index, for a component that can answer it alone:
+    /// every derived one ([`derived`]). `None` reads the whole table.
+    pub read: Option<ReadFn>,
+    /// One property written by its index, the twin of `read`. `None` writes
+    /// through a whole [`patch`].
+    pub write: Option<WriteFn>,
     /// What is off about the component on a node, for the editor to show.
     pub warnings: WarningsFn,
 }
@@ -325,6 +339,13 @@ impl Schema {
     #[must_use]
     pub fn order(&self) -> &[String] {
         &self.order
+    }
+
+    /// Where property `name` sits in that order, which is its field's place
+    /// in a derived component: the index its read and write take.
+    #[must_use]
+    pub fn position(&self, name: &str) -> Option<usize> {
+        self.order.iter().position(|held| held == name)
     }
 
     /// Every property's name and spec, in the order the schema writes them.
@@ -381,23 +402,43 @@ impl ComponentDef {
     /// bug in the plugin rather than bad user input, and failing at
     /// registration beats an inspector row that silently never appears.
     pub fn parse_schema(component: &str, text: &str) -> Rc<Schema> {
-        let mut specs: toml::Value = toml::from_str(text)
+        let specs: toml::Value = toml::from_str(text)
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
-        let table = specs.as_table_mut().unwrap_or_else(|| {
+        let toml::Value::Table(mut specs) = specs else {
             panic!("component '{component}': schema is not a table of property specs")
-        });
-        for (prop, spec) in table {
-            if let Err(why) = validate_property(spec) {
-                panic!("component '{component}', property '{prop}': {why}");
-            }
-            complete_property(spec);
-        }
+        };
         // The text parsed once already, so a second reader cannot fail.
         let written: toml_edit::DocumentMut = text
             .parse()
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
-        let order = written.iter().map(|(key, _)| key.to_owned()).collect();
-        Rc::new(Schema { specs, order })
+        let ordered = written
+            .iter()
+            .filter_map(|(key, _)| Some((key.to_owned(), specs.remove(key)?)))
+            .collect();
+        Self::schema_from(component, ordered)
+    }
+
+    /// Validate and complete specs given in the order they are shown.
+    ///
+    /// Panics as [`Self::parse_schema`] does.
+    pub fn schema_from(component: &str, ordered: Vec<(String, toml::Value)>) -> Rc<Schema> {
+        let mut table = toml::map::Map::new();
+        let mut order = Vec::with_capacity(ordered.len());
+        for (prop, mut spec) in ordered {
+            if let Err(why) = validate_property(&spec) {
+                panic!("component '{component}', property '{prop}': {why}");
+            }
+            complete_property(&mut spec);
+            order.push(prop.clone());
+            assert!(
+                table.insert(prop.clone(), spec).is_none(),
+                "component '{component}': property '{prop}' is declared twice"
+            );
+        }
+        Rc::new(Schema {
+            specs: toml::Value::Table(table),
+            order: order.into_boxed_slice(),
+        })
     }
 }
 

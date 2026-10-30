@@ -106,15 +106,21 @@ pub fn name_script(
     }
 }
 
-/// Local (parent-relative) transform, TRS convention.
-#[derive(Clone, Copy)]
+/// The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.
+#[derive(Clone, Copy, crate::components::derived::Component)]
+#[component(name = "transform")]
 pub struct Transform {
+    /// Where the node sits in its parent's space
+    #[property(default = Vec3::ZERO)]
     pub position: Vec3,
+    /// Local rotation as euler angles in radians, x then y then z
+    #[property(name = "rotation_euler", default = Quat::IDENTITY, unit = "degrees")]
     pub rotation: Quat,
+    /// Size relative to the parent's
+    #[property(default = Vec3::ONE)]
     pub scale: Vec3,
-    /// A 2D shear: how far the y axis is turned past square with the x axis,
-    /// in radians, before the scale. Zero on everything that is not a 2D node
-    /// asking for one, and the composition takes the plain path when it is.
+    /// A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it
+    #[property(unit = "degrees")]
     pub skew: f32,
 }
 

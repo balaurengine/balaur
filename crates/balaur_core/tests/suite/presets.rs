@@ -34,6 +34,8 @@ fn register_pair(app: &mut App) {
             ),
             tags: &["test"],
             expects: &["partner"],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, _| {
                 let _ = eng.world_mut().insert_one(entity, Lonely);
                 Ok(())
@@ -62,6 +64,8 @@ fn register_pair(app: &mut App) {
             ),
             tags: &["test"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, _| {
                 let _ = eng.world_mut().insert_one(entity, Partner);
                 Ok(())

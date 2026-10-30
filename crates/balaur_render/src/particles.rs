@@ -244,6 +244,8 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
             ),
             tags: &[crate::vocabulary::words::ORTHOGRAPHIC, balaur_core::components::tag::RENDER],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 set_particles(eng, entity, particles_from_params(params))
             }),

@@ -197,6 +197,8 @@ fn register_follow2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(c::FOLLOW_2D, &schema()),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_2D],
+            read: None,
+            write: None,
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Follow2d(params.clone()));
                 Ok(())

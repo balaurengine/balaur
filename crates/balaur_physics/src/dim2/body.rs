@@ -792,6 +792,8 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[balaur_core::transform::COMPONENT],
+            read: None,
+            write: None,
             apply: Box::new(apply_body),
             remove: Box::new(|eng, entity| {
                 let collider = get_collider_params(eng, entity);

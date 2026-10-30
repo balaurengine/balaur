@@ -5,111 +5,66 @@
 //! is component state, reported by `get`, so a snapshot and a rollback carry
 //! it the way they carry every other component.
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use balaur_script::Value;
 
 use crate::App;
-use crate::components::{ComponentDef, prop_bool, prop_f32};
+use crate::components::ComponentDef;
+use crate::components::derived::{Component, Written};
 use crate::engine::Engine;
 use crate::hecs::Entity;
 
 /// The component's name.
-pub const COMPONENT: &str = "timer";
+pub const COMPONENT: &str = <Timer as Component>::NAME;
 /// What a timer emits from its node when it runs out.
 pub const TIMEOUT: &str = "timeout";
 
-mod k {
-    pub(super) const WAIT_TIME: &str = "wait_time";
-    pub(super) const ONE_SHOT: &str = "one_shot";
-    pub(super) const AUTOSTART: &str = "autostart";
-    pub(super) const RUNNING: &str = "running";
-    pub(super) const TIME_LEFT: &str = "time_left";
-}
-
-/// A countdown on a node.
+/// Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.
+#[derive(Component)]
+#[component(name = "timer")]
 pub struct Timer {
+    /// Seconds from starting to `timeout`
+    #[property(name = "wait_time", default = 1.0, min = 0.001)]
     pub wait: f32,
-    pub one_shot: bool,
+    /// Start counting as soon as the node is in the scene
     pub autostart: bool,
+    /// Stop after one `timeout`; off, count the next one at once
+    pub one_shot: bool,
+    /// Whether it is counting; set true to start it from `wait_time`, false to stop it
     pub running: bool,
-    /// Seconds until the next `timeout`.
+    /// Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes.
+    #[property(name = "time_left", min = 0.0)]
     pub left: f32,
 }
 
-fn schema() -> String {
-    ComponentDef::schema(&[
-        (
-            k::WAIT_TIME,
-            r#"{ type = "float", default = 1.0, min = 0.001, description = "Seconds from starting to `timeout`" }"#,
-        ),
-        (
-            k::AUTOSTART,
-            r#"{ type = "bool", default = false, description = "Start counting as soon as the node is in the scene" }"#,
-        ),
-        (
-            k::ONE_SHOT,
-            r#"{ type = "bool", default = false, description = "Stop after one `timeout`; off, count the next one at once" }"#,
-        ),
-        (
-            k::RUNNING,
-            r#"{ type = "bool", default = false, description = "Whether it is counting; set true to start it from `wait_time`, false to stop it" }"#,
-        ),
-        (
-            k::TIME_LEFT,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes." }"#,
-        ),
-    ])
-}
-
-fn apply(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let wait = prop_f32(params, k::WAIT_TIME).max(0.001);
-    let one_shot = prop_bool(params, k::ONE_SHOT);
-    let autostart = prop_bool(params, k::AUTOSTART);
-    let asked = prop_bool(params, k::RUNNING);
-    let mut world = eng.world_mut();
-    if let Ok(mut held) = world.get::<&mut Timer>(entity) {
-        // Starting counts from the full wait; a timer already running keeps
-        // what it has left, so patching `wait_time` does not restart it.
-        if asked && !held.running {
-            held.left = wait;
-        }
-        held.wait = wait;
-        held.one_shot = one_shot;
-        held.autostart = autostart;
-        held.running = asked;
-        return Ok(());
+impl Timer {
+    /// The wait, never so short that a timer fires every step.
+    fn wait_seconds(&self) -> f32 {
+        self.wait.max(0.001)
     }
-    let running = asked || autostart;
-    world
-        .insert_one(
-            entity,
-            Timer {
-                wait,
-                one_shot,
-                autostart,
-                running,
-                left: if running { wait } else { 0.0 },
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
 }
 
-fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+/// Starting counts from the full wait and stopping clears what was left, so a
+/// timer already running keeps its count when `wait_time` is patched. One
+/// added with `autostart` starts.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+fn after_write(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
     let world = eng.world();
-    let timer = world.get::<&Timer>(entity).ok()?;
-    let mut out = toml::map::Map::new();
-    out.insert(
-        k::WAIT_TIME.into(),
-        toml::Value::Float(f64::from(timer.wait)),
-    );
-    out.insert(k::ONE_SHOT.into(), toml::Value::Boolean(timer.one_shot));
-    out.insert(k::AUTOSTART.into(), toml::Value::Boolean(timer.autostart));
-    out.insert(k::RUNNING.into(), toml::Value::Boolean(timer.running));
-    out.insert(
-        k::TIME_LEFT.into(),
-        toml::Value::Float(f64::from(timer.left)),
-    );
-    Some(toml::Value::Table(out))
+    let Ok(mut timer) = world.get::<&mut Timer>(entity) else {
+        return Ok(());
+    };
+    if written == Written::Added && timer.autostart {
+        timer.running = true;
+    }
+    if !timer.running {
+        timer.left = 0.0;
+    } else if timer.left <= 0.0 {
+        timer.left = timer.wait_seconds();
+    }
+    Ok(())
 }
 
 /// One fixed step of every running timer, emitting `timeout` from each one
@@ -133,7 +88,7 @@ pub(crate) fn step_system(eng: &Engine, dt: f32) {
                 timer.running = false;
                 timer.left = 0.0;
             } else {
-                timer.left += timer.wait;
+                timer.left += timer.wait_seconds();
             }
         }
     }
@@ -147,17 +102,8 @@ pub(crate) fn register_timer_component(app: &mut App) {
         COMPONENT,
         ComponentDef {
             events: &[(TIMEOUT, "nil")],
-            warnings: None,
-            doc: "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
-            schema: ComponentDef::parse_schema(COMPONENT, &schema()),
             tags: &["interaction"],
-            expects: &[],
-            apply: Box::new(apply),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Timer>(entity);
-                Ok(())
-            }),
-            get: Box::new(get),
+            ..ComponentDef::of::<Timer>(Some(after_write))
         },
     );
 }

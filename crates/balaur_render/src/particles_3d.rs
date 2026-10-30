@@ -292,6 +292,8 @@ pub(crate) fn register_particles_3d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(PARTICLES_3D, &schema()),
             tags: &[crate::vocabulary::words::PERSPECTIVE, balaur_core::components::tag::RENDER],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(apply),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();

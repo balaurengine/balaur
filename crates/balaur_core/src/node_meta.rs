@@ -31,6 +31,8 @@ pub(crate) fn register_meta_component(app: &mut App) {
             schema: ComponentDef::parse_schema(COMPONENT, ""),
             tags: &["interaction"],
             expects: &[],
+            read: None,
+            write: None,
             apply: Box::new(|eng: &Engine, entity: Entity, params: &toml::Value| {
                 let table = params.as_table().cloned().unwrap_or_default();
                 let mut world = eng.world_mut();
