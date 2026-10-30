@@ -26,7 +26,7 @@ pub class PopulateState {
 
 const SHEET: str = "populate";
 
-const LABEL_W: float = 110.0;
+const LABEL_WIDTH: float = 110.0;
 
 const MULTIMESH3D: str = "multimesh3d";
 
@@ -80,7 +80,7 @@ pub fn fill(state: &mut editor::State) {
     if hosts.is_none() {
         return;
     }
-    pool::sync(state, hosts.unwrap().form, specs(state), LABEL_W, false);
+    pool::sync(state, hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
 }
 
 fn specs(state: editor::State) -> [any] {
@@ -385,7 +385,7 @@ fn surface_node(state: editor::State) -> Node {
 // The list into wherever the node's asset lives. Inline and in a scene block
 // it is one history step; a file has no place in the document's history.
 fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> str {
-    let asked = util::obj(node.authored(name));
+    let asked = util::map_or_empty(node.authored(name));
     if asked.source.kind() == "map" {
         history::record(state, "Populate", nil);
         asked.source.set("instances", instances);
@@ -396,7 +396,7 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
     if source.starts_with("#") {
         let id = source.slice(1, source.len());
         history::record(state, "Populate", nil);
-        for block in util::vec(state.scene_doc.assets) {
+        for block in util::list_or_empty(state.scene_doc.assets) {
             if block.id.as_str() == id {
                 block.set("instances", instances);
             }

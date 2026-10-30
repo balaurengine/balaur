@@ -38,7 +38,7 @@ pub class Sequence {
     name: str,
     at: int,
     kept: any,
-    ptr: [float],
+    pointer: [float],
     steps: [Step],
     spans: [Span],
     seen: int,
@@ -73,9 +73,9 @@ const TOOL_PITCH: float = 32.0;
 // under it, and one column of its monospaced face.
 const CODE_TOP: float = 21.6;
 
-const LINE_H: float = 16.0;
+const LINE_HEIGHT: float = 16.0;
 
-const CHAR_W: float = 7.3;
+const CHAR_WIDTH: float = 7.3;
 
 // How long the pointer takes to walk to a control, in frames. Long enough to
 // read as a hand moving, short enough that a clip is not mostly travel.
@@ -100,7 +100,7 @@ pub fn driving(state: editor::State) -> bool {
 }
 
 pub fn start(state: &mut editor::State, name: str) {
-    let sequence = Sequence { name: name, at: 0, kept: map(), ptr: [0.0, 0.0], steps: [], spans: [], seen: 0, acts: [], spans_ui: [], seen_ui: 0 };
+    let sequence = Sequence { name: name, at: 0, kept: map(), pointer: [0.0, 0.0], steps: [], spans: [], seen: 0, acts: [], spans_ui: [], seen_ui: 0 };
     if name == "scenes" {
         scenes(state, sequence);
     } else if name == "scripting" {
@@ -214,7 +214,7 @@ fn feed_pointer(state: &mut editor::State, pointer_x: float, pointer_y: float) {
     input::feed_mouse(pointer_x * state.ui_scale * dpi, pointer_y * state.ui_scale * dpi);
     if state.showcase.is_some() {
         let sequence = state.showcase.unwrap();
-        sequence.ptr = [pointer_x, pointer_y];
+        sequence.pointer = [pointer_x, pointer_y];
     }
 }
 
@@ -225,24 +225,24 @@ fn glide(sequence: Sequence, from: int, to: int, place: any) {
     over(sequence, from, to, gliding, map().with("place", place).with("ready", false));
 }
 
-fn gliding(state: &mut editor::State, seg: any, progress: float) {
-    if !seg.ready.as_bool() {
-        let target = place_of(state, seg.place);
-        let was = state.showcase.unwrap().ptr;
+fn gliding(state: &mut editor::State, segment: any, progress: float) {
+    if !segment.ready.as_bool() {
+        let target = place_of(state, segment.place);
+        let was = state.showcase.unwrap().pointer;
         // Nothing has placed the pointer yet: start at the target rather
         // than sweeping in from the window's corner.
         let unplaced = was[0] == 0.0 && was[1] == 0.0;
-        seg.set("ready", true);
-        seg.set("from", if unplaced { target } else { was });
-        seg.set("to", target);
+        segment.set("ready", true);
+        segment.set("from", if unplaced { target } else { was });
+        segment.set("to", target);
     }
     let eased = ease(progress);
-    feed_pointer(state, lerp(seg.from[0].as_float(), seg.to[0].as_float(), eased), lerp(seg.from[1].as_float(), seg.to[1].as_float(), eased));
+    feed_pointer(state, lerp(segment.from[0].as_float(), segment.to[0].as_float(), eased), lerp(segment.from[1].as_float(), segment.to[1].as_float(), eased));
 }
 
 // A 2D world point in design px, as a list the glides read.
-fn design_of_world(state: editor::State, wx: float, wy: float) -> [float] {
-    let at = viewport::screen_of_2d(state, wx, wy);
+fn design_of_world(state: editor::State, world_x: float, world_y: float) -> [float] {
+    let at = viewport::screen_of_2d(state, world_x, world_y);
     [at.x, at.y]
 }
 
@@ -251,7 +251,7 @@ fn design_of_world(state: editor::State, wx: float, wy: float) -> [float] {
 fn selection_spot(state: editor::State) -> [float] {
     let found = model::selected_node(state);
     if !found.is_valid() {
-        return state.showcase.unwrap().ptr;
+        return state.showcase.unwrap().pointer;
     }
     let position = found.transform.global_position();
     design_of_world(state, position.x, position.y)
@@ -267,7 +267,7 @@ fn release(state: &mut editor::State, data: any) {
 
 // Each of `data.keys` down, or up.
 fn keys(state: &mut editor::State, data: any) {
-    for key in util::vec(data.keys) {
+    for key in util::list_or_empty(data.keys) {
         input::feed_key(key.as_str(), data.down.as_bool());
     }
 }
@@ -331,7 +331,7 @@ fn spot(state: editor::State, name: str) -> [float] {
         }
         return [right.x.as_float() + 127.0, right.y.as_float() + 169.0];
     }
-    return [state.screen_w / 2.0, state.screen_h / 2.0];
+    return [state.screen_width / 2.0, state.screen_height / 2.0];
 }
 
 fn of(at: chrome::Spot) -> [float] {
@@ -386,9 +386,9 @@ fn gutter_spot(state: editor::State, line: int) -> [float] {
     let doc = state.layout.doc;
     // The pane does not scroll, so a line past its foot answers with the last
     // one it shows rather than a pointer drawn below the pane.
-    let last = ((doc.height.as_float() - CODE_TOP - LINE_H) / LINE_H) as int + 1;
-    let shown = util::imin(line, last);
-    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((shown - 1) as float) * LINE_H];
+    let last = ((doc.height.as_float() - CODE_TOP - LINE_HEIGHT) / LINE_HEIGHT) as int + 1;
+    let shown = util::int_min(line, last);
+    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((shown - 1) as float) * LINE_HEIGHT];
 }
 
 // Scroll the code pane so `line` sits `row` lines down it, and answer where its
@@ -399,11 +399,11 @@ fn scrolled_gutter_spot(state: &mut editor::State, rel: str, line: int, row: int
     let lines = model::source(state, rel).as_str().split("\n").len();
     // The pane stops scrolling at its last line, and the cursor has to stop
     // with it: past that the mark is drawn where the line is not.
-    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_H - doc.height.as_float());
-    let want = if line > row { ((line - row) as float) * LINE_H } else { 0.0 };
+    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_HEIGHT - doc.height.as_float());
+    let want = if line > row { ((line - row) as float) * LINE_HEIGHT } else { 0.0 };
     let off = util::min(want, last);
     state.code_scroll = off;
-    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((line - 1) as float) * LINE_H - off];
+    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((line - 1) as float) * LINE_HEIGHT - off];
 }
 
 // Where the start screen's control `name` sits; the middle of the window
@@ -413,12 +413,12 @@ fn manager_spot(state: editor::State, name: str) -> [float] {
     if found.is_some() {
         return [found.unwrap().x, found.unwrap().y];
     }
-    return [state.screen_w / 2.0, state.screen_h / 2.0];
+    return [state.screen_width / 2.0, state.screen_height / 2.0];
 }
 
 /// Where a place the clip names is now, in design px. A place is one of:
 /// `{ spot }` a named control, `{ row }` a tree row by node name,
-/// `{ selection }`, `{ world: [x, y] }`, `{ viewport: [fx, fy] }`,
+/// `{ selection }`, `{ world: [x, y] }`, `{ viewport: [fraction_x, fraction_y] }`,
 /// `{ gutter, rel, dx }` the line holding `gutter`, `{ scrolled, rel, row }`,
 /// `{ manager }`, `{ centre }` a node's path, `{ head }` a theme head
 /// button's caption, or `{ form, at }` a theme form row's control.
@@ -508,10 +508,10 @@ fn line_of(state: &mut editor::State, rel: str, needle: str) -> int {
 
 // Change the open buffer the way typing would; `save_active` writes it.
 fn edit_source(state: &mut editor::State, rel: str, from: str, to: str) {
-    let abs = state.game_root + "/" + rel;
-    state.script_buffers.set(abs, source_of(state, rel).replace(from, to));
+    let absolute_path = state.game_root + "/" + rel;
+    state.script_buffers.set(absolute_path, source_of(state, rel).replace(from, to));
     center::code_written(state);
-    state.script_dirty.set(abs, true);
+    state.script_dirty.set(absolute_path, true);
     lint::touched(state);
     signals::bars(state);
 }
@@ -642,12 +642,12 @@ fn verb(state: &mut editor::State, data: any) {
 // The rig scene carries a `camera` node, which outvotes the editor's own
 // zoom every frame, so the clip's framing is that node's.
 fn fit_figure(state: &mut editor::State) {
-    let held = state.sel;
+    let held = state.selected;
     let found = index_of(state, "Camera");
     if found.is_some() {
         selection::only(state, found.unwrap());
         model::set_transform(state, found.unwrap(), rig::Parts { position: [0.6, 0.1, 0.0], rotation_euler: [], scale: [] });
-        model::set_component_prop(state, "camera2d", "pixels_per_unit", 150.0);
+        model::set_component_property(state, "camera2d", "pixels_per_unit", 150.0);
     }
     selection::only(state, held);
 }
@@ -659,8 +659,8 @@ fn follow(state: &mut editor::State, data: any, progress: float) {
     feed_pointer(state, at[0] + data.dx.as_float() * ease(progress), at[1]);
 }
 
-fn following(place: any, dx: float) -> any {
-    map().with("place", place).with("dx", dx)
+fn following(place: any, offset_x: float) -> any {
+    map().with("place", place).with("dx", offset_x)
 }
 
 // The slingshot: grab the bird, pull down and left, let go.
@@ -699,8 +699,8 @@ fn importing(state: &mut editor::State, sequence: Sequence) {
 }
 
 // The pointer walks somewhere in the viewport and lets the next file go.
-fn drop_file(sequence: Sequence, frame: int, fx: float, fy: float) {
-    click(sequence, frame, at_place("viewport", [fx, fy]), "import_next", map());
+fn drop_file(sequence: Sequence, frame: int, fraction_x: float, fraction_y: float) {
+    click(sequence, frame, at_place("viewport", [fraction_x, fraction_y]), "import_next", map());
 }
 
 // The code pane taking the window: a node with a script, the Focus chip
@@ -733,7 +733,7 @@ fn scenes(state: &mut editor::State, sequence: Sequence) {
 
 fn scaling(state: &mut editor::State, data: any, progress: float) {
     let scale = lerp(1.0, 2.4, ease(progress));
-    model::set_transform(state, state.sel, rig::Parts { position: [], rotation_euler: [], scale: [scale, scale, scale] });
+    model::set_transform(state, state.selected, rig::Parts { position: [], rotation_euler: [], scale: [scale, scale, scale] });
 }
 
 // Scripting, `examples/hello`: a change saved while the scene runs, then a
@@ -795,8 +795,8 @@ fn completing(state: &mut editor::State, data: any, _progress: float) {
     let at = gutter_spot(state, line + 1);
     complete::update(state, rel, joined, complete::Caret {
         index: index,
-        x: at[0] + 34.0 + (text.chars().len() as float) * CHAR_W,
-        y: at[1] + LINE_H,
+        x: at[0] + 34.0 + (text.chars().len() as float) * CHAR_WIDTH,
+        y: at[1] + LINE_HEIGHT,
     });
 }
 
@@ -827,7 +827,7 @@ fn scrubbing(state: &mut editor::State, data: any, progress: float) {
 }
 
 fn posing(state: &mut editor::State, data: any, progress: float) {
-    model::set_transform(state, state.sel, rig::Parts { position: [], rotation_euler: [0.0, 0.0, lerp(0.5, 0.95, ease(progress))], scale: [] });
+    model::set_transform(state, state.selected, rig::Parts { position: [], rotation_euler: [0.0, 0.0, lerp(0.5, 0.95, ease(progress))], scale: [] });
 }
 
 // Physics, `examples/angrynerds`: the collider overlays, then play and a
@@ -954,8 +954,8 @@ fn mix(from: str, to: str, progress: float) -> str {
 }
 
 fn theme_editor(state: &mut editor::State, sequence: Sequence) {
-    let prefs = settings::prefs_path();
-    let was = fs::read(prefs);
+    let preferences = settings::preferences_path();
+    let was = fs::read(preferences);
     act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
     chord(sequence, 40, [input::KEY_LEFT_META, input::KEY_K], "palette");
     over_ui(sequence, 70, 110, typing, map().with("word", "theme"));
@@ -977,7 +977,7 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     // The bar reads title, spring, Save, close: Save is its third node.
     click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", map());
     click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", map());
-    let put_back = map().with("verb", "theme_put_back").with("prefs", prefs);
+    let put_back = map().with("verb", "theme_put_back").with("prefs", preferences);
     if was.is_some() {
         put_back.set("kept", was.unwrap());
     }

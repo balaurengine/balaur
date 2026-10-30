@@ -41,9 +41,9 @@ fn refresh(state: &mut editor::State) {
 
 // One event from the exporter, delivered on the tick it arrived.
 pub fn report(state: &mut editor::State, event: any) {
-    let ev = util::obj(event);
-    let target = ev.get("target").as_str();
-    let kind = ev.get("kind").as_str();
+    let export_event = util::map_or_empty(event);
+    let target = export_event.get("target").as_str();
+    let kind = export_event.get("kind").as_str();
     if target == "" {
         return;
     }
@@ -51,14 +51,14 @@ pub fn report(state: &mut editor::State, event: any) {
     status.set(target, kind);
     let said: any = state.exporter.said;
     if kind == "done" {
-        let where_ = ev.get("path").as_str();
-        said.set(target, where_);
-        state.exporter.landed = where_;
-        log::info("exported {target} -> {where_}");
+        let exported_path = export_event.get("path").as_str();
+        said.set(target, exported_path);
+        state.exporter.landed = exported_path;
+        log::info("exported {target} -> {exported_path}");
         // A runtime that was downloaded on the way is installed now.
         refresh(state);
     } else if kind == "failed" {
-        let why = ev.get("message").as_str();
+        let why = export_event.get("message").as_str();
         said.set(target, why);
         log::warn("{target}: {why}");
     } else {
@@ -107,7 +107,7 @@ fn specs(state: editor::State) -> [any] {
         out.push(picker);
     }
     for row in state.exporter.rows {
-        target_specs(state, util::obj(row), out);
+        target_specs(state, util::map_or_empty(row), out);
     }
     out
 }
@@ -118,10 +118,10 @@ fn on_settings_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// The `[export] runtime` choice, with the options its schema declares.
 fn runtime_spec(state: editor::State) -> any {
-    let options = util::vec(nil);
-    for def in settings::all() {
-        if def.path == RUNTIME_SETTING {
-            options = util::vec(def.spec.options);
+    let options = util::list_or_empty(nil);
+    for setting in settings::all() {
+        if setting.path == RUNTIME_SETTING {
+            options = util::list_or_empty(setting.spec.options);
         }
     }
     if options.len() == 0 {

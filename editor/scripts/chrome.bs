@@ -41,17 +41,17 @@ pub struct FillImports {
 const PAD_X: float = 7.0;
 
 // The brand mark, and the name beside it when there is room.
-const MARK_W: float = 24.0;
+const MARK_WIDTH: float = 24.0;
 
-const NAME_W: float = 52.0;
+const NAME_WIDTH: float = 52.0;
 
 // The transport's three buttons: 26 px each on 3 px spacing, in an 87 px block.
 const BUTTON_PITCH: float = 29.0;
 
-const BLOCK_W: float = 87.0;
+const BLOCK_WIDTH: float = 87.0;
 
 // The theme switch and the command pill at the bar's right end.
-const THEME_W: float = 26.0;
+const THEME_WIDTH: float = 26.0;
 
 // The play triangle fills its em box where the pause bars and the stop square
 // sit inside theirs, so at one font size the three do not read as one set.
@@ -59,9 +59,9 @@ const PLAY_SIZE: float = 11.0;
 
 const STEP_SIZE: float = 16.0;
 
-const CMD_W: float = 118.0;
+const COMMAND_WIDTH: float = 118.0;
 
-const CMD_W_COMPACT: float = 26.0;
+const COMMAND_WIDTH_COMPACT: float = 26.0;
 
 // The dock plate under the dark mark: the mark's own dark ink, #14181d.
 fn DARK_PLATE() -> [float] {
@@ -69,24 +69,24 @@ fn DARK_PLATE() -> [float] {
 }
 
 // One document tab, as the showcase's pointer estimates it.
-const TAB_W: float = 104.0;
+const TAB_WIDTH: float = 104.0;
 
 // The bar's own row, a step shorter in a small window.
-fn row_h(state: editor::State) -> float {
+fn row_height(state: editor::State) -> float {
     if state.touchscreen { 33.0 } else if state.compact { 26.0 } else { 30.0 }
 }
 
 /// The tabs sit a little inside the bar where a cursor drives them. Under a
 /// finger everything in the bar is one height, so no two of them disagree.
-fn tab_h(state: editor::State) -> float {
-    if state.touchscreen { row_h(state) } else { row_h(state) - 4.0 }
+fn tab_height(state: editor::State) -> float {
+    if state.touchscreen { row_height(state) } else { row_height(state) - 4.0 }
 }
 
 /// An icon-only control is square, and states it: left to itself a button is
 /// as wide as its glyph plus the theme's side padding, which is a different
 /// width per glyph and squeezes the glyph off centre in a stated box.
-fn icon_w(state: editor::State) -> float {
-    row_h(state)
+fn icon_width(state: editor::State) -> float {
+    row_height(state)
 }
 
 // Here rather than in editor.bs, whose own `window` module hides the engine's.
@@ -145,15 +145,15 @@ fn plural(count: int, word: str) -> str {
 
 // Where the first workspace pill starts, after the brand.
 fn workspaces_x(state: editor::State) -> float {
-    let name = if state.compact { 0.0 } else { 3.0 + NAME_W };
-    state.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 8.0
+    let name = if state.compact { 0.0 } else { 3.0 + NAME_WIDTH };
+    state.layout.bar.x + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
 }
 
 /// Where one workspace pill's centre lands in the bar, in design px, so the
 /// showcase's drawn cursor can be put on the pill its verb presses.
 pub fn workspace_spot(state: editor::State, id: str) -> Spot {
     let bar: any = state.layout.bar;
-    let per = layout::workspace_w(state);
+    let per = layout::workspace_width(state);
     let slot = 0;
     let workspaces = defs::workspaces();
     for index in 0..workspaces.len() {
@@ -174,7 +174,7 @@ pub fn workspace_spot(state: editor::State, id: str) -> Spot {
 /// Where a document tab's centre lands: the scene's, then the script's.
 pub fn doc_spot(state: editor::State, id: str) -> Spot {
     let bar: any = state.layout.bar;
-    let per = layout::workspace_w(state);
+    let per = layout::workspace_width(state);
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
     let found = strip_spot(state, defs::workspaces().len() + (slot as int));
@@ -182,7 +182,7 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
         let spot = found.unwrap();
         return spot;
     }
-    return Spot { x: first + slot * (TAB_W + 4.0) + TAB_W / 2.0, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
+    return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
@@ -206,15 +206,15 @@ pub fn transport_spot(state: editor::State, index: int) -> Spot {
         let spot = found.unwrap();
         return spot;
     }
-    let cmd = if state.compact { CMD_W_COMPACT } else { CMD_W };
-    let block = (bar.get("x") + bar.get("width")).as_float() - PAD_X - THEME_W - 4.0 - cmd - 6.0 - BLOCK_W;
+    let command_width = if state.compact { COMMAND_WIDTH_COMPACT } else { COMMAND_WIDTH };
+    let block = (bar.get("x") + bar.get("width")).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
     return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
 }
 
 // The transport comes after the workspaces, the open documents, the split, the
 // focus and the spring that pushes the right end over.
 fn transport_slot(state: editor::State) -> int {
-    defs::workspaces().len() + doc_controls(state, state.theme, row_h(state) - 4.0).len() + 3
+    defs::workspaces().len() + doc_controls(state, state.theme, row_height(state) - 4.0).len() + 3
 }
 
 /// The centre of the strip's `slot`-th control, in design px, from the node it
@@ -259,7 +259,7 @@ pub fn fill(state: &mut editor::State) {
             .with("image", mark.logo)
             .with("text", mark.name)
             .with("trailing", icons::ui("caret-down"))
-            .with("height", row_h(state) - 4.0)
+            .with("height", row_height(state) - 4.0)
             .with("showing", state.menu_open));
     }
     let menu_at = menu_key(state);
@@ -303,13 +303,13 @@ fn strip_key(state: editor::State, tokens: any) -> [any] {
         state.split,
         state.focus,
         state.touchscreen,
-        state.sel,
+        state.selected,
         state.nodes.len(),
         state.history.past.len(),
         state.playing,
         replaying,
         paused,
-        state.theme_rev,
+        state.theme_revision,
         state.scene_rel,
         history::dirty(state),
         state.script_open,
@@ -322,7 +322,7 @@ fn strip_key(state: editor::State, tokens: any) -> [any] {
 // Everything on the bar past the brand, in the order it reads: the workspaces,
 // the open documents, then the split, and the right end after a spring.
 fn bar_controls(state: editor::State, tokens: any) -> [any] {
-    let height = tab_h(state);
+    let height = tab_height(state);
     let out: [any] = [];
     for workspace in defs::workspaces() {
         let id = workspace.id;
@@ -377,8 +377,8 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
     }
     out.push(map()
         .with("kind", "button")
-        .with("height", row_h(state))
-        .with("width", icon_w(state))
+        .with("height", row_height(state))
+        .with("width", icon_width(state))
         .with("padding", 0)
         .with("role", "item_bar")
         .with("text", "")
@@ -389,9 +389,9 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
     let named = !state.compact;
     out.push(map()
         .with("kind", "button")
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("role", "item_bar")
-        .with("width", if named { 0.0 } else { icon_w(state) })
+        .with("width", if named { 0.0 } else { icon_width(state) })
         .with("padding", if named { -1.0 } else { 0.0 })
         .with("text", if named { "Run a command" } else { "" })
         .with("icon", icons::ui("search"))
@@ -522,8 +522,8 @@ fn transport_controls(state: editor::State) -> [any] {
             .with("kind", "button")
             .with("text", "")
             .with("icon", icons::ui("play"))
-            .with("height", row_h(state))
-            .with("width", icon_w(state))
+            .with("height", row_height(state))
+            .with("width", icon_width(state))
             .with("padding", 0)
             .with("icon_size", PLAY_SIZE)
             .with("role", "icon_action_primary")
@@ -536,8 +536,8 @@ fn transport_controls(state: editor::State) -> [any] {
             .with("text", "")
             .with("icon", icons::ui("pause"))
             .with("enabled", running)
-            .with("height", row_h(state))
-            .with("width", icon_w(state))
+            .with("height", row_height(state))
+            .with("width", icon_width(state))
             .with("padding", 0)
             .with("icon_size", STEP_SIZE)
             .with("role", "icon_action_primary")
@@ -556,8 +556,8 @@ fn transport_controls(state: editor::State) -> [any] {
             .with("text", "")
             .with("icon", icons::ui("stop"))
             .with("enabled", running)
-            .with("height", row_h(state))
-            .with("width", icon_w(state))
+            .with("height", row_height(state))
+            .with("width", icon_width(state))
             .with("padding", 0)
             .with("icon_size", STEP_SIZE)
             .with("role", "icon_action_primary")
@@ -640,7 +640,7 @@ pub fn fill_status(state: &mut editor::State) {
 /// the frame rate while playing and an import in flight; the rows and the
 /// steps taken stand for the node and script counts.
 pub fn status_key(state: editor::State) -> [any] {
-    [status_mode(state), state.playing, state.theme_rev, state.layout.bottom.width, state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
+    [status_mode(state), state.playing, state.theme_revision, state.layout.bottom.width, state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
 }
 
 fn status_mode(state: editor::State) -> str {

@@ -104,7 +104,7 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
             return entry.get("files");
         }
     }
-    let files = util::vec(fs::list(state.game_root + "/" + rel));
+    let files = util::list_or_empty(fs::list(state.game_root + "/" + rel));
     state.listings.set(rel, map().with("files", files).with("at", now));
     files
 }
@@ -132,7 +132,7 @@ pub fn script_rel(found: Node) -> any {
 // What this node sets over its script's exported defaults. Sparse: a
 // property back at its default is absent, so a changed default reaches it.
 pub fn script_props(found: Node) -> any {
-    if found.is_valid() { util::obj(found.script_props()) } else { map() }
+    if found.is_valid() { util::map_or_empty(found.script_props()) } else { map() }
 }
 
 // The properties the script declares, cached beside its text: asking the host
@@ -150,29 +150,29 @@ pub fn exports(state: &mut editor::State, rel: str) -> any {
 
 // Set one exported property on the selected node's script. Takes effect the
 // next time the script attaches, which for play-in-editor is the next play.
-pub fn set_script_prop(state: &mut editor::State, prop: str, value: any) {
+pub fn set_script_property(state: &mut editor::State, property: str, value: any) {
     let found = selected_node(state);
     let rel = script_rel(found);
     if rel.is_nil() {
         return;
     }
-    history::record(state, "set " + prop, "sprop:{prop}:{state.sel}");
-    let props = script_props(found);
-    let stored = as_default_type(state, rel.as_str(), prop, value);
-    if same_as_default(state, rel.as_str(), prop, stored) {
-        props.remove(prop);
+    history::record(state, "set " + property, "sprop:{property}:{state.selected}");
+    let properties = script_props(found);
+    let stored = as_default_type(state, rel.as_str(), property, value);
+    if same_as_default(state, rel.as_str(), property, stored) {
+        properties.remove(property);
     } else {
-        props.set(prop, stored);
+        properties.set(property, stored);
     }
-    found.set_script(rel, props);
+    found.set_script(rel, properties);
 }
 
 // The editors all drag floats, so an export declared as a whole number is
 // rounded back to one: a count that became 2.0 is a different value to the
 // script, and to the file.
-fn as_default_type(state: &mut editor::State, rel: str, prop: str, value: any) -> any {
+fn as_default_type(state: &mut editor::State, rel: str, property: str, value: any) -> any {
     for export in exports(state, rel) {
-        if export.name.as_str() == prop && export.type.as_str() == "int" && value.kind() == "float" {
+        if export.name.as_str() == property && export.type.as_str() == "int" && value.kind() == "float" {
             return math::round(value.as_float()) as int;
         }
     }
@@ -181,9 +181,9 @@ fn as_default_type(state: &mut editor::State, rel: str, prop: str, value: any) -
 
 // A value equal to the export's default stops being an override. Numbers
 // compare as numbers, so retyping 2 over an int default of 2 clears it.
-fn same_as_default(state: &mut editor::State, rel: str, prop: str, value: any) -> bool {
+fn same_as_default(state: &mut editor::State, rel: str, property: str, value: any) -> bool {
     for export in exports(state, rel) {
-        if export.get("name").as_str() == prop {
+        if export.get("name").as_str() == property {
             let default_value = export.get("default");
             if (default_value.kind() == "int" || default_value.kind() == "float") && (value.kind() == "int" || value.kind() == "float") {
                 return default_value.as_float() == value.as_float();
@@ -539,8 +539,8 @@ fn must_read(path: str) -> str {
 }
 
 pub fn load(state: &mut editor::State) {
-    let args = engine::args();
-    let root = if args.len() > 0 { args[0] } else { "" };
+    let arguments = engine::args();
+    let root = if arguments.len() > 0 { arguments[0] } else { "" };
     state.game_root = root;
     // The game's strings and fonts live under its root, not the editor's:
     // without this every `text_key` draws as its key, in the editor's faces.
@@ -569,7 +569,7 @@ pub fn open_scene(state: &mut editor::State, rel: str) {
     let text = must_read(state.scene_path);
     // The file's other tables: its `[[assets]]`, which a tool writes and a
     // save writes back beside the nodes.
-    state.scene_doc = util::obj(toml::parse(text));
+    state.scene_doc = util::map_or_empty(toml::parse(text));
     build(state, text);
     selection::only(state, 0);
     history::reset(state);
@@ -746,8 +746,8 @@ pub fn reindex(state: &mut editor::State) {
             at.push(row.unwrap());
         }
     }
-    state.sels = at;
-    state.sel = if at.len() > 0 { at[0] } else { -1 };
+    state.selected_rows = at;
+    state.selected = if at.len() > 0 { at[0] } else { -1 };
 }
 
 /// The ids of the selected nodes, the active one first: a selection that
@@ -783,7 +783,7 @@ pub fn select_ids(state: &mut editor::State, ids: [str]) {
 /// read again, and its whole form once the edits stop for `REFILL_AFTER`.
 pub fn follow_changes(state: &mut editor::State, entries: any) {
     state.lint.stale = true;
-    let selected = node(state, state.sel);
+    let selected = node(state, state.selected);
     let structure = false;
     // Each component of the selected node written, with the properties it
     // was written by; one written whole has none.
@@ -882,7 +882,7 @@ pub fn schema(state: &mut editor::State, name: str) -> any {
     if !cached.is_nil() {
         cached
     } else {
-        let fresh = util::obj(scene::component_schema(name));
+        let fresh = util::map_or_empty(scene::component_schema(name));
         state.schemas.set(name, fresh);
         fresh
     }
@@ -895,7 +895,7 @@ pub fn expects(state: &mut editor::State, name: str) -> any {
     if !cached.is_nil() {
         cached
     } else {
-        let fresh = util::vec(scene::component_expects(name));
+        let fresh = util::list_or_empty(scene::component_expects(name));
         state.expects.set(name, fresh);
         fresh
     }
@@ -951,12 +951,12 @@ pub const TRANSFORM: str = "transform";
 /// Whether a row is active. A click on empty stage leaves none, so a verb on
 /// "the selected node" asks first.
 pub fn has_selection(state: editor::State) -> bool {
-    state.sel >= 0 && state.sel < state.nodes.len()
+    state.selected >= 0 && state.selected < state.nodes.len()
 }
 
 /// The active row's node, nil with nothing selected.
 pub fn selected_node(state: editor::State) -> Node {
-    node(state, state.sel)
+    node(state, state.selected)
 }
 
 // Write the scene back to its file and say so: what ⌘S does. A dependency's
@@ -1029,7 +1029,7 @@ pub fn scene_files(state: &mut editor::State) -> [str] {
     let out: [str] = [];
     // `fs::list` answers with `{ name, is_dir }`, not bare names.
     for entry in list(state, "scenes") {
-        let name = util::obj(entry).get("name").as_str();
+        let name = util::map_or_empty(entry).get("name").as_str();
         if name.ends_with(".toml") {
             out.push("scenes/" + name);
         }
@@ -1230,7 +1230,7 @@ pub fn remove_component(state: &mut editor::State, name: str) {
     // Whatever else on the node declares it needs this one goes first: taking
     // the transform out from under a body leaves the body driving nothing.
     let needed_by: [any] = [];
-    for other in util::vec(found.component_names()) {
+    for other in util::list_or_empty(found.component_names()) {
         if other.as_str() != name && util::contains(expects(state, other.as_str()), name) {
             needed_by.push(other);
         }
@@ -1248,12 +1248,12 @@ pub fn remove_component(state: &mut editor::State, name: str) {
 /// the component takes the value, and the whole write is one history step.
 /// The engine keeps what each write refused as a warning on the property,
 /// which the inspector draws under it.
-pub fn set_component_prop(state: &mut editor::State, name: str, prop: str, value: any) {
-    history::record(state, "set {name}.{prop}", "prop:{name}:{prop}:{state.sel}");
+pub fn set_component_property(state: &mut editor::State, name: str, property: str, value: any) {
+    history::record(state, "set {name}.{property}", "prop:{name}:{property}:{state.selected}");
     for row in selection::all(state) {
         let found = node(state, row);
         if found.is_valid() && found.has_component(name) {
-            found.try_patch_component(name, map().with(prop, value));
+            found.try_patch_component(name, map().with(property, value));
         }
     }
 }
@@ -1264,27 +1264,27 @@ pub fn set_component_prop(state: &mut editor::State, name: str, prop: str, value
 /// One history entry rather than one per property: an action that says "make
 /// this a convex decomposition" writes three of them, and undo should take
 /// all three back together.
-pub fn set_component_props(state: &mut editor::State, name: str, props: any) {
-    set_component_props_each(state, name, given, props);
+pub fn set_component_properties(state: &mut editor::State, name: str, properties: any) {
+    set_component_properties_each(state, name, given, properties);
 }
 
-fn given(_found: Node, props: any) -> any {
-    props
+fn given(_found: Node, properties: any) -> any {
+    properties
 }
 
-/// As `set_component_props`, with each selected node's own properties:
+/// As `set_component_properties`, with each selected node's own properties:
 /// `props_of(node, data)` answers them, or `nil` to leave that node alone. A
 /// shape built from a mesh is built from each node's mesh, not the active one's.
-pub fn set_component_props_each(state: &mut editor::State, name: str, props_of: fn(Node, any) -> any, data: any) {
+pub fn set_component_properties_each(state: &mut editor::State, name: str, properties_of: fn(Node, any) -> any, data: any) {
     history::record(state, "set {name}", nil);
     for row in selection::all(state) {
         let found = node(state, row);
         if !found.is_valid() {
             continue;
         }
-        let props = props_of(found, data);
-        if !props.is_nil() {
-            found.try_patch_component(name, props);
+        let properties = properties_of(found, data);
+        if !properties.is_nil() {
+            found.try_patch_component(name, properties);
         }
     }
 }
@@ -1299,7 +1299,7 @@ fn beside(state: editor::State, found: Node) -> Node {
 /// what a copy of it is built from. Its children are not in it.
 fn own_entry(state: editor::State, found: Node) -> any {
     let written = toml::parse(scene::to_toml(found, map().with("root", state.game_root)));
-    let entry = util::vec(written.nodes)[0];
+    let entry = util::list_or_empty(written.nodes)[0];
     entry.remove("id");
     entry.remove("parent");
     entry
@@ -1348,7 +1348,7 @@ pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
     if doc.kind() != "map" {
         return false;
     }
-    let nodes = util::vec(doc.get("nodes"));
+    let nodes = util::list_or_empty(doc.get("nodes"));
     if nodes.len() == 0 {
         return false;
     }
@@ -1389,7 +1389,7 @@ pub fn delete_selected(state: &mut editor::State) {
     }
     let label = if rows.len() > 1 { "delete {rows.len()} nodes" } else { "delete {selected_node(state).name()}" };
     history::record(state, label, nil);
-    let after = state.sel;
+    let after = state.selected;
     for row in rows {
         let found = node(state, row);
         if found.is_valid() {
@@ -1397,7 +1397,7 @@ pub fn delete_selected(state: &mut editor::State) {
         }
     }
     reindex(state);
-    selection::only(state, util::imax(0, util::imin(after, state.nodes.len() - 1)));
+    selection::only(state, util::int_max(0, util::int_min(after, state.nodes.len() - 1)));
     log::info(label);
 }
 
@@ -1437,7 +1437,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
         return;
     }
     if kind == "component" || kind == "removed" {
-        found.set_component(change.component.as_str(), util::obj(change.was));
+        found.set_component(change.component.as_str(), util::map_or_empty(change.was));
     } else if kind == "attached" {
         found.remove_component(change.component.as_str());
     } else if kind == "added" {
@@ -1449,7 +1449,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
         if was.is_nil() {
             found.set_script(nil, nil);
         } else {
-            found.set_script(was.source.as_str(), util::obj(was.props));
+            found.set_script(was.source.as_str(), util::map_or_empty(was.props));
         }
     } else if kind == "keys" {
         restore_keys(found, change.was);
@@ -1472,7 +1472,7 @@ pub fn row_of(found: Node) -> any {
         return row;
     }
     for name in found.component_names() {
-        row.set(name, util::obj(found.authored(name)));
+        row.set(name, util::map_or_empty(found.authored(name)));
     }
     row
 }
@@ -1489,7 +1489,7 @@ pub fn write_row(found: Node, row: any) {
         }
     }
     for name in row.keys() {
-        let wanted = util::obj(row.get(name));
+        let wanted = util::map_or_empty(row.get(name));
         if !found.has_component(name) || toml::encode(map().with("v", found.authored(name))) != toml::encode(map().with("v", wanted)) {
             found.set_component(name, wanted);
         }
@@ -1521,7 +1521,7 @@ pub fn edited(state: &mut editor::State, found: Node, component: str) -> any {
             return held.table;
         }
     }
-    let table = util::obj(found.authored(component));
+    let table = util::map_or_empty(found.authored(component));
     state.edited = Edited { id: id, component: component, frame: state.frame, table: table };
     table
 }
@@ -1546,7 +1546,7 @@ fn restore_keys(found: Node, was: any) {
     if found.visible() != was.visible.as_bool() {
         found.set_visible(was.visible.as_bool());
     }
-    let tint = util::vec(was.tint);
+    let tint = util::list_or_empty(was.tint);
     let now = found.tint();
     if tint.len() == 4 && (now.r != tint[0].as_float() || now.g != tint[1].as_float() || now.b != tint[2].as_float() || now.a != tint[3].as_float()) {
         found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
@@ -1560,7 +1560,7 @@ fn restore_keys(found: Node, was: any) {
     if !was.interpolate.is_nil() {
         found.set_interpolate(was.interpolate.as_bool());
     }
-    let tags = util::vec(was.tags);
+    let tags = util::list_or_empty(was.tags);
     for tag in found.tags() {
         if !util::contains(tags, tag) {
             found.remove_tag(tag);

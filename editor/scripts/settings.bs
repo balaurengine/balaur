@@ -80,15 +80,15 @@ pub fn load_files(state: &mut editor::State) {
             settings::merge_toml(manifest.unwrap());
         }
     }
-    let prefs = fs::read(prefs_path());
-    if prefs.is_some() {
-        settings::merge_toml(prefs.unwrap());
+    let preferences = fs::read(preferences_path());
+    if preferences.is_some() {
+        settings::merge_toml(preferences.unwrap());
     }
     apply(state);
 }
 
 // The editor's own settings are the person's, in the folder every project shares.
-pub fn prefs_path() -> str {
+pub fn preferences_path() -> str {
     project::editor_data_directory() + "/editor.toml"
 }
 
@@ -98,9 +98,9 @@ fn categories() -> [str] {
     let all = settings::all();
     let seen: [str] = [];
     for scope in ["project", "editor"] {
-        for def in all {
-            if def.scope == scope && !util::contains(seen, def.category) {
-                seen.push(def.category);
+        for setting in all {
+            if setting.scope == scope && !util::contains(seen, setting.category) {
+                seen.push(setting.category);
             }
         }
     }
@@ -111,9 +111,9 @@ fn categories() -> [str] {
 // one, and its editor-only rows follow under their own heading.
 fn scopes() -> any {
     let out = map();
-    for def in settings::all() {
-        if def.scope == "project" || !out.has(def.category) {
-            out.set(def.category, def.scope);
+    for setting in settings::all() {
+        if setting.scope == "project" || !out.has(setting.category) {
+            out.set(setting.category, setting.scope);
         }
     }
     out
@@ -142,55 +142,55 @@ fn showing(state: editor::State) -> [settings::Setting] {
     let query = query(state).to_lower();
     let at = current(state);
     let rows: [settings::Setting] = [];
-    for def in settings::all() {
+    for setting in settings::all() {
         let matches = if query == "" {
-            def.category == at
+            setting.category == at
         } else {
             // The path and the help both, so "packet" finds `multiplayer/loss`
             // by its sentence when its name does not say it.
-            def.path.to_lower().contains(query) || def.spec.help.as_str().to_lower().contains(query)
+            setting.path.to_lower().contains(query) || setting.spec.help.as_str().to_lower().contains(query)
         };
         if matches {
             // Slid in after every row that ranks the same or before, so equal
             // ranks keep their definition order.
             let at_rank = 0;
-            while at_rank < rows.len() && rank_of(rows[at_rank]) <= rank_of(def) {
+            while at_rank < rows.len() && rank_of(rows[at_rank]) <= rank_of(setting) {
                 at_rank += 1;
             }
-            rows.insert(at_rank, def);
+            rows.insert(at_rank, setting);
         }
     }
     rows
 }
 
 // Project rows before editor ones, each in the order it asks for.
-fn rank_of(def: settings::Setting) -> float {
-    let tail = if def.scope == "editor" { 100000.0 } else { 0.0 };
-    tail + order_of(def)
+fn rank_of(setting: settings::Setting) -> float {
+    let tail = if setting.scope == "editor" { 100000.0 } else { 0.0 };
+    tail + order_of(setting)
 }
 
-fn order_of(def: settings::Setting) -> float {
-    let order = def.spec.order;
+fn order_of(setting: settings::Setting) -> float {
+    let order = setting.spec.order;
     if order.is_nil() { 1000.0 } else { order.as_float() }
 }
 
 // `editor/appearance/theme` groups under "appearance"; `physics/gravity`
 // under nothing, since there is nothing between its category and its key.
-fn group_of(def: settings::Setting) -> str {
-    let parts = def.label.split("/");
+fn group_of(setting: settings::Setting) -> str {
+    let parts = setting.label.split("/");
     if parts.len() < 2 { "" } else { parts[0] }
 }
 
 // The last segment: what a row is labelled inside its group.
-fn key_of(def: settings::Setting) -> str {
-    util::leaf(def.path)
+fn key_of(setting: settings::Setting) -> str {
+    util::leaf(setting.path)
 }
 
 // Write both files. Only the paths a scope defines are touched, so a comment
 // or an unrelated table in project.toml survives.
 pub fn commit(state: &mut editor::State) {
     commit_project(state);
-    commit_prefs(state);
+    commit_preferences(state);
     state.settings.dirty = false;
 }
 
@@ -202,8 +202,8 @@ pub fn commit_project(state: editor::State) {
 
 /// The editor's half alone: what a self-test can round-trip without rewriting
 /// the game's manifest.
-pub fn commit_prefs(state: editor::State) {
-    fs::write(prefs_path(), settings::to_toml("editor", fs::read(prefs_path()).or("")));
+pub fn commit_preferences(state: editor::State) {
+    fs::write(preferences_path(), settings::to_toml("editor", fs::read(preferences_path()).or("")));
 }
 
 // Under this the list of categories goes above the rows rather than beside
@@ -213,18 +213,18 @@ const STACK_BELOW: float = 520.0;
 // The sidebar's own column, and the air between it and the rows. A row that
 // measured the whole sheet wrapped its help under the sidebar and ran past
 // the sheet's edge.
-const SIDEBAR_W: float = 190.0;
+const SIDEBAR_WIDTH: float = 190.0;
 
 const SIDEBAR_GAP: float = 20.0;
 
 /// What a settings row has across it: the sheet, less the sidebar where one
 /// is beside it.
-fn row_w(state: editor::State) -> float {
-    let inner = window::inner_w(state);
+fn row_width(state: editor::State) -> float {
+    let inner = window::inner_width(state);
     if ui::window_size().x < STACK_BELOW {
         return inner;
     }
-    util::max(inner - SIDEBAR_W - SIDEBAR_GAP, 160.0)
+    util::max(inner - SIDEBAR_WIDTH - SIDEBAR_GAP, 160.0)
 }
 
 /// Fill the sheet: what its script asks for when Settings is up.
@@ -249,10 +249,10 @@ pub fn fill(state: &mut editor::State) {
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
     if pool::strip_due(state, hosts.side_rows, key) {
-        pool::strip_keyed(state, hosts.side_rows, key, if stacked { util::vec(nil) } else { side_controls(state, tokens) });
+        pool::strip_keyed(state, hosts.side_rows, key, if stacked { util::list_or_empty(nil) } else { side_controls(state, tokens) });
     }
     util::fill(hosts.side, map().with("visible", !stacked));
-    let label_width = label_w(state);
+    let label_width = label_column_width(state);
     if pool::sync_due(state, hosts.form, key, label_width, stacked) {
         let specs = form_specs(state, tokens);
         if stacked {
@@ -264,8 +264,8 @@ pub fn fill(state: &mut editor::State) {
 
 /// The label column a settings row keeps, and the picker a narrow sheet
 /// shows in place of its sidebar.
-fn label_w(state: editor::State) -> float {
-    util::clamp(row_w(state) * 0.42, 120.0, 260.0)
+fn label_column_width(state: editor::State) -> float {
+    util::clamp(row_width(state) * 0.42, 120.0, 260.0)
 }
 
 fn picker_spec(state: editor::State) -> any {
@@ -275,7 +275,7 @@ fn picker_spec(state: editor::State) -> any {
         .with("grow", 1)
         .with("text", current(state))
         .with("options", categories());
-    map().with("full", true).with("height", style::row_h(state)).with("controls", [pool::on(picker, on_category_picked, map())])
+    map().with("full", true).with("height", style::row_height(state)).with("controls", [pool::on(picker, on_category_picked, map())])
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -306,7 +306,7 @@ fn on_save_clicked(state: &mut editor::State, data: any, _value: any) {
 /// The column down the left: the search box, and a row per category under
 /// the scope it belongs to.
 fn side_controls(state: editor::State, tokens: any) -> [any] {
-    let out = [search::control(state, FIELD, "Search", SIDEBAR_W)];
+    let out = [search::control(state, FIELD, "Search", SIDEBAR_WIDTH)];
     let scope = "";
     let at = current(state);
     let scopes = scopes();
@@ -345,7 +345,7 @@ fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
 fn form_specs(state: editor::State, tokens: any) -> [any] {
     let rows = showing(state);
     let out: [any] = [];
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     if query(state) != "" {
         out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
     } else if scope_of(current(state)) == "project" {
@@ -374,21 +374,21 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
     let searching = query(state) != "";
     let group = "";
     let scope = scope_of(current(state));
-    for def in rows {
-        if !searching && def.scope != scope {
-            scope = def.scope;
+    for setting in rows {
+        if !searching && setting.scope != scope {
+            scope = setting.scope;
             group = "";
             out.push(head_spec("THIS EDITOR"));
         }
-        let here = group_of(def);
+        let here = group_of(setting);
         if !searching && here != group {
             group = here;
             if group != "" {
                 out.push(head_spec(group.to_upper()));
             }
         }
-        let path = def.path;
-        let controls = [editor_control(state, def, path)];
+        let path = setting.path;
+        let controls = [editor_control(state, setting, path)];
         if path == theme::SETTING {
             controls.push(map()
                 .with("kind", "button")
@@ -403,10 +403,10 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
             .with("height", row_height)
             .with("controls", controls)
             .with("slot_role", "layout_actions")
-            .with("label", if searching { path } else { key_of(def) }));
-        let help = def.spec.help.as_str();
+            .with("label", if searching { path } else { key_of(setting) }));
+        let help = setting.spec.help.as_str();
         if help != "" {
-            let tail = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
+            let tail = if setting.applies_now { "" } else { "  ·  takes effect on the next run" };
             out.push(note_spec(help + tail));
         }
         for on in settings::overrides(path) {
@@ -415,7 +415,7 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
                 .with("full", false)
                 .with("height", row_height)
                 .with("controls", [
-                    editor_control(state, def, at),
+                    editor_control(state, setting, at),
                     map()
                         .with("kind", "button")
                         .with("role", "chip_quiet")
@@ -498,8 +498,8 @@ fn override_path(tag: str, path: str) -> str {
 // the override this machine happened to match would write it onto the key it
 // overrides.
 /// The control one setting's row carries, by the schema's datatype.
-fn editor_control(state: editor::State, def: settings::Setting, path: str) -> any {
-    let spec = util::obj(def.spec);
+fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> any {
+    let spec = util::map_or_empty(setting.spec);
     let datatype = if spec.type.is_nil() { "string" } else { spec.type.as_str() };
     let value = settings::base(path);
     if datatype == "bool" {
@@ -518,7 +518,7 @@ fn editor_control(state: editor::State, def: settings::Setting, path: str) -> an
             .with("role", "choice_form")
             .with("grow", 1)
             .with("text", if value.kind() == "str" { value.as_str() } else { "" })
-            .with("options", if named { theme::names() } else { util::vec(spec.options) })
+            .with("options", if named { theme::names() } else { util::list_or_empty(spec.options) })
             .with("on", "handle")
             .with("data", map().with("fn", on_choice_picked).with("path", path));
     }
@@ -588,7 +588,7 @@ fn on_text_submitted(state: &mut editor::State, data: any, text: any) {
 // A list as one line, and back.
 fn commas(value: any) -> str {
     let out = "";
-    for item in util::vec(value) {
+    for item in util::list_or_empty(value) {
         if out != "" {
             out += ", ";
         }

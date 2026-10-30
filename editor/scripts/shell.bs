@@ -51,7 +51,7 @@ pub struct Prefixed {
 }
 
 pub struct Capture {
-    dir: str,
+    directory: str,
     from: int,
     every: int,
     count: int,
@@ -64,7 +64,7 @@ pub fn debug_state() -> DebugState {
 }
 
 pub fn choose(state: &mut editor::State, row: int) {
-    if row != state.sel {
+    if row != state.selected {
         history::commit(state);
     }
     selection::only(state, row);
@@ -394,7 +394,7 @@ pub fn chip_value(state: editor::State, workspace: str, key: str) -> bool? {
 // same file by the absolute path play attaches it under.
 pub fn breakpoint_lines(state: editor::State, rel: str) -> [int] {
     let lines: [int] = [];
-    for line in util::vec(state.debug.breakpoints.get(rel)) {
+    for line in util::list_or_empty(state.debug.breakpoints.get(rel)) {
         lines.push(line.as_int());
     }
     lines.sort();
@@ -535,26 +535,26 @@ pub fn set_script_path(state: &mut editor::State, path: str) {
     if was.as_str() == rel {
         return;
     }
-    let abs = state.game_root + "/" + rel;
+    let absolute_path = state.game_root + "/" + rel;
     history::record(state, if was.is_nil() { "attach script" } else { "move script" }, nil);
     if !was.is_nil() {
         let old = was.as_str();
-        let old_abs = state.game_root + "/" + old;
-        if fs::exists(old_abs) && !fs::exists(abs) {
+        let old_absolute_path = state.game_root + "/" + old;
+        if fs::exists(old_absolute_path) && !fs::exists(absolute_path) {
             // What is typed but unsaved goes with the file.
-            let buffer = state.script_buffers.get(old_abs);
+            let buffer = state.script_buffers.get(old_absolute_path);
             if !buffer.is_nil() {
-                fs::write(old_abs, buffer.as_str());
+                fs::write(old_absolute_path, buffer.as_str());
             }
             make_parent(state, rel);
-            fs::rename(old_abs, abs);
+            fs::rename(old_absolute_path, absolute_path);
             carry_script_state(state, old, rel);
             log::info("moved {old} to {rel}");
         }
     }
-    if !fs::exists(abs) {
+    if !fs::exists(absolute_path) {
         make_parent(state, rel);
-        fs::write(abs, bs_template(rel));
+        fs::write(absolute_path, bs_template(rel));
     }
     // The node keeps the properties it set over the exports.
     node.set_script(rel, model::script_props(node));
@@ -571,30 +571,30 @@ fn make_parent(state: editor::State, rel: str) {
         return;
     }
     parts.pop();
-    let dir = state.game_root + "/" + util::join(parts, "/");
-    if !fs::exists(dir) {
-        fs::create_directory(dir);
+    let directory = state.game_root + "/" + util::join(parts, "/");
+    if !fs::exists(directory) {
+        fs::create_directory(directory);
     }
 }
 
 // The editor's per-file state follows a moved file: its buffer, whether it
 // is unsaved, and its breakpoints.
 fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
-    let old_abs = state.game_root + "/" + old;
-    let abs = state.game_root + "/" + rel;
-    let buffer = state.script_buffers.get(old_abs);
+    let old_absolute_path = state.game_root + "/" + old;
+    let absolute_path = state.game_root + "/" + rel;
+    let buffer = state.script_buffers.get(old_absolute_path);
     if !buffer.is_nil() {
-        state.script_buffers.set(abs, buffer);
-        state.script_buffers.remove(old_abs);
+        state.script_buffers.set(absolute_path, buffer);
+        state.script_buffers.remove(old_absolute_path);
     }
-    if state.script_dirty.has(old_abs) {
-        state.script_dirty.remove(old_abs);
+    if state.script_dirty.has(old_absolute_path) {
+        state.script_dirty.remove(old_absolute_path);
         signals::bars(state);
     }
     if state.debug.breakpoints.has(old) {
         let lines = breakpoint_lines(state, old);
         state.debug.breakpoints.remove(old);
-        state.debug.breakpoints.set(rel, debugger::set_breakpoints(abs, lines));
+        state.debug.breakpoints.set(rel, debugger::set_breakpoints(absolute_path, lines));
     }
 }
 
@@ -650,8 +650,8 @@ pub fn goto_definition(state: &mut editor::State) {
     if index < 0 {
         return;
     }
-    let at = complete::line_col(source, index);
-    let found_or = script::definition(rel, source, at.line, at.col);
+    let at = complete::line_column(source, index);
+    let found_or = script::definition(rel, source, at.line, at.column);
     if found_or.is_none() {
         return;
     }
@@ -701,14 +701,14 @@ pub fn format_active(state: &mut editor::State) {
     if rel == "" {
         return;
     }
-    let abs = state.game_root + "/" + rel;
+    let absolute_path = state.game_root + "/" + rel;
     let source = buffer_of(state, rel);
     let formatted = script::format(rel, source);
     if formatted == source {
         return;
     }
-    state.script_buffers.set(abs, formatted);
-    state.script_dirty.set(abs, engine::unix_time());
+    state.script_buffers.set(absolute_path, formatted);
+    state.script_dirty.set(absolute_path, engine::unix_time());
     lint::touched(state);
     signals::bars(state);
     // The code sheet writes its text again only when told the buffer moved.
@@ -736,19 +736,19 @@ pub fn save_active(state: &mut editor::State) {
 /// Write one open buffer, a script's or a shader's, to its file: what ⌘S
 /// does for the code in the centre, and what the autosave does once typing
 /// stops.
-pub fn save_buffer(state: &mut editor::State, abs: str) {
-    let buffer = state.script_buffers.get(abs);
+pub fn save_buffer(state: &mut editor::State, absolute_path: str) {
+    let buffer = state.script_buffers.get(absolute_path);
     if buffer.is_nil() {
         return;
     }
-    let rel = abs.replace(state.game_root + "/", "");
-    fs::write(abs, buffer.as_str());
+    let rel = absolute_path.replace(state.game_root + "/", "");
+    fs::write(absolute_path, buffer.as_str());
     model::forget(state, rel);
-    state.script_dirty.remove(abs);
+    state.script_dirty.remove(absolute_path);
     signals::bars(state);
     // A shader is not a script: it is written and the watcher relinks the
     // materials naming it, with no unit to rebuild.
-    if abs.ends_with(".wesl") {
+    if absolute_path.ends_with(".wesl") {
         // The watcher covers the editor's own root, not the game's.
         assets::invalidate();
         log::info("saved " + rel);
@@ -761,14 +761,14 @@ pub fn save_buffer(state: &mut editor::State, abs: str) {
     // The reload is also the compile: it builds the unit whether or not the
     // script is live, and leaves the old one running on a failure, so a save
     // that does not compile can say so.
-    let err = engine::reload_script(abs);
+    let failure = engine::reload_script(absolute_path);
     // A save is the one moment the whole project is known good or not; the
     // idle sweep only catches up to it.
     lint::run(state);
-    if err == "" {
+    if failure == "" {
         log::info("saved " + rel);
     } else {
-        say_failed(state, err);
+        say_failed(state, failure);
     }
 }
 
@@ -808,11 +808,11 @@ pub fn reload_scripts(state: &mut editor::State) {
     model::forget(state, nil);
     let done = 0;
     for rel in util::keys_sorted(paths) {
-        let err = engine::reload_script(state.game_root + "/" + rel);
-        if err == "" {
+        let failure = engine::reload_script(state.game_root + "/" + rel);
+        if failure == "" {
             done += 1;
         } else {
-            say_failed(state, err);
+            say_failed(state, failure);
         }
     }
     lint::run(state);
@@ -821,8 +821,8 @@ pub fn reload_scripts(state: &mut editor::State) {
 
 // A compile failure, a line at a time and against the game's own paths: the
 // dock is narrow, and the absolute key it was given says nothing more.
-fn say_failed(state: editor::State, err: str) {
-    for line in err.split("\n") {
+fn say_failed(state: editor::State, failure: str) {
+    for line in failure.split("\n") {
         log::error(line.replace(state.game_root + "/", ""));
     }
 }
@@ -978,8 +978,8 @@ fn state_wear(state: &mut editor::State, name: str) {
     theme::use_named(state, name);
 }
 
-fn state_theme(state: &mut editor::State, arg: str) {
-    let parts = arg.split(":");
+fn state_theme(state: &mut editor::State, argument: str) {
+    let parts = argument.split(":");
     let path = if parts.len() > 1 { ["roles", parts[1]] } else { [] };
     themewin::open_at(state, parts[0], path);
 }
@@ -1048,15 +1048,15 @@ fn state_view(state: &mut editor::State, id: str) {
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.
 fn state_frames(state: &mut editor::State, spec: str) {
-    // `dir` or `dir:from:every`; the default skips the start-up frames a
+    // `directory` or `directory:from:every`; the default skips the start-up frames a
     // showcase clip does not want, and `0:1` is how the start-up is watched.
     let parts = spec.split(":");
-    let dir = parts[0];
+    let directory = parts[0];
     let from = if parts.len() > 1 { parts[1].parse_int() } else { 30 };
-    let every = if parts.len() > 2 { util::imax(parts[2].parse_int(), 1) } else { 2 };
+    let every = if parts.len() > 2 { util::int_max(parts[2].parse_int(), 1) } else { 2 };
     // No `fs::create_directory` here: the directory is the caller's, outside every root
     // `fs` may reach, and the screenshot makes it on the way past.
-    state.capture = Capture { dir: dir, from: from, every: every, count: 0 };
+    state.capture = Capture { directory: directory, from: from, every: every, count: 0 };
 }
 
 fn state_input(state: &mut editor::State) {
@@ -1096,8 +1096,8 @@ fn state_tab(state: &mut editor::State, tab: str) {
 
 // `page:<dock>/<name>`: the page a plugin dock's sidebar is on, which the kit
 // remembers per dock. The one way in from outside it.
-fn state_page(state: &mut editor::State, arg: str) {
-    let parts = arg.split("/");
+fn state_page(state: &mut editor::State, argument: str) {
+    let parts = argument.split("/");
     if parts.len() < 2 {
         return;
     }
@@ -1119,8 +1119,8 @@ fn state_menudemo(state: &mut editor::State) {
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the
 // window has. A narrow layout is reachable no other way from a fixed capture.
-fn state_scale(state: &mut editor::State, arg: str) {
-    set_ui_scale(state, arg.parse_float());
+fn state_scale(state: &mut editor::State, argument: str) {
+    set_ui_scale(state, argument.parse_float());
 }
 
 fn state_shut(state: &mut editor::State, side: str) {
@@ -1140,8 +1140,8 @@ fn state_shut(state: &mut editor::State, side: str) {
 }
 
 // `move:<panel>:<side>`: put a panel in another dock, as its tab menu does.
-fn state_move(state: &mut editor::State, arg: str) {
-    let parts = arg.split(":");
+fn state_move(state: &mut editor::State, argument: str) {
+    let parts = argument.split(":");
     if parts.len() == 2 {
         docks::move_to(state, parts[0], parts[1]);
     }
@@ -1156,8 +1156,8 @@ fn state_dock(state: &mut editor::State, dock: str) {
 fn state_asset(state: &mut editor::State, rel: str) {
     docks::show(state, "assets");
     let leaf = util::leaf(rel);
-    state.assets.dir = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
-    state.assets.sel = rel;
+    state.assets.directory = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
+    state.assets.selected = rel;
     signals::changed(state, "assets");
 }
 
@@ -1208,8 +1208,8 @@ fn state_add(state: &mut editor::State, kind: str) {
     newnode::add(state, kind);
 }
 
-fn state_zoom(state: &mut editor::State, pct: str) {
-    set_zoom(state, pct.parse_float());
+fn state_zoom(state: &mut editor::State, percent: str) {
+    set_zoom(state, percent.parse_float());
 }
 
 fn state_palette(state: &mut editor::State) {

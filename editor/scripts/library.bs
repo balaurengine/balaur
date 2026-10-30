@@ -70,13 +70,13 @@ fn catalogue(state: &mut editor::State) -> Catalogue {
         return state.library.catalogue.unwrap();
     }
     let text = fs::read(ROOT + "/catalog.toml");
-    let table = if text.is_some() { util::obj(toml::parse(text.unwrap())) } else { map() };
+    let table = if text.is_some() { util::map_or_empty(toml::parse(text.unwrap())) } else { map() };
     if text.is_none() {
         log::warn("no library manifest at " + ROOT);
     } else if table.len() == 0 {
         log::warn("the library manifest does not parse");
     }
-    let known = Catalogue { entries: util::vec(table.entries), templates: util::vec(table.templates) };
+    let known = Catalogue { entries: util::list_or_empty(table.entries), templates: util::list_or_empty(table.templates) };
     state.library.catalogue = known;
     known
 }
@@ -92,9 +92,9 @@ fn install(state: &mut editor::State, rel: str) -> str? {
         return nil;
     }
     // The directory is everything up to the last separator.
-    let dir = rel.slice(0, rel.len() - util::leaf(rel).len());
-    if dir != "" {
-        fs::create_directory(state.game_root + "/" + dir);
+    let directory = rel.slice(0, rel.len() - util::leaf(rel).len());
+    if directory != "" {
+        fs::create_directory(state.game_root + "/" + directory);
     }
     let target = free_name(state, rel);
     fs::copy(from, state.game_root + "/" + target);
@@ -123,7 +123,7 @@ fn install_tree(state: &mut editor::State, rel: str) {
 /// Every file under `from`, into `to`, directories included.
 fn copy_tree(from: str, to: str) {
     fs::create_directory(to);
-    for entry in util::vec(fs::list(from)) {
+    for entry in util::list_or_empty(fs::list(from)) {
         let name = entry.name.as_str();
         if entry.is_dir.as_bool() {
             copy_tree(from + "/" + name, to + "/" + name);
@@ -158,7 +158,7 @@ pub fn place(state: &mut editor::State, entry: any) {
         install_tree(state, entry.file.as_str());
         return;
     }
-    for needed in util::vec(entry.needs) {
+    for needed in util::list_or_empty(entry.needs) {
         install(state, needed.as_str());
     }
     let rel_or = install(state, entry.file.as_str());
@@ -186,7 +186,7 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
     if !model::has_selection(state) {
         return;
     }
-    for needed in util::vec(entry.needs) {
+    for needed in util::list_or_empty(entry.needs) {
         install(state, needed.as_str());
     }
     let rel_or = install(state, entry.file.as_str());
@@ -203,7 +203,7 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
         log::info("select a node with a 3D shape to give it " + entry.name.as_str());
         return;
     };
-    model::set_component_prop(state, key, "material", rel);
+    model::set_component_property(state, key, "material", rel);
     log::info("{found.name()} is now {entry.name.as_str()}");
 }
 
@@ -275,11 +275,11 @@ fn dependency_view(state: &mut editor::State) -> View {
     let tokens = state.theme;
     let items: [str] = [];
     let held: [any] = [];
-    for dep in dependency::list() {
-        if dep.get("game").as_str() != state.game_root {
+    for dependency_entry in dependency::list() {
+        if dependency_entry.get("game").as_str() != state.game_root {
             continue;
         }
-        let alias = dep.get("alias").as_str();
+        let alias = dependency_entry.get("alias").as_str();
         let folder = "deps/" + alias;
         let named = catalogue_of(state.game_root + "/" + folder);
         for rel in files_under(state.game_root + "/" + folder, "") {
@@ -309,28 +309,28 @@ fn catalogue_of(root: str) -> any {
     if text.is_none() {
         return out;
     }
-    let table = util::obj(toml::parse(text.unwrap()));
-    for entry in util::vec(table.entries) {
+    let table = util::map_or_empty(toml::parse(text.unwrap()));
+    for entry in util::list_or_empty(table.entries) {
         out.set(entry.file.as_str(), entry);
     }
     out
 }
 
-/// Every file under `root`/`dir`, relative to `root`, less the ones that
+/// Every file under `root`/`directory`, relative to `root`, less the ones that
 /// describe the project rather than ship with it.
-fn files_under(root: str, dir: str) -> [str] {
+fn files_under(root: str, directory: str) -> [str] {
     let out: [str] = [];
-    let at = if dir == "" { root } else { root + "/" + dir };
-    for entry in util::vec(fs::list(at)) {
+    let at = if directory == "" { root } else { root + "/" + directory };
+    for entry in util::list_or_empty(fs::list(at)) {
         let name = entry.name.as_str();
-        let rel = if dir == "" { name } else { dir + "/" + name };
+        let rel = if directory == "" { name } else { directory + "/" + name };
         if entry.is_dir.as_bool() {
-            if !(dir == "" && name == "deps") {
+            if !(directory == "" && name == "deps") {
                 for inner in files_under(root, rel) {
                     out.push(inner);
                 }
             }
-        } else if !(dir == "" && (name == "project.toml" || name == "project.lock" || name == "catalog.toml")) {
+        } else if !(directory == "" && (name == "project.toml" || name == "project.lock" || name == "catalog.toml")) {
             out.push(rel);
         }
     }
@@ -360,7 +360,7 @@ fn forge_view(state: &mut editor::State) -> View {
     let held: [any] = [];
     for row in state.library.forge {
         let tags = "";
-        for tag in util::vec(row.get("tags")) {
+        for tag in util::list_or_empty(row.get("tags")) {
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
         let note = if tags == "" { row.get("description").as_str() } else { row.get("description").as_str() + " · " + tags };
@@ -383,7 +383,7 @@ fn forge_view(state: &mut editor::State) -> View {
 pub fn heard(state: &mut editor::State, event: any) {
     let kind = event.get("kind").as_str();
     if kind == "listed" {
-        state.library.forge = util::vec(event.get("rows"));
+        state.library.forge = util::list_or_empty(event.get("rows"));
         state.library.forge_says = "";
     } else if kind == "fetched" {
         let alias = event.get("alias").as_str();

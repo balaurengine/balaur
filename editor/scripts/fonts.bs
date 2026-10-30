@@ -44,7 +44,7 @@ pub struct Waiting {
 /// copied into the project first, and in a tab the catalogue.
 pub fn choices(state: &mut editor::State) -> [str] {
     let out: [str] = [];
-    for entry in util::vec(model::list(state, "fonts")) {
+    for entry in util::list_or_empty(model::list(state, "fonts")) {
         let name = entry.name.as_str();
         if !entry.is_dir.as_bool() && (assets::kind_of(name) == "font" || name.ends_with(".toml")) {
             out.push("fonts/" + name);
@@ -127,21 +127,21 @@ fn waiting_on(state: editor::State, purpose: str) -> bool {
 }
 
 /// One request to Forge, its answer kept for `on_response` by its id.
-fn ask(state: &mut editor::State, url: str, waiting: Waiting, opts: any) {
-    let id = http::request(scene::get_node("Editor"), url, opts);
+fn ask(state: &mut editor::State, url: str, waiting: Waiting, options: any) {
+    let id = http::request(scene::get_node("Editor"), url, options);
     state.font_requests.set("{id}", waiting);
 }
 
 /// Fill the picker with the families matching what is typed.
 pub fn fill(state: &mut editor::State) {
-    let row_h = util::max(style::row_h(state), 30.0);
-    let specs = rows(state, row_h);
+    let row_height = util::max(style::row_height(state), 30.0);
+    let specs = rows(state, row_height);
     let host = window::picker(state, map()
         .with("width", 520.0)
         .with("mark", icons::ui("search"))
         .with("placeholder", "Open fonts: a family, serif, mono…")
         .with("query", state.font_finding.unwrap().query)
-        .with("rows_h", (specs.len() as float) * (row_h + 2.0) + 4.0)
+        .with("rows_h", (specs.len() as float) * (row_height + 2.0) + 4.0)
         .with("on", "handle")
         .with("on_submit", "handle_submit")
         .with("data", map().with("fn", typed).with("submit", typed)));
@@ -153,14 +153,14 @@ fn typed(state: &mut editor::State, _data: any, text: any) {
     state.font_finding = Finding { at: finding.at, query: text.as_str() };
 }
 
-fn rows(state: &mut editor::State, row_h: float) -> [any] {
+fn rows(state: &mut editor::State, row_height: float) -> [any] {
     if state.font_families.is_nil() {
         let said = if waiting_on(state, "families") { "Asking Forge for its fonts…" } else { "The catalogue did not answer." };
         return [caption_row(said)];
     }
     let query = state.font_finding.unwrap().query.to_lower();
     let out: [any] = [];
-    for family in util::vec(state.font_families) {
+    for family in util::list_or_empty(state.font_families) {
         if out.len() >= SHOWN {
             break;
         }
@@ -174,7 +174,7 @@ fn rows(state: &mut editor::State, row_h: float) -> [any] {
             .with("role", "item_picker")
             .with("grow", 1)
             .with("text", "{name}  ·  {category}"), take_family, map().with("family", family));
-        out.push(map().with("full", true).with("height", row_h).with("controls", [button]));
+        out.push(map().with("full", true).with("height", row_height).with("controls", [button]));
     }
     if out.len() == 0 {
         out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
@@ -245,7 +245,7 @@ pub fn on_response(state: &mut editor::State, reply: any) {
 /// The family's upright regular face, else its first, downloaded under the
 /// user directory and copied in as a dropped file is; its licence beside it.
 fn fetch_face(state: &mut editor::State, waiting: Waiting, faces: any) {
-    let files = util::vec(faces.files);
+    let files = util::list_or_empty(faces.files);
     if files.len() == 0 {
         log::warn("{waiting.family.family} names no face");
         return;

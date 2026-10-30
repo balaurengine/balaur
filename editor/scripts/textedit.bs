@@ -20,7 +20,7 @@ pub class TexteditState {
     buffer: str,
     box_x: float,
     box_y: float,
-    box_w: float,
+    box_width: float,
     size: float,
 }
 
@@ -55,12 +55,12 @@ const MIN_SIZE: float = 14.0;
 const MAX_SIZE: float = 96.0;
 
 // Room the panel and the field keep around the words, in design pixels.
-const PAD_W: float = 40.0;
+const PAD_WIDTH: float = 40.0;
 
-const PAD_H: float = 16.0;
+const PAD_HEIGHT: float = 16.0;
 
 pub fn state() -> TexteditState {
-    TexteditState { added: -1, clicked_at: -1.0, click_x: 0.0, click_y: 0.0, node: -1, buffer: "", box_x: 0.0, box_y: 0.0, box_w: MIN_WIDTH, size: 0.0 }
+    TexteditState { added: -1, clicked_at: -1.0, click_x: 0.0, click_y: 0.0, node: -1, buffer: "", box_x: 0.0, box_y: 0.0, box_width: MIN_WIDTH, size: 0.0 }
 }
 
 fn shut() -> View {
@@ -118,7 +118,7 @@ pub fn update(state: &mut editor::State) {
     }
     // Over the point clicked, which is over the text itself, unless the
     // text's own box on screen is known.
-    open(state, state.sel, pointer.x, pointer.y);
+    open(state, state.selected, pointer.x, pointer.y);
 }
 
 /// Open the field over a text just added, which is the selection, on the
@@ -127,7 +127,7 @@ pub fn update(state: &mut editor::State) {
 /// else added opens nothing.
 pub fn open_added(state: &mut editor::State) {
     if editable(state) {
-        state.textedit.added = state.sel;
+        state.textedit.added = state.selected;
     }
 }
 
@@ -142,19 +142,19 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
     edit.size = 0.0;
     let centre_x = design_x;
     let centre_y = design_y;
-    let drawn_w = 0.0;
+    let drawn_width = 0.0;
     // The 2D camera's zoom, which a frame with no window has not got.
     if name == "text2d" && found.has_component("transform") && render::camera_2d().z > 0.0 {
-        let per_px = viewport::world_per_px(state);
+        let world_per_pixel = viewport::world_per_pixel(state);
         let scale = found.transform.global_scale();
         let font = found.get_component(name, "font_size").as_float();
         let per_unit = util::max(found.get_component(name, "pixels_per_unit").as_float(), 0.01);
-        edit.size = util::clamp(font / per_unit * util::abs(scale.y) / per_px, MIN_SIZE, MAX_SIZE);
+        edit.size = util::clamp(font / per_unit * util::abs(scale.y) / world_per_pixel, MIN_SIZE, MAX_SIZE);
         let laid = render::bounds(found);
         let known = laid.is_some() && laid.unwrap().len() == 2;
         let local = if known { laid.unwrap()[0] } else { Vec3 { x: 0.0, y: 0.0, z: 0.0 } };
         if known {
-            drawn_w = 2.0 * laid.unwrap()[1].x * util::abs(scale.x) / per_px;
+            drawn_width = 2.0 * laid.unwrap()[1].x * util::abs(scale.x) / world_per_pixel;
         }
         let world = util::to_world(util::frame_of(found), local.x, local.y);
         let at = viewport::screen_of_2d(state, world.x, world.y);
@@ -162,16 +162,16 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
         centre_y = at.y;
     }
     // Wide enough for the words as drawn, or as typed at this size.
-    let typed_w = (edit.buffer.len() as float) * util::max(edit.size, MIN_SIZE) * 0.6;
-    edit.box_w = util::max(MIN_WIDTH, util::max(drawn_w, typed_w) + PAD_W);
-    edit.box_x = centre_x - edit.box_w / 2.0;
+    let typed_width = (edit.buffer.len() as float) * util::max(edit.size, MIN_SIZE) * 0.6;
+    edit.box_width = util::max(MIN_WIDTH, util::max(drawn_width, typed_width) + PAD_WIDTH);
+    edit.box_x = centre_x - edit.box_width / 2.0;
     edit.box_y = centre_y - height(edit.size) / 2.0;
     signals::changed(state, "textedit");
 }
 
 // The field's height for letters of `size`, 0 being its role's.
 fn height(size: float) -> float {
-    if size > 0.0 { size * 1.3 + PAD_H } else { HEIGHT }
+    if size > 0.0 { size * 1.3 + PAD_HEIGHT } else { HEIGHT }
 }
 
 /// What the field shows: where it is, the text it opens with, and its size.
@@ -185,7 +185,7 @@ pub fn view(state: &mut editor::State) -> View {
         return shut();
     }
     let edit = state.textedit;
-    View { open: true, x: edit.box_x, y: edit.box_y, width: edit.box_w, height: height(edit.size), text: edit.buffer, size: edit.size }
+    View { open: true, x: edit.box_x, y: edit.box_y, width: edit.box_width, height: height(edit.size), text: edit.buffer, size: edit.size }
 }
 
 /// What was typed so far.
@@ -203,10 +203,10 @@ fn commit(state: &mut editor::State) {
     let row = state.textedit.node;
     let name = component(model::node(state, row));
     if name != "" {
-        // `set_component_prop` writes the selection's node, which is this one.
-        let was = state.sel;
+        // `set_component_property` writes the selection's node, which is this one.
+        let was = state.selected;
         selection::only(state, row);
-        model::set_component_prop(state, name, "text", state.textedit.buffer);
+        model::set_component_property(state, name, "text", state.textedit.buffer);
         selection::only(state, was);
     }
     close(state);

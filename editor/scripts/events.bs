@@ -26,7 +26,7 @@ pub fn state() -> EventsState {
 pub fn rows(state: editor::State) -> any {
     let found = model::selected_node(state);
     let held = if found.is_valid() { found.authored(COMPONENT) } else { nil };
-    if held.kind() == "map" { util::vec(held.rows) } else { util::vec(held) }
+    if held.kind() == "map" { util::list_or_empty(held.rows) } else { util::list_or_empty(held) }
 }
 
 /// The component a node's bindings are.
@@ -109,7 +109,7 @@ fn variable_names(state: editor::State) -> [str] {
     out
 }
 
-const ROW_H: float = 26.0;
+const ROW_HEIGHT: float = 26.0;
 
 fn as_text(value: any) -> str {
     if value.is_nil() {
@@ -198,7 +198,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> any {
         .with("tooltip", "Remove this binding")
         .with("on", "handle")
         .with("data", map().with("fn", on_remove_clicked).with("at", at)));
-    map().with("full", true).with("height", ROW_H).with("slot_role", "layout_actions").with("controls", controls)
+    map().with("full", true).with("height", ROW_HEIGHT).with("slot_role", "layout_actions").with("controls", controls)
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -265,8 +265,8 @@ pub fn script_of(class_name: str, rows: any) -> str {
     let first = heard.len() == 0;
     for hook in util::keys_sorted(byhook) {
         let own = util::contains(heard, hook.slice(HOOK_PREFIX.len(), hook.len()));
-        let args = if own { "payload: any" } else { hook_args(hook) };
-        out += (if first { "" } else { "\n" }) + "    pub fn {hook}({args}) {{\n";
+        let arguments = if own { "payload: any" } else { hook_arguments(hook) };
+        out += (if first { "" } else { "\n" }) + "    pub fn {hook}({arguments}) {{\n";
         first = false;
         for row in byhook.get(hook) {
             out += "        " + guarded(row) + "\n";
@@ -278,7 +278,7 @@ pub fn script_of(class_name: str, rows: any) -> str {
 
 /// The arguments each hook is handed, so the written method's signature is
 /// the one the engine calls.
-fn hook_args(hook: str) -> str {
+fn hook_arguments(hook: str) -> str {
     if hook == "on_pointer_down" || hook == "on_pointer_up" || hook == "on_pointer_click" {
         "button: any"
     } else if hook == "on_pointer_drag" || hook == "on_scroll" {
@@ -323,13 +323,13 @@ fn condition(when: str) -> str {
 
 fn clause_of(clause: str) -> str {
     let text = clause.trim();
-    for op in [">=", "<=", "==", "!=", ">", "<"] {
-        let found = util::index_of(text, op);
+    for operator in [">=", "<=", "==", "!=", ">", "<"] {
+        let found = util::index_of(text, operator);
         if found.is_some() {
             let at = found.unwrap();
             let name = text.slice(0, at).trim();
-            let rest = text.slice(at + op.len(), text.len()).trim();
-            return "scene::variable(\"{name}\").{read_as(rest)} {op} {rest}";
+            let rest = text.slice(at + operator.len(), text.len()).trim();
+            return "scene::variable(\"{name}\").{read_as(rest)} {operator} {rest}";
         }
     }
     "scene::variable(\"{text}\").as_bool()"
@@ -465,7 +465,7 @@ pub fn fill(state: &mut editor::State) {
         specs.push(note("no bindings on this node yet"));
     }
     for at in 0..held.len() {
-        specs.push(row_spec(state, at, util::obj(held[at])));
+        specs.push(row_spec(state, at, util::map_or_empty(held[at])));
     }
     variable_specs(state, specs);
     hook_specs(state, specs);

@@ -109,29 +109,29 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
         if prefab.is_some() && !fs::exists(state.game_root + "/" + prefab.unwrap()) {
             found.push(at(scene, 0, "error", "{name}: prefab {prefab.unwrap()} does not exist"));
         }
-        for warning in util::vec(scene::warnings(found_node.as_node())) {
+        for warning in util::list_or_empty(scene::warnings(found_node.as_node())) {
             found.push(at(scene, 0, "warning", "{name}: {describe(warning)}"));
         }
-        for comp in found_node.component_names() {
-            let schema = model::schema(state, comp.as_str());
-            let data = util::obj(found_node.get_component(comp));
-            for prop in util::keys_sorted(schema) {
-                if schema.get(prop).get("type").as_str() != "asset" {
+        for component in found_node.component_names() {
+            let schema = model::schema(state, component.as_str());
+            let data = util::map_or_empty(found_node.get_component(component));
+            for property in util::keys_sorted(schema) {
+                if schema.get(property).get("type").as_str() != "asset" {
                     continue;
                 }
-                let held = data.get(prop);
+                let held = data.get(property);
                 let value = held.as_str();
                 if held.kind() != "str" || value == "" {
                     continue;
                 }
                 if asset_missing(state, value) {
-                    found.push(at(scene, 0, "warning", "{name}: {comp}.{prop} → {value} does not exist"));
+                    found.push(at(scene, 0, "warning", "{name}: {component}.{property} → {value} does not exist"));
                     continue;
                 }
                 // A material parses headless and links only when something
                 // draws it, so a broken shader has to be asked about.
-                if schema.get(prop).get("asset").as_str() == "material" && !value.starts_with("#") {
-                    for finding in util::vec(render::check_material(value)) {
+                if schema.get(property).get("asset").as_str() == "material" && !value.starts_with("#") {
+                    for finding in util::list_or_empty(render::check_material(value)) {
                         found.push(at(finding.get("file").as_str(), finding.get("line").as_int(), finding.get("severity").as_str(), "{name}: {finding.get("message")}"));
                     }
                 }
@@ -160,7 +160,7 @@ pub fn node_warnings(state: &mut editor::State) {
     let out = map();
     for live in state.nodes {
         if live.is_valid() {
-            let found = util::vec(scene::warnings(live));
+            let found = util::list_or_empty(scene::warnings(live));
             if found.len() > 0 {
                 out.set(live.stable_id(), found);
             }
@@ -176,19 +176,19 @@ pub fn node_warnings(state: &mut editor::State) {
 /// The warnings the last ask found on the node with `id`.
 pub fn warned(state: editor::State, id: any) -> any {
     let held = state.lint.warned.get(id);
-    util::vec(if held.is_nil() { [] } else { held })
+    util::list_or_empty(if held.is_nil() { [] } else { held })
 }
 
 /// Check every root and the scene, and replace the finding list.
 pub fn run(state: &mut editor::State) {
     let found: [any] = [];
     for rel in roots(state) {
-        let src = source_of(state, rel.as_str());
-        if src.is_nil() {
+        let source_text = source_of(state, rel.as_str());
+        if source_text.is_nil() {
             found.push(at(state.scene_rel, 0, "error", "missing file: {rel}"));
             continue;
         }
-        for finding in util::vec(script::check(state.game_root + "/" + rel.as_str(), src.as_str())) {
+        for finding in util::list_or_empty(script::check(state.game_root + "/" + rel.as_str(), source_text.as_str())) {
             // The host answers in the key it was given, which is absolute.
             found.push(at(shell::script_rel(state, finding.get("file").as_str()), finding.get("line").as_int(), finding.get("severity").as_str(), finding.get("message").as_str()));
         }

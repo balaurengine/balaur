@@ -47,14 +47,14 @@ impl Counter {
     /// The dock: `payload.host` is the node the editor made for it, and the
     /// kit's rows are what fill it.
     pub fn panel(payload: any) {
-        let ed = editor();
-        let specs = [ed.call("kit_heading", "Scripted nodes")];
+        let editor_node = editor();
+        let specs = [editor_node.call("kit_heading", "Scripted nodes")];
         if self.shown < 0 {
-            specs.push(ed.call("kit_empty", ASK));
+            specs.push(editor_node.call("kit_empty", ASK));
         } else {
-            specs.push(ed.call("kit_field", "nodes", "{self.shown}", map().with("copy", true)));
+            specs.push(editor_node.call("kit_field", "nodes", "{self.shown}", map().with("copy", true)));
         }
-        ed.call("kit_rows", payload.host, "body", specs);
+        editor_node.call("kit_rows", payload.host, "body", specs);
     }
 
     /// The floating window's rows: the editor makes the window, its title and

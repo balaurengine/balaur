@@ -23,7 +23,7 @@ const TEXT_SHOWN: int = 4000;
 const INDENT: str = "  ";
 
 /// The label column every kit row keeps.
-const LABEL_W: float = 140.0;
+const LABEL_WIDTH: float = 140.0;
 
 /// A plugin's word that what its docks and dialogs show moved: they fill
 /// again on it, as the editor's own panels do on theirs.
@@ -81,8 +81,8 @@ fn memory(state: &mut editor::State) -> any {
     state.kit_state
 }
 
-fn option(opts: any, key: str, fallback: any) -> any {
-    let found = opts.get(key);
+fn option(options: any, key: str, fallback: any) -> any {
+    let found = options.get(key);
     if found.is_nil() { fallback } else { found }
 }
 
@@ -110,7 +110,7 @@ pub fn bar(state: editor::State, host: str, name: str, controls: any) {
 /// Rows on a named part of the host. A spec is what `pool::sync` takes:
 /// `{ label, controls }`, or `full` for a row across both columns.
 pub fn rows(state: editor::State, host: str, name: str, specs: any) {
-    pool::sync(state, host_path(host, name), specs, LABEL_W, false);
+    pool::sync(state, host_path(host, name), specs, LABEL_WIDTH, false);
 }
 
 /// The node itself, for a plugin that wants to `add_child` a shape the kit
@@ -141,7 +141,7 @@ fn current_of(state: &mut editor::State, id: str, names: [str]) -> str {
 /// answers the one that is open, remembered per `id`.
 pub fn tabs(state: &mut editor::State, host: str, id: str, names: any) -> str {
     let list: [str] = [];
-    for name in util::vec(names) {
+    for name in util::list_or_empty(names) {
         list.push(name.as_str());
     }
     if list.len() == 0 {
@@ -163,8 +163,8 @@ pub fn tabs(state: &mut editor::State, host: str, id: str, names: any) -> str {
 /// the plugin then fills the body with.
 pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str {
     let names: [str] = [];
-    for group in util::vec(groups) {
-        for name in util::vec(group.names) {
+    for group in util::list_or_empty(groups) {
+        for name in util::list_or_empty(group.names) {
             names.push(name.as_str());
         }
     }
@@ -174,11 +174,11 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
     }
     let current = current_of(state, id, names);
     let controls: [any] = [];
-    for group in util::vec(groups) {
+    for group in util::list_or_empty(groups) {
         if group.title.as_str() != "" {
             controls.push(map().with("kind", "label").with("role", "text_caption").with("text", group.title));
         }
-        for name in util::vec(group.names) {
+        for name in util::list_or_empty(group.names) {
             controls.push(pick_button(state, id, name.as_str(), "item_sidebar", name.as_str() == current));
         }
     }
@@ -213,8 +213,8 @@ pub fn empty(text: str) -> any {
 
 /// Write the editor's own settings file, after a plugin set an editor-scope
 /// setting it wants kept.
-pub fn save_prefs(state: editor::State) {
-    settings::commit_prefs(state);
+pub fn save_preferences(state: editor::State) {
+    settings::commit_preferences(state);
 }
 
 /// Write the game's `project.toml`, after a plugin set a project-scope
@@ -226,9 +226,9 @@ pub fn save_project(state: editor::State) {
 /// A labelled value. `mask` hides all but its ends until `show` is pressed,
 /// `copy` adds a copy mark (copying `copy_text` when given), and `role`
 /// dresses the value where the theme has a role for what it says.
-pub fn field(state: &mut editor::State, label: str, value: any, opts: any) -> any {
+pub fn field(state: &mut editor::State, label: str, value: any, options: any) -> any {
     let text = shown(value);
-    let masked = option(opts, "mask", false).as_bool();
+    let masked = option(options, "mask", false).as_bool();
     let key = "shown:" + label;
     let revealed = memory(state).get(key).as_bool();
     let controls: [any] = [
@@ -236,15 +236,15 @@ pub fn field(state: &mut editor::State, label: str, value: any, opts: any) -> an
             .with("kind", "label")
             .with("grow", 1)
             .with("truncate", true)
-            .with("role", option(opts, "role", "text_caption"))
+            .with("role", option(options, "role", "text_caption"))
             .with("text", if masked && !revealed { mask(text) } else { text }),
     ];
     if masked {
         let button = map().with("kind", "button").with("role", "chip").with("text", if revealed { "hide" } else { "show" });
         controls.push(pool::on(button, field_toggled, map().with("key", key)));
     }
-    if option(opts, "copy", false).as_bool() {
-        let whole = option(opts, "copy_text", text);
+    if option(options, "copy", false).as_bool() {
+        let whole = option(options, "copy_text", text);
         let button = map().with("kind", "button").with("role", "chip").with("text", "copy");
         controls.push(pool::on(button, field_copied, map().with("whole", whole)));
     }
@@ -309,11 +309,11 @@ fn shown(value: any) -> str {
 /// is changed in place and handed whole to `write`, `{ to, method }` naming
 /// the plugin's method that keeps it. Answers `{ specs, value, changed }`;
 /// the caller puts the specs on its host.
-pub fn tree(state: &mut editor::State, id: str, value: any, opts: any) -> any {
+pub fn tree(state: &mut editor::State, id: str, value: any, options: any) -> any {
     let none: [any] = [];
-    let out = map().with("specs", none).with("value", value).with("changed", false).with("write", option(opts, "write", nil));
-    let edit = option(opts, "edit", false).as_bool();
-    let label = option(opts, "label", "").as_str();
+    let out = map().with("specs", none).with("value", value).with("changed", false).with("write", option(options, "write", nil));
+    let edit = option(options, "edit", false).as_bool();
+    let label = option(options, "label", "").as_str();
     branch(state, out, id, [], label, value, edit, 0);
     out
 }
@@ -445,13 +445,13 @@ fn parsed(was: any, typed: str) -> any {
 }
 
 /// Every file under a user data directory as rows, opened as a structure
-/// where it is TOML or JSON, edited in place and written back. `opts`:
+/// where it is TOML or JSON, edited in place and written back. `options`:
 /// `root` (default this game's user data directory), `only` (file names to
 /// show), `edit`.
-pub fn files(state: &mut editor::State, id: str, opts: any) -> [any] {
-    let root = option(opts, "root", game_data(state)).as_str();
+pub fn files(state: &mut editor::State, id: str, options: any) -> [any] {
+    let root = option(options, "root", game_data(state)).as_str();
     let only: [str] = [];
-    for name in util::vec(opts.only) {
+    for name in util::list_or_empty(options.only) {
         only.push(name.as_str());
     }
     let reveal_root = map().with("kind", "button").with("role", "chip").with("text", "reveal");
@@ -465,7 +465,7 @@ pub fn files(state: &mut editor::State, id: str, opts: any) -> [any] {
                 pool::on(reveal_root, revealed, map().with("path", root)),
             ]),
     ];
-    let drawn = folder(state, id, root, "", only, option(opts, "edit", true).as_bool(), 0, out);
+    let drawn = folder(state, id, root, "", only, option(options, "edit", true).as_bool(), 0, out);
     if drawn == 0 {
         out.push(empty("nothing kept yet"));
     }
@@ -477,11 +477,11 @@ fn revealed(state: &mut editor::State, data: any, _value: any) {
 }
 
 /// One directory's entries; answers how many files it put rows on.
-fn folder(state: &mut editor::State, id: str, dir: str, rel: str, only: [str], edit: bool, depth: int, out: [any]) -> int {
+fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [str], edit: bool, depth: int, out: [any]) -> int {
     let drawn = 0;
-    for entry in util::vec(fs::list(dir)) {
+    for entry in util::list_or_empty(fs::list(directory)) {
         let name = entry.name.as_str();
-        let path = dir + "/" + name;
+        let path = directory + "/" + name;
         let here = if rel == "" { name } else { rel + "/" + name };
         if entry.is_dir.as_bool() {
             if depth < FOLDER_DEPTH {
@@ -538,7 +538,7 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [any
         return;
     }
     let keep = map().with("file", path).with("toml", as_toml);
-    for spec in util::vec(tree(state, id, value, map().with("edit", edit).with("write", keep)).specs) {
+    for spec in util::list_or_empty(tree(state, id, value, map().with("edit", edit).with("write", keep)).specs) {
         out.push(spec);
     }
 }

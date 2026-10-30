@@ -144,9 +144,9 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
             }
             let collider = found.has_component("collider3d") || found.has_component("collider2d");
             if !kind.is_nil() || collider {
-                let dim = if found.has_component("body2d") || found.has_component("collider2d") { "2D" } else { "3D" };
+                let dimension = if found.has_component("body2d") || found.has_component("collider2d") { "2D" } else { "3D" };
                 let what = if kind.is_nil() { "collider3d" } else { kind.as_str() };
-                rows.push(item("▣", found.name(), "{what} · {dim}", found.stable_id(), "choose", index, ""));
+                rows.push(item("▣", found.name(), "{what} · {dimension}", found.stable_id(), "choose", index, ""));
             }
         }
         if rows.len() == 0 {
@@ -255,7 +255,7 @@ pub fn outline_pick(state: &mut editor::State, row: str) {
     let found = model::index_of_id(state, row_id(row));
     if found.is_some() {
         let index = found.unwrap();
-        if index != state.sel {
+        if index != state.selected {
             shell::choose_click(state, index);
         }
     }
@@ -309,11 +309,11 @@ fn row_id(row: str) -> str {
 /// A mark clicked on a tree row: the eye shows or hides that node, the lock
 /// unlocks it. The row stays as it was picked, or not.
 pub fn mark_clicked(state: &mut editor::State, row: str, mark: str) {
-    let i_or = model::index_of_id(state, row_id(row));
-    if i_or.is_none() {
+    let index_or = model::index_of_id(state, row_id(row));
+    if index_or.is_none() {
         return;
     }
-    let index = i_or.unwrap();
+    let index = index_or.unwrap();
     if mark == MARK_EYE {
         arrange::toggle_hidden_of(state, [index]);
     } else if mark == MARK_LOCK {
@@ -339,9 +339,9 @@ pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
 }
 
 // Which drawn row is the selection, so the node can mark it.
-fn selected_row(rows: [any], sel: int) -> int {
+fn selected_row(rows: [any], selected_index: int) -> int {
     for position in 0..rows.len() {
-        if rows[position].index.as_int() == sel {
+        if rows[position].index.as_int() == selected_index {
             return position;
         }
     }
@@ -430,21 +430,21 @@ pub fn rename_close(state: &mut editor::State) {
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
-    let row_h = util::max(style::row_h(state), 28.0);
+    let row_height = util::max(style::row_height(state), 28.0);
     let host = window::picker(state, map()
         .with("width", 420.0)
         // The node's own mark, which is what the tree row it renames wears.
         .with("mark", node_mark(state))
         .with("placeholder", "Name")
         .with("query", state.rename_text)
-        .with("rows_h", row_h + 6.0)
+        .with("rows_h", row_height + 6.0)
         .with("on", "handle")
         .with("on_submit", "handle_submit")
         .with("data", map().with("fn", on_rename_typed).with("submit", on_rename_submitted)));
     pool::sync(state, host, [
         map()
             .with("full", true)
-            .with("height", row_h)
+            .with("height", row_height)
             .with("controls", [
                 map()
                     .with("kind", "button")

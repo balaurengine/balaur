@@ -36,9 +36,9 @@ pub fn matches(query: str, text: str) -> bool {
     if query == "" {
         return true;
     }
-    let hay = text.to_lower();
+    let haystack = text.to_lower();
     for word in query.to_lower().split(" ") {
-        if word != "" && !hay.contains(word) {
+        if word != "" && !haystack.contains(word) {
             return false;
         }
     }

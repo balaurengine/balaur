@@ -153,11 +153,11 @@ pub fn fill(state: &mut editor::State) {
     if stacked {
         specs.insert(0, page_picker(state));
     }
-    pool::sync(state, hosts.form, specs, label_w(state), stacked);
+    pool::sync(state, hosts.form, specs, label_width(state), stacked);
 }
 
-fn label_w(state: editor::State) -> float {
-    util::clamp((window::inner_w(state) - 210.0) * 0.28, 120.0, 220.0)
+fn label_width(state: editor::State) -> float {
+    util::clamp((window::inner_width(state) - 210.0) * 0.28, 120.0, 220.0)
 }
 
 // Save, beside the close, while there is an edit to save.
@@ -220,7 +220,7 @@ fn on_page_button_clicked(state: &mut editor::State, data: any, _value: any) {
 fn page_picker(state: editor::State) -> any {
     map()
         .with("full", true)
-        .with("height", style::row_h(state))
+        .with("height", style::row_height(state))
         .with("controls", [
             map()
                 .with("kind", "dropdown")
@@ -261,7 +261,7 @@ fn sorted_keys(table: any) -> [str] {
 }
 
 fn role_names(doc: any, page: str) -> [str] {
-    let roles = util::obj(doc.roles);
+    let roles = util::map_or_empty(doc.roles);
     let out: [str] = [];
     for name in sorted_keys(roles) {
         if page_of(name) == page {
@@ -284,7 +284,7 @@ fn kind_names(doc: any) -> [str] {
 
 fn problems(state: editor::State) -> [any] {
     let out: [any] = [];
-    for pair in util::vec(state.themewin.pairs) {
+    for pair in util::list_or_empty(state.themewin.pairs) {
         if pair.ratio.as_float() < pair.need.as_float() {
             out.push(pair);
         }
@@ -315,7 +315,7 @@ fn form_specs(state: editor::State) -> [any] {
 }
 
 fn head_specs(state: editor::State) -> [any] {
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     let name = state.theme.get("name").as_str();
     let own: any = state.themewin.own;
     let mine = editable(state);
@@ -435,9 +435,9 @@ fn note_spec(text: str) -> any {
 }
 
 fn color_specs(state: editor::State, doc: any, out: [any]) {
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     let mine = editable(state);
-    let stated = util::obj(doc.colors);
+    let stated = util::map_or_empty(doc.colors);
     let colors = state.theme.colors;
     let ground = if colors.get(GROUND).is_nil() { "#000000" } else { colors.get(GROUND).as_str() };
     let names = SOURCES();
@@ -500,9 +500,9 @@ fn on_hex_submitted(state: &mut editor::State, data: any, text: any) {
 }
 
 fn size_specs(state: editor::State, doc: any, out: [any]) {
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     let mine = editable(state);
-    let stated = util::obj(doc.sizes);
+    let stated = util::map_or_empty(doc.sizes);
     for name in sorted_keys(state.theme.sizes) {
         out.push(map()
             .with("full", false)
@@ -556,7 +556,7 @@ fn edit_hex(state: &mut editor::State, name: str, text: str) {
 }
 
 fn table_at(doc: any, path: [str]) -> any {
-    let table = util::obj(doc);
+    let table = util::map_or_empty(doc);
     for part in path {
         if !(table.has(part) && table.get(part).kind() == "map") {
             return map();
@@ -586,8 +586,8 @@ fn pick(state: &mut editor::State, path: [str]) {
 }
 
 fn height_of(state: editor::State, table: any) -> float {
-    let row_height = style::row_h(state);
-    let own = style::px(state, table.get("height").as_float());
+    let row_height = style::row_height(state);
+    let own = style::size_in_pixels(state, table.get("height").as_float());
     util::max(row_height, own + 4.0)
 }
 
@@ -687,7 +687,7 @@ fn on_state_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn inspector_specs(state: editor::State, doc: any, path: [str], out: [any]) {
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     let mine = editable(state);
     let role_table = table_at(doc, path);
     out.push(map()
@@ -728,7 +728,7 @@ fn inspector_specs(state: editor::State, doc: any, path: [str], out: [any]) {
     }
     if path.len() == 2 {
         let who = if state.themewin.table == "" { path[1] } else { path[1] + "." + state.themewin.table };
-        for pair in util::vec(state.themewin.pairs) {
+        for pair in util::list_or_empty(state.themewin.pairs) {
             if pair.role.as_str() == who {
                 let verdict = if pair.ratio.as_float() >= pair.need.as_float() { "reads at AA" } else { "needs {pair.need}" };
                 out.push(note_spec("{pair.ink.as_str()} on {pair.fill.as_str()}: {util::fixed(pair.ratio.as_float(), 2)}:1, {verdict}"));
@@ -765,7 +765,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
     // quieter, so what the file says stands out from what it inherits.
     map()
         .with("full", false)
-        .with("height", h_of(state))
+        .with("height", control_height(state))
         .with("slot_role", "layout_actions")
         .with("controls", controls)
         .with("label", "  " + key)
@@ -778,8 +778,8 @@ fn on_key_cleared(state: &mut editor::State, data: any, _value: any) {
     clear(state, at, key);
 }
 
-fn h_of(state: editor::State) -> float {
-    style::row_h(state)
+fn control_height(state: editor::State) -> float {
+    style::row_height(state)
 }
 
 fn words_of(state: editor::State, key: str, value: any) -> [str] {
@@ -943,7 +943,7 @@ fn problem_specs(state: editor::State, out: [any]) {
         out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold."));
         return;
     }
-    let row_height = style::row_h(state);
+    let row_height = style::row_height(state);
     for pair in found {
         let parts = pair.role.as_str().split(".");
         let name = parts[0];
@@ -1034,7 +1034,7 @@ fn rebase(state: &mut editor::State, picked: any) {
 /// Wear another theme, remembered as the setting.
 pub fn choose(state: &mut editor::State, name: str) {
     settings::set(theme::SETTING, name);
-    settings::commit_prefs(state);
+    settings::commit_preferences(state);
     theme::use_named(state, name);
     load_own(state);
     state.themewin.said = "";

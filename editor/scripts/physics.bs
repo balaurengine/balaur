@@ -11,11 +11,11 @@ use polygon;
 pub struct Shape {
     id: str,
     tip: str,
-    props: any,
+    properties: any,
 }
 
-fn shape(id: str, tip: str, props: any) -> Shape {
-    Shape { id: id, tip: tip, props: props }
+fn shape(id: str, tip: str, properties: any) -> Shape {
+    Shape { id: id, tip: tip, properties: properties }
 }
 
 /// The mesh asset a node draws, which is what every shape below is built
@@ -84,9 +84,9 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
 
 /// One shape action: the collider is given the mesh and the properties, and
 /// whatever shape it was is replaced.
-pub fn make_collider(state: &mut editor::State, two_d: bool, props: any) {
+pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any) {
     let name = if two_d { "collider2d" } else { "collider3d" };
-    model::set_component_props_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", props));
+    model::set_component_properties_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", properties));
 }
 
 fn with_mesh_of(node: Node, data: any) -> any {
@@ -95,20 +95,20 @@ fn with_mesh_of(node: Node, data: any) -> any {
 
 // The properties an action writes, on a node's own mesh; nil for a node in
 // the selection that draws none.
-fn with_mesh(node: Node, two_d: bool, props: any) -> any {
+fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     let source = drawn_mesh(node, two_d);
     if source.is_nil() {
         return nil;
     }
-    let params = map().with("mesh", source);
-    for key in props.keys() {
-        params.set(key, props.get(key));
+    let parameters = map().with("mesh", source);
+    for key in properties.keys() {
+        parameters.set(key, properties.get(key));
     }
-    params
+    parameters
 }
 
 /// One soft body action: each selected node is filled from its own mesh.
-pub fn make_soft_body(state: &mut editor::State, two_d: bool, props: any) {
+pub fn make_soft_body(state: &mut editor::State, two_d: bool, properties: any) {
     let name = if two_d { "softbody2d" } else { "softbody3d" };
-    model::set_component_props_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", props));
+    model::set_component_properties_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", properties));
 }

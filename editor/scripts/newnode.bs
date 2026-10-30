@@ -64,7 +64,7 @@ pub fn catalogue(state: &mut editor::State) -> [Entry] {
 // What the selected node can become, filed like the presets it names.
 fn changes(state: editor::State) -> [Entry] {
     let rows: [Entry] = [];
-    for target in recipes::targets(state, state.sel) {
+    for target in recipes::targets(state, state.selected) {
         rows.push(entry(target.name, target.note, target.tags, true));
     }
     rows
@@ -124,7 +124,7 @@ pub fn place(state: &mut editor::State, row: Entry) {
     // A soft body is built from something, so it asks what before building:
     // unless a node being changed already draws a thing to build it from.
     let soft = recipes::soft_dimension(row.name);
-    let drawn = state.newnode_change && recipes::soft_body_source(state, state.sel).is_some();
+    let drawn = state.newnode_change && recipes::soft_body_source(state, state.selected).is_some();
     if row.preset && soft != "" && !drawn {
         state.newnode_soft = soft;
         state.newnode_query = "";
@@ -132,7 +132,7 @@ pub fn place(state: &mut editor::State, row: Entry) {
         return;
     }
     if state.newnode_change {
-        recipes::change_type(state, state.sel, row.name);
+        recipes::change_type(state, state.selected, row.name);
     } else {
         add(state, row.name);
     }
@@ -150,7 +150,7 @@ pub fn add(state: &mut editor::State, kind: str) {
 // node being changed rebuilt from it.
 pub fn place_source(state: &mut editor::State, source: Entry) {
     if state.newnode_change {
-        recipes::give_soft_body(state, state.sel, source);
+        recipes::give_soft_body(state, state.selected, source);
     } else {
         recipes::add_soft_body(state, source);
     }
@@ -159,8 +159,8 @@ pub fn place_source(state: &mut editor::State, source: Entry) {
 
 /// Fill the picker: what its script asks for while the node picker is up.
 pub fn fill(state: &mut editor::State) {
-    let row_h = util::max(style::row_h(state), 30.0);
-    let specs = if state.newnode_soft != "" { source_specs(state, state.theme, row_h) } else { row_specs(state, state.theme, row_h) };
+    let row_height = util::max(style::row_height(state), 30.0);
+    let specs = if state.newnode_soft != "" { source_specs(state, state.theme, row_height) } else { row_specs(state, state.theme, row_height) };
     let placeholder = if state.newnode_soft != "" {
         "Build the soft body from a shape or a file…"
     } else if state.newnode_change {
@@ -175,7 +175,7 @@ pub fn fill(state: &mut editor::State) {
         .with("mark", mark)
         .with("placeholder", placeholder)
         .with("query", state.newnode_query)
-        .with("rows_h", (specs.len() as float) * (row_h + 2.0) + 4.0)
+        .with("rows_h", (specs.len() as float) * (row_height + 2.0) + 4.0)
         .with("on", "handle")
         .with("on_submit", "handle_submit")
         .with("data", map().with("fn", on_query_typed).with("submit", on_query_submitted)));
@@ -192,14 +192,14 @@ fn on_query_submitted(state: &mut editor::State, data: any, text: any) {
 
 /// Every row the picker shows: the empty node ahead of the groups, then a
 /// heading and its matches per group.
-fn row_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
+fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any] {
     let query = state.newnode_query.to_lower();
     let rows = catalogue(state);
     let out: [any] = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, map()));
+        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, map()));
     }
     for group in groups() {
         let title = group[1];
@@ -221,7 +221,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
             // the tree draw a component with.
             let mark = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-            out.push(row_spec(row_h, caption, mark.glyph, tint_of(tokens, mark.token), place_row, map().with("row", row)));
+            out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_row, map().with("row", row)));
         }
     }
     if out.len() == 0 {
@@ -253,7 +253,7 @@ fn place_row(state: &mut editor::State, data: any, _value: any) {
 
 /// The soft body's second step: a shape, or a file in the project, to build
 /// it from.
-fn source_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
+fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any] {
     let query = state.newnode_query.to_lower();
     let out = [caption_row("Soft body from", 20.0, false)];
     for source in catalogue(state) {
@@ -263,7 +263,7 @@ fn source_specs(state: &mut editor::State, tokens: any, row_h: float) -> [any] {
         }
         let keys = source.parts.keys();
         let mark = icons::component(if keys.len() > 0 { keys[0] } else { "" });
-        out.push(row_spec(row_h, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, map().with("source", source)));
+        out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, map().with("source", source)));
     }
     out
 }
@@ -275,7 +275,7 @@ fn place_source_row(state: &mut editor::State, data: any, _value: any) {
 
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
-fn row_spec(row_h: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> any {
+fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> any {
     let button = pool::on(map()
         .with("kind", "button")
         .with("role", "item_picker")
@@ -283,5 +283,5 @@ fn row_spec(row_h: float, caption: str, mark: str, color: str, handler: fn(&mut 
         .with("text", caption)
         .with("icon", mark)
         .with("icon_color", color), handler, data);
-    map().with("full", true).with("height", row_h).with("controls", [button])
+    map().with("full", true).with("height", row_height).with("controls", [button])
 }

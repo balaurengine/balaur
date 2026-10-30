@@ -795,7 +795,7 @@ impl Project {
         self.shapes = Shapes::default();
         self.lit_shapes.clear();
         // Types with no struct in them are kept: they seed the second pass,
-        // so `util::obj` is an `any` before anything calls it.
+        // so `util::map_or_empty` is an `any` before anything calls it.
         let keep = |t: &mut Ty| {
             if !plain(t) {
                 *t = Ty::Unknown;

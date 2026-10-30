@@ -1099,7 +1099,7 @@ impl Check {
         let table = map().with(\"b\", 1).with(\"a\", 2);
         let copy = util::deep(table);
         copy.set(\"c\", 3);
-        self.said = \"{util::prop_label(\\\"edge_radius\\\")}|{util::prop_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::dist([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
+        self.said = \"{util::property_label(\\\"edge_radius\\\")}|{util::property_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
     }
 }
 ";

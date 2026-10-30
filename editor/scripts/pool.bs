@@ -27,8 +27,8 @@ pub fn strip(state: editor::State, host_path: str, controls: any) {
 ///
 /// The rows are as wide as the host: `stacked` puts each label above its
 /// control column instead of beside it, for a host too narrow for both.
-pub fn sync(state: editor::State, host_path: str, specs: any, label_w: float, stacked: bool) {
-    ui::fill_rows(host_path, specs, label_w, stacked);
+pub fn sync(state: editor::State, host_path: str, specs: any, label_width: float, stacked: bool) {
+    ui::fill_rows(host_path, specs, label_width, stacked);
 }
 
 /// `strip`, when `key` moved since the host was last filled. The key holds
@@ -73,40 +73,40 @@ pub fn sync_when(
     state: &mut editor::State,
     host_path: str,
     key: any,
-    label_w: float,
+    label_width: float,
     stacked: bool,
     build: fn(&mut editor::State) -> any,
 ) {
-    let full: any = [key, label_w, stacked];
+    let full: any = [key, label_width, stacked];
     if state.pool_keys.get(host_path) == full {
-        if state.start_states != "" && ui::fill_rows(host_path, build(state), label_w, stacked) {
+        if state.start_states != "" && ui::fill_rows(host_path, build(state), label_width, stacked) {
             log::warn("the rows at {host_path} changed while their key did not");
         }
         return;
     }
     state.pool_keys.set(host_path, full);
-    ui::fill_rows(host_path, build(state), label_w, stacked);
+    ui::fill_rows(host_path, build(state), label_width, stacked);
 }
 
 /// `strip_due` for rows: whether the rows at `host_path` want filling for
 /// `key` at this label width and stacking. Hand what was built to
 /// `sync_keyed`.
-pub fn sync_due(state: editor::State, host_path: str, key: any, label_w: float, stacked: bool) -> bool {
-    let full: any = [key, label_w, stacked];
+pub fn sync_due(state: editor::State, host_path: str, key: any, label_width: float, stacked: bool) -> bool {
+    let full: any = [key, label_width, stacked];
     state.start_states != "" || state.pool_keys.get(host_path) != full
 }
 
 /// `sync_when`'s fill, for rows built after `sync_due` said so.
-pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_w: float, stacked: bool, specs: any) {
-    let full: any = [key, label_w, stacked];
+pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_width: float, stacked: bool, specs: any) {
+    let full: any = [key, label_width, stacked];
     if state.pool_keys.get(host_path) == full {
-        if ui::fill_rows(host_path, specs, label_w, stacked) {
+        if ui::fill_rows(host_path, specs, label_width, stacked) {
             log::warn("the rows at {host_path} changed while their key did not");
         }
         return;
     }
     state.pool_keys.set(host_path, full);
-    ui::fill_rows(host_path, specs, label_w, stacked);
+    ui::fill_rows(host_path, specs, label_width, stacked);
 }
 
 /// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over

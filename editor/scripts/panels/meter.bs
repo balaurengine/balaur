@@ -27,7 +27,7 @@ impl Meter {
     }
 
     /// The clock: a frame the repaint it scheduled ran, while the tab shows.
-    pub fn update(_dt: float) {
+    pub fn update(_delta_time: float) {
         if self.next > 0.0 && engine::unix_time() >= self.next {
             self.sample();
         }

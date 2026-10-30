@@ -112,7 +112,7 @@ pub class State {
     view_shot: str,
     view_logged: str,
     code_scroll: float,
-    code_rev: int,
+    code_revision: int,
     layout_seen: float,
     form: [any],
     pool_keys: any,
@@ -136,11 +136,11 @@ pub class State {
     overlays_frame: int,
     stepped: int,
     layout_key: any,
-    theme_rev: int,
+    theme_revision: int,
     is_2d_was: bool,
     overlay3d: Overlay3d,
-    sel: int,
-    sels: [int],
+    selected: int,
+    selected_rows: [int],
     locks: any,
     bookmarks: any,
     isolated: bool,
@@ -163,8 +163,8 @@ pub class State {
     frame: int,
     capture: shell::Capture?,
     show_input: bool,
-    screen_w: float,
-    screen_h: float,
+    screen_width: float,
+    screen_height: float,
     viewport: Viewport,
     rail_visible: bool,
     stage_chrome: bool,
@@ -183,7 +183,7 @@ pub class State {
     scene_doc: any,
     listings: any,
     clip: anim::Clip?,
-    hooks_src: str,
+    hooks_source: str,
     hooks_live: [center::Parsed],
     log_level: str,
     log_query: str,
@@ -291,7 +291,7 @@ pub struct Viewport {
 
 // Below this many design pixels wide the shell drops every label its icon
 // already says.
-const COMPACT_W: float = 1240.0;
+const COMPACT_WIDTH: float = 1240.0;
 
 // The frame the splash comes off whether or not the shell has stopped moving.
 const FORM_BY: int = 30;
@@ -362,7 +362,7 @@ pub fn fresh_state() -> State {
         code_scroll: -1.0,
         // Bumped when the open buffer is written from outside the editor, so
         // the code sheet writes its text again; typing is the widget's own.
-        code_rev: 0,
+        code_revision: 0,
         // The stage width the layout self-test last saw, so it asserts on a
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
@@ -396,14 +396,14 @@ pub fn fresh_state() -> State {
         layout_key: nil,
         // Bumped whenever another theme is worn or the worn one edited, so a
         // key can say the colours moved without holding the theme.
-        theme_rev: 0,
+        theme_revision: 0,
         // `model::is_2d`'s answer, worked out when the rows are listed.
         is_2d_was: false,
         overlay3d: Overlay3d { key: [], lines: [] },
-        // The selection set; `state.sel` is its head. Locks are editor state
+        // The selection set; `state.selected` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
-        sel: 0,
-        sels: [0],
+        selected: 0,
+        selected_rows: [0],
         locks: map(),
         // Four camera slots on the viewport chip row, kept for the session.
         bookmarks: map(),
@@ -425,11 +425,11 @@ pub fn fresh_state() -> State {
         gesture_demo: -1,
         gesture_from: [],
         frame: 0,
-        // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
+        // `frames=<directory>`: a PNG every `every` frames from `from`, numbered.
         capture: nil,
         show_input: false,
-        screen_w: 1280.0,
-        screen_h: 800.0,
+        screen_width: 1280.0,
+        screen_height: 800.0,
         viewport: Viewport { x: 322.0, y: 112.0, width: 640.0, height: 482.0, at: 0 },
         rail_visible: false,
         // Whether the stage is worth labelling: a strip of it behind an
@@ -457,7 +457,7 @@ pub fn fresh_state() -> State {
         scene_doc: map(),
         listings: map(),
         clip: nil,
-        hooks_src: "",
+        hooks_source: "",
         hooks_live: [],
         log_level: "all",
         log_query: "",
@@ -590,13 +590,13 @@ impl Editor {
         // Optional start-up states, comma-separated (workspace id, "palette",
         // "light", "play", "select:<node>"), applied in order on the first
         // frame, after the screen's class has folded the docks.
-        let args = engine::args();
-        self.state.start_states = if args.len() > 1 { args[1] } else { "" };
+        let arguments = engine::args();
+        self.state.start_states = if arguments.len() > 1 { arguments[1] } else { "" };
     }
 
-    pub fn update(dt: float) {
+    pub fn update(delta_time: float) {
         suite::reboot(self.state, self.node);
-        frame(self.state, dt);
+        frame(self.state, delta_time);
         // Last: a reopen replaces `self.state`, and a call made back into the
         // Editor later in this one would still be handed the old state.
         suite::step(self.state);
@@ -625,9 +625,9 @@ impl Editor {
 
     // A Forge search, add, fetch or copy: the Library and the start screen
     // each keep what they asked for.
-    pub fn on_forge_event(e: any) {
-        library::heard(self.state, e);
-        manager::forge_heard(self.state, e);
+    pub fn on_forge_event(event: any) {
+        library::heard(self.state, event);
+        manager::forge_heard(self.state, event);
     }
 
     // Every import reports here: what is coming, each file, then the end.
@@ -636,7 +636,7 @@ impl Editor {
     }
 
     /// The window changed size.
-    pub fn on_resize(_w: float, _h: float) {
+    pub fn on_resize(_width: float, _height: float) {
         relayout(self.state);
     }
 
@@ -679,10 +679,10 @@ impl Editor {
 
 // One frame: the frame rate, the splash, the capture, and every per-frame
 // driver; the start screen has its own short list.
-fn frame(state: &mut State, dt: float) {
-    // Smoothed frame rate for the status bar; a raw 1/dt reads as noise.
-    if dt > 0.0 {
-        let now = 1.0 / dt;
+fn frame(state: &mut State, delta_time: float) {
+    // Smoothed frame rate for the status bar; a raw 1/delta_time reads as noise.
+    if delta_time > 0.0 {
+        let now = 1.0 / delta_time;
         state.fps = (if state.fps == 0.0 { now } else { state.fps }) * 0.9 + now * 0.1;
     }
     state.frame += 1;
@@ -702,14 +702,14 @@ fn frame(state: &mut State, dt: float) {
     // Above the start screen's own return: a clip of a project converting is
     // taken on that screen, and it has no other frame to be caught on.
     if state.capture.is_some() {
-        let cap = state.capture.unwrap();
-        if state.frame >= cap.from && (state.frame - cap.from) % cap.every == 0 {
-            render::screenshot("{cap.dir}/{padded(cap.count)}.png");
-            cap.count += 1;
-            state.capture = cap;
+        let capture = state.capture.unwrap();
+        if state.frame >= capture.from && (state.frame - capture.from) % capture.every == 0 {
+            render::screenshot("{capture.directory}/{padded(capture.count)}.png");
+            capture.count += 1;
+            state.capture = capture;
         }
     }
-    // The window, never `state.screen_w`: that is the shell's own solved rect, and
+    // The window, never `state.screen_width`: that is the shell's own solved rect, and
     // a surface taken from it shrinks the shell it sizes. The start screen is
     // a root on this surface too, so it is sized before that screen returns.
     let surface = ui::window_size();
@@ -800,11 +800,11 @@ fn relayout(state: &mut State) {
     // notch covers. The window stands in until the shell has drawn once.
     let window = ui::window_size();
     let room = layout::shell_room(state);
-    state.screen_w = if room.width > 0.0 { room.width } else { window.x };
-    state.screen_h = if room.height > 0.0 { room.height } else { window.y };
+    state.screen_width = if room.width > 0.0 { room.width } else { window.x };
+    state.screen_height = if room.height > 0.0 { room.height } else { window.y };
     // Either forces it on: the setting asks for it at any width, and a narrow
     // window asks for it whatever the setting says.
-    state.compact = state.settings.compact || window.x < COMPACT_W;
+    state.compact = state.settings.compact || window.x < COMPACT_WIDTH;
     signals::inspector(state);
     // A state that folds a dock has to run after the screen has been measured,
     // which this is; `update` applies them, at the end of the frame's ticks.
@@ -833,7 +833,7 @@ fn widget_layer(state: State) {
     let widgets_on = (state.playing || state.workspace == defs::WORKSPACE_UI) && state.viewport_live;
     // Inset by the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
-    let band = if widgets_on { center::hud_h(state) + 6.0 } else { 0.0 };
+    let band = if widgets_on { center::hud_height(state) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.width, util::max(0.0, rect.height - band));
 }
 
@@ -843,7 +843,7 @@ fn layout_key(state: State) -> any {
     [
         state.workspace, state.doctab, state.split, state.focus, state.settings.compact, state.touchscreen,
         "{state.docks}", state.rail_shut, state.chrome_off, state.script_open, state.events_open,
-        state.sel, state.shader_rel, state.ui_scale, manager::showing(state),
+        state.selected, state.shader_rel, state.ui_scale, manager::showing(state),
     ]
 }
 
@@ -1243,20 +1243,20 @@ impl Editor {
         kit::empty(text)
     }
 
-    pub fn kit_field(label: str, value: any, opts: any) -> any {
-        kit::field(self.state, label, value, opts)
+    pub fn kit_field(label: str, value: any, options: any) -> any {
+        kit::field(self.state, label, value, options)
     }
 
-    pub fn kit_tree(id: str, value: any, opts: any) -> any {
-        kit::tree(self.state, id, value, opts)
+    pub fn kit_tree(id: str, value: any, options: any) -> any {
+        kit::tree(self.state, id, value, options)
     }
 
-    pub fn kit_files(id: str, opts: any) -> any {
-        kit::files(self.state, id, opts)
+    pub fn kit_files(id: str, options: any) -> any {
+        kit::files(self.state, id, options)
     }
 
     pub fn kit_save_prefs() {
-        kit::save_prefs(self.state);
+        kit::save_preferences(self.state);
     }
 
     pub fn kit_save_project() {

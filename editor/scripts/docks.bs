@@ -59,7 +59,7 @@ pub struct Handles {
 }
 
 // The "+N" list that stands for the tabs a narrow dock has no room for.
-const MORE_W: float = 48.0;
+const MORE_WIDTH: float = 48.0;
 
 // What the fold and the head's padding leave the tabs of a dock's width.
 const HEAD_END: float = 44.0;
@@ -68,7 +68,7 @@ const HEAD_END: float = 44.0;
 /// with the rail's own inset, so the two sit in one column at one size.
 fn tile(state: editor::State) -> float {
     let metrics = center::rail_metrics(state);
-    metrics.diameter + 2.0 * metrics.pad
+    metrics.diameter + 2.0 * metrics.padding
 }
 
 pub fn sides() -> [str] {
@@ -134,7 +134,7 @@ pub fn one_at_a_time(state: editor::State) -> bool {
     let floors = layout::floors(state);
     let width = floors.width;
     let height = floors.height;
-    state.screen_w < width.as_float() || state.screen_h < height.as_float()
+    state.screen_width < width.as_float() || state.screen_height < height.as_float()
 }
 
 /// Open a side dock, folding the other where there is only room for one.
@@ -481,7 +481,7 @@ fn hide_unused(state: editor::State, side: str, dock: any) {
 
 // A tab, which a small window gets a step less of: the row is chrome, and
 // chrome is what a short window has least room for.
-fn tab_h(state: editor::State) -> float {
+fn tab_height(state: editor::State) -> float {
     // A tab is a control a finger picks, so it takes the same height as the
     // rest of them where a finger is what reaches it.
     if state.touchscreen {
@@ -618,7 +618,7 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
         names.push(panel(state, id).get("name"));
     }
     let counts = lint::counts(state);
-    let key: any = ["{dock}", names, counts.errors + counts.warnings, tab_h(state), state.layout.get(side).width];
+    let key: any = ["{dock}", names, counts.errors + counts.warnings, tab_height(state), state.layout.get(side).width];
     if pool::strip_due(state, head_of(side), key) {
         pool::strip_keyed(state, head_of(side), key, tab_controls(state, tokens, side, dock));
     }
@@ -632,8 +632,8 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
 fn tail_controls(state: editor::State, side: str) -> [any] {
     let fold = map()
         .with("kind", "button")
-        .with("height", tab_h(state))
-        .with("width", tab_h(state))
+        .with("height", tab_height(state))
+        .with("width", tab_height(state))
         .with("padding", 0)
         .with("text", "")
         .with("icon", icons::ui(shut_icon(side)))
@@ -655,7 +655,7 @@ fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
 // One control a tab, the mark that closes it, and the fold at the end. The
 // panel's own tools are the hatch beside this strip.
 fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) -> [any] {
-    let height = tab_h(state);
+    let height = tab_height(state);
     let out: [any] = [];
     let shown: [any] = shown_tabs(state, side);
     for id in shown {
@@ -711,7 +711,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             .with("kind", "dropdown")
             .with("role", "choice")
             .with("height", height)
-            .with("width", MORE_W)
+            .with("width", MORE_WIDTH)
             .with("text", "+{hidden.len()}")
             .with("options", hidden)
             .with("tooltip", "More tabs")
@@ -747,7 +747,7 @@ pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
         return dock.tabs;
     }
     // The list's box and the gap before it.
-    let room = room - MORE_W - 4.0;
+    let room = room - MORE_WIDTH - 4.0;
     let widths: [float] = [];
     let end = 0;
     let used = 0.0;
@@ -916,7 +916,7 @@ fn has_handle(state: editor::State, side: str) -> bool {
 
 /// The room the left dock's handle takes above the tool rail, which is where
 /// it goes when there is a rail to sit over.
-pub fn rail_top_h(state: editor::State) -> float {
+pub fn rail_top_height(state: editor::State) -> float {
     if state.rail_visible && has_handle(state, "left") {
         return tile(state) + 6.0;
     }

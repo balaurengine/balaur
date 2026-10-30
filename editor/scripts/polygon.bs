@@ -71,9 +71,9 @@ pub fn state() -> PolygonState {
 
 const LINE_WIDTH: float = 2.0;
 
-const PICK_PX: float = 8.0;
+const PICK_PIXELS: float = 8.0;
 
-const MARK_PX: float = 4.0;
+const MARK_PIXELS: float = 4.0;
 
 // The name halves Mirror swaps a bone's weights across, longest first so
 // `left` is tried before `l`. Every pair is matched both ways.
@@ -143,19 +143,19 @@ pub fn occluding(state: editor::State) -> bool {
 // The inline mesh table under edit, or nil: a mesh that is a file reference
 // is edited by making it inline first (the inspector's asset row).
 pub fn mesh(state: editor::State) -> any {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() || comp.mesh.kind() != "map" {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() || edited_component.mesh.kind() != "map" {
         return nil;
     }
-    comp.mesh
+    edited_component.mesh
 }
 
 pub fn editable(state: editor::State) -> bool {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return false;
     }
-    let mesh = comp.mesh;
+    let mesh = edited_component.mesh;
     mesh.is_nil() || mesh.kind() == "map" || mesh.as_str() == ""
 }
 
@@ -177,12 +177,12 @@ pub fn world_point(state: &mut editor::State, mesh: any, node_frame: util::Frame
 // The live node the polygon's skin names as its rig, or nil.
 pub fn rig_root(state: editor::State) -> Node {
     let found = model::selected_node(state);
-    let comp = component(state, found);
-    if !found.is_valid() || comp.is_nil() {
+    let edited_component = component(state, found);
+    if !found.is_valid() || edited_component.is_nil() {
         return nil;
     }
-    let skel = comp.skeleton.as_str();
-    if skel == "" { found } else { found.get_node(skel) }
+    let skeleton_path = edited_component.skeleton.as_str();
+    if skeleton_path == "" { found } else { found.get_node(skeleton_path) }
 }
 
 // The polygon's world frame: how a local vertex lands on screen.
@@ -196,11 +196,11 @@ fn frame(state: editor::State) -> util::Frame? {
 }
 
 pub fn internal_count(mesh: any) -> int {
-    util::imax(0, mesh.internal.as_int())
+    util::int_max(0, mesh.internal.as_int())
 }
 
 fn positions(mesh: any) -> any {
-    util::vec(mesh.positions)
+    util::list_or_empty(mesh.positions)
 }
 
 fn outline_count(mesh: any) -> int {
@@ -214,11 +214,11 @@ fn xy(point: any) -> [float] {
 
 // Texture pixel size for the selection, cached per path.
 fn texture_size(state: &mut editor::State) -> Size? {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return nil;
     }
-    let texture = comp.texture.as_str();
+    let texture = edited_component.texture.as_str();
     if texture == "" {
         return nil;
     }
@@ -241,22 +241,22 @@ fn texture_size(state: &mut editor::State) -> Size? {
 }
 
 fn pixels_per_unit(state: editor::State) -> float {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() || comp.pixels_per_unit.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() || edited_component.pixels_per_unit.is_nil() {
         return util::DEFAULT_PIXELS_PER_UNIT;
     }
-    comp.pixels_per_unit.as_float()
+    edited_component.pixels_per_unit.as_float()
 }
 
 // The engine's default UV of a local point: the texture centred on the
 // origin at `pixels_per_unit`, v downward.
-fn default_uv(state: &mut editor::State, lx: float, ly: float) -> [float] {
+fn default_uv(state: &mut editor::State, local_x: float, local_y: float) -> [float] {
     let size = texture_size(state);
     if size.is_none() {
         return [0.5, 0.5];
     }
-    let ppu = pixels_per_unit(state);
-    return [0.5 + lx * ppu / size.unwrap().width, 0.5 - ly * ppu / size.unwrap().height];
+    let pixels_per_world_unit = pixels_per_unit(state);
+    return [0.5 + local_x * pixels_per_world_unit / size.unwrap().width, 0.5 - local_y * pixels_per_world_unit / size.unwrap().height];
 }
 
 // A UV's place in the polygon's local frame, over the texture backdrop.
@@ -265,8 +265,8 @@ fn uv_to_local(state: &mut editor::State, uv_x: float, uv_y: float) -> [float] {
     if size.is_none() {
         return [uv_x - 0.5, 0.5 - uv_y];
     }
-    let ppu = pixels_per_unit(state);
-    return [(uv_x - 0.5) * size.unwrap().width / ppu, (0.5 - uv_y) * size.unwrap().height / ppu];
+    let pixels_per_world_unit = pixels_per_unit(state);
+    return [(uv_x - 0.5) * size.unwrap().width / pixels_per_world_unit, (0.5 - uv_y) * size.unwrap().height / pixels_per_world_unit];
 }
 
 // Every edit records history *before* touching the mesh, then hands the
@@ -286,24 +286,24 @@ fn ensure_mesh(state: editor::State) -> any {
         log::warn("this polygon's mesh is a file; embed it to edit it here");
         return nil;
     }
-    let comp = component(state, model::selected_node(state));
+    let edited_component = component(state, model::selected_node(state));
     let none: [any] = [];
-    comp.set("mesh", map().with("positions", none));
-    comp.mesh
+    edited_component.set("mesh", map().with("positions", none));
+    edited_component.mesh
 }
 
 fn bone_list(mesh: any) -> any {
     let skin = mesh.skin;
-    if skin.kind() == "map" { util::vec(skin.bones) } else { util::vec(nil) }
+    if skin.kind() == "map" { util::list_or_empty(skin.bones) } else { util::list_or_empty(nil) }
 }
 
 // Insert a vertex at `at`, keeping every per-vertex list square and shifting
 // polygon indices past it.
-fn insert_vertex(state: &mut editor::State, mesh: any, at: int, lx: float, ly: float) {
-    mesh.positions.insert(at, [lx, ly]);
+fn insert_vertex(state: &mut editor::State, mesh: any, at: int, local_x: float, local_y: float) {
+    mesh.positions.insert(at, [local_x, local_y]);
     let uvs = mesh.uvs;
     if uvs.kind() == "list" {
-        uvs.insert(at, default_uv(state, lx, ly));
+        uvs.insert(at, default_uv(state, local_x, local_y));
     }
     for bone in bone_list(mesh) {
         let weights = bone.weights;
@@ -311,7 +311,7 @@ fn insert_vertex(state: &mut editor::State, mesh: any, at: int, lx: float, ly: f
             weights.insert(at, 0.0);
         }
     }
-    for ring in util::vec(mesh.polygons) {
+    for ring in util::list_or_empty(mesh.polygons) {
         for corner in 0..ring.len() {
             let vertex = ring[corner].as_int();
             if vertex >= at {
@@ -337,7 +337,7 @@ fn remove_at(mesh: any, at: int) {
         mesh.set("internal", internal_count(mesh) - 1);
     }
     let kept: [any] = [];
-    for ring in util::vec(mesh.polygons) {
+    for ring in util::list_or_empty(mesh.polygons) {
         let uses = false;
         for corner in 0..ring.len() {
             let vertex = ring[corner].as_int();
@@ -360,7 +360,7 @@ fn remove_at(mesh: any, at: int) {
 
 // Add an outline vertex (after the last outline one) or an internal one, at
 // a world point. Returns its index.
-pub fn add_vertex(state: &mut editor::State, wx: float, wy: float, internal: bool) -> int? {
+pub fn add_vertex(state: &mut editor::State, world_x: float, world_y: float, internal: bool) -> int? {
     let frame_or = frame(state);
     if frame_or.is_none() || !editable(state) {
         return nil;
@@ -370,7 +370,7 @@ pub fn add_vertex(state: &mut editor::State, wx: float, wy: float, internal: boo
     if mesh.is_nil() {
         return nil;
     }
-    let local = util::to_local(frame_or.unwrap(), wx, wy);
+    let local = util::to_local(frame_or.unwrap(), world_x, world_y);
     let at = if internal { mesh.positions.len() } else { outline_count(mesh) };
     insert_vertex(state, mesh, at, local.x, local.y);
     if internal {
@@ -404,13 +404,13 @@ fn vertex_target(state: editor::State, at: int) -> Target? {
     Target { mesh: mesh, frame: frame_or.unwrap() }
 }
 
-pub fn move_vertex(state: &mut editor::State, at: int, wx: float, wy: float) {
+pub fn move_vertex(state: &mut editor::State, at: int, world_x: float, world_y: float) {
     let edit = vertex_target(state, at);
     if edit.is_none() {
         return;
     }
     let mesh = edit.unwrap().mesh;
-    let local = util::to_local(edit.unwrap().frame, wx, wy);
+    let local = util::to_local(edit.unwrap().frame, world_x, world_y);
     // Armed, a drag is a deformation of the shape rather than a change to it:
     // the offset moves and the mesh the clip deforms stays where it was.
     if deforming(state) {
@@ -418,7 +418,7 @@ pub fn move_vertex(state: &mut editor::State, at: int, wx: float, wy: float) {
         set_deform(state, at, local.x - rest[0], local.y - rest[1]);
         return;
     }
-    begin(state, "move vertex", "poly:move:{state.sel}:{at}");
+    begin(state, "move vertex", "poly:move:{state.selected}:{at}");
     mesh.positions[at] = [local.x, local.y];
     write(state);
 }
@@ -471,14 +471,14 @@ fn ensure_uvs(state: &mut editor::State, mesh: any) -> any {
     mesh.uvs
 }
 
-pub fn move_uv(state: &mut editor::State, at: int, wx: float, wy: float) {
+pub fn move_uv(state: &mut editor::State, at: int, world_x: float, world_y: float) {
     let edit = vertex_target(state, at);
     if edit.is_none() {
         return;
     }
-    begin(state, "move uv", "poly:uv:{state.sel}:{at}");
+    begin(state, "move uv", "poly:uv:{state.selected}:{at}");
     let uvs = ensure_uvs(state, edit.unwrap().mesh);
-    let local = util::to_local(edit.unwrap().frame, wx, wy);
+    let local = util::to_local(edit.unwrap().frame, world_x, world_y);
     uvs[at] = default_uv(state, local.x, local.y);
     write(state);
 }
@@ -486,13 +486,13 @@ pub fn move_uv(state: &mut editor::State, at: int, wx: float, wy: float) {
 // The rig's bones, as paths relative to the rig root the polygon names.
 fn rig_bone_paths(state: editor::State) -> [str]? {
     let found = model::selected_node(state);
-    let comp = component(state, found);
-    if comp.is_nil() {
+    let edited_component = component(state, found);
+    if edited_component.is_nil() {
         return nil;
     }
     let rig = rig_root(state);
     if !rig.is_valid() {
-        log::warn("polygon rig '{comp.skeleton.as_str()}' names no node");
+        log::warn("polygon rig '{edited_component.skeleton.as_str()}' names no node");
         return nil;
     }
     let base = rig.path();
@@ -520,13 +520,13 @@ pub fn sync_bones(state: &mut editor::State) {
     }
     let had = map();
     for bone in bone_list(mesh) {
-        had.set(bone.path.as_str(), util::vec(bone.weights));
+        had.set(bone.path.as_str(), util::list_or_empty(bone.weights));
     }
     let count = mesh.positions.len();
     let bones: [any] = [];
     for path in paths.unwrap() {
         let weights: [float] = [];
-        for weight in util::vec(had.get(path)) {
+        for weight in util::list_or_empty(had.get(path)) {
             weights.push(weight.as_float());
         }
         while weights.len() < count {
@@ -543,7 +543,7 @@ pub fn sync_bones(state: &mut editor::State) {
 
 pub fn bones(state: editor::State) -> any {
     let mesh = mesh(state);
-    if mesh.is_nil() { util::vec(nil) } else { bone_list(mesh) }
+    if mesh.is_nil() { util::list_or_empty(nil) } else { bone_list(mesh) }
 }
 
 // Add `amount` (negative to unpaint) to the active bone's weight on vertex
@@ -557,7 +557,7 @@ pub fn paint(state: &mut editor::State, at: int, amount: float) {
     if bone.is_nil() || at >= mesh.positions.len() {
         return;
     }
-    begin(state, "paint weights", "poly:paint:{state.sel}");
+    begin(state, "paint weights", "poly:paint:{state.selected}");
     if bone.weights.kind() != "list" {
         let none: [float] = [];
         bone.set("weights", none);
@@ -693,7 +693,7 @@ fn reverse_outline(mesh: any) {
     for bone in bone_list(mesh) {
         swap_outline(bone.weights, outline);
     }
-    for ring in util::vec(mesh.polygons) {
+    for ring in util::list_or_empty(mesh.polygons) {
         for corner in 0..ring.len() {
             let vertex = ring[corner].as_int();
             if vertex < outline {
@@ -726,7 +726,7 @@ fn mirror_weights(mesh: any) {
     }
     let taken: [any] = [];
     for bone in bones {
-        taken.push(util::vec(bone.weights));
+        taken.push(util::list_or_empty(bone.weights));
     }
     for bone in bones {
         let other = mirror_name(bone.path.as_str());
@@ -742,11 +742,11 @@ fn mirror_weights(mesh: any) {
 // Trace the texture's alpha into this polygon's outline. Spine's Generate:
 // the shape a sprite already has, without clicking it out.
 pub fn trace(state: &mut editor::State) {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return;
     }
-    let texture = comp.texture.as_str();
+    let texture = edited_component.texture.as_str();
     if texture == "" {
         log::warn("this polygon has no texture to trace");
         return;
@@ -755,11 +755,11 @@ pub fn trace(state: &mut editor::State) {
         log::warn("this polygon's mesh is a file; embed it to trace into it");
         return;
     }
-    let opts = map()
+    let options = map()
         .with("threshold", state.polygon.threshold)
         .with("tolerance", state.polygon.tolerance)
         .with("pixels_per_unit", pixels_per_unit(state));
-    let loops = render::trace_texture(state.game_root + "/" + texture, opts);
+    let loops = render::trace_texture(state.game_root + "/" + texture, options);
     if loops.len() == 0 || loops[0].len() < 3 {
         log::warn("{texture} has no opaque pixels at this threshold");
         return;
@@ -816,13 +816,13 @@ pub fn deformed(state: editor::State) -> bool {
     false
 }
 
-fn set_deform(state: &mut editor::State, at: int, dx: float, dy: float) {
+fn set_deform(state: &mut editor::State, at: int, offset_x: float, offset_y: float) {
     let out = deform(state);
     if at * 2 + 1 >= out.len() {
         return;
     }
-    out[at * 2] = dx;
-    out[at * 2 + 1] = dy;
+    out[at * 2] = offset_x;
+    out[at * 2 + 1] = offset_y;
     signals::inspector(state);
 }
 
@@ -868,13 +868,13 @@ fn world_points(state: &mut editor::State, mesh: any, node_frame: util::Frame, i
     out
 }
 
-fn pick(state: &mut editor::State, mesh: any, node_frame: util::Frame, mx: float, my: float, in_uv: bool) -> int? {
+fn pick(state: &mut editor::State, mesh: any, node_frame: util::Frame, world_x: float, world_y: float, in_uv: bool) -> int? {
     let best: int? = nil;
-    let best_distance = PICK_PX * viewport::world_per_px(state);
+    let best_distance = PICK_PIXELS * viewport::world_per_pixel(state);
     let points = world_points(state, mesh, node_frame, in_uv);
     for at in 0..points.len() {
         let point = points[at];
-        let distance = math::sqrt((point[0] - mx) * (point[0] - mx) + (point[1] - my) * (point[1] - my));
+        let distance = math::sqrt((point[0] - world_x) * (point[0] - world_x) + (point[1] - world_y) * (point[1] - world_y));
         if distance < best_distance {
             best = at;
             best_distance = distance;
@@ -888,8 +888,8 @@ fn line(from: [float], to: [float], color: [float]) {
 }
 
 fn marker(state: editor::State, world_x: float, world_y: float, color: [float], filled: bool) {
-    let half = MARK_PX * viewport::world_per_px(state);
-    let width = if filled { 2.0 * MARK_PX } else { LINE_WIDTH };
+    let half = MARK_PIXELS * viewport::world_per_pixel(state);
+    let width = if filled { 2.0 * MARK_PIXELS } else { LINE_WIDTH };
     render::draw_line_2d(world_x - half, world_y - half, world_x + half, world_y - half, color[0], color[1], color[2], width);
     render::draw_line_2d(world_x + half, world_y - half, world_x + half, world_y + half, color[0], color[1], color[2], width);
     render::draw_line_2d(world_x + half, world_y + half, world_x - half, world_y + half, color[0], color[1], color[2], width);
@@ -922,7 +922,7 @@ pub fn draw(state: &mut editor::State) {
             line(points[at], points[next], accent);
         }
     }
-    for ring in util::vec(mesh.polygons) {
+    for ring in util::list_or_empty(mesh.polygons) {
         for at in 0..ring.len() {
             let from = ring[at].as_int();
             let to = ring[if at == ring.len() - 1 { 0 } else { at + 1 }].as_int();
@@ -945,7 +945,7 @@ pub fn draw(state: &mut editor::State) {
         let point = points[at];
         let color = if hover == at { viewport::hover_color() } else { accent };
         if mode == "weights" && !active.is_nil() {
-            let weight = (util::vec(active.weights).at(at)).as_float();
+            let weight = (util::list_or_empty(active.weights).at(at)).as_float();
             color = [weight, weight, weight];
         }
         marker(state, point[0], point[1], color, at >= outline);
@@ -961,11 +961,11 @@ fn enter_uv(state: &mut editor::State) {
     if backdrop_live(state) {
         return;
     }
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return;
     }
-    let texture = comp.texture.as_str();
+    let texture = edited_component.texture.as_str();
     if texture == "" || state.mirror.is_none() {
         return;
     }
@@ -1033,7 +1033,7 @@ fn alt_down() -> bool {
     input::key_down(input::KEY_ALT)
 }
 
-pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: float) {
+pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, world_y: float) {
     let mode = state.polygon.mode;
     let frame_or = frame(state);
     if frame_or.is_none() {
@@ -1045,11 +1045,11 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
         state.polygon.hover = nil;
         signals::inspector(state);
         if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && mode == "points" {
-            add_vertex(state, mx, my, alt_down());
+            add_vertex(state, world_x, world_y, alt_down());
         }
         return;
     }
-    let hover = if over_viewport { pick(state, mesh, node_frame, mx, my, mode == "uv") } else { nil };
+    let hover = if over_viewport { pick(state, mesh, node_frame, world_x, world_y, mode == "uv") } else { nil };
     state.polygon.hover = hover;
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         state.polygon.drag = nil;
@@ -1058,9 +1058,9 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
     if state.polygon.drag.is_some() {
         let drag = state.polygon.drag.unwrap();
         if mode == "uv" {
-            move_uv(state, drag, mx, my);
+            move_uv(state, drag, world_x, world_y);
         } else {
-            move_vertex(state, drag, mx, my);
+            move_vertex(state, drag, world_x, world_y);
         }
         return;
     }
@@ -1073,7 +1073,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
                 state.polygon.drag = hover;
                 signals::inspector(state);
             } else {
-                add_vertex(state, mx, my, alt_down());
+                add_vertex(state, world_x, world_y, alt_down());
             }
         } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) && hover.is_some() {
             remove_vertex(state, hover.unwrap());
@@ -1086,7 +1086,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
                 state.polygon.chain = ring;
                 signals::inspector(state);
                 close_loop(state);
-            } else if !util::icontains(ring, at) {
+            } else if !util::int_contains(ring, at) {
                 ring.push(at);
                 state.polygon.chain = ring;
                 signals::inspector(state);
@@ -1109,12 +1109,12 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
             0.0
         };
         if sign != 0.0 {
-            let radius = state.polygon.radius * viewport::world_per_px(state);
+            let radius = state.polygon.radius * viewport::world_per_pixel(state);
             let amount = sign * state.polygon.strength * engine::delta() * 2.0;
             let points = world_points(state, mesh, node_frame, false);
             for at in 0..points.len() {
                 let point = points[at];
-                if math::sqrt((point[0] - mx) * (point[0] - mx) + (point[1] - my) * (point[1] - my)) <= radius {
+                if math::sqrt((point[0] - world_x) * (point[0] - world_x) + (point[1] - world_y) * (point[1] - world_y)) <= radius {
                     paint(state, at, amount);
                 }
             }
@@ -1132,7 +1132,7 @@ pub fn mode_specs(state: editor::State) -> [any] {
             .with("kind", "button")
             .with("text", mode_name(id))
             .with("height", 24)
-            .with("font_size", style::SM)
+            .with("font_size", style::SMALL)
             .with("font_weight", 700)
             .with("fill", if on { tokens.primary_bg } else { tokens.bg_panel })
             .with("stroke", tokens.border_default)
@@ -1164,7 +1164,7 @@ pub fn option_specs(state: editor::State) -> [any] {
                 .with("kind", "dropdown")
                 .with("width", 140)
                 .with("height", 24)
-                .with("text", names[util::imin(active, names.len() - 1)])
+                .with("text", names[util::int_min(active, names.len() - 1)])
                 .with("options", names)
                 .with("tooltip", "The bone the brush paints")
                 .with("on", "handle")
@@ -1194,7 +1194,7 @@ fn option_field(value: float, step: float, low: float, high: float, prefix: str,
 }
 
 fn option_bone(state: &mut editor::State, data: any, picked: any) {
-    let names = util::vec(data.names);
+    let names = util::list_or_empty(data.names);
     for at in 0..names.len() {
         if names[at].as_str() == picked.as_str() {
             state.polygon.bone = at;

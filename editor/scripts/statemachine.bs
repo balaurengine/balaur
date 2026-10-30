@@ -37,11 +37,11 @@ const COMPONENT: str = "state_machine";
 
 const MACHINE_TYPE: str = "state_machine";
 
-const ROW_H: float = 24.0;
+const ROW_HEIGHT: float = 24.0;
 
-const NAME_W: float = 96.0;
+const NAME_WIDTH: float = 96.0;
 
-const FIELD_W: float = 120.0;
+const FIELD_WIDTH: float = 120.0;
 
 /// The dock's own state, hung on `state.machine`.
 pub fn state() -> StatemachineState {
@@ -56,8 +56,8 @@ fn source(state: &mut editor::State) -> Source? {
     if !found.is_valid() || !found.has_component(COMPONENT) {
         return nil;
     }
-    let comp = found.authored(COMPONENT);
-    let machine = comp.machine;
+    let component = found.authored(COMPONENT);
+    let machine = component.machine;
     if machine.kind() == "map" {
         return Source { doc: machine, path: nil };
     }
@@ -95,9 +95,9 @@ fn write(state: &mut editor::State, found: Source, label: str) {
     }
     if found.path.is_some() {
         let path = found.path.unwrap();
-        let abs = util::engine_path(state.game_root, path);
-        fs::write(abs, toml::encode(found.doc));
-        assets::reload(abs);
+        let absolute_path = util::engine_path(state.game_root, path);
+        fs::write(absolute_path, toml::encode(found.doc));
+        assets::reload(absolute_path);
         state.machine.file = File { path: path, doc: found.doc };
         log::info("{label}: {path}");
     } else {
@@ -126,7 +126,7 @@ fn states(doc: any) -> any {
 
 fn transitions(doc: any) -> [any] {
     let out: [any] = [];
-    for transition in util::vec(doc.transitions) {
+    for transition in util::list_or_empty(doc.transitions) {
         out.push(transition);
     }
     out
@@ -276,13 +276,13 @@ pub fn body(state: &mut editor::State) {
     let authored = source(state);
     if authored.is_none() {
         docks::toolbar(state, PANEL + "Chrome", [offer(state)]);
-        pool::sync(state, ROWS, [], NAME_W, false);
+        pool::sync(state, ROWS, [], NAME_WIDTH, false);
         return;
     }
     let found = authored.unwrap();
     let doc = found.doc;
     docks::toolbar(state, PANEL + "Chrome", [header_controls(state, found)]);
-    pool::sync(state, ROWS, row_specs(state, doc), NAME_W, false);
+    pool::sync(state, ROWS, row_specs(state, doc), NAME_WIDTH, false);
 }
 
 /// What the strip says when the node runs no machine: why, and the verb that
@@ -324,7 +324,7 @@ fn header_controls(state: editor::State, found: Source) -> [any] {
         map()
             .with("kind", "dropdown")
             .with("role", "choice_form")
-            .with("width", FIELD_W)
+            .with("width", FIELD_WIDTH)
             .with("text", doc.start.as_str())
             .with("options", state_names(doc))
             .with("on", "handle")
@@ -369,7 +369,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [any] {
             map()
                 .with("kind", "dropdown")
                 .with("role", "choice_form")
-                .with("width", FIELD_W)
+                .with("width", FIELD_WIDTH)
                 .with("text", if clip.as_str() == "" { state_name } else { clip.as_str() })
                 .with("options", clips)
                 .with("on", "handle")
@@ -379,7 +379,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [any] {
         };
         out.push(map()
             .with("full", false)
-            .with("height", ROW_H)
+            .with("height", ROW_HEIGHT)
             .with("slot_role", "layout_actions")
             .with("controls", [
                 control,
@@ -395,13 +395,13 @@ fn row_specs(state: &mut editor::State, doc: any) -> [any] {
     }
     out.push(map()
         .with("full", true)
-        .with("height", ROW_H)
+        .with("height", ROW_HEIGHT)
         .with("slot_role", "layout_actions")
         .with("controls", [
             map()
                 .with("kind", "text_field")
                 .with("role", "input_form")
-                .with("width", NAME_W + FIELD_W)
+                .with("width", NAME_WIDTH + FIELD_WIDTH)
                 .with("text", state.machine.naming)
                 .with("placeholder", "new state")
                 .with("on", "handle")
@@ -475,12 +475,12 @@ fn transition_specs(state: editor::State, doc: any, out: [any]) {
         let mode = if transition.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition.advance_mode.as_str() };
         out.push(map()
             .with("full", true)
-            .with("height", ROW_H)
+            .with("height", ROW_HEIGHT)
             .with("slot_role", "layout_actions")
             .with("controls", [
                 map()
                     .with("kind", "button")
-                    .with("min_width", NAME_W + FIELD_W)
+                    .with("min_width", NAME_WIDTH + FIELD_WIDTH)
                     .with("role", "item_list")
                     .with("checked", open)
                     .with("text", "{from} → {to}  {mode}")
@@ -522,20 +522,20 @@ fn head_spec(text: str, verbs: [any]) -> any {
     for verb in verbs {
         controls.push(verb);
     }
-    map().with("full", true).with("height", ROW_H).with("slot_role", "layout_actions").with("controls", controls)
+    map().with("full", true).with("height", ROW_HEIGHT).with("slot_role", "layout_actions").with("controls", controls)
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
 fn field_spec(label: str, control: any) -> any {
-    map().with("full", false).with("height", ROW_H).with("controls", [control]).with("label", "    " + label)
+    map().with("full", false).with("height", ROW_HEIGHT).with("controls", [control]).with("label", "    " + label)
 }
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> any {
     map()
         .with("kind", "dropdown")
         .with("role", "choice_form")
-        .with("width", FIELD_W)
+        .with("width", FIELD_WIDTH)
         .with("text", current)
         .with("options", choices)
         .with("on", "handle")
@@ -552,7 +552,7 @@ fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: s
     map()
         .with("kind", "text_field")
         .with("role", "input_form")
-        .with("width", FIELD_W)
+        .with("width", FIELD_WIDTH)
         .with("text", current)
         .with("placeholder", placeholder)
         .with("on_submit", "handle_submit")
@@ -574,7 +574,7 @@ fn number(state: editor::State, at: int, key: str, current: float, whole: bool) 
     map()
         .with("kind", "number_field")
         .with("role", "input_number")
-        .with("width", FIELD_W)
+        .with("width", FIELD_WIDTH)
         .with("value", current.as_float())
         .with("min", 0.0)
         .with("max", if whole { 1000.0 } else { 100.0 })

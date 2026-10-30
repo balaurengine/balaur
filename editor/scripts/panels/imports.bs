@@ -20,7 +20,7 @@ impl Imports {
 
     /// The clock: the frame the repaint it asked for ran, once the list is due
     /// to come down.
-    pub fn update(_dt: float) {
+    pub fn update(_delta_time: float) {
         if self.until > 0.0 && engine::unix_time() >= self.until {
             self.refresh();
         }

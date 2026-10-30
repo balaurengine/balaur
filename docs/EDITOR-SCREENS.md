@@ -376,7 +376,7 @@ dropped as they are fixed; git holds them.
 
 The token set is the website's ink-and-blue palette, in `editor/themes/*.toml`:
 four surfaces, one seam, three levels of text, one accent and one second
-colour. Type is four sizes — `style::SM` 11, `MD` 12, `LG` 14, `XL` 17 — and a
+colour. Type is four sizes — `style::SMALL` 11, `MEDIUM` 12, `LARGE` 14, `EXTRA_LARGE` 17 — and a
 call site names one of those or takes the size its `role` carries. Nothing in
 the shell spells a size or a colour of its own.
 

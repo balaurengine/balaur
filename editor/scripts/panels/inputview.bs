@@ -138,7 +138,7 @@ impl Inputview {
 
     /// The clock: a chip let go a moment ago comes down, and a ripple that ran
     /// its course goes, on the frame the repaint each asked for runs.
-    pub fn update(_dt: float) {
+    pub fn update(_delta_time: float) {
         let now = engine::unix_time();
         let gone: [str] = [];
         for name in self.chips.keys() {

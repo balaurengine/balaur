@@ -11,7 +11,7 @@ use util;
 pub class DocsState {
     modules: any,
     pick: str,
-    fn_pick: str,
+    function_pick: str,
 }
 
 /// What the Docs panel shows: the module names, the one picked, its rows, and
@@ -24,7 +24,7 @@ pub struct View {
 }
 
 pub fn state() -> DocsState {
-    DocsState { modules: nil, pick: "", fn_pick: "" }
+    DocsState { modules: nil, pick: "", function_pick: "" }
 }
 
 // Every module, asked once per session: `script::api` builds the whole
@@ -41,7 +41,7 @@ fn modules(state: &mut editor::State) -> any {
 /// `shell::goto_definition` calls this when the definition is engine API.
 pub fn show(state: &mut editor::State, module: str, name: str) {
     state.docs.pick = module;
-    state.docs.fn_pick = name;
+    state.docs.function_pick = name;
     docks::show(state, "docs");
     signals::changed(state, "docs");
 }
@@ -49,7 +49,7 @@ pub fn show(state: &mut editor::State, module: str, name: str) {
 /// The Docs panel picked a module.
 pub fn pick(state: &mut editor::State, module: str) {
     state.docs.pick = module;
-    state.docs.fn_pick = "";
+    state.docs.function_pick = "";
 }
 
 // The module the dock is showing; nil when none is.
@@ -65,7 +65,7 @@ fn current(state: editor::State, list: any) -> any {
 /// What the Docs panel shows for `query`.
 pub fn view(state: &mut editor::State, query: str) -> View {
     let tokens = state.theme;
-    let list = util::vec(modules(state));
+    let list = util::list_or_empty(modules(state));
     let names: [str] = [];
     for module in list {
         names.push(module.name.as_str());
@@ -80,13 +80,13 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         items.push(util::row("", module.doc.as_str(), "", tokens.text_muted.as_str()));
     }
     let shown = 0;
-    for function in util::vec(module.functions) {
+    for function in util::list_or_empty(module.functions) {
         let name = function.as_str();
         if !search::matches(query, name) {
             continue;
         }
         shown += 1;
-        let tint = if name == state.docs.fn_pick { tokens.primary_text } else { tokens.text_default };
+        let tint = if name == state.docs.function_pick { tokens.primary_text } else { tokens.text_default };
         items.push(util::row("", name + module.signatures.get(name).as_str(), "", tint.as_str()));
         let doc = module.docs.get(name).as_str();
         if doc != "" {
@@ -94,7 +94,7 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         }
     }
     if query == "" {
-        for constant in util::vec(module.constants) {
+        for constant in util::list_or_empty(module.constants) {
             items.push(util::row("", "{constant.name.as_str()}  {constant.value.as_str()}", "", tokens.text_subtle.as_str()));
         }
     }

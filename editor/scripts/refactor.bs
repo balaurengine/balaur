@@ -112,9 +112,9 @@ pub fn apply(state: &mut editor::State) {
         return;
     }
     for one in state.refactor.written {
-        let abs = state.game_root + "/" + one.file;
-        state.script_buffers.set(abs, one.source);
-        state.script_dirty.set(abs, engine::unix_time());
+        let absolute_path = state.game_root + "/" + one.file;
+        state.script_buffers.set(absolute_path, one.source);
+        state.script_dirty.set(absolute_path, engine::unix_time());
         lint::touched(state);
         signals::bars(state);
     }

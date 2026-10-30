@@ -300,7 +300,7 @@ fn on_reset_clicked(state: &mut editor::State, data: any, _value: any) {
 // The rows the selected file offers, empty when nothing is selected or the
 // file is one no importer claims.
 fn specs_for(state: editor::State) -> [any] {
-    let rel = state.assets.sel;
+    let rel = state.assets.selected;
     if rel == "" {
         return [];
     }
@@ -310,7 +310,7 @@ fn specs_for(state: editor::State) -> [any] {
     }
     let lower = image_of(state, rel).to_lower();
     let out: [any] = [];
-    for spec in util::vec(ROWS().get(kind)) {
+    for spec in util::list_or_empty(ROWS().get(kind)) {
         let only = spec.only.as_str();
         if only == "" || lower.ends_with("." + only) {
             out.push(spec);
@@ -385,7 +385,7 @@ const FORM: str = "Editor/Shell/Body/Right/RightSheet/Import/Scroll/Form";
 /// file is picked, the way the Inspector is empty without a node.
 pub fn fill(state: &mut editor::State) -> Fill {
     let tokens = state.theme;
-    let rel = state.assets.sel;
+    let rel = state.assets.selected;
     let specs: [any] = specs_for(state);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };

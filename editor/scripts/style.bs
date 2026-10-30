@@ -8,35 +8,35 @@ use shell;
 /// that wants a size names one of these, and everything else takes the size
 /// its `role` carries.
 ///
-/// `SM` is a caption or a dense secondary line, `MD` is body text and every
-/// control's label, `LG` is a glyph standing on its own, and `XL` is the one
-/// title a panel gets.
-pub const SM: float = 11.0;
+/// `SMALL` is a caption or a dense secondary line, `MEDIUM` is body text and
+/// every control's label, `LARGE` is a glyph standing on its own, and
+/// `EXTRA_LARGE` is the one title a panel gets.
+pub const SMALL: float = 11.0;
 
-pub const MD: float = 12.0;
+pub const MEDIUM: float = 12.0;
 
-pub const LG: float = 14.0;
+pub const LARGE: float = 14.0;
 
-pub const XL: float = 17.0;
+pub const EXTRA_LARGE: float = 17.0;
 
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.
-pub fn role_px(state: editor::State, role: str, key: str, fallback: float) -> float {
+pub fn role_size_in_pixels(state: editor::State, role: str, key: str, fallback: float) -> float {
     let table = state.theme.roles.get(role);
     if table.is_nil() {
         return fallback;
     }
     let touch = table.touch.get(key);
     if state.touchscreen && !touch.is_nil() {
-        return px(state, touch);
+        return size_in_pixels(state, touch);
     }
     let own = table.get(key);
-    if own.is_nil() { fallback } else { px(state, own) }
+    if own.is_nil() { fallback } else { size_in_pixels(state, own) }
 }
 
 /// A number a theme states, or the size it names: `"control_height"` is
 /// whatever the worn theme makes of it.
-pub fn px(state: editor::State, value: any) -> float {
+pub fn size_in_pixels(state: editor::State, value: any) -> float {
     if value.kind() == "str" {
         state.theme.sizes.get(value.as_str()).as_float()
     } else {
@@ -46,6 +46,6 @@ pub fn px(state: editor::State, value: any) -> float {
 
 /// A form row, and the field or search box in one: the theme's touch box
 /// where a finger picks it, a cursor's line otherwise.
-pub fn row_h(state: editor::State) -> float {
+pub fn row_height(state: editor::State) -> float {
     if state.touchscreen { shell::TOUCH_CONTROL } else { 24.0 }
 }

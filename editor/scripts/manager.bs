@@ -231,8 +231,8 @@ fn tabs() -> [[str]] {
 }
 
 // One column under this, two above it.
-fn narrow(col: float) -> bool {
-    col < 600.0
+fn narrow(column_width: float) -> bool {
+    column_width < 600.0
 }
 
 fn refresh(state: &mut editor::State) {
@@ -245,7 +245,7 @@ fn refresh(state: &mut editor::State) {
         state.manager.parent = project::home();
     }
     if state.manager.follow == "" {
-        let mine = util::obj(release::installed()).get("channel").as_str();
+        let mine = util::map_or_empty(release::installed()).get("channel").as_str();
         state.manager.follow = if mine == "" { "nightly" } else { mine };
     }
 }
@@ -299,24 +299,24 @@ pub fn fill(state: &mut editor::State) {
     cover(state, true);
     pool::strip(state, HEAD_NODE(), head_controls(state, tokens));
     pool::strip(state, TABS_NODE(), tab_controls(state));
-    let col = page_w();
+    let column_width = page_width();
     head_note(state, tokens);
     tools(state);
     let specs = if state.manager.tab == "engine" {
-        engine_specs(state, tokens, col)
+        engine_specs(state, tokens, column_width)
     } else if state.manager.tab == "examples" {
-        examples_specs(state, tokens, col)
+        examples_specs(state, tokens, column_width)
     } else if state.manager.tab == "forge" {
-        forge_specs(state, tokens, col)
+        forge_specs(state, tokens, column_width)
     } else {
-        projects_specs(state, tokens, col)
+        projects_specs(state, tokens, column_width)
     };
     pool::sync(state, PAGE(), specs, 0.0, false);
 }
 
 // The page's width, as it was laid out: the widest the screen draws, whatever
 // the window is, since a list across a monitor is a list nobody can read.
-fn page_w() -> float {
+fn page_width() -> float {
     let rect = ui::widget_rect(scene::get_node(BODY()));
     if rect.is_none() || rect.unwrap().width <= 0.0 {
         COLUMN
@@ -398,7 +398,7 @@ fn rule() -> any {
         .with("controls", [map().with("kind", "separator").with("grow", 1)])
 }
 
-fn projects_specs(state: editor::State, tokens: any, col: float) -> [any] {
+fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [any] {
     let rows: [any] = shown(state);
     if rows.len() == 0 {
         let empty = if in_tab() {
@@ -412,7 +412,7 @@ fn projects_specs(state: editor::State, tokens: any, col: float) -> [any] {
     }
     let out: [any] = [];
     for row in rows {
-        out.push(project_spec(state, tokens, col, util::obj(row)));
+        out.push(project_spec(state, tokens, column_width, util::map_or_empty(row)));
         out.push(rule());
     }
     out
@@ -421,12 +421,12 @@ fn projects_specs(state: editor::State, tokens: any, col: float) -> [any] {
 // Two lines: the name a click opens, and the folder under it. What a row says
 // about itself, when and with which engine, sits at the right edge, and a
 // phone shows when it was opened and nothing else.
-fn project_spec(state: editor::State, tokens: any, col: float, row: any) -> any {
+fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> any {
     let here = row.get("path");
     let exists = row.get("exists");
     let gone = if exists.is_nil() { true } else { exists.as_bool() } != true;
     let built = row.get("version").as_str();
-    let line = util::max(style::row_h(state), 28.0);
+    let line = util::max(style::row_height(state), 28.0);
     let controls: [any] = [
         // The engine's mark: a project keeps its own icon, and none of them
         // is open, so the row wears the editor's.
@@ -465,7 +465,7 @@ fn project_spec(state: editor::State, tokens: any, col: float, row: any) -> any 
             .with("font_size", 11)
             .with("text", row.get("when").as_str()),
     ];
-    if built != "" && !narrow(col) {
+    if built != "" && !narrow(column_width) {
         controls.push(map().with("kind", "label").with("role", "text_code_quiet").with("font_size", 11).with("text", built));
     }
     controls.push(map()
@@ -498,29 +498,29 @@ fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
     told(state);
 }
 
-fn examples_specs(state: editor::State, tokens: any, col: float) -> [any] {
-    let rows = util::vec(project::examples());
+fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [any] {
+    let rows = util::list_or_empty(project::examples());
     if rows.len() == 0 {
         let none = [say("No examples ship beside this build.", tokens.get("text_subtle").as_str())];
         return none;
     }
-    let across = if narrow(col) { 1 } else if col < 760.0 { 2 } else { 3 };
+    let across = if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 };
     // Floored: three cards and two seams have to add up to the column, and a
     // third of a pixel each puts the last one past its edge.
-    let card_w = math::floor((col - (across - 1).as_float() * SEAM) / across.as_float());
-    let cover_h = math::floor(card_w / COVER_ASPECT);
+    let card_width = math::floor((column_width - (across - 1).as_float() * SEAM) / across.as_float());
+    let cover_height = math::floor(card_width / COVER_ASPECT);
     let out: [any] = [];
     let start = 0;
     while start < rows.len() {
         let cards: [any] = [];
         let column = 0;
         while column < across && start + column < rows.len() {
-            cards.push(example_card(state, tokens, card_w, cover_h, util::obj(rows.at(start + column))));
+            cards.push(example_card(state, tokens, card_width, cover_height, util::map_or_empty(rows.at(start + column))));
             column += 1;
         }
         out.push(map()
             .with("full", true)
-            .with("height", cover_h + 54.0)
+            .with("height", cover_height + 54.0)
             .with("controls", [
                 map().with("kind", "row").with("gap", [SEAM, SEAM]).with("controls", cards),
             ]));
@@ -532,7 +532,7 @@ fn examples_specs(state: editor::State, tokens: any, col: float) -> [any] {
 
 // The picture, the name and the line under it, on a panel the whole of which
 // a click opens a copy of: a button with nothing in it laid over the card.
-fn example_card(state: editor::State, tokens: any, width: float, cover_h: float, row: any) -> any {
+fn example_card(state: editor::State, tokens: any, width: float, cover_height: float, row: any) -> any {
     let id = row.get("id");
     let cover = row.get("cover").as_str();
     let picture = if cover != "" {
@@ -540,7 +540,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_h: float,
             .with("kind", "image")
             .with("image", cover)
             .with("width", width)
-            .with("height", cover_h)
+            .with("height", cover_height)
             .with("fit", "cover")
             .with("corner_radius", 12)
             .with("truncate", false)
@@ -550,7 +550,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_h: float,
         map()
             .with("kind", "row")
             .with("width", width)
-            .with("height", cover_h)
+            .with("height", cover_height)
             .with("corner_radius", 0)
             .with("justify", "center")
             .with("align_items", "center")
@@ -603,7 +603,7 @@ fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
 
 // Public projects on Forge, one row each, a click opening a copy in the
 // projects folder as an example does. The first look asks Forge.
-fn forge_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
+fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [any] {
     if !state.manager.forge_asked {
         state.manager.forge_asked = forge::search("", "");
     }
@@ -618,7 +618,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
     for row in state.manager.forge {
         let project = row.get("project").as_str();
         let tags = "";
-        for tag in util::vec(row.get("tags")) {
+        for tag in util::list_or_empty(row.get("tags")) {
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
         let note = row.get("description").as_str();
@@ -631,7 +631,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
                     .with("fill", tokens.get("bg_panel"))
                     .with("corner_radius", 10)
                     .with("padding", [12, 6, 12, 6])
-                    .with("width", col)
+                    .with("width", column_width)
                     .with("gap", [0, 2])
                     .with("controls", [
                         map().with("kind", "label").with("role", "text_title").with("font_size", 13).with("text", project),
@@ -665,7 +665,7 @@ fn copy_forge_project(state: &mut editor::State, data: any, _value: any) {
 pub fn forge_heard(state: &mut editor::State, event: any) {
     let kind = event.get("kind").as_str();
     if kind == "listed" {
-        state.manager.forge = util::vec(event.get("rows"));
+        state.manager.forge = util::list_or_empty(event.get("rows"));
     } else if kind == "copied" {
         state.manager.copying = "";
         go(state, event.get("path").as_str());
@@ -681,7 +681,7 @@ pub fn forge_heard(state: &mut editor::State, event: any) {
 
 /// Copy an example into the projects folder and open the copy.
 fn open_example(state: &mut editor::State, id: str) {
-    let made = util::obj(project::copy_example(id, state.manager.parent));
+    let made = util::map_or_empty(project::copy_example(id, state.manager.parent));
     let failed = made.get("error");
     if !failed.is_nil() {
         let why = failed;
@@ -695,12 +695,12 @@ fn open_example(state: &mut editor::State, id: str) {
 // What this build is, which line it follows, and every release the project
 // has published. The same code `balaur update` runs, so the screen and the
 // command cannot disagree.
-fn engine_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
+fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> [any] {
     if !state.manager.asked {
         check(state);
     }
-    let mine = util::obj(release::installed());
-    let row_height = util::max(style::row_h(state), 30.0);
+    let mine = util::map_or_empty(release::installed());
+    let row_height = util::max(style::row_height(state), 30.0);
     let newest = newest_on(state, state.manager.follow);
     let head: [any] = [
         map()
@@ -711,7 +711,7 @@ fn engine_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
                 map().with("kind", "label").with("role", "text_code_quiet").with("text", build_line(mine)).with("font_size", 11),
             ]),
     ];
-    if !narrow(col) {
+    if !narrow(column_width) {
         let fresh = newest.get("order").as_str() == "newer";
         head.push(map()
             .with("kind", "label")
@@ -732,7 +732,7 @@ fn engine_specs(state: &mut editor::State, tokens: any, col: float) -> [any] {
         out.push(say(mine.get("held").as_str(), tokens.get("text_subtle").as_str()));
     }
     let lines: [any] = [map().with("kind", "label").with("role", "text_caption").with("text", "Follow").with("width", 60)];
-    for name in util::vec(release::channels()) {
+    for name in util::list_or_empty(release::channels()) {
         // Bound afresh: a closure made in a loop captures the binding.
         let line = name;
         lines.push(map()
@@ -761,7 +761,7 @@ fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
 fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [any]) {
     let rows: [any] = [];
     for entry in state.manager.releases {
-        let row = util::obj(entry);
+        let row = util::map_or_empty(entry);
         if row.get("channel").as_str() == state.manager.follow {
             rows.push(row);
         }
@@ -896,9 +896,9 @@ fn shown(state: editor::State) -> [any] {
     }
     let out: [any] = [];
     for entry in state.manager.recent {
-        let row = util::obj(entry);
-        let hay = (row.get("name").as_str() + " " + row.get("path").as_str()).to_lower();
-        if hay.contains(query) {
+        let row = util::map_or_empty(entry);
+        let haystack = (row.get("name").as_str() + " " + row.get("path").as_str()).to_lower();
+        if haystack.contains(query) {
             out.push(entry);
         }
     }
@@ -944,20 +944,20 @@ fn no_install() -> Installing {
 /// A report on a check or an install. The start screen and the About sheet
 /// both read what this keeps.
 pub fn heard(state: &mut editor::State, report: any) {
-    let ev = util::obj(report);
-    let kind = ev.kind.as_str();
+    let release_event = util::map_or_empty(report);
+    let kind = release_event.kind.as_str();
     if kind == "listed" {
         let rows: [any] = [];
-        for row in util::vec(ev.rows) {
+        for row in util::list_or_empty(release_event.rows) {
             rows.push(row);
         }
         state.manager.releases = rows;
         state.manager.reading = false;
     } else if kind == "downloading" {
         state.manager.installing = Installing {
-            tag: ev.get("tag").as_str(),
-            done: ev.get("done").as_int(),
-            total: ev.get("total").as_int(),
+            tag: release_event.get("tag").as_str(),
+            done: release_event.get("done").as_int(),
+            total: release_event.get("total").as_int(),
             unpacking: false,
         };
     } else if kind == "unpacking" {
@@ -965,15 +965,15 @@ pub fn heard(state: &mut editor::State, report: any) {
     } else if kind == "installed" {
         state.manager.installing = no_install();
         state.manager.failed = "";
-        state.manager.note = ev.get("note").as_str();
+        state.manager.note = release_event.get("note").as_str();
         log::info(state.manager.note);
     } else if kind == "failed" {
-        if ev.get("job").as_str() == "install" {
+        if release_event.get("job").as_str() == "install" {
             state.manager.installing = no_install();
         } else {
             state.manager.reading = false;
         }
-        state.manager.failed = ev.get("message").as_str();
+        state.manager.failed = release_event.get("message").as_str();
     }
     told(state);
 }
@@ -981,7 +981,7 @@ pub fn heard(state: &mut editor::State, report: any) {
 /// The newest release on a line, or an empty table when it holds none.
 pub fn newest_on(state: editor::State, channel: str) -> any {
     for entry in state.manager.releases {
-        let row = util::obj(entry);
+        let row = util::map_or_empty(entry);
         if row.get("channel").as_str() == channel {
             return row;
         }
@@ -1088,13 +1088,13 @@ pub fn new_fill(state: &mut editor::State) {
         state.manager.parent = project::home();
     }
     let ids: [any] = [];
-    for row in util::vec(project::templates()) {
-        ids.push(util::obj(row).get("id"));
+    for row in util::list_or_empty(project::templates()) {
+        ids.push(util::map_or_empty(row).get("id"));
     }
     if ids.len() == 0 {
         ids.push("empty");
     }
-    let row_height = util::max(style::row_h(state), 30.0);
+    let row_height = util::max(style::row_height(state), 30.0);
     let specs = [
         map()
             .with("full", false)
@@ -1183,7 +1183,7 @@ fn on_create_pressed(state: &mut editor::State, data: any, _value: any) {
 fn create(state: &mut editor::State) {
     let name = if state.manager.name == "" { "my-game" } else { state.manager.name };
     let path = state.manager.parent + "/" + name;
-    let made = util::obj(project::create(path, state.manager.template));
+    let made = util::map_or_empty(project::create(path, state.manager.template));
     let failed = made.get("error");
     if !failed.is_nil() {
         let why = failed;
@@ -1221,7 +1221,7 @@ pub fn go(state: &mut editor::State, path: str) {
         told(state);
         return;
     }
-    let answer = util::obj(project::open(path));
+    let answer = util::map_or_empty(project::open(path));
     let failed = answer.get("error");
     if !failed.is_nil() {
         let why = failed;

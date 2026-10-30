@@ -184,8 +184,8 @@ pub fn change_type(state: &mut editor::State, index: int, name: str) -> bool {
 // added, and each group a part fills gives up what else the node held of it.
 fn switch(node: any, parts: any) {
     for component in parts.keys() {
-        let own = util::obj(node.get(component));
-        let accepts = util::obj(scene::component_properties(component, map()));
+        let own = util::map_or_empty(node.get(component));
+        let accepts = util::map_or_empty(scene::component_properties(component, map()));
         for group in groups() {
             if !util::contains(group, component) {
                 continue;
@@ -194,7 +194,7 @@ fn switch(node: any, parts: any) {
                 if other == component || !node.has(other) {
                     continue;
                 }
-                let held = util::obj(node.get(other));
+                let held = util::map_or_empty(node.get(other));
                 for key in carried() {
                     let value = held.get(key);
                     if !value.is_nil() && accepts.has(key) && !own.has(key) {
@@ -204,9 +204,9 @@ fn switch(node: any, parts: any) {
                 node.remove(other);
             }
         }
-        let params = util::obj(parts.get(component));
-        for key in params.keys() {
-            own.set(key, params.get(key));
+        let parameters = util::map_or_empty(parts.get(component));
+        for key in parameters.keys() {
+            own.set(key, parameters.get(key));
         }
         node.set(component, own);
     }
@@ -231,7 +231,7 @@ fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
     if shape.is_nil() {
         return;
     }
-    let own = util::obj(node.get(component));
+    let own = util::map_or_empty(node.get(component));
     for key in shape.keys() {
         own.set(key, shape.get(key));
     }
@@ -254,7 +254,7 @@ fn fitted_2d(state: editor::State, node: any) -> any {
 }
 
 fn fitted_3d(node: any, parts: any) -> any {
-    let static_body = util::obj(parts.body3d).kind.as_str() == physics3d::BODY_STATIC;
+    let static_body = util::map_or_empty(parts.body3d).kind.as_str() == physics3d::BODY_STATIC;
     let source = mesh_source(node);
     if !source.is_nil() {
         let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
@@ -318,9 +318,9 @@ fn shape_points(shape: any) -> [[float]] {
         return points;
     }
     let size = util::vec2(shape.get(SIZE), [1.0, 1.0]);
-    let hx = size[0] / 2.0;
-    let hy = size[1] / 2.0;
-    [[0.0 - hx, 0.0 - hy], [hx, 0.0 - hy], [hx, hy], [0.0 - hx, hy]]
+    let half_x = size[0] / 2.0;
+    let half_y = size[1] / 2.0;
+    [[0.0 - half_x, 0.0 - half_y], [half_x, 0.0 - half_y], [half_x, half_y], [0.0 - half_x, half_y]]
 }
 
 // A sprite or a shape made a polygon of the same outline, in one undo step.
@@ -349,11 +349,11 @@ fn already(found: Node, parts: any) -> bool {
         if !found.has_component(component) {
             return false;
         }
-        let held = util::obj(found.get_component(component));
-        let params = util::obj(parts.get(component));
-        for key in params.keys() {
+        let held = util::map_or_empty(found.get_component(component));
+        let parameters = util::map_or_empty(parts.get(component));
+        for key in parameters.keys() {
             let had = held.get(key);
-            if had.is_nil() || !same(had, params.get(key)) {
+            if had.is_nil() || !same(had, parameters.get(key)) {
                 return false;
             }
         }
@@ -445,7 +445,7 @@ pub fn add_soft_body(state: &mut editor::State, source: newnode::Entry) -> bool 
         return false;
     }
     model::selected_node(state).set_name(model::unique_name(state, source.name));
-    fill_soft(state, state.sel, source)
+    fill_soft(state, state.selected, source)
 }
 
 /// Rebuild row `index` as a soft body made from one of `soft_sources`, in one
@@ -495,14 +495,14 @@ const MAX_FILES: int = 200;
 // Project-relative paths of the images or the models, breadth first.
 fn project_files(state: &mut editor::State, kind: str) -> [str] {
     let out: [str] = [];
-    let dirs = [""];
+    let directories = [""];
     let depth = 0;
-    while dirs.len() > 0 && depth <= MAX_DEPTH && out.len() < MAX_FILES {
+    while directories.len() > 0 && depth <= MAX_DEPTH && out.len() < MAX_FILES {
         let next: [str] = [];
-        for dir in dirs {
-            for entry in util::vec(model::list(state, dir)) {
+        for directory in directories {
+            for entry in util::list_or_empty(model::list(state, directory)) {
                 let name = entry.name.as_str();
-                let rel = if dir == "" { name } else { dir + "/" + name };
+                let rel = if directory == "" { name } else { directory + "/" + name };
                 if entry.is_dir.as_bool() {
                     if !util::contains(skipped(), name) {
                         next.push(rel);
@@ -512,7 +512,7 @@ fn project_files(state: &mut editor::State, kind: str) -> [str] {
                 }
             }
         }
-        dirs = next;
+        directories = next;
         depth += 1;
     }
     out
@@ -642,10 +642,10 @@ fn sprite_polygon(state: editor::State, sprite: any) -> any {
         return nil;
     }
     let texture = sprite.get(TEXTURE).as_str();
-    let ppu = drawn_scale(state, sprite, texture);
+    let pixels_per_unit = drawn_scale(state, sprite, texture);
     // Every loop, so an image of two shapes gives both; `islands` drops the holes.
-    let opts = map().with("pixels_per_unit", ppu).with("threshold", 0.5).with("tolerance", 2.0).with("holes", true);
-    let mesh = islands(sprite, render::trace_texture(state.game_root + "/" + texture, opts));
+    let options = map().with("pixels_per_unit", pixels_per_unit).with("threshold", 0.5).with("tolerance", 2.0).with("holes", true);
+    let mesh = islands(sprite, render::trace_texture(state.game_root + "/" + texture, options));
     if mesh.indices.len() == 0 {
         log::warn("{texture} has no opaque pixels to trace");
         return nil;
@@ -654,7 +654,7 @@ fn sprite_polygon(state: editor::State, sprite: any) -> any {
     map()
         .with("mesh", mesh)
         .with("texture", texture)
-        .with("pixels_per_unit", ppu)
+        .with("pixels_per_unit", pixels_per_unit)
         .with("color", if color.is_nil() { [1.0, 1.0, 1.0, 1.0] } else { color })
 }
 
@@ -725,7 +725,7 @@ fn placed(sprite: any, points: [Vec2]) -> [[float]] {
 fn cell_size(points: any) -> float {
     let low = [1000000.0, 1000000.0];
     let high = [-1000000.0, -1000000.0];
-    for point in util::vec(points) {
+    for point in util::list_or_empty(points) {
         let point_x = point.at(0).as_float();
         let point_y = point.at(1).as_float();
         low = [util::min(low[0], point_x), util::min(low[1], point_y)];

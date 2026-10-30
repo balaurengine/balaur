@@ -16,9 +16,9 @@ pub class BonemapState {
     picking: str?,
 }
 
-const NAME_W: float = 128.0;
+const NAME_WIDTH: float = 128.0;
 
-const PICK_W: float = 190.0;
+const PICK_WIDTH: float = 190.0;
 
 // The canonical humanoid, in the spelling `balaur_animation::retarget::HUMANOID`
 // uses. One list, because a map written against another one would not load.
@@ -62,7 +62,7 @@ fn rig_root(state: editor::State) -> Node {
     if !found.is_valid() {
         return nil;
     }
-    if rig::bone_count(state, state.sel) > 0 {
+    if rig::bone_count(state, state.selected) > 0 {
         return found;
     }
     // A selected bone maps the rig it hangs in, not itself: climbing to the
@@ -123,8 +123,8 @@ pub fn guess(canonical: str, paths: [str]) -> str? {
 // `Left Upper Arm` and `mixamorig:LeftUpperArm` all compare the same.
 fn squash(name: str) -> str {
     let out = name.to_lower();
-    for sep in ["_", " ", ".", "-", ":"] {
-        out = out.replace(sep, "");
+    for separator in ["_", " ", ".", "-", ":"] {
+        out = out.replace(separator, "");
     }
     out
 }
@@ -237,12 +237,12 @@ fn row(state: editor::State, paths: [str], name: str) -> [any] {
             .with("kind", "label")
             .with("role", if picked == "" { "text_code_quiet" } else { "text_code" })
             .with("font_size", 12)
-            .with("width", NAME_W)
+            .with("width", NAME_WIDTH)
             .with("text", name),
         map()
             .with("kind", "button")
             .with("role", "chip")
-            .with("width", PICK_W)
+            .with("width", PICK_WIDTH)
             .with("height", 22)
             .with("text", if picked == "" { "—" } else { picked })
             .with("text_align", "start")
@@ -271,11 +271,11 @@ fn row(state: editor::State, paths: [str], name: str) -> [any] {
             .with("full", true)
             .with("height", 20)
             .with("controls", [
-                map().with("kind", "label").with("width", NAME_W).with("text", ""),
+                map().with("kind", "label").with("width", NAME_WIDTH).with("text", ""),
                 map()
                     .with("kind", "button")
                     .with("role", "chip")
-                    .with("width", PICK_W)
+                    .with("width", PICK_WIDTH)
                     .with("height", 20)
                     .with("text", path)
                     .with("text_align", "start")

@@ -50,7 +50,7 @@ fn ROOTS() -> [str] {
 }
 
 /// Where the person's own themes live.
-pub fn user_dir() -> str {
+pub fn user_directory() -> str {
     project::editor_data_directory() + "/themes"
 }
 
@@ -67,12 +67,12 @@ fn is_among(name: str, items: [str]) -> bool {
     false
 }
 
-/// A pair's folder: bundled ones beside the editor, the rest in `user_dir()`.
+/// A pair's folder: bundled ones beside the editor, the rest in `user_directory()`.
 pub fn folder_of(name: str) -> str {
     if is_bundled(name) {
         "themes/" + name
     } else {
-        user_dir() + "/" + name
+        user_directory() + "/" + name
     }
 }
 
@@ -84,7 +84,7 @@ pub fn path_of(name: str, half: str) -> str {
 /// Every pair there is to pick: the bundled ones, then the person's, by name.
 pub fn names() -> [any] {
     let out: [any] = copy_names(BUNDLED());
-    for entry in util::vec(fs::list(user_dir())) {
+    for entry in util::list_or_empty(fs::list(user_directory())) {
         if entry.get("is_dir") && !is_bundled(entry.get("name").as_str()) {
             out.push(entry.get("name"));
         }
@@ -120,8 +120,8 @@ fn read_at(path: str) -> any {
 /// A bundled half as the editor wears it before anyone's edits: the shared
 /// roles under its colours.
 pub fn bundled(name: str, half: str) -> any {
-    let roles = util::obj(read_at(ROLES));
-    merge(roles, util::obj(read(name, half)))
+    let roles = util::map_or_empty(read_at(ROLES));
+    merge(roles, util::map_or_empty(read(name, half)))
 }
 
 /// `over` written onto `base`, table by table: a key `over` names wins, and a
@@ -173,7 +173,7 @@ pub fn same(first: any, second: any) -> bool {
 
 /// The bundled pair a document is filled in from: what it names, or balaur.
 pub fn base_of(doc: any) -> str {
-    let named = util::obj(doc).base;
+    let named = util::map_or_empty(doc).base;
     if named.kind() == "str" && is_bundled(named.as_str()) { named.as_str() } else { DEFAULT }
 }
 
@@ -269,7 +269,7 @@ fn worn(tokens: any) -> any {
     }
     let colors = map();
     let own_colors = tokens.get("doc").get("colors");
-    let own_color_table = util::obj(if own_colors.is_nil() { map() } else { own_colors });
+    let own_color_table = util::map_or_empty(if own_colors.is_nil() { map() } else { own_colors });
     for key in own_color_table.keys() {
         let value = own_color_table.get(key);
         colors.set(key, value);
@@ -299,8 +299,8 @@ pub fn apply(state: editor::State) {
             root.patch_component("widget", map().with("theme", doc));
         }
     }
-    let bg = util::hex_to_rgb(tokens.bg_app.as_str());
-    render::set_background(bg.red, bg.green, bg.blue);
+    let background = util::hex_to_rgb(tokens.bg_app.as_str());
+    render::set_background(background.red, background.green, background.blue);
     let minor = util::hex_to_rgb(tokens.grid_minor.as_str());
     let major = util::hex_to_rgb(tokens.grid_major.as_str());
     render::set_grid_colors(minor.red, minor.green, minor.blue, major.red, major.green, major.blue);
@@ -318,7 +318,7 @@ fn wear_half(state: &mut editor::State, name: str, half: str) {
         return;
     }
     state.theme = load(name, half);
-    state.theme_rev += 1;
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
@@ -331,7 +331,7 @@ pub fn follow(state: &mut editor::State, system_dark: bool) {
 /// Read the worn half from disk again, dropping an edit nobody saved.
 pub fn reload(state: &mut editor::State) {
     state.theme = load(state.theme.get("name").as_str(), state.theme.get("half").as_str());
-    state.theme_rev += 1;
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
@@ -339,7 +339,7 @@ pub fn reload(state: &mut editor::State) {
 /// Wear a document that is not on disk yet: the theme window's live edit.
 pub fn wear(state: &mut editor::State, name: str, doc: any) {
     state.theme = flat(name, state.theme.get("half").as_str(), doc);
-    state.theme_rev += 1;
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
@@ -356,7 +356,7 @@ pub fn set_dark(state: &mut editor::State, on: bool) {
 pub fn toggle(state: &mut editor::State) {
     let half = if state.theme.get("half").as_str() == "dark" { "light" } else { "dark" };
     settings::set(MODE_SETTING, half);
-    settings::commit_prefs(state);
+    settings::commit_preferences(state);
     state.theme_half = "";
     wear_half(state, state.theme.get("name").as_str(), half);
 }

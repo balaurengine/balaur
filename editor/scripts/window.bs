@@ -67,7 +67,7 @@ pub fn size(state: editor::State) -> Size {
 
 /// What a sheet leaves inside itself: what a body measures its columns
 /// against, since a row with no stated width reads the whole layer instead.
-pub fn inner_w(state: editor::State) -> float {
+pub fn inner_width(state: editor::State) -> float {
     util::max(size(state).width - 2.0 * PAD_X, 120.0)
 }
 
@@ -121,7 +121,7 @@ pub fn fill(state: &mut editor::State) {
 /// The sheet shut itself, on Escape or a click on the dim: the screen that
 /// was up is not any more.
 pub fn closed(state: &mut editor::State) {
-    if state.window.open != "" && util::prop(SHEET, "open").as_bool() == false {
+    if state.window.open != "" && util::property(SHEET, "open").as_bool() == false {
         state.window.open = "";
         state.window.drawn = "";
     }
@@ -191,32 +191,32 @@ pub fn picker_shut(state: &mut editor::State) {
 
 /// Open the picker and answer where its rows go.
 ///
-/// `opts` names the glyph before the query, the `placeholder` behind it, the
+/// `options` names the glyph before the query, the `placeholder` behind it, the
 /// `query` itself and what to do with an edit (`on`) and an Enter
 /// (`on_submit`), the `width` it would like, and how tall its rows are.
-pub fn picker(state: &mut editor::State, opts: any) -> str {
+pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
-    let width = util::min(opts.width.as_float(), util::max(screen.x - 32.0, 240.0));
+    let width = util::min(options.width.as_float(), util::max(screen.x - 32.0, 240.0));
     util::fill(PICKER, map().with("open", true).with("width", width));
     let field = map()
         .with("kind", "text_field")
         .with("role", "input_picker")
-        .with("text", opts.query.as_str())
+        .with("text", options.query.as_str())
         .with("grow", 1)
-        .with("placeholder", opts.placeholder)
-        .with("on", opts.on)
-        .with("on_submit", opts.on_submit)
-        .with("data", opts.data);
+        .with("placeholder", options.placeholder)
+        .with("on", options.on)
+        .with("on_submit", options.on_submit)
+        .with("data", options.data);
     pool::strip(state, PICKER + "/PickerHead", [
-        map().with("kind", "label").with("role", "text_mark_picker").with("text", opts.mark.as_str()),
+        map().with("kind", "label").with("role", "text_mark_picker").with("text", options.mark.as_str()),
         field,
         map().with("kind", "label").with("role", "chip").with("text", "esc"),
     ]);
     util::fill(PICKER + "/PickerScroll", map()
         .with("visible", true)
-        .with("height", util::min(util::max(screen.y * 0.5, 160.0), opts.rows_h.as_float())));
+        .with("height", util::min(util::max(screen.y * 0.5, 160.0), options.rows_h.as_float())));
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
     if !state.picker_focused {
@@ -249,7 +249,7 @@ pub fn picker_fill(state: &mut editor::State) {
 
 /// The picker shut itself, on Escape or a click on the dim.
 pub fn picker_closed(state: &mut editor::State) {
-    if util::prop(PICKER, "open").as_bool() != false {
+    if util::property(PICKER, "open").as_bool() != false {
         return;
     }
     if state.palette {

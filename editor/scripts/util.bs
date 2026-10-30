@@ -4,8 +4,8 @@
 
 /// A vector's direction and length.
 pub struct Norm {
-    dir: [float],
-    len: float,
+    direction: [float],
+    length: float,
 }
 
 /// A colour as unit floats.
@@ -29,11 +29,11 @@ pub struct Frame {
 /// Texture pixels to one world unit when a component names none.
 pub const DEFAULT_PIXELS_PER_UNIT: float = 100.0;
 
-pub fn join(parts: [str], sep: str) -> str {
+pub fn join(parts: [str], separator: str) -> str {
     let out = "";
     for index in 0..parts.len() {
         if index > 0 {
-            out += sep;
+            out += separator;
         }
         out += parts[index];
     }
@@ -75,12 +75,12 @@ pub fn is_nil(value: any) -> bool {
 }
 
 /// `value` when it is a map, else an empty one.
-pub fn obj(value: any) -> any {
+pub fn map_or_empty(value: any) -> any {
     if value.kind() == "map" { value } else { map() }
 }
 
 /// `value` when it is a list, else an empty one.
-pub fn vec(value: any) -> any {
+pub fn list_or_empty(value: any) -> any {
     if value.kind() == "list" { value } else { [] }
 }
 
@@ -89,17 +89,17 @@ pub fn vec(value: any) -> any {
 /// `patch_component` rather than get-mutate-set: every property the table
 /// leaves out stays where it was, and a view that only sets `options` and
 /// `visible` cannot flatten the rest of the widget by forgetting one.
-pub fn fill(id: str, params: any) {
+pub fn fill(id: str, parameters: any) {
     let found = scene::get_node(id);
     if !found.is_valid() {
         return;
     }
-    found.patch_component("widget", params);
+    found.patch_component("widget", parameters);
 }
 
 /// One property of a widget node, for a caller reading back what the reader
 /// left on it. The whole table is forty keys, and a view wants one of them.
-pub fn prop(id: str, key: str) -> any {
+pub fn property(id: str, key: str) -> any {
     let found = scene::get_node(id);
     if !found.is_valid() {
         return nil;
@@ -146,8 +146,8 @@ pub fn fixed(value: float, places: int) -> str {
     "{sign}{scaled / scale}.{digits}"
 }
 
-pub fn clamp(value: float, lo: float, hi: float) -> float {
-    if value < lo { lo } else if value > hi { hi } else { value }
+pub fn clamp(value: float, lowest: float, highest: float) -> float {
+    if value < lowest { lowest } else if value > highest { highest } else { value }
 }
 
 pub fn max(first: float, second: float) -> float {
@@ -158,15 +158,15 @@ pub fn min(first: float, second: float) -> float {
     if first < second { first } else { second }
 }
 
-pub fn imax(first: int, second: int) -> int {
+pub fn int_max(first: int, second: int) -> int {
     if first > second { first } else { second }
 }
 
-pub fn imin(first: int, second: int) -> int {
+pub fn int_min(first: int, second: int) -> int {
     if first < second { first } else { second }
 }
 
-pub fn iabs(value: int) -> int {
+pub fn int_abs(value: int) -> int {
     if value < 0 { -value } else { value }
 }
 
@@ -197,23 +197,23 @@ pub fn xyz(vector: Vec3) -> [float] {
     [vector.x, vector.y, vector.z]
 }
 
-pub fn vadd(first: [float], second: [float]) -> [float] {
+pub fn vector_add(first: [float], second: [float]) -> [float] {
     [first[0] + second[0], first[1] + second[1], first[2] + second[2]]
 }
 
-pub fn vsub(first: [float], second: [float]) -> [float] {
+pub fn vector_subtract(first: [float], second: [float]) -> [float] {
     [first[0] - second[0], first[1] - second[1], first[2] - second[2]]
 }
 
-pub fn vscale(vector: [float], factor: float) -> [float] {
+pub fn vector_scale(vector: [float], factor: float) -> [float] {
     [vector[0] * factor, vector[1] * factor, vector[2] * factor]
 }
 
-pub fn vdot(first: [float], second: [float]) -> float {
+pub fn vector_dot(first: [float], second: [float]) -> float {
     first[0] * second[0] + first[1] * second[1] + first[2] * second[2]
 }
 
-pub fn vcross(first: [float], second: [float]) -> [float] {
+pub fn vector_cross(first: [float], second: [float]) -> [float] {
     [
         first[1] * second[2] - first[2] * second[1],
         first[2] * second[0] - first[0] * second[2],
@@ -223,16 +223,16 @@ pub fn vcross(first: [float], second: [float]) -> [float] {
 
 /// The unit vector and the length; a zero vector normalises to zero, so a
 /// caller can divide without checking first.
-pub fn vnorm(vector: [float]) -> Norm {
-    let length = math::sqrt(vdot(vector, vector));
+pub fn vector_normalise(vector: [float]) -> Norm {
+    let length = math::sqrt(vector_dot(vector, vector));
     if length < 1e-6 {
-        return Norm { dir: [0.0, 0.0, 0.0], len: 0.0 };
+        return Norm { direction: [0.0, 0.0, 0.0], length: 0.0 };
     }
-    Norm { dir: vscale(vector, 1.0 / length), len: length }
+    Norm { direction: vector_scale(vector, 1.0 / length), length: length }
 }
 
-pub fn dist(first: [float], second: [float]) -> float {
-    vnorm(vsub(first, second)).len
+pub fn distance(first: [float], second: [float]) -> float {
+    vector_normalise(vector_subtract(first, second)).length
 }
 
 /// Where `needle` first sits in `text`, or nil.
@@ -270,12 +270,12 @@ fn acronyms() -> [str] {
 
 /// A schema key as a row label: `edge_radius` reads "Edge radius". The key
 /// itself is untouched, so a label never becomes the name of anything.
-pub fn prop_label(prop: str) -> str {
-    if prop == "" {
-        return prop;
+pub fn property_label(property: str) -> str {
+    if property == "" {
+        return property;
     }
     let words: [str] = [];
-    for word in prop.split("_") {
+    for word in property.split("_") {
         words.push(if contains(acronyms(), word) { word.to_upper() } else { word });
     }
     capitalised(join(words, " "))
@@ -300,7 +300,7 @@ pub fn position(items: [str], needle: str) -> int? {
 }
 
 /// `contains` and `position` over rows of the document.
-pub fn icontains(items: [int], needle: int) -> bool {
+pub fn int_contains(items: [int], needle: int) -> bool {
     for it in items {
         if it == needle {
             return true;
@@ -309,7 +309,7 @@ pub fn icontains(items: [int], needle: int) -> bool {
     false
 }
 
-pub fn iposition(items: [int], needle: int) -> int? {
+pub fn int_position(items: [int], needle: int) -> int? {
     for index in 0..items.len() {
         if items[index] == needle {
             return index;
@@ -382,9 +382,9 @@ pub fn hex_to_rgb(hex: str) -> Rgb {
 fn hex_pair(hex: str, at: int) -> float {
     let digits = "0123456789abcdef";
     let pair = hex.slice(at, at + 2).to_lower();
-    let hi = imax(digits.find(pair.slice(0, 1)), 0);
-    let lo = imax(digits.find(pair.slice(1, 2)), 0);
-    (hi * 16 + lo) as float / 255.0
+    let high_digit = int_max(digits.find(pair.slice(0, 1)), 0);
+    let low_digit = int_max(digits.find(pair.slice(1, 2)), 0);
+    (high_digit * 16 + low_digit) as float / 255.0
 }
 
 /// Unit floats to `#rrggbb`: what a colour swatch reports, as a theme spells it.
@@ -392,7 +392,7 @@ pub fn to_hex(rgba: [float]) -> str {
     let digits = "0123456789abcdef";
     let out = "#";
     for channel in 0..3 {
-        let byte = imin(imax((rgba[channel] * 255.0 + 0.5) as int, 0), 255);
+        let byte = int_min(int_max((rgba[channel] * 255.0 + 0.5) as int, 0), 255);
         out += digits.slice(byte / 16, byte / 16 + 1);
         out += digits.slice(byte % 16, byte % 16 + 1);
     }
@@ -409,16 +409,16 @@ pub fn rgb(hex: str) -> [float] {
 // R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
 // the node's local axes (the matrix columns).
 pub fn basis_from_euler(euler: [float]) -> [[float]] {
-    let cr = math::cos(euler[0]);
-    let sr = math::sin(euler[0]);
-    let cp = math::cos(euler[1]);
-    let sp = math::sin(euler[1]);
-    let cy = math::cos(euler[2]);
-    let sy = math::sin(euler[2]);
+    let cos_roll = math::cos(euler[0]);
+    let sin_roll = math::sin(euler[0]);
+    let cos_pitch = math::cos(euler[1]);
+    let sin_pitch = math::sin(euler[1]);
+    let cos_yaw = math::cos(euler[2]);
+    let sin_yaw = math::sin(euler[2]);
     [
-        [cy * cp, sy * cp, -sp],
-        [cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr],
-        [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr],
+        [cos_yaw * cos_pitch, sin_yaw * cos_pitch, -sin_pitch],
+        [cos_yaw * sin_pitch * sin_roll - sin_yaw * cos_roll, sin_yaw * sin_pitch * sin_roll + cos_yaw * cos_roll, cos_pitch * sin_roll],
+        [cos_yaw * sin_pitch * cos_roll + sin_yaw * sin_roll, sin_yaw * sin_pitch * cos_roll - cos_yaw * sin_roll, cos_pitch * cos_roll],
     ]
 }
 
@@ -453,13 +453,13 @@ pub fn rotate_euler(euler: [float], axis: int, angle: float) -> [float] {
 pub fn rotate_about(point: [float], center: [float], axis: int, angle: float) -> [float] {
     let cosine = math::cos(angle);
     let sine = math::sin(angle);
-    let offset = vsub(point, center);
+    let offset = vector_subtract(point, center);
     let first_axis = (axis + 1) % 3;
     let second_axis = (axis + 2) % 3;
     let out = [offset[0], offset[1], offset[2]];
     out[first_axis] = offset[first_axis] * cosine - offset[second_axis] * sine;
     out[second_axis] = offset[first_axis] * sine + offset[second_axis] * cosine;
-    vadd(center, out)
+    vector_add(center, out)
 }
 
 /// The 2D world frame of a node's own space. A `path2d`'s control points
@@ -472,22 +472,22 @@ pub fn frame_of(found: Node) -> Frame {
 }
 
 /// A point in that frame, in the world.
-pub fn to_world(frame: Frame, lx: float, ly: float) -> Vec2 {
-    let px = lx * frame.scale_x;
-    let py = ly * frame.scale_y;
-    Vec2 { x: frame.x + frame.cosine * px - frame.sine * py, y: frame.y + frame.sine * px + frame.cosine * py }
+pub fn to_world(frame: Frame, local_x: float, local_y: float) -> Vec2 {
+    let scaled_x = local_x * frame.scale_x;
+    let scaled_y = local_y * frame.scale_y;
+    Vec2 { x: frame.x + frame.cosine * scaled_x - frame.sine * scaled_y, y: frame.y + frame.sine * scaled_x + frame.cosine * scaled_y }
 }
 
 /// A world point back in that frame. A zero scale places everything at the
 /// origin, so it is read as one rather than dividing by it.
-pub fn to_local(frame: Frame, wx: float, wy: float) -> Vec2 {
-    let dx = wx - frame.x;
-    let dy = wy - frame.y;
-    let px = frame.cosine * dx + frame.sine * dy;
-    let py = -frame.sine * dx + frame.cosine * dy;
-    let sx = if abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
-    let sy = if abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
-    Vec2 { x: px / sx, y: py / sy }
+pub fn to_local(frame: Frame, world_x: float, world_y: float) -> Vec2 {
+    let offset_x = world_x - frame.x;
+    let offset_y = world_y - frame.y;
+    let rotated_x = frame.cosine * offset_x + frame.sine * offset_y;
+    let rotated_y = -frame.sine * offset_x + frame.cosine * offset_y;
+    let scale_x = if abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
+    let scale_y = if abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
+    Vec2 { x: rotated_x / scale_x, y: rotated_y / scale_y }
 }
 
 /// A project path where the engine wants one. The editor's engine resolves a

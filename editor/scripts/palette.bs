@@ -205,14 +205,14 @@ fn commands(state: &mut editor::State) -> [Command] {
     let found = model::selected_node(state);
     if found.is_valid() {
         let present = found.component_names();
-        for known_comp in known.components {
-            let name = known_comp.name;
+        for known_component in known.components {
+            let name = known_component.name;
             if util::contains(present, name) {
                 list.push(command_with("Remove {name} component", icons::ui("close"), run_remove_component, name));
             } else {
                 let entry = command_with("Add {name} component", icons::ui("add"), run_add_component, name);
                 // Facets, so typing "physics" or "2d" narrows the list.
-                entry.tags = known_comp.tags;
+                entry.tags = known_component.tags;
                 list.push(entry);
             }
         }
@@ -234,7 +234,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         list.push(command("Open the selection's script", "‹›", "", "open_script"));
         list.push(command("Detach the selection's script", icons::ui("close"), "", "detach_script"));
     }
-    if rig::bone_count(state, state.sel) > 0 {
+    if rig::bone_count(state, state.selected) > 0 {
         list.push(command("Add a bone under the selection", icons::tool("bone"), "", "add_bone"));
         list.push(command("Reset the rig to its rest pose", icons::tool("bone"), "", "apply_rest"));
         list.push(command("Make the rig's pose its rest pose", icons::tool("bone"), "", "overwrite_rest"));
@@ -257,12 +257,12 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     }
     if !physics::drawn_mesh(found, two_d).is_nil() {
         for shape in physics::collider_shapes(two_d) {
-            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.props));
+            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.properties));
             entry.tags = shape.tip;
             list.push(entry);
         }
         for shape in physics::soft_shapes(two_d) {
-            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.props));
+            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.properties));
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -296,7 +296,7 @@ fn run_verb(state: &mut editor::State, data: any) {
         newnode::open_change(state);
     } else if verb == "soft_body" {
         if model::has_selection(state) {
-            recipes::soft_body(state, state.sel);
+            recipes::soft_body(state, state.selected);
         }
     } else if verb == "attach_script" {
         shell::attach_script(state);
@@ -306,7 +306,7 @@ fn run_verb(state: &mut editor::State, data: any) {
         shell::detach_script(state);
     } else if verb == "add_bone" {
         let at = model::selected_node(state).transform.global_position();
-        rig::add_bone(state, state.sel, at.x, at.y + 1.0);
+        rig::add_bone(state, state.selected, at.x, at.y + 1.0);
     } else if verb == "apply_rest" {
         rig::apply_rest(state);
     } else if verb == "overwrite_rest" {
@@ -328,7 +328,7 @@ fn run_verb(state: &mut editor::State, data: any) {
     } else if verb == "clear_deform" {
         polygon::clear_deform(state);
     } else if verb == "sprite_to_polygon" {
-        recipes::sprite_to_polygon(state, state.sel);
+        recipes::sprite_to_polygon(state, state.selected);
     } else if verb == "play" {
         shell::toggle_play(state);
     } else if verb == "save" {
@@ -448,15 +448,15 @@ fn run_add_component(state: &mut editor::State, data: any) {
 /// Fill the picker: what its script asks for while the palette is up.
 pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
-    let row_h = util::max(style::row_h(state), 30.0);
+    let row_height = util::max(style::row_height(state), 30.0);
     let field = map()
         .with("width", 560.0)
         .with("mark", icons::ui("search"))
         .with("placeholder", "Nodes, commands, workspaces…")
         .with("query", state.palette_query)
-        .with("rows_h", (matched.len() as float) * (row_h + 2.0) + 4.0);
+        .with("rows_h", (matched.len() as float) * (row_height + 2.0) + 4.0);
     let host = window::picker(state, pool::on_submit(pool::on(field, typed, map()), submitted, map()));
-    pool::sync(state, host, row_specs(state, matched, row_h), 0.0, false);
+    pool::sync(state, host, row_specs(state, matched, row_height), 0.0, false);
 }
 
 fn typed(state: &mut editor::State, data: any, text: any) {
@@ -474,15 +474,15 @@ fn submitted(state: &mut editor::State, data: any, text: any) {
 fn matches(state: &mut editor::State) -> [Command] {
     let query = state.palette_query.to_lower();
     let out: [Command] = [];
-    for cmd in commands(state) {
-        if query == "" || (cmd.label + " " + cmd.tags).to_lower().contains(query) {
-            out.push(cmd);
+    for command_entry in commands(state) {
+        if query == "" || (command_entry.label + " " + command_entry.tags).to_lower().contains(query) {
+            out.push(command_entry);
         }
     }
     out
 }
 
-fn row_specs(state: &mut editor::State, matched: [Command], row_h: float) -> [any] {
+fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [any] {
     let out: [any] = [];
     if matched.len() == 0 {
         let none = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("wrap", true).with("text", "no matches");
@@ -500,22 +500,22 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_h: float) -> [an
         return out;
     }
     for at in 0..matched.len() {
-        let cmd = matched[at];
+        let command_entry = matched[at];
         let button = map()
             .with("kind", "button")
             .with("grow", 1)
-            .with("text", cmd.label)
-            .with("icon", cmd.icon)
+            .with("text", command_entry.label)
+            .with("icon", command_entry.icon)
             .with("role", "item_picker")
             .with("checked", at == 0)
-            .with("tooltip", cmd.key);
+            .with("tooltip", command_entry.key);
         out.push(map()
             .with("full", true)
-            .with("height", row_h)
+            .with("height", row_height)
             .with("slot_role", "layout_actions")
             .with("controls", [
-                pool::on(button, picked, map().with("run", cmd.run).with("arg", cmd.data)),
-                map().with("kind", "label").with("role", "text_caption").with("text", cmd.key),
+                pool::on(button, picked, map().with("run", command_entry.run).with("arg", command_entry.data)),
+                map().with("kind", "label").with("role", "text_caption").with("text", command_entry.key),
             ]));
     }
     out

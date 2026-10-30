@@ -76,11 +76,11 @@ pub fn stem_of(path: str) -> str {
     stem.to_lower().replace(" ", "_").replace("-", "_")
 }
 
-/// Copy a dropped file under `dir` inside the project, answering the
+/// Copy a dropped file under `directory` inside the project, answering the
 /// project-relative path. A name already taken gets a numbered suffix, so a
 /// second drop of the same file never overwrites the first.
-pub fn copy_in(state: &mut editor::State, path: str, dir: str) -> str? {
-    let target = landing(state, path, dir);
+pub fn copy_in(state: &mut editor::State, path: str, directory: str) -> str? {
+    let target = landing(state, path, directory);
     if !fs::exists(path) {
         log::warn("could not read " + path);
         return nil;
@@ -90,20 +90,20 @@ pub fn copy_in(state: &mut editor::State, path: str, dir: str) -> str? {
     target
 }
 
-/// Where a file copied into `dir` lands, project-relative: its own name, or
+/// Where a file copied into `directory` lands, project-relative: its own name, or
 /// that with a numbered suffix when the name is taken.
-fn landing(state: &mut editor::State, path: str, dir: str) -> str {
+fn landing(state: &mut editor::State, path: str, directory: str) -> str {
     let name = file_name(path);
-    let target = dir + "/" + name;
+    let target = directory + "/" + name;
     if fs::exists(state.game_root + "/" + target) {
         let halves = name.split_once(".");
         let stem = if halves.len() == 2 { halves[0] } else { name };
         let extension = if name.len() > stem.len() { name.slice(stem.len(), name.len()) } else { "" };
         let suffix = 2;
-        while fs::exists(state.game_root + "/" + dir + "/" + "{stem}_{suffix}{extension}") {
+        while fs::exists(state.game_root + "/" + directory + "/" + "{stem}_{suffix}{extension}") {
             suffix += 1;
         }
-        target = dir + "/" + "{stem}_{suffix}{extension}";
+        target = directory + "/" + "{stem}_{suffix}{extension}";
     }
     target
 }
@@ -325,33 +325,33 @@ fn new_job(source: str, files: int) -> any {
 /// Every import reports here, one call per step: what is coming, each file as
 /// it lands, then the end.
 pub fn report(state: &mut editor::State, event: any) {
-    let ev = util::obj(event);
-    let kind = ev.kind.as_str();
-    let source = ev.source.as_str();
+    let import_event = util::map_or_empty(event);
+    let kind = import_event.kind.as_str();
+    let source = import_event.source.as_str();
     if kind == "started" {
         // Keyed by the source, because several can run at once and each
         // reports its own steps.
-        state.jobs.set(source, new_job(source, ev.files.as_int()));
+        state.jobs.set(source, new_job(source, import_event.files.as_int()));
     } else if kind == "wrote" {
         let job = state.jobs.get(source);
         if !job.is_nil() {
-            job.set("done", ev.done.as_int());
-            job.set("files", ev.files.as_int());
+            job.set("done", import_event.done.as_int());
+            job.set("files", import_event.files.as_int());
         }
     } else if kind == "done" {
         let written = written_by(state, source);
         ended(state, source, "imported");
         model::forget(state, nil);
         log::info("imported {file_name(source)} ({written} files)");
-        let note = ev.note.as_str();
+        let note = import_event.note.as_str();
         if note != "" {
             log::info(note);
         }
-        if ev.scene.kind() == "str" {
-            model::instance_scene(state, ev.scene.as_str());
+        if import_event.scene.kind() == "str" {
+            model::instance_scene(state, import_event.scene.as_str());
         }
     } else if kind == "cancelled" {
-        let written = ev.done.as_int();
+        let written = import_event.done.as_int();
         ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
         state.jobs.get(source).set("done", written);
@@ -359,7 +359,7 @@ pub fn report(state: &mut editor::State, event: any) {
         log::info("stopped importing {file_name(source)} after {written} files");
     } else if kind == "failed" {
         ended(state, source, "failed");
-        log::error("importing {file_name(source)} failed: {ev.message.as_str()}");
+        log::error("importing {file_name(source)} failed: {import_event.message.as_str()}");
         // A line in a dock nobody has open is not a report, so open it.
         docks::show(state, "output");
     }

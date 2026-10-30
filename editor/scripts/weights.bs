@@ -22,11 +22,11 @@ struct Table {
     at: [int],
 }
 
-const NAME_W: float = 92.0;
+const NAME_WIDTH: float = 92.0;
 
-const CELL_W: float = 58.0;
+const CELL_WIDTH: float = 58.0;
 
-const ROW_H: float = 22.0;
+const ROW_HEIGHT: float = 22.0;
 
 // A weight under this is noise from a brush pass and is dropped rather than
 // written; four decimals is already more than a rig needs.
@@ -51,7 +51,7 @@ fn table(state: editor::State) -> Table? {
 }
 
 fn weight_of(bone: any, at: int) -> float {
-    (util::vec(bone.weights).at(at)).as_float()
+    (util::list_or_empty(bone.weights).at(at)).as_float()
 }
 
 fn set_weight(bone: any, at: int, value: float) {
@@ -175,8 +175,8 @@ pub fn auto(state: &mut editor::State) {
         let point = polygon::world_point(state, listing.mesh, frame.unwrap(), at);
         let near: [float] = [];
         let total = 0.0;
-        for seg in segments {
-            let distance = if seg.is_some() { rig::segment_distance(point, seg.unwrap().origin, seg.unwrap().tip) } else { -1.0 };
+        for segment in segments {
+            let distance = if segment.is_some() { rig::segment_distance(point, segment.unwrap().origin, segment.unwrap().tip) } else { -1.0 };
             // A vertex sitting on a bone would divide by zero; the floor
             // is a millimetre at the scale a 2D rig is built in.
             let weight = if distance < 0.0 { 0.0 } else { 1.0 / util::max(distance * distance, 1e-6) };
@@ -216,7 +216,7 @@ pub fn smooth(state: &mut editor::State) {
         was.push(row);
     }
     for at in listing.at {
-        let ring = util::vec(neighbours.get("{at}"));
+        let ring = util::list_or_empty(neighbours.get("{at}"));
         for bone_index in 0..listing.bones.len() {
             let total = was[bone_index][at];
             for neighbour in ring {
@@ -237,7 +237,7 @@ fn edges(mesh: any) -> any {
     for vertex in 0..outline {
         join(out, vertex, if vertex == outline - 1 { 0 } else { vertex + 1 });
     }
-    for ring in util::vec(mesh.polygons) {
+    for ring in util::list_or_empty(mesh.polygons) {
         for corner in 0..ring.len() {
             join(out, ring[corner].as_int(), ring[if corner == ring.len() - 1 { 0 } else { corner + 1 }].as_int());
         }
@@ -331,7 +331,7 @@ fn label(text: str, width: float, role: str) -> any {
 }
 
 fn header(state: editor::State, listing: Table) -> [any] {
-    let out = [label("vertex", NAME_W, "text_code_quiet")];
+    let out = [label("vertex", NAME_WIDTH, "text_code_quiet")];
     let active = if state.polygon.bone.is_some() { state.polygon.bone.unwrap() } else { -1 };
     for bone_index in 0..listing.bones.len() {
         let path = listing.bones.at(bone_index).path.as_str();
@@ -340,7 +340,7 @@ fn header(state: editor::State, listing: Table) -> [any] {
         out.push(map()
             .with("kind", "button")
             .with("role", "chip")
-            .with("width", CELL_W)
+            .with("width", CELL_WIDTH)
             .with("height", 20)
             .with("text", util::leaf(path))
             .with("tooltip", path)
@@ -348,7 +348,7 @@ fn header(state: editor::State, listing: Table) -> [any] {
             .with("on", "handle")
             .with("data", map().with("fn", pick_bone).with("at", bone_index)));
     }
-    out.push(label("sum", CELL_W, "text_code_quiet"));
+    out.push(label("sum", CELL_WIDTH, "text_code_quiet"));
     out
 }
 
@@ -363,7 +363,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
         map()
             .with("kind", "button")
             .with("role", "chip")
-            .with("width", NAME_W - 6.0)
+            .with("width", NAME_WIDTH - 6.0)
             .with("height", 20)
             .with("text", "{at}")
             .with("tooltip", "Show this vertex alone in the viewport")
@@ -377,7 +377,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
         total += was;
         controls.push(map()
             .with("kind", "number_field")
-            .with("width", CELL_W - 6.0)
+            .with("width", CELL_WIDTH - 6.0)
             .with("value", was)
             .with("drag_speed", 0.01)
             .with("decimals", 2)
@@ -390,8 +390,8 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
     // A sum that is not one is what a Normalise is for, so it is said rather
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
-    controls.push(label(util::fixed(total, 2), CELL_W, if off { "text_caption_primary" } else { "text_code_quiet" }));
-    map().with("full", true).with("height", ROW_H).with("controls", controls)
+    controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { "text_code_quiet" }));
+    map().with("full", true).with("height", ROW_HEIGHT).with("controls", controls)
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {

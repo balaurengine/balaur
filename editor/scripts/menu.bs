@@ -15,9 +15,9 @@ use themewin;
 
 // A row, and the two columns the panel list runs in: seventeen panels down
 // one column is taller than the window the editor is asked to fit.
-const ROW_W: float = 216.0;
+const ROW_WIDTH: float = 216.0;
 
-const CELL_W: float = 108.0;
+const CELL_WIDTH: float = 108.0;
 
 /// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
 /// pass; the menu node draws them in its popup when it is opened.
@@ -29,7 +29,7 @@ pub fn rows(state: &mut editor::State) -> [any] {
         action(icons::ui("export"), "Export", "⌘E", "export"),
         action(icons::ui("about"), "About Balaur", "", "about"),
         rule(),
-        map().with("kind", "label").with("role", "text_heading_menu").with("text", "PANELS").with("width", ROW_W),
+        map().with("kind", "label").with("role", "text_heading_menu").with("text", "PANELS").with("width", ROW_WIDTH),
     ];
     for pair in panel_pairs(state) {
         out.push(pair);
@@ -62,7 +62,7 @@ fn action(icon: str, label: str, key: str, verb: str) -> any {
         .with("kind", "button")
         .with("role", "item_menu")
         .with("text", label)
-        .with("width", ROW_W)
+        .with("width", ROW_WIDTH)
         .with("icon", icon)
         .with("trailing", key);
     pool::on(row, act, map().with("verb", verb))
@@ -70,7 +70,7 @@ fn action(icon: str, label: str, key: str, verb: str) -> any {
 
 // A rule the width of the menu: a bare one takes the width it is offered.
 fn rule() -> any {
-    map().with("kind", "separator").with("width", ROW_W)
+    map().with("kind", "separator").with("width", ROW_WIDTH)
 }
 
 // Every panel, ticked where it is open, two to a line. Clicking one closes it
@@ -99,7 +99,7 @@ fn cell(state: &mut editor::State, id: str) -> any {
         // panel's name starts where an open one's does.
         .with("icon", if open { icons::ui("check") } else { " " })
         .with("text", docks::name(state, id))
-        .with("width", CELL_W)
+        .with("width", CELL_WIDTH)
         .with("keep_open", true);
     pool::on(row, toggled, map().with("id", id))
 }

@@ -57,7 +57,7 @@ fn roots(state: editor::State) -> [str] {
     }
     let found = ["plugins", state.game_root + "/editor"];
     let addons = state.game_root + "/addons";
-    for entry in util::vec(fs::list(addons)) {
+    for entry in util::list_or_empty(fs::list(addons)) {
         if entry.is_dir.as_bool() {
             found.push(addons + "/" + entry.name.as_str() + "/editor");
         }
@@ -76,7 +76,7 @@ pub fn load(state: &mut editor::State) {
     }
     for root in roots(state) {
         let names: [str] = [];
-        for entry in util::vec(fs::list(root)) {
+        for entry in util::list_or_empty(fs::list(root)) {
             let name = entry.name.as_str();
             if !entry.is_dir.as_bool() && name.ends_with(".bs") {
                 names.push(name);
@@ -111,7 +111,7 @@ fn load_one(state: &mut editor::State, host: Node, path: str, id: str) {
 
 // Every list is optional: a plugin declares only what it adds.
 fn add_all(state: &mut editor::State, owner: Node, declared: any) {
-    for entry in util::vec(declared.panels) {
+    for entry in util::list_or_empty(declared.panels) {
         state.registry.panels.push(map()
             .with("id", entry.id)
             .with("title", entry.title)
@@ -123,10 +123,10 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
         // the dock whose tab list holds its id.
         docks::adopt(state, entry.id.as_str());
     }
-    for entry in util::vec(declared.dialogs) {
+    for entry in util::list_or_empty(declared.dialogs) {
         state.registry.dialogs.push(map().with("id", entry.id).with("title", entry.title).with("rows", entry.rows).with("owner", owner));
     }
-    for entry in util::vec(declared.commands) {
+    for entry in util::list_or_empty(declared.commands) {
         let icon = entry.icon;
         state.registry.commands.push(map()
             .with("title", entry.title)
@@ -135,18 +135,18 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
             .with("run", entry.run)
             .with("owner", owner));
     }
-    for rows in util::vec(declared.inspector_sections) {
+    for rows in util::list_or_empty(declared.inspector_sections) {
         state.registry.inspector_sections.push(map().with("rows", rows).with("owner", owner));
     }
-    for draw in util::vec(declared.overlays) {
+    for draw in util::list_or_empty(declared.overlays) {
         state.registry.overlays.push(map().with("draw", draw).with("owner", owner));
     }
     // A property editor answers a row's controls for a value of its type.
-    let editors = util::obj(declared.property_editors);
+    let editors = util::map_or_empty(declared.property_editors);
     for datatype in editors.keys() {
         state.registry.property_editors.set(datatype, map().with("controls", editors.get(datatype)).with("owner", owner));
     }
-    let states = util::obj(declared.startup_states);
+    let states = util::map_or_empty(declared.startup_states);
     for name in states.keys() {
         state.registry.startup_states.set(name, map().with("run", states.get(name)).with("owner", owner));
     }
@@ -184,8 +184,8 @@ pub fn run(state: &mut editor::State, command: any) {
 /// section returns row specs as `pool.bs` takes them, and draws nothing.
 pub fn section_rows(state: &mut editor::State, tokens: any, node: Node) {
     for entry in state.registry.inspector_sections {
-        for row in util::vec(ask(entry, "rows", map().with("theme", tokens).with("node", node))) {
-            inspector::add_row(state, calls_back(entry, util::obj(row)));
+        for row in util::list_or_empty(ask(entry, "rows", map().with("theme", tokens).with("node", node))) {
+            inspector::add_row(state, calls_back(entry, util::map_or_empty(row)));
         }
     }
 }
@@ -194,7 +194,7 @@ pub fn section_rows(state: &mut editor::State, tokens: any, node: Node) {
 // on the plugin's node with the control's `data`.
 fn calls_back(entry: any, row: any) -> any {
     let controls: [any] = [];
-    for control in util::vec(row.get("controls")) {
+    for control in util::list_or_empty(row.get("controls")) {
         let call = control.get("call");
         if call.kind() == "str" {
             let data = map().with("owner", entry.owner).with("call", call).with("payload", control.get("data"));
@@ -222,7 +222,7 @@ pub fn draw_overlays(state: editor::State) {
 
 // Where the open dialogs go: a column down the left of the stage.
 const DIALOGS: str = "Editor/Dialogs";
-const DIALOG_W: float = 260.0;
+const DIALOG_WIDTH: float = 260.0;
 
 /// Fill the open plugin dialogs, a sheet each with its title and close over
 /// the rows the plugin hands back, and place them against the stage.
@@ -248,19 +248,19 @@ pub fn fill_dialogs(state: &mut editor::State) {
             map().with("kind", "row").with("align_items", "center").with("controls", head),
             map().with("kind", "separator"),
         ];
-        for row in util::vec(ask(entry, "rows", map().with("theme", tokens))) {
-            body.push(row_controls(util::obj(row)));
+        for row in util::list_or_empty(ask(entry, "rows", map().with("theme", tokens))) {
+            body.push(row_controls(util::map_or_empty(row)));
         }
         out.push(map()
             .with("kind", "panel")
             .with("role", "sheet")
-            .with("width", DIALOG_W)
+            .with("width", DIALOG_WIDTH)
             .with("padding", [12, 6, 12, 8])
             .with("gap", [6, 6])
             .with("controls", body));
     }
-    let vp = state.layout.stage;
-    util::fill(DIALOGS, map().with("visible", out.len() > 0).with("x", vp.x.as_float() + 12.0).with("y", vp.y.as_float() + 12.0));
+    let viewport_rect = state.layout.stage;
+    util::fill(DIALOGS, map().with("visible", out.len() > 0).with("x", viewport_rect.x.as_float() + 12.0).with("y", viewport_rect.y.as_float() + 12.0));
     pool::strip(state, DIALOGS, out);
 }
 
@@ -277,7 +277,7 @@ fn row_controls(row: any) -> any {
     if !label.is_nil() {
         controls.push(map().with("kind", "label").with("role", "text_caption").with("text", label));
     }
-    for one in util::vec(row.controls) {
+    for one in util::list_or_empty(row.controls) {
         controls.push(one);
     }
     map().with("kind", "row").with("gap", [6, 6]).with("align_items", "center").with("controls", controls)

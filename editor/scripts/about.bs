@@ -14,7 +14,7 @@ const SITE: str = "https://balaurengine.org";
 
 const SOURCE: str = "https://github.com/balaurengine/balaur";
 
-const LABEL_W: float = 96.0;
+const LABEL_WIDTH: float = 96.0;
 
 /// Show the sheet. Opening it is asking, so the feed is read once here unless
 /// the start screen already read it.
@@ -32,13 +32,13 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let hosts = hosts.unwrap();
-    pool::sync(state, hosts.form, specs(state), LABEL_W, false);
+    pool::sync(state, hosts.form, specs(state), LABEL_WIDTH, false);
 }
 
 /// Every row the sheet shows: which build this is, the line it follows, and
 /// where to read more.
 fn specs(state: editor::State) -> [any] {
-    let mine = util::obj(release::installed());
+    let mine = util::map_or_empty(release::installed());
     let out = [
         map()
             .with("full", true)

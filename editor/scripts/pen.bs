@@ -36,9 +36,9 @@ pub fn state() -> PenState {
     PenState { hover: -1, drag: nil, path: nil, reference: "", dirty: false }
 }
 
-const PICK_PX: float = 9.0;
+const PICK_PIXELS: float = 9.0;
 
-const MARK_PX: float = 4.5;
+const MARK_PIXELS: float = 4.5;
 
 const LINE_WIDTH: float = 1.6;
 
@@ -95,7 +95,7 @@ pub fn current(state: &mut editor::State) -> Loaded? {
         return nil;
     }
     let points: [[float]] = [];
-    for point in util::vec(definition.points) {
+    for point in util::list_or_empty(definition.points) {
         points.push(util::vec2(point, [0.0, 0.0]));
     }
     let loaded = Loaded { points: points, closed: definition.closed.as_bool() };
@@ -136,7 +136,7 @@ fn frame(state: editor::State) -> util::Frame? {
 
 /// Append an anchor at the end, with handles level with the segment it makes,
 /// so a click-click-click draws a smooth chain rather than a set of corners.
-pub fn add_anchor(state: &mut editor::State, lx: float, ly: float) {
+pub fn add_anchor(state: &mut editor::State, local_x: float, local_y: float) {
     let path_or = current(state);
     if path_or.is_none() {
         return;
@@ -149,11 +149,11 @@ pub fn add_anchor(state: &mut editor::State, lx: float, ly: float) {
     history::record(state, "add path point", nil);
     let points = path.points;
     if points.len() == 0 {
-        points.push([lx, ly]);
+        points.push([local_x, local_y]);
     } else if points.len() == 1 {
         // Two points on their own are a straight line, which the asset reads
         // without control points.
-        points.push([lx, ly]);
+        points.push([local_x, local_y]);
     } else {
         // Promote the straight pair to cubics, then append the segment.
         if points.len() == 2 {
@@ -163,7 +163,7 @@ pub fn add_anchor(state: &mut editor::State, lx: float, ly: float) {
             path.points = points;
         }
         let last = points[points.len() - 1];
-        let next = [lx, ly];
+        let next = [local_x, local_y];
         points.push(lerp(last, next, 1.0 / 3.0));
         points.push(lerp(last, next, 2.0 / 3.0));
         points.push(next);
@@ -178,7 +178,7 @@ fn lerp(from: [float], to: [float], amount: float) -> [float] {
 
 /// Move one control point. An anchor takes its handles with it; a handle
 /// mirrors its partner unless the drag broke the pair.
-pub fn move_point(state: &mut editor::State, at: int, lx: float, ly: float, broken: bool) {
+pub fn move_point(state: &mut editor::State, at: int, local_x: float, local_y: float, broken: bool) {
     let path_or = current(state);
     if path_or.is_none() {
         return;
@@ -190,8 +190,8 @@ pub fn move_point(state: &mut editor::State, at: int, lx: float, ly: float, brok
     }
     history::record(state, "move path point", "pen:{at}");
     let was = points[at];
-    let delta = [lx - was[0], ly - was[1]];
-    points[at] = [lx, ly];
+    let delta = [local_x - was[0], local_y - was[1]];
+    points[at] = [local_x, local_y];
     let count = points.len();
     if points.len() > 2 && at % 3 == 0 {
         // An anchor: both handles follow, so the curve does not kink.
@@ -207,7 +207,7 @@ pub fn move_point(state: &mut editor::State, at: int, lx: float, ly: float, brok
         let partner = if at % 3 == 1 { at - 2 } else { at + 2 };
         if partner >= 0 && anchor < count && partner < count {
             let anchor_point = points[anchor];
-            points[partner] = [anchor_point[0] - (lx - anchor_point[0]), anchor_point[1] - (ly - anchor_point[1])];
+            points[partner] = [anchor_point[0] - (local_x - anchor_point[0]), anchor_point[1] - (local_y - anchor_point[1])];
         }
     }
     state.pen.dirty = true;
@@ -279,29 +279,29 @@ pub fn toggle_closed(state: &mut editor::State) {
 /// to draw into from a scene that has none.
 pub fn new_path(state: &mut editor::State) {
     let name = model::unique_name(state, "Path");
-    let rel = "paths/{name.to_lower()}.toml";
-    assets::save(state.game_root + "/" + rel, map().with("type", "path2d").with("points", []).with("closed", false));
+    let relative_path = "paths/{name.to_lower()}.toml";
+    assets::save(state.game_root + "/" + relative_path, map().with("type", "path2d").with("points", []).with("closed", false));
     model::forget(state, nil);
     history::record(state, "add path", nil);
     let made = model::spawn(state, state.scene_root.unwrap(), name, map()
         .with("transform", map().with("position", [0.0, 0.0, 0.0]))
-        .with("shape2d", map().with("kind", render::SHAPE_POLYLINE).with("mesh", rel).with("width", 0.06)));
+        .with("shape2d", map().with("kind", render::SHAPE_POLYLINE).with("mesh", relative_path).with("width", 0.06)));
     model::reindex(state);
     selection::only(state, model::index_of_node(state, made).unwrap_or(0));
     state.tool = "pen";
     signals::inspector(state);
-    log::info("added " + rel);
+    log::info("added " + relative_path);
 }
 
 /// The control point under the pointer, or -1.
-fn pick(state: editor::State, path: Loaded, node_frame: util::Frame, mx: float, my: float) -> int {
-    let reach = PICK_PX * viewport::world_per_px(state);
+fn pick(state: editor::State, path: Loaded, node_frame: util::Frame, world_x: float, world_y: float) -> int {
+    let reach = PICK_PIXELS * viewport::world_per_pixel(state);
     let best = -1;
     let best_distance = reach;
     for index in 0..path.points.len() {
         let point = path.points[index];
         let world = util::to_world(node_frame, point[0], point[1]);
-        let distance = math::sqrt((world.x - mx) * (world.x - mx) + (world.y - my) * (world.y - my));
+        let distance = math::sqrt((world.x - world_x) * (world.x - world_x) + (world.y - world_y) * (world.y - world_y));
         // Anchors win ties: a handle sits on top of one when it is not pulled.
         let holds_handle = best >= 0 && best % 3 != 0;
         if distance < best_distance || (distance <= reach && index % 3 == 0 && holds_handle) {
@@ -313,8 +313,8 @@ fn pick(state: editor::State, path: Loaded, node_frame: util::Frame, mx: float, 
 }
 
 /// Runs every frame while the Pen is the active tool, from the 2D gizmo's
-/// dispatch. `mx`/`my` are the pointer in world units.
-pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: float) {
+/// dispatch. `world_x`/`world_y` are the pointer in world units.
+pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, world_y: float) {
     let path_or = current(state);
     if path_or.is_none() {
         state.pen.hover = -1;
@@ -326,7 +326,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
         return;
     }
     let node_frame = frame_or.unwrap();
-    state.pen.hover = if over_viewport { pick(state, path, node_frame, mx, my) } else { -1 };
+    state.pen.hover = if over_viewport { pick(state, path, node_frame, world_x, world_y) } else { -1 };
     let broken = input::key_down(input::KEY_ALT);
     if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         let hit = state.pen.hover;
@@ -339,7 +339,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
                 state.pen.drag = Drag { at: hit, broken: broken };
             }
         } else {
-            let local = util::to_local(node_frame, mx, my);
+            let local = util::to_local(node_frame, world_x, world_y);
             add_anchor(state, local.x, local.y);
             // The new anchor is the one a drag now pulls a handle from.
             if state.pen.path.is_some() {
@@ -362,7 +362,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: flo
     }
     if state.pen.drag.is_some() {
         let pull = state.pen.drag.unwrap();
-        let local = util::to_local(node_frame, mx, my);
+        let local = util::to_local(node_frame, world_x, world_y);
         move_point(state, pull.at, local.x, local.y, pull.broken);
     }
 }
@@ -391,31 +391,31 @@ pub fn draw(state: &mut editor::State) {
     let tokens = state.theme;
     let accent = util::rgb(tokens.primary_text.as_str());
     let dim = util::rgb(tokens.text_muted.as_str());
-    let mark = MARK_PX * viewport::world_per_px(state);
+    let mark = MARK_PIXELS * viewport::world_per_pixel(state);
     for index in 0..path.points.len() {
         let point = path.points[index];
         let world = util::to_world(node_frame, point[0], point[1]);
-        let wx = world.x;
-        let wy = world.y;
+        let world_x = world.x;
+        let world_y = world.y;
         let is_anchor = path.points.len() < 3 || index % 3 == 0;
         let color = if state.pen.hover == index || is_anchor { accent } else { dim };
         if is_anchor {
             let half = mark;
-            render::draw_line_2d(wx - half, wy - half, wx + half, wy - half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(wx + half, wy - half, wx + half, wy + half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(wx + half, wy + half, wx - half, wy + half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(wx - half, wy + half, wx - half, wy - half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x - half, world_y - half, world_x + half, world_y - half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x + half, world_y - half, world_x + half, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x + half, world_y + half, world_x - half, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x - half, world_y + half, world_x - half, world_y - half, color[0], color[1], color[2], LINE_WIDTH);
         } else {
             // The tether to the anchor this handle belongs to.
             let anchor = if index % 3 == 1 { index - 1 } else { index + 1 };
             if anchor < path.points.len() {
                 let anchor_point = path.points[anchor];
                 let anchor_world = util::to_world(node_frame, anchor_point[0], anchor_point[1]);
-                render::draw_line_2d(anchor_world.x, anchor_world.y, wx, wy, dim[0], dim[1], dim[2], 1.0);
+                render::draw_line_2d(anchor_world.x, anchor_world.y, world_x, world_y, dim[0], dim[1], dim[2], 1.0);
             }
             let half = mark * 0.7;
-            render::draw_line_2d(wx - half, wy, wx + half, wy, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(wx, wy - half, wx, wy + half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x - half, world_y, world_x + half, world_y, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(world_x, world_y - half, world_x, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
         }
     }
 }

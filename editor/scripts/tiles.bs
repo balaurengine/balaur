@@ -66,12 +66,12 @@ pub struct Frame {
     sine: float,
     scale_x: float,
     scale_y: float,
-    tw: float,
-    th: float,
+    tile_width: float,
+    tile_height: float,
     columns: int,
     rows: int,
-    ox: int,
-    oy: int,
+    origin_x: int,
+    origin_y: int,
 }
 
 /// One map among the layers of one map.
@@ -140,12 +140,12 @@ pub fn mode_name(id: str) -> str {
 // The tile set's definition: an inline table is the definition itself; a
 // string names a file, which the engine reads by absolute path because the
 // editor's own project root is not the game's. Nil when there is none.
-fn tileset_def(state: editor::State) -> any {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+fn tileset_definition(state: editor::State) -> any {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return nil;
     }
-    let named = comp.tileset;
+    let named = edited_component.tileset;
     if named.kind() == "map" {
         return named;
     }
@@ -159,11 +159,11 @@ fn tileset_def(state: editor::State) -> any {
 /// The terrains the tile set names, for the brush to choose between.
 pub fn terrains(state: editor::State) -> [Terrain] {
     let out: [Terrain] = [];
-    let def = tileset_def(state);
-    if def.is_nil() {
+    let definition = tileset_definition(state);
+    if definition.is_nil() {
         return out;
     }
-    let list = util::vec(def.terrains);
+    let list = util::list_or_empty(definition.terrains);
     for index in 0..list.len() {
         let entry = list[index];
         if entry.kind() == "map" {
@@ -209,11 +209,11 @@ fn flood(state: editor::State, column: int, row: int) -> [Cell] {
 
 /// The cells a straight line from one to another passes through.
 fn line_cells(from: Cell, to: Cell) -> [Cell] {
-    let dx = util::iabs(to.x - from.x);
-    let dy = util::iabs(to.y - from.y);
-    let sx = if from.x < to.x { 1 } else { -1 };
-    let sy = if from.y < to.y { 1 } else { -1 };
-    let err = dx - dy;
+    let delta_x = util::int_abs(to.x - from.x);
+    let delta_y = util::int_abs(to.y - from.y);
+    let step_x = if from.x < to.x { 1 } else { -1 };
+    let step_y = if from.y < to.y { 1 } else { -1 };
+    let error_term = delta_x - delta_y;
     let column = from.x;
     let row = from.y;
     let out: [Cell] = [];
@@ -224,14 +224,14 @@ fn line_cells(from: Cell, to: Cell) -> [Cell] {
         if column == to.x && row == to.y {
             break;
         }
-        let twice = err * 2;
-        if twice > -dy {
-            err -= dy;
-            column += sx;
+        let twice = error_term * 2;
+        if twice > -delta_y {
+            error_term -= delta_y;
+            column += step_x;
         }
-        if twice < dx {
-            err += dx;
-            row += sy;
+        if twice < delta_x {
+            error_term += delta_x;
+            row += step_y;
         }
     }
     out
@@ -284,8 +284,8 @@ pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: in
         return false;
     }
     let found = model::selected_node(state);
-    let comp = component(state, model::selected_node(state));
-    if !found.is_valid() || comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if !found.is_valid() || edited_component.is_nil() {
         return false;
     }
     history::record(state, if value < 0 { "erase terrain" } else { "paint terrain" }, "terrain");
@@ -295,16 +295,16 @@ pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: in
         return false;
     }
     if !table.cells.is_nil() {
-        comp.set("cells", table.cells);
+        edited_component.set("cells", table.cells);
     }
-    comp.set("terrain", table.terrain);
+    edited_component.set("terrain", table.terrain);
     let start = table.origin;
     if start.is_nil() {
         start = [0.0, 0.0];
     }
-    comp.set("origin", start);
+    edited_component.set("origin", start);
     if table.flags.kind() == "list" {
-        comp.set("flags", table.flags);
+        edited_component.set("flags", table.flags);
     }
     apply(state);
     true
@@ -323,25 +323,25 @@ const COMPONENT: str = "tilemap";
 /// A tilemap whose cells are inline rows. One naming a `.cells` file is
 /// left alone: a paint would write rows into the scene over the file.
 pub fn editable(state: editor::State) -> bool {
-    let comp = component(state, model::selected_node(state));
-    !comp.is_nil() && !file_backed(comp)
+    let edited_component = component(state, model::selected_node(state));
+    !edited_component.is_nil() && !file_backed(edited_component)
 }
 
 /// Whether `cells` names a `.cells` file rather than holding rows. The
 /// schema default is the empty string, which is no file and no rows.
-fn file_backed(comp: any) -> bool {
-    comp.cells.kind() == "str" && comp.cells.as_str() != ""
+fn file_backed(edited_component: any) -> bool {
+    edited_component.cells.kind() == "str" && edited_component.cells.as_str() != ""
 }
 
 /// The tile set behind the selected map: its texture, tile size and columns.
 pub fn tileset(state: editor::State) -> Set? {
-    let def = tileset_def(state);
-    if def.is_nil() {
+    let definition = tileset_definition(state);
+    if definition.is_nil() {
         return nil;
     }
-    let size = tile_extent(def.tile_size);
-    let columns = def.columns.as_int();
-    let texture = def.texture.as_str();
+    let size = tile_extent(definition.tile_size);
+    let columns = definition.columns.as_int();
+    let texture = definition.texture.as_str();
     if size[0] <= 0.0 || size[1] <= 0.0 || columns < 1 || texture == "" {
         return nil;
     }
@@ -350,8 +350,8 @@ pub fn tileset(state: editor::State) -> Set? {
         width: size[0],
         height: size[1],
         columns: columns,
-        spacing: gap(def, "spacing"),
-        margin: gap(def, "margin"),
+        spacing: gap(definition, "spacing"),
+        margin: gap(definition, "margin"),
     }
 }
 
@@ -366,8 +366,8 @@ fn tile_extent(size: any) -> [float] {
 }
 
 /// A gutter or a border in sheet pixels, zero when the sheet names none.
-fn gap(def: any, key: str) -> float {
-    util::max(def.get(key).as_float(), 0.0)
+fn gap(definition: any, key: str) -> float {
+    util::max(definition.get(key).as_float(), 0.0)
 }
 
 /// Where one tile sits on the sheet, in pixels: the gutter between tiles and
@@ -408,30 +408,30 @@ pub fn tile_count(state: &mut editor::State) -> int {
         return 0;
     }
     let rows = (math::floor(room / step) as int) + 1;
-    set.columns * util::imax(rows, 0)
+    set.columns * util::int_max(rows, 0)
 }
 
 fn pixels_per_unit(state: editor::State) -> float {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() || comp.pixels_per_unit.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() || edited_component.pixels_per_unit.is_nil() {
         return util::DEFAULT_PIXELS_PER_UNIT;
     }
-    util::max(comp.pixels_per_unit.as_float(), 0.01)
+    util::max(edited_component.pixels_per_unit.as_float(), 0.01)
 }
 
 /// The grid as rows of tile ids, whichever form the document wrote. Empty is
 /// -1, the same spelling `cells` takes as a list.
 pub fn grid(state: editor::State) -> [[int]] {
     let rows: [[int]] = [];
-    let comp = component(state, model::selected_node(state));
+    let edited_component = component(state, model::selected_node(state));
     // A string is the schema's empty default or a `.cells` file name, and
     // neither holds rows to edit here.
-    if comp.is_nil() || comp.cells.kind() != "list" {
+    if edited_component.is_nil() || edited_component.cells.kind() != "list" {
         return rows;
     }
-    for row in comp.cells {
+    for row in edited_component.cells {
         let ids: [int] = [];
-        for id in util::vec(row) {
+        for id in util::list_or_empty(row) {
             ids.push(id.as_float() as int);
         }
         rows.push(ids);
@@ -443,7 +443,7 @@ pub fn grid(state: editor::State) -> [[int]] {
 pub fn columns(rows: [[int]]) -> int {
     let widest = 0;
     for row in rows {
-        widest = util::imax(widest, row.len());
+        widest = util::int_max(widest, row.len());
     }
     widest
 }
@@ -467,7 +467,7 @@ pub fn frame(state: editor::State) -> Frame? {
     let angle = found.transform.global_rotation_euler().z;
     let scale = found.transform.global_scale();
     let start = origin(state);
-    let ppu = pixels_per_unit(state);
+    let pixels_per_world_unit = pixels_per_unit(state);
     Frame {
         x: position.x,
         y: position.y,
@@ -475,59 +475,59 @@ pub fn frame(state: editor::State) -> Frame? {
         sine: math::sin(angle),
         scale_x: scale.x,
         scale_y: scale.y,
-        tw: set.width / ppu,
-        th: set.height / ppu,
-        columns: util::imax(columns(rows), 1),
-        rows: util::imax(rows.len(), 1),
-        ox: start.x,
-        oy: start.y,
+        tile_width: set.width / pixels_per_world_unit,
+        tile_height: set.height / pixels_per_world_unit,
+        columns: util::int_max(columns(rows), 1),
+        rows: util::int_max(rows.len(), 1),
+        origin_x: start.x,
+        origin_y: start.y,
     }
 }
 
-fn to_local(frame: Frame, wx: float, wy: float) -> [float] {
-    let dx = wx - frame.x;
-    let dy = wy - frame.y;
-    let px = frame.cosine * dx + frame.sine * dy;
-    let py = -frame.sine * dx + frame.cosine * dy;
-    let sx = if util::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
-    let sy = if util::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
-    return [px / sx, py / sy];
+fn to_local(frame: Frame, world_x: float, world_y: float) -> [float] {
+    let offset_x = world_x - frame.x;
+    let offset_y = world_y - frame.y;
+    let turned_x = frame.cosine * offset_x + frame.sine * offset_y;
+    let turned_y = -frame.sine * offset_x + frame.cosine * offset_y;
+    let divisor_x = if util::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
+    let divisor_y = if util::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
+    return [turned_x / divisor_x, turned_y / divisor_y];
 }
 
-fn to_world(frame: Frame, lx: float, ly: float) -> [float] {
-    let px = lx * frame.scale_x;
-    let py = ly * frame.scale_y;
-    return [frame.x + frame.cosine * px - frame.sine * py, frame.y + frame.sine * px + frame.cosine * py];
+fn to_world(frame: Frame, local_x: float, local_y: float) -> [float] {
+    let scaled_x = local_x * frame.scale_x;
+    let scaled_y = local_y * frame.scale_y;
+    return [frame.x + frame.cosine * scaled_x - frame.sine * scaled_y, frame.y + frame.sine * scaled_x + frame.cosine * scaled_y];
 }
 
 /// The cell a world point falls in, counted from the top left. Outside the
 /// grid is still a cell: painting there is what grows the map.
-pub fn cell_at(state: editor::State, frame: Frame, wx: float, wy: float) -> Cell {
-    let local = to_local(frame, wx, wy);
-    Cell { x: math::floor(local[0] / frame.tw) as int, y: math::floor(-local[1] / frame.th) as int }
+pub fn cell_at(state: editor::State, frame: Frame, world_x: float, world_y: float) -> Cell {
+    let local = to_local(frame, world_x, world_y);
+    Cell { x: math::floor(local[0] / frame.tile_width) as int, y: math::floor(-local[1] / frame.tile_height) as int }
 }
 
 /// The coordinate of the map's first stored cell.
 pub fn origin(state: editor::State) -> Cell {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return Cell { x: 0, y: 0 };
     }
     // Two numbers, so `vec2`: `vec3` wants three and quietly falls back to
     // the default, which read every moved origin as 0, 0.
-    let at = util::vec2(comp.origin, [0.0, 0.0]);
+    let at = util::vec2(edited_component.origin, [0.0, 0.0]);
     Cell { x: at[0] as int, y: at[1] as int }
 }
 
 /// A cell's four corners in world space, for the hover outline.
 fn cell_corners(frame: Frame, column: int, row: int) -> [[float]] {
-    let left = (column as float) * frame.tw;
-    let top = -(row as float) * frame.th;
+    let left = (column as float) * frame.tile_width;
+    let top = -(row as float) * frame.tile_height;
     [
         to_world(frame, left, top),
-        to_world(frame, left + frame.tw, top),
-        to_world(frame, left + frame.tw, top - frame.th),
-        to_world(frame, left, top - frame.th),
+        to_world(frame, left + frame.tile_width, top),
+        to_world(frame, left + frame.tile_width, top - frame.tile_height),
+        to_world(frame, left, top - frame.tile_height),
     ]
 }
 
@@ -547,8 +547,8 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
     if !model::has_selection(state) {
         return false;
     }
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return false;
     }
     let rows = grid(state);
@@ -560,18 +560,18 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
     let high_x = start.x + columns(rows);
     let high_y = start.y + rows.len();
     for at in cells {
-        low_x = util::imin(low_x, at.x);
-        low_y = util::imin(low_y, at.y);
-        high_x = util::imax(high_x, at.x + 1);
-        high_y = util::imax(high_y, at.y + 1);
+        low_x = util::int_min(low_x, at.x);
+        low_y = util::int_min(low_y, at.y);
+        high_x = util::int_max(high_x, at.x + 1);
+        high_y = util::int_max(high_y, at.y + 1);
     }
     let grown: [[int]] = [];
     for row in low_y..high_y {
         let line: [int] = [];
         for column in low_x..high_x {
-            let dy = row - start.y;
-            let dx = column - start.x;
-            let held = if dy >= 0 && dy < rows.len() && dx >= 0 && dx < rows[dy].len() { rows[dy][dx] } else { -1 };
+            let row_offset = row - start.y;
+            let column_offset = column - start.x;
+            let held = if row_offset >= 0 && row_offset < rows.len() && column_offset >= 0 && column_offset < rows[row_offset].len() { rows[row_offset][column_offset] } else { -1 };
             line.push(held);
         }
         grown.push(line);
@@ -591,8 +591,8 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
     // step this undoes. Every row is as wide as the widest: a ragged grid
     // draws the same, but a diff of one reads badly; `grown` already is.
     history::record(state, label, key);
-    comp.set("cells", grown);
-    comp.set("origin", [low_x as float, low_y as float]);
+    edited_component.set("cells", grown);
+    edited_component.set("origin", [low_x as float, low_y as float]);
     apply(state);
     true
 }
@@ -601,16 +601,16 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
 pub fn cell(state: editor::State, column: int, row: int) -> int {
     let rows = grid(state);
     let start = origin(state);
-    let dy = row - start.y;
-    let dx = column - start.x;
-    if dy < 0 || dy >= rows.len() {
+    let row_offset = row - start.y;
+    let column_offset = column - start.x;
+    if row_offset < 0 || row_offset >= rows.len() {
         return -1;
     }
-    let line = rows[dy];
-    if dx < 0 || dx >= line.len() {
+    let line = rows[row_offset];
+    if column_offset < 0 || column_offset >= line.len() {
         return -1;
     }
-    line[dx]
+    line[column_offset]
 }
 
 /// One cell. Every cell of one drag shares a history key, so the stroke is
@@ -622,8 +622,8 @@ pub fn paint(state: &mut editor::State, column: int, row: int, tile: int) -> boo
 /// Every cell of the rectangle between two corners, as one step.
 pub fn fill_rect(state: &mut editor::State, from: Cell, to: Cell, tile: int) -> bool {
     let cells: [Cell] = [];
-    for row in util::imin(from.y, to.y)..(util::imax(from.y, to.y) + 1) {
-        for column in util::imin(from.x, to.x)..(util::imax(from.x, to.x) + 1) {
+    for row in util::int_min(from.y, to.y)..(util::int_max(from.y, to.y) + 1) {
+        for column in util::int_min(from.x, to.x)..(util::int_max(from.x, to.x) + 1) {
             cells.push(Cell { x: column, y: row });
         }
     }
@@ -642,12 +642,12 @@ pub fn add_layer(state: &mut editor::State) -> bool {
         return false;
     }
     model::duplicate_selected(state);
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() {
         return false;
     }
     let none: [any] = [];
-    comp.set("cells", none);
+    edited_component.set("cells", none);
     apply(state);
     true
 }
@@ -683,13 +683,13 @@ pub fn cancel(state: &mut editor::State) {
 
 /// The pointer over the viewport, once per frame. The Tiles tool owns the
 /// click the way the Polygon tool does: no gizmo, no camera drag.
-pub fn update(state: &mut editor::State, over_viewport: bool, mx: float, my: float) {
+pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, world_y: float) {
     let map_frame = frame(state);
     if map_frame.is_none() {
         state.tiles.hover = nil;
         return;
     }
-    let at = cell_at(state, map_frame.unwrap(), mx, my);
+    let at = cell_at(state, map_frame.unwrap(), world_x, world_y);
     let column = at.x;
     let row = at.y;
     state.tiles.hover = if over_viewport { at } else { nil };
@@ -784,17 +784,17 @@ pub fn draw(state: editor::State) {
     let tokens = state.theme;
     let faint = util::rgb(tokens.text_subtle.as_str());
     let accent = util::rgb(tokens.primary_text.as_str());
-    let world_per_px = viewport::world_per_px(state);
+    let world_per_pixel = viewport::world_per_pixel(state);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
-    if map_frame.tw / world_per_px >= 6.0 {
-        let last_x = map_frame.ox + map_frame.columns - 1;
-        let last_y = map_frame.oy + map_frame.rows - 1;
-        for row in map_frame.oy..(map_frame.oy + map_frame.rows + 1) {
-            line(cell_corners(map_frame, map_frame.ox, row)[0], cell_corners(map_frame, last_x, row)[1], faint, 1.0);
+    if map_frame.tile_width / world_per_pixel >= 6.0 {
+        let last_x = map_frame.origin_x + map_frame.columns - 1;
+        let last_y = map_frame.origin_y + map_frame.rows - 1;
+        for row in map_frame.origin_y..(map_frame.origin_y + map_frame.rows + 1) {
+            line(cell_corners(map_frame, map_frame.origin_x, row)[0], cell_corners(map_frame, last_x, row)[1], faint, 1.0);
         }
-        for column in map_frame.ox..(map_frame.ox + map_frame.columns + 1) {
-            line(cell_corners(map_frame, column, map_frame.oy)[0], cell_corners(map_frame, column, last_y)[3], faint, 1.0);
+        for column in map_frame.origin_x..(map_frame.origin_x + map_frame.columns + 1) {
+            line(cell_corners(map_frame, column, map_frame.origin_y)[0], cell_corners(map_frame, column, last_y)[3], faint, 1.0);
         }
     }
     if state.tiles.hover.is_none() {
@@ -812,8 +812,8 @@ pub fn draw(state: editor::State) {
         }
         return;
     }
-    for row in util::imin(anchor.y, hover.y)..(util::imax(anchor.y, hover.y) + 1) {
-        for column in util::imin(anchor.x, hover.x)..(util::imax(anchor.x, hover.x) + 1) {
+    for row in util::int_min(anchor.y, hover.y)..(util::int_max(anchor.y, hover.y) + 1) {
+        for column in util::int_min(anchor.x, hover.x)..(util::int_max(anchor.x, hover.x) + 1) {
             outline(map_frame, column, row, accent, 1.5);
         }
     }
@@ -822,11 +822,11 @@ pub fn draw(state: editor::State) {
 /// The tile set behind the map, as a file to write back to: an inline
 /// definition is edited on the node instead, and has no file of its own.
 fn tileset_file(state: editor::State) -> str? {
-    let comp = component(state, model::selected_node(state));
-    if comp.is_nil() || comp.tileset.kind() != "str" {
+    let edited_component = component(state, model::selected_node(state));
+    if edited_component.is_nil() || edited_component.tileset.kind() != "str" {
         return nil;
     }
-    let named = comp.tileset.as_str();
+    let named = edited_component.tileset.as_str();
     if named != "" && !named.starts_with("#") { named } else { nil }
 }
 
@@ -836,12 +836,12 @@ fn tileset_file(state: editor::State) -> str? {
 /// The set is a file the game owns, not a node, so this edits it in place
 /// rather than through the document's history.
 fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
-    let rel = tileset_file(state);
-    if rel.is_none() {
+    let relative_path = tileset_file(state);
+    if relative_path.is_none() {
         log::warn("this map's tile set is written on the node, so there is no file to edit");
         return false;
     }
-    let path = util::engine_path(state.game_root, rel.unwrap());
+    let path = util::engine_path(state.game_root, relative_path.unwrap());
     let definition = assets::load(path);
     if definition.kind() != "map" {
         log::warn("the tile set will not load: {definition}");
@@ -865,11 +865,11 @@ fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
 
 /// What the selected tile says about itself, out of the tile set's file.
 fn tile_table(state: editor::State) -> any {
-    let rel = tileset_file(state);
-    if rel.is_none() {
+    let relative_path = tileset_file(state);
+    if relative_path.is_none() {
         return map();
     }
-    let definition = assets::load(util::engine_path(state.game_root, rel.unwrap()));
+    let definition = assets::load(util::engine_path(state.game_root, relative_path.unwrap()));
     if definition.kind() != "map" {
         return map();
     }
@@ -1025,7 +1025,7 @@ fn on_terrain_clicked(state: &mut editor::State, data: any, _value: any) {
 fn layer_row(state: editor::State, found: [Layer], out: [[any]]) {
     let row = [note("layers")];
     for layer in found {
-        row.push(chip(layer.name, layer.index == state.sel, on_layer_clicked, map().with("index", layer.index)));
+        row.push(chip(layer.name, layer.index == state.selected, on_layer_clicked, map().with("index", layer.index)));
     }
     out.push(row);
 }

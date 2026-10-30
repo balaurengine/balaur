@@ -20,8 +20,8 @@ use util;
 /// the steps into its value, the row's label, and the value as the row was
 /// drawn, for where nothing live answers.
 pub struct AtTop {
-    comp: str,
-    prop: str,
+    component: str,
+    property: str,
     path: [any],
     label: str,
     whole: any,
@@ -45,7 +45,7 @@ pub struct View {
     add_icon: str,
 }
 
-const LABEL_W: float = 82.0;
+const LABEL_WIDTH: float = 82.0;
 
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `state.collapsed` beside the
@@ -93,7 +93,7 @@ fn fold_row_with(state: &mut editor::State, role: str, open: bool, text: str, ic
     for one in extra {
         controls.push(one);
     }
-    push(state, map().with("full", true).with("height", row_h(state)).with("slot_role", "layout_" + role).with("controls", controls));
+    push(state, map().with("full", true).with("height", row_height(state)).with("slot_role", "layout_" + role).with("controls", controls));
 }
 
 fn folded(state: &mut editor::State, data: any, _value: any) {
@@ -158,11 +158,11 @@ pub fn form_row_node(at: int) -> Node {
 }
 
 /// A form row and the control inside it, taller where a finger picks them.
-fn row_h(state: editor::State) -> float {
-    style::row_h(state)
+fn row_height(state: editor::State) -> float {
+    style::row_height(state)
 }
 
-fn control_h(state: editor::State) -> float {
+fn control_height(state: editor::State) -> float {
     if state.touchscreen { 29.0 } else { 20.0 }
 }
 
@@ -189,7 +189,7 @@ pub fn open_pool(state: &mut editor::State) {
 
 /// Put the rows a panel described onto its own form node.
 pub fn close_pool_into(state: &mut editor::State, host: str) {
-    pool::sync(state, host, state.form, label_w(state), stacked(state));
+    pool::sync(state, host, state.form, label_width(state), stacked(state));
     // The inspector's rows are not what the node holds now.
     state.pool_keys.remove(host);
 }
@@ -217,8 +217,8 @@ fn stored_as(spec: any, value: float) -> float {
 }
 
 /// A property's full label, and what its schema says it is under it.
-fn prop_tip(prop: str, spec: any) -> str {
-    let label = util::prop_label(prop);
+fn property_tip(property: str, spec: any) -> str {
+    let label = util::property_label(property);
     let description = spec.description.as_str();
     if description == "" { label } else { label + "\n" + description }
 }
@@ -234,17 +234,17 @@ pub fn note_row(state: &mut editor::State, height: float, role: str, text: str) 
 
 // The label column, derived from the form: at a width neither column fits,
 // the label gives way first and the control keeps a usable size.
-fn label_w(state: editor::State) -> float {
-    util::clamp(form_w(state) * 0.34, 46.0, LABEL_W)
+fn label_width(state: editor::State) -> float {
+    util::clamp(form_width(state) * 0.34, 46.0, LABEL_WIDTH)
 }
 
 // The form's own width, as its rows were last drawn: a frame late, like every
 // box the layout reads back, and the sheet's inside until there is a frame.
-pub fn sheet_w(state: editor::State) -> float {
-    form_w(state)
+pub fn sheet_width(state: editor::State) -> float {
+    form_width(state)
 }
 
-fn form_w(state: editor::State) -> float {
+fn form_width(state: editor::State) -> float {
     let host = scene::get_node(INSPECTOR_FORM);
     if host.is_valid() {
         let rect_or = ui::widget_rect(host);
@@ -262,7 +262,7 @@ const CONTROL_MIN: float = 180.0;
 
 /// Whether a row puts its label above its control rather than beside it.
 pub fn stacked(state: editor::State) -> bool {
-    form_w(state) - label_w(state) - 6.0 < CONTROL_MIN
+    form_width(state) - label_width(state) - 6.0 < CONTROL_MIN
 }
 
 // A row that came from a prefab says so, and says where an edit will land.
@@ -275,7 +275,7 @@ fn multi_note(state: &mut editor::State) {
     }
     push(state, map()
         .with("full", true)
-        .with("height", row_h(state) + 4.0)
+        .with("height", row_height(state) + 4.0)
         .with("controls", [
             map()
                 .with("kind", "panel")
@@ -298,7 +298,7 @@ fn instance_note(state: &mut editor::State, tokens: any) {
     // A prefab path is as long as the project makes it, so the column cuts it.
     push(state, map()
         .with("full", true)
-        .with("height", row_h(state) + 8.0)
+        .with("height", row_height(state) + 8.0)
         .with("controls", [
             map()
                 .with("role", "sheet_note")
@@ -320,7 +320,7 @@ fn instance_note(state: &mut editor::State, tokens: any) {
         ]));
     push(state, map()
         .with("full", true)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("controls", [
             map()
                 .with("kind", "label")
@@ -341,7 +341,7 @@ fn instance_source_row(state: &mut editor::State, tokens: any, node: Node) {
     }
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("controls", [
             map()
                 .with("role", "sheet_prefab")
@@ -375,7 +375,7 @@ fn script_section(state: &mut editor::State, tokens: any) {
     }
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("slot_role", "layout_actions")
         .with("controls", [
             map()
@@ -395,7 +395,7 @@ fn script_section(state: &mut editor::State, tokens: any) {
                 .with("data", map().with("fn", on_script_file_picked)),
         ])
         .with("label", "Script"));
-    script_props_rows(state, tokens, node);
+    script_properties_rows(state, tokens, node);
 }
 
 fn on_script_path_submitted(state: &mut editor::State, data: any, text: any) {
@@ -409,28 +409,28 @@ fn on_script_file_picked(state: &mut editor::State, data: any, picked: any) {
 // What the script declares tunable, one row per export. A value differing
 // from the default is the node's own; everything else is inherited, so a
 // changed default reaches every node that left it alone.
-fn script_props_rows(state: &mut editor::State, tokens: any, node: Node) {
+fn script_properties_rows(state: &mut editor::State, tokens: any, node: Node) {
     let rel = model::script_rel(node);
     if rel.is_nil() {
         return;
     }
-    let declared = util::vec(model::exports(state, rel.as_str()));
+    let declared = util::list_or_empty(model::exports(state, rel.as_str()));
     if declared.len() == 0 {
         return;
     }
-    let props = model::script_props(node);
+    let properties = model::script_props(node);
     note_row(state, 20.0, "text_heading", "PROPERTIES");
     for export in declared {
         let name = export.name.as_str();
-        let overridden = props.has(name);
-        let value = if overridden { props.get(name) } else { export.default };
+        let overridden = properties.has(name);
+        let value = if overridden { properties.get(name) } else { export.default };
         // The export row *is* a spec, in the schema's own vocabulary, so the
         // rows a script declares reach the same editors a component's do:
         // an enum gets the dropdown, a node the picker, an asset the row.
         let spec = util::copy(export);
         spec.remove("name");
-        // `prop_row` reads the value out of a table by name.
-        prop_row(state, tokens, SCRIPT_PROPS, name, spec, map().with(name, value));
+        // `property_value_row` reads the value out of a table by name.
+        property_value_row(state, tokens, SCRIPT_PROPERTIES, name, spec, map().with(name, value));
         if overridden {
             let back = export.default;
             push(state, map()
@@ -439,25 +439,25 @@ fn script_props_rows(state: &mut editor::State, tokens: any, node: Node) {
                 .with("controls", [
                     map()
                         .with("kind", "button")
-                        .with("height", control_h(state))
+                        .with("height", control_height(state))
                         .with("text", "reset")
                         .with("role", "chip")
                         .with("width", 52)
                         .with("tooltip", "Back to the script's default")
                         .with("on", "handle")
-                        .with("data", map().with("fn", on_script_prop_reset).with("name", name).with("back", back)),
+                        .with("data", map().with("fn", on_script_property_reset).with("name", name).with("back", back)),
                 ]));
         }
     }
 }
 
-fn on_script_prop_reset(state: &mut editor::State, data: any, _value: any) {
-    model::set_script_prop(state, data.name.as_str(), data.back);
+fn on_script_property_reset(state: &mut editor::State, data: any, _value: any) {
+    model::set_script_property(state, data.name.as_str(), data.back);
 }
 
 // Write an inline definition to its type's directory and point the property at
 // the project-relative path — an absolute one would not survive another machine.
-fn promote_asset(state: &mut editor::State, at: AtTop, asset_type: str, dir: str, reference: str) {
+fn promote_asset(state: &mut editor::State, at: AtTop, asset_type: str, directory: str, reference: str) {
     let node = model::selected_node(state);
     let definition = assets::load(reference);
     if definition.kind() != "map" {
@@ -465,7 +465,7 @@ fn promote_asset(state: &mut editor::State, at: AtTop, asset_type: str, dir: str
         return;
     }
     definition.set("type", asset_type);
-    let rel = "{dir}/{node.name().to_lower()}.toml";
+    let rel = "{directory}/{node.name().to_lower()}.toml";
     assets::save(state.game_root + "/" + rel, definition);
     write_at(state, at, rel);
     log::info("saved {rel}");
@@ -497,8 +497,8 @@ fn as_text(value: any) -> str {
 
 // Where an editor writes: the component or script, the property, and the steps
 // into its value. `whole` is the fallback where nothing live answers.
-pub fn at_top(comp: str, prop: str, whole: any) -> AtTop {
-    AtTop { comp: comp, prop: prop, path: [], label: util::prop_label(prop), whole: whole }
+pub fn at_top(component: str, property: str, whole: any) -> AtTop {
+    AtTop { component: component, property: property, path: [], label: util::property_label(property), whole: whole }
 }
 
 // One step further in: a path of its own, since a path shared between
@@ -509,7 +509,7 @@ pub fn at_step(at: AtTop, step: any, label: str) -> AtTop {
         path.push(one);
     }
     path.push(step);
-    AtTop { comp: at.comp, prop: at.prop, path: path, label: label, whole: at.whole }
+    AtTop { component: at.component, property: at.property, path: path, label: label, whole: at.whole }
 }
 
 /// A row's label, and what its spec says it is under it.
@@ -521,17 +521,17 @@ fn row_tip(at: AtTop, spec: any) -> str {
 /// The property's value as it stands now, so one entry's edit keeps the
 /// rest: the row was built before the edit and holds what it started from.
 fn current_whole(state: editor::State, at: AtTop) -> any {
-    if at.comp == SCRIPT_PROPS {
-        let found = model::script_props(model::selected_node(state)).get(at.prop);
+    if at.component == SCRIPT_PROPERTIES {
+        let found = model::script_props(model::selected_node(state)).get(at.property);
         return if found.is_nil() { at.whole } else { found };
     }
-    let now = read_now(state, at.comp, at.prop, at.whole);
+    let now = read_now(state, at.component, at.property, at.whole);
     if record_named(state, at) == "" {
         return now;
     }
     // A row naming a record asset is edited as the definition it names.
     let reference = as_text(now);
-    let definition = if reference == "" { map() } else { util::deep(util::obj(assets::load(reference))) };
+    let definition = if reference == "" { map() } else { util::deep(util::map_or_empty(assets::load(reference))) };
     definition.remove("type");
     definition
 }
@@ -539,13 +539,13 @@ fn current_whole(state: editor::State, at: AtTop) -> any {
 /// The record asset type a component's row names, or "" for any other row:
 /// an edit inside one rebuilds the definition rather than the reference.
 fn record_named(state: editor::State, at: AtTop) -> str {
-    if at.comp == SCRIPT_PROPS {
+    if at.component == SCRIPT_PROPERTIES {
         return "";
     }
     // The cached schema where the Inspector drew it, else the engine's.
-    let cached = state.schemas.get(at.comp);
-    let schema = if cached.is_nil() { scene::component_schema(at.comp) } else { cached };
-    let spec = util::obj(util::obj(schema).get(at.prop));
+    let cached = state.schemas.get(at.component);
+    let schema = if cached.is_nil() { scene::component_schema(at.component) } else { cached };
+    let spec = util::map_or_empty(util::map_or_empty(schema).get(at.property));
     let asset_type = spec.asset.as_str();
     if spec.type.as_str() != "asset" || assets::schema(asset_type).is_none() {
         return "";
@@ -558,14 +558,14 @@ fn record_named(state: editor::State, at: AtTop) -> str {
 /// reads again; one written inline, or naming none, writes the row.
 fn write_whole(state: &mut editor::State, at: AtTop, whole: any) {
     let record = record_named(state, at);
-    let reference = if record == "" { "" } else { as_text(read_now(state, at.comp, at.prop, at.whole)) };
+    let reference = if record == "" { "" } else { as_text(read_now(state, at.component, at.property, at.whole)) };
     if reference == "" || reference.starts_with("#") {
-        write(state, at.comp, at.prop, whole);
+        write(state, at.component, at.property, whole);
         return;
     }
     whole.set("type", record);
     assets::save(reference, whole);
-    reread_rows(at.comp, [at.prop]);
+    reread_rows(at.component, [at.property]);
 }
 
 /// What sits at a cursor now, for an editor rebuilding a value one part at a
@@ -599,7 +599,7 @@ fn inner_at(holder: any, path: [any], depth: int) -> any {
 /// it replaced, because a write takes a property whole.
 pub fn write_at(state: &mut editor::State, at: AtTop, value: any) {
     if at.path.len() == 0 {
-        write(state, at.comp, at.prop, value);
+        write(state, at.component, at.property, value);
         return;
     }
     let whole = util::deep(current_whole(state, at));
@@ -666,7 +666,7 @@ fn with_remove(state: &mut editor::State, at: AtTop, step: any) -> any {
         .with("text", icons::ui("close"))
         .with("role", "chip")
         .with("width", 22)
-        .with("height", control_h(state))
+        .with("height", control_height(state))
         .with("tooltip", "Take this one out")
         .with("on", "handle")
         .with("data", map().with("fn", on_entry_removed).with("at", at).with("step", step));
@@ -678,22 +678,22 @@ fn on_entry_removed(state: &mut editor::State, data: any, _value: any) {
     drop_entry(state, at, data.step);
 }
 
-// The `comp` an editor is given when it is editing a script's exported
+// The `component` an editor is given when it is editing a script's exported
 // property rather than a component. No component can be named this — a
 // component name is an identifier — so the two never collide.
-const SCRIPT_PROPS: str = "script/props";
+const SCRIPT_PROPERTIES: str = "script/props";
 
 // Where an edited value goes. Every editor writes through here, so the same
 // editors serve components and script properties both.
-fn write(state: &mut editor::State, comp: str, prop: str, value: any) {
-    if comp == SCRIPT_PROPS {
-        model::set_script_prop(state, prop, value);
+fn write(state: &mut editor::State, component: str, property: str, value: any) {
+    if component == SCRIPT_PROPERTIES {
+        model::set_script_property(state, property, value);
         return;
     }
-    model::set_component_prop(state, comp, prop, value);
+    model::set_component_property(state, component, property, value);
     // The clip the Timeline holds was named by the value just written, so the
     // cache goes and the engine is handed the clip again.
-    if comp == "animation" {
+    if component == "animation" {
         state.clip = nil;
         signals::inspector(state);
         anim::arm(state);
@@ -703,9 +703,9 @@ fn write(state: &mut editor::State, comp: str, prop: str, value: any) {
 // A set drawn from the schema's `options`: one pill per option, filled when
 // held. A checkbox grid in everything but the shape of the control.
 fn edit_flags(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let held = util::vec(value);
+    let held = util::list_or_empty(value);
     let controls: [any] = [];
-    for option in util::vec(spec.options) {
+    for option in util::list_or_empty(spec.options) {
         let name = option.as_str();
         let on = false;
         for one in held {
@@ -732,7 +732,7 @@ fn on_flag_toggled(state: &mut editor::State, data: any, _value: any) {
     let at: AtTop = data.at;
     let name = data.name.as_str();
     let next: [any] = [];
-    for other in util::vec(data.held) {
+    for other in util::list_or_empty(data.held) {
         if other.as_str() != name {
             next.push(other);
         }
@@ -753,7 +753,7 @@ fn edit_node(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
     }
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("slot_role", "layout_actions")
         .with("controls", [
             map()
@@ -808,8 +808,8 @@ fn editors() -> any {
 // A list: what it holds and how many, then a row an entry, each drawn by the
 // editor its `of` spec asks for and each removable.
 fn edit_list(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let held = util::vec(value);
-    let of = util::obj(spec.of);
+    let held = util::list_or_empty(value);
+    let of = util::map_or_empty(spec.of);
     let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
     holder_row(state, tokens, at, spec, "{what} · {held.len()}", map().with("of", of).with("key", ""));
     for index in 0..held.len() {
@@ -823,8 +823,8 @@ fn edit_list(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 // taking the entry out and adding it again, which is what keeps the row one
 // control wide.
 fn edit_map(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let held = util::obj(value);
-    let of = util::obj(spec.of);
+    let held = util::map_or_empty(value);
+    let of = util::map_or_empty(spec.of);
     let numbered = spec.key.as_str() == "int";
     let keys = util::keys_sorted(held);
     let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
@@ -839,17 +839,17 @@ fn edit_map(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value:
 // A record: one row a declared field, each of its own type. The fields are
 // the schema's, so there is nothing to add or take away.
 fn edit_record(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let held = util::obj(value);
-    let fields = util::obj(spec.fields);
+    let held = util::map_or_empty(value);
+    let fields = util::map_or_empty(spec.fields);
     let names = util::keys_sorted(fields);
     // A record naming a class says which: the rows are its fields, and the
     // script is handed that class back.
     let note = if spec.class.is_nil() { "{names.len()} fields" } else { "{spec.class.as_str()} · {names.len()}" };
     holder_row(state, tokens, at, spec, note, nil);
     for field in names {
-        let of = util::obj(fields.get(field));
+        let of = util::map_or_empty(fields.get(field));
         let now = if held.has(field) { held.get(field) } else { of.default };
-        draw_value(state, tokens, at_step(at, field, util::prop_label(field)), of, now);
+        draw_value(state, tokens, at_step(at, field, util::property_label(field)), of, now);
     }
 }
 
@@ -864,7 +864,7 @@ fn holder_row(state: &mut editor::State, tokens: any, at: AtTop, spec: any, note
             .with("text", icons::ui("add"))
             .with("role", "chip")
             .with("width", 22)
-            .with("height", control_h(state))
+            .with("height", control_height(state))
             .with("tooltip", "Add one")
             .with("on", "handle")
             .with("data", map().with("fn", on_entry_added).with("add", add).with("at", at)));
@@ -879,13 +879,13 @@ fn on_entry_added(state: &mut editor::State, data: any, _value: any) {
 
 /// One property, in whichever of the two rows its spec asks for, with what
 /// the engine says is off about it underneath.
-fn property_row(state: &mut editor::State, tokens: any, comp: str, prop: str, spec: any, data: any) {
+fn property_row(state: &mut editor::State, tokens: any, component: str, property: str, spec: any, data: any) {
     if spec.readonly.as_bool() {
-        readonly_row(state, prop, spec, data);
+        readonly_row(state, property, spec, data);
     } else {
-        prop_row(state, tokens, comp, prop, spec, data);
+        property_value_row(state, tokens, component, property, spec, data);
     }
-    for note in util::vec(state.inspect_warned.get("{comp}.{prop}")) {
+    for note in util::list_or_empty(state.inspect_warned.get("{component}.{property}")) {
         warn_note(state, note.as_str());
     }
 }
@@ -905,9 +905,9 @@ fn warn_note(state: &mut editor::State, text: str) {
         ]));
 }
 
-fn has_prop_warning(by_prop: any, comp: str) -> bool {
-    for key in by_prop.keys() {
-        if key.starts_with(comp + ".") {
+fn has_property_warning(by_property: any, component: str) -> bool {
+    for key in by_property.keys() {
+        if key.starts_with(component + ".") {
             return true;
         }
     }
@@ -918,18 +918,18 @@ fn has_prop_warning(by_prop: any, comp: str) -> bool {
 /// a `group`. Shut to begin with -- a property is grouped precisely because it
 /// is not one of the handful worth the room -- so the state kept is which ones
 /// were opened, not which were shut.
-fn subsection(state: &mut editor::State, comp: str, group: str, count: any) -> bool {
-    let key = "{comp}/{group}";
+fn subsection(state: &mut editor::State, component: str, group: str, count: any) -> bool {
+    let key = "{component}/{group}";
     // A search reaches into the folds: a property nobody can see is one the
     // box cannot find.
     let open = state.opened.has(key) || search::query(state, "inspector") != "";
-    fold_row(state, "subsection", open, "{util::prop_label(group)} · {count}", "", "", key, "opened");
+    fold_row(state, "subsection", open, "{util::property_label(group)} · {count}", "", "", key, "opened");
     open
 }
 
-fn prop_row(state: &mut editor::State, tokens: any, comp: str, prop: str, spec: any, data: any) {
-    let value = if data.has(prop) { data.get(prop) } else { spec.default };
-    draw_value(state, tokens, at_top(comp, prop, value), spec, value);
+fn property_value_row(state: &mut editor::State, tokens: any, component: str, property: str, spec: any, data: any) {
+    let value = if data.has(property) { data.get(property) } else { spec.default };
+    draw_value(state, tokens, at_top(component, property, value), spec, value);
 }
 
 /// One value at a cursor, drawn by whatever its spec asks for. A composite
@@ -943,7 +943,7 @@ fn draw_value(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
     if !controls.is_nil() {
         push(state, map()
             .with("full", false)
-            .with("controls", util::vec(controls))
+            .with("controls", util::list_or_empty(controls))
             .with("label", at.label)
             .with("tooltip", row_tip(at, spec)));
         return;
@@ -1044,7 +1044,7 @@ fn edit_enum(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
                 .with("kind", "dropdown")
                 .with("grow", 1)
                 .with("text", as_text(value))
-                .with("options", util::vec(spec.options))
+                .with("options", util::list_or_empty(spec.options))
                 .with("on", "handle")
                 .with("data", map().with("fn", on_enum_picked).with("at", at)),
         ])
@@ -1060,7 +1060,7 @@ fn on_enum_picked(state: &mut editor::State, data: any, picked: any) {
 // A swatch that opens egui's picker, and the channels beside it: a colour is
 // the one vector nobody reads as numbers.
 fn edit_color(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let held = util::vec(value);
+    let held = util::list_or_empty(value);
     let text = "{util::fixed(channel(held, 0, 1.0), 2)} {util::fixed(channel(held, 1, 1.0), 2)} {util::fixed(channel(held, 2, 1.0), 2)} {util::fixed(channel(held, 3, 1.0), 2)}";
     push(state, map()
         .with("full", false)
@@ -1086,7 +1086,7 @@ fn channel(values: any, index: int, fallback: float) -> float {
 // how many and what they are lettered.
 fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let datatype = spec.get("type");
-    let held = util::vec(value);
+    let held = util::list_or_empty(value);
     let wide = datatype.as_str() == "color" || datatype.as_str() == "vec4";
     let count = if wide { 4 } else if datatype.as_str() == "vec2" { 2 } else { 3 };
     let letters = if datatype.as_str() == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z", "w"] };
@@ -1116,7 +1116,7 @@ fn on_vector_edited(state: &mut editor::State, data: any, value: any) {
     let spec: any = data.spec;
     let out: [float] = [];
     for index in 0..count {
-        out.push(channel(util::vec(held_now(state, at, held)), index, fallback));
+        out.push(channel(util::list_or_empty(held_now(state, at, held)), index, fallback));
     }
     out[slot] = if datatype.as_str() == "color" {
         util::clamp(value.as_float(), 0.0, 1.0)
@@ -1128,12 +1128,12 @@ fn on_vector_edited(state: &mut editor::State, data: any, value: any) {
 
 // The vector as it stands now, so writing one component keeps the others: the
 // spec was built before the edit and holds the value the reader started from.
-fn read_now(state: editor::State, comp: str, prop: str, fallback: any) -> any {
+fn read_now(state: editor::State, component: str, property: str, fallback: any) -> any {
     let found = model::selected_node(state);
     if !found.is_valid() {
         return fallback;
     }
-    let value = found.get_component(comp, prop);
+    let value = found.get_component(component, property);
     if value.is_nil() { fallback } else { value }
 }
 
@@ -1152,7 +1152,7 @@ fn edit_asset(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
     };
     let reference = model::relative_file(state, own).as_str();
     let inline = reference.starts_with("#!");
-    let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
+    let directory = if asset_type != "" { assets::directory(asset_type) } else { "" };
     let controls = [
         if inline {
             map().with("kind", "label").with("role", "text_code_quiet").with("grow", 1).with("text", "— embedded —")
@@ -1175,22 +1175,22 @@ fn edit_asset(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
             .with("on", "handle")
             .with("data", map().with("fn", edit_asset_on_font).with("at", at)));
     }
-    if dir != "" {
+    if directory != "" {
         controls.push(map()
             .with("kind", "button")
             .with("role", "action_dock_secondary")
             .with("text", if inline { "save to file" } else { "embed" })
             .with("tooltip", if inline {
-                "Write this {asset_type} to {dir}/ and reference it"
+                "Write this {asset_type} to {directory}/ and reference it"
             } else {
                 "Copy this file's definition onto the node"
             })
             .with("on", "handle")
-            .with("data", map().with("fn", on_asset_embed_or_save).with("inline", inline).with("at", at).with("asset_type", asset_type).with("dir", dir).with("reference", reference)));
+            .with("data", map().with("fn", on_asset_embed_or_save).with("inline", inline).with("at", at).with("asset_type", asset_type).with("dir", directory).with("reference", reference)));
     }
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("slot_role", "layout_actions")
         .with("controls", controls)
         .with("label", at.label)
@@ -1261,10 +1261,10 @@ fn material_rows(state: &mut editor::State, tokens: any, reference: str) {
     let shader = if definition.kind() == "map" { definition.shader.as_str() } else { "" };
     if shader != "" {
         shader_row(state, tokens, reference, shader);
-        feature_rows(state, tokens, reference, util::obj(definition.features));
+        feature_rows(state, tokens, reference, util::map_or_empty(definition.features));
     }
-    for param in render::material_params(reference) {
-        material_row(state, tokens, reference, param.name, param.type, param.value);
+    for parameter in render::material_params(reference) {
+        material_row(state, tokens, reference, parameter.name, parameter.type, parameter.value);
     }
 }
 
@@ -1285,7 +1285,7 @@ fn shader_row(state: &mut editor::State, tokens: any, reference: str, shader: st
     }
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("slot_role", "layout_shader")
         .with("controls", [
             map()
@@ -1325,7 +1325,7 @@ fn feature_rows(state: &mut editor::State, tokens: any, reference: str, features
     for name in util::keys_sorted(features) {
         push(state, map()
             .with("full", false)
-            .with("height", row_h(state))
+            .with("height", row_height(state))
             .with("controls", [
                 map()
                     .with("kind", "switch")
@@ -1358,7 +1358,7 @@ fn write_material_feature(state: editor::State, reference: str, name: str, on: a
     if definition.kind() != "map" {
         return;
     }
-    let features = util::obj(definition.features);
+    let features = util::map_or_empty(definition.features);
     features.set(name, on);
     definition.set("features", features);
     assets::save(reference, definition);
@@ -1368,7 +1368,7 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
     // Indented, because these belong to the row above rather than the node.
     let control = if datatype == "color" {
         // `material_params` hands a colour back as its four channels.
-        let channels = util::vec(value);
+        let channels = util::list_or_empty(value);
         if value.kind() == "map" {
             channels = [value.r.as_float(), value.g.as_float(), value.b.as_float(), value.a.as_float()];
         }
@@ -1406,7 +1406,7 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
     } else {
         let count = if datatype == "vec2" { 2 } else { 3 };
         let letters = ["x", "y", "z"];
-        let held = util::vec(value);
+        let held = util::list_or_empty(value);
         let cells: [any] = [];
         for slot in 0..count {
             cells.push(map()
@@ -1423,22 +1423,22 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
     // Indented, because these belong to the row above rather than the node.
     push(state, map()
         .with("full", false)
-        .with("height", row_h(state))
+        .with("height", row_height(state))
         .with("controls", [control])
-        .with("label", "  " + util::prop_label(name))
-        .with("tooltip", util::prop_label(name)));
+        .with("label", "  " + util::property_label(name))
+        .with("tooltip", util::property_label(name)));
 }
 
 fn on_material_color_picked(state: &mut editor::State, data: any, rgba: any) {
-    write_material_param(state, data.reference.as_str(), data.name.as_str(), rgba);
+    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), rgba);
 }
 
 fn on_material_float_edited(state: &mut editor::State, data: any, value: any) {
-    write_material_param(state, data.reference.as_str(), data.name.as_str(), value);
+    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), value);
 }
 
 fn on_material_texture_picked(state: &mut editor::State, data: any, picked: any) {
-    write_material_param(state, data.reference.as_str(), data.name.as_str(), if picked.as_str() == "none" { "" } else { picked.as_str() });
+    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), if picked.as_str() == "none" { "" } else { picked.as_str() });
 }
 
 fn on_material_vector_edited(state: &mut editor::State, data: any, value: any) {
@@ -1447,26 +1447,26 @@ fn on_material_vector_edited(state: &mut editor::State, data: any, value: any) {
     for index in 0..data.count.as_int() {
         out.push(if index == slot { value.as_float() } else { channel(data.held, index, 0.0) });
     }
-    write_material_param(state, data.reference.as_str(), data.name.as_str(), out);
+    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), out);
 }
 
 // Write one value into the material's `[params]` table. Saving is what
 // relinks it, so a dragged value shows in the viewport.
-fn write_material_param(state: editor::State, reference: str, name: str, value: any) {
+fn write_material_parameter(state: editor::State, reference: str, name: str, value: any) {
     let definition = assets::load(reference);
     if definition.kind() != "map" {
         log::warn("cannot read the material {reference}: {definition}");
         return;
     }
-    let params = if definition.params.kind() == "map" { definition.params } else { map() };
+    let parameters = if definition.params.kind() == "map" { definition.params } else { map() };
     // An empty texture slot is cleared rather than written as "": a param
     // naming no file is not a param.
     if value.kind() == "str" && value.as_str() == "" {
-        params.remove(name);
+        parameters.remove(name);
     } else {
-        params.set(name, value);
+        parameters.set(name, value);
     }
-    definition.set("params", params);
+    definition.set("params", parameters);
     assets::save(reference, definition);
 }
 
@@ -1506,7 +1506,7 @@ fn readonly_text(spec: any, value: any) -> str {
     } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
         let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
         let fallback = if datatype == "color" { 1.0 } else { 0.0 };
-        let held = util::vec(value);
+        let held = util::list_or_empty(value);
         let parts: [str] = [];
         for index in 0..count {
             parts.push(util::fixed(shown_as(spec, channel(held, index, fallback)), 2));
@@ -1517,8 +1517,8 @@ fn readonly_text(spec: any, value: any) -> str {
     }
 }
 
-fn readonly_row(state: &mut editor::State, prop: str, spec: any, data: any) {
-    let value = if data.has(prop) { data.get(prop) } else { spec.default };
+fn readonly_row(state: &mut editor::State, property: str, spec: any, data: any) {
+    let value = if data.has(property) { data.get(property) } else { spec.default };
     // A read-only value is whatever the component reports, a joined list
     // included: it gets the column, and is cut off at its end.
     push(state, map()
@@ -1532,8 +1532,8 @@ fn readonly_row(state: &mut editor::State, prop: str, spec: any, data: any) {
                 .with("text", readonly_text(spec, value)),
             map().with("kind", "label").with("role", "text_hint").with("truncate", false).with("text", "read-only"),
         ])
-        .with("label", util::prop_label(prop))
-        .with("tooltip", prop_tip(prop, spec)));
+        .with("label", util::property_label(property))
+        .with("tooltip", property_tip(property, spec)));
 }
 
 // A pointer at the Events view, in place of a section no derived editor can
@@ -1542,7 +1542,7 @@ fn bindings_note(state: &mut editor::State, tokens: any) {
     section(state, tokens, "BINDINGS");
     push(state, map()
         .with("full", true)
-        .with("height", row_h(state) + 2.0)
+        .with("height", row_height(state) + 2.0)
         .with("controls", [
             map()
                 .with("kind", "button")
@@ -1581,7 +1581,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
         waiting.set(name, 0);
     }
     for name in names {
-        for need in util::vec(model::expects(state, name)) {
+        for need in util::list_or_empty(model::expects(state, name)) {
             let key = need.as_str();
             if waiting.has(key) {
                 waiting.set(key, waiting.get(key).as_int() + 1);
@@ -1611,7 +1611,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
         }
         for name in ready {
             out.push(name);
-            for need in util::vec(model::expects(state, name)) {
+            for need in util::list_or_empty(model::expects(state, name)) {
                 let key = need.as_str();
                 if waiting.has(key) {
                     waiting.set(key, waiting.get(key).as_int() - 1);
@@ -1631,20 +1631,20 @@ fn component_sections(state: &mut editor::State, tokens: any) {
         return;
     }
     // Advisory only: the engine applied what it could, and says what is off.
-    let warned = util::vec(scene::warnings(found));
+    let warned = util::list_or_empty(scene::warnings(found));
     let whole = map();
-    let by_prop = map();
+    let by_property = map();
     for warning in warned {
-        let comp = warning.component.as_str();
-        let key = if warning.property.is_nil() { comp } else { "{comp}.{warning.property.as_str()}" };
-        let into = if warning.property.is_nil() { whole } else { by_prop };
+        let component = warning.component.as_str();
+        let key = if warning.property.is_nil() { component } else { "{component}.{warning.property.as_str()}" };
+        let into = if warning.property.is_nil() { whole } else { by_property };
         if !into.has(key) {
             let none: [any] = [];
             into.set(key, none);
         }
         into.get(key).push(warning.message);
     }
-    state.inspect_warned = by_prop;
+    state.inspect_warned = by_property;
     let query = search::query(state, "inspector");
     // A component the node went without because its write was refused still
     // says what is off, at the top.
@@ -1655,26 +1655,26 @@ fn component_sections(state: &mut editor::State, tokens: any) {
     }
     let drew = 0;
     let editors = util::join(util::keys_sorted(state.registry.property_editors), " ");
-    for comp in ordered_components(state, all) {
+    for component in ordered_components(state, all) {
         // Its rows are a table of tables, which no derived editor can draw
         // and the Events view already draws properly.
-        if comp == "bindings" {
+        if component == "bindings" {
             drew += 1;
             bindings_note(state, tokens);
             continue;
         }
         // The component's name and every property it has, so a query for a
         // property finds the section that holds it.
-        let props = util::join(util::keys_sorted(state.schemas.get(comp)), " ");
-        if !search::matches(query, "{comp} {props}") {
+        let properties = util::join(util::keys_sorted(state.schemas.get(component)), " ");
+        if !search::matches(query, "{component} {properties}") {
             continue;
         }
         drew += 1;
-        let key = "inspector/{comp}";
+        let key = "inspector/{component}";
         let open = !state.collapsed.has(key);
-        let mark = icons::component(comp);
-        let flagged = whole.has(comp) || has_prop_warning(by_prop, comp);
-        let title = if flagged { comp.to_upper() + "  ⚠" } else { comp.to_upper() };
+        let mark = icons::component(component);
+        let flagged = whole.has(component) || has_property_warning(by_property, component);
+        let title = if flagged { component.to_upper() + "  ⚠" } else { component.to_upper() };
         fold_row_with(state, "section", open, title, mark.glyph, ink(tokens, mark.token), key, "collapsed", [
             map()
                 .with("kind", "button")
@@ -1682,26 +1682,26 @@ fn component_sections(state: &mut editor::State, tokens: any) {
                 .with("text", icons::ui("close"))
                 .with("tooltip", "Remove component")
                 .with("on", "handle")
-                .with("data", map().with("fn", on_component_removed).with("comp", comp)),
+                .with("data", map().with("fn", on_component_removed).with("comp", component)),
         ]);
         if !open {
             continue;
         }
-        for note in util::vec(whole.get(comp)) {
+        for note in util::list_or_empty(whole.get(component)) {
             warn_note(state, note.as_str());
         }
-        let laid = layout_of(state, comp, editors);
-        let warned_here = has_prop_warning(by_prop, comp);
+        let laid = layout_of(state, component, editors);
+        let warned_here = has_property_warning(by_property, component);
         let data: any = nil;
-        for part in util::vec(laid.loose) {
-            data = part_rows(state, tokens, found, comp, part, warned_here, data);
+        for part in util::list_or_empty(laid.loose) {
+            data = part_rows(state, tokens, found, component, part, warned_here, data);
         }
-        for group in util::vec(laid.groups) {
-            if !subsection(state, comp, group.name.as_str(), group.count) {
+        for group in util::list_or_empty(laid.groups) {
+            if !subsection(state, component, group.name.as_str(), group.count) {
                 continue;
             }
-            for part in util::vec(group.parts) {
-                data = part_rows(state, tokens, found, comp, part, warned_here, data);
+            for part in util::list_or_empty(group.parts) {
+                data = part_rows(state, tokens, found, component, part, warned_here, data);
             }
         }
     }
@@ -1719,20 +1719,20 @@ fn on_component_removed(state: &mut editor::State, data: any, _value: any) {
 /// writes them. Each is cut into parts, a run of properties one `inspector`
 /// draws natively and, between them, one property a script editor still
 /// draws.
-fn layout_of(state: &mut editor::State, comp: str, editors: str) -> any {
-    let cached = state.inspect_layout.get(comp);
+fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
+    let cached = state.inspect_layout.get(component);
     if !cached.is_nil() && cached.editors.as_str() == editors {
         return cached;
     }
-    let schema = model::schema(state, comp);
+    let schema = model::schema(state, component);
     let loose: [str] = [];
     let grouped = map();
     // Groups in the order the schema first names them.
     let order: [str] = [];
-    for prop in schema.keys() {
-        let group = schema.get(prop).group.as_str();
+    for property in schema.keys() {
+        let group = schema.get(property).group.as_str();
         if group == "" {
-            loose.push(prop);
+            loose.push(property);
             continue;
         }
         if !grouped.has(group) {
@@ -1740,37 +1740,37 @@ fn layout_of(state: &mut editor::State, comp: str, editors: str) -> any {
             grouped.set(group, none);
             order.push(group);
         }
-        grouped.get(group).push(prop);
+        grouped.get(group).push(property);
     }
     let groups: [any] = [];
     for group in order {
-        let props: [str] = [];
-        for prop in util::vec(grouped.get(group)) {
-            props.push(prop.as_str());
+        let properties: [str] = [];
+        for property in util::list_or_empty(grouped.get(group)) {
+            properties.push(property.as_str());
         }
-        groups.push(map().with("name", group).with("count", props.len()).with("parts", parts_of(state, schema, props)));
+        groups.push(map().with("name", group).with("count", properties.len()).with("parts", parts_of(state, schema, properties)));
     }
     let laid = map().with("editors", editors).with("loose", parts_of(state, schema, loose)).with("groups", groups);
-    state.inspect_layout.set(comp, laid);
+    state.inspect_layout.set(component, laid);
     laid
 }
 
 // Runs of properties the native rows draw, cut by each one that needs a
 // script: a plugin's editor, a node picker over the document, a material's
 // shader rows. A part is `{ run }`, the run's properties, or `{ prop }`.
-fn parts_of(state: editor::State, schema: any, props: [str]) -> [any] {
+fn parts_of(state: editor::State, schema: any, properties: [str]) -> [any] {
     let parts: [any] = [];
     let run: [str] = [];
-    for prop in props {
-        if drawn_natively(state, schema.get(prop)) {
-            run.push(prop);
+    for property in properties {
+        if drawn_natively(state, schema.get(property)) {
+            run.push(property);
             continue;
         }
         if run.len() > 0 {
             parts.push(map().with("run", run));
             run = [];
         }
-        parts.push(map().with("prop", prop));
+        parts.push(map().with("prop", property));
     }
     if run.len() > 0 {
         parts.push(map().with("run", run));
@@ -1786,12 +1786,12 @@ fn drawn_natively(state: editor::State, spec: any) -> bool {
     if datatype == "asset" && spec.asset.as_str() == "material" {
         return false;
     }
-    if !spec.of.is_nil() && !drawn_natively(state, util::obj(spec.of)) {
+    if !spec.of.is_nil() && !drawn_natively(state, util::map_or_empty(spec.of)) {
         return false;
     }
-    let fields = util::obj(spec.fields);
+    let fields = util::map_or_empty(spec.fields);
     for name in fields.keys() {
-        if !drawn_natively(state, util::obj(fields.get(name))) {
+        if !drawn_natively(state, util::map_or_empty(fields.get(name))) {
             return false;
         }
     }
@@ -1802,38 +1802,38 @@ fn drawn_natively(state: editor::State, spec: any) -> bool {
 /// engine has a warning about so the warning sits under it; a property a
 /// script draws is drawn as it always was. Hands back the component's table
 /// once a script row has read it, so a section reads it at most once.
-fn part_rows(state: &mut editor::State, tokens: any, found: Node, comp: str, part: any, warned_here: bool, data: any) -> any {
+fn part_rows(state: &mut editor::State, tokens: any, found: Node, component: str, part: any, warned_here: bool, data: any) -> any {
     if part.has("prop") {
-        let prop = part.prop.as_str();
-        let read = if data.is_nil() { util::obj(found.get_component(comp, nil)) } else { data };
-        property_row(state, tokens, comp, prop, model::schema(state, comp).get(prop), read);
+        let property = part.prop.as_str();
+        let read = if data.is_nil() { util::map_or_empty(found.get_component(component, nil)) } else { data };
+        property_row(state, tokens, component, property, model::schema(state, component).get(property), read);
         return read;
     }
     if !warned_here {
-        native_row(state, found, comp, part.run);
+        native_row(state, found, component, part.run);
         return data;
     }
     let run: [any] = [];
-    for prop in util::vec(part.run) {
-        run.push(prop);
-        let notes = state.inspect_warned.get("{comp}.{prop.as_str()}");
+    for property in util::list_or_empty(part.run) {
+        run.push(property);
+        let notes = state.inspect_warned.get("{component}.{property.as_str()}");
         if !notes.is_nil() {
-            native_row(state, found, comp, run);
+            native_row(state, found, component, run);
             run = [];
-            for note in util::vec(notes) {
+            for note in util::list_or_empty(notes) {
                 warn_note(state, note.as_str());
             }
         }
     }
     if run.len() > 0 {
-        native_row(state, found, comp, run);
+        native_row(state, found, component, run);
     }
     data
 }
 
 /// One `inspector` over a run of a component's properties: the rows are the
 /// engine's, read off the registry and the live node every pass.
-fn native_row(state: &mut editor::State, found: Node, comp: str, props: any) {
+fn native_row(state: &mut editor::State, found: Node, component: str, properties: any) {
     push(state, map()
         .with("full", true)
         .with("height", 0)
@@ -1843,14 +1843,14 @@ fn native_row(state: &mut editor::State, found: Node, comp: str, props: any) {
                 .with("grow", 1)
                 .with("gap", [2, 2])
                 .with("target", found.path())
-                .with("component", comp)
-                .with("options", props)
-                .with("label_width", label_w(state))
+                .with("component", component)
+                .with("options", properties)
+                .with("label_width", label_width(state))
                 .with("wrap", stacked(state))
-                .with("row_height", row_h(state))
+                .with("row_height", row_height(state))
                 .with("relative_to", state.game_root)
                 .with("on", "handle")
-                .with("data", map().with("fn", on_native_row_edited).with("comp", comp)),
+                .with("data", map().with("fn", on_native_row_edited).with("comp", component)),
         ]));
 }
 
@@ -1860,9 +1860,9 @@ fn on_native_row_edited(state: &mut editor::State, data: any, edit: any) {
 
 /// An edit a native row heard: the value now at its cursor, or an asset to
 /// embed or save.
-fn inspected(state: &mut editor::State, comp: str, edit: any) {
-    let at = at_top(comp, edit.property.as_str(), nil);
-    for step in util::vec(edit.path) {
+fn inspected(state: &mut editor::State, component: str, edit: any) {
+    let at = at_top(component, edit.property.as_str(), nil);
+    for step in util::list_or_empty(edit.path) {
         at = at_step(at, step, "");
     }
     let verb = edit.verb.as_str();
@@ -1880,7 +1880,7 @@ fn inspected(state: &mut editor::State, comp: str, edit: any) {
 // than reading as a node whose components went missing.
 fn empty_note(state: &mut editor::State, tokens: any, carried: int) {
     let text = if carried == 0 { "this node has no components" } else { "no component matches the search" };
-    note_row(state, row_h(state) + 2.0, "text_note", text);
+    note_row(state, row_height(state) + 2.0, "text_note", text);
 }
 
 /// What the Inspector panel's head says, and whether there is a node to
@@ -1911,7 +1911,7 @@ pub fn fill(state: &mut editor::State, query: str) {
     }
     let node = model::selected_node(state);
     describe(state, state.theme, node);
-    pool::sync(state, INSPECTOR_FORM, state.form, label_w(state), stacked(state));
+    pool::sync(state, INSPECTOR_FORM, state.form, label_width(state), stacked(state));
 }
 
 /// The rows of component `name` read again from the selected node, as the

@@ -22,7 +22,7 @@ fn world_of(state: editor::State, row: int) -> [float] {
 fn move_world_to(state: &mut editor::State, row: int, target: [float]) {
     let world = world_of(state, row);
     let local = model::transform_part(model::node(state, row), "position", [0.0, 0.0, 0.0]);
-    model::set_transform(state, row, rig::Parts { position: util::vadd(local, util::vsub(target, world)), rotation_euler: [], scale: [] });
+    model::set_transform(state, row, rig::Parts { position: util::vector_add(local, util::vector_subtract(target, world)), rotation_euler: [], scale: [] });
 }
 
 /// `mode` is `min`, `mid` or `max` along `axis`; the whole set lands on the
@@ -33,19 +33,19 @@ pub fn align(state: &mut editor::State, axis: int, mode: str) {
         log::info("align needs two or more nodes");
         return;
     }
-    let lo = math::INFINITY;
-    let hi = -math::INFINITY;
+    let lowest = math::INFINITY;
+    let highest = -math::INFINITY;
     let sum = 0.0;
     for row in rows {
         let coordinate = world_of(state, row)[axis];
-        lo = util::min(lo, coordinate);
-        hi = util::max(hi, coordinate);
+        lowest = util::min(lowest, coordinate);
+        highest = util::max(highest, coordinate);
         sum += coordinate;
     }
     let to = if mode == "min" {
-        lo
+        lowest
     } else if mode == "max" {
-        hi
+        highest
     } else {
         sum / rows.len().as_float()
     };
@@ -128,14 +128,14 @@ pub fn group(state: &mut editor::State) {
     }
     let center = [0.0, 0.0, 0.0];
     for row in rows {
-        center = util::vadd(center, world_of(state, row));
+        center = util::vector_add(center, world_of(state, row));
     }
-    center = util::vscale(center, 1.0 / rows.len().as_float());
+    center = util::vector_scale(center, 1.0 / rows.len().as_float());
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
     history::record(state, "group", nil);
     let made = model::spawn(state, parent, "Group", map().with("transform", map()
-        .with("position", util::vsub(center, base))
+        .with("position", util::vector_subtract(center, base))
         .with("rotation_euler", [0.0, 0.0, 0.0])
         .with("scale", [1.0, 1.0, 1.0])));
     // Where the first member stood, so the group takes its place in the order.
@@ -159,17 +159,17 @@ pub fn ungroup(state: &mut editor::State) {
         log::warn("cannot ungroup the scene's root or inside a prefab");
         return;
     }
-    let kids = found.children();
-    if kids.len() == 0 {
+    let children = found.children();
+    if children.len() == 0 {
         log::info("nothing to ungroup");
         return;
     }
     history::record(state, "ungroup", nil);
     let up = found.parent();
     let place = found.sibling_index();
-    for kid in kids {
-        kid.set_parent(up);
-        kid.set_sibling_index(place);
+    for child in children {
+        child.set_parent(up);
+        child.set_sibling_index(place);
         place += 1;
     }
     found.free();

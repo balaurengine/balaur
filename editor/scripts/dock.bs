@@ -39,8 +39,8 @@ pub struct AssetLook {
 }
 
 pub class AssetsState {
-    dir: str,
-    sel: str,
+    directory: str,
+    selected: str,
     renaming: bool,
     cards: any,
     shown: Shown,
@@ -50,7 +50,7 @@ pub class AssetsState {
 pub struct Shown {
     items: [str],
     paths: [str],
-    dirs: [bool],
+    is_folder: [bool],
 }
 
 pub struct AssetsView {
@@ -109,7 +109,7 @@ pub struct MeterView {
 /// A stage or a span, and what it cost the last frame.
 struct Cost {
     name: str,
-    ms: float,
+    milliseconds: float,
 }
 
 // What the last frame cost, against the budget: the Profiler's headline, in
@@ -120,14 +120,14 @@ fn frame_hint() -> str {
         return "no timings yet";
     }
     let timings = found.unwrap();
-    let stage_ms = timings.frame * 1000.0;
-    let wall_ms = timings.wall * 1000.0;
-    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
+    let stage_milliseconds = timings.frame * 1000.0;
+    let wall_milliseconds = timings.wall * 1000.0;
+    let frame_milliseconds = if wall_milliseconds > 0.0 { wall_milliseconds } else { stage_milliseconds };
     let steps = timings.fixed_steps;
     let plural = if steps == 1 { "" } else { "s" };
-    let line = "{util::fixed(frame_ms, 2)} ms of {util::fixed(BUDGET_MS, 1)} · {steps} step{plural}";
-    if frame_ms > BUDGET_MS {
-        line += " · {util::fixed(1000.0 / frame_ms, 1)} fps";
+    let line = "{util::fixed(frame_milliseconds, 2)} ms of {util::fixed(BUDGET_MILLISECONDS, 1)} · {steps} step{plural}";
+    if frame_milliseconds > BUDGET_MILLISECONDS {
+        line += " · {util::fixed(1000.0 / frame_milliseconds, 1)} fps";
     }
     line
 }
@@ -180,7 +180,7 @@ fn filtered(state: &mut editor::State) -> Built {
         return state.log_cache.unwrap();
     }
     // The buffer holds 500; asking for 60 threw away most of the session.
-    let entries = util::vec(log::recent(500));
+    let entries = util::list_or_empty(log::recent(500));
     let floor = floor_of(state.log_level);
     let query = state.log_query.to_lower();
     let rows: [any] = [];
@@ -246,7 +246,7 @@ fn log_lines(rows: [any], tokens: any) -> [str] {
         }
         let short = if tag.len() > 9 { tag.slice(0, 9) } else { tag };
         let time = util::fixed(entry.time.as_float(), 1);
-        let line = util::repeat(" ", util::imax(0, 6 - time.len())) + time;
+        let line = util::repeat(" ", util::int_max(0, 6 - time.len())) + time;
         items.push(util::row(marker, "{line}s  {short}  {entry.message.as_str()}", "", tint));
     }
     items
@@ -254,8 +254,8 @@ fn log_lines(rows: [any], tokens: any) -> [str] {
 
 // Icon and ink by extension, so a directory of assets reads at a glance. The
 // tile is one fill for every card; only the mark is typed.
-fn asset_look(name: str, is_dir: bool) -> AssetLook {
-    if is_dir {
+fn asset_look(name: str, is_directory: bool) -> AssetLook {
+    if is_directory {
         return AssetLook { icon: icons::panel("assets"), ink: "text_muted" };
     }
     if name.ends_with(".bs") {
@@ -272,25 +272,25 @@ fn asset_look(name: str, is_dir: bool) -> AssetLook {
 
 // Opening a file means the thing the editor can actually do with it: jump to
 // the node running a script, or open a scene. Anything else just selects.
-fn open_asset(state: &mut editor::State, rel: str) {
-    if rel.ends_with(".toml") && rel.starts_with("scenes/") {
-        if state.scene_rel != rel {
-            model::open_scene(state, rel);
+fn open_asset(state: &mut editor::State, relative_path: str) {
+    if relative_path.ends_with(".toml") && relative_path.starts_with("scenes/") {
+        if state.scene_rel != relative_path {
+            model::open_scene(state, relative_path);
         }
         return;
     }
     for index in 0..state.nodes.len() {
-        if model::script_rel(state.nodes[index]).as_str() == rel {
+        if model::script_rel(state.nodes[index]).as_str() == relative_path {
             shell::choose(state, index);
             shell::set_workspace(state, defs::WORKSPACE_SCRIPT);
             return;
         }
     }
-    log::info("{rel} is not attached to any node");
+    log::info("{relative_path} is not attached to any node");
 }
 
-fn parent_dir(dir: str) -> str {
-    let parts = dir.split("/");
+fn parent_directory(directory: str) -> str {
+    let parts = directory.split("/");
     if parts.len() <= 1 {
         return "";
     }
@@ -298,18 +298,18 @@ fn parent_dir(dir: str) -> str {
     util::join(parts, "/")
 }
 
-/// The Assets dock's own state, hung on `state.assets`. `sel` is the card acted
+/// The Assets dock's own state, hung on `state.assets`. `selected` is the card acted
 /// on by rename and delete; `renaming` swaps the breadcrumb for a field.
 pub fn assets_state() -> AssetsState {
-    AssetsState { dir: "", sel: "", renaming: false, cards: map(), shown: Shown { items: [], paths: [], dirs: [] } }
+    AssetsState { directory: "", selected: "", renaming: false, cards: map(), shown: Shown { items: [], paths: [], is_folder: [] } }
 }
 
-fn asset_path(state: editor::State, rel: str) -> str {
-    state.game_root + "/" + rel
+fn asset_path(state: editor::State, relative_path: str) -> str {
+    state.game_root + "/" + relative_path
 }
 
 pub fn new_folder(state: &mut editor::State) {
-    let base = if state.assets.dir == "" { "new-folder" } else { "{state.assets.dir}/new-folder" };
+    let base = if state.assets.directory == "" { "new-folder" } else { "{state.assets.directory}/new-folder" };
     let name = base;
     let number = 2;
     while fs::exists(asset_path(state, name)) {
@@ -318,7 +318,7 @@ pub fn new_folder(state: &mut editor::State) {
     }
     fs::create_directory(asset_path(state, name));
     model::forget(state, nil);
-    state.assets.sel = name;
+    state.assets.selected = name;
     signals::changed(state, "assets");
     log::info("made res://{name}");
 }
@@ -329,8 +329,8 @@ pub fn rename_asset(state: &mut editor::State, name: str) {
         log::warn("a name cannot be empty or contain a slash");
         return;
     }
-    let from = state.assets.sel;
-    let to = if state.assets.dir == "" { name } else { "{state.assets.dir}/{name}" };
+    let from = state.assets.selected;
+    let to = if state.assets.directory == "" { name } else { "{state.assets.directory}/{name}" };
     if from == to {
         return;
     }
@@ -341,47 +341,47 @@ pub fn rename_asset(state: &mut editor::State, name: str) {
     // The engine moves the file and rewrites every `.toml` naming it.
     let rewritten = assets::rename(asset_path(state, from), asset_path(state, to));
     model::forget(state, nil);
-    state.assets.sel = to;
+    state.assets.selected = to;
     signals::changed(state, "assets");
     log::info("renamed res://{from} to res://{to}; {rewritten.len()} file(s) updated");
 }
 
 pub fn delete_asset(state: &mut editor::State) {
-    let rel = state.assets.sel;
-    if fs::remove(asset_path(state, rel)) {
-        log::info("deleted res://{rel}");
+    let relative_path = state.assets.selected;
+    if fs::remove(asset_path(state, relative_path)) {
+        log::info("deleted res://{relative_path}");
     } else {
-        log::warn("res://{rel} was not there");
+        log::warn("res://{relative_path} was not there");
     }
     model::forget(state, nil);
-    state.assets.sel = "";
+    state.assets.selected = "";
     signals::changed(state, "assets");
 }
 
 /// The installed dependency a project-relative path lies in, as
 /// `dependency::list` describes it, or nil for one of the game's own.
-fn dependency_at(state: editor::State, rel: str) -> any {
-    if !rel.starts_with("deps/") {
+fn dependency_at(state: editor::State, relative_path: str) -> any {
+    if !relative_path.starts_with("deps/") {
         return nil;
     }
-    let alias = dependency::of(asset_path(state, rel));
+    let alias = dependency::of(asset_path(state, relative_path));
     if alias.is_none() {
         return nil;
     }
-    for dep in dependency::list() {
-        if dep.get("alias").as_str() == alias.unwrap() && dep.get("game").as_str() == state.game_root {
-            return dep;
+    for dependency_entry in dependency::list() {
+        if dependency_entry.get("alias").as_str() == alias.unwrap() && dependency_entry.get("game").as_str() == state.game_root {
+            return dependency_entry;
         }
     }
     nil
 }
 
 /// Whether a card the browser shows is a folder.
-fn shown_folder(state: editor::State, rel: str) -> bool {
+fn shown_folder(state: editor::State, relative_path: str) -> bool {
     let shown = state.assets.shown;
     for index in 0..shown.paths.len() {
-        if shown.paths[index] == rel {
-            return shown.dirs[index];
+        if shown.paths[index] == relative_path {
+            return shown.is_folder[index];
         }
     }
     false
@@ -389,41 +389,41 @@ fn shown_folder(state: editor::State, rel: str) -> bool {
 
 /// The game's first `path` dependency, where Move to project puts files.
 fn shelf(state: editor::State) -> str {
-    for dep in dependency::list() {
-        if dep.get("kind").as_str() == "path" && dep.get("game").as_str() == state.game_root {
-            return dep.get("alias").as_str();
+    for dependency_entry in dependency::list() {
+        if dependency_entry.get("kind").as_str() == "path" && dependency_entry.get("game").as_str() == state.game_root {
+            return dependency_entry.get("alias").as_str();
         }
     }
     ""
 }
 
-/// What Edit dependency opens for `dep`: its folder or its page.
-fn source_of(dep: any) -> str {
-    if dep.get("kind").as_str() == "path" {
-        return "Open {dep.get("path").as_str()} in a second editor";
+/// What Edit dependency opens for `dependency_entry`: its folder or its page.
+fn source_of(dependency_entry: any) -> str {
+    if dependency_entry.get("kind").as_str() == "path" {
+        return "Open {dependency_entry.get("path").as_str()} in a second editor";
     }
-    "Open {dep.get("project").as_str()} on Forge"
+    "Open {dependency_entry.get("project").as_str()} on Forge"
 }
 
 /// Say why a dependency's file is not changed here, and what does change it.
-fn refuse_in_dependency(state: editor::State, rel: str) -> bool {
-    let dep = dependency_at(state, rel);
-    if dep.is_nil() {
+fn refuse_in_dependency(state: editor::State, relative_path: str) -> bool {
+    let dependency_entry = dependency_at(state, relative_path);
+    if dependency_entry.is_nil() {
         return false;
     }
-    log::warn("res://{rel} is in the dependency {dep.get("alias").as_str()}, which is read-only here: make it local to change it, or edit the dependency");
+    log::warn("res://{relative_path} is in the dependency {dependency_entry.get("alias").as_str()}, which is read-only here: make it local to change it, or edit the dependency");
     true
 }
 
 /// Copy the selected dependency file into the game at the same place under
 /// the game's root, and point the game at the copy.
 fn make_local(state: &mut editor::State) {
-    let rel = state.assets.sel;
-    let dep = dependency_at(state, rel);
-    if dep.is_nil() {
+    let relative_path = state.assets.selected;
+    let dependency_entry = dependency_at(state, relative_path);
+    if dependency_entry.is_nil() {
         return;
     }
-    let inside = rel.slice("deps/{dep.get("alias").as_str()}/".len(), rel.len());
+    let inside = relative_path.slice("deps/{dependency_entry.get("alias").as_str()}/".len(), relative_path.len());
     let target = inside;
     let copy_number = 2;
     while fs::exists(asset_path(state, target)) {
@@ -433,51 +433,51 @@ fn make_local(state: &mut editor::State) {
         target = "{stem}_{copy_number}{extension}";
         copy_number += 1;
     }
-    let rewritten = dependency::make_local(asset_path(state, rel), asset_path(state, target));
+    let rewritten = dependency::make_local(asset_path(state, relative_path), asset_path(state, target));
     model::forget(state, nil);
-    state.assets.sel = target;
-    state.assets.dir = parent_dir(target);
-    log::info("made res://{target} from {dep.get("alias").as_str()}; {rewritten.len()} file(s) now name it");
+    state.assets.selected = target;
+    state.assets.directory = parent_directory(target);
+    log::info("made res://{target} from {dependency_entry.get("alias").as_str()}; {rewritten.len()} file(s) now name it");
 }
 
 /// Move the selected game file into the game's `path` dependency.
 fn move_to_shelf(state: &mut editor::State) {
     let alias = shelf(state);
-    let rel = state.assets.sel;
-    if alias == "" || rel == "" {
+    let relative_path = state.assets.selected;
+    if alias == "" || relative_path == "" {
         return;
     }
-    let rewritten = dependency::move_into([asset_path(state, rel)], alias);
+    let rewritten = dependency::move_into([asset_path(state, relative_path)], alias);
     model::forget(state, nil);
-    state.assets.sel = "deps/{alias}/{rel}";
-    log::info("moved res://{rel} into {alias}; {rewritten.len()} file(s) updated");
+    state.assets.selected = "deps/{alias}/{relative_path}";
+    log::info("moved res://{relative_path} into {alias}; {rewritten.len()} file(s) updated");
 }
 
 /// Open the dependency the browser is in: a `path` one's folder in a second
 /// editor, a Forge one's page.
 fn edit_dependency(state: editor::State) {
-    let at = if state.assets.sel != "" { state.assets.sel } else { state.assets.dir };
-    let dep = dependency_at(state, at);
-    if dep.is_nil() {
+    let at = if state.assets.selected != "" { state.assets.selected } else { state.assets.directory };
+    let dependency_entry = dependency_at(state, at);
+    if dependency_entry.is_nil() {
         return;
     }
-    if dep.get("kind").as_str() == "path" {
-        let opened = util::obj(project::open_beside(state.game_root + "/" + dep.get("path").as_str()));
+    if dependency_entry.get("kind").as_str() == "path" {
+        let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry.get("path").as_str()));
         if !opened.get("error").is_nil() {
             log::warn(opened.get("error").as_str());
         }
         return;
     }
-    engine::open_url("{forge::url()}/projects/{dep.get("project").as_str()}");
+    engine::open_url("{forge::url()}/projects/{dependency_entry.get("project").as_str()}");
 }
 
 /// What the Assets panel shows for a search: where the browser is, its cards
 /// and the verbs' state. The cards are kept, so a pick names its file.
 pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let tokens = state.theme;
-    let dir = state.assets.dir;
+    let directory = state.assets.directory;
     let files: [any] = [];
-    for entry in model::list(state, dir) {
+    for entry in model::list(state, directory) {
         if search::matches(query, entry.name.as_str()) {
             files.push(entry);
         }
@@ -485,33 +485,33 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     // One string a card: the mark, the name, the path it opens and its ink.
     let items: [str] = [];
     let paths: [str] = [];
-    let dirs: [bool] = [];
+    let is_folder: [bool] = [];
     let cards = map();
     let picked = "";
     for entry in files {
         let name = entry.name.as_str();
-        let is_dir = entry.is_dir.as_bool();
-        let rel = if dir == "" { name } else { "{dir}/{name}" };
-        let look = asset_look(name, is_dir);
+        let is_directory = entry.is_dir.as_bool();
+        let relative_path = if directory == "" { name } else { "{directory}/{name}" };
+        let look = asset_look(name, is_directory);
         // A dependency's files are one shade quieter, as a prefab's rows are:
         // there to use, not to change.
-        let ink = if rel.starts_with("deps/") { "text_subtle" } else { look.ink };
-        let item = util::row(look.icon, name, rel, tokens.get(ink).as_str());
-        if rel == state.assets.sel {
+        let ink = if relative_path.starts_with("deps/") { "text_subtle" } else { look.ink };
+        let item = util::row(look.icon, name, relative_path, tokens.get(ink).as_str());
+        if relative_path == state.assets.selected {
             picked = item;
         }
-        if !is_dir {
-            cards.set(item, rel);
+        if !is_directory {
+            cards.set(item, relative_path);
         }
         items.push(item);
-        paths.push(rel);
-        dirs.push(is_dir);
+        paths.push(relative_path);
+        is_folder.push(is_directory);
     }
     state.assets.cards = cards;
-    state.assets.shown = Shown { items: items, paths: paths, dirs: dirs };
+    state.assets.shown = Shown { items: items, paths: paths, is_folder: is_folder };
     let importing = dropin::in_flight(state) > 0;
-    let here = dependency_at(state, if state.assets.sel != "" { state.assets.sel } else { dir });
-    let in_dependency = dependency_at(state, dir);
+    let here = dependency_at(state, if state.assets.selected != "" { state.assets.selected } else { directory });
+    let in_dependency = dependency_at(state, directory);
     let pinned = if in_dependency.is_nil() {
         ""
     } else if in_dependency.get("rev").as_str() != "" {
@@ -519,14 +519,14 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     } else {
         " · {in_dependency.get("path").as_str()}"
     };
-    let selected_own = state.assets.sel != "" && !state.assets.sel.starts_with("deps/");
+    let selected_own = state.assets.selected != "" && !state.assets.selected.starts_with("deps/");
     AssetsView {
-        dir: dir,
+        dir: directory,
         // A project-relative path: the absolute one is this machine's, and
         // lands in every screenshot.
-        where: if in_dependency.is_nil() { "res://{dir}" } else { "res://{dir} · read-only{pinned}" },
+        where: if in_dependency.is_nil() { "res://{directory}" } else { "res://{directory} · read-only{pinned}" },
         renaming: state.assets.renaming,
-        name: util::last_segment(state.assets.sel),
+        name: util::last_segment(state.assets.selected),
         count: "{files.len()} items",
         importing: importing,
         import_text: icons::panel("import") + (if importing { " cancel" } else { " import" }),
@@ -536,10 +536,10 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
             "Bring in a model, a sprite or a level"
         },
         folder_text: icons::ui("add") + " folder",
-        chosen: state.assets.sel != "",
+        chosen: state.assets.selected != "",
         items: items,
         picked: picked,
-        local: !here.is_nil() && state.assets.sel != "" && !shown_folder(state, state.assets.sel),
+        local: !here.is_nil() && state.assets.selected != "" && !shown_folder(state, state.assets.selected),
         move_to: if selected_own { shelf(state) } else { "" },
         source_tip: if here.is_nil() { "" } else { source_of(here) },
         update: !here.is_nil() && here.get("kind").as_str() == "forge",
@@ -553,16 +553,16 @@ pub fn assets_pick(state: &mut editor::State, row: str) {
         if shown.items[index] != row {
             continue;
         }
-        let rel = shown.paths[index];
-        if rel == state.assets.sel {
-            if shown.dirs[index] {
-                state.assets.dir = rel;
-                state.assets.sel = "";
+        let relative_path = shown.paths[index];
+        if relative_path == state.assets.selected {
+            if shown.is_folder[index] {
+                state.assets.directory = relative_path;
+                state.assets.selected = "";
             } else {
-                open_asset(state, rel);
+                open_asset(state, relative_path);
             }
         } else {
-            state.assets.sel = rel;
+            state.assets.selected = relative_path;
             state.assets.renaming = false;
         }
         signals::changed(state, "assets");
@@ -573,9 +573,9 @@ pub fn assets_pick(state: &mut editor::State, row: str) {
 /// The strip's verbs, by the name of the button pressed; `rename_to` is the
 /// new name submitted.
 pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
-    let chosen = state.assets.sel != "";
+    let chosen = state.assets.selected != "";
     if verb == "Up" {
-        state.assets.dir = parent_dir(state.assets.dir);
+        state.assets.directory = parent_directory(state.assets.directory);
     } else if verb == "Import" {
         // Asks and imports: a dialog on a desktop, the page's own chooser in
         // a tab, and the same reports either way.
@@ -585,7 +585,7 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
             import::choose();
         }
     } else if verb == "Folder" {
-        if !refuse_in_dependency(state, state.assets.dir) {
+        if !refuse_in_dependency(state, state.assets.directory) {
             new_folder(state);
         }
     } else if verb == "Local" && chosen {
@@ -600,11 +600,11 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
             log::info("updating the dependencies");
         }
     } else if verb == "Rename" && chosen {
-        if !refuse_in_dependency(state, state.assets.sel) {
+        if !refuse_in_dependency(state, state.assets.selected) {
             state.assets.renaming = !state.assets.renaming;
         }
     } else if verb == "Delete" && chosen {
-        if !refuse_in_dependency(state, state.assets.sel) {
+        if !refuse_in_dependency(state, state.assets.selected) {
             delete_asset(state);
         }
     } else if verb == "rename_to" {
@@ -616,22 +616,22 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
 /// A card dragged out of the Assets panel and let go: over the viewport, the
 /// file is placed where the pointer is; anywhere else, nothing happens.
 pub fn drop_card(state: &mut editor::State, card: any) -> bool {
-    let rel = state.assets.cards.get(card.as_str());
-    if rel.is_nil() {
+    let relative_path = state.assets.cards.get(card.as_str());
+    if relative_path.is_nil() {
         return false;
     }
     let at = viewport::pointer(state);
     if !viewport::owns_pointer(state, at.x, at.y) {
         return false;
     }
-    dropin::place_file(state, rel.as_str())
+    dropin::place_file(state, relative_path.as_str())
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.bs is the adapter):
 // scrubbing seeks the engine's player, so the viewport shows the engine's pose.
 const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
 
-const NAME_W: float = 150.0;
+const NAME_WIDTH: float = 150.0;
 
 /// Fill the Timeline tab: what the player is missing, or the clip's ruler,
 /// rules, lanes and keys placed by time against the tab's width, the playhead
@@ -653,24 +653,24 @@ pub fn timeline_fill(state: &mut editor::State) {
         util::fill(TIMELINE + "/Body", map().with("visible", false));
         return;
     }
-    let def = found;
+    let definition = found;
     util::fill(TIMELINE + "/Missing", map().with("visible", false));
     util::fill(TIMELINE + "/Body", map().with("visible", true));
-    let length = util::max(anim::length(def), 1e-4);
-    let tracks = anim::tracks(def);
-    let lane_x = NAME_W + 14.0;
-    let lane_w = util::max(120.0, width_of(TIMELINE) - lane_x - 24.0);
+    let length = util::max(anim::length(definition), 1e-4);
+    let tracks = anim::tracks(definition);
+    let lane_x = NAME_WIDTH + 14.0;
+    let lane_width = util::max(120.0, width_of(TIMELINE) - lane_x - 24.0);
     let name = anim::clip_name(state, node);
     util::fill(TIMELINE + "/Body/Head/AddKey", map().with("icon", icons::ui("add")));
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };
     let place = if library.is_none() { "inline" } else { library.unwrap() };
     util::fill(TIMELINE + "/Body/Head/Clip", map().with("text", "{clip} · {place}"));
-    util::fill(TIMELINE + "/Body/Head/Time", map().with("text", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(def), 2)} s"));
+    util::fill(TIMELINE + "/Body/Head/Time", map().with("text", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s"));
     // The engine's own vocabulary, not a boolean: pingpong is a third answer
     // and a toggle cannot say it.
-    let loop_mode = def.loop_mode;
-    util::fill(TIMELINE + "/Body/Head/Length", map().with("value", anim::length(def)));
+    let loop_mode = definition.loop_mode;
+    util::fill(TIMELINE + "/Body/Head/Length", map().with("value", anim::length(definition)));
     util::fill(TIMELINE + "/Body/Head/Loop", map()
         .with("text", if loop_mode.is_nil() { animation::LOOP_NONE } else { loop_mode.as_str() })
         .with("options", [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG]));
@@ -681,7 +681,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let rules: [any] = [];
     let seconds = 0.0;
     while seconds <= length + 1e-4 {
-        let tick_x = lane_at(lane_x, length, lane_w, seconds);
+        let tick_x = lane_at(lane_x, length, lane_width, seconds);
         ticks.push(map()
             .with("kind", "label")
             .with("role", "text_code_quiet")
@@ -701,13 +701,13 @@ pub fn timeline_fill(state: &mut editor::State) {
     pool::strip(state, TIMELINE + "/Body/Ruler", ticks);
     pool::strip(state, TIMELINE + "/Body/Lanes/Rules", rules);
     util::fill(TIMELINE + "/Body/Lanes/Playhead", map()
-        .with("inset", [lane_at(lane_x, length, lane_w, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0]));
+        .with("inset", [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0]));
     let rows: [any] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
         let color = (if index % 2 == 0 { tokens.primary_text } else { tokens.secondary_text }).as_str();
         let keys: [any] = [];
-        for key in util::vec(track.keys) {
+        for key in util::list_or_empty(track.keys) {
             let when = key.time.as_float();
             let before = when <= state.anim.time + 1e-4;
             // A key is its mark: filled once the playhead has passed it.
@@ -719,18 +719,18 @@ pub fn timeline_fill(state: &mut editor::State) {
                 .with("padding", 0)
                 .with("text_color", color)
                 .with("absolute", true)
-                .with("inset", [(when / length) * lane_w - 6.0, 2.0, -1.0, -1.0])
+                .with("inset", [(when / length) * lane_width - 6.0, 2.0, -1.0, -1.0])
                 .with("tooltip", "{util::fixed(when, 2)} s")
                 .with("on", "handle")
                 .with("data", map().with("fn", on_key_pressed).with("when", when)));
         }
         rows.push(map()
             .with("full", true)
-            .with("height", LANE_H)
+            .with("height", LANE_HEIGHT)
             .with("controls", [
                 map()
                     .with("kind", "row")
-                    .with("width", NAME_W)
+                    .with("width", NAME_WIDTH)
                     .with("gap", [6, 6])
                     .with("align_items", "center")
                     .with("padding", [8, 0, 0, 0])
@@ -745,20 +745,20 @@ pub fn timeline_fill(state: &mut editor::State) {
                     ]),
                 map()
                     .with("kind", "row")
-                    .with("width", lane_w)
+                    .with("width", lane_width)
                     .with("controls", keys)
-                    .with("height", LANE_H)
+                    .with("height", LANE_HEIGHT)
                     .with("margin", [14, 0, 0, 0]),
             ]));
     }
     pool::sync(state, TIMELINE + "/Body/Lanes/Scroll/Tracks", rows, 0.0, false);
     util::fill(TIMELINE + "/Body/ScrubRow", map().with("padding", [8.0 + lane_x, 0.0, 0.0, 0.0]));
-    util::fill(TIMELINE + "/Body/ScrubRow/Scrub", map().with("width", lane_w).with("value", state.anim.time).with("max", anim::length(def)));
+    util::fill(TIMELINE + "/Body/ScrubRow/Scrub", map().with("width", lane_width).with("value", state.anim.time).with("max", anim::length(definition)));
 }
 
-// Where time `seconds` lands across a lane `lane_w` wide that starts at `lane_x`.
-fn lane_at(lane_x: float, length: float, lane_w: float, seconds: float) -> float {
-    8.0 + lane_x + (seconds / length) * lane_w
+// Where time `seconds` lands across a lane `lane_width` wide that starts at `lane_x`.
+fn lane_at(lane_x: float, length: float, lane_width: float, seconds: float) -> float {
+    8.0 + lane_x + (seconds / length) * lane_width
 }
 
 // How wide the node at `path` was drawn, or a guess before it has been.
@@ -786,20 +786,20 @@ pub fn timeline_verb(state: &mut editor::State, verb: str) {
 /// A clip setting from the Timeline's head, written into the clip as one
 /// undo step: its length, kept above a tenth of a second, or its loop mode.
 pub fn timeline_clip(state: &mut editor::State, setting: str, value: any) {
-    let def = anim::definition(state);
-    if def.is_nil() {
+    let definition = anim::definition(state);
+    if definition.is_nil() {
         return;
     }
     history::record(state, "clip {setting.to_lower()}", "clip:{setting}");
     if setting == "Length" {
-        def.set("length", util::max(0.1, value.as_float()));
+        definition.set("length", util::max(0.1, value.as_float()));
     } else {
-        def.set("loop_mode", value.as_str());
+        definition.set("loop_mode", value.as_str());
     }
     anim::touch(state);
 }
 
-const LANE_H: float = 26.0;
+const LANE_HEIGHT: float = 26.0;
 
 // A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
 fn tick_step(length: float) -> float {
@@ -853,7 +853,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     // tree's own, so nothing here folds.
     let items: [str] = [];
     let owners: [int] = [];
-    let frames = util::vec(paused.frames);
+    let frames = util::list_or_empty(paused.frames);
     for index in 0..frames.len() {
         let frame = frames[index];
         let site = "{shell::script_rel(state, frame.path.as_str())}:{frame.line}";
@@ -987,7 +987,7 @@ fn open_at(state: &mut editor::State, finding: any) {
 // The Recordings tab while one is open: the replay's transport and lanes.
 const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
 
-const LANE_NAME_W: float = 120.0;
+const LANE_NAME_WIDTH: float = 120.0;
 
 /// Fill the recording lanes: the transport and scrubber, where the replay
 /// parted from the recording, a lane a kind of event with its marks placed by
@@ -998,7 +998,7 @@ pub fn lanes_fill(state: editor::State) {
     let first = state.session.first;
     let last = state.session.last;
     let span = util::max(1.0, (last - first) as float);
-    let lane_w = util::max(120.0, width_of(LANES) - LANE_NAME_W - 60.0);
+    let lane_width = util::max(120.0, width_of(LANES) - LANE_NAME_WIDTH - 60.0);
     let playing = replay::state() == replay::STATE_PLAYING;
     util::fill(LANES + "/Head/Play", map().with("text", if playing { "⏸ Pause" } else { "▶ Play" }));
     // Before the first frame is fed the position is one tick short of the
@@ -1015,7 +1015,7 @@ pub fn lanes_fill(state: editor::State) {
         let marks: [any] = [];
         for mark in lane.marks {
             let tick = mark.tick;
-            let mark_x = util::clamp(((tick - first) as float) / span, 0.0, 1.0) * (lane_w - 6.0);
+            let mark_x = util::clamp(((tick - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
             marks.push(map()
                 .with("kind", "button")
                 .with("role", "chip_quiet")
@@ -1035,14 +1035,14 @@ pub fn lanes_fill(state: editor::State) {
             .with("controls", [
                 map()
                     .with("kind", "label")
-                    .with("width", LANE_NAME_W - 12.0)
+                    .with("width", LANE_NAME_WIDTH - 12.0)
                     .with("padding", [8, 0, 0, 0])
                     .with("role", "text_code_quiet")
                     .with("font_size", 11)
                     .with("text", lane.name),
                 map()
                     .with("kind", "row")
-                    .with("width", lane_w)
+                    .with("width", lane_width)
                     .with("controls", marks)
                     .with("height", 20),
             ]));
@@ -1193,7 +1193,7 @@ fn on_keep_pressed(state: &mut editor::State, data: any, _value: any) {
 // What one 60 Hz frame costs, as a bar per stage against that budget. The
 // editor's own frame is what is measured while it is idle; press Play and it
 // becomes the game's, which is the number anyone actually wants.
-const BUDGET_MS: float = 16.667;
+const BUDGET_MILLISECONDS: float = 16.667;
 
 /// What a live meter shows, `what` being `profiler` or `cost`: its table,
 /// its headline, and what to say when there is nothing to measure.
@@ -1213,7 +1213,7 @@ pub fn meter_view(state: editor::State, what: str) -> MeterView {
     let items: [str] = [];
     let stages: any = timings.stages;
     cost_rows(items, tokens, stages, "stage");
-    let spans = util::obj(timings.spans);
+    let spans = util::map_or_empty(timings.spans);
     if spans.len() > 0 {
         cost_rows(items, tokens, spans, "span");
     }
@@ -1250,7 +1250,7 @@ fn script_rows(items: [str], tokens: any) {
     // pool calls by name among them.
     let functions = engine::function_costs();
     let top = if functions.len() == 0 { 0.0 } else { functions[0].instructions as float };
-    for index in 0..util::imin(functions.len(), FUNCTION_ROWS) {
+    for index in 0..util::int_min(functions.len(), FUNCTION_ROWS) {
         let row = functions[index];
         let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
         items.push(util::cells([
@@ -1280,14 +1280,14 @@ fn bar(share: float) -> str {
 fn by_cost(table: any) -> [Cost] {
     let left: [Cost] = [];
     for name in table.keys() {
-        left.push(Cost { name: name, ms: table.get(name).as_float() * 1000.0 });
+        left.push(Cost { name: name, milliseconds: table.get(name).as_float() * 1000.0 });
     }
     let out: [Cost] = [];
     while left.len() > 0 {
         let worst = 0;
         let index = 1;
         while index < left.len() {
-            if left[index].ms > left[worst].ms {
+            if left[index].milliseconds > left[worst].milliseconds {
                 worst = index;
             }
             index += 1;
@@ -1301,7 +1301,7 @@ fn by_cost(table: any) -> [Cost] {
 // number needs reading, a bar does not.
 fn cost_rows(items: [str], tokens: any, table: any, kind: str) {
     for row in by_cost(table) {
-        let tint = (if row.ms > BUDGET_MS * 0.5 {
+        let tint = (if row.milliseconds > BUDGET_MILLISECONDS * 0.5 {
             tokens.primary_text
         } else if kind == "span" {
             tokens.secondary_text
@@ -1310,8 +1310,8 @@ fn cost_rows(items: [str], tokens: any, table: any, kind: str) {
         }).as_str();
         items.push(util::cells([
             row.name,
-            util::fixed(row.ms, 3) + " ms",
-            bar(row.ms / BUDGET_MS),
+            util::fixed(row.milliseconds, 3) + " ms",
+            bar(row.milliseconds / BUDGET_MILLISECONDS),
             tint,
         ]));
     }
@@ -1383,7 +1383,7 @@ fn pack_size(state: editor::State) -> str {
         return "not exported yet";
     }
     let total = 0;
-    for entry in util::vec(fs::list(out)) {
+    for entry in util::list_or_empty(fs::list(out)) {
         if !entry.is_dir.as_bool() {
             total += 1;
         }
