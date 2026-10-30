@@ -113,8 +113,8 @@ is rewritten in the same commit).
    --api-json docs/generated/api.json --fail-on-error`, `balaur check editor
    --strict`, `balaur fmt editor`, the full `scripts/e2e.sh`, and
    `python3 scripts/house_lints.py`, `comment_lints.py`, `prose_lints.py`
-   (all at 0 errors at "Docs: the reference regenerated"; the full e2e
-   passed there too). Build with `CARGO_INCREMENTAL=0`: the incremental
+   (all at 0 errors, the full e2e passing and both wasm clippy runs clean
+   at "CLI: a wasm build does not import the replay it cannot run"). Build with `CARGO_INCREMENTAL=0`: the incremental
    cache once filled the disk.
 
 ## Measured
