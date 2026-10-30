@@ -372,6 +372,16 @@ fn lines(texts: &[Numeral]) -> Vec<u32> {
     texts.iter().filter_map(Numeral::line).collect()
 }
 
+/// Redo the fields of `widget` that `names` fill, each a property with a
+/// field of its own: the event pump writes a reader's edit onto the
+/// properties, and the widget follows them here.
+pub(crate) fn follow(widget: &mut Widget, asked: &WidgetProperties, names: &[&str]) {
+    for name in names {
+        let alone = put_one(widget, asked, name);
+        debug_assert!(alone, "`{name}` fills a field of its own");
+    }
+}
+
 /// Each property's place in the [`Widget`], written once for both ways it is
 /// filled: `put_every` builds a widget whole, `put_one` redoes the field one
 /// property fills.

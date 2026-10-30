@@ -36,9 +36,10 @@ is rewritten in the same commit).
 - `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 208
   fields, beside the `Widget` cache; a one-property write updates the one
   `Widget` field it feeds (`cache_fields!`), 18 properties rebuild whole.
-  `input.rs` writes both copies when a click, drag or keystroke changes a
-  widget: it should write through `set_property_at` so the struct is the
-  one source. Core's `PropertyReaders`/`PropertyWriters` are gone.
+  A click, drag or keystroke writes the struct, and `schema::follow`
+  redoes the `Widget` fields those properties fill (`input.rs`), so the
+  struct is the one source. Core's `PropertyReaders`/`PropertyWriters` are
+  gone.
 - A component whose cache must go with it overrides `remove` (bones,
   bindings, the animation and audio ones). If that pattern keeps repeating,
   a `removed` hook on `ComponentDef::of` would say it once.
@@ -79,10 +80,9 @@ is rewritten in the same commit).
      `collision_binding*` beside a `collision_mesh`, `skin` and
      `skin_collision` with cells, `tile_collision`'s `fit`.
    - `tilemap` cells/terrain/flags are string-encoded grids.
-3. **One source for a widget's values**: `input.rs` writes both
-   `WidgetProperties` and `Widget` when a click, drag or keystroke changes
-   one; it should write through `set_property_placed` so the struct is the
-   source and the cache follows.
+3. **One source for a widget's values**: done. `input.rs` writes
+   `WidgetProperties` and `schema::follow` brings the `Widget` after it,
+   field by field from the `cache_fields!` table.
 4. **A stricter language** (§9 step 5).
    - Engine records for the functions that take or give an `any` options
      table, then `map()` and `with` go: 1,428 `map()` and 4,056 `.with(` in

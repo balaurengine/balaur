@@ -16,6 +16,7 @@ use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
 use crate::widget::node::Widget;
 use crate::widget::properties::{Numeral, WidgetProperties};
+use crate::widget::schema::follow;
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -518,79 +519,39 @@ fn passed(eng: &Engine, entity: Entity, mut args: Vec<Value>) -> Vec<Value> {
     args
 }
 
-/// One edit written onto the widget it names, and what that says.
+/// One edit written onto the properties of the widget it names, the widget's
+/// fields brought after them, and what the edit says.
 ///
 /// The match answers with the event, the value and the handler rather than
 /// reporting them, so the three lines that emit and call are written once
 /// for every kind of edit. `None` is an edit that reports nothing.
 fn settle_one(
     entity: Entity,
+    asked: &mut WidgetProperties,
     widget: &mut Widget,
     edit: &Edit,
     emitted: &mut Vec<(Entity, &'static str, Value)>,
     signals: &mut Vec<(Entity, String, Value)>,
 ) {
+    let keys = written(asked, edit);
+    follow(widget, asked, keys);
     let said = match edit {
-        Edit::Width(w) => {
-            widget.width = *w;
+        Edit::Width(_) | Edit::Height(_) | Edit::Moved(_) | Edit::Widths(_) | Edit::Sorted(..) => {
             None
         }
-        Edit::Height(h) => {
-            widget.height = *h;
-            None
-        }
-        Edit::Active(name) => {
-            widget.active = name.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(name.clone()), &widget.on_change))
-        }
-        Edit::Moved([dx, dy]) => {
-            let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);
-            widget.x += dx * sx;
-            widget.y += dy * sy;
-            None
-        }
-        Edit::Text(text) => {
-            widget.text = text.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change))
-        }
-        Edit::Submit(text) => {
-            widget.text = text.as_str().into();
-            Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit))
-        }
+        Edit::Active(name) => Some((CHANGE_EVENT, Value::Str(name.clone()), &widget.on_change)),
+        Edit::Text(text) => Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change)),
+        Edit::Submit(text) => Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit)),
         Edit::Value(value) => {
-            widget.value = *value;
             let said = Value::Num(f64::from(*value));
             Some((CHANGE_EVENT, said, &widget.on_change))
         }
-        Edit::Open(open) => {
-            widget.open = *open;
-            Some((CHANGE_EVENT, Value::Bool(*open), &widget.on_change))
-        }
-        Edit::Color(rgba) => {
-            widget.color = *rgba;
-            Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change))
-        }
-        // A dropdown shows what was picked; a menu keeps its caption.
-        Edit::Choice(choice) => {
-            if widget.kind != w::MENU {
-                widget.text = choice.as_str().into();
-            }
-            Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change))
-        }
+        Edit::Open(open) => Some((CHANGE_EVENT, Value::Bool(*open), &widget.on_change)),
+        Edit::Color(rgba) => Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change)),
+        Edit::Choice(choice) => Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change)),
         Edit::Picked(row, rows) => {
-            let said = picked(widget, row, rows);
+            let said = picked(widget.multi, row, rows);
             Some((CHANGE_EVENT, said, &widget.on_change))
-        }
-        // The chrome a reader dragged: written down so the scene keeps it,
-        // and reported to nobody, as a seam between two containers is.
-        Edit::Widths(shares) => {
-            widget.widths.clone_from(shares);
-            None
-        }
-        Edit::Sorted(column, reverse) => {
-            widget.sort = column.as_str().into();
-            widget.reverse = *reverse;
-            None
         }
         Edit::Dropped(moved, target, side) => {
             let said = [moved, target, side]
@@ -617,14 +578,8 @@ fn settle_one(
         | Edit::Opened
         | Edit::Closed
         | Edit::Caret(..)
-        | Edit::CloseRequested => {
-            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
-            None
-        }
-        // Written down as well as heard, so `scroll_offset` reads back where
-        // the reader left it.
-        Edit::Scrolled(offset) => {
-            std::sync::Arc::make_mut(&mut widget.egui).scroll_offset = *offset;
+        | Edit::CloseRequested
+        | Edit::Scrolled(_) => {
             emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
             None
         }
@@ -637,6 +592,76 @@ fn settle_one(
     emitted.push((entity, event, value.clone()));
     if !handler.is_empty() {
         signals.push((entity, handler.to_string(), value));
+    }
+}
+
+/// What an edit writes onto the properties, and the keys it wrote: where
+/// the reader left a drag, a pick or a keystroke, for `get` to report and
+/// the widget to follow.
+fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str] {
+    match edit {
+        Edit::Width(width) => {
+            asked.width = *width;
+            &[k::WIDTH]
+        }
+        Edit::Height(height) => {
+            asked.height = *height;
+            &[k::HEIGHT]
+        }
+        Edit::Active(name) => {
+            asked.current_page = name.as_str().into();
+            &[k::CURRENT_PAGE]
+        }
+        Edit::Moved([dx, dy]) => {
+            let (sx, sy) = crate::widget::window::drag_signs(&asked.anchor.0);
+            asked.x += dx * sx;
+            asked.y += dy * sy;
+            &[k::X, k::Y]
+        }
+        Edit::Text(text) | Edit::Submit(text) => {
+            asked.text = text.as_str().into();
+            &[k::TEXT]
+        }
+        Edit::Value(value) => {
+            asked.value = *value;
+            &[k::VALUE]
+        }
+        Edit::Open(open) => {
+            asked.open = *open;
+            &[k::OPEN]
+        }
+        Edit::Color(rgba) => {
+            asked.picked_color = *rgba;
+            &[k::PICKED_COLOR]
+        }
+        // A dropdown shows what was picked; a menu keeps its caption.
+        Edit::Choice(choice) if asked.kind.0 != w::MENU => {
+            asked.text = choice.as_str().into();
+            &[k::TEXT]
+        }
+        Edit::Picked(row, rows) => {
+            asked.text = row.as_str().into();
+            asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
+            &[k::TEXT, k::SELECTION]
+        }
+        // The chrome a reader dragged: written down so the scene keeps it,
+        // and reported to nobody, as a seam between two containers is.
+        Edit::Widths(shares) => {
+            asked.widths = shares.iter().copied().map(Numeral::of).collect();
+            &[k::WIDTHS]
+        }
+        Edit::Sorted(column, reverse) => {
+            asked.sort = column.as_str().into();
+            asked.reverse = *reverse;
+            &[k::SORT, k::REVERSE]
+        }
+        // Written down as well as heard, so `scroll_offset` reads back where
+        // the reader left it.
+        Edit::Scrolled(offset) => {
+            asked.scroll_offset = *offset;
+            &[k::SCROLL_OFFSET]
+        }
+        _ => &[],
     }
 }
 
@@ -688,12 +713,10 @@ fn marked(row: &str, mark: &str) -> Value {
     ])
 }
 
-/// A row pick written onto the widget, and what it says: the whole set where
-/// it holds many, and the row hit where it holds one.
-fn picked(widget: &mut Widget, row: &str, rows: &[String]) -> Value {
-    widget.text = row.into();
-    widget.selection = rows.iter().map(|row| row.as_str().into()).collect();
-    if widget.multi {
+/// What a row pick says: the whole set where the widget holds many, and the
+/// row hit where it holds one.
+fn picked(multi: bool, row: &str, rows: &[String]) -> Value {
+    if multi {
         return Value::List(rows.iter().map(|row| Value::Str(row.clone())).collect());
     }
     Value::Str(row.to_owned())
@@ -716,54 +739,23 @@ fn settle_edits(
             submitted.push(entity);
         }
         let world = eng.world();
-        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
+        let (Ok(mut asked), Ok(mut widget)) = (
+            world.get::<&mut WidgetProperties>(entity),
+            world.get::<&mut Widget>(entity),
+        ) else {
             continue;
         };
         // Written straight onto the component, so the arena's copy of this one
         // is stale until the next pass re-reads it.
         crate::widget::arena::widget_changed(entity);
-        settle_one(entity, &mut widget, edit, emitted, &mut signals);
-        if let Ok(mut asked) = world.get::<&mut WidgetProperties>(entity) {
-            written_back(&mut asked, &widget, edit);
-        }
+        settle_one(entity, &mut asked, &mut widget, edit, emitted, &mut signals);
     }
     (signals, submitted)
 }
 
-/// What an edit wrote onto the widget, written onto its properties as well,
-/// so `get` and a one-property read report where the reader left it.
-fn written_back(asked: &mut WidgetProperties, widget: &Widget, edit: &Edit) {
-    match edit {
-        Edit::Width(_) => asked.width = widget.width,
-        Edit::Height(_) => asked.height = widget.height,
-        Edit::Active(_) => asked.current_page = widget.active.clone(),
-        Edit::Moved(_) => {
-            asked.x = widget.x;
-            asked.y = widget.y;
-        }
-        Edit::Text(_) | Edit::Submit(_) | Edit::Choice(_) => asked.text = widget.text.clone(),
-        Edit::Value(_) => asked.value = widget.value,
-        Edit::Open(_) => asked.open = widget.open,
-        Edit::Color(_) => asked.picked_color = widget.color,
-        Edit::Picked(..) => {
-            asked.text = widget.text.clone();
-            asked.selection.clone_from(&widget.selection);
-        }
-        Edit::Widths(_) => {
-            asked.widths = widget.widths.iter().copied().map(Numeral::of).collect();
-        }
-        Edit::Sorted(..) => {
-            asked.sort = widget.sort.clone();
-            asked.reverse = widget.reverse;
-        }
-        Edit::Scrolled(_) => asked.scroll_offset = widget.egui.scroll_offset,
-        _ => {}
-    }
-}
-
-/// A widget as the click pass writes it: the widget the layer reads, and the
-/// properties `get` reports, where the node has them.
-type Settled<'a> = (Entity, &'a mut Widget, Option<&'a mut WidgetProperties>);
+/// A widget as the click pass writes it: the properties, and the widget the
+/// layer reads, which follows them.
+type Settled<'a> = (Entity, &'a mut WidgetProperties, &'a mut Widget);
 
 /// Write this frame's `clicked` and `submitted` onto every widget, and collect
 /// the handlers.
@@ -783,24 +775,16 @@ fn settle_clicks(
     // below holds one widget at a time and a group's siblings are others.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
     let world = eng.world();
-    for (entity, widget, mut asked) in &mut world.query::<Settled<'_>>() {
+    for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
         let struck = hit.contains(&entity);
+        let said = submitted.contains(&entity);
         // Only on the change: this runs over every widget every frame, and a
         // write that put the same `false` back would rebuild the whole arena.
-        if widget.clicked != struck {
-            widget.clicked = struck;
-            crate::widget::arena::widget_changed(entity);
-        }
-        let said = submitted.contains(&entity);
-        if widget.submitted != said {
-            widget.submitted = said;
-            crate::widget::arena::widget_changed(entity);
-        }
-        // The properties report what the event pump wrote, as `get` did when
-        // it read the widget itself.
-        if let Some(asked) = asked.as_deref_mut() {
+        if asked.clicked != struck || asked.submitted != said {
             asked.clicked = struck;
             asked.submitted = said;
+            follow(widget, asked, &[k::CLICKED, k::SUBMITTED]);
+            crate::widget::arena::widget_changed(entity);
         }
         if !struck {
             continue;
@@ -810,14 +794,12 @@ fn settle_clicks(
         // the pass below unticks the rest of its group.
         if flips(widget) {
             let grouped = !widget.radio_group.is_empty();
-            let was = widget.checked;
+            let was = asked.checked;
             // Grouped, a click picks: it ticks and a second click leaves it
             // ticked, because something in the group has to be. On its own, a
             // click flips.
-            widget.checked = if grouped { true } else { !was };
-            if let Some(asked) = asked {
-                asked.checked = widget.checked;
-            }
+            asked.checked = if grouped { true } else { !was };
+            follow(widget, asked, &[k::CHECKED]);
             if widget.checked != was {
                 crate::widget::arena::widget_changed(entity);
                 emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
@@ -838,17 +820,15 @@ fn settle_clicks(
         }
     }
     for (struck, group) in &ticked {
-        for (entity, widget, asked) in &mut world.query::<Settled<'_>>() {
+        for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
             if entity == *struck || !flips(widget) || widget.radio_group != *group {
                 continue;
             }
-            if !widget.checked {
+            if !asked.checked {
                 continue;
             }
-            widget.checked = false;
-            if let Some(asked) = asked {
-                asked.checked = false;
-            }
+            asked.checked = false;
+            follow(widget, asked, &[k::CHECKED]);
             crate::widget::arena::widget_changed(entity);
             emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
             if !widget.on_change.is_empty() {
