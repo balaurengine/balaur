@@ -1,6 +1,7 @@
-> **Status:** planned 2026-10-30, nothing built. Step 12 of
-> PLAN-foundations: after the `widget` per-kind split, and after the ECS
-> work for the parts that read change ticks.
+> **Status:** planned 2026-10-30. §1's engine built 2026-10-30
+> (`balaur_text/src/edit.rs`); wiring it into the text kinds waits on the
+> `widget` derive and per-kind split. The rest is step 12 of
+> PLAN-foundations, after the ECS work for the parts that read change ticks.
 
 # Plan: the UI's gaps
 
@@ -34,6 +35,24 @@ labels use:
   field losing focus hides it; what winit offers there is checked first
 
 Then `egui::TextEdit` has no caller left.
+
+Built 2026-10-30, ahead of the wiring: `balaur_text::edit`. It does not use
+`cosmic_text::Editor`. `TextState::clusters` lays the text out on a label's
+own path and keeps each cluster's bytes, advance box, line and direction,
+and the text's grapheme boundaries. `Clusters` answers the caret's box, the
+byte a click lands on (inside a ligature too: Arabic's `لا` is one cluster),
+a selection's boxes, Home and End on a wrapped line, and up and down.
+`Editing` holds the text, the caret and the selection's other end: moves by
+grapheme and by word, deletes by grapheme and by word, undo with typed
+letters in one step, cut, input-method composing shown in place, and a
+secret shown as a dot a grapheme. The caret moves in the order text is
+stored, drawn where its cluster is. 12 tests, Arabic, Hebrew among Latin,
+Hindi and Thai among them, round-tripping every caret stop through a click.
+
+What wiring adds: painting the shaped text, caret and selection in the
+widget layer; keys, mouse, touch and IME events from `balaur_input`; the
+clipboard; `placeholder`, `submitted` and focus as today; the platform
+keyboard on a phone. A bitmap-font field is measured in the default face.
 
 Tests:
 

@@ -21,6 +21,8 @@ libm.workspace = true
 # `monospace_width` resizes it to.
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash", "monospace_fallback"] }
 unicode-script = "0.5"
+# A caret moves and deletes by grapheme and by word (`edit.rs`).
+unicode-segmentation = "1"
 # A glyph's outline, for text that is geometry rather than an atlas quad.
 # The version is cosmic-text's, so `Font::as_swash` hands back this crate's
 # `FontRef` and not a second copy of it.

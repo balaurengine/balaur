@@ -19,6 +19,7 @@ use cosmic_text::{Buffer, CacheKeyFlags};
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 pub mod bitmap;
+pub mod edit;
 pub mod font;
 pub mod fonts;
 pub mod glyph;
@@ -517,6 +518,24 @@ impl TextState {
         let parsed = spans_of(request);
         let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, request);
         place(&mut self.atlas, fonts, &buffer, &parsed, request, scale)
+    }
+
+    /// Where each cluster of `request`'s text sits, laid out as a label lays
+    /// it out, markup off: what a field's caret, clicks and selection are
+    /// measured against. A bitmap font is measured in the default face.
+    pub fn clusters(&mut self, request: &RequestRef<'_>) -> edit::Clusters {
+        let factor = if request.line_height > 0.0 {
+            request.line_height
+        } else {
+            1.2
+        };
+        let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
+        let plain = RequestRef {
+            markup: false,
+            ..*request
+        };
+        let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
+        edit::clusters(&buffer, request.text, request.size * factor)
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
