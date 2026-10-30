@@ -9,32 +9,13 @@ use balaur_plugin::Registry;
 
 use crate::post::{drive_post, effects_of, effects_row};
 use crate::vocabulary::keys as k;
-use crate::{CameraConfig2d, CameraConfig3d, color_to_toml};
+use crate::{CameraConfig2d, CameraConfig3d};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera` schema below states, which `render.set_camera_2d` also takes.
 /// A hundredth, not one: a pixel-scale level is thousands of units across,
 /// and a camera that cannot show it whole is a camera that cannot frame it.
 pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
-
-/// A colour property read by name, defaulting to black — `color_from_params`
-/// reads the property called `color` and defaults to the renderable grey.
-fn color_from_params_named(params: &toml::Value, key: &str) -> [f32; 4] {
-    let channel = |i: usize, default: f64| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    [
-        channel(0, 0.0),
-        channel(1, 0.0),
-        channel(2, 0.0),
-        channel(3, 1.0),
-    ]
-}
 
 /// The `camera3d` component's authored state. `drive_camera_system` copies
 /// the current one into [`CameraConfig3d`].
@@ -58,9 +39,6 @@ pub struct Camera2d {
     pub current: bool,
     /// Zoom in logical pixels per world unit.
     pub zoom: f32,
-    /// Light every 2D surface gets before any `light2d`. The light map is a
-    /// 2D pass, so only this dimension carries it.
-    pub ambient: [f32; 4],
     /// As on [`Camera3d`], and read from whichever came last.
     pub effects: String,
     /// Whether `zoom` counts logical pixels, scaled by the display, rather
@@ -100,12 +78,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 && cam.current
             {
                 post = Some(cam.effects.clone());
-                flat = Some((
-                    [global.position.x, global.position.y],
-                    cam.zoom,
-                    cam.ambient,
-                    cam.hidpi,
-                ));
+                flat = Some(([global.position.x, global.position.y], cam.zoom, cam.hidpi));
                 winners.1 = Some(entity);
             }
         }
@@ -133,11 +106,16 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.changed = true;
         }
     }
-    if let Some((center, zoom, ambient, hidpi)) = flat {
+    if let Some((center, zoom, hidpi)) = flat {
+        // The scene's one ambient, the `environment`'s, lights a 2D surface
+        // before any `light2d` as it lights a 3D one. Read every frame rather
+        // than applied on a change, so it is not part of "did the view move".
+        let ambient = {
+            let world = eng.world();
+            crate::light3d::environment_or_none(&world, eng.root()).ambient
+        };
         let config = eng.resource::<CameraConfig2d>();
         let mut config = config.borrow_mut();
-        // Ambient is read every frame rather than applied on a change, so it
-        // is not part of "did the view move".
         config.ambient = [ambient[0], ambient[1], ambient[2]];
         // Bit-exact "did it move": the compared values are the ones this
         // system wrote last frame, not the result of drifting arithmetic.
@@ -255,7 +233,6 @@ fn camera2d_from_params(params: &toml::Value) -> Camera2d {
     Camera2d {
         effects: balaur_core::components::prop_str(params, k::EFFECTS).to_owned(),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
-        ambient: color_from_params_named(params, k::AMBIENT_COLOR),
         zoom: zoom.max(MIN_ZOOM_2D),
         hidpi: balaur_core::components::prop_bool(params, k::HIDPI),
     }
@@ -333,7 +310,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
-            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins. Only its node moves it.",
+            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.",
             schema: ComponentDef::parse_schema(
                 "camera2d",
                 &[
@@ -341,7 +318,6 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                         (k::CURRENT, CURRENT),
                         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
                         (k::EFFECTS, &effects_row()),
-                        (k::AMBIENT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; its alpha is ignored" }"#),
                         (k::HIDPI, r#"{ type = "bool", default = true, description = "Count `pixels_per_unit` in logical pixels, multiplied by the display's scale; off counts physical pixels, for pixel art that should land on the screen's own grid" }"#),
                     ]),
                 ]
@@ -371,7 +347,6 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                 let mut map = toml::map::Map::new();
                 map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
                 map.insert(k::PIXELS_PER_UNIT.into(), toml::Value::Float(f64::from(camera.zoom)));
-                map.insert(k::AMBIENT_COLOR.into(), color_to_toml(camera.ambient));
                 map.insert(k::HIDPI.into(), toml::Value::Boolean(camera.hidpi));
                 map.insert(k::EFFECTS.into(), toml::Value::String(camera.effects.clone()));
                 Some(toml::Value::Table(map))

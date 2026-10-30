@@ -426,7 +426,7 @@ fn environment_schema() -> String {
     format!(
         r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
 sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
-ambient_color = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do" }}
+ambient_color = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do, a 2D one's before any `light2d` as a 3D one's" }}
 tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], description = "The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped" }}
 exposure = {{ type = "float", default = 1.0, min = 0.0, description = "Linear multiplier before the tonemap" }}
 sky_enabled = {{ type = "bool", default = true, description = "False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky", group = "sky" }}
@@ -534,10 +534,10 @@ fn environment_from_params(params: &toml::Value) -> Result<Environment> {
                 words::HIGH => BlurQuality::High,
                 other => return Err(anyhow!("unknown transmission_blur_quality '{other}'")),
             },
-            steps: u32::try_from(prop_i64(params, k::TRANSMISSION_STEPS).max(1)).unwrap_or(1),
+            steps: base.transmission.steps,
         },
         shadows: flag(k::SHADOW_ENABLED, true),
-        shadow_resolution: num(k::SHADOW_RESOLUTION, 2048.0) as u32,
+        shadow_resolution: base.shadow_resolution,
         shadow_softness: num(k::SHADOW_SOFTNESS, base.shadow_softness).max(0.0),
         shadow_distance: num(k::SHADOW_DISTANCE, base.shadow_distance).max(0.0),
         shadow_cascades: count(params, k::SHADOW_CASCADES).clamp(1, 4),
@@ -550,13 +550,12 @@ fn environment_from_params(params: &toml::Value) -> Result<Environment> {
         shadow_constant_bias: i32::try_from(prop_i64(params, k::SHADOW_CONSTANT_BIAS))
             .unwrap_or(base.shadow_constant_bias),
         shadow_slope_bias: num(k::SHADOW_SLOPE_BIAS, base.shadow_slope_bias),
-        shadow_views: count(params, k::SHADOW_VIEWS).clamp(1, 64),
+        shadow_views: base.shadow_views,
         sky_light: prop_str(params, k::SKY_LIGHT).to_string(),
         sky_light_intensity: Some(prop_f32(params, k::SKY_LIGHT_INTENSITY)).filter(|v| *v >= 0.0),
-        probe_capture_size: count(params, k::PROBE_CAPTURE_SIZE_PIXELS).clamp(2, 4096),
-        cluster_grid: prop_vec3(params, k::CLUSTER_GRID)
-            .map(|n| n.round().clamp(1.0, 128.0) as u32),
-        cluster_max_lights: count(params, k::CLUSTER_MAX_LIGHTS).max(1),
+        probe_capture_size: base.probe_capture_size,
+        cluster_grid: base.cluster_grid,
+        cluster_max_lights: base.cluster_max_lights,
     };
     Ok(next)
 }
@@ -579,30 +578,25 @@ shadow_first_cascade_distance = {{ type = "float", default = 12.0, min = 0.01, d
 shadow_bias = {{ type = "float", default = 0.0012, min = 0.0, description = "Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material", group = "shadows" }}
 shadow_slope_bias = {{ type = "float", default = 1.75, description = "How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself", group = "shadows" }}
 shadow_constant_bias = {{ type = "int", default = 1, description = "Depth-buffer units the shadow pass pushes every caster back by", group = "shadows" }}
-shadow_resolution = {{ type = "int", default = 2048, min = 256, description = "Side of the shadow map, in texels", group = "shadows" }}
-shadow_views = {{ type = "int", default = 16, min = 1, max = 64, description = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes", group = "shadows" }}
 transmission_enabled = {{ type = "bool", default = true, description = "Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes", group = "transmission" }}
-transmission_blur_quality = {{ type = "enum", default = "{high}", options = [{qualities}], description = "How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky", group = "transmission" }}
-transmission_steps = {{ type = "int", default = 1, min = 1, description = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass", group = "transmission" }}
-cluster_grid = {{ type = "vec3", default = [16.0, 9.0, 24.0], description = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute", group = "quality" }}
-cluster_max_lights = {{ type = "int", default = 256, min = 1, description = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer", group = "quality" }}
-probe_capture_size_pixels = {{ type = "int", default = 256, min = 2, max = 4096, description = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again", group = "quality" }}"#,
+transmission_blur_quality = {{ type = "enum", default = "{high}", options = [{qualities}], description = "How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky", group = "transmission" }}"#,
         high = words::HIGH,
         qualities = crate::vocabulary::options(words::BLUR_QUALITIES),
     )
 }
 
 /// The `environment` component: sky, ambient, fog, exposure, tonemap, grading
-/// and the shadow budget, all of which belong to the scene rather than a view.
+/// and how shadows fall, all of which belong to the scene rather than a view.
 pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "environment",
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
+            doc: "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and how shadows fall. The last `current` one wins; per-view effects stay on `camera.post`, and what the device can afford is `[render]`.",
             schema: ComponentDef::parse_schema("environment", &environment_schema()),
-            tags: &[words::PERSPECTIVE, "render"],
+            // Both dimensions': a 2D scene's ambient is its environment's too.
+            tags: &["render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let next = environment_from_params(params)?;
@@ -660,10 +654,6 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
                 put(k::GAMMA, float(env.gamma));
                 environment_extras_to_map(&env, &mut put);
                 put(k::SHADOW_ENABLED, toml::Value::Boolean(env.shadows));
-                put(
-                    k::SHADOW_RESOLUTION,
-                    toml::Value::Integer(i64::from(env.shadow_resolution)),
-                );
                 put(k::SHADOW_SOFTNESS, float(env.shadow_softness));
                 put(k::SHADOW_DISTANCE, float(env.shadow_distance));
                 shadow_budget_to_map(&env, &mut put);
@@ -699,10 +689,6 @@ fn environment_extras_to_map(env: &Environment, put: &mut impl FnMut(&str, toml:
         k::TRANSMISSION_BLUR_QUALITY,
         toml::Value::String(quality.into()),
     );
-    put(
-        k::TRANSMISSION_STEPS,
-        toml::Value::Integer(i64::from(glass.steps)),
-    );
 }
 
 /// The shadow knobs, sky light and renderer limits read back.
@@ -720,23 +706,52 @@ fn shadow_budget_to_map(env: &Environment, put: &mut impl FnMut(&str, toml::Valu
         toml::Value::Integer(i64::from(env.shadow_constant_bias)),
     );
     put(k::SHADOW_SLOPE_BIAS, float(env.shadow_slope_bias));
-    put(k::SHADOW_VIEWS, whole(env.shadow_views));
     put(k::SKY_LIGHT, toml::Value::String(env.sky_light.clone()));
     put(
         k::SKY_LIGHT_INTENSITY,
         float(env.sky_light_intensity.unwrap_or(-1.0)),
     );
-    put(k::PROBE_CAPTURE_SIZE_PIXELS, whole(env.probe_capture_size));
-    put(
-        k::CLUSTER_GRID,
-        toml::Value::Array(
-            env.cluster_grid
-                .iter()
-                .map(|n| toml::Value::Float(f64::from(*n)))
-                .collect(),
-        ),
-    );
-    put(k::CLUSTER_MAX_LIGHTS, whole(env.cluster_max_lights));
+}
+
+/// `[render]`: what the device can afford, which a platform answers for
+/// itself through `[override.<tag>.render]`, rather than what a scene's
+/// atmosphere is.
+pub(crate) const BUDGET_SETTINGS: &str = r#"
+shadow_resolution = { type = "int", default = 2048, min = 256, order = 1, help = "Side of the shadow map, in texels." }
+shadow_views = { type = "int", default = 16, min = 1, max = 64, order = 2, help = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes." }
+transmission_steps = { type = "int", default = 1, min = 1, order = 3, help = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass." }
+cluster_grid = { type = "vec3", default = [16.0, 9.0, 24.0], order = 4, help = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute." }
+cluster_max_lights = { type = "int", default = 256, min = 1, order = 5, help = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer." }
+probe_capture_size_pixels = { type = "int", default = 256, min = 2, max = 4096, order = 6, help = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again." }
+"#;
+
+/// The device budget `[render]` sets, over whichever environment draws.
+#[cfg(feature = "window")]
+fn budget_from_settings(eng: &balaur_core::Engine, env: &mut Environment) {
+    let setting = |key: &str| balaur_core::settings::get(eng, &format!("render/{key}"));
+    let whole = |key: &str, fallback: u32| {
+        setting(key)
+            .as_ref()
+            .and_then(toml::Value::as_integer)
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(fallback)
+    };
+    env.shadow_resolution = whole(k::SHADOW_RESOLUTION, env.shadow_resolution).max(256);
+    env.shadow_views = whole(k::SHADOW_VIEWS, env.shadow_views).clamp(1, 64);
+    env.transmission.steps = whole(k::TRANSMISSION_STEPS, env.transmission.steps).max(1);
+    env.probe_capture_size =
+        whole(k::PROBE_CAPTURE_SIZE_PIXELS, env.probe_capture_size).clamp(2, 4096);
+    env.cluster_max_lights = whole(k::CLUSTER_MAX_LIGHTS, env.cluster_max_lights).max(1);
+    if let Some(grid) = setting(k::CLUSTER_GRID)
+        .as_ref()
+        .and_then(toml::Value::as_array)
+    {
+        for (slot, cell) in grid.iter().take(3).enumerate() {
+            if let Some(n) = balaur_core::components::as_f64(cell) {
+                env.cluster_grid[slot] = n.round().clamp(1.0, 128.0) as u32;
+            }
+        }
+    }
 }
 
 /// The kiss3d light one resolved `light3d` becomes.
@@ -821,10 +836,11 @@ pub(crate) fn sync_environment(
     window: &mut kiss3d::window::Window,
     applied: &mut Option<Environment>,
 ) {
-    let env = {
+    let mut env = {
         let world = app.engine.world();
         environment_or_none(&world, app.engine.root())
     };
+    budget_from_settings(&app.engine, &mut env);
     if applied.as_ref() == Some(&env) {
         return;
     }

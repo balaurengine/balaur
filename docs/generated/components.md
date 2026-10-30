@@ -177,9 +177,9 @@ Draws the node as its 2D children combined by `operation`, holes and all. The ch
 
 ### `camera2d`
 
-`2d` · `render` · 5 properties
+`2d` · `render` · 4 properties
 
-The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins. Only its node moves it.
+The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -187,7 +187,6 @@ The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it,
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>effects</code></td><td>asset · <code>camera_effects</code></td><td>—</td><td>The passes the frame resolves through and how each is tuned; empty draws the frame as it is</td></tr>
-<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`; its alpha is ignored</td></tr>
 <tr><td><code>hidpi</code></td><td>bool</td><td><code>true</code></td><td>Count `pixels_per_unit` in logical pixels, multiplied by the display&#x27;s scale; off counts physical pixels, for pixel art that should land on the screen&#x27;s own grid</td></tr>
 </tbody>
 </table>
@@ -455,7 +454,7 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 
 `2d` · `render` · 9 properties
 
-A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.
+A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the `environment`'s `ambient_color`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1369,60 +1368,6 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 </tbody>
 </table>
 
-### `environment`
-
-`3d` · `render` · 42 properties
-
-The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this is the environment the scene draws under; the last current one in tree order wins</td></tr>
-<tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
-<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do</td></tr>
-<tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>, <code>tony_mcmapface</code>.</td></tr>
-<tr><td><code>exposure</code></td><td>float</td><td><code>1.0</code></td><td>Linear multiplier before the tonemap At least 0.0.</td></tr>
-<tr><td><code>sky_enabled</code></td><td>bool</td><td><code>true</code></td><td>False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky</td></tr>
-<tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
-<tr><td><code>sky_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
-<tr><td><code>sky_light</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too</td></tr>
-<tr><td><code>sky_light_intensity</code></td><td>float</td><td><code>-1.0</code></td><td>Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity` At least -1.0.</td></tr>
-<tr><td><code>fog_mode</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
-<tr><td><code>fog_color</code></td><td>color</td><td><code>[0.624, 0.706, 0.784, 1.0]</code></td><td>What distance fades toward</td></tr>
-<tr><td><code>fog_density</code></td><td>float</td><td><code>0.02</code></td><td>Thickness, for exponential fog At least 0.0.</td></tr>
-<tr><td><code>fog_start</code></td><td>float</td><td><code>10.0</code></td><td>Where linear fog begins, in world units At least 0.0.</td></tr>
-<tr><td><code>fog_end</code></td><td>float</td><td><code>80.0</code></td><td>Where linear fog is total, in world units At least 0.0.</td></tr>
-<tr><td><code>fog_height_falloff</code></td><td>float</td><td><code>0.0</code></td><td>How fast fog thins with height; zero fills the scene evenly At least 0.0.</td></tr>
-<tr><td><code>contrast</code></td><td>float</td><td><code>1.0</code></td><td>Contrast around mid grey At least 0.0.</td></tr>
-<tr><td><code>saturation</code></td><td>float</td><td><code>1.0</code></td><td>Colour multiplier around luminance; zero is grey At least 0.0.</td></tr>
-<tr><td><code>hue_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turns every hue about the grey axis before the tonemap, in degrees</td></tr>
-<tr><td><code>white_balance</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone</td></tr>
-<tr><td><code>gamma</code></td><td>float</td><td><code>1.0</code></td><td>Gamma applied in linear space At least 0.01.</td></tr>
-<tr><td><code>auto_exposure_enabled</code></td><td>bool</td><td><code>false</code></td><td>Measure the frame&#x27;s average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ</td></tr>
-<tr><td><code>auto_exposure_key</code></td><td>float</td><td><code>0.18</code></td><td>The mid grey auto-exposure maps the frame&#x27;s average brightness to At least 0.0.</td></tr>
-<tr><td><code>auto_exposure_min</code></td><td>float</td><td><code>0.05</code></td><td>The lowest exposure auto-exposure settles at, for the brightest scenes At least 0.0.</td></tr>
-<tr><td><code>auto_exposure_max</code></td><td>float</td><td><code>8.0</code></td><td>The highest exposure auto-exposure settles at, for the darkest scenes At least 0.0.</td></tr>
-<tr><td><code>auto_exposure_speed</code></td><td>float</td><td><code>3.0</code></td><td>How fast auto-exposure follows the scene, per second At least 0.0.</td></tr>
-<tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
-<tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far along the view a directional light&#x27;s cascades reach, in world units; the camera&#x27;s `far` caps it At least 0.0.</td></tr>
-<tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
-<tr><td><code>shadow_cascades</code></td><td>int</td><td><code>4</code></td><td>How many cascades a directional light splits its shadow range into; each takes one of `shadow_views` Range 1–4.</td></tr>
-<tr><td><code>shadow_first_cascade_distance</code></td><td>float</td><td><code>12.0</code></td><td>How far along the view the first, sharpest cascade reaches, in world units At least 0.01.</td></tr>
-<tr><td><code>shadow_bias</code></td><td>float</td><td><code>0.0012</code></td><td>Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material At least 0.0.</td></tr>
-<tr><td><code>shadow_slope_bias</code></td><td>float</td><td><code>1.75</code></td><td>How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself</td></tr>
-<tr><td><code>shadow_constant_bias</code></td><td>int</td><td><code>1</code></td><td>Depth-buffer units the shadow pass pushes every caster back by</td></tr>
-<tr><td><code>shadow_resolution</code></td><td>int</td><td><code>2048</code></td><td>Side of the shadow map, in texels At least 256.</td></tr>
-<tr><td><code>shadow_views</code></td><td>int</td><td><code>16</code></td><td>Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes Range 1–64.</td></tr>
-<tr><td><code>transmission_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes</td></tr>
-<tr><td><code>transmission_blur_quality</code></td><td>enum</td><td><code>high</code></td><td>How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky One of <code>low</code>, <code>medium</code>, <code>high</code>.</td></tr>
-<tr><td><code>transmission_steps</code></td><td>int</td><td><code>1</code></td><td>How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass At least 1.</td></tr>
-<tr><td><code>cluster_grid</code></td><td>vec3</td><td><code>[16.0, 9.0, 24.0]</code></td><td>Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute</td></tr>
-<tr><td><code>cluster_max_lights</code></td><td>int</td><td><code>256</code></td><td>Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device&#x27;s largest storage buffer At least 1.</td></tr>
-<tr><td><code>probe_capture_size_pixels</code></td><td>int</td><td><code>256</code></td><td>Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again Range 2–4096.</td></tr>
-</tbody>
-</table>
-
 ### `follow3d`
 
 `3d` · `physics` · 12 properties · 1 method
@@ -2026,6 +1971,54 @@ A wireframe over every triangle edge of the node's drawing, a dot on every verte
 <tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not on WebGL2 At least 0.0.</td></tr>
 <tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The dots&#x27; colour; an alpha of zero takes the node&#x27;s own</td></tr>
 <tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` scales with the view, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+</tbody>
+</table>
+
+### `environment`
+
+`render` · 36 properties
+
+The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and how shadows fall. The last `current` one wins; per-view effects stay on `camera.post`, and what the device can afford is `[render]`.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this is the environment the scene draws under; the last current one in tree order wins</td></tr>
+<tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
+<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do, a 2D one&#x27;s before any `light2d` as a 3D one&#x27;s</td></tr>
+<tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>, <code>tony_mcmapface</code>.</td></tr>
+<tr><td><code>exposure</code></td><td>float</td><td><code>1.0</code></td><td>Linear multiplier before the tonemap At least 0.0.</td></tr>
+<tr><td><code>sky_enabled</code></td><td>bool</td><td><code>true</code></td><td>False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky</td></tr>
+<tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
+<tr><td><code>sky_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
+<tr><td><code>sky_light</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too</td></tr>
+<tr><td><code>sky_light_intensity</code></td><td>float</td><td><code>-1.0</code></td><td>Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity` At least -1.0.</td></tr>
+<tr><td><code>fog_mode</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
+<tr><td><code>fog_color</code></td><td>color</td><td><code>[0.624, 0.706, 0.784, 1.0]</code></td><td>What distance fades toward</td></tr>
+<tr><td><code>fog_density</code></td><td>float</td><td><code>0.02</code></td><td>Thickness, for exponential fog At least 0.0.</td></tr>
+<tr><td><code>fog_start</code></td><td>float</td><td><code>10.0</code></td><td>Where linear fog begins, in world units At least 0.0.</td></tr>
+<tr><td><code>fog_end</code></td><td>float</td><td><code>80.0</code></td><td>Where linear fog is total, in world units At least 0.0.</td></tr>
+<tr><td><code>fog_height_falloff</code></td><td>float</td><td><code>0.0</code></td><td>How fast fog thins with height; zero fills the scene evenly At least 0.0.</td></tr>
+<tr><td><code>contrast</code></td><td>float</td><td><code>1.0</code></td><td>Contrast around mid grey At least 0.0.</td></tr>
+<tr><td><code>saturation</code></td><td>float</td><td><code>1.0</code></td><td>Colour multiplier around luminance; zero is grey At least 0.0.</td></tr>
+<tr><td><code>hue_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turns every hue about the grey axis before the tonemap, in degrees</td></tr>
+<tr><td><code>white_balance</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone</td></tr>
+<tr><td><code>gamma</code></td><td>float</td><td><code>1.0</code></td><td>Gamma applied in linear space At least 0.01.</td></tr>
+<tr><td><code>auto_exposure_enabled</code></td><td>bool</td><td><code>false</code></td><td>Measure the frame&#x27;s average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ</td></tr>
+<tr><td><code>auto_exposure_key</code></td><td>float</td><td><code>0.18</code></td><td>The mid grey auto-exposure maps the frame&#x27;s average brightness to At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_min</code></td><td>float</td><td><code>0.05</code></td><td>The lowest exposure auto-exposure settles at, for the brightest scenes At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_max</code></td><td>float</td><td><code>8.0</code></td><td>The highest exposure auto-exposure settles at, for the darkest scenes At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_speed</code></td><td>float</td><td><code>3.0</code></td><td>How fast auto-exposure follows the scene, per second At least 0.0.</td></tr>
+<tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
+<tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far along the view a directional light&#x27;s cascades reach, in world units; the camera&#x27;s `far` caps it At least 0.0.</td></tr>
+<tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
+<tr><td><code>shadow_cascades</code></td><td>int</td><td><code>4</code></td><td>How many cascades a directional light splits its shadow range into; each takes one of `shadow_views` Range 1–4.</td></tr>
+<tr><td><code>shadow_first_cascade_distance</code></td><td>float</td><td><code>12.0</code></td><td>How far along the view the first, sharpest cascade reaches, in world units At least 0.01.</td></tr>
+<tr><td><code>shadow_bias</code></td><td>float</td><td><code>0.0012</code></td><td>Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material At least 0.0.</td></tr>
+<tr><td><code>shadow_slope_bias</code></td><td>float</td><td><code>1.75</code></td><td>How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself</td></tr>
+<tr><td><code>shadow_constant_bias</code></td><td>int</td><td><code>1</code></td><td>Depth-buffer units the shadow pass pushes every caster back by</td></tr>
+<tr><td><code>transmission_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes</td></tr>
+<tr><td><code>transmission_blur_quality</code></td><td>enum</td><td><code>high</code></td><td>How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky One of <code>low</code>, <code>medium</code>, <code>high</code>.</td></tr>
 </tbody>
 </table>
 

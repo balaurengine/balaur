@@ -935,6 +935,12 @@ impl balaur_plugin::Plugin for RenderPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        balaur_core::settings::define_group(
+            reg.engine(),
+            "render",
+            balaur_core::settings::Scope::Project,
+            &balaur_core::ComponentDef::parse_schema("settings.render", light3d::BUDGET_SETTINGS),
+        );
         reg.insert_resource(CameraConfig3d::default());
         reg.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],

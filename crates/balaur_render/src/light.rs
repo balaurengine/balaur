@@ -256,7 +256,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.",
+            doc: "A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the `environment`'s `ambient_color`.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
