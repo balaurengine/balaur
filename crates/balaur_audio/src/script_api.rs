@@ -10,7 +10,9 @@ use crate::bus::{self, Buses, Effects, Limiter};
 use crate::cue;
 use crate::spatial::Emitter;
 use crate::vocabulary::keys as k;
-use crate::{AudioState, Playback, play_on, read_sound, seek_on, skip_on, stop_on};
+use crate::{
+    AudioState, Playback, play_on, publish_playback_times, read_sound, seek_on, skip_on, stop_on,
+};
 
 /// One key out of a script options table, or `None` if the table, the key or
 /// its type is missing. A typo in an options table should not stop the frame.
@@ -90,6 +92,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<AudioState>()
             .borrow_mut()
             .release(handle_of(handle));
+        publish_playback_times(eng);
         Ok(())
     });
     m.function(
@@ -129,6 +132,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("stop_all", |eng: &Engine, ()| {
         eng.resource::<AudioState>().borrow_mut().stop_all();
+        publish_playback_times(eng);
         Ok(())
     });
     m.function("play", |eng: &Engine, node: NodeId| {

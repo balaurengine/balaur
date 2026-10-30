@@ -1,38 +1,11 @@
-//! Every key the `sound` and `listener` components and `[audio.buses]` spell,
-//! for their schemas and their readers alike. One list for the crate, so the
-//! two cannot disagree about a spelling.
+//! Every key a sound file's import settings and `[audio.buses]` spell, for
+//! their readers and the script tables alike. One list for the crate, so the
+//! two cannot disagree about a spelling. The `sound` and `listener`
+//! components spell theirs once, in their structs.
 
-/// The `sound` and `listener` components' keys and a bus's, for their schemas
-/// and readers alike.
+/// A sound file's decoder keys and a bus's, for their readers and the script
+/// tables alike.
 pub(crate) mod keys {
-    pub(crate) const ATTENUATION: &str = "attenuation";
-    pub(crate) const AUTOPLAY: &str = "autoplay";
-    pub(crate) const BUS: &str = "bus";
-    pub(crate) const CROSSFADE_TIME: &str = "crossfade_time";
-    pub(crate) const CURRENT: &str = "current";
-    pub(crate) const DELAY: &str = "delay";
-    pub(crate) const DOPPLER_LEVEL: &str = "doppler_level";
-    pub(crate) const EAR_DISTANCE: &str = "ear_distance";
-    pub(crate) const END_TIME: &str = "end_time";
-    pub(crate) const FADE_IN_TIME: &str = "fade_in_time";
-    pub(crate) const FADE_OUT_TIME: &str = "fade_out_time";
-    pub(crate) const FILE: &str = "file";
-    pub(crate) const STEMS: &str = "stems";
-    pub(crate) const LOOP: &str = "loop";
-    pub(crate) const LOOP_OFFSET: &str = "loop_offset";
-    pub(crate) const MAX_DISTANCE: &str = "max_distance";
-    pub(crate) const MAX_DOPPLER: &str = "max_doppler";
-    pub(crate) const MIN_DISTANCE: &str = "min_distance";
-    pub(crate) const PAN: &str = "pan";
-    pub(crate) const PAUSED: &str = "paused";
-    pub(crate) const PITCH_SCALE: &str = "pitch_scale";
-    pub(crate) const PLAYBACK_TIME: &str = "playback_time";
-    pub(crate) const POSITIONAL: &str = "positional";
-    pub(crate) const QUEUE: &str = "queue";
-    pub(crate) const SPEED_OF_SOUND: &str = "speed_of_sound";
-    pub(crate) const START_TIME: &str = "start_time";
-    pub(crate) const VOLUME_LINEAR: &str = "volume_linear";
-
     /// A sound file's import keys for its decoder, beside core's own.
     pub(crate) const GAPLESS: &str = "gapless";
     pub(crate) const SEEKABLE: &str = "seekable";
@@ -59,14 +32,6 @@ pub(crate) mod keys {
     pub(crate) const LIMIT_KNEE_DB: &str = "limit_knee_db";
     pub(crate) const LIMIT_RELEASE_TIME: &str = "limit_release_time";
     pub(crate) const LIMIT_THRESHOLD_DB: &str = "limit_threshold_db";
-}
-
-/// The values a `sound`'s enum keys take.
-pub(crate) mod words {
-    /// `attenuation`: the gain halves with every doubling of distance.
-    pub(crate) const INVERSE: &str = "inverse";
-    /// `attenuation`: the gain quarters with every doubling of distance.
-    pub(crate) const INVERSE_SQUARE: &str = "inverse_square";
 }
 
 /// The `[audio]` settings, by path.
