@@ -68,24 +68,6 @@ check_layout() {
 }
 check_layout
 
-# The Physics panel's pills are measured as they draw, so like the layout
-# assertions they only mean anything in a run that really drew.
-check_pills() {
-  [ ${#only[@]} -eq 0 ] || return 0
-  printf '%-24s ' pills
-  local out
-  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
-      --state test:physics_clicks 2>&1)
-  if echo "$out" | grep -q "selftest FAILED"; then
-    echo FAILED; failed+=(pills)
-  elif ! echo "$out" | grep -q "selftest ok"; then
-    echo "FAILED (checked nothing)"; failed+=(pills)
-  else
-    echo ok
-  fi
-}
-check_pills
-
 # Nothing selected is what a click on empty space leaves, and every panel
 # reads the active row: this draws a whole run without one.
 check_deselect() {

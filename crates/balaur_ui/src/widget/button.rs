@@ -5,7 +5,6 @@
 
 use egui::{Color32, Stroke, pos2, vec2};
 
-use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget::arrange::{Pad, padding_of};
 use crate::widget::layer::Painting;
@@ -71,7 +70,7 @@ fn face_of(
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(
             crate::widget::text::icon_px(widget, font.size),
-            family(w::ICON),
+            at.look(index).icon.clone(),
         );
         Brush::of(ui).line_of(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
     });

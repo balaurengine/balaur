@@ -15,8 +15,8 @@ fn a_script_awaits_a_call_and_takes_another_through_a_handler() {
     }
     run_until(
         r#"
-pub struct S { node: Node, request: int }
-impl S {
+pub class Scenario { node: Node, request: int }
+impl Scenario {
     async fn init() {
         let store = platform::backend();
         let r = await task::wait(platform::sign_in().as_int());
@@ -48,8 +48,8 @@ fn a_script_reads_the_player_before_a_sign_in_has_landed() {
     }
     run_until(
         r#"
-pub struct S { node: Node }
-impl S {
+pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let signed = platform::signed_in();
         let store = platform::backend();

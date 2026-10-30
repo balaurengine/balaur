@@ -48,25 +48,12 @@ impl Align {
     }
 }
 
-/// Every shaping setting past the face and size, in the words a scene spells
-/// them; the windowed backend reads them into the shaper's own types.
-// One field per scene key: each switch is a key of its own.
-#[allow(clippy::struct_excessive_bools)]
+/// Every setting of a block past its font and size, in the words a scene
+/// spells them; the windowed backend reads them into the shaper's own types.
+/// How the font is shaped is the `font` asset's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shaping {
     pub font_style: String,
-    pub font_stretch: String,
-    /// A family by name, ahead of the chain; empty shapes with the chain.
-    pub font_name: String,
-    /// OpenType features: `"smcp"` on, `"liga=0"` off.
-    pub font_features: Vec<String>,
-    pub underline: String,
-    /// Alpha 0 takes the glyphs' colour, as each line colour below does.
-    pub underline_color: [f32; 4],
-    pub strikethrough: bool,
-    pub strikethrough_color: [f32; 4],
-    pub overline: bool,
-    pub overline_color: [f32; 4],
     pub line_break: String,
     /// End a block cut short with an ellipsis; needs `max_width`.
     pub truncate: bool,
@@ -75,12 +62,6 @@ pub struct Shaping {
     pub max_lines: u32,
     /// Font pixels the lines stop at; zero has no limit.
     pub max_height: f32,
-    pub shaping: String,
-    pub snap_advances: bool,
-    pub hinting: String,
-    pub pixel_snap: bool,
-    /// Zero leaves a monospace face's advance as it is.
-    pub monospace_width: f32,
     pub tab_width: u16,
 }
 
@@ -88,51 +69,12 @@ impl Default for Shaping {
     fn default() -> Self {
         Self {
             font_style: w::NORMAL.into(),
-            font_stretch: w::NORMAL.into(),
-            font_name: String::new(),
-            font_features: Vec::new(),
-            underline: w::NONE.into(),
-            underline_color: [0.0; 4],
-            strikethrough: false,
-            strikethrough_color: [0.0; 4],
-            overline: false,
-            overline_color: [0.0; 4],
             line_break: w::WORD_OR_GLYPH.into(),
             truncate: false,
             truncate_at: w::END.into(),
             max_lines: 0,
             max_height: 0.0,
-            shaping: w::COMPLEX.into(),
-            snap_advances: false,
-            hinting: w::AUTO.into(),
-            pixel_snap: false,
-            monospace_width: 0.0,
             tab_width: 8,
-        }
-    }
-}
-
-/// An outline around the glyphs and a shadow behind them.
-///
-/// Both are the same quads drawn again, offset and tinted, under the text:
-/// an outline is eight copies around the origin, a shadow one.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Decoration {
-    /// Font pixels the outline reaches; zero draws none.
-    pub outline_size: f32,
-    pub outline_color: [f32; 4],
-    /// Font pixels the shadow is moved by; zero draws none.
-    pub shadow_offset: [f32; 2],
-    pub shadow_color: [f32; 4],
-}
-
-impl Default for Decoration {
-    fn default() -> Self {
-        Self {
-            outline_size: 0.0,
-            outline_color: [0.0, 0.0, 0.0, 1.0],
-            shadow_offset: [0.0, 0.0],
-            shadow_color: [0.0, 0.0, 0.0, 0.5],
         }
     }
 }
@@ -160,37 +102,13 @@ impl Shaping {
                 .and_then(balaur_core::components::as_f64)
                 .map_or(0.0, |v| v as f32)
         };
-        let colour = |key: &str| crate::color_from_key(params, key, [0.0; 4]);
         Self {
             font_style: word(k::FONT_STYLE, &base.font_style),
-            font_stretch: word(k::FONT_STRETCH, &base.font_stretch),
-            font_name: word(k::FONT_NAME, ""),
-            font_features: params
-                .get(k::FONT_FEATURES)
-                .and_then(toml::Value::as_array)
-                .map(|items| {
-                    items
-                        .iter()
-                        .filter_map(|v| v.as_str().map(str::to_string))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            underline: word(k::UNDERLINE, &base.underline),
-            underline_color: colour(k::UNDERLINE_COLOR),
-            strikethrough: flag(k::STRIKETHROUGH),
-            strikethrough_color: colour(k::STRIKETHROUGH_COLOR),
-            overline: flag(k::OVERLINE),
-            overline_color: colour(k::OVERLINE_COLOR),
             line_break: word(k::LINE_BREAK, &base.line_break),
             truncate: flag(k::TRUNCATE),
             truncate_at: word(k::TRUNCATE_AT, &base.truncate_at),
             max_lines: number(k::MAX_LINES).max(0.0) as u32,
             max_height: number(k::MAX_HEIGHT).max(0.0),
-            shaping: word(k::SHAPING, &base.shaping),
-            snap_advances: flag(k::SNAP_ADVANCES),
-            hinting: word(k::HINTING, &base.hinting),
-            pixel_snap: flag(k::PIXEL_SNAP),
-            monospace_width: number(k::MONOSPACE_WIDTH).max(0.0),
             tab_width: params
                 .get(k::TAB_WIDTH)
                 .and_then(balaur_core::components::as_f64)
@@ -203,24 +121,6 @@ impl Shaping {
         let text = |v: &str| toml::Value::String(v.to_string());
         let pairs = [
             (k::FONT_STYLE, text(&self.font_style)),
-            (k::FONT_STRETCH, text(&self.font_stretch)),
-            (k::FONT_NAME, text(&self.font_name)),
-            (
-                k::FONT_FEATURES,
-                toml::Value::Array(self.font_features.iter().map(|f| text(f)).collect()),
-            ),
-            (k::UNDERLINE, text(&self.underline)),
-            (
-                k::UNDERLINE_COLOR,
-                crate::color_to_toml(self.underline_color),
-            ),
-            (k::STRIKETHROUGH, toml::Value::Boolean(self.strikethrough)),
-            (
-                k::STRIKETHROUGH_COLOR,
-                crate::color_to_toml(self.strikethrough_color),
-            ),
-            (k::OVERLINE, toml::Value::Boolean(self.overline)),
-            (k::OVERLINE_COLOR, crate::color_to_toml(self.overline_color)),
             (k::LINE_BREAK, text(&self.line_break)),
             (k::TRUNCATE, toml::Value::Boolean(self.truncate)),
             (k::TRUNCATE_AT, text(&self.truncate_at)),
@@ -232,14 +132,6 @@ impl Shaping {
                 k::MAX_HEIGHT,
                 toml::Value::Float(f64::from(self.max_height)),
             ),
-            (k::SHAPING, text(&self.shaping)),
-            (k::SNAP_ADVANCES, toml::Value::Boolean(self.snap_advances)),
-            (k::HINTING, text(&self.hinting)),
-            (k::PIXEL_SNAP, toml::Value::Boolean(self.pixel_snap)),
-            (
-                k::MONOSPACE_WIDTH,
-                toml::Value::Float(f64::from(self.monospace_width)),
-            ),
             (
                 k::TAB_WIDTH,
                 toml::Value::Integer(i64::from(self.tab_width)),
@@ -250,35 +142,16 @@ impl Shaping {
         }
     }
 
-    /// The schema lines `text2d`, `text3d` and the script's options share.
+    /// The schema lines `text2d` and `text3d` share for wrapping and cutting.
     pub(crate) fn schema() -> Vec<(&'static str, String)> {
         let options = crate::vocabulary::options;
-        let colour = |what: &str| {
-            format!(
-                r#"{{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The {what}'s colour; alpha 0 takes the glyphs' own" }}"#
-            )
-        };
         vec![
-            (k::FONT_STRETCH, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How wide a face is picked among the faces its family ships; nothing is stretched that no face draws" }}"#, w::NORMAL, options(w::FONT_STRETCHES))),
-            (k::FONT_NAME, r#"{ type = "string", default = "", description = "A face by family name, tried before the chain. A project face measures; a face only the system has draws but is measured as the chain" }"#.into()),
-            (k::FONT_FEATURES, r#"{ type = "list", of = { type = "string" }, default = [], description = "OpenType features: a tag turns one on (`smcp`), `tag=0` turns one off (`liga=0`), `tag=n` picks an alternate" }"#.into()),
-            (k::UNDERLINE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "A line under the glyphs, once or twice" }}"#, w::NONE, options(w::UNDERLINES))),
-            (k::UNDERLINE_COLOR, colour("underline")),
-            (k::STRIKETHROUGH, r#"{ type = "bool", default = false, description = "A line through the glyphs" }"#.into()),
-            (k::STRIKETHROUGH_COLOR, colour("strikethrough")),
-            (k::OVERLINE, r#"{ type = "bool", default = false, description = "A line over the glyphs" }"#.into()),
-            (k::OVERLINE_COLOR, colour("overline")),
-            (k::LINE_BREAK, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere" }}"#, w::WORD_OR_GLYPH, options(w::LINE_BREAKS))),
-            (k::TRUNCATE, r#"{ type = "bool", default = false, description = "End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line" }"#.into()),
-            (k::TRUNCATE_AT, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which part of a cut line the ellipsis stands in for" }}"#, w::END, options(w::TRUNCATE_ATS))),
-            (k::MAX_LINES, r#"{ type = "int", default = 0, min = 0, description = "The most lines a block keeps; zero keeps every line" }"#.into()),
-            (k::MAX_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines stop at; zero has no limit" }"#.into()),
-            (k::SHAPING, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Complex shaping joins scripts that need it and falls back to another face; simple does neither and is faster" }}"#, w::COMPLEX, options(w::SHAPINGS))),
-            (k::SNAP_ADVANCES, r#"{ type = "bool", default = false, description = "Round each glyph's advance to a whole pixel; the layout then depends on the size it is drawn at" }"#.into()),
-            (k::HINTING, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Snap outlines to the pixel grid; auto takes the face's import setting" }}"#, w::AUTO, options(w::HINTINGS))),
-            (k::PIXEL_SNAP, r#"{ type = "bool", default = false, description = "Rasterise on whole pixels with no subpixel offset, for a pixel face" }"#.into()),
-            (k::MONOSPACE_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels a monospace face's advance is set to; zero keeps its own" }"#.into()),
-            (k::TAB_WIDTH, r#"{ type = "int", default = 8, min = 1, max = 64, description = "Spaces between tab stops" }"#.into()),
+            (k::MAX_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines stop at; zero has no limit", group = "text" }"#.into()),
+            (k::MAX_LINES, r#"{ type = "int", default = 0, min = 0, description = "The most lines a block keeps; zero keeps every line", group = "text" }"#.into()),
+            (k::LINE_BREAK, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere", group = "text" }}"#, w::WORD_OR_GLYPH, options(w::LINE_BREAKS))),
+            (k::TRUNCATE, r#"{ type = "bool", default = false, description = "End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line", group = "text" }"#.into()),
+            (k::TRUNCATE_AT, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which part of a cut line the ellipsis stands in for", group = "text" }}"#, w::END, options(w::TRUNCATE_ATS))),
+            (k::TAB_WIDTH, r#"{ type = "int", default = 8, min = 1, max = 64, description = "Spaces between tab stops", group = "text" }"#.into()),
         ]
     }
 }
@@ -293,16 +166,16 @@ pub struct TextStyle {
     pub markup: bool,
     /// The width lines break at, in the same pixels as `font_size`.
     pub max_width: Option<f32>,
-    pub decoration: Decoration,
-    /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
-    /// project's vector fonts.
+    /// The font it is shaped in: a face file, a `font` asset, or the key an
+    /// inline definition is filed under. Empty takes the default font.
     pub font: String,
-    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icon`.
-    pub family: String,
-    /// Baseline to baseline, as a multiple of the size; zero takes the default.
-    pub line_height: f32,
-    /// Extra space between glyphs, in the same pixels as `font_size`.
-    pub letter_spacing: f32,
+    /// The `text_style` asset that dresses it: line height and spacing, the
+    /// lines drawn with its glyphs, an outline and a shadow. Empty draws it
+    /// plain.
+    pub text_style: String,
+    /// Whether the node is content of the project the engine plays rather
+    /// than its own (`project::in_content`), whose faces it draws in.
+    pub in_content: bool,
     /// Drop a pixel fainter than this rather than blending it, so 3D text
     /// sorts by depth with the scene; zero blends every pixel.
     pub alpha_cutoff: f32,
@@ -318,11 +191,9 @@ impl Default for TextStyle {
             align: Align::Start,
             markup: false,
             max_width: None,
-            decoration: Decoration::default(),
             font: String::new(),
-            family: String::new(),
-            line_height: 0.0,
-            letter_spacing: 0.0,
+            text_style: String::new(),
+            in_content: false,
             alpha_cutoff: 0.0,
             shaping: Shaping::default(),
         }
@@ -334,10 +205,6 @@ impl Default for TextStyle {
 pub struct SpaceOptions {
     /// Turn to face the camera each frame.
     pub billboard: bool,
-    /// Draw the back of the quad as well as the front.
-    pub double_sided: bool,
-    /// Let the scene's depth hide it.
-    pub depth_test: bool,
     pub layers: Layers3d,
 }
 
@@ -345,8 +212,6 @@ impl Default for SpaceOptions {
     fn default() -> Self {
         Self {
             billboard: true,
-            double_sided: true,
-            depth_test: true,
             layers: Layers3d::default(),
         }
     }
@@ -394,10 +259,8 @@ pub struct TextRenderable {
     /// The `material` asset every layer draws with; empty takes an inherited
     /// one, else the shaper's own.
     pub material: String,
-    /// The wireframe, vertices and node flags of a `text3d`.
+    /// The node flags of a `text3d`.
     pub overlay_3d: crate::overlay::Overlay3d,
-    /// The blend, wireframe, vertices and culling of a `text2d`.
-    pub overlay_2d: crate::overlay::Overlay2d,
     /// Bumped by every write, so the backend rebuilds only what moved.
     pub version: u64,
 }
@@ -413,7 +276,6 @@ impl Default for TextRenderable {
             in_space: SpaceOptions::default(),
             material: String::new(),
             overlay_3d: crate::overlay::Overlay3d::default(),
-            overlay_2d: crate::overlay::Overlay2d::default(),
             version: 0,
         }
     }
@@ -452,8 +314,32 @@ pub struct TextDrawBuffer {
     pub items: Vec<TextDraw>,
 }
 
+/// The reference an asset option names: its text, or the key its table is
+/// filed under as a component's inline definition is.
+fn asset_option(
+    eng: &Engine,
+    type_name: &str,
+    value: &balaur_script::Value,
+) -> anyhow::Result<Option<String>> {
+    Ok(match value {
+        balaur_script::Value::Str(reference) => Some(reference.clone()),
+        balaur_script::Value::Map(_) => Some(
+            balaur_core::assets::define_inline(
+                eng,
+                type_name,
+                balaur_core::node_api::to_toml(value)?,
+            )?
+            .to_string(),
+        ),
+        _ => None,
+    })
+}
+
 /// A style from a script's options table, over the defaults.
-pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<TextStyle> {
+pub(crate) fn style_of(
+    eng: &Engine,
+    opts: Option<balaur_script::Value>,
+) -> anyhow::Result<TextStyle> {
     use balaur_script::Value;
     let mut style = TextStyle::default();
     let Some(Value::Map(entries)) = opts else {
@@ -472,37 +358,22 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
             }
             k::MARKUP => style.markup = matches!(value, Value::Bool(true)),
             k::MAX_WIDTH => style.max_width = number(value),
-            k::BITMAP_FONT => {
-                if let Value::Str(path) = value {
-                    style.font.clone_from(path);
+            k::FONT => {
+                if let Some(reference) =
+                    asset_option(eng, balaur_core::assets::FONT_ASSET_TYPE, value)?
+                {
+                    style.font = reference;
                 }
             }
-            k::FONT_FAMILY => {
-                if let Value::Str(chain) = value {
-                    style.family.clone_from(chain);
+            k::TEXT_STYLE => {
+                if let Some(reference) =
+                    asset_option(eng, balaur_core::assets::TEXT_STYLE_ASSET_TYPE, value)?
+                {
+                    style.text_style = reference;
                 }
             }
-            k::LINE_HEIGHT => style.line_height = number(value).unwrap_or(0.0).max(0.0),
-            k::LETTER_SPACING => style.letter_spacing = number(value).unwrap_or(0.0),
             k::ALPHA_CUTOFF => {
                 style.alpha_cutoff = number(value).unwrap_or(0.0).clamp(0.0, 1.0);
-            }
-            k::OUTLINE_SIZE => {
-                style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
-            }
-            k::OUTLINE_COLOR => {
-                style.decoration.outline_color = crate::draw_2d::color_of(value)?;
-            }
-            k::SHADOW_COLOR => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
-            k::SHADOW_OFFSET => {
-                if let Value::List(items) = value
-                    && items.len() >= 2
-                {
-                    style.decoration.shadow_offset = [
-                        number(&items[0]).unwrap_or(0.0),
-                        number(&items[1]).unwrap_or(0.0),
-                    ];
-                }
             }
             k::COLOR => style.color = crate::draw_2d::color_of(value)?,
             k::TEXT_ALIGN => {
@@ -520,8 +391,8 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 
 #[cfg(feature = "window")]
 pub(crate) use backend::{
-    atlas_texture, bucket_ratio, layers, mask_2d, mask_3d, mesh_2d, mesh_3d, request_of, shape,
-    shape_at,
+    atlas_texture, bucket_ratio, laid_box, layers, mask_2d, mask_3d, mesh_2d, mesh_3d, request_of,
+    shape, shape_at,
 };
 
 #[cfg(feature = "window")]
@@ -529,7 +400,6 @@ mod backend {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use anyhow::{Result, anyhow};
     use balaur_core::Engine;
     use balaur_text::{Align as ShaperAlign, Request, Shaped};
     use glamx::Vec2;
@@ -655,11 +525,7 @@ mod backend {
     ///
     /// The engine holds one shaper, made from the project's faces by whatever
     /// asks first.
-    pub(crate) fn shape(
-        eng: &Engine,
-        text: &str,
-        style: &super::TextStyle,
-    ) -> Result<std::rc::Rc<Shaped>> {
+    pub(crate) fn shape(eng: &Engine, text: &str, style: &super::TextStyle) -> std::rc::Rc<Shaped> {
         shape_at(eng, text, style, balaur_text::bucket(style.size))
     }
 
@@ -670,25 +536,30 @@ mod backend {
         text: &str,
         style: &super::TextStyle,
         raster: f32,
-    ) -> Result<std::rc::Rc<Shaped>> {
+    ) -> std::rc::Rc<Shaped> {
         let state = balaur_text::shaper(eng);
-        // A bitmap face is loaded the first time it is asked for: the page
-        // goes into the atlas beside the rasterised glyphs.
-        if !style.font.is_empty() {
-            load_bitmap_font(eng, &style.font)?;
-        }
-        let mut request = request_of(text, style);
+        // Read the first time it is asked for, rather than drawn in the
+        // default for a frame: a bitmap face's page goes into the atlas.
+        state
+            .borrow_mut()
+            .load_font(eng, project_of(style), &style.font);
+        let mut request = request_of(eng, text, style);
+        // The width and the height the lines stop at scale with the raster,
+        // so the block wraps where it measures at any distance.
+        let ratio = raster.max(1.0) / request.size;
+        request.width = request.width.map(|width| width * ratio);
+        request.options.max_height = request.options.max_height.map(|height| height * ratio);
         request.size = raster.max(1.0);
-        let shaped = state.borrow_mut().shape(&request);
-        Ok(shaped)
+        state.borrow_mut().shape(&request)
     }
 
-    /// The shaper's request for a style.
+    /// The shaper's request for a style, dressed by its `text_style`.
     ///
     /// The size is the bucket above what was asked for, so a camera zooming
     /// through it re-shapes a few times rather than every frame; the caller
     /// scales the block back down.
-    pub(crate) fn request_of(text: &str, style: &super::TextStyle) -> Request {
+    pub(crate) fn request_of(eng: &Engine, text: &str, style: &super::TextStyle) -> Request {
+        let look = balaur_text::text_style::of(eng, &style.text_style);
         Request {
             text: text.to_string(),
             size: balaur_text::bucket(style.size),
@@ -706,53 +577,30 @@ mod backend {
             },
             markup: style.markup,
             font: style.font.clone(),
-            family: style.family.clone(),
-            line_height: style.line_height,
-            letter_spacing: style.letter_spacing,
-            options: options_of(&style.shaping),
+            project: project_of(style),
+            line_height: look.line_height,
+            letter_spacing: look.letter_spacing,
+            options: balaur_text::Options {
+                decoration: look.decoration,
+                ..options_of(&style.shaping)
+            },
         }
+    }
+
+    /// Whose faces a style's font is looked up in.
+    fn project_of(style: &super::TextStyle) -> balaur_text::FontProject {
+        balaur_text::FontProject::content_if(style.in_content)
     }
 
     /// A block's shaping settings as the shaper takes them.
     fn options_of(shaping: &super::Shaping) -> balaur_text::Options {
-        // The channels a scene writes, as every other colour key reads them.
-        let colour = |c: [f32; 4]| {
-            let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
-            (c[3] > 0.0).then(|| {
-                egui::Color32::from_rgba_unmultiplied(
-                    byte(c[0]),
-                    byte(c[1]),
-                    byte(c[2]),
-                    byte(c[3]),
-                )
-            })
-        };
         let positive = |v: f32| (v > 0.0).then_some(v);
         balaur_text::Options {
-            stretch: balaur_text::Stretch::of(&shaping.font_stretch),
-            font_name: shaping.font_name.clone(),
-            features: shaping
-                .font_features
-                .iter()
-                .filter_map(|f| balaur_text::Feature::parse(f))
-                .collect(),
-            decoration: balaur_text::Decoration {
-                underline: balaur_text::Underline::of(&shaping.underline),
-                underline_color: colour(shaping.underline_color),
-                strikethrough: shaping.strikethrough,
-                strikethrough_color: colour(shaping.strikethrough_color),
-                overline: shaping.overline,
-                overline_color: colour(shaping.overline_color),
-            },
+            decoration: balaur_text::Decoration::default(),
             line_break: balaur_text::LineBreak::of(&shaping.line_break),
             truncate_at: balaur_text::TruncateAt::of(&shaping.truncate_at),
             max_lines: shaping.max_lines,
             max_height: positive(shaping.max_height),
-            shaping: balaur_text::Shaping::of(&shaping.shaping),
-            snap_advances: shaping.snap_advances,
-            hinting: balaur_text::Hinting::of(&shaping.hinting),
-            pixel_snap: shaping.pixel_snap,
-            monospace_width: positive(shaping.monospace_width),
             tab_width: shaping.tab_width,
         }
     }
@@ -761,28 +609,6 @@ mod backend {
     /// it was rasterised at the bucket above it.
     pub(crate) fn bucket_ratio(style: &super::TextStyle) -> f32 {
         style.size.max(1.0) / balaur_text::bucket(style.size)
-    }
-
-    /// Read a `.fnt` and its page out of the project and hand them to the
-    /// shaper, once per face. Later calls find it already there.
-    fn load_bitmap_font(eng: &Engine, path: &str) -> Result<()> {
-        let state = balaur_text::shaper(eng);
-        if state.borrow().has_bitmap_font(path) {
-            return Ok(());
-        }
-        let files = eng.resource::<balaur_core::project::ProjectFiles>();
-        let descriptor = String::from_utf8(files.borrow().read(path)?)
-            .map_err(|_| anyhow!("{path} is not a text .fnt descriptor"))?;
-        // The page sits beside the descriptor, as the tool that wrote it left it.
-        let page_name = balaur_text::bitmap::parse(&descriptor)?.page;
-        let directory = path.rsplit_once('/').map_or("", |(head, _)| head);
-        let page_path = if directory.is_empty() {
-            page_name
-        } else {
-            format!("{directory}/{page_name}")
-        };
-        let page = files.borrow().read(&page_path)?;
-        state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
     }
 
     /// Where a shaped block's top-left corner sits so `text_align` lands the block
@@ -797,6 +623,16 @@ mod backend {
         Vec2::new(x, shaped.size.y / 2.0)
     }
 
+    /// The box a shaped block is laid out in, in the node's own space at
+    /// `scale`, as a centre and half extents: what a click on the text lands
+    /// in, its line boxes rather than its ink.
+    pub(crate) fn laid_box(shaped: &Shaped, scale: f32, align: super::Align) -> (Vec2, Vec2) {
+        let at = origin(shaped, align);
+        let centre = Vec2::new(at.x + shaped.size.x / 2.0, at.y - shaped.size.y / 2.0) * scale;
+        let half = Vec2::new(shaped.size.x, shaped.size.y) / 2.0 * scale;
+        (centre, half)
+    }
+
     /// Positions, triangles and atlas coordinates: what both meshes are built
     /// from, and the 3D one lifts into its plane.
     type Geometry = (Vec<Vec2>, Vec<[u32; 3]>, Vec<Vec2>);
@@ -808,36 +644,28 @@ mod backend {
     /// it draws in, and which of the block's quads it covers.
     pub(crate) type Layer = (Vec<[f32; 2]>, [f32; 4], Vec<usize>);
 
-    pub(crate) fn layers(shaped: &Shaped, style: &super::TextStyle) -> Vec<Layer> {
+    pub(crate) fn layers(
+        shaped: &Shaped,
+        style: &super::TextStyle,
+        look: &balaur_text::text_style::TextStyle,
+    ) -> Vec<Layer> {
         let all: Vec<usize> = (0..shaped.quads.len() + shaped.lines.len()).collect();
-        let mut out = Vec::new();
-        let decoration = &style.decoration;
-        if decoration.shadow_offset != [0.0, 0.0] {
-            out.push((
-                vec![decoration.shadow_offset],
-                decoration.shadow_color,
-                all.clone(),
-            ));
-        }
-        if decoration.outline_size > 0.0 {
-            let r = decoration.outline_size;
-            // The eight neighbours: a ring reads as an outline where four
-            // leaves the diagonals thin.
-            let ring = [
-                (-1.0, -1.0),
-                (0.0, -1.0),
-                (1.0, -1.0),
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (-1.0, 1.0),
-                (0.0, 1.0),
-                (1.0, 1.0),
-            ];
-            out.push((
-                ring.iter().map(|(x, y)| [x * r, y * r]).collect(),
-                decoration.outline_color,
-                all.clone(),
-            ));
+        let mut out: Vec<Layer> = Vec::new();
+        // The shadow, then the outline's ring: the copies a widget's label
+        // draws too, a layer a colour.
+        let mut held = None;
+        for (shift, colour) in look.effects.copies() {
+            let Some(colour) = colour else {
+                continue;
+            };
+            match out.last_mut() {
+                Some((shifts, _, _)) if held == Some(colour) => shifts.push([shift.x, shift.y]),
+                _ => {
+                    held = Some(colour);
+                    let channels = colour.to_srgba_unmultiplied().map(|v| f32::from(v) / 255.0);
+                    out.push((vec![[shift.x, shift.y]], channels, all.clone()));
+                }
+            }
         }
         // The text itself, one layer per colour the markup asked for: a mesh
         // carries one colour, so a coloured word is its own draw.
@@ -976,13 +804,10 @@ mod backend {
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
     #[cfg(feature = "window")]
     {
-        let state = balaur_text::shaper(eng);
-        if !style.font.is_empty() {
-            let shaped = shape(eng, text, style)?;
-            return Ok([shaped.size.x, shaped.size.y]);
-        }
-        let request = request_of(text, style);
-        let size = state.borrow_mut().measure(&request);
+        let project = balaur_text::FontProject::content_if(style.in_content);
+        balaur_text::load_font(eng, project, &style.font);
+        let request = request_of(eng, text, style);
+        let size = balaur_text::shaper(eng).borrow_mut().measure(&request);
         Ok([size.x, size.y])
     }
     #[cfg(not(feature = "window"))]
@@ -999,15 +824,6 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
 #[cfg(feature = "window")]
 pub(crate) fn depth_of(layer: usize) -> f32 {
     layer as f32 * 0.001
-}
-
-/// Report a face that will not load once, not once a frame.
-#[cfg(feature = "window")]
-pub(crate) fn report_once(err: &anyhow::Error) {
-    let message = format!("{err:#}");
-    if balaur_core::logbuf::first_time("world text", &message) {
-        tracing::error!("{message}");
-    }
 }
 
 /// Everything the backend keeps for text between frames: the nodes the
@@ -1105,26 +921,24 @@ fn flush(
     }
     // Shape3d every block first: each may grow the atlas, and the texture is
     // uploaded once for the lot rather than once per block.
-    let mut shaped = Vec::with_capacity(items.len());
-    for item in &items {
-        match shape(&app.engine, &item.text, &item.style) {
-            Ok(block) => shaped.push(Some(block)),
-            Err(err) => {
-                report_once(&err);
-                shaped.push(None);
-            }
-        }
-    }
+    let shaped: Vec<_> = items
+        .iter()
+        .map(|item| shape(&app.engine, &item.text, &item.style))
+        .collect();
     let Some(texture) = atlas_texture(&app.engine) else {
         return;
     };
     for (item, block) in items.iter().zip(shaped) {
-        let Some(block) = block else { continue };
         let scale = bucket_ratio(&item.style) / item.pixels_per_unit;
         // Shadow, outline and text: each is a node, because a mesh carries
         // one colour and they are drawn in that order.
-        for (layer, (shifts, [r, g, b, a], picks)) in
-            layers(&block, &item.style).into_iter().enumerate()
+        for (layer, (shifts, [r, g, b, a], picks)) in layers(
+            &block,
+            &item.style,
+            &balaur_text::text_style::of(&app.engine, &item.style.text_style),
+        )
+        .into_iter()
+        .enumerate()
         {
             if item.in_3d {
                 let Some(mesh) = mesh_3d(

@@ -23,6 +23,49 @@ fn main() {
     if std::env::var_os("CARGO_FEATURE_NATIVE").is_some() && arch != "wasm32" {
         println!("cargo::rustc-cfg=native");
     }
+    case_tables();
+}
+
+// Rust's own case mapping, as the tables the prelude's `to_upper` and
+// `to_lower` search (`src/prelude/str.bs`): a record of twelve hex digits for
+// a character that becomes one, the code point then what it becomes, and of
+// twenty-five for one that becomes several, with their count between.
+fn case_tables() {
+    use std::fmt::Write;
+    let mut out = String::from(
+        "// Written by build.rs from Rust's `char::to_uppercase` and `to_lowercase`.\n",
+    );
+    for (name, upper) in [("UPPER", true), ("LOWER", false)] {
+        let (mut one, mut many) = (String::new(), String::new());
+        for character in (0..=0x0010_ffff_u32).filter_map(char::from_u32) {
+            let to: Vec<char> = if upper {
+                character.to_uppercase().collect()
+            } else {
+                character.to_lowercase().collect()
+            };
+            if to == [character] {
+                continue;
+            }
+            let code = u32::from(character);
+            if let [single] = to[..] {
+                let _ = write!(one, "{code:06x}{:06x}", u32::from(single));
+                continue;
+            }
+            assert!(
+                to.len() <= 3,
+                "{character:?} maps to more than three characters"
+            );
+            let _ = write!(many, "{code:06x}{:x}", to.len());
+            for slot in 0..3 {
+                let mapped = to.get(slot).map_or(0, |became| u32::from(*became));
+                let _ = write!(many, "{mapped:06x}");
+            }
+        }
+        let _ = writeln!(out, "const {name}: str = \"{one}\";");
+        let _ = writeln!(out, "const {name}_MANY: str = \"{many}\";");
+    }
+    let dir = std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR");
+    std::fs::write(std::path::Path::new(&dir).join("case.bs"), out).expect("OUT_DIR is writable");
 }
 
 // FNV-1a over every file under `dir`, by path, in a fixed order.

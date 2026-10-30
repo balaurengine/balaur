@@ -17,13 +17,13 @@ fn a_screenshot_in_a_run_with_no_renderer_says_it_failed() {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
     std::fs::write(
         dir.path().join("scenes/shoot.bs"),
-        "pub struct Shoot { node: Node }\n\
+        "pub class Shoot { node: Node }\n\
          impl Shoot { fn init() { render::screenshot(\"shots/one.png\"); } }\n",
     )
     .unwrap();

@@ -1,7 +1,7 @@
 // The refactor sheet's one script: the name and what it becomes go to the
 // Editor as they are typed, and it says back what would change.
 
-pub struct Refactor {
+pub class Refactor {
     node: Node,
     editor: Node,
     open: bool,

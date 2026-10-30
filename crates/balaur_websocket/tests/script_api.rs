@@ -40,8 +40,8 @@ fn a_script_opens_echoes_and_closes() {
     let echo = serve_echo();
     let source = format!(
         r#"
-pub struct S {{ node: Node, socket: int }}
-impl S {{
+pub class Scenario {{ node: Node, socket: int }}
+impl Scenario {{
     fn init() {{
         self.socket = websocket::connect(self.node, "{echo}").as_int();
     }}
@@ -73,8 +73,8 @@ fn a_script_sends_and_receives_a_binary_frame() {
     let echo = serve_echo();
     let source = format!(
         r#"
-pub struct S {{ node: Node, socket: int }}
-impl S {{
+pub class Scenario {{ node: Node, socket: int }}
+impl Scenario {{
     fn init() {{
         self.socket = websocket::connect(self.node, "{echo}").as_int();
     }}
@@ -112,8 +112,8 @@ fn a_script_awaits_connect_until_it_opens_or_fails() {
     };
     let source = format!(
         r#"
-pub struct S {{ node: Node }}
-impl S {{
+pub class Scenario {{ node: Node }}
+impl Scenario {{
     async fn init() {{
         let socket = websocket::connect(self.node, "{echo}").as_int();
         let opened = await task::wait(socket);

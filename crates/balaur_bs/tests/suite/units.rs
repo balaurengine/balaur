@@ -365,3 +365,160 @@ fn a_unit_kept_as_bytes_runs_as_it_was_built() {
         "not bytes it wrote"
     );
 }
+
+const EDITOR: &str = "pub class Editor { node: Node, edits: int, names: [str] }
+impl Editor {
+    pub fn edit(name: str) -> int {
+        self.edits += 1;
+        self.names.push(name);
+        self.edits
+    }
+}
+";
+
+const PANEL: &str = "use editor;
+pub class Panel { node: Node, editor_node: Node }
+impl Panel {
+    pub fn poke() -> int {
+        let found: editor::Editor? = self.editor_node.script;
+        if found.is_none() {
+            return -1;
+        }
+        found.unwrap().edit(\"panel\")
+    }
+    pub fn mistaken() -> bool {
+        let wrong: editor::Editor? = self.node.script;
+        wrong.is_none()
+    }
+}
+";
+
+const PROJECT: [(&str, &str); 3] = [
+    ("project.bs", ""),
+    ("scripts/editor.bs", EDITOR),
+    ("scripts/panel.bs", PANEL),
+];
+
+/// Each of `files` built alone as a unit, as a host keeps them.
+fn units_of(files: &[(&str, &str)]) -> HashMap<String, Arc<Compiled>> {
+    let parsed = Parsed::default();
+    files
+        .iter()
+        .map(|(key, source)| {
+            let options = Options {
+                modules: Some(modules(files)),
+                path: (*key).into(),
+                unit: true,
+                parsed: Some(parsed.clone()),
+                ..Options::default()
+            };
+            let unit = compile(source, &options).unwrap_or_else(|e| panic!("{key}: {e}"));
+            ((*key).to_string(), Arc::new(unit))
+        })
+        .collect()
+}
+
+// A project's scripts are units of one instance: a script reaches another
+// node's script as its class, a direct call that copies nothing, and a node
+// running another file reads as nil.
+#[test]
+fn a_script_calls_another_script_of_its_instance_as_its_class() {
+    let units = units_of(&PROJECT);
+    for engine in engines() {
+        let found: Rc<std::cell::RefCell<Vec<(i64, i32)>>> = Rc::default();
+        let scripts = found.clone();
+        let host = HostFns::default().scripts(move |node, file, class| {
+            let editor = file == "scripts/editor.bs" && class == "Editor";
+            let held = scripts.borrow();
+            held.iter()
+                .find(|(n, _)| *n == node && editor)
+                .map(|(_, pointer)| *pointer)
+        });
+        let limits = Limits {
+            engine,
+            ..Limits::default()
+        };
+        let mut rt =
+            Runtime::new(&units["project.bs"], host, limits).unwrap_or_else(|e| panic!("{e}"));
+        let editor_unit = rt
+            .link("scripts/editor.bs", &units["scripts/editor.bs"], &[])
+            .unwrap();
+        let uses = [(
+            "scripts/editor.bs".to_string(),
+            units["scripts/editor.bs"].clone(),
+        )];
+        let panel_unit = rt
+            .link("scripts/panel.bs", &units["scripts/panel.bs"], &uses)
+            .unwrap();
+        assert_eq!(
+            rt.link("scripts/editor.bs", &units["scripts/editor.bs"], &[]),
+            Ok(editor_unit),
+            "a unit linked twice is the one unit"
+        );
+        let editor = rt
+            .in_unit(editor_unit, |rt| {
+                rt.object("Editor", &[("node", Value::Node(1))])
+            })
+            .unwrap();
+        found.borrow_mut().push((1, Runtime::pointer(&editor)));
+        let mut panel = rt
+            .in_unit(panel_unit, |rt| {
+                rt.object(
+                    "Panel",
+                    &[("node", Value::Node(2)), ("editor_node", Value::Node(1))],
+                )
+            })
+            .unwrap();
+        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(1)));
+        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(2)));
+        assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
+        assert_eq!(
+            rt.get(&editor, "names"),
+            Some(Value::Array(vec![
+                Value::Str("panel".into()),
+                Value::Str("panel".into())
+            ]))
+        );
+        assert_eq!(
+            rt.call_method(&mut panel, "mistaken", &[]),
+            Ok(Value::Bool(true))
+        );
+        rt.drop_object(panel);
+        rt.drop_object(editor);
+        assert_eq!(rt.live(), 0, "{engine:?}");
+    }
+}
+
+#[test]
+fn node_script_reads_only_as_a_scripts_class() {
+    let files = [
+        ("scripts/util.bs", "pub class Thing { n: int }"),
+        (
+            "scripts/main.bs",
+            "use util;\npub class Main { node: Node }\nimpl Main {\n    pub fn go() { let t: util::Thing? = self.node.script; }\n}\n",
+        ),
+        (
+            "scripts/plain.bs",
+            "pub class Plain { node: Node }\nimpl Plain {\n    pub fn go() { let s = self.node.script; }\n}\n",
+        ),
+    ];
+    let compile_one = |key: &str| {
+        let source = files.iter().find(|(k, _)| *k == key).unwrap().1;
+        let options = Options {
+            modules: Some(modules(&files)),
+            path: key.into(),
+            ..Options::default()
+        };
+        compile(source, &options).map(|_| ()).unwrap_err().msg
+    };
+    let named = compile_one("scripts/main.bs");
+    assert!(
+        named.contains("`util::Thing` is no script's class"),
+        "{named}"
+    );
+    let bare = compile_one("scripts/plain.bs");
+    assert!(
+        bare.contains("reads as the class it is wanted as"),
+        "{bare}"
+    );
+}

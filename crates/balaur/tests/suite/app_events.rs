@@ -9,12 +9,12 @@ fn app_with(script: &str) -> (tempfile::TempDir, balaur::App) {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n\n\
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n\n\
          [input.actions]\njump = [\"Space\"]\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scenes/hear.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scenes/ear.bs"), script).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -30,7 +30,7 @@ said = { type = "text", value = "" }
 [[nodes]]
 id = "n_ear"
 name = "Ear"
-script = { source = "scenes/hear.bs" }
+script = { source = "scenes/ear.bs" }
 "#;
 
 fn variable(app: &balaur::App, name: &str) -> balaur_script::Value {
@@ -60,7 +60,7 @@ const TELL: &str = r#"fn tell(what: str) {
 
 /// The ear's script: `tell` and a node script whose methods are `methods`.
 fn ear(methods: &str) -> String {
-    format!("{TELL}pub struct Ear {{ node: Node }}\nimpl Ear {{\n{methods}}}\n")
+    format!("{TELL}pub class Ear {{ node: Node }}\nimpl Ear {{\n{methods}}}\n")
 }
 
 #[test]
@@ -208,6 +208,86 @@ fn a_script_listening_for_saved_hears_a_slot_written() {
         app.tick(1.0 / 60.0);
     }
     assert!(said(&app).contains("saved;"), "{}", said(&app));
+}
+
+/// An editor's views listen for `changed` instead of comparing the scene
+/// each frame: the writes of a frame are heard at the next pump, one entry
+/// for each node and component however often it was written, a component a
+/// write put on as `attached`, and a write is kept only from the frame after
+/// someone listens.
+#[test]
+fn a_script_listening_for_changed_hears_what_the_writes_changed() {
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "changed"); }
+    fn update(dt: float) {
+        let said = scene::variable("said").as_str();
+        if said == "" {
+            scene::set_variable("said", "waited;");
+        } else if said == "waited;" {
+            scene::set_variable("said", "wrote;");
+            self.node.transform.position = vec3(1.0, 2.0, 3.0);
+            self.node.transform.scale = vec3(2.0, 2.0, 2.0);
+            self.node.transform.position = vec3(4.0, 5.0, 6.0);
+            self.node.set_name("Renamed");
+            let child = self.node.add_child("Child");
+            child.queue_free();
+        }
+    }
+    pub fn on_changed(entries: any) {
+        let index = 0;
+        while index < entries.len() {
+            let entry = entries.at(index);
+            let kind = entry.get("kind").as_str();
+            if kind == "component" {
+                tell(kind + " " + entry.get("component").as_str() + " " + entry.get("properties").text());
+            } else {
+                tell(kind);
+            }
+            index += 1;
+        }
+    }
+"#);
+    let (_dir, mut app) = app_with(&script);
+    for _ in 0..4 {
+        app.tick(1.0 / 60.0);
+    }
+    let said = said(&app);
+    assert_eq!(
+        said, r#"wrote;attached;component transform ["scale", "position"];renamed;added;freed;"#,
+        "the transform put on by its first write, one entry for the writes after, then the tree's in order"
+    );
+}
+
+/// Heard from a node, `changed` holds what happened under it alone: an
+/// editor listening from the scene it edits does not hear its own widgets.
+#[test]
+fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
+    let script = ear(r#"
+    fn init() { events::listen(self.node, "changed", self.node); }
+    fn update(dt: float) {
+        let said = scene::variable("said").as_str();
+        if said == "" {
+            scene::set_variable("said", "waited;");
+        } else if said == "waited;" {
+            scene::set_variable("said", "wrote;");
+            self.node.add_child("Inside");
+            scene::root().add_child("Outside");
+        }
+    }
+    pub fn on_changed(entries: any) {
+        let index = 0;
+        while index < entries.len() {
+            let entry = entries.at(index);
+            tell(entry.get("kind").as_str() + " " + entry.get("node").as_node().name());
+            index += 1;
+        }
+    }
+"#);
+    let (_dir, mut app) = app_with(&script);
+    for _ in 0..4 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(said(&app), "wrote;added Inside;");
 }
 
 /// A camera listens for `pointer_scrolled` instead of reading the wheel each

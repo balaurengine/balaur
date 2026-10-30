@@ -216,6 +216,11 @@ machine that is not the recorded one. Nothing in CI gates on either: a shared,
 throttled runner times a benchmark badly, and a gate that cries wolf gets
 ignored.
 
+A count is not a time, and CI gates on counts. `crates/balaur_bs`'s
+`tests/suite/budgets.rs` holds each script operation to the fuel wasmi
+charges for it and the host calls it makes, the same on every machine
+(PLAN-balaur-script §9 step 8).
+
 `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a real run, case for
 case against Godot with Rapier, Box2D v3 and Jolt.
 

@@ -7,6 +7,7 @@
 mod support;
 
 mod constants;
+mod fonts;
 mod glyph_mesh;
 mod glyphs;
 mod pacing;

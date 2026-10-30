@@ -2,7 +2,7 @@
 // on a word, and again after a control's own handler ran. Escape or a click
 // on the dim shuts it.
 
-pub struct Sheet {
+pub class Sheet {
     node: Node,
     editor: Node,
 }

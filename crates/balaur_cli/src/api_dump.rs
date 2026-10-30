@@ -41,13 +41,22 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
         api["bs"] = bs_api(&host.api());
         api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
     }
-    // Component schemas ride along, so docs and tools read one probe.
-    let components: std::collections::BTreeMap<String, serde_json::Value> =
-        balaur::components::schemas(&app.engine)
-            .into_iter()
-            .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
-            .collect::<Result<_>>()?;
+    // Component schemas ride along, so docs and tools read one probe, with
+    // the order each writes its properties in, which is the inspector's.
+    let schemas = balaur::components::schemas(&app.engine);
+    let components: std::collections::BTreeMap<&str, serde_json::Value> = schemas
+        .iter()
+        .map(|(name, schema)| {
+            let specs: &toml::Value = schema;
+            Ok((name.as_str(), serde_json::to_value(specs)?))
+        })
+        .collect::<Result<_>>()?;
     api["components"] = serde_json::to_value(components)?;
+    let component_order: std::collections::BTreeMap<&str, &[String]> = schemas
+        .iter()
+        .map(|(name, schema)| (name.as_str(), schema.order()))
+        .collect();
+    api["component_order"] = serde_json::to_value(component_order)?;
     // What each component is for, and the facets it belongs to, so the
     // reference can describe and group them.
     let component_docs: std::collections::BTreeMap<String, &'static str> = app
@@ -100,10 +109,15 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
                 .0
                 .iter()
                 .map(|(name, t)| {
-                    (
-                        name.clone(),
-                        serde_json::json!({"directory": t.directory, "doc": t.doc}),
-                    )
+                    let mut described = serde_json::json!({"directory": t.directory, "doc": t.doc});
+                    // A record's rows, in the order an Inspector shows them.
+                    if let Some(schema) = &t.schema {
+                        let specs: &toml::Value = schema;
+                        described["schema"] = serde_json::to_value(specs).unwrap_or_default();
+                        described["order"] =
+                            serde_json::to_value(schema.order()).unwrap_or_default();
+                    }
+                    (name.clone(), described)
                 })
                 .collect()
         })

@@ -8,7 +8,7 @@
 use balaur::input::{InputSnapshot, TouchPhase};
 use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
-const SCRIPT: &str = "pub struct Runner { node: Node }
+const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
     fn fixed_update(dt: float) {
         self.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
@@ -24,7 +24,7 @@ name = "Game"
 id = "n"
 name = "Runner"
 parent = "root"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/runner.bs" }
 
 [nodes.transform]
 position = [0, 0, 0]
@@ -37,7 +37,8 @@ parent = "root"
 [nodes.touch_stick]
 action_x = "move_x"
 anchor = "bottom_left"
-offset = [150.0, -150.0]
+x = 50.0
+y = 50.0
 radius = 100.0
 deadzone = 0.0
 visibility = "always"
@@ -47,11 +48,11 @@ fn project(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.join("scripts").join("s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("runner.bs"), SCRIPT).unwrap();
 }
 
 /// A booted game on a 1000 x 600 screen, so the stick sits at (150, 450).
@@ -143,7 +144,7 @@ fn nobody_touching_the_stick_leaves_the_runner_still() {
 
 /// The verbs a script reaches: feeding a finger and an action, and reading
 /// the four gestures, each of which must answer with nothing happening.
-const VERBS: &str = "pub struct Runner { node: Node }
+const VERBS: &str = "pub class Runner { node: Node }
 impl Runner {
     fn update(dt: float) {
         input::feed_action(\"jump\", 1.0);
@@ -168,7 +169,7 @@ impl Runner {
 fn a_script_can_feed_a_finger_and_an_action() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path());
-    std::fs::write(dir.path().join("scripts").join("s.bs"), VERBS).unwrap();
+    std::fs::write(dir.path().join("scripts").join("runner.bs"), VERBS).unwrap();
     let mut app = booted(dir.path());
     for _ in 0..30 {
         app.tick(DEFAULT_FIXED_DT);

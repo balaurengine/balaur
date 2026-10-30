@@ -18,11 +18,11 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"s.bs\" }}\n\
+            "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = {{ source = \"root.bs\" }}\n\
              [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
-             [[nodes]]\nid = \"l\"\nname = \"Shown\"\nparent = \"n\"\n\
+             [[nodes]]\nid = \"shown\"\nname = \"Shown\"\nparent = \"root\"\n\
              widget = {{ kind = \"label\", text = \"hi\", anchor = \"bottom_right\" }}\n\n\
-             [[nodes]]\nid = \"f\"\nname = \"Form\"\nparent = \"n\"\n\
+             [[nodes]]\nid = \"form\"\nname = \"Form\"\nparent = \"root\"\n\
              widget = {{ kind = \"inspector\", anchor = \"fill\", label_width = 80, \
              target = \"Root{}\", component = \"{component}\", on_change = \"edited\"{extra} }}\n",
             if component == "widget" { "/Shown" } else { "" }
@@ -30,8 +30,8 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.bs"),
-        "pub struct Root { node: Node, edits: float, seen: str, depth: float }
+        dir.path().join("root.bs"),
+        "pub class Root { node: Node, edits: float, seen: str, depth: float }
 impl Root {
     fn init() { self.depth = -1.0; }
     pub fn edited(edit: any) {
@@ -198,7 +198,7 @@ fn the_rows_follow_the_node_once_told_it_moved() {
         "a pass read the component without being told"
     );
     // Named by the node above it, as a panel names itself for its whole form.
-    assert!(balaur_ui::reread(&app.engine, root));
+    assert!(balaur_ui::reread(&app.engine, root, None, None));
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
         prop(&app, control(&app, 0, 2), "value"),
@@ -258,15 +258,15 @@ fn an_inspector_a_script_pools_fills_and_draws_its_rows() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"root.bs\" }\n\
          [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
-         [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\n\
+         [[nodes]]\nid = \"bar\"\nname = \"Bar\"\nparent = \"root\"\n\
          widget = { kind = \"column\", anchor = \"fill\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.bs"),
-        "pub struct Root { node: Node, edits: float, path: str }
+        dir.path().join("root.bs"),
+        "pub class Root { node: Node, edits: float, path: str }
 impl Root {
     fn update(dt: float) {
         self.path = scene::get_node(\"Root\").path();
@@ -318,15 +318,15 @@ fn a_slot_that_stops_being_an_inspector_takes_its_rows_with_it() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"root.bs\" }\n\
          [nodes.transform]\nposition = [1.0, 2.0, 3.0]\n\n\
-         [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\n\
+         [[nodes]]\nid = \"bar\"\nname = \"Bar\"\nparent = \"root\"\n\
          widget = { kind = \"column\", anchor = \"fill\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.bs"),
-        "pub struct Root { node: Node, flipped: bool }
+        dir.path().join("root.bs"),
+        "pub class Root { node: Node, flipped: bool }
 impl Root {
     fn update(dt: float) {
         let control = if self.flipped {

@@ -71,8 +71,8 @@ fn a_delete_carries_the_body_it_was_given() {
     let url = echo_body();
     let source = format!(
         r#"
-pub struct S {{ node: Node }}
-impl S {{
+pub class Scenario {{ node: Node }}
+impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{url}", map().with("method", "DELETE").with("body", "ids=7")));
         let status = r.get("status");
@@ -98,8 +98,8 @@ fn a_script_awaits_a_request_and_takes_another_through_a_named_handler() {
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
     let source = format!(
         r#"
-pub struct S {{ node: Node, request: int }}
-impl S {{
+pub class Scenario {{ node: Node, request: int }}
+impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
         let status = r.get("status");
@@ -133,8 +133,8 @@ fn a_script_awaits_a_request_and_takes_another_through_on_response() {
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
     let source = format!(
         r#"
-pub struct S {{ node: Node, request: int }}
-impl S {{
+pub class Scenario {{ node: Node, request: int }}
+impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
         let status = r.get("status");

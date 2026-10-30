@@ -15,11 +15,11 @@ fn app_with(body: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n\n\
-         [[nodes]]\nid = \"b\"\nname = \"Bar\"\nparent = \"n\"\nwidget = { kind = \"row\" }\n",
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"root.bs\" }\n\n\
+         [[nodes]]\nid = \"bar\"\nname = \"Bar\"\nparent = \"root\"\nwidget = { kind = \"row\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("s.bs"), body).unwrap();
+    std::fs::write(dir.path().join("root.bs"), body).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -53,15 +53,15 @@ fn number(app: &App, name: &str) -> Option<f64> {
 #[test]
 fn a_strip_makes_a_node_a_control_and_hides_what_a_shorter_list_leaves() {
     let (_dir, mut app) = app_with(
-        "pub struct Root { node: Node, n: int, frames: int }
+        "pub class Root { node: Node, count: int, frames: int }
 impl Root {
-    fn init() { self.n = 3; }
+    fn init() { self.count = 3; }
     fn update(dt: float) {
         self.frames += 1;
         let controls: [any] = [];
-        for i in 0..self.n { controls.push(map().with(\"kind\", \"label\").with(\"text\", \"L{i}\")); }
+        for index in 0..self.count { controls.push(map().with(\"kind\", \"label\").with(\"text\", \"L{index}\")); }
         ui::fill_strip(\"Root/Bar\", controls);
-        self.n = 1;
+        self.count = 1;
     }
 }
 ",
@@ -95,7 +95,7 @@ impl Root {
 #[test]
 fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
-        "pub struct Root { node: Node, on: bool, edits: int }
+        "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
     fn update(dt: float) {
         let controls: [any] = [map().with(\"kind\", \"checkbox\").with(\"checked\", self.on).with(\"on\", \"toggled\")];
@@ -145,7 +145,7 @@ impl Root {
 #[test]
 fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
     let (_dir, mut app) = app_with(
-        "pub struct Root { node: Node, frames: int }
+        "pub class Root { node: Node, frames: int }
 impl Root {
     fn update(dt: float) {
         self.frames += 1;
@@ -182,7 +182,7 @@ impl Root {
 #[test]
 fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
     let (_dir, mut app) = app_with(
-        "pub struct Root { node: Node, frames: int, edits: int }
+        "pub class Root { node: Node, frames: int, edits: int }
 impl Root {
     fn init() {
         scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"kind\", \"column\").with(\"anchor\", \"fill\"));

@@ -1,7 +1,7 @@
 // The Library tab's one script: it lights the kind, fills that kind's cards or
 // the templates from what the Editor hands it, and answers a pick of either.
 
-pub struct Library {
+pub class Library {
     node: Node,
     editor: Node,
 }
@@ -31,7 +31,7 @@ impl Library {
             return;
         }
         let name = node.name();
-        if on_widget_event_any_0(name, KINDS()) {
+        if is_kind(name, KINDS()) {
             self.editor.call("library_kind", name);
         } else if name == "Cards" || name == "Table" {
             // A pick places, so the same card twice places twice: the row is
@@ -70,7 +70,7 @@ impl Library {
     }
 }
 
-fn on_widget_event_any_0(name: str, items: [str]) -> bool {
+fn is_kind(name: str, items: [str]) -> bool {
     for kind in items {
         if kind == name {
             return true;

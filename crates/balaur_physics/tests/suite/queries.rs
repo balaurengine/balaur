@@ -17,7 +17,7 @@ fn run_with(items: &str, body: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -30,7 +30,7 @@ name = "World"
 id = "n_near"
 name = "Near"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [0.0, 6.0, 0.0]
@@ -54,8 +54,8 @@ radius = 0.5
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        format!("{items}\npub struct S {{ node: Node }}\nimpl S {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
+        dir.path().join("scripts/scenario.bs"),
+        format!("{items}\npub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
     )
     .unwrap();
 

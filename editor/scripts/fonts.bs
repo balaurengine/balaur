@@ -1,0 +1,280 @@
+// The fonts a project can take: its own under `fonts/`, the faces this
+// machine has installed, and in a browser tab the open fonts Forge's
+// catalogue lists. A face from outside is copied into `fonts/` before a row
+// names it: an exported game cannot count on it being anywhere else.
+
+use dropin;
+use editor;
+use icons;
+use inspector;
+use model;
+use pool;
+use search;
+use style;
+use util;
+use window;
+
+/// The entry under a font row that opens the catalogue, where there is one.
+const FIND: str = "Find a font…";
+
+/// Where Forge serves the catalogue: the page's own origin, which is the
+/// only one a tab may reach.
+const CATALOGUE: str = "/fonts/catalogue";
+
+/// The most families the picker lists at once: the catalogue holds well over
+/// a thousand, and a query narrows it.
+const SHOWN: int = 200;
+
+/// The catalogue while it is up: which row a pick fills, and what is typed.
+pub struct Finding {
+    at: inspector::AtTop,
+    query: str,
+}
+
+/// What an answer from Forge is for: the family list, a family's faces, or
+/// one of its files on its way into the project.
+pub struct Waiting {
+    purpose: str,
+    family: any,
+    at: any,
+}
+
+/// The fonts a `font` row offers: the project's faces and definitions under
+/// `fonts/`, then the faces this machine has installed, a pick of which is
+/// copied into the project first, and in a tab the catalogue.
+pub fn choices(state: &mut editor::State) -> [str] {
+    let out: [str] = [];
+    for entry in util::vec(model::list(state, "fonts")) {
+        let name = entry.name.as_str();
+        if !entry.is_dir.as_bool() && (assets::kind_of(name) == "font" || name.ends_with(".toml")) {
+            out.push("fonts/" + name);
+        }
+    }
+    out.sort();
+    let installed: [str] = [];
+    for label in installed_faces(state).keys() {
+        installed.push(label);
+    }
+    installed.sort();
+    for label in installed {
+        out.push(label);
+    }
+    if project::in_tab() {
+        out.push(FIND);
+    }
+    out
+}
+
+/// The installed faces, by the label the picker shows each under, to its
+/// file. Read the first time the picker asks: listing them reads every font
+/// directory on the machine.
+fn installed_faces(state: &mut editor::State) -> any {
+    if state.system_fonts.is_nil() {
+        let found = map();
+        for face in project::system_fonts() {
+            found.set("{face.family} {face.style} · system", face.path);
+        }
+        state.system_fonts = found;
+    }
+    state.system_fonts
+}
+
+/// A pick under a font row into the row: an installed face copied into
+/// `fonts/` first, the catalogue opened for one from Forge.
+pub fn pick(state: &mut editor::State, at: inspector::AtTop, label: str) {
+    if label == FIND {
+        open(state, at);
+        return;
+    }
+    let installed = installed_faces(state).get(label);
+    if installed.is_nil() {
+        inspector::write_at(state, at, label);
+        return;
+    }
+    let copied = dropin::copy_system_font(state, installed.as_str());
+    if copied.is_some() {
+        inspector::write_at(state, at, copied.unwrap());
+    }
+}
+
+/// Open the catalogue over the picker, for the row at `at`. The families
+/// are asked for the first time it opens.
+pub fn open(state: &mut editor::State, at: inspector::AtTop) {
+    state.font_finding = Finding { at: at, query: "" };
+    if state.font_families.is_nil() && !waiting_on(state, "families") {
+        ask(state, CATALOGUE, Waiting { purpose: "families", family: nil, at: nil }, map());
+    }
+    window::picker_changed(state);
+}
+
+pub fn close(state: &mut editor::State) {
+    state.font_finding = nil;
+    window::picker_shut(state);
+}
+
+/// Whether the catalogue is the picker's while it is up.
+pub fn finding(state: editor::State) -> bool {
+    state.font_finding.is_some()
+}
+
+fn waiting_on(state: editor::State, purpose: str) -> bool {
+    for id in state.font_requests.keys() {
+        if state.font_requests.get(id).purpose.as_str() == purpose {
+            return true;
+        }
+    }
+    false
+}
+
+/// One request to Forge, its answer kept for `on_response` by its id.
+fn ask(state: &mut editor::State, url: str, waiting: Waiting, opts: any) {
+    let id = http::request(scene::get_node("Editor"), url, opts);
+    state.font_requests.set("{id}", waiting);
+}
+
+/// Fill the picker with the families matching what is typed.
+pub fn fill(state: &mut editor::State) {
+    let row_h = util::max(style::row_h(state), 30.0);
+    let specs = rows(state, row_h);
+    let host = window::picker(state, map()
+        .with("width", 520.0)
+        .with("mark", icons::ui("search"))
+        .with("placeholder", "Open fonts: a family, serif, mono…")
+        .with("query", state.font_finding.unwrap().query)
+        .with("rows_h", (specs.len() as float) * (row_h + 2.0) + 4.0)
+        .with("on", "handle")
+        .with("on_submit", "handle_submit")
+        .with("data", map().with("fn", typed).with("submit", typed)));
+    pool::sync(state, host, specs, 0.0, false);
+}
+
+fn typed(state: &mut editor::State, _data: any, text: any) {
+    let finding = state.font_finding.unwrap();
+    state.font_finding = Finding { at: finding.at, query: text.as_str() };
+}
+
+fn rows(state: &mut editor::State, row_h: float) -> [any] {
+    if state.font_families.is_nil() {
+        let said = if waiting_on(state, "families") { "Asking Forge for its fonts…" } else { "The catalogue did not answer." };
+        return [caption_row(said)];
+    }
+    let query = state.font_finding.unwrap().query.to_lower();
+    let out: [any] = [];
+    for family in util::vec(state.font_families) {
+        if out.len() >= SHOWN {
+            break;
+        }
+        let name = family.family.as_str();
+        let category = family.category.as_str();
+        if query != "" && !(name + " " + category).to_lower().contains(query) {
+            continue;
+        }
+        let button = pool::on(map()
+            .with("kind", "button")
+            .with("role", "item_picker")
+            .with("grow", 1)
+            .with("text", "{name}  ·  {category}"), take_family, map().with("family", family));
+        out.push(map().with("full", true).with("height", row_h).with("controls", [button]));
+    }
+    if out.len() == 0 {
+        out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
+    }
+    out
+}
+
+fn caption_row(text: str) -> any {
+    let label = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", text).with("wrap", true);
+    map().with("full", true).with("height", 0.0).with("controls", [label])
+}
+
+fn take_family(state: &mut editor::State, data: any, _value: any) {
+    take(state, data.family);
+}
+
+/// A family picked: its faces are asked for, then its upright regular one
+/// and its licence fetched into the project.
+pub fn take(state: &mut editor::State, family: any) {
+    let at = state.font_finding.unwrap().at;
+    ask(state, CATALOGUE + "/" + family.id.as_str(), Waiting { purpose: "faces", family: family, at: at }, map());
+    log::info("fetching {family.family}…");
+    close(state);
+}
+
+/// The request waiting on `purpose`, by the id its answer carries; nil when
+/// none is.
+pub fn request_for(state: editor::State, purpose: str) -> any {
+    for id in state.font_requests.keys() {
+        if state.font_requests.get(id).purpose.as_str() == purpose {
+            return id;
+        }
+    }
+    nil
+}
+
+/// An answer from Forge, by what it was asked for.
+pub fn on_response(state: &mut editor::State, reply: any) {
+    let key = "{reply.request}";
+    let waiting = state.font_requests.get(key);
+    if waiting.is_nil() {
+        return;
+    }
+    state.font_requests.remove(key);
+    let ok = reply.kind.as_str() == http::EVENT_RESPONSE && reply.status.as_int() == 200;
+    let purpose = waiting.purpose.as_str();
+    if !ok {
+        if purpose == "families" {
+            state.font_families = nil;
+            window::picker_changed(state);
+        }
+        log::warn("the font catalogue did not answer ({purpose}): {reply.status}");
+        return;
+    }
+    if purpose == "families" {
+        state.font_families = json::parse(reply.body.as_str());
+        window::picker_changed(state);
+    } else if purpose == "faces" {
+        fetch_face(state, waiting, json::parse(reply.body.as_str()));
+    } else if purpose == "face" {
+        take_face(state, waiting, reply.path.as_str());
+    } else if purpose == "licence" {
+        fs::write(state.game_root + "/" + waiting.at.as_str(), reply.body.as_str());
+        model::forget(state, nil);
+    }
+}
+
+/// The family's upright regular face, else its first, downloaded under the
+/// user directory and copied in as a dropped file is; its licence beside it.
+fn fetch_face(state: &mut editor::State, waiting: Waiting, faces: any) {
+    let files = util::vec(faces.files);
+    if files.len() == 0 {
+        log::warn("{waiting.family.family} names no face");
+        return;
+    }
+    let face = files[0];
+    for file in files {
+        if file.style.as_str() == "normal" && file.weight.as_int() == 400 {
+            face = file;
+        }
+    }
+    let base = CATALOGUE + "/" + waiting.family.id.as_str() + "/";
+    let name = face.file.as_str();
+    ask(state, base + name, Waiting { purpose: "face", family: waiting.family, at: waiting.at }, map().with("save_to", "fonts/" + name));
+    // Beside the face and named for it, the licence's own name after it:
+    // `Inter-Regular.OFL.txt`. An export ships it with the face.
+    let licence = faces.licence.as_str();
+    let halves = name.split_once(".");
+    let stem = if halves.len() == 2 { halves[0] } else { name };
+    ask(state, base + licence, Waiting { purpose: "licence", family: waiting.family, at: "fonts/{stem}.{licence}" }, map());
+}
+
+/// A face downloaded: into the project, and named by the row it was picked
+/// for.
+fn take_face(state: &mut editor::State, waiting: Waiting, saved: str) {
+    let copied = dropin::copy_in(state, saved, "fonts");
+    if copied.is_none() {
+        return;
+    }
+    let rel = copied.unwrap();
+    inspector::write_at(state, waiting.at, rel);
+    log::info("added {waiting.family.family} as {rel}");
+}

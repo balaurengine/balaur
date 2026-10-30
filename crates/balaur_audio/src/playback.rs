@@ -102,7 +102,7 @@ pub const DEFAULT_Q: f32 = 0.5;
 pub struct Program {
     pub main: Clip,
     /// Mixed with `main` for its whole length.
-    pub layers: Vec<Clip>,
+    pub stems: Vec<Clip>,
     /// Played after `main`, in order.
     pub queue: Vec<Clip>,
     /// The caller's loop; a file's own `loop` setting loops it as well.
@@ -122,7 +122,7 @@ impl Program {
     pub fn new(main: Clip) -> Self {
         Self {
             main,
-            layers: Vec::new(),
+            stems: Vec::new(),
             queue: Vec::new(),
             looped: false,
             loop_offset: None,

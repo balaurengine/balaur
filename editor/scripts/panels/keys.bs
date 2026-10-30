@@ -2,7 +2,7 @@
 // name is the command the Editor runs. F5 is play until a script stops, and
 // then it and the step keys are the debugger's.
 
-pub struct Keys {
+pub class Keys {
     node: Node,
     editor: Node,
 }

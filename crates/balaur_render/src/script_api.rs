@@ -39,7 +39,7 @@ fn push_text(
     };
     let pixels_per_unit = number(crate::vocabulary::keys::PIXELS_PER_UNIT);
     let z_index = number(crate::vocabulary::keys::Z_INDEX).map(|z| z as i32);
-    let style = crate::world_text::style_of(opts)?;
+    let style = crate::world_text::style_of(eng, opts)?;
     let buffer = eng.resource::<crate::world_text::TextDrawBuffer>();
     buffer.borrow_mut().items.push(crate::world_text::TextDraw {
         text,
@@ -59,7 +59,8 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
-        ("bounds", &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
+        ("hold_cameras", &[], "(root: node?)", "Let no camera under a node drive the view, whatever its `current` says, until it is called with nil: an editor looking at a game through its own camera. The cameras keep what the scene asked of them."),
+        ("bounds", &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in."),
     ]);
     // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
@@ -97,6 +98,14 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.scale_factor,
         ))
     });
+    m.function(
+        "hold_cameras",
+        |eng: &Engine, root: Option<balaur_script::NodeId>| {
+            let root = root.map(balaur_core::entity_of).transpose()?;
+            eng.resource::<crate::camera::HeldCameras>().borrow_mut().0 = root;
+            Ok(())
+        },
+    );
     // What a node covers, which an authored size cannot say for a mesh, a
     // body a solver deforms, or a sprite sized by its image.
     m.function("bounds", |eng: &Engine, node: balaur_script::NodeId| {
@@ -108,7 +117,13 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
                 .get::<&crate::Renderable2d>(entity)
                 .ok()
                 .and_then(|renderable| crate::pick::half_extents_2d(&renderable))
-                .map(|(hx, hy)| (glamx::Vec3::ZERO, glamx::Vec3::new(hx, hy, 0.0))),
+                .map(|(hx, hy)| (glamx::Vec3::ZERO, glamx::Vec3::new(hx, hy, 0.0)))
+                .or_else(|| {
+                    world
+                        .get::<&crate::text_component::LaidText>(entity)
+                        .ok()
+                        .map(|laid| (laid.centre, laid.half))
+                }),
         };
         let Some((centre, half)) = found else {
             return Ok(balaur_script::Value::Nil);
@@ -487,7 +502,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: color)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
         ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: color)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
         ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
-        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, …), `pixels_per_unit` and `z_index`."),
+        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` take a reference or a definition table."),
         ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         ("text_size", &[], "(text: string, opts: table) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
@@ -583,7 +598,7 @@ fn install_text_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "text_size",
         |eng: &Engine, (text, opts): (String, Option<Value>)| {
-            let style = crate::world_text::style_of(opts)?;
+            let style = crate::world_text::style_of(eng, opts)?;
             let [w, h] = crate::world_text::measure(eng, &text, &style)?;
             Ok((w, h))
         },

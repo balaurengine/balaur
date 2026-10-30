@@ -3,7 +3,6 @@
 
 use editor;
 use history;
-use inspector;
 use model;
 use pool;
 use util;
@@ -54,36 +53,39 @@ pub fn state() -> PopulateState {
 }
 
 /// The multimesh component a node carries, if it carries one.
-pub fn component(node: any) -> str? {
-    if node.has(MULTIMESH3D) {
+pub fn component(found: Node) -> str? {
+    if !found.is_valid() {
+        return nil;
+    }
+    if found.has_component(MULTIMESH3D) {
         return MULTIMESH3D;
     }
-    if node.has(MULTIMESH2D) {
+    if found.has_component(MULTIMESH2D) {
         return MULTIMESH2D;
     }
     nil
 }
 
-pub fn open(S: &mut editor::State) {
-    if !model::has_selection(S) || component(model::selected_node(S)).is_none() {
+pub fn open(state: &mut editor::State) {
+    if !model::has_selection(state) || component(model::selected_node(state)).is_none() {
         return;
     }
-    S.populate.said = "";
-    window::show(S, SHEET);
+    state.populate.said = "";
+    window::show(state, SHEET);
 }
 
 /// Fill the sheet: what its script asks for when Populate is up.
-pub fn fill(S: &mut editor::State) {
-    let hosts = window::sheet_form(S, SHEET, "Populate", []);
+pub fn fill(state: &mut editor::State) {
+    let hosts = window::sheet_form(state, SHEET, "Populate", []);
     if hosts.is_none() {
         return;
     }
-    pool::sync(S, hosts.unwrap().form, specs(S), LABEL_W, false);
+    pool::sync(state, hosts.unwrap().form, specs(state), LABEL_W, false);
 }
 
-fn specs(S: editor::State) -> [any] {
-    let P = S.populate;
-    let node = model::selected_node(S);
+fn specs(state: editor::State) -> [any] {
+    let fields = state.populate;
+    let node = model::selected_node(state);
     let name = component(node).unwrap_or(MULTIMESH3D);
     let out: [any] = [];
     out.push(map()
@@ -93,17 +95,17 @@ fn specs(S: editor::State) -> [any] {
             map()
                 .with("kind", "dropdown")
                 .with("grow", 1)
-                .with("text", P.kind)
+                .with("text", fields.kind)
                 .with("options", [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID])
                 .with("on", "handle")
-                .with("data", map().with("fn", specs_on_0)),
+                .with("data", map().with("fn", on_layout_picked)),
         ])
         .with("label", "Layout"));
-    if P.kind == render::POPULATE_SURFACE {
+    if fields.kind == render::POPULATE_SURFACE {
         let paths = [NONE];
-        for other in S.doc {
-            if drawn(other) && other.id.as_str() != node.id.as_str() {
-                paths.push("/" + model::node_path(S.doc, other));
+        for other in state.nodes {
+            if drawn(other) && other != node {
+                paths.push("/" + model::path_in_scene(state, other));
             }
         }
         out.push(map()
@@ -113,45 +115,45 @@ fn specs(S: editor::State) -> [any] {
                 map()
                     .with("kind", "dropdown")
                     .with("grow", 1)
-                    .with("text", if P.surface == "" { NONE } else { P.surface })
+                    .with("text", if fields.surface == "" { NONE } else { fields.surface })
                     .with("options", paths)
                     .with("on", "handle")
-                    .with("data", map().with("fn", specs_on_1)),
+                    .with("data", map().with("fn", on_surface_picked)),
             ])
             .with("label", "Surface"));
     }
-    if P.kind == render::POPULATE_GRID {
-        out.push(whole(S, "Columns", P.columns, specs_write_2));
-        out.push(whole(S, "Rows", P.rows, specs_write_3));
+    if fields.kind == render::POPULATE_GRID {
+        out.push(whole(state, "Columns", fields.columns, write_columns));
+        out.push(whole(state, "Rows", fields.rows, write_rows));
     } else {
-        out.push(whole(S, "Count", P.count, specs_write_4));
+        out.push(whole(state, "Count", fields.count, write_count));
     }
-    if P.kind == render::POPULATE_ROW || P.kind == render::POPULATE_GRID {
-        out.push(number(S, "Step", P.step, 0.1, specs_write_5));
+    if fields.kind == render::POPULATE_ROW || fields.kind == render::POPULATE_GRID {
+        out.push(number(state, "Step", fields.step, 0.1, write_step));
     }
-    if P.kind == render::POPULATE_RING {
-        out.push(number(S, "Radius", P.radius, 0.1, specs_write_6));
+    if fields.kind == render::POPULATE_RING {
+        out.push(number(state, "Radius", fields.radius, 0.1, write_radius));
     }
-    out.push(fraction(S, "Rotation", P.rotation, specs_write_7));
+    out.push(fraction(state, "Rotation", fields.rotation, write_rotation));
     if name == MULTIMESH3D {
-        out.push(fraction(S, "Tilt", P.tilt, specs_write_8));
+        out.push(fraction(state, "Tilt", fields.tilt, write_tilt));
     }
-    out.push(number(S, "Scale", P.scale, 0.05, specs_write_9));
-    out.push(fraction(S, "Random scale", P.random_scale, specs_write_10));
-    out.push(whole(S, "Seed", P.seed, specs_write_11));
+    out.push(number(state, "Scale", fields.scale, 0.05, write_scale));
+    out.push(fraction(state, "Random scale", fields.random_scale, write_random_scale));
+    out.push(whole(state, "Seed", fields.seed, write_seed));
     out.push(map()
         .with("full", false)
         .with("height", 24)
         .with("controls", [
-            map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", target_text(S, node, name)),
+            map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", target_text(state, node, name)),
         ])
         .with("label", "Writes"));
-    if P.said != "" {
+    if fields.said != "" {
         out.push(map()
             .with("full", false)
             .with("height", 24)
             .with("controls", [
-                map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", P.said),
+                map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", fields.said),
             ]));
     }
     out.push(map()
@@ -166,64 +168,64 @@ fn specs(S: editor::State) -> [any] {
                 .with("text", "Populate")
                 .with("tooltip", "Replace the asset's instances with this layout, as one undo step")
                 .with("on", "handle")
-                .with("data", map().with("fn", specs_on_12)),
+                .with("data", map().with("fn", on_populate_pressed)),
         ]));
     out
 }
 
-fn specs_on_0(S: &mut editor::State, data: any, picked: any) {
-    S.populate.kind = picked.as_str();
+fn on_layout_picked(state: &mut editor::State, data: any, picked: any) {
+    state.populate.kind = picked.as_str();
 }
 
-fn specs_on_1(S: &mut editor::State, data: any, picked: any) {
-    S.populate.surface = if picked.as_str() == NONE { "" } else { picked.as_str() };
+fn on_surface_picked(state: &mut editor::State, data: any, picked: any) {
+    state.populate.surface = if picked.as_str() == NONE { "" } else { picked.as_str() };
 }
 
-fn specs_write_2(S: &mut editor::State, v: int) {
-    S.populate.columns = v;
+fn write_columns(state: &mut editor::State, value: int) {
+    state.populate.columns = value;
 }
 
-fn specs_write_3(S: &mut editor::State, v: int) {
-    S.populate.rows = v;
+fn write_rows(state: &mut editor::State, value: int) {
+    state.populate.rows = value;
 }
 
-fn specs_write_4(S: &mut editor::State, v: int) {
-    S.populate.count = v;
+fn write_count(state: &mut editor::State, value: int) {
+    state.populate.count = value;
 }
 
-fn specs_write_5(S: &mut editor::State, v: float) {
-    S.populate.step = v;
+fn write_step(state: &mut editor::State, value: float) {
+    state.populate.step = value;
 }
 
-fn specs_write_6(S: &mut editor::State, v: float) {
-    S.populate.radius = v;
+fn write_radius(state: &mut editor::State, value: float) {
+    state.populate.radius = value;
 }
 
-fn specs_write_7(S: &mut editor::State, v: float) {
-    S.populate.rotation = v;
+fn write_rotation(state: &mut editor::State, value: float) {
+    state.populate.rotation = value;
 }
 
-fn specs_write_8(S: &mut editor::State, v: float) {
-    S.populate.tilt = v;
+fn write_tilt(state: &mut editor::State, value: float) {
+    state.populate.tilt = value;
 }
 
-fn specs_write_9(S: &mut editor::State, v: float) {
-    S.populate.scale = v;
+fn write_scale(state: &mut editor::State, value: float) {
+    state.populate.scale = value;
 }
 
-fn specs_write_10(S: &mut editor::State, v: float) {
-    S.populate.random_scale = v;
+fn write_random_scale(state: &mut editor::State, value: float) {
+    state.populate.random_scale = value;
 }
 
-fn specs_write_11(S: &mut editor::State, v: int) {
-    S.populate.seed = v;
+fn write_seed(state: &mut editor::State, value: int) {
+    state.populate.seed = value;
 }
 
-fn specs_on_12(S: &mut editor::State, data: any, _0: any) {
-    apply(S);
+fn on_populate_pressed(state: &mut editor::State, data: any, _value: any) {
+    apply(state);
 }
 
-fn whole(S: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> any {
+fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> any {
     map()
         .with("full", false)
         .with("height", 24)
@@ -234,17 +236,17 @@ fn whole(S: editor::State, label: str, value: int, write: fn(&mut editor::State,
                 .with("value", value as float)
                 .with("drag_speed", 1.0)
                 .with("on", "handle")
-                .with("data", map().with("fn", whole_on_13).with("write", write)),
+                .with("data", map().with("fn", on_whole_changed).with("write", write)),
         ])
         .with("label", label)
 }
 
-fn whole_on_13(S: &mut editor::State, data: any, v: any) {
+fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
     let write: fn(&mut editor::State, int) = data.write;
-    write(S, util::max(math::round(v.as_float()), 0.0) as int);
+    write(state, util::max(math::round(value.as_float()), 0.0) as int);
 }
 
-fn number(S: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> any {
+fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> any {
     map()
         .with("full", false)
         .with("height", 24)
@@ -255,19 +257,19 @@ fn number(S: editor::State, label: str, value: float, step: float, write: fn(&mu
                 .with("value", value)
                 .with("drag_speed", step)
                 .with("on", "handle")
-                .with("data", map().with("fn", number_on_14).with("write", write)),
+                .with("data", map().with("fn", on_number_changed).with("write", write)),
         ])
         .with("label", label)
 }
 
-fn number_on_14(S: &mut editor::State, data: any, v: any) {
+fn on_number_changed(state: &mut editor::State, data: any, value: any) {
     let write: fn(&mut editor::State, float) = data.write;
-    write(S, v.as_float());
+    write(state, value.as_float());
 }
 
 // A share from nothing to all of it: of a half turn for rotation and tilt, of
 // `scale` for its variation.
-fn fraction(S: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> any {
+fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> any {
     map()
         .with("full", false)
         .with("height", 24)
@@ -280,28 +282,34 @@ fn fraction(S: editor::State, label: str, value: float, write: fn(&mut editor::S
                 .with("min", 0.0)
                 .with("max", 1.0)
                 .with("on", "handle")
-                .with("data", map().with("fn", fraction_on_15).with("write", write)),
+                .with("data", map().with("fn", on_fraction_changed).with("write", write)),
         ])
         .with("label", label)
 }
 
-fn fraction_on_15(S: &mut editor::State, data: any, v: any) {
+fn on_fraction_changed(state: &mut editor::State, data: any, value: any) {
     let write: fn(&mut editor::State, float) = data.write;
-    write(S, util::clamp(v.as_float(), 0.0, 1.0));
+    write(state, util::clamp(value.as_float(), 0.0, 1.0));
 }
 
 // Whether a node draws something a surface can be read off.
-fn drawn(node: any) -> bool {
-    node.has("mesh") || node.has("shape3d") || node.has("polygon") || node.has("shape2d")
+fn drawn(found: Node) -> bool {
+    found.has_component("mesh") || found.has_component("shape3d") || found.has_component("polygon") || found.has_component("shape2d")
+}
+
+/// What the node asks of its multimesh's `source`: an inline table, a `#id`
+/// of the scene's blocks, or a file.
+fn source_of(found: Node, name: str) -> any {
+    if found.is_valid() && found.has_component(name) { found.authored(name).source } else { nil }
 }
 
 // Where the list lands, in words: the asset itself when it is inline, the
 // scene's block, or a file, which is written outside the undo history.
-fn target_text(S: editor::State, node: any, name: str) -> str {
-    if node.get(name).source.kind() == "map" {
+fn target_text(state: editor::State, node: Node, name: str) -> str {
+    if source_of(node, name).kind() == "map" {
         return "this node's own asset";
     }
-    let source = node.get(name).source.as_str();
+    let source = source_of(node, name).as_str();
     if source.starts_with("#") {
         return "the scene's [[assets]] block {source}";
     }
@@ -312,64 +320,63 @@ fn target_text(S: editor::State, node: any, name: str) -> str {
 }
 
 /// The options the engine's `populate` reads, from the sheet's fields.
-fn options(S: editor::State, flat: bool) -> any {
-    let P = S.populate;
-    let step = if P.kind == render::POPULATE_ROW {
-        [P.step, 0.0, 0.0]
+fn options(state: editor::State, flat: bool) -> any {
+    let fields = state.populate;
+    let step = if fields.kind == render::POPULATE_ROW {
+        [fields.step, 0.0, 0.0]
     } else if flat {
-        [P.step, P.step, 0.0]
+        [fields.step, fields.step, 0.0]
     } else {
-        [P.step, 0.0, P.step]
+        [fields.step, 0.0, fields.step]
     };
-    let counts = if flat { [P.columns, P.rows, 1] } else { [P.columns, 1, P.rows] };
+    let counts = if flat { [fields.columns, fields.rows, 1] } else { [fields.columns, 1, fields.rows] };
     map()
-        .with("kind", P.kind)
-        .with("count", P.count)
-        .with("radius", P.radius)
-        .with("rotation", P.rotation)
-        .with("tilt", P.tilt)
-        .with("scale", P.scale)
-        .with("random_scale", P.random_scale)
-        .with("seed", P.seed)
+        .with("kind", fields.kind)
+        .with("count", fields.count)
+        .with("radius", fields.radius)
+        .with("rotation", fields.rotation)
+        .with("tilt", fields.tilt)
+        .with("scale", fields.scale)
+        .with("random_scale", fields.random_scale)
+        .with("seed", fields.seed)
         .with("step", step)
         .with("counts", counts)
 }
 
-pub fn apply(S: &mut editor::State) {
-    let node = model::selected_node(S);
-    let name_or = component(node);
-    if name_or.is_none() {
+pub fn apply(state: &mut editor::State) {
+    let node = model::selected_node(state);
+    let component_name = component(node);
+    if component_name.is_none() {
         return;
     }
-    let name = name_or.unwrap();
-    let found = model::live(S, S.sel);
+    let name = component_name.unwrap();
+    let found = node;
     if !found.is_valid() {
         return;
     }
     let flat = name == MULTIMESH2D;
-    let asked = options(S, flat);
-    if S.populate.kind == render::POPULATE_SURFACE {
-        let surface = surface_node(S);
+    let asked = options(state, flat);
+    if state.populate.kind == render::POPULATE_SURFACE {
+        let surface = surface_node(state);
         if !surface.is_valid() {
-            S.populate.said = "Pick the surface to populate.";
+            state.populate.said = "Pick the surface to populate.";
             return;
         }
         asked.set("surface", surface);
     }
     let instances = render::populate(found, asked);
-    let wrote = write(S, node, name, instances);
-    S.populate.said = "{instances.len()} instances written to {wrote}.";
+    let wrote = write(state, node, name, instances);
+    state.populate.said = "{instances.len()} instances written to {wrote}.";
 }
 
 // The live node the Surface row names, by the path the dropdown showed.
-fn surface_node(S: editor::State) -> Node {
-    if S.populate.surface == "" {
+fn surface_node(state: editor::State) -> Node {
+    if state.populate.surface == "" {
         return nil;
     }
-    for i in 0..S.doc.len() {
-        let node = S.doc[i];
-        if "/" + model::node_path(S.doc, node) == S.populate.surface {
-            return model::live(S, i);
+    for found in state.nodes {
+        if "/" + model::path_in_scene(state, found) == state.populate.surface {
+            return found;
         }
     }
     nil
@@ -377,29 +384,32 @@ fn surface_node(S: editor::State) -> Node {
 
 // The list into wherever the node's asset lives. Inline and in a scene block
 // it is one history step; a file has no place in the document's history.
-fn write(S: &mut editor::State, node: any, name: str, instances: any) -> str {
-    if node.get(name).source.kind() == "map" {
-        history::record(S, "Populate", nil);
-        node.get(name).source.set("instances", instances);
-        model::apply_component(S, name);
+fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> str {
+    let asked = util::obj(node.authored(name));
+    if asked.source.kind() == "map" {
+        history::record(state, "Populate", nil);
+        asked.source.set("instances", instances);
+        node.set_component(name, asked);
         return "this node's asset";
     }
-    let source = node.get(name).source.as_str();
+    let source = asked.source.as_str();
     if source.starts_with("#") {
         let id = source.slice(1, source.len());
-        history::record(S, "Populate", nil);
-        for block in util::vec(S.scene_doc.assets) {
+        history::record(state, "Populate", nil);
+        for block in util::vec(state.scene_doc.assets) {
             if block.id.as_str() == id {
                 block.set("instances", instances);
             }
         }
-        S.assets_touched = true;
-        model::build_mirror(S);
+        state.assets_touched = true;
+        // A scene's blocks are read when it is built, so it is built again.
+        model::build(state, model::scene_text(state));
         return source;
     }
     let definition = assets::duplicate(source);
     definition.set("instances", instances);
     assets::save(source, definition);
-    model::apply_component(S, name);
+    // The node reads its file again when it is given the same table.
+    node.set_component(name, asked);
     source
 }

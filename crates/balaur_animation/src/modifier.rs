@@ -156,12 +156,17 @@ pub struct Jiggle {
     pub(crate) written: Vec<Quat>,
 }
 
-fn schema() -> String {
+/// The rows a modifier in `dimensions` (2 or 3) takes: `gravity` and
+/// `offset` are a `vec2` in 2D and a `vec3` in 3D.
+fn schema(dimensions: usize) -> String {
     let kinds = ComponentDef::options(MODIFIER_KINDS);
     // Down, at about two thirds of earth's: a chain that hangs rather than
-    // drops. A 2D rig reads the third number as nothing, so both dimensions
-    // take the same one.
-    let gravity = "[0.0, -6.0, 0.0]";
+    // drops.
+    let (vector, gravity, zero) = if dimensions == 2 {
+        ("vec2", "[0.0, -6.0]", "[0.0, 0.0]")
+    } else {
+        ("vec3", "[0.0, -6.0, 0.0]", "[0.0, 0.0, 0.0]")
+    };
     ComponentDef::schema(&[
         (
             k::KIND,
@@ -170,66 +175,68 @@ fn schema() -> String {
             ),
         ),
         (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The point to aim at. Unused by jiggle" }"#,
+            k::ENABLED,
+            r#"{ type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }"#,
         ),
         (
             k::BONE,
             r#"{ type = "node", default = "", description = "The driven bone; empty means this node. For a chain solver, its root" }"#,
         ),
         (
+            k::TARGET,
+            r#"{ type = "node", default = "", description = "The point to aim at. Unused by jiggle" }"#,
+        ),
+        (
             k::CHAIN_COUNT,
-            r#"{ type = "int", default = 0, description = "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip" }"#,
+            r#"{ type = "int", default = 0, description = "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip", group = "chain" }"#,
         ),
         (
             k::ITERATIONS,
-            r#"{ type = "int", default = 10, description = "Solver passes for fabrik and ccdik" }"#,
+            r#"{ type = "int", default = 10, description = "Solver passes for fabrik and ccdik", group = "chain" }"#,
         ),
         (
             k::TOLERANCE,
-            r#"{ type = "float", default = 0.01, description = "How close to the target ends a fabrik or ccdik solve early" }"#,
+            r#"{ type = "float", default = 0.01, description = "How close to the target ends a fabrik or ccdik solve early", group = "chain" }"#,
         ),
         (
             k::ANGLE_LIMIT,
-            r#"{ type = "float", default = 0.0, description = "How far a ccdik bone may turn from its rest, in radians; 0 leaves it free" }"#,
+            r#"{ type = "float", default = 0.0, description = "How far a ccdik bone may turn from its rest, in radians; 0 leaves it free", group = "chain" }"#,
+        ),
+        (
+            k::FLIP_BEND_DIRECTION,
+            r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way", group = "chain" }"#,
         ),
         (
             k::STIFFNESS,
-            r#"{ type = "float", default = 3.0, description = "How hard a jiggle bone is pulled back to the pose" }"#,
+            r#"{ type = "float", default = 3.0, description = "How hard a jiggle bone is pulled back to the pose", group = "jiggle" }"#,
         ),
         (
             k::DAMPING,
-            r#"{ type = "float", default = 0.75, description = "How much of a jiggle bone's speed survives a tick, 0 to 1" }"#,
+            r#"{ type = "float", default = 0.75, description = "How much of a jiggle bone's speed survives a tick, 0 to 1", group = "jiggle" }"#,
         ),
         (
             k::MASS,
-            r#"{ type = "float", default = 0.75, description = "What gravity weighs against stiffness on a jiggle bone" }"#,
+            r#"{ type = "float", default = 0.75, description = "What gravity weighs against stiffness on a jiggle bone", group = "jiggle" }"#,
+        ),
+        (
+            k::USE_GRAVITY,
+            r#"{ type = "bool", default = false, description = "Whether a jiggle chain is pulled by `gravity`", group = "jiggle" }"#,
         ),
         (
             k::GRAVITY,
             &format!(
-                r#"{{ type = "vec3", default = {gravity}, description = "Pull on a jiggle bone while `use_gravity` is on" }}"#
+                r#"{{ type = "{vector}", default = {gravity}, description = "Pull on a jiggle bone while `use_gravity` is on", group = "jiggle" }}"#
             ),
         ),
         (
-            k::USE_GRAVITY,
-            r#"{ type = "bool", default = false, description = "Whether a jiggle chain is pulled by `gravity`" }"#,
+            k::OFFSET,
+            &format!(
+                r#"{{ type = "{vector}", default = {zero}, description = "Where a follow node sits relative to its target, in world units", group = "follow" }}"#
+            ),
         ),
         (
             k::LAG,
-            r#"{ type = "float", default = 0.0, description = "Seconds a follow node takes to close most of the gap to its target; 0 pins it there" }"#,
-        ),
-        (
-            k::OFFSET,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where a follow node sits relative to its target, in world units" }"#,
-        ),
-        (
-            k::FLIP_BEND_DIRECTION,
-            r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way" }"#,
-        ),
-        (
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }"#,
+            r#"{ type = "float", default = 0.0, description = "Seconds a follow node takes to close most of the gap to its target; 0 pins it there", group = "follow" }"#,
         ),
     ])
 }
@@ -246,7 +253,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
             events: &[],
             warnings: None,
             doc: DOC_2D,
-            schema: ComponentDef::parse_schema("modifier2d", &schema()),
+            schema: ComponentDef::parse_schema("modifier2d", &schema(2)),
             tags: &[
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::ANIMATION,
@@ -266,7 +273,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
             get: Box::new(|eng, entity| {
                 let world = eng.world();
                 let m = world.get::<&Modifier2d>(entity).ok()?;
-                Some(table_of(&m.0))
+                Some(table_of(&m.0, 2))
             }),
         },
     );
@@ -280,7 +287,7 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
             events: &[],
             warnings: None,
             doc: DOC_3D,
-            schema: ComponentDef::parse_schema("modifier3d", &schema()),
+            schema: ComponentDef::parse_schema("modifier3d", &schema(3)),
             tags: &[
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::ANIMATION,
@@ -300,7 +307,7 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
             get: Box::new(|eng, entity| {
                 let world = eng.world();
                 let m = world.get::<&Modifier3d>(entity).ok()?;
-                Some(table_of(&m.0))
+                Some(table_of(&m.0, 3))
             }),
         },
     );
@@ -371,7 +378,16 @@ fn vector(params: &toml::Value, key: &str, default: Vec3) -> Vec3 {
     Vec3::new(at(0), at(1), at(2))
 }
 
-fn table_of(m: &Params) -> toml::Value {
+/// What a modifier in `dimensions` reads back, its vectors that many long.
+fn table_of(m: &Params, dimensions: usize) -> toml::Value {
+    let vector = |v: Vec3| {
+        toml::Value::Array(
+            [v.x, v.y, v.z][..dimensions]
+                .iter()
+                .map(|n| toml::Value::Float(f64::from(*n)))
+                .collect(),
+        )
+    };
     let mut out = toml::map::Map::new();
     let mut put = |key: &str, value: toml::Value| {
         out.insert(key.to_string(), value);
@@ -389,26 +405,10 @@ fn table_of(m: &Params) -> toml::Value {
     put(k::STIFFNESS, toml::Value::Float(f64::from(m.stiffness)));
     put(k::DAMPING, toml::Value::Float(f64::from(m.damping)));
     put(k::MASS, toml::Value::Float(f64::from(m.mass)));
-    put(
-        k::GRAVITY,
-        toml::Value::Array(
-            [m.gravity.x, m.gravity.y, m.gravity.z]
-                .into_iter()
-                .map(|v| toml::Value::Float(f64::from(v)))
-                .collect(),
-        ),
-    );
+    put(k::GRAVITY, vector(m.gravity));
     put(k::USE_GRAVITY, toml::Value::Boolean(m.use_gravity));
     put(k::LAG, toml::Value::Float(f64::from(m.lag)));
-    put(
-        k::OFFSET,
-        toml::Value::Array(
-            [m.offset.x, m.offset.y, m.offset.z]
-                .into_iter()
-                .map(|v| toml::Value::Float(f64::from(v)))
-                .collect(),
-        ),
-    );
+    put(k::OFFSET, vector(m.offset));
     put(
         k::FLIP_BEND_DIRECTION,
         toml::Value::Boolean(m.flip_bend_direction),

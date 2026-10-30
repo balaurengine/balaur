@@ -4,7 +4,7 @@
 //! follows it. Held as neutral values, so a map stored by one file is read
 //! back by another; a `[T]` or a struct crosses as its neutral shape.
 use crate::convert::{from_neutral, to_neutral};
-use balaur_bs::runtime::Value as L;
+use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{HostSignature, Ty};
 use balaur_script::Value;
 use std::cell::RefCell;
@@ -50,13 +50,12 @@ pub(crate) fn is_store(key: &str) -> bool {
 }
 
 /// Store or read back, by `key`'s name.
-pub(crate) fn call(key: &str, args: &[L]) -> Result<L, String> {
-    let name = match args.first() {
-        Some(L::Str(name)) => name.clone(),
-        _ => return Err(format!("`{key}` wants a key as its first argument")),
+pub(crate) fn call(key: &str, args: &dyn CallArgs) -> Result<L, String> {
+    let Some(name) = args.text(0).map(str::to_string) else {
+        return Err(format!("`{key}` wants a key as its first argument"));
     };
     if key == STORE_FN {
-        let value = args.get(1).map_or(Value::Nil, to_neutral);
+        let value = to_neutral(&args.value(1));
         STORE.with_borrow_mut(|store| {
             store.insert(name, value);
         });

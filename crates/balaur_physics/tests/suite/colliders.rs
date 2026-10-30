@@ -23,10 +23,7 @@ fn collider_material_round_trips() {
     let e = child_of(&app, root, "Box");
     let params: toml::Value = toml::from_str(
         r#"kind = "box"
-friction = 0.9
-restitution = 0.25
-friction_combine = "max"
-restitution_combine = "min"
+physics_material = { friction = 0.9, restitution = 0.25, friction_combine = "max", restitution_combine = "min" }
 collision_margin = 0.02
 mass = 4.0
 collision_layer = ["1", "3"]
@@ -49,8 +46,24 @@ contact_pairs = ["dynamic_dynamic", "static_static"]"#,
             .map(str::to_string)
             .collect::<Vec<_>>()
     };
-    assert_eq!(text("friction_combine"), "max");
-    assert_eq!(text("restitution_combine"), "min");
+    // The material stays the asset it names, recorded where it was written.
+    assert!(text("physics_material").starts_with("#!"));
+    {
+        use balaur_physics::rapier3d::prelude::CoefficientCombineRule;
+        let state = app.engine.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        let collider = &state.world.colliders[state.colliders[&e][0]];
+        assert!((collider.friction() - 0.9).abs() < 1e-6);
+        assert!((collider.restitution() - 0.25).abs() < 1e-6);
+        assert_eq!(
+            collider.friction_combine_rule(),
+            CoefficientCombineRule::Max
+        );
+        assert_eq!(
+            collider.restitution_combine_rule(),
+            CoefficientCombineRule::Min
+        );
+    }
     assert_eq!(flags("collision_layer"), ["1", "3"]);
     assert_eq!(flags("collision_mask"), ["2"]);
     assert_eq!(flags("events"), ["collision"]);
@@ -266,7 +279,7 @@ offset = [0.5, -1.0]
 offset_rotation = 0.75
 one_way = true
 one_way_axis = [0.0, 1.0]
-friction = 0.9"#,
+physics_material = { friction = 0.9 }"#,
     )
     .unwrap();
     components::add(&app.engine, e, "collider2d", Some(&params)).unwrap();
@@ -279,7 +292,12 @@ friction = 0.9"#,
     assert_eq!(back.get("kind").unwrap().as_str(), Some("rectangle"));
     assert_eq!(back.get("one_way").unwrap().as_bool(), Some(true));
     assert!((f("offset_rotation") - 0.75).abs() < 1e-6);
-    assert!((f("friction") - 0.9).abs() < 1e-6);
+    let friction = {
+        let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+        let state = state.borrow();
+        state.world.colliders[state.colliders[&e][0]].friction()
+    };
+    assert!((friction - 0.9).abs() < 1e-6, "friction {friction}");
     let offset = back.get("offset").unwrap().as_array().unwrap();
     assert!((offset[0].as_float().unwrap() - 0.5).abs() < 1e-6);
     assert!((offset[1].as_float().unwrap() + 1.0).abs() < 1e-6);
@@ -389,11 +407,11 @@ fn scripted(
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     (app, dir, guard)
@@ -405,12 +423,12 @@ fn a_swept_box_reaches_where_the_body_is_going() {
         r#"[[nodes]]
 id = "n_ball"
 name = "Ball"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 collider3d = { kind = "sphere", radius = 0.5 }
 "#,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     pub fn boxes() -> [float] {
         let shape = self.node.collider3d.aabb();
         let swept = self.node.collider3d.swept_aabb();
@@ -465,7 +483,7 @@ collider2d = { kind = "rectangle", size = [20.0, 1.0] }
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic" }
 
 [nodes.transform]
@@ -477,8 +495,8 @@ name = "Shape"
 parent = "n_crate"
 collider2d = { kind = "rectangle", size = [1.0, 1.0] }
 "#,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     pub fn hardest() -> [float] {
         [self.node.body2d.max_contact_impulse()]
     }
@@ -496,5 +514,77 @@ impl S {
     assert!(
         hardest[0] > 0.0,
         "a crate resting on the ground through its child's collider took no contact"
+    );
+}
+
+/// One material file is every collider's that names it, and saving it again
+/// reaches each of them before the next step.
+#[test]
+fn a_material_file_and_its_save_reach_every_collider_naming_it() {
+    let scene = r#"
+[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_floor"
+name = "Floor"
+parent = "n_world"
+collider3d = { kind = "box", physics_material = "physics_materials/ice.toml" }
+
+[[nodes]]
+id = "n_ramp"
+name = "Ramp"
+parent = "n_world"
+collider3d = { kind = "box", physics_material = "physics_materials/ice.toml" }
+"#;
+    let mut booted = crate::boot::project_with(
+        scene,
+        "",
+        &[(
+            "physics_materials/ice.toml",
+            "type = \"physics_material\"\nfriction = 0.05",
+        )],
+    );
+    let friction = |booted: &crate::boot::Booted, path: &str| {
+        let node = booted.node(path);
+        let state = booted.app.engine.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        state.world.colliders[state.colliders[&node][0]].friction()
+    };
+    for path in ["World/Floor", "World/Ramp"] {
+        assert!(
+            (friction(&booted, path) - 0.05).abs() < 1e-6,
+            "{path} is not on ice"
+        );
+    }
+    let rubber: toml::Value =
+        toml::from_str("type = \"physics_material\"\nfriction = 0.9").unwrap();
+    balaur_core::assets::save(&booted.app.engine, "physics_materials/ice.toml", &rubber).unwrap();
+    booted.tick(1);
+    for path in ["World/Floor", "World/Ramp"] {
+        let now = friction(&booted, path);
+        assert!(
+            (now - 0.9).abs() < 1e-6,
+            "{path} kept friction {now} past the save"
+        );
+    }
+}
+
+/// A key the material does not declare is refused by name, as a
+/// component's is.
+#[test]
+fn a_material_refuses_a_key_it_does_not_have() {
+    let app = app();
+    let root = app.engine.root();
+    let e = child_of(&app, root, "Box");
+    let params: toml::Value =
+        toml::from_str("kind = \"box\"\nphysics_material = { friction = 0.5, grip = 2.0 }")
+            .unwrap();
+    let why = components::add(&app.engine, e, "collider3d", Some(&params)).unwrap_err();
+    let chain = format!("{why:#}");
+    assert!(
+        chain.contains("`grip` is not a property of a physics_material"),
+        "{chain}"
     );
 }

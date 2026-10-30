@@ -7,7 +7,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, standard_app};
 
 /// Both callbacks walk the node along an axis by the dt they were handed:
 /// x accumulates fixed time, z accumulates measured time.
-const SCRIPT: &str = "pub struct Walker { node: Node }
+const SCRIPT: &str = "pub class Walker { node: Node }
 impl Walker {
     fn fixed_update(dt: float) { self.node.transform.translate(dt, 0.0, 0.0); }
     fn update(dt: float) { self.node.transform.translate(0.0, 0.0, dt); }
@@ -18,15 +18,15 @@ fn project(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Walker\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"walker\"\nname = \"Walker\"\nscript = { source = \"scripts/walker.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts/s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts/walker.bs"), SCRIPT).unwrap();
 }
 
 /// The walker's (x, z): fixed time against measured time.

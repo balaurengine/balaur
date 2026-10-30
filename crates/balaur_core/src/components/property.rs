@@ -163,6 +163,13 @@ pub fn set_property_at(
     key: &str,
     value: &toml::Value,
 ) -> Result<()> {
+    // A text may name a file, which a node of another project's content names
+    // from that project's root.
+    let content = value
+        .is_str()
+        .then(|| crate::document_paths::written_on(eng, entity, value))
+        .flatten();
+    let value = content.as_ref().unwrap_or(value);
     let took = {
         match eng.try_resource::<PropertyWriters>() {
             Some(writers) => {
@@ -182,7 +189,9 @@ pub fn set_property_at(
         )]));
         return patch_at(eng, entity, index, &params);
     }
-    // The fast path wrote the component but not the record a save reads.
+    // The fast path wrote the component but not the record a save reads,
+    // which the change is logged against first: it carries what it replaced.
+    crate::changes::property(eng, entity, index, key);
     record_one(eng, entity, index, key, value);
     Ok(())
 }

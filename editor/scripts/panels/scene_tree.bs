@@ -1,7 +1,7 @@
 // The Scene tab's one script: it answers every control in its scene and
 // fills the tree from the rows the Editor, which owns the document, hands it.
 
-pub struct SceneTree {
+pub class SceneTree {
     node: Node,
     query: str,
     facet: str,

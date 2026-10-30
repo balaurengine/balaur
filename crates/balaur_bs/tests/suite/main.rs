@@ -2,6 +2,7 @@
 
 mod anys;
 mod awaits;
+mod budgets;
 mod classes;
 mod debugger;
 mod determinism;
@@ -13,6 +14,7 @@ mod format;
 mod freestanding;
 mod library;
 mod loops;
+mod maps;
 mod memory;
 mod modules;
 mod nans;

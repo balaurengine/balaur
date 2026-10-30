@@ -45,6 +45,12 @@ pub struct Builtin {
     pub parallax_layers: f32,
     pub parallax_method: Parallax,
     pub parallax_relief_steps: u32,
+    /// How far the `normal` slot bends a 2D surface; zero lights it flat.
+    pub normal_strength: f32,
+    /// How tight a light's highlight is on a normal-mapped 2D surface.
+    pub shininess: f32,
+    /// How bright that highlight is; zero draws none.
+    pub specular_strength: f32,
     /// The image each of [`TEXTURE_SLOTS`] is bound to, in order.
     pub maps: Vec<Option<String>>,
     pub view: Option<View>,
@@ -68,6 +74,9 @@ impl Default for Builtin {
             parallax_layers: 16.0,
             parallax_method: Parallax::Occlusion,
             parallax_relief_steps: 8,
+            normal_strength: 1.0,
+            shininess: 16.0,
+            specular_strength: 0.0,
             maps: vec![None; TEXTURE_SLOTS.len()],
             view: None,
         }
@@ -92,6 +101,9 @@ const BUILTIN_KEYS: &[&str] = &[
     k::PARALLAX_LAYERS,
     k::PARALLAX_METHOD,
     k::PARALLAX_RELIEF_STEPS,
+    k::NORMAL_STRENGTH,
+    k::SHININESS,
+    k::SPECULAR_STRENGTH,
 ];
 
 /// Read a shader-less material's `[params]`: the texture slots into
@@ -134,6 +146,9 @@ pub(crate) fn parse_builtin(
             k::PARALLAX_RELIEF_STEPS => {
                 out.parallax_relief_steps = number()?.round().clamp(1.0, 64.0) as u32;
             }
+            k::NORMAL_STRENGTH => out.normal_strength = number()?.max(0.0),
+            k::SHININESS => out.shininess = number()?.max(1.0),
+            k::SPECULAR_STRENGTH => out.specular_strength = number()?.max(0.0),
             k::PARALLAX_METHOD => {
                 out.parallax_method = match item.as_str() {
                     Some(words::OCCLUSION) => Parallax::Occlusion,
@@ -185,8 +200,11 @@ pub fn builtin_of(eng: &Engine, reference: &str) -> Option<Builtin> {
 /// How a surface's alpha is read.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AlphaMode {
-    /// Alpha is ignored and the surface is solid.
+    /// As the dimension draws one by default: solid in 3D, and in 2D a
+    /// straight blend, or a premultiplied one for a texture uploaded so.
     #[default]
+    Auto,
+    /// Alpha is ignored and the surface is solid.
     Opaque,
     /// A fragment fainter than `alpha_cutoff` is dropped rather than drawn:
     /// a leaf's outline, cut from the rectangle it was painted on.
@@ -196,6 +214,14 @@ pub enum AlphaMode {
     Blend,
     /// As `Blend`, for a colour that already carries its alpha.
     Premultiplied,
+    /// In 2D the colour is added to what is under it, as light is; a 3D
+    /// surface blends.
+    Add,
+    /// In 2D the colour shades what is under it; a 3D surface blends.
+    Multiply,
+    /// In 2D the colour brightens what is under it the way two projectors
+    /// on one screen do; a 3D surface blends.
+    Screen,
 }
 
 /// What the path tracer takes a surface for.
@@ -251,8 +277,13 @@ pub struct Surface {
     pub alpha: AlphaMode,
     /// The alpha a `mask` surface drops a fragment below.
     pub alpha_cutoff: f32,
-    /// Whether the back of a triangle draws as well as the front.
-    pub double_sided: bool,
+    /// Whether the back of a triangle draws as well as the front; unset is
+    /// what the node's own kind draws, which in 3D is the front alone and in
+    /// 2D, and on text, both.
+    pub double_sided: Option<bool>,
+    /// Let the scene hide the surface; off draws it over everything drawn
+    /// before it and leaves the depth as it was.
+    pub depth_test: bool,
     /// How much of the scene behind this surface comes through it. Above zero
     /// makes it glass: it draws after the opaque scene is resolved, refracting
     /// what that pass left.
@@ -292,9 +323,10 @@ pub struct Surface {
 impl Default for Surface {
     fn default() -> Self {
         Self {
-            alpha: AlphaMode::Opaque,
+            alpha: AlphaMode::Auto,
             alpha_cutoff: 0.5,
-            double_sided: false,
+            double_sided: None,
+            depth_test: true,
             transmission: 0.0,
             ior: 1.5,
             thickness: 0.0,
@@ -313,6 +345,41 @@ impl Default for Surface {
 }
 
 impl Surface {
+    /// Whether the back of a triangle draws, where `default` is what the
+    /// node's own kind draws when the material says nothing.
+    #[must_use]
+    pub fn double_sided_or(&self, default: bool) -> bool {
+        self.double_sided.unwrap_or(default)
+    }
+
+    /// The alpha a cutout drops a fragment below, or zero where the surface
+    /// is not a cutout.
+    #[must_use]
+    pub fn cutoff(&self) -> f32 {
+        if self.alpha == AlphaMode::Mask {
+            self.alpha_cutoff
+        } else {
+            0.0
+        }
+    }
+
+    /// kiss3d's 2D blend for this surface; `None` leaves the one the texture
+    /// was uploaded for. A cutout draws as a straight blend: kiss3d's 2D
+    /// material has no mask of its own.
+    #[cfg(feature = "window")]
+    pub(crate) fn blend_2d(&self) -> Option<kiss3d::scene::Blend2d> {
+        use kiss3d::scene::Blend2d;
+        Some(match self.alpha {
+            AlphaMode::Auto => return None,
+            AlphaMode::Opaque => Blend2d::Opaque,
+            AlphaMode::Mask | AlphaMode::Blend => Blend2d::Alpha,
+            AlphaMode::Premultiplied => Blend2d::PremultipliedAlpha,
+            AlphaMode::Add => Blend2d::Additive,
+            AlphaMode::Multiply => Blend2d::Multiply,
+            AlphaMode::Screen => Blend2d::Screen,
+        })
+    }
+
     /// Whether a node drawing this joins the refraction pass rather than the
     /// opaque one.
     #[must_use]
@@ -339,6 +406,7 @@ const SURFACE_KEYS: &[&str] = &[
     k::ALPHA,
     k::ALPHA_CUTOFF,
     k::DOUBLE_SIDED,
+    k::DEPTH_TEST,
     k::TRANSMISSION,
     k::IOR,
     k::THICKNESS,
@@ -361,10 +429,14 @@ const SURFACE_KEYS: &[&str] = &[
 /// The `alpha` word a `[surface]` table writes.
 fn alpha_of(word: &str) -> Result<AlphaMode> {
     Ok(match word {
+        words::AUTO => AlphaMode::Auto,
         words::OPAQUE => AlphaMode::Opaque,
         words::MASK => AlphaMode::Mask,
         words::BLEND => AlphaMode::Blend,
         words::PREMULTIPLIED => AlphaMode::Premultiplied,
+        words::ADD => AlphaMode::Add,
+        words::MULTIPLY => AlphaMode::Multiply,
+        words::SCREEN => AlphaMode::Screen,
         other => bail!(
             "a material's `surface.alpha` is {}, not '{other}'",
             words::ALPHA_MODES.join(", ")
@@ -429,9 +501,10 @@ pub(crate) fn parse_surface(value: &toml::Value) -> Result<Surface> {
         fresnel: flag(k::SSR_FRESNEL, base.ssr.fresnel),
     };
     Ok(Surface {
-        alpha: alpha_of(&word(k::ALPHA, words::OPAQUE))?,
+        alpha: alpha_of(&word(k::ALPHA, words::AUTO))?,
         alpha_cutoff: num(k::ALPHA_CUTOFF, base.alpha_cutoff).clamp(0.0, 1.0),
-        double_sided: flag(k::DOUBLE_SIDED, base.double_sided),
+        double_sided: table.get(k::DOUBLE_SIDED).and_then(toml::Value::as_bool),
+        depth_test: flag(k::DEPTH_TEST, base.depth_test),
         transmission: num(k::TRANSMISSION, 0.0).clamp(0.0, 1.0),
         ior: num(k::IOR, base.ior).max(1.0),
         thickness: num(k::THICKNESS, 0.0).max(0.0),
@@ -460,8 +533,7 @@ pub(crate) fn parse_surface(value: &toml::Value) -> Result<Surface> {
             .clamp(0.01, 4.0),
         mirror_render_layers: table
             .get(k::MIRROR_RENDER_LAYERS)
-            .and_then(toml::Value::as_integer)
-            .map(|mask| mask as u32),
+            .map(|layers| balaur_core::layers::bits(Some(layers), true)),
         trace_surface: trace_of(&word(k::TRACE_SURFACE, words::OPAQUE))?,
         ssr,
     })

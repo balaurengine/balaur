@@ -14,7 +14,7 @@ fn warned(nodes: &str, id: &str) -> Vec<NodeWarning> {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     let scene = format!(

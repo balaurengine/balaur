@@ -90,9 +90,6 @@ pub const FONT_STYLES: &[(&str, &str)] = &[
     ("FONT_STYLE_OBLIQUE", w::OBLIQUE),
 ];
 
-/// Font families the theme registers.
-pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", w::MONO), ("FONT_HEADING", w::HEADING)];
-
 /// The screen classes, as `ui.width_class` and `ui.height_class` answer them
 /// and as a widget's own class table names them. The words are the engine's
 /// and a project cannot add to them: a theme, a scene and an addon share
@@ -118,6 +115,22 @@ pub const MODIFIERS: &[(&str, &str)] = &[
 /// Declare `ui.*`. Takes the `Registry` rather than a module because it opens
 /// the module itself: through the registry, so a scriptless app builds the
 /// plugin instead of panicking.
+// The names a list of strings holds, or nothing for none.
+fn names_of(list: Option<balaur_script::Value>) -> Option<Vec<String>> {
+    match list? {
+        balaur_script::Value::List(names) => Some(
+            names
+                .iter()
+                .filter_map(|name| match name {
+                    balaur_script::Value::Str(name) => Some(name.clone()),
+                    _ => None,
+                })
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
 pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     let mut m = reg.script_module("ui")?;
     let m: &mut dyn Bindings<Engine> = &mut *m;
@@ -132,7 +145,6 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
         .chain(ALIGNS)
         .chain(ITEM_ALIGNS)
         .chain(FONT_STYLES)
-        .chain(FONTS)
         .chain(CLASSES)
         .chain(MODIFIERS)
     {
@@ -254,6 +266,7 @@ fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
     }
     install_rects(m);
     install_focus(m);
+    install_driving(m);
 }
 
 /// Four numbers or none: a partial rect is a caller that meant the screen.
@@ -272,7 +285,12 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 fn install_focus(m: &mut dyn Bindings<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
-        ("focused_widget", &[], "() -> node?", "The widget node focus is on, or nil."),
+        (
+            "focused_widget",
+            &[],
+            "() -> node?",
+            "The widget node focus is on, or nil.",
+        ),
         (
             "set_focus",
             &[],
@@ -297,24 +315,6 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "()",
             "Activate the focused widget, exactly as a click on it would.",
         ),
-        (
-            "click",
-            &[],
-            "(node: node, opts: map?) -> bool",
-            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
-        ),
-        (
-            "reread",
-            &[],
-            "(node: node) -> bool",
-            "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
-        ),
-        (
-            "edit",
-            &[],
-            "(node: node, value) -> bool",
-            "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
-        ),
     ]);
     m.function("focused_widget", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
@@ -333,12 +333,57 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         focus.taking = true;
         Ok(())
     });
-    m.function("reread", |eng: &Engine, node: balaur_script::NodeId| {
-        Ok(crate::widget::inspector::reread(
-            eng,
-            balaur_core::entity_of(node)?,
-        ))
-    });
+    for (name, asked) in [
+        ("focus_next", Move::Next),
+        ("focus_previous", Move::Previous),
+        ("activate_focused", Move::Accept),
+    ] {
+        m.function(name, move |eng: &Engine, ()| {
+            eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);
+            Ok(())
+        });
+    }
+}
+
+/// `ui.*` bindings: a widget driven from a script as a reader would drive
+/// it, and an inspector told to read its node again.
+fn install_driving(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "click",
+            &[],
+            "(node: node, opts: map?) -> bool",
+            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+        ),
+        (
+            "reread",
+            &[],
+            "(node: node, component: string?, properties: list?) -> bool",
+            "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
+        ),
+        (
+            "edit",
+            &[],
+            "(node: node, value) -> bool",
+            "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
+        ),
+    ]);
+    m.function(
+        "reread",
+        |eng: &Engine,
+         (node, component, properties): (
+            balaur_script::NodeId,
+            Option<String>,
+            Option<balaur_script::Value>,
+        )| {
+            Ok(crate::widget::inspector::reread(
+                eng,
+                balaur_core::entity_of(node)?,
+                component.as_deref(),
+                names_of(properties).as_deref(),
+            ))
+        },
+    );
     m.function(
         "edit",
         |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
@@ -357,16 +402,6 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             Ok(crate::click(eng, balaur_core::entity_of(node)?, hidden))
         },
     );
-    for (name, asked) in [
-        ("focus_next", Move::Next),
-        ("focus_previous", Move::Previous),
-        ("activate_focused", Move::Accept),
-    ] {
-        m.function(name, move |eng: &Engine, ()| {
-            eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);
-            Ok(())
-        });
-    }
 }
 
 /// `ui.*` bindings: the screen classes.

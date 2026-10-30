@@ -1,7 +1,7 @@
 // Blends the triangle towards its `peak` shape and back. A morph weight is
 // an ordinary property, so a clip drives it as `mesh/morph.peak` too.
 
-pub struct Breathe {
+pub class Breathe {
     node: Node,
     clock: float,
 }

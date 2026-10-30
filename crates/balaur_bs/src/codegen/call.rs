@@ -62,6 +62,16 @@ impl FnGen<'_> {
         if let Some(f) = self.lookup(name) {
             return self.call_value(&f, args, pos, name);
         }
+        if self.prelude
+            && name.starts_with("__")
+            && let Some(ty) = self.intrinsic(name, args, pos)?
+        {
+            return Ok(ty);
+        }
+        // A script reaches the prelude's functions as methods only.
+        if !self.prelude && crate::prelude::owns(name) {
+            return err(pos, format!("unknown function `{name}`"));
+        }
         let native = match name {
             "sqrt" => Some((I::F64Sqrt, 1)),
             "abs" => Some((I::F64Abs, 1)),
@@ -138,7 +148,7 @@ impl FnGen<'_> {
             Kind::Script => {
                 let places = self.script_args(&sig, args, pos, name, None)?;
                 self.spill();
-                self.e(I::Call(sig.idx));
+                self.e(I::Call(self.g.callee(name, &sig)));
                 if let Some(r) = self.store_back(places, &sig.ret) {
                     self.get_raw(&r);
                 }
@@ -498,67 +508,103 @@ impl FnGen<'_> {
     // `a.get("k")` is the host's `get(a, "k")`; `a["k"]` and `a[0]` are the
     // same calls.
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
-        let Some(m) = crate::anys::method(name) else {
+        if !self.g.sigs.contains_key(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
-        };
-        if args.len() != m.params.len() {
+        }
+        self.prelude_method("any", base, name, args, pos)
+    }
+
+    // `value.method(..)` on a `str` or an `any`: the prelude's
+    // `str::method(value, ..)`. The receiver is compiled where it is, not
+    // cloned into a call: a clone is a tree `type_of` has not seen, so each
+    // link of a chain would type the whole chain under it again.
+    fn prelude_method(
+        &mut self,
+        ty: &str,
+        base: &Expr,
+        name: &str,
+        args: &[Expr],
+        pos: Pos,
+    ) -> R<Ty> {
+        let key = format!("{ty}::{name}");
+        let sig = self.g.sigs[&key].clone();
+        if args.len() + 1 != sig.params.len() {
             return err(
                 pos,
                 format!(
                     "`{name}` takes {} argument(s), {} given",
-                    m.params.len(),
+                    sig.params.len() - 1,
                     args.len()
                 ),
             );
         }
-        // Borrowed, not cloned: a copy of the receiver is a tree `type_of`
-        // has not seen, so each link of a `.with(..)` chain typed the whole
-        // chain under it again.
-        let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
-        let borrowed = self.host_args(&crate::anys::params(m), &all, pos, name)?;
-        self.e(I::Call(self.g.imp.anys[name]));
-        for b in borrowed {
-            self.release(&b);
-        }
-        Ok(crate::anys::ty(m.ret))
+        self.expr_as(base, &sig.params[0])?;
+        let rest = super::Sig {
+            params: sig.params[1..].to_vec(),
+            refs: sig.refs[1..].to_vec(),
+            ..sig.clone()
+        };
+        self.script_args(&rest, args, pos, name, None)?;
+        self.spill();
+        self.e(I::Call(self.g.callee(&key, &sig)));
+        Ok(sig.ret)
+    }
+
+    /// A call to prelude function `key` with its arguments on the stack,
+    /// each owned: the call takes them.
+    pub(crate) fn call_prelude(&mut self, key: &str) -> Ty {
+        let sig = self.g.sigs[key].clone();
+        self.spill();
+        self.e(I::Call(self.g.callee(key, &sig)));
+        sig.ret
     }
 
     // A method an `any` lacks but what it holds has: a `T?`'s, read as nil
     // or not; a string's or a node's, called on it read as one.
     fn held_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         match (name, args.len()) {
+            // Nil is no cell.
             ("is_some" | "is_none", 0) => {
-                self.any_method(base, "is_nil", &[], pos)?;
-                if name == "is_some" {
+                self.expr_as(base, &Ty::Any)?;
+                let cell = self.temp(&Ty::Any);
+                self.set_raw(&cell);
+                self.get_raw(&cell);
+                if name == "is_none" {
                     self.e(I::I32Eqz);
+                } else {
+                    self.emit([I::I32Const(0), I::I32Ne]);
                 }
+                self.release(&cell);
                 return Ok(Ty::Bool);
             }
             ("unwrap", 0) => return self.expr(base),
             ("or" | "unwrap_or", 1) => {
                 self.expr(base)?;
-                let v = self.temp(&Ty::Any);
-                self.set_raw(&v);
-                self.get_raw(&v);
-                self.e(I::Call(self.g.imp.anys["is_nil"]));
+                let cell = self.temp(&Ty::Any);
+                self.set_raw(&cell);
+                self.get_raw(&cell);
+                self.e(I::I32Eqz);
                 self.depth += 1;
                 self.e(I::If(BlockType::Result(ValType::I32)));
-                self.release(&v);
+                self.release(&cell);
                 self.expr_as(&args[0], &Ty::Any)?;
                 self.e(I::Else);
-                self.take_out(&v);
+                self.take_out(&cell);
                 self.e(I::End);
                 self.depth -= 1;
                 return Ok(Ty::Any);
             }
             _ => {}
         }
-        let held = if crate::strings::method(name).is_some() {
+        let held = if self.g.sigs.contains_key(&format!("str::{name}")) {
             Ty::Str
         } else if self.g.sigs.contains_key(&format!("node.{name}")) {
             Ty::Node
         } else {
-            let names: Vec<&str> = crate::anys::METHODS.iter().map(|m| m.name).collect();
+            let names: Vec<String> = crate::prelude::methods("any")
+                .into_iter()
+                .map(|method| method.0)
+                .collect();
             return err(
                 pos,
                 format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
@@ -605,35 +651,19 @@ impl FnGen<'_> {
         Ok(to)
     }
 
-    // `s.contains(t)` is the host's `contains(s, t)`.
+    // `text.contains(needle)` is the prelude's `str::contains(text, needle)`.
     fn str_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
-        let Some(m) = crate::strings::method(name) else {
-            let names: Vec<&str> = crate::strings::METHODS.iter().map(|m| m.name).collect();
+        if !self.g.sigs.contains_key(&format!("str::{name}")) {
+            let names: Vec<String> = crate::prelude::methods("str")
+                .into_iter()
+                .map(|method| method.0)
+                .collect();
             return err(
                 pos,
                 format!("strings have `len`, `{}`, not `{name}`", names.join("`, `")),
             );
-        };
-        if args.len() != m.params.len() {
-            return err(
-                pos,
-                format!(
-                    "`{name}` takes {} argument(s), {} given",
-                    m.params.len(),
-                    args.len()
-                ),
-            );
         }
-        // Borrowed, not cloned: a copy of the receiver is a tree `type_of`
-        // has not seen, so each link of a `.with(..)` chain typed the whole
-        // chain under it again.
-        let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
-        let borrowed = self.host_args(&crate::strings::params(m), &all, pos, name)?;
-        self.e(I::Call(self.g.imp.strs[name]));
-        for b in borrowed {
-            self.release(&b);
-        }
-        Ok(crate::strings::ty(m.ret))
+        self.prelude_method("str", base, name, args, pos)
     }
 
     // `at`, `extend` and `sort`, written with what a list has already.
@@ -690,11 +720,7 @@ impl FnGen<'_> {
                 let t = lv.ty.clone();
                 self.expr(base)?;
                 self.coerce(&t, &Ty::Any, pos)?;
-                let v = self.temp(&Ty::Any);
-                self.set_raw(&v);
-                self.get_raw(&v);
-                self.e(I::Call(self.g.imp.anys["sorted"]));
-                self.release(&v);
+                self.call_prelude("any::sorted");
                 self.unbox_any(&t);
                 self.set_owned(&lv);
                 return Ok(Some(Ty::Void));

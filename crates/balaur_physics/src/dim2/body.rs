@@ -22,7 +22,7 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::body::shared_body_schema;
+use crate::body::{OwnBodyRows, shared_body_schema};
 use crate::dim2::collider::{apply_collider, get_collider_params};
 use crate::dim2::{PhysicsState2d, node_pose_2d};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
@@ -742,19 +742,47 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     let kinds = v::options(w::BODY_KINDS);
     let axes = v::options(w::LOCK_AXES_2D);
     let default = w::DYNAMIC;
-    let schema = [
-        v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "Axes the body may not move along" }}"#)),
-            (k::LOCK_ROTATION, r#"{ type = "bool", default = false, group = "locks", description = "Stop the body turning; how a 2D character stays upright" }"#),
-            (k::CENTER_OF_MASS, r#"{ type = "vec2", default = [0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
-            (k::INERTIA, r#"{ type = "float", default = 0.0, min = 0.0, group = "mass", description = "Resistance to spin, read when mass is set; 0 derives it from the colliders' shapes scaled to the mass, about center_of_mass when that is set" }"#),
-            (k::INITIAL_LINEAR_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], group = "start", description = "How fast the body travels when it is made, in units per second; a later patch does not reapply it" }"#),
-            (k::INITIAL_ANGULAR_VELOCITY, r#"{ type = "float", default = 0.0, unit = "degrees", group = "start", description = "How fast the body spins when it is made; radians per second in the file, and a later patch does not reapply it" }"#),
+    let schema = shared_body_schema(&OwnBodyRows {
+        primary: v::schema(&[(
+            k::KIND,
+            &format!(
+                r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#
+            ),
+        )]),
+        mass: v::schema(&[
+            (
+                k::CENTER_OF_MASS,
+                r#"{ type = "vec2", default = [0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#,
+            ),
+            (
+                k::INERTIA,
+                r#"{ type = "float", default = 0.0, min = 0.0, group = "mass", description = "Resistance to spin, read when mass is set; 0 derives it from the colliders' shapes scaled to the mass, about center_of_mass when that is set" }"#,
+            ),
         ]),
-        shared_body_schema(),
-    ]
-    .join("\n");
+        locks: v::schema(&[
+            (
+                k::LOCK_ROTATION,
+                r#"{ type = "bool", default = false, group = "locks", description = "Stop the body turning; how a 2D character stays upright" }"#,
+            ),
+            (
+                k::LOCK_TRANSLATION,
+                &format!(
+                    r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "Axes the body may not move along" }}"#
+                ),
+            ),
+        ]),
+        start: v::schema(&[
+            (
+                k::INITIAL_LINEAR_VELOCITY,
+                r#"{ type = "vec2", default = [0.0, 0.0], group = "start", description = "How fast the body travels when it is made, in units per second; a later patch does not reapply it" }"#,
+            ),
+            (
+                k::INITIAL_ANGULAR_VELOCITY,
+                r#"{ type = "float", default = 0.0, unit = "degrees", group = "start", description = "How fast the body spins when it is made; radians per second in the file, and a later patch does not reapply it" }"#,
+            ),
+        ]),
+        solver: String::new(),
+    });
     reg.register_component(
         c::BODY_2D,
         ComponentDef {

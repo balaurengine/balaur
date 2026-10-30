@@ -111,16 +111,17 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
 fn probe_schema() -> String {
     let modes = crate::vocabulary::options(words::UPDATE_MODES);
     let once = words::ONCE;
+    let layer_options = balaur_core::layers::options();
     format!(
-        r#"update_mode = {{ type = "enum", default = "{once}", options = [{modes}], description = "When a probe with no `image` captures the scene: once when placed or moved, or every frame. One capture draws the scene six times, at `environment.probe_capture_size_pixels` square" }}
-size = {{ type = "vec3", default = [10.0, 10.0, 10.0], min = 0.0, description = "The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned" }}
-capture_layers = {{ type = "int", default = -1, description = "Layer bitmask: a capture draws the nodes whose `render_layers` share a bit with it. Leave moving nodes off it and let `ssr` reflect them; -1 is every layer" }}
-capture_near = {{ type = "float", default = 0.0, min = 0.0, description = "The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera's own planes" }}
-capture_far = {{ type = "float", default = 0.0, min = 0.0, description = "The farthest distance a capture draws, in world units; zero takes the camera's" }}
-falloff = {{ type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }}
+        r#"size = {{ type = "vec3", default = [10.0, 10.0, 10.0], min = 0.0, description = "The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned" }}
 intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of what the probe reflects" }}
+falloff = {{ type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }}
+image = {{ type = "string", default = "", description = "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position" }}
 image_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }}
-image = {{ type = "string", default = "", description = "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position" }}"#
+update_mode = {{ type = "enum", default = "{once}", options = [{modes}], description = "When a probe with no `image` captures the scene: once when placed or moved, or every frame. One capture draws the scene six times, at `environment.probe_capture_size_pixels` square", group = "capture" }}
+capture_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The layers a capture draws: the nodes whose `render_layers` share one. Leave moving nodes off it and let `ssr` reflect them; empty is every layer", group = "capture" }}
+capture_near = {{ type = "float", default = 0.0, min = 0.0, description = "The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera's own planes", group = "capture" }}
+capture_far = {{ type = "float", default = 0.0, min = 0.0, description = "The farthest distance a capture draws, in world units; zero takes the camera's", group = "capture" }}"#
     )
 }
 
@@ -152,10 +153,7 @@ fn probe_from_params(params: &toml::Value) -> ReflectionProbe {
         } else {
             ProbeUpdate::Once
         },
-        capture_layers: params
-            .get(k::CAPTURE_LAYERS)
-            .and_then(as_f64)
-            .map_or(u32::MAX, |v| v as i64 as u32),
+        capture_layers: balaur_core::layers::bits(params.get(k::CAPTURE_LAYERS), true),
         capture_near: num(k::CAPTURE_NEAR, 0.0).max(0.0),
         capture_far: num(k::CAPTURE_FAR, 0.0).max(0.0),
     }
@@ -222,7 +220,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                 map.insert(k::UPDATE_MODE.into(), toml::Value::String(mode.into()));
                 map.insert(
                     k::CAPTURE_LAYERS.into(),
-                    toml::Value::Integer(i64::from(probe.capture_layers.cast_signed())),
+                    balaur_core::layers::names(probe.capture_layers),
                 );
                 map.insert(
                     k::CAPTURE_NEAR.into(),

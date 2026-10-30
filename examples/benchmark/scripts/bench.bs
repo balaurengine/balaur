@@ -24,7 +24,7 @@ pub class Entry {
     pub seed: int,
 }
 
-pub struct Bench {
+pub class Bench {
     node: Node,
     cases: [Entry],
     headless: bool,

@@ -17,6 +17,8 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose, Real};
 
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+
+pub(crate) mod spec;
 use crate::{PhysicsState3d, node_pose};
 
 /// The collider described by `params`, in the `collider` schema's own
@@ -92,7 +94,11 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         }
         other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
-    Ok(with_mass_properties(with_material(builder, params), params))
+    let material = crate::material::of(eng, params)?;
+    Ok(with_mass_properties(
+        with_material(builder, params, &material),
+        params,
+    ))
 }
 
 /// Everything a collider carries that is not its shape: what it is made of,
@@ -100,21 +106,17 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
 ///
 /// Shared by both dimensions' builders through their own `collider_builder`,
 /// because every one of these properties is dimension-free.
-pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
+pub(crate) fn with_material(
+    builder: ColliderBuilder,
+    params: &toml::Value,
+    material: &crate::material::PhysicsMaterial,
+) -> ColliderBuilder {
     let mut builder = builder
-        .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0).max(0.0)))
-        .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
+        .restitution(scalar::real(material.restitution))
+        .friction(scalar::real(material.friction))
         .density(scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)))
-        .friction_combine_rule(combine_rule(v::text(
-            params,
-            k::FRICTION_COMBINE,
-            w::AVERAGE,
-        )))
-        .restitution_combine_rule(combine_rule(v::text(
-            params,
-            k::RESTITUTION_COMBINE,
-            w::AVERAGE,
-        )))
+        .friction_combine_rule(combine_rule(&material.friction_combine))
+        .restitution_combine_rule(combine_rule(&material.restitution_combine))
         .contact_skin(scalar::real(
             v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
         ))
@@ -192,45 +194,6 @@ pub(crate) fn surface_of(params: &toml::Value) -> Option<crate::events::Surface>
         .then_some(crate::events::Surface { one_way, velocity })
 }
 
-/// The layer and mask rows, as schema text. Named apart from the rest of
-/// `shared_collider_schema` because a soft body's collider is filtered the
-/// same way and has no density, no sensor and no contact skin.
-pub(crate) fn shared_group_schema() -> String {
-    let layers = v::layer_options();
-    v::schema(&[
-        (
-            k::COLLISION_LAYER,
-            &format!(
-                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "The layers this body is on", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::COLLISION_MASK,
-            &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
-            ),
-        ),
-    ])
-}
-
-/// The event rows, as schema text, for a soft body: its surface collider
-/// reports the way a `collider3d` does.
-pub(crate) fn shared_event_schema() -> String {
-    let events = v::options(&v::flags::events().map(|(name, _)| name));
-    v::schema(&[
-        (
-            k::EVENTS,
-            &format!(
-                r#"{{ type = "flags", default = [], options = [{events}], description = "What this body reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::CONTACT_FORCE_THRESHOLD,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "filtering" }"#,
-        ),
-    ])
-}
-
 /// Report what `params` asks for, for a builder whose other rows its owner
 /// has already set.
 pub(crate) fn with_events(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
@@ -268,6 +231,45 @@ pub(crate) fn active_collision_types(params: &toml::Value) -> ActiveCollisionTyp
 /// `crate::events` turns what it reports into a call on the node's script.
 pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
     ActiveEvents::from_bits_truncate(v::bits(params, k::EVENTS, &v::flags::events()))
+}
+
+/// Build again each collider and soft body naming a material file once the
+/// asset cache has moved, so a material saved in the editor shows on every
+/// body naming it, as a re-read tile map's cells do.
+pub(crate) fn reread_materials(eng: &Engine) {
+    let stale: Vec<(Entity, toml::Value, bool)> = {
+        let state = eng.resource::<PhysicsState3d>();
+        let mut state = state.borrow_mut();
+        let generation = balaur_core::assets::generation(eng);
+        if state.materials_read == generation {
+            return;
+        }
+        state.materials_read = generation;
+        let surface = [k::PHYSICS_MATERIAL];
+        let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
+        let colliders = state
+            .collider_params
+            .iter()
+            .filter(|(_, p)| crate::material::names_a_file(p, &surface));
+        let soft = state
+            .soft_params
+            .iter()
+            .filter(|(_, p)| crate::material::names_a_file(p, &both));
+        colliders
+            .map(|(entity, params)| (*entity, params.clone(), false))
+            .chain(soft.map(|(entity, params)| (*entity, params.clone(), true)))
+            .collect()
+    };
+    for (entity, params, soft) in stale {
+        let rebuilt = if soft {
+            crate::softbody::apply_softbody(eng, entity, &params)
+        } else {
+            apply_collider(eng, entity, &params)
+        };
+        if let Err(why) = rebuilt {
+            tracing::warn!("physics_material: {why:#}");
+        }
+    }
 }
 
 /// Build and insert the collider described by `params`, replacing any
@@ -594,192 +596,39 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
     ]))
 }
 
-/// Everything a collider carries besides its shape, as schema text. Shared
-/// with `collider2d`: a material is dimension-free.
-pub(crate) fn shared_collider_schema() -> String {
-    let combine = v::options(w::COMBINE_RULES);
-    let average = w::AVERAGE;
-    let material = v::schema(&[
-        (
-            k::RESTITUTION,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound, and above 1 each bounce gains energy", group = "surface" }"#,
-        ),
-        (
-            k::FRICTION,
-            r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice", group = "surface" }"#,
-        ),
-        (
-            k::DENSITY,
-            r#"{ type = "float", default = 1.0, min = 0.0, description = "Mass per volume, so the shape's size sets its mass; 0 makes a collider that adds no mass to its body", group = "mass" }"#,
-        ),
-        (
-            k::MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density", group = "mass" }"#,
-        ),
-        (
-            k::FRICTION_COMBINE,
-            &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's friction combines with the other one's", group = "surface" }}"#
-            ),
-        ),
-        (
-            k::RESTITUTION_COMBINE,
-            &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's bounciness combines with the other one's", group = "surface" }}"#
-            ),
-        ),
-        (
-            k::COLLISION_MARGIN,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering", group = "contacts" }"#,
-        ),
-        (
-            k::SENSOR,
-            r#"{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
-        ),
-        (
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }"#,
-        ),
-    ]);
-    [material, shared_filter_schema()].join("\n")
+/// The layers and tests a collider is filtered by, as schema text.
+pub(crate) fn filtering_schema() -> String {
+    v::schema(&[
+        (k::COLLISION_LAYER, &spec::collision_layer()),
+        (k::COLLISION_MASK, &spec::collision_mask()),
+        (k::COLLISION_TEST, &spec::collision_test()),
+        (k::SOLVER_LAYER, &spec::solver_layer()),
+        (k::SOLVER_MASK, &spec::solver_mask()),
+        (k::SOLVER_TEST, &spec::solver_test()),
+        (k::CONTACT_PAIRS, &spec::contact_pairs()),
+    ])
 }
 
-/// The layer, test-mode, event and contact rows every collider takes, split
-/// from [`shared_collider_schema`] under `MAX_FN_LINES`.
-fn shared_filter_schema() -> String {
-    let layers = v::layer_options();
-    let tests = v::options(w::TEST_MODES);
-    let both = w::BOTH;
+/// What a collider reports to its node's script, as schema text: a soft
+/// body's surface collider reports the same way.
+pub(crate) fn events_schema() -> String {
     let events = v::options(&v::flags::events().map(|(name, _)| name));
-    let collisions = v::options(&v::flags::collision_types().map(|(name, _)| name));
-    let watched = v::options(w::DEFAULT_COLLISIONS);
     v::schema(&[
-        (
-            k::COLLISION_LAYER,
-            &format!(
-                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "The layers this collider is on", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::COLLISION_MASK,
-            &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::SOLVER_LAYER,
-            &format!(
-                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::SOLVER_MASK,
-            &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::COLLISION_TEST,
-            &format!(
-                r#"{{ type = "enum", default = "{both}", options = [{tests}], description = "Whether a pair is tested when both colliders' layers accept the other, or when either does; two colliders that differ use both", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::SOLVER_TEST,
-            &format!(
-                r#"{{ type = "enum", default = "{both}", options = [{tests}], description = "The same choice for the solver layers", group = "filtering" }}"#
-            ),
-        ),
         (
             k::EVENTS,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force", group = "filtering" }}"#
+                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force", group = "events" }}"#
             ),
         ),
         (
             k::CONTACT_FORCE_THRESHOLD,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "contacts" }"#,
-        ),
-        (
-            k::CONTACT_PAIRS,
-            &format!(
-                r#"{{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::ONE_WAY,
-            r#"{ type = "bool", default = false, description = "A platform bodies land on from the side one_way_axis names and pass through from the other", group = "contacts" }"#,
-        ),
-        (
-            k::ONE_WAY_ANGLE,
-            r#"{ type = "float", default = 0.1, min = 0.0, max = 180.0, unit = "degrees", description = "How far a contact's normal may lean from one_way_axis and still hold the body; radians in the file", group = "contacts" }"#,
-        ),
-    ])
-}
-
-/// The VHACD rows both dimensions' `convex_decomposition` takes, over parry's
-/// own defaults for that dimension.
-pub(crate) fn vhacd_schema(resolution: u32, concavity: f32, max_hulls: u32) -> String {
-    let defaults = crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
-    v::schema(&[
-        (
-            k::RESOLUTION,
-            &format!(
-                r#"{{ type = "int", default = {resolution}, min = 1, description = "How fine the voxel grid a decomposition cuts is", group = "decomposition" }}"#
-            ),
-        ),
-        (
-            k::MAX_CONCAVITY,
-            &format!(
-                r#"{{ type = "float", default = {concavity:?}, min = 0.0, description = "How deep a dent a piece may keep before it is cut again", group = "decomposition" }}"#
-            ),
-        ),
-        (
-            k::MAX_CONVEX_HULLS,
-            &format!(
-                r#"{{ type = "int", default = {max_hulls}, min = 1, description = "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet", group = "decomposition" }}"#
-            ),
-        ),
-        (
-            k::SYMMETRY_BIAS,
-            &format!(
-                r#"{{ type = "float", default = {:?}, min = 0.0, max = 1.0, description = "How much a cut prefers a plane of symmetry", group = "decomposition" }}"#,
-                defaults.alpha
-            ),
-        ),
-        (
-            k::REVOLUTION_BIAS,
-            &format!(
-                r#"{{ type = "float", default = {:?}, min = 0.0, max = 1.0, description = "How much a cut prefers an axis of revolution", group = "decomposition" }}"#,
-                defaults.beta
-            ),
-        ),
-        (
-            k::PLANE_DOWNSAMPLING,
-            &format!(
-                r#"{{ type = "int", default = {}, min = 1, description = "How coarsely the cutting planes are searched first; 1 tries every one", group = "decomposition" }}"#,
-                defaults.plane_downsampling
-            ),
-        ),
-        (
-            k::HULL_DOWNSAMPLING,
-            &format!(
-                r#"{{ type = "int", default = {}, min = 1, description = "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point", group = "decomposition" }}"#,
-                defaults.convex_hull_downsampling
-            ),
-        ),
-        (
-            k::APPROXIMATE_HULLS,
-            &format!(
-                r#"{{ type = "bool", default = {}, description = "Estimate each piece's hull while cutting rather than building it exactly", group = "decomposition" }}"#,
-                defaults.convex_hull_approximation
-            ),
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "events" }"#,
         ),
     ])
 }
 
 /// The `triangle_mesh` cleanup rows both dimensions take.
-pub(crate) fn trimesh_schema() -> String {
+pub(crate) fn mesh_cleanup_schema() -> String {
     v::schema(&[
         (
             k::MERGE_VERTICES,
@@ -805,9 +654,66 @@ pub(crate) fn trimesh_schema() -> String {
             k::CONNECTED_COMPONENTS,
             r#"{ type = "bool", default = false, description = "Work out which triangles form each separate piece of the mesh", group = "mesh cleanup" }"#,
         ),
+    ])
+}
+
+/// The VHACD rows both dimensions' `convex_decomposition` takes, over parry's
+/// own defaults for that dimension.
+pub(crate) fn decomposition_schema(resolution: u32, concavity: f32, max_hulls: u32) -> String {
+    let defaults = crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
+    v::schema(&[
         (
-            k::TWO_SIDED_EDGES,
-            r#"{ type = "bool", default = false, description = "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped", group = "contacts" }"#,
+            k::MAX_CONCAVITY,
+            &format!(
+                r#"{{ type = "float", default = {concavity:?}, min = 0.0, description = "How deep a dent a piece may keep before it is cut again", group = "decomposition" }}"#
+            ),
+        ),
+        (
+            k::MAX_CONVEX_HULLS,
+            &format!(
+                r#"{{ type = "int", default = {max_hulls}, min = 1, description = "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet", group = "decomposition" }}"#
+            ),
+        ),
+        (
+            k::RESOLUTION,
+            &format!(
+                r#"{{ type = "int", default = {resolution}, min = 1, description = "How fine the voxel grid a decomposition cuts is", group = "decomposition" }}"#
+            ),
+        ),
+        (
+            k::APPROXIMATE_HULLS,
+            &format!(
+                r#"{{ type = "bool", default = {}, description = "Estimate each piece's hull while cutting rather than building it exactly", group = "decomposition" }}"#,
+                defaults.convex_hull_approximation
+            ),
+        ),
+        (
+            k::HULL_DOWNSAMPLING,
+            &format!(
+                r#"{{ type = "int", default = {}, min = 1, description = "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point", group = "decomposition" }}"#,
+                defaults.convex_hull_downsampling
+            ),
+        ),
+        (
+            k::PLANE_DOWNSAMPLING,
+            &format!(
+                r#"{{ type = "int", default = {}, min = 1, description = "How coarsely the cutting planes are searched first; 1 tries every one", group = "decomposition" }}"#,
+                defaults.plane_downsampling
+            ),
+        ),
+        (
+            k::SYMMETRY_BIAS,
+            &format!(
+                r#"{{ type = "float", default = {:?}, min = 0.0, max = 1.0, description = "How much a cut prefers a plane of symmetry", group = "decomposition" }}"#,
+                defaults.alpha
+            ),
+        ),
+        (
+            k::REVOLUTION_BIAS,
+            &format!(
+                r#"{{ type = "float", default = {:?}, min = 0.0, max = 1.0, description = "How much a cut prefers an axis of revolution", group = "decomposition" }}"#,
+                defaults.beta
+            ),
         ),
     ])
 }
@@ -831,38 +737,54 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
+            (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box" }"#),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.0, description = "Length tip to tip, for capsule, cylinder and cone; a capsule with height 0 runs from a to b instead" }"#),
+            (k::SENSOR, &spec::sensor()),
+            (k::ENABLED, &spec::enabled()),
+            (k::PHYSICS_MATERIAL, &crate::material::row_spec()),
+            (k::OFFSET, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
+            (k::OFFSET_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "How the shape is turned relative to the node, x first; Euler radians in the file", group = "shape" }"#),
             (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{y}", options = [{axes}], description = "The axis a capsule lies along; cylinder and cone stand along y", group = "shape" }}"#)),
-            (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box" }"#),
             (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment, and a capsule's first end when its height is 0", group = "shape" }"#),
             (k::B, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0", group = "shape" }"#),
             (k::C, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
             (k::NORMAL, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is world_boundary", group = "shape" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-            (k::EDGES, &format!(r#"{{ type = "enum", default = "{chain}", options = [{edges}], description = "Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles", group = "shape" }}"#)),
-            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield; the asset's holes are cut out of it", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
-            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
-            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points", group = "shape" }"#),
-            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid", group = "shape" }}"#)),
-            (k::FILL_CAVITIES, r#"{ type = "bool", default = false, description = "When a solid fill floods a mesh, leave the cavities a closed surface walls off empty", group = "shape" }"#),
-            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit", group = "shape" }}"#)),
-            (k::METHOD, &format!(r#"{{ type = "enum", default = "{vhacd}", options = [{methods}], description = "How a convex_decomposition is cut: into convex hulls, or into voxel parts", group = "decomposition" }}"#)),
+        ]),
+        filtering_schema(),
+        v::schema(&[
+            (k::ONE_WAY, &spec::one_way()),
+            (k::ONE_WAY_AXIS, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The side a one-way platform holds bodies on, in the collider's own axes: [0, 1, 0] lands them from above and lets them up through from below", group = "contacts" }"#),
+            (k::ONE_WAY_ANGLE, &spec::one_way_angle()),
+            (k::SURFACE_VELOCITY, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
+            (k::COLLISION_MARGIN, &spec::collision_margin()),
             (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a triangle_mesh's triangles, so a character does not catch on flat ground", group = "contacts" }"#),
-            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful", group = "shape" }"#),
-            (k::SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield", group = "shape" }"#),
+            (k::TWO_SIDED_EDGES, &spec::two_sided_edges()),
+            (k::DENSITY, &spec::density()),
+            (k::MASS, &spec::mass()),
             (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where this collider's mass sits, in its own space; read with inertia, and both 0 keep the shape's own", group = "mass" }"#),
             (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "This collider's resistance to spin about each axis; 0 with a center_of_mass takes the shape's own about that centre", group = "mass" }"#),
             (k::INERTIA_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file", group = "mass" }"#),
-            (k::ONE_WAY_AXIS, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The side a one-way platform holds bodies on, in the collider's own axes: [0, 1, 0] lands them from above and lets them up through from below", group = "contacts" }"#),
-            (k::SURFACE_VELOCITY, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
-            (k::OFFSET, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
-            (k::OFFSET_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "How the shape is turned relative to the node, x first; Euler radians in the file", group = "shape" }"#),
         ]),
-        vhacd_schema(tuning.resolution, scalar::f32_of(tuning.concavity), tuning.max_convex_hulls),
-        trimesh_schema(),
-        shared_collider_schema(),
+        events_schema(),
+        v::schema(&[
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider", group = "mesh" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit", group = "mesh" }}"#)),
+            (k::EDGES, &format!(r#"{{ type = "enum", default = "{chain}", options = [{edges}], description = "Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles", group = "mesh" }}"#)),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful", group = "mesh" }"#),
+            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid", group = "mesh" }}"#)),
+            (k::FILL_CAVITIES, r#"{ type = "bool", default = false, description = "When a solid fill floods a mesh, leave the cavities a closed surface walls off empty", group = "mesh" }"#),
+            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield; the asset's holes are cut out of it", group = "mesh" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
+            (k::SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield", group = "mesh" }"#),
+            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "mesh" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
+            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points", group = "mesh" }"#),
+        ]),
+        mesh_cleanup_schema(),
+        v::schema(&[
+            (k::METHOD, &format!(r#"{{ type = "enum", default = "{vhacd}", options = [{methods}], description = "How a convex_decomposition is cut: into convex hulls, or into voxel parts", group = "decomposition" }}"#)),
+        ]),
+        decomposition_schema(tuning.resolution, scalar::f32_of(tuning.concavity), tuning.max_convex_hulls),
     ]
     .join("\n");
     reg.register_component(

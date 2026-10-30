@@ -89,6 +89,7 @@ pub(crate) fn slots(meta: &Meta, ty: &Ty) -> Vec<(crate::Slot, Option<Ty>)> {
             v.push((Slot::I32, None));
             v
         }
+        Ty::Map(..) => unreachable!("a map type is made its class before code is made"),
     }
 }
 
@@ -159,6 +160,7 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
             }
         }
         Ty::Struct(s) if meta.is_class(s) => read_object(meta, m, s, rd32(m, at) as usize),
+        Ty::Map(..) => unreachable!("a map type is made its class before code is made"),
         Ty::Struct(s) => {
             let mut off = at;
             let fields = meta.fields(s).unwrap_or(&[]);
@@ -175,11 +177,18 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
     }
 }
 
+thread_local! {
+    /// The objects being read, outermost first: scripts that hold each other
+    /// make a cycle, and an object met again inside itself reads as nil.
+    static READING: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(vec![]) };
+}
+
 /// The fields of the class object at `p`, as a struct; a null one is nothing.
 pub(crate) fn read_object(meta: &Meta, m: &(impl Reader + ?Sized), s: &str, p: usize) -> Value {
-    if p == 0 {
+    if p == 0 || READING.with(|reading| reading.borrow().contains(&p)) {
         return Value::Void;
     }
+    READING.with(|reading| reading.borrow_mut().push(p));
     let mut off = p + OBJ_HEADER;
     let fields = meta.fields(s).unwrap_or(&[]);
     let values = fields
@@ -190,6 +199,7 @@ pub(crate) fn read_object(meta: &Meta, m: &(impl Reader + ?Sized), s: &str, p: u
             (n.clone(), v)
         })
         .collect();
+    READING.with(|reading| reading.borrow_mut().pop());
     Value::Struct(s.to_string(), values)
 }
 
@@ -309,6 +319,7 @@ pub(crate) fn decode(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, raw: &[Ra
             _ => Value::Void,
         },
         Ty::Struct(s) if meta.is_class(s) => read_object(meta, m, s, raw[0].i32() as u32 as usize),
+        Ty::Map(..) => unreachable!("a map type is made its class before code is made"),
         Ty::Struct(s) => {
             let mut at = 0;
             let fields = meta.fields(s).unwrap_or(&[]);

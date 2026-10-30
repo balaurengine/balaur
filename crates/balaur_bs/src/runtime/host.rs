@@ -1,11 +1,11 @@
 // Every import a module makes, answered in one place whichever engine runs it:
 // the script's `extern fn`s, the engine's functions, and the built-ins.
 
+use super::args::{CallArgs, Slots};
 use super::debugger::{self, Debugger};
 use super::engine::{ImportCtx, Raw, Raws, Shared};
-use super::values::{Reader, Value, decode, encode_plain, width};
+use super::values::{Reader, Value, encode_plain, width};
 use crate::{Meta, Ty, words};
-use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -15,9 +15,14 @@ pub(crate) type AsyncFn = Box<dyn FnMut(&[Value]) -> (f64, Value)>;
 /// One engine function, bound to what it calls when the module is made, so a
 /// call parses no key and looks nothing up. Shared, since the engine may call
 /// back into the same file while it answers.
-pub type Bound = Rc<dyn Fn(&[Value]) -> Result<Value, String>>;
+pub type Bound = Rc<dyn Fn(&dyn CallArgs) -> Result<Value, String>>;
 /// Binds an engine function by its key and the type it must return.
 pub(crate) type Binder = Rc<dyn Fn(&str, &Ty) -> Result<Bound, String>>;
+/// Where a node's script object lives, when it runs class `class` of file
+/// `file` in this instance: its pointer, which the host counts once more for
+/// the script that asked.
+pub(crate) type ScriptOf = Rc<FindScript>;
+pub(crate) type FindScript = dyn Fn(i64, &str, &str) -> Option<i32>;
 
 /// The host functions a script may call: its own `extern fn`s by name, and the
 /// engine's through one binder.
@@ -26,6 +31,7 @@ pub struct HostFns {
     pub(crate) sync: HashMap<String, SyncFn>,
     pub(crate) asynch: HashMap<String, AsyncFn>,
     pub(crate) binder: Option<Binder>,
+    pub(crate) script_of: Option<ScriptOf>,
 }
 
 impl HostFns {
@@ -54,7 +60,10 @@ impl HostFns {
         let f = Rc::new(f);
         self.bind_engine(move |key, ret| {
             let (f, key, ret) = (f.clone(), key.to_string(), ret.clone());
-            Ok(Rc::new(move |args: &[Value]| f(&key, args, &ret)) as Bound)
+            Ok(Rc::new(move |args: &dyn CallArgs| {
+                let values: Vec<Value> = (0..args.len()).map(|index| args.value(index)).collect();
+                f(&key, &values, &ret)
+            }) as Bound)
         })
     }
     /// The engine's functions, each bound once by key when a module is made:
@@ -67,20 +76,30 @@ impl HostFns {
         self.binder = Some(Rc::new(bind));
         self
     }
+    /// What `node.script` finds: a node's script object, by the node, the
+    /// file and its class; nil without this.
+    #[must_use]
+    pub fn scripts(mut self, find: impl Fn(i64, &str, &str) -> Option<i32> + 'static) -> Self {
+        self.script_of = Some(Rc::new(find));
+        self
+    }
 }
 
-/// An import's key, parameters and result, shared so a call clones nothing.
+/// An import's key, parameters and result, shared so a call clones nothing,
+/// and where each parameter's slots start.
 struct Sig {
     key: String,
     params: Vec<Ty>,
     ret: Ty,
+    at: Vec<usize>,
 }
 
-fn sig(key: &str, params: &[Ty], ret: &Ty) -> Rc<Sig> {
+fn sig(meta: &Meta, key: &str, params: &[Ty], ret: &Ty) -> Rc<Sig> {
     Rc::new(Sig {
         key: key.to_string(),
         params: params.to_vec(),
         ret: ret.clone(),
+        at: super::args::offsets(meta, params),
     })
 }
 
@@ -89,15 +108,13 @@ enum Kind {
     Async(usize, Rc<Sig>),
     Engine(Rc<Sig>, Bound),
     EngineAsync(Rc<Sig>, Bound),
-    Str(&'static str, Rc<Sig>),
-    Any(&'static str),
     FmtF64,
+    ParseF64,
+    ScriptOf,
     AwaitI64,
     AwaitF64,
     AwaitI32,
     AwaitHeap,
-    Box,
-    Unbox,
     Unary(fn(f64) -> f64),
     Binary(fn(f64, f64) -> f64),
     Probe,
@@ -132,12 +149,15 @@ pub(crate) struct HostState {
     pub(crate) inside: Option<*mut (dyn ImportCtx + 'static)>,
     /// A direct module's call results past the first, until it reads them.
     extra: Raws,
+    /// Calls out of the module so far, for a budget to count.
+    pub calls: u64,
     /// Which slots of each script struct hold a class, worked out once, or
     /// nil for one that holds a string, list or `any` outside a class and so
     /// cannot be shared ([`super::Runtime::share`]).
-    pub(crate) shares: rustc_hash::FxHashMap<String, Option<Rc<[usize]>>>,
-    /// What letting go of each script struct releases ([`Release`]).
-    pub(crate) releases: rustc_hash::FxHashMap<String, Rc<[Release]>>,
+    /// By unit, since two scripts may each name a type `Spinner`.
+    pub(crate) shares: Vec<rustc_hash::FxHashMap<String, Option<Rc<[usize]>>>>,
+    /// What letting go of each script struct releases ([`Release`]), by unit.
+    pub(crate) releases: Vec<rustc_hash::FxHashMap<String, Rc<[Release]>>>,
 }
 
 /// One heap slot of a struct being let go of: where it sits, its type, and
@@ -185,8 +205,9 @@ impl HostState {
             next_handle: 0,
             inside: None,
             extra: Raws::new(),
-            shares: rustc_hash::FxHashMap::default(),
-            releases: rustc_hash::FxHashMap::default(),
+            calls: 0,
+            shares: vec![],
+            releases: vec![],
             now: 0.0,
             debugger,
         };
@@ -240,9 +261,9 @@ impl HostState {
                 };
                 self.bound.insert(name.to_string(), at);
                 if x.is_async {
-                    Kind::Async(at, sig(name, &x.params, &x.ret))
+                    Kind::Async(at, sig(meta, name, &x.params, &x.ret))
                 } else {
-                    Kind::Sync(at, sig(name, &x.params, &x.ret))
+                    Kind::Sync(at, sig(meta, name, &x.params, &x.ret))
                 }
             } else if let Some(f) = meta.host_calls.iter().find(|f| f.key == name) {
                 let Some(bind) = &self.fns.binder else {
@@ -251,117 +272,30 @@ impl HostState {
                     ));
                 };
                 // An async one answers with the token it is woken by.
+                let signature = sig(meta, &f.key, &f.params, &f.ret);
                 if f.is_async {
-                    Kind::EngineAsync(sig(&f.key, &f.params, &f.ret), bind(&f.key, &Ty::Int)?)
+                    Kind::EngineAsync(signature, bind(&f.key, &Ty::Int)?)
                 } else {
-                    Kind::Engine(sig(&f.key, &f.params, &f.ret), bind(&f.key, &f.ret)?)
+                    Kind::Engine(signature, bind(&f.key, &f.ret)?)
                 }
             } else if let Some(m) = name.strip_prefix(words::MATH_PREFIX) {
                 math(m).ok_or_else(missing)?
-            } else if let Some(m) = name
-                .strip_prefix(words::STR_PREFIX)
-                .and_then(crate::strings::method)
-            {
-                Kind::Str(
-                    m.name,
-                    sig(name, &crate::strings::params(m), &crate::strings::ty(m.ret)),
-                )
-            } else if let Some(m) = name
-                .strip_prefix(words::ANY_PREFIX)
-                .and_then(crate::anys::method)
-            {
-                Kind::Any(m.name)
             } else {
                 match name {
                     words::FMT_F64 => Kind::FmtF64,
+                    words::PARSE_F64 => Kind::ParseF64,
+                    words::SCRIPT_OF => Kind::ScriptOf,
                     words::AWAIT_I64 => Kind::AwaitI64,
                     words::AWAIT_F64 => Kind::AwaitF64,
                     words::AWAIT_I32 => Kind::AwaitI32,
                     words::AWAIT_HEAP => Kind::AwaitHeap,
                     words::DBG_PROBE => Kind::Probe,
-                    words::BOX => Kind::Box,
-                    words::UNBOX => Kind::Unbox,
                     _ => return Err(missing()),
                 }
             };
             kinds.push(kind);
         }
         Ok(kinds)
-    }
-}
-
-// Into an `any`, or out of one.
-fn convert(ctx: &mut dyn ImportCtx, meta: &Meta, args: &[Raw], into: bool) -> Result<Raws, String> {
-    if into {
-        boxed(ctx, meta, args)
-    } else {
-        unboxed(ctx, meta, args)
-    }
-}
-
-/// A value as the module laid it out at `args[1]`, read by its type's text
-/// at `args[0]`, handed back in an `any`.
-fn boxed(ctx: &mut dyn ImportCtx, meta: &Meta, args: &[Raw]) -> Result<Raws, String> {
-    let reader = CtxReader(ctx);
-    let Value::Str(text) = super::values::read_str(&reader, args[0].i32() as u32 as usize) else {
-        return Err("a boxed value without its type".into());
-    };
-    let ty =
-        crate::parse::parse_type(&text).ok_or_else(|| format!("`{text}` is no type to box"))?;
-    let v = super::values::read_value(meta, &reader, &ty, args[1].i32() as u32 as usize);
-    encode_owned(ctx, meta, &Ty::Any, &v)
-}
-
-/// The `any` at `args[1]` as a value of the type whose text is at `args[0]`,
-/// its slots written to `args[2]`: a map fills a struct by field name.
-fn unboxed(ctx: &mut dyn ImportCtx, meta: &Meta, args: &[Raw]) -> Result<Raws, String> {
-    let (ty, v) = {
-        let reader = CtxReader(ctx);
-        let Value::Str(text) = super::values::read_str(&reader, args[0].i32() as u32 as usize)
-        else {
-            return Err("an unboxed value without its type".into());
-        };
-        let ty = crate::parse::parse_type(&text)
-            .ok_or_else(|| format!("`{text}` is no type to unbox"))?;
-        let v = super::values::read_any(meta, &reader, args[1].i32() as u32 as usize);
-        (ty, v)
-    };
-    let v = shaped(meta, &ty, v);
-    let b: Vec<u8> = encode_owned(ctx, meta, &ty, &v)?
-        .into_iter()
-        .flat_map(Raw::bytes)
-        .collect();
-    ctx.write(args[2].i32() as u32 as usize, &b);
-    Ok(Raws::new())
-}
-
-// A dynamic value in the shape of `ty`: a map as the struct it is wanted as,
-// a number as the kind wanted, nil as an empty list.
-fn shaped(meta: &Meta, ty: &Ty, v: Value) -> Value {
-    match (ty, v) {
-        (Ty::Struct(s), Value::Map(entries) | Value::Struct(_, entries)) => {
-            let fields = meta.fields(s).unwrap_or(&[]);
-            let values = fields
-                .iter()
-                .map(|(n, t)| {
-                    let got = entries
-                        .iter()
-                        .find(|(k, _)| k == n)
-                        .map_or(Value::Void, |(_, v)| v.clone());
-                    (n.clone(), shaped(meta, t, got))
-                })
-                .collect();
-            Value::Struct(s.clone(), values)
-        }
-        (Ty::Array(et), Value::Array(items)) => {
-            Value::Array(items.into_iter().map(|i| shaped(meta, et, i)).collect())
-        }
-        (Ty::Array(_), Value::Void) => Value::Array(vec![]),
-        (Ty::Optional(_), Value::Void) => Value::Void,
-        (Ty::Optional(t), v) => shaped(meta, t, v),
-        (Ty::Float, Value::Int(x)) => Value::Float(x as f64),
-        (Ty::Int, Value::Float(x)) => Value::Int(x as i64),
-        (_, v) => v,
     }
 }
 
@@ -374,26 +308,9 @@ impl Reader for CtxReader<'_> {
 }
 
 /// A host call's arguments, kept inline: a call allocates nothing for them.
-type Values = SmallVec<[Value; 6]>;
-
-fn args_of(meta: &Meta, ctx: &dyn ImportCtx, tys: &[Ty], raw: &[Raw]) -> Values {
-    let reader = CtxReader(ctx);
-    let mut at = 0;
-    tys.iter()
-        .map(|t| {
-            let k = width(meta, t);
-            let v = decode(meta, &reader, t, &raw[at..at + k]);
-            at += k;
-            v
-        })
-        .collect()
-}
-
-pub(crate) fn alloc(ctx: &mut dyn ImportCtx, n: usize) -> Result<usize, String> {
-    let p = ctx.call(words::ALLOC, &[Raw::I32(n as i32)], 1)?;
-    let p = p.first().map_or(0, |r| r.i32() as u32 as usize);
-    ctx.write(p, &vec![0; n]);
-    Ok(p)
+// An `extern fn`'s arguments, each read whole.
+fn values_of(meta: &Meta, ctx: &dyn ImportCtx, sig: &Sig, raw: &[Raw]) -> Vec<Value> {
+    Slots::read(meta, ctx, &sig.params, &sig.at, raw).into_values()
 }
 
 /// `v` as a value of `ty` the script owns: a string or array is allocated in
@@ -421,7 +338,7 @@ pub(crate) fn encode_owned(
             } else {
                 ""
             };
-            let p = alloc(ctx, 8 + s.len())?;
+            let p = ctx.alloc(8 + s.len())?;
             let mut b = 1i32.to_le_bytes().to_vec();
             b.extend((s.len() as u32).to_le_bytes());
             b.extend(s.as_bytes());
@@ -438,7 +355,7 @@ pub(crate) fn encode_owned(
             let data = if items.is_empty() {
                 0
             } else {
-                alloc(ctx, items.len() * esz)?
+                ctx.alloc(items.len() * esz)?
             };
             for (i, it) in items.iter().enumerate() {
                 let b: Vec<u8> = encode_owned(ctx, meta, et, it)?
@@ -447,7 +364,7 @@ pub(crate) fn encode_owned(
                     .collect();
                 ctx.write(data + i * esz, &b);
             }
-            let h = alloc(ctx, 16)?;
+            let h = ctx.alloc(16)?;
             let mut b = 1i32.to_le_bytes().to_vec();
             for x in [items.len(), items.len(), data] {
                 b.extend((x as u32).to_le_bytes());
@@ -462,7 +379,7 @@ pub(crate) fn encode_owned(
             let Some((tag, payload)) = cell else {
                 return Ok(smallvec::smallvec![Raw::I32(0)]);
             };
-            let p = alloc(ctx, crate::anys::CELL as usize)?;
+            let p = ctx.alloc(crate::anys::CELL as usize)?;
             ctx.write(p, &super::values::cell_bytes(tag, payload));
             smallvec::smallvec![Raw::I32(p as i32)]
         }
@@ -483,7 +400,7 @@ pub(crate) fn encode_owned(
             }
             // A class: those slots in a new object, counted once.
             if meta.is_class(s) {
-                let p = alloc(ctx, super::values::object_size(meta, s))?;
+                let p = ctx.alloc(super::values::object_size(meta, s))?;
                 let mut b = 1i32.to_le_bytes().to_vec();
                 b.extend([0; 4]);
                 b.extend(out.iter().flat_map(|r| r.bytes()));
@@ -517,6 +434,26 @@ impl std::ops::Deref for Types {
     }
 }
 
+// `node.script` as a class: the node's object, counted once more for the
+// script that asked, when it runs class `args[2]` of file `args[1]` in this
+// instance; else 0.
+fn script_of(ctx: &mut dyn ImportCtx, find: Option<&FindScript>, node: i64, args: &[Raw]) -> Raws {
+    let text = |ctx: &mut dyn ImportCtx, at: i32| match super::values::read_str(
+        &CtxReader(ctx),
+        at as u32 as usize,
+    ) {
+        Value::Str(text) => text,
+        _ => String::new(),
+    };
+    let (file, class) = (text(ctx, args[1].i32()), text(ctx, args[2].i32()));
+    let pointer = find.and_then(|find| find(node, &file, &class)).unwrap_or(0);
+    if pointer != 0 {
+        let count = super::values::rd32(&CtxReader(ctx), pointer as u32 as usize);
+        ctx.write(pointer as u32 as usize, &(count + 1).to_le_bytes());
+    }
+    smallvec::smallvec![Raw::I32(pointer)]
+}
+
 /// Runs import `index` of the module with `args`, returning its results;
 /// `unit` is a linked script's unit making the call, 0 for its own file.
 pub(crate) fn dispatch(
@@ -535,12 +472,27 @@ pub(crate) fn dispatch(
         r => i64::from(r.i32()),
     };
     let mut h = state.borrow_mut();
+    h.calls += 1;
     let meta = h.types(unit);
     let resolved = |h: &HostState| h.resolved.get(&i64_at(0)).cloned().unwrap_or(Value::Void);
     let kind = &h.kinds(unit)[index];
     match kind {
         // `{:?}` keeps the `.0` on whole floats, and is the shortest form that reads back exactly.
         Kind::FmtF64 => Ok(write_text(ctx, args[1].i32(), &format!("{:?}", f64_at(0)))),
+        // A number that does not parse is 0.
+        Kind::ParseF64 => {
+            let text = match super::values::read_str(&CtxReader(ctx), args[0].i32() as u32 as usize)
+            {
+                Value::Str(text) => text,
+                _ => String::new(),
+            };
+            Ok(smallvec::smallvec![Raw::F64(text.parse().unwrap_or(0.0))])
+        }
+        Kind::ScriptOf => {
+            let find = h.fns.script_of.clone();
+            drop(h);
+            Ok(script_of(ctx, find.as_deref(), i64_at(0), args))
+        }
         Kind::AwaitI64 => Ok(smallvec::smallvec![Raw::I64(match resolved(&h) {
             Value::Int(x) | Value::Node(x) => x,
             _ => 0,
@@ -553,11 +505,6 @@ pub(crate) fn dispatch(
         Kind::AwaitI32 => Ok(smallvec::smallvec![Raw::I32(i32::from(
             resolved(&h) == Value::Bool(true)
         ))]),
-        Kind::Box | Kind::Unbox => {
-            let into = matches!(kind, Kind::Box);
-            drop(h);
-            convert(ctx, &meta, args, into)
-        }
         Kind::Unary(f) => Ok(smallvec::smallvec![Raw::F64(f(f64_at(0)))]),
         Kind::Binary(f) => Ok(smallvec::smallvec![Raw::F64(f(f64_at(0), f64_at(1)))]),
         Kind::Probe => {
@@ -567,7 +514,7 @@ pub(crate) fn dispatch(
         }
         Kind::Sync(at, sig) => {
             let (at, sig) = (*at, sig.clone());
-            let values = args_of(&meta, ctx, &sig.params, args);
+            let values = values_of(&meta, ctx, &sig, args);
             let v = (h.sync[at])(&values);
             drop(h);
             encode_owned(ctx, &meta, &sig.ret, &v)
@@ -581,7 +528,7 @@ pub(crate) fn dispatch(
         }
         Kind::Async(at, sig) => {
             let (at, sig) = (*at, sig.clone());
-            let values = args_of(&meta, ctx, &sig.params, args);
+            let values = values_of(&meta, ctx, &sig, args);
             let (delay, v) = (h.asynch[at])(&values);
             h.next_handle += 1;
             let (handle, due) = (h.next_handle, h.now + delay);
@@ -595,37 +542,21 @@ pub(crate) fn dispatch(
         // not held across the call.
         Kind::Engine(sig, bound) => {
             let (sig, bound) = (sig.clone(), bound.clone());
-            let values = args_of(&meta, ctx, &sig.params, args);
+            let slots = Slots::read(&meta, ctx, &sig.params, &sig.at, args);
             let outer = h.inside.replace(erase(ctx));
             drop(h);
-            let v = bound(&values);
+            let answer = bound(&slots);
             state.borrow_mut().inside = outer;
-            encode_owned(ctx, &meta, &sig.ret, &v?)
-        }
-        Kind::Any(name) => {
-            let name = *name;
-            drop(h);
-            super::anys::run(ctx, &meta, name, args).map(Raws::from_vec)
-        }
-        Kind::Str(name, sig) => {
-            let (name, sig) = (*name, sig.clone());
-            drop(h);
-            let values = args_of(&meta, ctx, &sig.params, args);
-            let recv = match values.first() {
-                Some(Value::Str(s)) => s.as_str(),
-                _ => "",
-            };
-            let v = crate::strings::run(name, recv, &values[1..]);
-            encode_owned(ctx, &meta, &sig.ret, &v)
+            encode_owned(ctx, &meta, &sig.ret, &answer?)
         }
         // The engine answers with a token it wakes later; the script awaits a
         // handle of its own, so a token never collides with an extern's.
         Kind::EngineAsync(sig, bound) => {
             let (sig, bound) = (sig.clone(), bound.clone());
-            let values = args_of(&meta, ctx, &sig.params, args);
+            let slots = Slots::read(&meta, ctx, &sig.params, &sig.at, args);
             let outer = h.inside.replace(erase(ctx));
             drop(h);
-            let out = engine_async(state, &bound, &sig.key, &values, sig.ret.clone());
+            let out = engine_async(state, &bound, &sig.key, &slots, sig.ret.clone());
             state.borrow_mut().inside = outer;
             out
         }
@@ -636,10 +567,10 @@ fn engine_async(
     state: &Shared,
     bound: &Bound,
     key: &str,
-    values: &[Value],
+    args: &dyn CallArgs,
     ret: Ty,
 ) -> Result<Raws, String> {
-    let token = bound(values);
+    let token = bound(args);
     let mut h = state.borrow_mut();
     let Value::Int(token) = token? else {
         return Err(format!("`{key}` answered without a token"));

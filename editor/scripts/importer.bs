@@ -60,7 +60,6 @@ fn ROWS() -> any {
             map().with("key", "recode").with("kind", "enum").with("options", ["original", "flac", "vorbis"]).with("fallback", "export").with("help", "how an export re-encodes this file, over [export] audio"),
         ])
         .with("font", [
-            map().with("key", "font_family").with("kind", "enum").with("options", ["ui", "heading", "mono", "icon"]).with("fallback", "name").with("help", "the family this face joins; by default its file name's prefix decides"),
             map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.05).with("help", "how much larger its glyphs draw and advance, in widgets and world text"),
             map().with("key", "y_offset").with("kind", "number").with("fallback", 0.0).with("step", 0.01).with("help", "a nudge down as a fraction of the size, for a face that sits high"),
             map().with("key", "hinting").with("kind", "bool").with("fallback", true).with("help", "snap outlines to the pixel grid; off for a smooth face"),
@@ -79,42 +78,30 @@ fn COUNTS() -> any {
     map().with("0", 0).with("1", 1).with("2", 2).with("3", 3).with("4", 4).with("5", 5).with("6", 6).with("8", 8).with("16", 16).with("11025", 11025).with("22050", 22050).with("32000", 32000).with("44100", 44100).with("48000", 48000)
 }
 
-// Extensions the panel claims, matching `balaur_core::import::kind_of`. A
-// file in another format is not one the engine reads, so offering settings
-// for it would write a file nothing opens.
-fn KINDS() -> any {
-    map().with("png", "texture").with("webp", "texture").with("jpg", "texture").with("jpeg", "texture").with("svg", "texture").with("ogg", "audio").with("wav", "audio").with("mp3", "audio").with("flac", "audio").with("ttf", "font").with("otf", "font").with("ttc", "font").with("glb", "model").with("gltf", "model").with("obj", "model")
-}
-
 // The targets the panel shows a file shipping to; empty is this machine.
 fn TARGETS() -> [[str]] {
     [["desktop", ""], ["web", "web"], ["android", "android"], ["ios", "ios"]]
 }
 
+/// The importer kind a file is, by extension: the engine's own answer, so a
+/// format the engine reads is one the panel offers settings for.
 pub fn kind_of(rel: str) -> str {
-    let lower = rel.to_lower();
-    let kinds = KINDS();
-    for extension in kinds.keys() {
-        if lower.ends_with("." + extension) {
-            return kinds.get(extension).as_str();
-        }
-    }
-    ""
+    assets::kind_of(rel)
 }
 
 pub fn sidecar_of(rel: str) -> str {
     rel + ".import.toml"
 }
 
-fn full(S: editor::State, rel: str) -> str {
-    S.game_root + "/" + rel
+fn full(state: editor::State, rel: str) -> str {
+    state.game_root + "/" + rel
 }
 
 // The sidecar's own table, empty when there is none. A file that does not
 // parse is reported once and treated as empty, so a typo cannot wedge the
 // panel.
-pub fn sidecar(S: editor::State, rel: str) -> any {
-    table_at(full(S, sidecar_of(rel)))
+pub fn sidecar(state: editor::State, rel: str) -> any {
+    table_at(full(state, sidecar_of(rel)))
 }
 
 // The settings held in one sidecar file, by absolute path.
@@ -137,41 +124,41 @@ fn table_at(path: str) -> any {
 // The image a `textures/*.toml` asset reads, or "" for any other file. Such a
 // file holds its own settings, so its rows edit it in place. Kept per file,
 // since a panel asks every frame.
-fn texture_source(S: editor::State, rel: str) -> str {
-    if S.import_texture.rel == rel {
-        return S.import_texture.source;
+fn texture_source(state: editor::State, rel: str) -> str {
+    if state.import_texture.rel == rel {
+        return state.import_texture.source;
     }
     let found = "";
     if rel.to_lower().ends_with(".toml") {
-        let table = table_at(full(S, rel));
+        let table = table_at(full(state, rel));
         if table.type.as_str() == "texture" {
             found = table.source.as_str();
         }
     }
-    S.import_texture = Held { rel: rel, source: found };
+    state.import_texture = Held { rel: rel, source: found };
     found
 }
 
 // The picture a file's rows describe: a texture asset's source, or the file.
-fn image_of(S: editor::State, rel: str) -> str {
-    let source = texture_source(S, rel);
+fn image_of(state: editor::State, rel: str) -> str {
+    let source = texture_source(state, rel);
     if source == "" { rel } else { source }
 }
 
 // The file a key is written to: a texture asset itself, or the sidecar.
-fn settings_file(S: editor::State, rel: str) -> str {
-    if texture_source(S, rel) == "" { sidecar_of(rel) } else { rel }
+fn settings_file(state: editor::State, rel: str) -> str {
+    if texture_source(state, rel) == "" { sidecar_of(rel) } else { rel }
 }
 
 // Which kind's rows a file takes.
-fn kind_for(S: editor::State, rel: str) -> str {
+fn kind_for(state: editor::State, rel: str) -> str {
     let kind = kind_of(rel);
-    if kind == "" && texture_source(S, rel) != "" { "texture" } else { kind }
+    if kind == "" && texture_source(state, rel) != "" { "texture" } else { kind }
 }
 
 // What `project.toml` says for this kind, which the sidecar overrides.
-fn project_default(S: editor::State, kind: str, key: str) -> any {
-    let text = fs::read(S.game_root + "/project.toml");
+fn project_default(state: editor::State, kind: str, key: str) -> any {
+    let text = fs::read(state.game_root + "/project.toml");
     if text.is_none() {
         return nil;
     }
@@ -180,10 +167,10 @@ fn project_default(S: editor::State, kind: str, key: str) -> any {
 
 // Write one key, or drop it when `value` is nil. An empty sidecar is removed
 // rather than left behind: a file of no settings is noise in a project.
-pub fn write(S: editor::State, rel: str, key: str, value: any) {
+pub fn write(state: editor::State, rel: str, key: str, value: any) {
     let cleared = value.is_nil();
     let what = if cleared { "cleared" } else { "set" };
-    let path = full(S, settings_file(S, rel));
+    let path = full(state, settings_file(state, rel));
     log::info("import: {key} {what} for {rel}");
     let table = table_at(path);
     if cleared {
@@ -201,17 +188,17 @@ pub fn write(S: editor::State, rel: str, key: str, value: any) {
     // The renderer uploads a texture under a name built from its settings, so
     // the change shows without a restart.
     assets::invalidate();
-    S.import_shipped = ImportShipped { rel: "", rows: [] };
+    state.import_shipped = ImportShipped { rel: "", rows: [] };
 }
 
 // One row: the label, the control, and where the value came from.
-fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
+fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     let key = spec.key.as_str();
-    let own = table_at(full(S, settings_file(S, rel))).get(key);
-    let inherited = project_default(S, kind, key);
+    let own = table_at(full(state, settings_file(state, rel))).get(key);
+    let inherited = project_default(state, kind, key);
     // A texture asset reads its image's sidecar first, and overrides it.
-    let image = image_of(S, rel);
-    let beside = if image == rel { nil } else { sidecar(S, image).get(key) };
+    let image = image_of(state, rel);
+    let beside = if image == rel { nil } else { sidecar(state, image).get(key) };
     let has_own = !own.is_nil();
     let source = if !beside.is_nil() { "image" } else if !inherited.is_nil() { "project" } else { "default" };
     let effective = spec.fallback;
@@ -240,7 +227,7 @@ fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
             .with("step", spec.step)
             .with("drag_speed", spec.step)
             .with("on", "handle")
-            .with("data", map().with("fn", row_on_0).with("rel", rel).with("key", key).with("whole", whole))
+            .with("data", map().with("fn", on_number_changed).with("rel", rel).with("key", key).with("whole", whole))
     } else if kind_of_row == "bool" {
         map()
             .with("kind", "checkbox")
@@ -248,7 +235,7 @@ fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
             .with("tooltip", spec.help)
             .with("checked", effective.as_bool())
             .with("on", "handle")
-            .with("data", map().with("fn", row_on_1).with("rel", rel).with("key", key))
+            .with("data", map().with("fn", on_flag_toggled).with("rel", rel).with("key", key))
     } else if kind_of_row == "count" {
         let count = if effective.kind() == "int" { effective } else { spec.fallback };
         map()
@@ -258,7 +245,7 @@ fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
             .with("text", "{count.as_int()}")
             .with("options", spec.options)
             .with("on", "handle")
-            .with("data", map().with("fn", row_on_2).with("rel", rel).with("key", key).with("spec", spec))
+            .with("data", map().with("fn", on_count_picked).with("rel", rel).with("key", key).with("spec", spec))
     } else {
         map()
             .with("kind", "dropdown")
@@ -267,7 +254,7 @@ fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
             .with("text", if effective.kind() == "str" { effective.as_str() } else { spec.fallback.as_str() })
             .with("options", spec.options)
             .with("on", "handle")
-            .with("data", map().with("fn", row_on_3).with("rel", rel).with("key", key))
+            .with("data", map().with("fn", on_choice_picked).with("rel", rel).with("key", key))
     };
     // What the value is following, or the way back to following it.
     let note = if has_own {
@@ -278,50 +265,50 @@ fn row(S: &mut editor::State, k: any, rel: str, kind: str, spec: any) {
             .with("width", 52)
             .with("tooltip", "Drop this key and follow the project again")
             .with("on", "handle")
-            .with("data", map().with("fn", row_on_4).with("rel", rel).with("key", key))
+            .with("data", map().with("fn", on_reset_clicked).with("rel", rel).with("key", key))
     } else {
         map().with("kind", "label").with("text", source).with("role", "text_caption").with("width", 52)
     };
-    inspector::form_row(S, key, [control, note]);
+    inspector::form_row(state, key, [control, note]);
 }
 
-fn row_on_0(S: &mut editor::State, data: any, v: any) {
+fn on_number_changed(state: &mut editor::State, data: any, value: any) {
     if data.whole.as_bool() {
-        write(S, data.rel.as_str(), data.key.as_str(), math::round(v.as_float()) as int);
+        write(state, data.rel.as_str(), data.key.as_str(), math::round(value.as_float()) as int);
     } else {
-        write(S, data.rel.as_str(), data.key.as_str(), v);
+        write(state, data.rel.as_str(), data.key.as_str(), value);
     }
 }
 
-fn row_on_1(S: &mut editor::State, data: any, on: any) {
-    write(S, data.rel.as_str(), data.key.as_str(), on);
+fn on_flag_toggled(state: &mut editor::State, data: any, on: any) {
+    write(state, data.rel.as_str(), data.key.as_str(), on);
 }
 
-fn row_on_2(S: &mut editor::State, data: any, picked: any) {
+fn on_count_picked(state: &mut editor::State, data: any, picked: any) {
     let count = COUNTS().get(picked.as_str());
-    write(S, data.rel.as_str(), data.key.as_str(), if count.is_nil() { data.spec.fallback } else { count });
+    write(state, data.rel.as_str(), data.key.as_str(), if count.is_nil() { data.spec.fallback } else { count });
 }
 
-fn row_on_3(S: &mut editor::State, data: any, picked: any) {
-    write(S, data.rel.as_str(), data.key.as_str(), picked);
+fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
+    write(state, data.rel.as_str(), data.key.as_str(), picked);
 }
 
-fn row_on_4(S: &mut editor::State, data: any, _0: any) {
-    write(S, data.rel.as_str(), data.key.as_str(), nil);
+fn on_reset_clicked(state: &mut editor::State, data: any, _value: any) {
+    write(state, data.rel.as_str(), data.key.as_str(), nil);
 }
 
 // The rows the selected file offers, empty when nothing is selected or the
 // file is one no importer claims.
-fn specs_for(S: editor::State) -> [any] {
-    let rel = S.assets.sel;
+fn specs_for(state: editor::State) -> [any] {
+    let rel = state.assets.sel;
     if rel == "" {
         return [];
     }
-    let kind = kind_for(S, rel);
+    let kind = kind_for(state, rel);
     if kind == "" {
         return [];
     }
-    let lower = image_of(S, rel).to_lower();
+    let lower = image_of(state, rel).to_lower();
     let out: [any] = [];
     for spec in util::vec(ROWS().get(kind)) {
         let only = spec.only.as_str();
@@ -333,14 +320,14 @@ fn specs_for(S: editor::State) -> [any] {
 }
 
 /// Bytes as a person reads them.
-fn size_text(n: float) -> str {
-    if n < 1024.0 {
-        return "{n as int} B";
+fn size_text(bytes: float) -> str {
+    if bytes < 1024.0 {
+        return "{bytes as int} B";
     }
-    if n < 1048576.0 {
-        return "{util::fixed(n / 1024.0, 1)} KB";
+    if bytes < 1048576.0 {
+        return "{util::fixed(bytes / 1024.0, 1)} KB";
     }
-    "{util::fixed(n / 1048576.0, 1)} MB"
+    "{util::fixed(bytes / 1048576.0, 1)} MB"
 }
 
 /// One target's line, short enough for the dock: the pixels that ship, what
@@ -377,16 +364,16 @@ fn shipped_tip(answer: export::Preview?) -> str {
 
 // What each target ships, kept until the file or its settings change: an
 // answer decodes and may re-encode the picture, which no frame should pay.
-fn shipped(S: editor::State, rel: str) -> [[str]] {
-    if S.import_shipped.rel == rel {
-        return S.import_shipped.rows;
+fn shipped(state: editor::State, rel: str) -> [[str]] {
+    if state.import_shipped.rel == rel {
+        return state.import_shipped.rows;
     }
     let rows: [[str]] = [];
     for pair in TARGETS() {
         let answer = export::preview(rel, pair[1]);
         rows.push([pair[0], shipped_line(rel, answer), shipped_tip(answer)]);
     }
-    S.import_shipped = ImportShipped { rel: rel, rows: rows };
+    state.import_shipped = ImportShipped { rel: rel, rows: rows };
     rows
 }
 
@@ -396,33 +383,33 @@ const FORM: str = "Editor/Shell/Body/Right/RightSheet/Import/Scroll/Form";
 /// The Import tab, for whatever the Assets tab has selected: its form filled
 /// on the tab's own node, and what its head says handed back. Empty until a
 /// file is picked, the way the Inspector is empty without a node.
-pub fn fill(S: &mut editor::State) -> Fill {
-    let k = S.theme;
-    let rel = S.assets.sel;
-    let specs: [any] = specs_for(S);
+pub fn fill(state: &mut editor::State) -> Fill {
+    let tokens = state.theme;
+    let rel = state.assets.sel;
+    let specs: [any] = specs_for(state);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
-        pool::hide(S, FORM);
+        pool::hide(state, FORM);
         return Fill { ready: false, says: why, name: "", from: "" };
     }
-    let kind = kind_for(S, rel);
-    let image = image_of(S, rel);
+    let kind = kind_for(state, rel);
+    let image = image_of(state, rel);
     let from = if image != rel {
         "reads " + image
-    } else if fs::exists(full(S, sidecar_of(rel))) {
+    } else if fs::exists(full(state, sidecar_of(rel))) {
         sidecar_of(util::last_segment(rel))
     } else {
         "no settings file yet"
     };
-    inspector::open_pool(S);
+    inspector::open_pool(state);
     for spec in specs {
-        row(S, k, rel, kind, spec);
+        row(state, tokens, rel, kind, spec);
     }
     if kind == "texture" || kind == "audio" {
-        for pair in shipped(S, image) {
-            inspector::form_row(S, pair[0], [map().with("kind", "label").with("text", pair[1]).with("tooltip", pair[2]).with("role", "text_caption").with("grow", 1)]);
+        for pair in shipped(state, image) {
+            inspector::form_row(state, pair[0], [map().with("kind", "label").with("text", pair[1]).with("tooltip", pair[2]).with("role", "text_caption").with("grow", 1)]);
         }
     }
-    inspector::close_pool_into(S, FORM);
+    inspector::close_pool_into(state, FORM);
     Fill { ready: true, says: "", name: util::last_segment(rel), from: "{kind}  ·  {from}" }
 }

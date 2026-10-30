@@ -1,7 +1,7 @@
 // A crate dropped onto the tiles: it lands on the stone and slides over the
 // seams between cells without catching on one.
 
-pub struct Drop {
+pub class Drop {
     node: Node,
 }
 

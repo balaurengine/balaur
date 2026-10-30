@@ -7,7 +7,7 @@ use egui::{Align2, Color32, CornerRadius, FontId, Sense, pos2, vec2};
 
 use crate::UiState;
 use crate::theme;
-use crate::vocabulary::{keys as k, tokens as t, words as w};
+use crate::vocabulary::{keys as k, tokens as t};
 use crate::widget::node::Widget;
 use crate::widget::paint::Brush;
 use crate::widget::theme::WidgetTheme;
@@ -16,6 +16,8 @@ use crate::widget::theme::WidgetTheme;
 pub(crate) struct CodeLook<'a> {
     pub(crate) widget: &'a Widget,
     pub(crate) theme: &'a WidgetTheme,
+    /// Whose faces it draws in.
+    pub(crate) project: balaur_text::FontProject,
 }
 
 impl CodeLook<'_> {
@@ -30,6 +32,22 @@ impl CodeLook<'_> {
         } else {
             12.5
         }
+    }
+
+    /// What the code draws in: the widget's own font, else the theme's
+    /// `mono`, else its default.
+    fn family(&self) -> egui::FontFamily {
+        let font = if self.widget.font.is_empty() {
+            let mono = self.theme.font(t::FONT_MONO);
+            if mono.is_empty() {
+                self.theme.font(t::FONT_DEFAULT)
+            } else {
+                mono
+            }
+        } else {
+            self.widget.font.as_str()
+        };
+        theme::weighted(self.project, font, 400.0, false)
     }
 }
 
@@ -362,6 +380,7 @@ struct Gutter {
     width: f32,
     color: Color32,
     size: f32,
+    family: egui::FontFamily,
     breakpoints: Vec<usize>,
     current_line: usize,
     breakpoint_color: Color32,
@@ -380,6 +399,7 @@ impl Gutter {
             },
             color: look.color(k::GUTTER_COLOR, theme::color(t::TEXT_SUBTLE)),
             size,
+            family: look.family(),
             breakpoints: line_numbers(&widget.breakpoints),
             current_line: usize::try_from(widget.current_line).unwrap_or(0),
             breakpoint_color: look.color(k::BREAKPOINT_COLOR, theme::color(t::DANGER_TEXT)),
@@ -409,7 +429,7 @@ impl Gutter {
             );
             Brush::of(ui).fill(row, CornerRadius::ZERO, self.current_fill);
         }
-        let font = FontId::new((self.size - 1.5).max(8.0), theme::family(w::MONO));
+        let font = FontId::new((self.size - 1.5).max(8.0), self.family.clone());
         for i in 0..n_lines {
             let center_y = rect.min.y + row_h * (i as f32 + 0.5);
             if self.breakpoints.contains(&(i + 1)) {
@@ -474,7 +494,7 @@ pub(crate) fn code_editor(
     let gutter = Gutter::of(look, size);
     let colors = SyntaxColors::of(look);
     let marks = Marks::of(look);
-    let font = FontId::new(size, theme::family(w::MONO));
+    let font = FontId::new(size, look.family());
     let margin = code_margin(widget.padding);
     let (changed, clicked, caret) = {
         let font = font.clone();

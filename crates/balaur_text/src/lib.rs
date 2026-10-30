@@ -1,7 +1,7 @@
 //! Shaped text for the widget layer and the renderer's world text.
 //!
 //! cosmic-text lays a string out — bidi, contextual forms, script fallback
-//! across the project's font chain, word breaks that know CJK and Thai —
+//! across the project's faces, word breaks that know CJK and Thai —
 //! swash draws each glyph once into an atlas this crate owns, and egui paints
 //! the quads like any other mesh. egui's own text stays for the editor; a
 //! game's labels come through here, which is what lets a label say the same
@@ -13,29 +13,32 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use balaur_core::Engine;
-use cosmic_text::{Buffer, CacheKeyFlags, FontSystem, SwashCache, fontdb};
+use cosmic_text::{Buffer, CacheKeyFlags};
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 pub mod bitmap;
+pub mod font;
 pub mod fonts;
 pub mod glyph;
 pub mod markup;
 pub mod options;
+pub mod text_style;
 pub mod vocabulary;
 
 pub mod atlas;
 mod shape;
 
 use atlas::GlyphAtlas;
+pub use font::{Font, FontSettings};
+pub use fonts::{FontProject, LoadedFont, ProjectFonts};
 pub use markup::Align;
 pub use options::{
     Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch, TruncateAt,
     Underline,
 };
-use shape::{Chain, Chains, Tweaks, runs, shape_into, spans_of};
+use shape::{runs, shape_into, spans_of};
 
 /// Sizes are rasterised in buckets a twelfth of a step apart, so a camera
 /// zooming continuously re-shapes a few times rather than every frame — and
@@ -69,12 +72,11 @@ pub struct Request {
     pub truncate: bool,
     pub align: Align,
     pub markup: bool,
-    /// A `font` asset naming a bitmap face; empty shapes with the project's
-    /// vector chain.
+    /// The font it is shaped in: a face file, a `font` asset, or the key an
+    /// inline definition is filed under. Empty takes the default font.
     pub font: String,
-    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icon`.
-    /// Empty takes `ui`, which is what a label has always used.
-    pub family: String,
+    /// Whose faces the font is looked up in.
+    pub project: FontProject,
     /// Baseline to baseline, as a multiple of the size; zero takes the
     /// browser's `normal`, which is what every label has used.
     pub line_height: f32,
@@ -98,7 +100,7 @@ pub struct RequestRef<'a> {
     pub align: Align,
     pub markup: bool,
     pub font: &'a str,
-    pub family: &'a str,
+    pub project: FontProject,
     pub line_height: f32,
     pub letter_spacing: f32,
     pub options: &'a Options,
@@ -118,7 +120,7 @@ impl RequestRef<'_> {
             align: self.align,
             markup: self.markup,
             font: self.font.to_string(),
-            family: self.family.to_string(),
+            project: self.project,
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
             options: self.options.clone(),
@@ -127,8 +129,8 @@ impl RequestRef<'_> {
 }
 
 impl Request {
-    /// `text` at `size` pixels, regular and upright in the `ui` chain on one
-    /// line, with every option at its default.
+    /// `text` at `size` pixels, regular and upright in the default font on
+    /// one line, with every option at its default.
     #[must_use]
     pub fn new(text: &str, size: f32) -> Self {
         Self {
@@ -141,7 +143,7 @@ impl Request {
             align: Align::Start,
             markup: false,
             font: String::new(),
-            family: String::new(),
+            project: FontProject::Host,
             line_height: 0.0,
             letter_spacing: 0.0,
             options: Options::default(),
@@ -161,7 +163,7 @@ impl Request {
             align: self.align,
             markup: self.markup,
             font: &self.font,
-            family: &self.family,
+            project: self.project,
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
             options: &self.options,
@@ -189,7 +191,7 @@ fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     request.align.hash(&mut hasher);
     request.markup.hash(&mut hasher);
     request.font.hash(&mut hasher);
-    request.family.hash(&mut hasher);
+    request.project.hash(&mut hasher);
     request.line_height.to_bits().hash(&mut hasher);
     request.letter_spacing.to_bits().hash(&mut hasher);
     request.options.hash_into(&mut hasher);
@@ -283,25 +285,19 @@ impl Shaped {
 /// The shaper, its glyph cache and the atlas: one per engine, made when the
 /// fonts are installed.
 pub struct TextState {
-    fonts: FontSystem,
-    swash: SwashCache,
     atlas: GlyphAtlas,
     layouts: HashMap<Key, Rc<Shaped>>,
-    /// The first face of each named chain, by chain: what `family` on a
-    /// request resolves to.
-    families: Chains,
-    /// Bitmap fonts by asset name, with their page's box in the atlas.
+    /// Bitmap faces by the `.fnt` path, with their page's box in the atlas.
     pages: HashMap<String, BitmapPage>,
-    /// The project's and the bundled faces, without the system's: what a
-    /// measurement is allowed to see.
-    own: Vec<crate::fonts::FontFace>,
-    locale: String,
-    /// Built from `own` the first time something measures. Separate from
-    /// `fonts` on purpose: drawing may fall back to whatever the machine has,
-    /// and a number that reaches a script may not.
-    strict: Option<(FontSystem, Tweaks)>,
-    /// Each face's import settings, by the id `fonts` gave it.
-    tweaks: Tweaks,
+    /// The engine's own project's faces.
+    host: ProjectFonts,
+    /// The faces of the project whose content the engine plays, and its root,
+    /// while that is not the engine's own: the game the editor edits.
+    content: Option<(std::path::PathBuf, ProjectFonts)>,
+    /// Bumped whenever a project's faces are read again or a font is read,
+    /// so a consumer holding faces of its own (egui's) knows to take them
+    /// again.
+    pub fonts_generation: u64,
 }
 
 /// A loaded bitmap font: the descriptor, and where its page sits.
@@ -311,81 +307,100 @@ struct BitmapPage {
     page_size: Vec2,
 }
 
-/// The project's chain, in order, as the fallback list: what the engine
-/// means by "the next font" is what cosmic-text asks this for.
-struct ChainFallback {
-    families: Vec<&'static str>,
-}
-
-impl cosmic_text::Fallback for ChainFallback {
-    fn common_fallback(&self) -> &[&'static str] {
-        &self.families
-    }
-
-    fn forbidden_fallback(&self) -> &[&'static str] {
-        &[]
-    }
-
-    fn script_fallback(&self, _: unicode_script::Script, _: &str) -> &[&'static str] {
-        &[]
+/// The faces `project` draws in: the content's while one is played, else
+/// the host's. A free function over the two fields, so the atlas beside them
+/// stays borrowable.
+fn fonts_of<'a>(
+    host: &'a mut ProjectFonts,
+    content: &'a mut Option<(std::path::PathBuf, ProjectFonts)>,
+    project: FontProject,
+) -> &'a mut ProjectFonts {
+    match content {
+        Some((_, fonts)) if project == FontProject::Content => fonts,
+        _ => host,
     }
 }
 
 impl TextState {
-    /// Build from the faces the theme loaded, in chain order.
+    /// Build from `faces`, in fallback order, the first of them the default
+    /// font.
     pub fn new(faces: &[crate::fonts::FontFace], locale: &str) -> Self {
-        let mut db = fontdb::Database::new();
-        let mut families: Vec<&'static str> = Vec::new();
-        let mut chains: HashMap<String, Chain> = HashMap::new();
-        let mut tweaks = Tweaks::default();
-        for face in faces {
-            let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
-            let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
-            let ids = db.load_font_source(fontdb::Source::Binary(data));
-            tweaks.add(&ids, face.tweak);
-            for id in ids {
-                let Some(info) = db.face(id) else {
-                    continue;
-                };
-                let Some((name, _)) = info.families.first() else {
-                    continue;
-                };
-                chains
-                    .entry(face.chain.to_string())
-                    .or_insert_with(|| Chain {
-                        family: name.clone(),
-                        scale: face.tweak.scale,
-                        weight: info.weight.0,
-                    });
-                // The shaper's fallback list wants `'static`; a font set lives
-                // as long as the process, so the leak is the family's lifetime.
-                let leaked: &'static str = Box::leak(name.clone().into_boxed_str());
-                if !families.contains(&leaked) {
-                    families.push(leaked);
-                }
-            }
-        }
-        let fonts = FontSystem::new_with_locale_and_db_and_fallback(
-            locale.to_string(),
-            db,
-            ChainFallback { families },
-        );
+        Self::over(ProjectFonts::new(faces, locale))
+    }
+
+    /// Over one project's faces, with nothing shaped yet.
+    fn over(host: ProjectFonts) -> Self {
         Self {
-            fonts,
-            swash: SwashCache::new(),
             atlas: GlyphAtlas::default(),
             layouts: HashMap::new(),
-            families: Chains(chains),
             pages: HashMap::new(),
-            own: faces
-                .iter()
-                .filter(|face| face.chain != "system")
-                .cloned()
-                .collect(),
-            locale: locale.to_string(),
-            strict: None,
-            tweaks,
+            host,
+            content: None,
+            fonts_generation: 0,
         }
+    }
+
+    /// The engine's own project's faces.
+    pub fn host_fonts(&mut self) -> &mut ProjectFonts {
+        &mut self.host
+    }
+
+    /// Each project's faces and fonts: the host's, and the played content's
+    /// while there is one.
+    pub fn projects(&self) -> impl Iterator<Item = (FontProject, &ProjectFonts)> {
+        std::iter::once((FontProject::Host, &self.host)).chain(
+            self.content
+                .as_ref()
+                .map(|(_, fonts)| (FontProject::Content, fonts)),
+        )
+    }
+
+    /// Read the font `reference` names into `project`'s faces, its bitmap
+    /// page into the atlas, and forget what was shaped in the default while
+    /// it was not read.
+    pub fn load_font(&mut self, eng: &Engine, project: FontProject, reference: &str) {
+        let fonts = fonts_of(&mut self.host, &mut self.content, project);
+        let before = fonts.fonts_read;
+        let font = fonts.load(eng, reference);
+        if fonts.fonts_read == before {
+            return;
+        }
+        if let Some(path) = &font.bitmap
+            && !self.pages.contains_key(path)
+            && let Err(err) = self.load_page(eng, path)
+        {
+            tracing::warn!("bitmap font '{path}': {err:#}");
+        }
+        self.layouts.clear();
+        self.fonts_generation += 1;
+    }
+
+    /// Put face `face` of the host's under `reference` with `settings`.
+    #[cfg(test)]
+    pub(crate) fn define_font(&mut self, reference: &str, face: usize, settings: FontSettings) {
+        self.host.define(reference, face, settings);
+        self.layouts.clear();
+    }
+
+    /// Read a bitmap face's `.fnt` and the page beside it into the atlas.
+    fn load_page(&mut self, eng: &Engine, path: &str) -> anyhow::Result<()> {
+        let files = eng
+            .try_resource::<balaur_core::project::ProjectFiles>()
+            .ok_or_else(|| anyhow::anyhow!("no project to read it from"))?;
+        let descriptor = String::from_utf8(files.borrow().read(path)?)
+            .map_err(|_| anyhow::anyhow!("{path} is not a text .fnt descriptor"))?;
+        let page_path = bitmap::page_of(path, &descriptor)
+            .ok_or_else(|| anyhow::anyhow!("{path} names no page"))?;
+        let page = files.borrow().read(&page_path)?;
+        self.add_bitmap_font(path, &descriptor, &page)
+    }
+
+    /// Everything shaped is shaped again and every glyph drawn again: the
+    /// faces under them were read anew, and their ids with them.
+    fn forget_shaped(&mut self) {
+        self.layouts.clear();
+        self.atlas.reset();
+        self.fonts_generation += 1;
     }
 
     pub fn texture(&self) -> Option<egui::TextureId> {
@@ -409,9 +424,10 @@ impl TextState {
     /// know before asserting on a script.
     #[cfg(test)]
     fn covers(&mut self, c: char) -> bool {
-        let ids: Vec<fontdb::ID> = self.fonts.db().faces().map(|f| f.id).collect();
+        let fonts = &mut self.host.drawing;
+        let ids: Vec<cosmic_text::fontdb::ID> = fonts.db().faces().map(|f| f.id).collect();
         ids.into_iter().any(|id| {
-            self.fonts
+            fonts
                 .get_font(id, cosmic_text::Weight::NORMAL)
                 .is_some_and(|font| font.as_swash().charmap().map(c) != 0)
         })
@@ -428,16 +444,22 @@ impl TextState {
 
     /// [`Self::measure`], for a caller holding the text rather than owning it.
     pub fn measure_ref(&mut self, request: &RequestRef<'_>) -> Vec2 {
-        if self.strict.is_none() {
-            self.strict = Some(Self::system_of(&self.own, &self.locale));
+        let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
+        // A bitmap face's descriptor is as fixed as a project's face.
+        if let Some(path) = &fonts.table.of(request.font).bitmap
+            && let Some(page) = self.pages.get(path)
+        {
+            return page
+                .font
+                .layout(request.text, request.size, page.region, page.page_size)
+                .size;
         }
-        let Some((fonts, tweaks)) = self.strict.as_mut() else {
-            return Vec2::ZERO;
-        };
-        let buffer = shape_into(fonts, tweaks, &self.families, request);
+        let (system, tweaks, table) = fonts.measuring();
+        let buffer = shape_into(system, tweaks, table, request);
+        let monospace = table.of(request.font).settings.monospace_width;
         let mut extent = Vec2::ZERO;
         for run in runs(&buffer, request.options) {
-            extent.x = extent.x.max(shape::line_width(&run, request.options));
+            extent.x = extent.x.max(shape::line_width(&run, monospace));
             extent.y = extent.y.max(run.line_top + run.line_height);
         }
         if let Some(width) = request.width {
@@ -481,55 +503,20 @@ impl TextState {
         shaped
     }
 
-    /// One font system over `faces`, with those faces as the fallback chain,
-    /// and each face's import settings by the id it was given there.
-    fn system_of(faces: &[crate::fonts::FontFace], locale: &str) -> (FontSystem, Tweaks) {
-        let mut db = fontdb::Database::new();
-        let mut families: Vec<&'static str> = Vec::new();
-        let mut tweaks = Tweaks::default();
-        for face in faces {
-            let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
-            let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
-            let ids = db.load_font_source(fontdb::Source::Binary(data));
-            tweaks.add(&ids, face.tweak);
-            for id in ids {
-                let Some(info) = db.face(id) else { continue };
-                let Some((name, _)) = info.families.first() else {
-                    continue;
-                };
-                let leaked: &'static str = Box::leak(name.clone().into_boxed_str());
-                if !families.contains(&leaked) {
-                    families.push(leaked);
-                }
-            }
-        }
-        let fonts = FontSystem::new_with_locale_and_db_and_fallback(
-            locale.to_string(),
-            db,
-            ChainFallback { families },
-        );
-        (fonts, tweaks)
-    }
-
     fn layout(&mut self, request: &RequestRef<'_>, scale: f32) -> Shaped {
+        let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
         // A bitmap font has one glyph per character and no contextual forms,
         // so it lays out rather than shapes.
-        if !request.font.is_empty()
-            && let Some(shaped) = self.layout_bitmap(request)
+        if let Some(path) = &fonts.table.of(request.font).bitmap
+            && let Some(page) = self.pages.get(path)
         {
-            return shaped;
+            return page
+                .font
+                .layout(request.text, request.size, page.region, page.page_size);
         }
         let parsed = spans_of(request);
-        let buffer = shape_into(&mut self.fonts, &self.tweaks, &self.families, request);
-        self.place(&buffer, &parsed, request, scale)
-    }
-
-    /// Lay a run out in a bitmap font, placing its page in the atlas the
-    /// first time. `None` when no such font is loaded.
-    fn layout_bitmap(&mut self, request: &RequestRef<'_>) -> Option<Shaped> {
-        let page = self.pages.get(request.font)?;
-        let (font, region, size) = (page.font.clone(), page.region, page.page_size);
-        Some(font.layout(request.text, request.size, region, size))
+        let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, request);
+        place(&mut self.atlas, fonts, &buffer, &parsed, request, scale)
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
@@ -567,98 +554,101 @@ impl TextState {
     pub fn has_bitmap_font(&self, name: &str) -> bool {
         self.pages.contains_key(name)
     }
+}
 
-    /// Every laid-out glyph as a quad on the atlas, every decoration as a
-    /// line, and every picture's box.
-    fn place(
-        &mut self,
-        buffer: &Buffer,
-        parsed: &markup::Markup,
-        request: &RequestRef<'_>,
-        scale: f32,
-    ) -> Shaped {
-        let options = request.options;
-        let mut quads = Vec::new();
-        let mut pictures = Vec::new();
-        let mut bars = Vec::new();
-        let mut elided = false;
-        let mut extent = Vec2::ZERO;
-        for run in runs(buffer, options) {
-            extent.x = extent.x.max(shape::line_width(&run, request.options));
-            extent.y = extent.y.max(run.line_top + run.line_height);
-            bars.extend(decorations(&run));
-            for glyph in run.glyphs {
-                // cosmic-text's ellipsis covers no text, so its cluster is empty.
-                elided |= glyph.start == glyph.end;
-                let span = parsed.spans.get(glyph.metadata);
-                if let Some(picture) = span.and_then(|s| s.image.as_ref()) {
-                    let top = run.line_y - picture.height;
-                    pictures.push(Picture {
-                        rect: Rect::from_min_size(
-                            pos2(glyph.x, top.max(run.line_top)),
-                            vec2(picture.width, picture.height),
-                        ),
-                        path: picture.path.clone(),
-                    });
-                    continue;
-                }
-                let tweak = self.tweaks.of(glyph.font_id);
-                // `y_offset` moves the glyph and not the line, as egui's
-                // `FontTweak` does: a fraction of the size the face draws at.
-                let lower = glyph.font_size * tweak.y_offset * scale;
-                let mut physical = glyph.physical((0.0, lower), scale);
-                if !options.hinting.hints(tweak.hinting) {
-                    physical.cache_key.flags |= CacheKeyFlags::DISABLE_HINTING;
-                }
-                if options.pixel_snap {
-                    physical.cache_key.flags |= CacheKeyFlags::PIXEL_FONT;
-                }
-                let Some(slot) = self.atlas.slot(
-                    &mut self.fonts,
-                    &mut self.swash,
-                    physical.cache_key,
-                    !tweak.antialias,
-                ) else {
-                    continue;
-                };
-                // Back to points: the glyph was placed and rasterised in
-                // device pixels, and everything around it is in points.
-                let x = (physical.x as f32 + slot.offset.x) / scale;
-                let y = run.line_y + (physical.y as f32 - slot.offset.y) / scale;
-                quads.push(Quad {
-                    rect: Rect::from_min_size(pos2(x, y), slot.size / scale),
-                    uv: slot.uv,
-                    color: span.and_then(|s| s.color),
-                    colored: slot.colored,
-                    wave: span.and_then(|s| s.wave),
-                    link: span.and_then(|s| s.link),
-                    hint: span.and_then(|s| s.hint),
-                    start: u32::try_from(glyph.start).unwrap_or(u32::MAX),
+/// Every laid-out glyph as a quad on the atlas, every decoration as a line,
+/// and every picture's box.
+fn place(
+    atlas: &mut GlyphAtlas,
+    fonts: &mut ProjectFonts,
+    buffer: &Buffer,
+    parsed: &markup::Markup,
+    request: &RequestRef<'_>,
+    scale: f32,
+) -> Shaped {
+    let options = request.options;
+    let font = &fonts.table.of(request.font).settings;
+    let mut quads = Vec::new();
+    let mut pictures = Vec::new();
+    let mut bars = Vec::new();
+    let mut elided = false;
+    let mut extent = Vec2::ZERO;
+    for run in runs(buffer, options) {
+        extent.x = extent.x.max(shape::line_width(&run, font.monospace_width));
+        extent.y = extent.y.max(run.line_top + run.line_height);
+        bars.extend(decorations(&run));
+        for glyph in run.glyphs {
+            // cosmic-text's ellipsis covers no text, so its cluster is empty.
+            elided |= glyph.start == glyph.end;
+            let span = parsed.spans.get(glyph.metadata);
+            if let Some(picture) = span.and_then(|s| s.image.as_ref()) {
+                let top = run.line_y - picture.height;
+                pictures.push(Picture {
+                    rect: Rect::from_min_size(
+                        pos2(glyph.x, top.max(run.line_top)),
+                        vec2(picture.width, picture.height),
+                    ),
+                    path: picture.path.clone(),
                 });
+                continue;
             }
+            let tweak = fonts.tweaks.of(glyph.font_id);
+            // `y_offset` moves the glyph and not the line, as egui's
+            // `FontTweak` does: a fraction of the size the face draws at.
+            let lower = glyph.font_size * tweak.y_offset * scale;
+            let mut physical = glyph.physical((0.0, lower), scale);
+            if !font.hinting.hints(tweak.hinting) {
+                physical.cache_key.flags |= CacheKeyFlags::DISABLE_HINTING;
+            }
+            if font.pixel_snap {
+                physical.cache_key.flags |= CacheKeyFlags::PIXEL_FONT;
+            }
+            let Some(slot) = atlas.slot(
+                &mut fonts.drawing,
+                &mut fonts.swash,
+                request.project,
+                physical.cache_key,
+                !tweak.antialias,
+            ) else {
+                continue;
+            };
+            // Back to points: the glyph was placed and rasterised in
+            // device pixels, and everything around it is in points.
+            let x = (physical.x as f32 + slot.offset.x) / scale;
+            let y = run.line_y + (physical.y as f32 - slot.offset.y) / scale;
+            quads.push(Quad {
+                rect: Rect::from_min_size(pos2(x, y), slot.size / scale),
+                uv: slot.uv,
+                color: span.and_then(|s| s.color),
+                colored: slot.colored,
+                wave: span.and_then(|s| s.wave),
+                link: span.and_then(|s| s.link),
+                hint: span.and_then(|s| s.hint),
+                start: u32::try_from(glyph.start).unwrap_or(u32::MAX),
+            });
         }
-        // A block that wrapped is as wide as it was allowed to be, so a
-        // centred line has something to be centred in.
-        if let Some(width) = request.width {
-            extent.x = width;
-        }
-        let lines = match self.atlas.solid() {
-            Some(uv) if !bars.is_empty() => bars
-                .into_iter()
-                .map(|(rect, color)| Line { rect, uv, color })
-                .collect(),
-            _ => Vec::new(),
-        };
-        Shaped {
-            size: extent,
-            quads,
-            lines,
-            elided,
-            pictures,
-            links: parsed.links.clone(),
-            hints: parsed.hints.clone(),
-            text: parsed.spans.iter().map(|span| span.text.as_str()).collect(),
-        }
+    }
+    // A block that wrapped is as wide as it was allowed to be, so a
+    // centred line has something to be centred in.
+    if let Some(width) = request.width {
+        extent.x = width;
+    }
+    let lines = match atlas.solid() {
+        Some(uv) if !bars.is_empty() => bars
+            .into_iter()
+            .map(|(rect, color)| Line { rect, uv, color })
+            .collect(),
+        _ => Vec::new(),
+    };
+    Shaped {
+        size: extent,
+        quads,
+        lines,
+        elided,
+        pictures,
+        links: parsed.links.clone(),
+        hints: parsed.hints.clone(),
+        text: parsed.spans.iter().map(|span| span.text.as_str()).collect(),
     }
 }
 
@@ -813,23 +803,10 @@ pub fn paint(
     }
 }
 
-/// Read a bitmap font's `.fnt` and its page out of the project and hand
-/// them to the shaper, once per face. Later calls find it already there.
-///
-/// # Errors
-/// If the descriptor or its page cannot be read, or does not load.
-pub fn load_bitmap_font(eng: &Engine, path: &str) -> anyhow::Result<()> {
-    let state = shaper(eng);
-    if state.borrow().has_bitmap_font(path) {
-        return Ok(());
-    }
-    let files = eng.resource::<balaur_core::project::ProjectFiles>();
-    let descriptor = String::from_utf8(files.borrow().read(path)?)
-        .map_err(|_| anyhow::anyhow!("{path} is not a text .fnt descriptor"))?;
-    let page_path = bitmap::page_of(path, &descriptor)
-        .ok_or_else(|| anyhow::anyhow!("{path} names no page"))?;
-    let page = files.borrow().read(&page_path)?;
-    state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
+/// Read the font `reference` names into `project`'s faces now, rather than
+/// on the next look at the files: a text about to be measured asks first.
+pub fn load_font(eng: &Engine, project: FontProject, reference: &str) {
+    shaper(eng).borrow_mut().load_font(eng, project, reference);
 }
 
 /// The shaper for this engine, if anything has asked for it yet.
@@ -838,15 +815,78 @@ pub fn state(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<TextState>>>
 }
 
 /// The shaper for this engine, made from the project's fonts by whichever
-/// asks first: world text can draw before the first UI pass does.
+/// asks first: world text can draw before the first UI pass does. Each call
+/// follows the faces on disk and the content root, so whatever asks once a
+/// frame keeps the shaper's faces the files'.
 pub fn shaper(eng: &Engine) -> std::rc::Rc<std::cell::RefCell<TextState>> {
-    if let Some(state) = state(eng) {
-        return state;
+    let state = state(eng).unwrap_or_else(|| {
+        eng.insert_resource(TextState::over(ProjectFonts::read(eng, FontProject::Host)));
+        eng.resource::<TextState>()
+    });
+    follow_files(eng, &state);
+    state
+}
+
+/// Read a project's faces again where a file under its `fonts/` moved, and
+/// take up or let go of the content's as the content root moves.
+fn follow_files(eng: &Engine, state: &std::cell::RefCell<TextState>) {
+    let read_before: u64 = state
+        .borrow()
+        .projects()
+        .map(|(_, fonts)| fonts.fonts_read)
+        .sum();
+    let host_moved = state.borrow_mut().host.moved(eng, FontProject::Host);
+    if host_moved {
+        let host = ProjectFonts::read(eng, FontProject::Host);
+        let mut state = state.borrow_mut();
+        state.host = host;
+        state.forget_shaped();
     }
-    let faces = fonts::font_faces(eng);
-    let locale = balaur_core::strings::locale(eng);
-    eng.insert_resource(TextState::new(&faces, &locale));
-    eng.resource::<TextState>()
+    // A content root that is the project's own plays nothing apart from it.
+    let wanted = balaur_core::project::content_root(eng).filter(|root| {
+        eng.try_resource::<balaur_core::project::ProjectRoot>()
+            .is_none_or(|own| own.borrow().0 != *root)
+    });
+    let content_moved = {
+        let mut held = state.borrow_mut();
+        match (&mut held.content, &wanted) {
+            (Some((root, fonts)), Some(wanted)) => {
+                root != wanted || fonts.moved(eng, FontProject::Content)
+            }
+            (None, None) => false,
+            _ => true,
+        }
+    };
+    if content_moved {
+        let content = wanted.map(|root| (root, ProjectFonts::read(eng, FontProject::Content)));
+        let mut state = state.borrow_mut();
+        state.content = content;
+        state.forget_shaped();
+    } else if !host_moved {
+        // A saved definition let go of the fonts it named.
+        let read_after: u64 = state
+            .borrow()
+            .projects()
+            .map(|(_, fonts)| fonts.fonts_read)
+            .sum();
+        if read_after != read_before {
+            let mut state = state.borrow_mut();
+            state.layouts.clear();
+            state.fonts_generation += 1;
+        }
+    }
+    // The fonts a text named that the shaper answered with the default.
+    for project in FontProject::BOTH {
+        let named: Vec<String> = state
+            .borrow()
+            .projects()
+            .filter(|(owner, _)| *owner == project)
+            .flat_map(|(_, fonts)| fonts.take_wanted())
+            .collect();
+        for reference in named {
+            state.borrow_mut().load_font(eng, project, &reference);
+        }
+    }
 }
 
 #[cfg(test)]

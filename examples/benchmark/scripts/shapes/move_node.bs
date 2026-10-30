@@ -1,7 +1,7 @@
 // Writing the node's transform every frame, which is what anything that
 // moves under its own script does.
 
-pub struct MoveNode {
+pub class MoveNode {
     node: Node,
     t: float,
     home: Vec3,

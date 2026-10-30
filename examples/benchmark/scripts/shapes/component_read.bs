@@ -1,6 +1,6 @@
 // One property read and one written, the seam a control or a tweak crosses.
 
-pub struct ComponentRead {
+pub class ComponentRead {
     node: Node,
     seen: float,
 }

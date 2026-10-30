@@ -2,7 +2,7 @@
 // body itself: convex pieces, each grown through the seams it shares.
 // Why: https://box2d.org/posts/2020/04/stuck-inside/
 
-pub struct Pieces {
+pub class Pieces {
     pub shot: str = "",
     pub frames: str = "",
     node: Node,

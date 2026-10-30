@@ -12,7 +12,7 @@ fn two_textures() -> Pack {
     };
     pack.scenes.insert(
         "main.toml".to_string(),
-        "[[nodes]]\nid = \"n\"\ntexture = \"art/hero.png\"\n".to_string(),
+        "[[nodes]]\nid = \"hero\"\ntexture = \"art/hero.png\"\n".to_string(),
     );
     pack.assets.insert("art/hero.png".to_string(), vec![1; 64]);
     pack.assets.insert("art/spare.png".to_string(), vec![2; 32]);
@@ -62,7 +62,7 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
     let mut pack = two_textures();
     pack.scripts.insert(
         "player.bs".to_string(),
-        b"pub struct P { node: Node }\nimpl P { fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
+        b"pub class Player { node: Node }\nimpl Player { fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
             .to_vec(),
     );
     assert!(pack.unreferenced(&[]).is_empty());
@@ -201,7 +201,7 @@ fn the_reports_display_names_every_section_and_the_unreferenced_count() {
 #[test]
 fn a_font_is_never_unreferenced_though_nothing_names_it() {
     let mut pack = Pack {
-        manifest: "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n".into(),
+        manifest: "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n".into(),
         ..Pack::default()
     };
     pack.scenes

@@ -1,7 +1,7 @@
 // The viewport lines' one script: the Editor draws them again and keeps them
 // when the document, the selection, the tool, play, the camera or a file moved.
 
-pub struct Overlays {
+pub class Overlays {
     node: Node,
     editor: Node,
 }

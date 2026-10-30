@@ -41,6 +41,10 @@
 //!                           inspector always shows, so grouping one is the
 //!                           decision to put it away by default)
 //!
+//! The order a schema writes its properties in is the order they are shown
+//! in ([`Schema::order`]): the ungrouped ones first, then each group where
+//! the schema first names it, its properties in the order written.
+//!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
 //! reserved for a tagged union's discriminant (`shape.kind = "sphere"`), so a
 //! discriminant reads `kind = { type = "enum", options = [...] }`.
@@ -103,7 +107,13 @@ use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use authored::Authored;
-use authored::{asked_for_at, forget, record_at, record_one};
+use authored::{asked_for_at, forget, forget_node, record_at, record_one};
+
+/// What was asked of component `index` of `entity` until now, if anything:
+/// what a change replaced.
+pub(crate) fn asked_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
+    asked_for_at(eng, entity, index)
+}
 pub(crate) use property::resolve_property_hooks;
 pub use property::{
     PropertyReaders, PropertyWriteFn, PropertyWriters, answers_alone, answers_property, property,
@@ -258,10 +268,10 @@ pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings:
 pub type PropertyFn = Box<dyn Fn(&Engine, Entity, &str) -> Option<toml::Value>>;
 
 pub struct ComponentDef {
-    /// TOML table of property specs (see module docs). Shared, because a
-    /// patch reads it every time a property is written and a copy per write
-    /// is the whole table.
-    pub schema: Rc<toml::Value>,
+    /// TOML table of property specs (see module docs), in the order it
+    /// writes them. Shared, because a patch reads it every time a property
+    /// is written and a copy per write is the whole table.
+    pub schema: Rc<Schema>,
     /// What the component gives a node, in one or two sentences, for the
     /// generated reference. `scripts/api_lints.py` fails an empty one.
     pub doc: &'static str,
@@ -297,6 +307,40 @@ pub struct ComponentDef {
     pub get: GetFn,
     /// What is off about the component on a node, for the editor to show.
     pub warnings: WarningsFn,
+}
+
+/// A component's property specs, and the order its schema writes them in.
+///
+/// That order is the one an inspector shows: the rows with no `group` first,
+/// then each group, its rows together. A TOML table sorts its keys, so the
+/// order is kept beside the table rather than in it.
+#[derive(Debug)]
+pub struct Schema {
+    specs: toml::Value,
+    order: Box<[String]>,
+}
+
+impl Schema {
+    /// Every property name, in the order the schema writes them.
+    #[must_use]
+    pub fn order(&self) -> &[String] {
+        &self.order
+    }
+
+    /// Every property's name and spec, in the order the schema writes them.
+    pub fn ordered(&self) -> impl Iterator<Item = (&str, &toml::Value)> {
+        self.order
+            .iter()
+            .filter_map(|name| Some((name.as_str(), self.specs.get(name)?)))
+    }
+}
+
+impl std::ops::Deref for Schema {
+    type Target = toml::Value;
+
+    fn deref(&self) -> &toml::Value {
+        &self.specs
+    }
 }
 
 pub mod tag {
@@ -336,10 +380,10 @@ impl ComponentDef {
     /// are compile-time constants written by plugin authors, so a bad one is a
     /// bug in the plugin rather than bad user input, and failing at
     /// registration beats an inspector row that silently never appears.
-    pub fn parse_schema(component: &str, text: &str) -> Rc<toml::Value> {
-        let mut schema: toml::Value = toml::from_str(text)
+    pub fn parse_schema(component: &str, text: &str) -> Rc<Schema> {
+        let mut specs: toml::Value = toml::from_str(text)
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
-        let table = schema.as_table_mut().unwrap_or_else(|| {
+        let table = specs.as_table_mut().unwrap_or_else(|| {
             panic!("component '{component}': schema is not a table of property specs")
         });
         for (prop, spec) in table {
@@ -348,7 +392,12 @@ impl ComponentDef {
             }
             complete_property(spec);
         }
-        Rc::new(schema)
+        // The text parsed once already, so a second reader cannot fail.
+        let written: toml_edit::DocumentMut = text
+            .parse()
+            .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
+        let order = written.iter().map(|(key, _)| key.to_owned()).collect();
+        Rc::new(Schema { specs, order })
     }
 }
 
@@ -829,13 +878,15 @@ fn asset_reference(
 }
 
 pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>) -> Result<()> {
+    let content = params.and_then(|params| crate::document_paths::written_on(eng, entity, params));
+    let params = content.as_ref().or(params);
     refuse_unknown_keys(eng, name, params)?;
     // Resolving assets can read files and reach the asset cache, so the
     // schema is cloned and the registry borrow dropped first: a parser is free
     // to look things up.
     let Resolved { index, schema, .. } = resolve(eng, name)?;
     let full = properties(eng, &schema, params)?;
-    apply_at(eng, entity, index, name, &full)?;
+    apply_at(eng, entity, index, name, &full, None)?;
     // Describing the component whole replaces what was asked of it before.
     record_at(eng, entity, index, params, true);
     Ok(())
@@ -861,6 +912,8 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
 /// component would otherwise work out again. Report what the component holds
 /// and nothing else.
 pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
+    let content = crate::document_paths::written_on(eng, entity, params);
+    let params = content.as_ref().unwrap_or(params);
     refuse_unknown_keys(eng, name, Some(params))?;
     let Resolved {
         index,
@@ -927,7 +980,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     } else {
         full
     };
-    apply_at(eng, entity, index, name, &full)?;
+    apply_at(eng, entity, index, name, &full, Some(params))?;
     record_at(eng, entity, index, Some(params), false);
     Ok(())
 }
@@ -951,7 +1004,7 @@ pub fn is_registered(eng: &Engine, name: &str) -> bool {
 struct Resolved {
     /// Where the component sits, which is its bit in [`Attached`].
     index: usize,
-    schema: Rc<toml::Value>,
+    schema: Rc<Schema>,
     /// [`Facts::defaults`], shared rather than rebuilt.
     defaults: Rc<toml::map::Map<String, toml::Value>>,
     has_color: bool,
@@ -987,28 +1040,21 @@ fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
     })
 }
 
-pub(crate) fn apply_full(
-    eng: &Engine,
-    entity: Entity,
-    name: &str,
-    full: &toml::Value,
-) -> Result<()> {
-    let index = index_of(eng, name).ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    apply_at(eng, entity, index, name, full)
-}
-
-/// [`apply_full`] with the definition already resolved. `name` is carried for
-/// the error alone.
+/// Apply a component's whole table with the definition already resolved,
+/// logged as a change to the keys of `asked` or, with none, to all of it.
+/// `name` is carried for the error alone.
 fn apply_at(
     eng: &Engine,
     entity: Entity,
     index: usize,
     name: &str,
     full: &toml::Value,
+    asked: Option<&toml::Value>,
 ) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
+    let had = attached_of(eng, entity).has(index);
     {
         let registry = registry.borrow();
         let (_, def) = registry
@@ -1022,6 +1068,11 @@ fn apply_at(
     }
     crate::warnings::accepted(eng, entity, name);
     mark(eng, entity, index, true);
+    if had {
+        crate::changes::component(eng, entity, index, asked);
+    } else {
+        crate::changes::attached(eng, entity, index);
+    }
     Ok(())
 }
 
@@ -1034,28 +1085,33 @@ fn get_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
 }
 
 pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
-    let registry = eng
-        .try_resource::<ComponentRegistry>()
-        .ok_or_else(|| anyhow!("component registry missing"))?;
-    let index = {
-        let registry = registry.borrow();
-        let index = registry
-            .index_of(name)
-            .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        let (_, def) = registry
-            .at(index)
-            .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (def.remove)(eng, entity)?;
-        index
-    };
+    let index = remove_hook(eng, entity, name)?;
     mark(eng, entity, index, false);
+    crate::changes::removed(eng, entity, index);
     forget(eng, entity, name);
     crate::warnings::accepted(eng, entity, name);
     Ok(())
 }
 
+/// Run a component's `remove` hook, answering where it is registered.
+fn remove_hook(eng: &Engine, entity: Entity, name: &str) -> Result<usize> {
+    let registry = eng
+        .try_resource::<ComponentRegistry>()
+        .ok_or_else(|| anyhow!("component registry missing"))?;
+    let registry = registry.borrow();
+    let index = registry
+        .index_of(name)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    let (_, def) = registry
+        .at(index)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    (def.remove)(eng, entity)?;
+    Ok(index)
+}
+
 /// Run the `remove` hook of every component the node carries, in
 /// registration order, which is what a node's destruction owes its plugins.
+/// Nothing is logged as removed: the node going is the change.
 ///
 /// Reads [`Attached`] rather than asking every definition, so a node that
 /// was never given a component costs one lookup.
@@ -1070,6 +1126,7 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     if let Ok(mut held) = eng.world().get::<&mut Attached>(entity) {
         *held = Attached::default();
     }
+    forget_node(eng, entity, owed.present | bits);
     if bits == 0 {
         return;
     }
@@ -1084,7 +1141,7 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
         .map(|(_, (name, _))| name.clone())
         .collect();
     for name in names {
-        if let Err(why) = remove(eng, entity, &name) {
+        if let Err(why) = remove_hook(eng, entity, &name) {
             tracing::error!(error = %why, component = %name, "removing a component from a freed node");
         }
     }
@@ -1124,6 +1181,20 @@ pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
     attached_of(eng, entity).has(index)
 }
 
+/// File what the component holds now as what was asked of it, over what
+/// was: for a write that moved it without asking, as a reparent keeping the
+/// world pose does. Nothing is filed for a node without it.
+pub fn refile(eng: &Engine, entity: Entity, name: &str) {
+    let Some(index) = index_of(eng, name) else {
+        return;
+    };
+    if !attached_of(eng, entity).has(index) {
+        return;
+    }
+    let held = get_at(eng, entity, index);
+    record_at(eng, entity, index, held.as_ref(), false);
+}
+
 /// [`patch`] with the definition already resolved.
 ///
 /// # Errors
@@ -1149,7 +1220,7 @@ pub fn names(eng: &Engine) -> Vec<String> {
 }
 
 /// Every registered component's name and schema, for tooling and docs.
-pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
+pub fn schemas(eng: &Engine) -> Vec<(String, Rc<Schema>)> {
     eng.try_resource::<ComponentRegistry>()
         .map(|r| {
             r.borrow()
@@ -1173,6 +1244,31 @@ pub fn events_on(eng: &Engine, entity: Entity) -> Vec<&'static str> {
         .enumerate()
         .filter(|(i, _)| bits.has(*i))
         .flat_map(|(_, (_, def))| def.events.iter().map(|(name, _)| *name))
+        .collect()
+}
+
+/// What was asked of each component the node carries, by name in
+/// registration order: the table a scene file holds for it, which a save
+/// writes back. A component put on without a table is asked for nothing.
+pub fn asked_of(eng: &Engine, entity: Entity) -> Vec<(String, toml::Value)> {
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
+        return Vec::new();
+    };
+    let registry = registry.borrow();
+    let bits = attached_of(eng, entity);
+    let authored = eng.try_resource::<Authored>();
+    let authored = authored.as_ref().map(|held| held.borrow());
+    registry
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| bits.has(*index))
+        .map(|(index, (name, _))| {
+            let asked = authored
+                .as_ref()
+                .and_then(|held| held.0.get(&(entity, index)).cloned())
+                .unwrap_or_else(|| toml::Value::Table(toml::map::Map::new()));
+            (name.to_string(), asked)
+        })
         .collect()
 }
 

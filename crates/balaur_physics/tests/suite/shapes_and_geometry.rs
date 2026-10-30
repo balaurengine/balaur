@@ -15,7 +15,7 @@ fn run(script: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -35,7 +35,7 @@ indices = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
 [[nodes]]
 id = "n_terrain"
 name = "Terrain"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 kind = "voxels"
@@ -43,7 +43,7 @@ voxels = "#pillar"
 "##,
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -66,8 +66,8 @@ fn run_clean(script: &str) {
 #[test]
 fn a_voxel_grid_can_be_dug_into() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         if !self.node.collider3d.voxel(0, 1, 0) { log::error("the middle cell should be filled"); }
         self.node.collider3d.set_voxel(0, 1, 0, false);
@@ -85,8 +85,8 @@ impl S {
 #[test]
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let mesh = self.node.collider3d.collider_mesh();
         if mesh.get("points").len() <= 0 { log::error("the grid tessellated to nothing"); }
@@ -100,8 +100,8 @@ impl S {
 #[test]
 fn the_mesh_backed_shapes_build() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
             self.node.collider3d.set_collider(map().with("kind", kind).with("mesh", "#wedge"));
@@ -119,8 +119,8 @@ impl S {
 #[test]
 fn the_solver_knobs_are_set_and_read_back() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         physics::set_tuning(map().with("solver_iterations", 8).with("length_unit", 64.0).with("ccd_substeps", 2));
         let tuning = physics::tuning().get("3d");
@@ -146,8 +146,8 @@ impl S {
 #[test]
 fn the_geometry_toolkit_works_on_a_mesh() {
     run_clean(
-        r##"pub struct S { node: Node }
-impl S {
+        r##"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let hull = geometry3d::convex_hull("#wedge");
         let points = hull.get("points").len();
@@ -170,8 +170,8 @@ impl S {
 #[test]
 fn debug_draw_is_set_and_read_back() {
     run_clean(
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         physics::set_debug_draw(true);
         if !physics::debug_draw().get("enabled").as_bool() { log::error("the switch did not stay on"); }
@@ -196,7 +196,7 @@ fn a_fitted_box_keeps_its_pose() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -283,7 +283,7 @@ fn quarantine_and_counters_report_both_worlds() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -291,7 +291,7 @@ fn quarantine_and_counters_report_both_worlds() {
         r#"[[nodes]]
 id = "n_world"
 name = "World"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [[nodes]]
 id = "n_ball3"
@@ -310,9 +310,9 @@ collider2d = { kind = "circle", radius = 0.5 }
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        "pub struct S { node: Node }\n\
-         impl S {\n    pub fn report() -> [any] { [physics::quarantined(), physics::counters()] }\n}\n",
+        dir.path().join("scripts/scenario.bs"),
+        "pub class Scenario { node: Node }\n\
+         impl Scenario {\n    pub fn report() -> [any] { [physics::quarantined(), physics::counters()] }\n}\n",
     )
     .unwrap();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();

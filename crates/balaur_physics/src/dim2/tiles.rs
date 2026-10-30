@@ -13,6 +13,7 @@ use balaur_core::tiles::{Collision, Group, TileGrid, TileSet};
 use balaur_core::{Engine, assets};
 use balaur_plugin::Registry;
 
+use crate::collider::spec;
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::{add_collider_at, with_material};
 use crate::dim2::events::Surface;
@@ -35,14 +36,25 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
     let hull = w::CONVEX_HULL;
     let schema = [
         v::schema(&[
-            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The side a one-way cell holds bodies on, in the map's axes: [0, 1] lands them from above and lets them up through from below. A flipped or turned shaped tile turns it with its polygon", group = "contacts" }"#),
-            (k::SURFACE_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], description = "How fast every cell's surface slides along itself, in the map's axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
-            (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds each shaped tile's polygon by this radius; full cells have no border to round", group = "shape" }"#),
+            (k::ENABLED, &spec::enabled()),
+            (k::SENSOR, &spec::sensor()),
+            (k::PHYSICS_MATERIAL, &crate::material::row_spec()),
             (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline", group = "shape" }}"#)),
+            (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds each shaped tile's polygon by this radius; full cells have no border to round", group = "shape" }"#),
+        ]),
+        crate::collider::filtering_schema(),
+        v::schema(&[
+            (k::ONE_WAY, &spec::one_way()),
+            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The side a one-way cell holds bodies on, in the map's axes: [0, 1] lands them from above and lets them up through from below. A flipped or turned shaped tile turns it with its polygon", group = "contacts" }"#),
+            (k::ONE_WAY_ANGLE, &spec::one_way_angle()),
+            (k::SURFACE_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], description = "How fast every cell's surface slides along itself, in the map's axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
+            (k::COLLISION_MARGIN, &spec::collision_margin()),
+            (k::DENSITY, &spec::density()),
+            (k::MASS, &spec::mass()),
             (k::CENTER_OF_MASS, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the whole map's mass sits, in the node's own space; read with inertia, and both 0 keep the shapes' own", group = "mass" }"#),
             (k::INERTIA, r#"{ type = "float", default = 0.0, min = 0.0, description = "The whole map's resistance to spin about center_of_mass, shared over its colliders by area; 0 takes the shapes' own about that centre", group = "mass" }"#),
         ]),
-        crate::collider::shared_collider_schema(),
+        crate::collider::events_schema(),
     ]
     .join("\n");
     reg.register_component(
@@ -178,7 +190,8 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         return Ok(());
     }
     let set = assets::load_typed::<TileSet>(eng, &grid.tileset)?;
-    let pieces = pieces(&grid, &set, &params);
+    let material = crate::material::of(eng, &params)?;
+    let pieces = pieces(&grid, &set, &params, &material);
     // `mass` is the whole map's, shared out by area: one density over every
     // piece weighs the map `mass` however many colliders its cells make.
     let mass = scalar::real(crate::vocabulary::f(&params, k::MASS, 0.0));
@@ -259,7 +272,12 @@ struct Piece {
 
 /// One voxel collider per group and one shape per shaped tile's polygon. The
 /// component's own `one_way` makes every one of them a platform.
-fn pieces(grid: &TileGrid, set: &TileSet, params: &toml::Value) -> Vec<Piece> {
+fn pieces(
+    grid: &TileGrid,
+    set: &TileSet,
+    params: &toml::Value,
+    material: &crate::material::PhysicsMaterial,
+) -> Vec<Piece> {
     let all_one_way = v::boolean(params, k::ONE_WAY, false);
     let axis = v::vec2(params, k::ONE_WAY_AXIS, [0.0, 1.0]);
     let mut out = Vec::new();
@@ -274,7 +292,7 @@ fn pieces(grid: &TileGrid, set: &TileSet, params: &toml::Value) -> Vec<Piece> {
             .collect();
         let size = scalar::v2(grid.tile_world[0], grid.tile_world[1]);
         let one_way = all_one_way || group == Group::OneWay;
-        let builder = with_material(ColliderBuilder2::voxels(size, &keys), params);
+        let builder = with_material(ColliderBuilder2::voxels(size, &keys), params, material);
         out.push(Piece {
             builder: builder.active_hooks(hooks_for(params, one_way)),
             // The voxel lattice is the grid's own: cell (0, 0) starts at the
@@ -308,7 +326,8 @@ fn pieces(grid: &TileGrid, set: &TileSet, params: &toml::Value) -> Vec<Piece> {
             // platform one-way has to go on its own collider — after the
             // material, which writes every hook the component asked for.
             out.push(Piece {
-                builder: with_material(shape, params).active_hooks(hooks_for(params, one_way)),
+                builder: with_material(shape, params, material)
+                    .active_hooks(hooks_for(params, one_way)),
                 offset: Pose2::from_parts(scalar::v2(centre.x, centre.y), Rotation2::IDENTITY),
                 surface: surface(params, one_way, turned),
             });

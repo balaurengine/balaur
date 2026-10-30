@@ -11,6 +11,7 @@ use egui::{Key, Modifiers, Sense, TextEdit, TextWrapMode};
 
 use crate::vocabulary::words as w;
 use crate::widget::paint::Brush;
+use crate::widget::text::select_all;
 
 /// How a number is spelled: the decimals a drag settles on, or a base.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -243,8 +244,9 @@ impl DragNumber<'_> {
                 .desired_width(spacing.interact_size.x - 2.0 * spacing.button_padding.x)
                 .font(ui.style().drag_value_text_style.clone()),
         );
+        // The whole number as the field opens, so typing replaces it.
         if moment.gained {
-            select_all(ui, id, response.id, &text);
+            select_all(ui, id, &text);
         }
         let take = if self.update_while_editing {
             response.changed()
@@ -281,7 +283,7 @@ impl DragNumber<'_> {
         if response.clicked() {
             ui.data_mut(|data| data.remove::<Typed>(id));
             ui.memory_mut(|mem| mem.request_focus(id));
-            select_all(ui, id, response.id, shown);
+            select_all(ui, id, shown);
             return response;
         }
         if !response.dragged() {
@@ -386,18 +388,6 @@ pub(crate) fn clamp(x: f64, range: &RangeInclusive<f64>) -> f64 {
             Ordering::Less => x,
         },
     }
-}
-
-/// Select the whole number as the field opens, so typing replaces it.
-fn select_all(ui: &egui::Ui, id: egui::Id, response: egui::Id, text: &str) {
-    let mut state = TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-    state
-        .cursor
-        .set_char_range(Some(egui::text::CCursorRange::two(
-            egui::text::CCursor::default(),
-            egui::text::CCursor::new(text.chars().count()),
-        )));
-    state.store(ui.ctx(), response);
 }
 
 #[cfg(test)]

@@ -51,6 +51,7 @@ const OPS: &[(&str, &[T], T)] = &[
     ("set_component", &[Str, Any], Void),
     ("try_set_component", &[Str, Any], Bool),
     ("patch_component", &[Str, Any], Void),
+    ("try_patch_component", &[Str, Any], Bool),
     // With a key, that one property.
     ("get_component", &[Str, MaybeStr], Any),
     ("set_state", &[Str], Void),
@@ -61,6 +62,11 @@ const OPS: &[(&str, &[T], T)] = &[
     ("stable_id", &[], Str),
     ("descendants", &[], Nodes),
     ("script_path", &[], Str),
+    ("script_props", &[], Any),
+    ("set_script", &[MaybeStr, Any], Void),
+    ("instance", &[], MaybeStr),
+    // What was asked of the component, nil for a node without it.
+    ("authored", &[Str], Any),
     ("has_method", &[Str], Bool),
     ("script_field", &[Str], Any),
     // The method gets the arguments given, up to four.
@@ -71,6 +77,7 @@ const OPS: &[(&str, &[T], T)] = &[
     ("attach_script", &[Str, Any], Void),
     ("detach_script", &[], Void),
     ("queue_free", &[], Void),
+    ("free", &[], Void),
     ("visible", &[], Bool),
     ("set_visible", &[Bool], Void),
     ("visible_in_tree", &[], Bool),
@@ -81,7 +88,7 @@ const OPS: &[(&str, &[T], T)] = &[
     ("set_material", &[Str], Void),
     ("effective_material", &[], Str),
     ("z_index", &[], Int),
-    ("set_z_index", &[Int], Void),
+    ("set_z_index", &[Int, Any], Void),
     ("effective_z_index", &[], Int),
     ("process", &[], Str),
     ("set_process", &[Str], Void),

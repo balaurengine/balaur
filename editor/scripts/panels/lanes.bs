@@ -2,7 +2,7 @@
 // and when the room did, and it hands back the transport and the scrubber.
 // A mark's own dot seeks to its tick.
 
-pub struct Lanes {
+pub class Lanes {
     node: Node,
     editor: Node,
 }

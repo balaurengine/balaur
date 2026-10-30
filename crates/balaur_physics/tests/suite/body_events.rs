@@ -33,11 +33,15 @@ fn run(scene: &str, script: &str, ticks: usize) -> balaur::App {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), format!("{COUNTERS}\n{scene}")).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), format!("{BUMP}\n{script}")).unwrap();
+    std::fs::write(
+        dir.path().join("scripts/scenario.bs"),
+        format!("{BUMP}\n{script}"),
+    )
+    .unwrap();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     for _ in 0..ticks {
@@ -73,7 +77,7 @@ size = [20.0, 1.0, 20.0]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", time_to_sleep = 0.1 }
 
 [nodes.transform]
@@ -89,8 +93,8 @@ kind = "box"
 size = [1.0, 1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
     pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
     fn fixed_update(dt: float) { bump("ticks", 1); }
@@ -130,7 +134,7 @@ size = [20.0, 1.0]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic", time_to_sleep = 0.1 }
 
 [nodes.transform]
@@ -146,8 +150,8 @@ kind = "rectangle"
 size = [1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
     pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
     fn fixed_update(dt: float) {
@@ -204,17 +208,17 @@ size = [20.0, 1.0, 20.0]
 id = "n_rope"
 name = "Rope"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         // One end pinned and edges that break at a tenth of their rest length,
         // so the heavy free end tears it and falls onto the ground.
         self.node.softbody3d.set_softbody(map()
             .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
-            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0)
+            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0))
             .with("events", ["collision"]));
     }
     pub fn on_tear(tear: any) { bump("edges", tear.get("edges").len()); }
@@ -240,15 +244,15 @@ fn a_tear_in_a_step_hears_the_record_a_scripted_tear_answers() {
         r#"[[nodes]]
 id = "n_rope"
 name = "Rope"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.softbody3d.set_softbody(map()
             .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("tear_strain", 0.05)
-            .with("tear_force", 2.0).with("edge_hz", 4.0).with("mass", 400.0));
+            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0)));
     }
     pub fn on_tear(tear: any) {
         bump("tears", 1);

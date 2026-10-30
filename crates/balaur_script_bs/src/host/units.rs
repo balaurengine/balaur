@@ -1,13 +1,14 @@
 // A script built as units, each file compiled alone once and linked with
 // the units of the modules it uses when it loads.
 
-use super::{BsHost, CACHE_DIR, METER, script_type};
+use super::{BsHost, CACHE_DIR, File, Home, METER, script_type};
 use crate::api;
 use anyhow::{Result, anyhow};
 use balaur_bs::{Compiled, Options};
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 impl BsHost {
@@ -134,8 +135,108 @@ impl BsHost {
         }
         let mut compiled = (*root).clone();
         compiled.linked = linked.into_iter().collect();
-        let ty = script_type(&compiled.meta);
+        let ty = script_type(key, &compiled.meta);
         Ok((compiled, ty))
+    }
+
+    /// The project's instance made again: every file of it still built as
+    /// units, and each of `changed` that is, linked into a fresh one, and
+    /// every instance of them carried across by field name. Nothing changes
+    /// when a file does not build.
+    pub(super) fn rebuild_project(&self, changed: &[String]) -> Result<()> {
+        let project = self.inner.project.borrow().clone();
+        let members: Vec<(String, Rc<File>)> = self
+            .inner
+            .files
+            .borrow()
+            .iter()
+            .filter(|(key, file)| {
+                self.as_units(key) && (changed.contains(key) || file.in_project(project.as_ref()))
+            })
+            .map(|(key, file)| (key.clone(), file.clone()))
+            .collect();
+        if members.is_empty() {
+            return Ok(());
+        }
+        // Asked by a script of the instance while it runs: built now, so what
+        // breaks is said now, and swapped in between frames.
+        if members
+            .iter()
+            .any(|(_, file)| file.home.rt.try_borrow_mut().is_err())
+        {
+            for key in changed {
+                self.compile_module(key)?;
+            }
+            let mut rebuild = self.inner.rebuild.borrow_mut();
+            for key in changed {
+                if !rebuild.contains(key) {
+                    rebuild.push(key.clone());
+                }
+            }
+            return Ok(());
+        }
+        let mut built = vec![];
+        for (key, _) in &members {
+            let (compiled, ty) = self.compile_module(key)?;
+            if ty.is_empty() {
+                let class = balaur_bs::script_class(key);
+                return Err(anyhow!("{key}: it declares no `pub class {class}`"));
+            }
+            built.push((key.clone(), compiled, ty));
+        }
+        let mut fresh = self.project_runtime()?;
+        let mut units = vec![];
+        for (key, compiled, _) in &built {
+            let unit = self.unit(key)?;
+            let index = fresh
+                .link(key, &unit, &compiled.linked)
+                .map_err(|e| anyhow!("{key}: {e}"))?;
+            units.push(index);
+        }
+        let unit_of = |path: &str| {
+            built
+                .iter()
+                .position(|(key, ..)| key == path)
+                .map(|at| units[at])
+        };
+        // Out of each home a member ran in: the project's, or a file's own.
+        let mut homes: Vec<Rc<Home>> = vec![];
+        for (_, file) in &members {
+            if !homes.iter().any(|home| Rc::ptr_eq(home, &file.home)) {
+                homes.push(file.home.clone());
+            }
+        }
+        for home in &homes {
+            let paths: Vec<&str> = members
+                .iter()
+                .filter(|(_, file)| Rc::ptr_eq(&file.home, home))
+                .map(|(key, _)| key.as_str())
+                .collect();
+            self.carry(home, &mut fresh, |path| {
+                if paths.contains(&path) {
+                    unit_of(path)
+                } else {
+                    None
+                }
+            })?;
+        }
+        for (key, _) in &members {
+            self.forget(key);
+        }
+        let home = Home::new(fresh);
+        *self.inner.project.borrow_mut() = Some(home.clone());
+        let mut files = self.inner.files.borrow_mut();
+        for ((key, compiled, ty), unit) in built.into_iter().zip(units) {
+            let file = File {
+                home: home.clone(),
+                unit,
+                native: false,
+                compiled,
+                ty,
+            };
+            files.insert(key, Rc::new(file));
+        }
+        Ok(())
     }
 
     /// What an edit of `key` makes stale: its source and unit, and when what

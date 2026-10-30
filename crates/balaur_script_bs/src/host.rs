@@ -1,5 +1,7 @@
-// `.bs` scripts behind the seam: one compiled module per file, one host-held
-// object per node, its lifecycle methods called by name when the script has them.
+// `.bs` scripts behind the seam: every file a unit of the project's one
+// instance (or, built whole for a debugger or a profiler, an instance of its
+// own), one host-held object per node, its lifecycle methods called by name
+// when the script has them.
 
 use crate::api::{self, Module, Registry};
 use crate::convert::{from_neutral, to_neutral};
@@ -30,24 +32,34 @@ const CACHE_DIR: &str = "bs-cache";
 /// The most memory one file's module may grow to: a runaway allocation traps
 /// there rather than taking the game with it.
 const MEMORY_CAP: usize = 256 << 20;
+/// The project's instance, which every file built as units shares: what
+/// grows past this traps rather than taking the game with it.
+const PROJECT_MEMORY_CAP: usize = 1 << 30;
 /// A browser's engine meters no fuel, so a build for one counts its own.
 const METER: bool = cfg!(all(target_arch = "wasm32", feature = "web"));
-const BUILT_IN: [&str; 3] = ["Vec2", "Vec3", "Color"];
 const NODE_FIELD: &str = "node";
+/// The project instance's own unit, which has no code: every file a unit
+/// linked to it.
+const PROJECT_KEY: &str = "#project";
 
-struct File {
+/// Where scripts run: a runtime, and the way into it while it is busy in an
+/// engine call. The project's, which every file built as units shares, or
+/// a file's own.
+struct Home {
     rt: RefCell<Runtime>,
-    /// The way into the module while `rt` is busy in an engine call.
     reentry: Reentry,
-    /// Whether it runs from the native build an export made.
-    native: bool,
-    compiled: Compiled,
-    ty: String,
 }
 
-impl File {
+impl Home {
+    fn new(rt: Runtime) -> Rc<Home> {
+        Rc::new(Home {
+            reentry: rt.reentry(),
+            rt: RefCell::new(rt),
+        })
+    }
+
     /// `direct` on the runtime, or `inside` on the way in while the runtime
-    /// is busy in an engine call: a script reaching a node of its own file.
+    /// is busy in an engine call: a script reaching a node of its instance.
     fn either<R>(
         &self,
         direct: impl FnOnce(&mut Runtime) -> R,
@@ -58,18 +70,43 @@ impl File {
             Err(_) => inside(&self.reentry),
         }
     }
+}
+
+struct File {
+    home: Rc<Home>,
+    /// Its unit in `home`'s instance: 0 for a file with a home of its own.
+    unit: usize,
+    /// Whether it runs from the native build an export made.
+    native: bool,
+    compiled: Compiled,
+    ty: String,
+}
+
+impl File {
+    fn either<R>(
+        &self,
+        direct: impl FnOnce(&mut Runtime) -> R,
+        inside: impl FnOnce(&Reentry) -> R,
+    ) -> R {
+        self.home.either(direct, inside)
+    }
 
     fn drop_object(&self, obj: Object) {
-        let dropped = match self.rt.try_borrow_mut() {
+        let dropped = match self.home.rt.try_borrow_mut() {
             Ok(mut rt) => {
                 rt.drop_object(obj);
                 Ok(())
             }
-            Err(_) => self.reentry.drop_object(obj),
+            Err(_) => self.home.reentry.drop_object(obj),
         };
         if let Err(e) = dropped {
             tracing::error!("{e}");
         }
+    }
+
+    /// Whether it shares the project's instance.
+    fn in_project(&self, project: Option<&Rc<Home>>) -> bool {
+        project.is_some_and(|home| Rc::ptr_eq(home, &self.home))
     }
 
     fn method(&self, name: &str) -> Option<&balaur_bs::FnInfo> {
@@ -89,6 +126,9 @@ struct Instance {
     node: u64,
     path: String,
     obj: RefCell<Option<Object>>,
+    /// Where `obj` lives in its instance, for `node.script` to find while a
+    /// call has it out.
+    pointer: Cell<i32>,
     /// A second holder of `obj` while a call has it, which a call made into
     /// the same instance meanwhile runs on (`Runtime::share`).
     lent: RefCell<Option<Object>>,
@@ -107,6 +147,8 @@ struct Inner {
     registry: Rc<RefCell<Registry>>,
     api: RefCell<Option<HostApi>>,
     files: RefCell<BTreeMap<String, Rc<File>>>,
+    /// The instance every file built as units shares, made with the first.
+    project: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
     held: RefCell<Vec<u64>>,
     holds: Cell<u32>,
@@ -213,6 +255,7 @@ impl BsHost {
                 registry: Rc::default(),
                 api: RefCell::new(None),
                 files: RefCell::default(),
+                project: RefCell::default(),
                 instances: RefCell::default(),
                 held: RefCell::default(),
                 holds: Cell::new(0),
@@ -287,9 +330,36 @@ impl BsHost {
         String::from_utf8(bytes).with_context(|| format!("{key} is not UTF-8"))
     }
 
-    fn host_fns(&self) -> HostFns {
+    /// What a runtime's scripts call out to: the engine, and `node.script`,
+    /// which finds a node's object only in the same instance: the project's,
+    /// or with `own` that file's.
+    fn host_fns(&self, own: Option<&str>) -> HostFns {
         let (engine, registry) = (self.inner.engine.clone(), self.inner.registry.clone());
-        HostFns::default().bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
+        let host = Rc::downgrade(&self.inner);
+        let own = own.map(str::to_string);
+        HostFns::default()
+            .bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
+            .scripts(move |node, file, class| {
+                let inner = host.upgrade()?;
+                let inst = inner
+                    .instances
+                    .borrow()
+                    .iter()
+                    .find(|inst| inst.node == node.cast_unsigned())
+                    .cloned()?;
+                if inst.path != file || inst.gone.get() || balaur_bs::script_class(file) != class {
+                    return None;
+                }
+                let same = match &own {
+                    Some(key) => *key == inst.path,
+                    None => inner
+                        .files
+                        .borrow()
+                        .get(file)
+                        .is_some_and(|found| found.in_project(inner.project.borrow().as_ref())),
+                };
+                same.then(|| inst.pointer.get())
+            })
     }
 
     // `source`, kept until an edit: a unit's build reads every module it
@@ -481,16 +551,38 @@ impl BsHost {
             },
         )
         .map_err(|e| anyhow!("{key}:{e}"))?;
-        let ty = script_type(&compiled.meta);
+        let ty = script_type(key, &compiled.meta);
         Ok((compiled, ty))
     }
 
     fn load(&self, key: &str) -> Result<Rc<File>> {
         let (compiled, ty) = self.compile_module(key)?;
         if ty.is_empty() {
+            let name = balaur_bs::script_class(key);
             return Err(anyhow!(
-                "{key}: a script declares a `pub struct`; a file without one is a module other scripts `use`"
+                "{key}: a script declares `pub class {name}`, named after its file; a file without one is a module other scripts `use`"
             ));
+        }
+        balaur_bs::runtime::cache_compiled_in(
+            &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
+        );
+        // A unit joins the project's instance.
+        if compiled.meta.unit.is_some() {
+            let home = self.project()?;
+            let unit = self.unit(key)?;
+            let index = home
+                .either(
+                    |rt| rt.link(key, &unit, &compiled.linked),
+                    |re| re.link(key, &unit, &compiled.linked),
+                )
+                .map_err(|e| anyhow!("{key}: {e}"))?;
+            return Ok(Rc::new(File {
+                home,
+                unit: index,
+                native: false,
+                compiled,
+                ty,
+            }));
         }
         // The native build first, so this script's own module can be in it.
         #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
@@ -503,24 +595,126 @@ impl BsHost {
                 balaur_bs::module_hash(&compiled.wasm)
             );
         }
-        balaur_bs::runtime::cache_compiled_in(
-            &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
-        );
+        let mut rt = self.alone(key, &compiled)?;
+        self.arm(key, &compiled, &mut rt);
+        Ok(Rc::new(File {
+            home: Home::new(rt),
+            unit: 0,
+            native,
+            compiled,
+            ty,
+        }))
+    }
+
+    // A runtime of its own for `compiled`, the whole file at `key`.
+    fn alone(&self, key: &str, compiled: &Compiled) -> Result<Runtime> {
         let limits = Limits {
             engine: self.engine_for(key),
             memory_bytes: Some(MEMORY_CAP),
             ..Limits::default()
         };
-        let mut rt =
-            Runtime::new(&compiled, self.host_fns(), limits).map_err(|e| anyhow!("{key}: {e}"))?;
-        self.arm(key, &compiled, &mut rt);
-        Ok(Rc::new(File {
-            native,
-            reentry: rt.reentry(),
-            rt: RefCell::new(rt),
-            compiled,
-            ty,
-        }))
+        Runtime::new(compiled, self.host_fns(Some(key)), limits).map_err(|e| anyhow!("{key}: {e}"))
+    }
+
+    /// `key` built whole into a runtime of its own, as a debugger or a
+    /// profiler wants it, its instances carried across by field name from
+    /// wherever they ran. Nothing changes when it does not build.
+    fn reload_alone(&self, key: &str) -> Result<()> {
+        let old = self
+            .inner
+            .files
+            .borrow()
+            .get(key)
+            .cloned()
+            .ok_or_else(|| anyhow!("{key} is not loaded"))?;
+        if old.home.rt.try_borrow_mut().is_err() {
+            return Err(anyhow!("{key} is running; reload it between frames"));
+        }
+        let (compiled, ty) = self.compile_module(key)?;
+        if ty.is_empty() {
+            return Err(anyhow!(
+                "{key}: it declares no `pub class {}`",
+                balaur_bs::script_class(key)
+            ));
+        }
+        let mut fresh = self.alone(key, &compiled)?;
+        self.carry(&old.home, &mut fresh, |path| (path == key).then_some(0))?;
+        self.forget(key);
+        self.arm(key, &compiled, &mut fresh);
+        self.inner.files.borrow_mut().insert(
+            key.to_string(),
+            Rc::new(File {
+                home: Home::new(fresh),
+                unit: 0,
+                native: crate::native::has_native(&compiled.wasm),
+                compiled,
+                ty,
+            }),
+        );
+        Ok(())
+    }
+
+    // Every object of the files `unit_of` places, out of `home` and into
+    // `into` at the unit it says, carried by field name, and each instance
+    // pointed at its new object. On failure every object stays where it was.
+    fn carry(
+        &self,
+        home: &Home,
+        into: &mut Runtime,
+        unit_of: impl Fn(&str) -> Option<usize>,
+    ) -> Result<()> {
+        let insts: Vec<(Rc<Instance>, usize)> = self
+            .inner
+            .instances
+            .borrow()
+            .iter()
+            .filter(|inst| inst.obj.borrow().is_some())
+            .filter_map(|inst| unit_of(&inst.path).map(|unit| (inst.clone(), unit)))
+            .collect();
+        let mut objs: Vec<Object> = insts
+            .iter()
+            .filter_map(|(inst, _)| inst.obj.borrow_mut().take())
+            .collect();
+        let units: Vec<usize> = insts.iter().map(|(_, unit)| *unit).collect();
+        let mut refs: Vec<&mut Object> = objs.iter_mut().collect();
+        let carried = home.rt.borrow_mut().carry_to(into, &mut refs, &units);
+        for ((inst, _), obj) in insts.iter().zip(objs) {
+            inst.pointer.set(Runtime::pointer(&obj));
+            *inst.obj.borrow_mut() = Some(obj);
+        }
+        carried.map(|_| ()).map_err(|e| anyhow!("{e}"))
+    }
+
+    /// Every instance a loaded file runs in, each once.
+    fn homes(&self) -> Vec<Rc<Home>> {
+        let mut homes: Vec<Rc<Home>> = vec![];
+        for file in self.inner.files.borrow().values() {
+            if !homes.iter().any(|home| Rc::ptr_eq(home, &file.home)) {
+                homes.push(file.home.clone());
+            }
+        }
+        homes
+    }
+
+    /// The instance every file built as units shares, made with the first.
+    fn project(&self) -> Result<Rc<Home>> {
+        if let Some(home) = self.inner.project.borrow().as_ref() {
+            return Ok(home.clone());
+        }
+        let home = Home::new(self.project_runtime()?);
+        *self.inner.project.borrow_mut() = Some(home.clone());
+        Ok(home)
+    }
+
+    // A project instance with no file in it yet.
+    fn project_runtime(&self) -> Result<Runtime> {
+        let root = balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
+            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))?;
+        let limits = Limits {
+            memory_bytes: Some(PROJECT_MEMORY_CAP),
+            ..Limits::default()
+        };
+        Runtime::new(&root, self.host_fns(None), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))
     }
 
     fn file(&self, path: &str) -> Result<Rc<File>> {
@@ -594,20 +788,80 @@ impl BsHost {
     // start a task a frame: those two are called only when they do not await.
     fn each(&self, method: &str, args: &[Value], sync_only: bool) {
         let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        for inst in all {
+        let mut start = 0;
+        while start < all.len() {
             // A stop freezes the game, the rest of this pass with it.
             if self.is_held() {
                 break;
             }
-            let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
+            // The nodes in a row that run one script, in scene order.
+            let path = &all[start].path;
+            let run = all[start..]
+                .iter()
+                .take_while(|inst| inst.path == *path)
+                .count();
+            let group = &all[start..start + run];
+            start += run;
+            let Some(file) = self.inner.files.borrow().get(path).cloned() else {
                 continue;
             };
             if file
                 .method(method)
-                .is_some_and(|f| !(sync_only && f.is_async))
+                .is_none_or(|found| sync_only && found.is_async)
             {
-                let r = self.run(&file, &inst, method, args, None);
-                report(r);
+                continue;
+            }
+            if run > 1 && self.batch(&file, group, method, args) {
+                continue;
+            }
+            for inst in group {
+                report(self.run(&file, inst, method, args, None));
+            }
+        }
+    }
+
+    // `method` on every object of `group` in one call. False when it cannot
+    // be: a debug build steps each call, an object out in a call stays out,
+    // and a method that takes or gives a string, an array or an `any` has no
+    // batch entry.
+    fn batch(&self, file: &File, group: &[Rc<Instance>], method: &str, args: &[Value]) -> bool {
+        if file.compiled.meta.debug {
+            return false;
+        }
+        let Some(info) = file.method(method) else {
+            return false;
+        };
+        let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
+            return false;
+        };
+        let mut objs = vec![];
+        for inst in group.iter().filter(|inst| !inst.gone.get()) {
+            let shared = inst.obj.borrow().as_ref().and_then(|obj| rt.share(obj));
+            let Some(shared) = shared else {
+                for obj in objs {
+                    rt.drop_object(obj);
+                }
+                return false;
+            };
+            objs.push(shared);
+        }
+        let args: Vec<L> = info
+            .params
+            .iter()
+            .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
+            .map(|(ty, value)| from_neutral(value, ty))
+            .collect();
+        let before = rt.steps();
+        let out = rt.call_batch(&file.ty, &objs, method, &args);
+        self.charge(&group[0].path, before, rt.steps());
+        for obj in objs {
+            rt.drop_object(obj);
+        }
+        match out {
+            Ok(done) => done,
+            Err(error) => {
+                tracing::error!("[{}] {method}: {error}", group[0].path);
+                true
             }
         }
     }
@@ -639,7 +893,7 @@ impl BsHost {
             .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
             .map(|(t, v)| from_neutral(v, t))
             .collect();
-        let Ok(mut rt) = file.rt.try_borrow_mut() else {
+        let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return self.reenter(file, inst, method, &args, info.is_async, done);
         };
         if info.is_async {
@@ -682,9 +936,9 @@ impl BsHost {
             file.either(|rt| rt.share(lent), |re| re.share(lent))
                 .ok_or_else(busy)?
         };
-        let out = match file.rt.try_borrow_mut() {
+        let out = match file.home.rt.try_borrow_mut() {
             Ok(mut rt) => rt.call_method(&mut copy, method, args),
-            Err(_) => file.reentry.call_method(&mut copy, method, args),
+            Err(_) => file.home.reentry.call_method(&mut copy, method, args),
         };
         file.drop_object(copy);
         let v = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
@@ -709,23 +963,29 @@ impl BsHost {
             }
             return Self::nested(file, inst, method, args);
         };
-        *inst.lent.borrow_mut() = file.reentry.share(&obj);
+        *inst.lent.borrow_mut() = file.home.reentry.share(&obj);
         let out = if is_async {
             let key = format!("{}.{method}", file.ty);
-            file.reentry.start(&key, args, &mut obj).map(|(task, out)| {
-                if out.is_none() {
-                    self.inner.tasks.borrow_mut().push(Pending {
-                        node: inst.node,
-                        path: inst.path.clone(),
-                        method: method.to_string(),
-                        task,
-                        done,
-                    });
-                }
-                out
-            })
+            file.home
+                .reentry
+                .start(&key, args, &mut obj)
+                .map(|(task, out)| {
+                    if out.is_none() {
+                        self.inner.tasks.borrow_mut().push(Pending {
+                            node: inst.node,
+                            path: inst.path.clone(),
+                            method: method.to_string(),
+                            task,
+                            done,
+                        });
+                    }
+                    out
+                })
         } else {
-            file.reentry.call_method(&mut obj, method, args).map(Some)
+            file.home
+                .reentry
+                .call_method(&mut obj, method, args)
+                .map(Some)
         };
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
@@ -736,21 +996,15 @@ impl BsHost {
     }
 }
 
-/// The struct a script's nodes are: its own first struct with methods, or
-/// its first; "" for a file of none, a module others `use`.
-fn script_type(meta: &balaur_bs::Meta) -> String {
-    let owners: Vec<&str> = meta.fns.iter().filter_map(|f| f.owner.as_deref()).collect();
-    // A struct a module brings in is that module's, never the script's.
-    let user: Vec<&str> = meta
-        .structs
-        .iter()
-        .map(|(n, _)| n.as_str())
-        .filter(|n| !BUILT_IN.contains(n) && !n.contains("::"))
-        .collect();
-    user.iter()
-        .find(|n| owners.contains(n))
-        .or(user.first())
-        .map_or_else(String::new, |t| (*t).to_string())
+/// The class a script's nodes are: the one named after its file,
+/// `spinner.bs`'s `Spinner`; "" for a file without it, a module others `use`.
+pub(crate) fn script_type(key: &str, meta: &balaur_bs::Meta) -> String {
+    let name = balaur_bs::script_class(key);
+    if meta.classes.contains(&name) {
+        name
+    } else {
+        String::new()
+    }
 }
 
 fn report(r: Result<Option<Value>>) -> Option<Value> {
@@ -829,14 +1083,15 @@ impl ScriptHost<Engine> for BsHost {
         let init_ref: Vec<(&str, L)> = init.iter().map(|(n, v)| (n.as_str(), v.clone())).collect();
         let obj = file
             .either(
-                |rt| rt.object(&file.ty, &init_ref),
-                |re| re.object(&file.ty, &init_ref),
+                |rt| rt.in_unit(file.unit, |rt| rt.object(&file.ty, &init_ref)),
+                |re| re.object(file.unit, &file.ty, &init_ref),
             )
             .map_err(|e| anyhow!("[{path}] {e}"))?;
         self.detach(node);
         self.inner.instances.borrow_mut().push(Rc::new(Instance {
             node: node.0,
             path: key_of(path),
+            pointer: Cell::new(Runtime::pointer(&obj)),
             obj: RefCell::new(Some(obj)),
             lent: RefCell::new(None),
             gone: Cell::new(false),
@@ -923,7 +1178,7 @@ impl ScriptHost<Engine> for BsHost {
                 .obj
                 .borrow()
                 .as_ref()
-                .map(|o| file.rt.borrow_mut().fields(o))
+                .map(|o| file.home.rt.borrow_mut().fields(o))
                 .unwrap_or_default();
             out.push((
                 NodeId(inst.node),
@@ -947,7 +1202,11 @@ impl ScriptHost<Engine> for BsHost {
             let Some(obj) = guard.as_mut() else { continue };
             for (name, v) in fields {
                 if let Some(t) = file.field_ty(name)
-                    && let Err(e) = file.rt.borrow_mut().set(obj, name, &from_neutral(v, &t))
+                    && let Err(e) = file
+                        .home
+                        .rt
+                        .borrow_mut()
+                        .set(obj, name, &from_neutral(v, &t))
                 {
                     tracing::error!("[{}] load_state: {e}", inst.path);
                 }
@@ -978,15 +1237,25 @@ impl ScriptHost<Engine> for BsHost {
                 }
             }
         }
-        for key in todo {
-            match self.reload(&key) {
+        // Every file built as units reloads with the project, once.
+        let (units, alone): (Vec<String>, Vec<String>) =
+            todo.into_iter().partition(|key| self.as_units(key));
+        if !units.is_empty() {
+            match self.rebuild_project(&units) {
+                Ok(()) => tracing::info!("reloaded {}", units.join(", ")),
+                Err(e) => tracing::error!("{e:#}"),
+            }
+        }
+        for key in alone {
+            match ScriptHost::reload(self, &key) {
                 Ok(()) => tracing::info!("reloaded {key}"),
                 Err(e) => tracing::error!("{e:#}"),
             }
         }
     }
 
-    // A new module, with every instance of the file carried across by field name.
+    // A new module, with every instance of the file carried across by field
+    // name: as a unit, the whole project's instance made again.
     fn reload(&self, key: &str) -> Result<()> {
         let key = key_of(key);
         if self.holds_file(&key) {
@@ -996,59 +1265,11 @@ impl ScriptHost<Engine> for BsHost {
         }
         // Asked for by name, a reload reads the file again.
         self.invalidate(&key);
-        let (compiled, ty) = self.compile_module(&key)?;
-        self.forget(&key);
-        let old = self
-            .inner
-            .files
-            .borrow_mut()
-            .remove(&key)
-            .ok_or_else(|| anyhow!("{key} is not loaded"))?;
-        let old = Rc::try_unwrap(old)
-            .map_err(|_| anyhow!("{key} is running; reload it between frames"))?;
-        let mut rt = old.rt.into_inner();
-        let insts: Vec<Rc<Instance>> = self
-            .inner
-            .instances
-            .borrow()
-            .iter()
-            .filter(|i| i.path == key)
-            .cloned()
-            .collect();
-        // An instance whose object is out (busy) keeps the one it has.
-        let insts: Vec<Rc<Instance>> = insts
-            .into_iter()
-            .filter(|i| i.obj.borrow().is_some())
-            .collect();
-        let mut objs: Vec<Object> = insts
-            .iter()
-            .filter_map(|i| i.obj.borrow_mut().take())
-            .collect();
-        let mut refs: Vec<&mut Object> = objs.iter_mut().collect();
-        rt.set_engine(self.engine_for(&key));
-        let swapped = rt.reload(&compiled, self.host_fns(), &mut refs);
-        if swapped.is_ok() {
-            self.arm(&key, &compiled, &mut rt);
-        }
-        for (inst, obj) in insts.iter().zip(objs) {
-            *inst.obj.borrow_mut() = Some(obj);
-        }
-        let (compiled, ty) = if swapped.is_ok() {
-            (compiled, ty)
+        if self.as_units(&key) {
+            self.rebuild_project(&[key])
         } else {
-            (old.compiled, old.ty)
-        };
-        self.inner.files.borrow_mut().insert(
-            key.clone(),
-            Rc::new(File {
-                native: crate::native::has_native(&compiled.wasm),
-                reentry: rt.reentry(),
-                rt: RefCell::new(rt),
-                compiled,
-                ty,
-            }),
-        );
-        swapped.map(|_| ()).map_err(|e| anyhow!("{key}: {e}"))
+            self.reload_alone(&key)
+        }
     }
 
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {

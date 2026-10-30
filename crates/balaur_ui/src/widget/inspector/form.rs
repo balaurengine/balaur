@@ -2,6 +2,7 @@
 //! names, each control paired with what an edit on it means.
 
 use balaur_core::Engine;
+use balaur_core::components::Schema;
 use balaur_script::Value;
 use smol_str::SmolStr;
 
@@ -27,6 +28,14 @@ const EMPTY: &str = "\u{2014} empty \u{2014}";
 const EMBEDDED: &str = "\u{2014} embedded \u{2014}";
 /// What a reference to an inline definition starts with.
 const INLINE: &str = "#!";
+
+/// The rows one property took in a form: from `first`, `count` of them.
+#[derive(Clone)]
+pub(super) struct Span {
+    pub(super) property: String,
+    pub(super) first: usize,
+    pub(super) count: usize,
+}
 
 /// One row of the form: its spec as the pool takes it, and what an edit on
 /// each of its controls means.
@@ -60,23 +69,22 @@ impl<'a> Form<'a> {
         }
     }
 
-    /// Every property `options` names, or every one the schema declares.
+    /// Every property `options` names, or every one the schema declares in
+    /// the order it writes them: the rows, and which rows each property took.
     pub(super) fn component(
         &mut self,
-        schema: &toml::Value,
+        schema: &Schema,
         data: &toml::Value,
         options: &[SmolStr],
-    ) {
-        let Some(specs) = schema.as_table() else {
-            return;
-        };
+    ) -> Vec<Span> {
         let names: Vec<String> = if options.is_empty() {
-            sorted_keys(specs)
+            schema.order().to_vec()
         } else {
             options.iter().map(ToString::to_string).collect()
         };
+        let mut spans = Vec::with_capacity(names.len());
         for name in names {
-            let Some(spec) = specs.get(&name) else {
+            let Some(spec) = schema.get(&name) else {
                 continue;
             };
             let value = data
@@ -84,11 +92,23 @@ impl<'a> Form<'a> {
                 .or_else(|| spec.get(i::DEFAULT))
                 .cloned()
                 .unwrap_or_else(|| toml::Value::String(String::new()));
-            if flag(spec, i::READONLY) {
-                self.readonly(&name, spec, &value);
-            } else {
-                self.value(&Cursor::top(&name), spec, &value);
-            }
+            let first = self.rows.len();
+            self.property(&name, spec, &value);
+            spans.push(Span {
+                property: name,
+                first,
+                count: self.rows.len() - first,
+            });
+        }
+        spans
+    }
+
+    /// The rows of property `name` alone, holding `value`.
+    pub(super) fn property(&mut self, name: &str, spec: &toml::Value, value: &toml::Value) {
+        if flag(spec, i::READONLY) {
+            self.readonly(name, spec, value);
+        } else {
+            self.value(&Cursor::top(name), spec, value);
         }
     }
 
@@ -331,6 +351,7 @@ impl<'a> Form<'a> {
     /// into the other where the asset type keeps its files somewhere.
     fn asset(&mut self, at: &Cursor, spec: &toml::Value, value: &toml::Value) {
         let asset = text_of(spec, i::ASSET).to_owned();
+        let record = balaur_core::assets::schema(self.eng, &asset);
         let reference = self.shown(&as_text(value));
         let inline = reference.starts_with(INLINE);
         let dir = if asset.is_empty() {
@@ -391,6 +412,30 @@ impl<'a> Form<'a> {
             ));
         }
         self.tall(at, spec, controls);
+        if let Some(record) = record {
+            self.record_asset(at, &record, value);
+        }
+    }
+
+    /// A record asset's own rows under the row naming it: the definition it
+    /// names, or the record at its defaults where it names none. An edit on
+    /// one reports the step into the definition, as a record field's does.
+    fn record_asset(&mut self, at: &Cursor, record: &Schema, value: &toml::Value) {
+        let named = as_text(value);
+        let definition = if named.is_empty() {
+            empty_table()
+        } else {
+            balaur_core::assets::definition(self.eng, &named).unwrap_or_else(|_| empty_table())
+        };
+        for (name, field) in record.ordered() {
+            let inner = at.step(Step::Key(name.to_owned()), label_of(name));
+            let now = definition
+                .get(name)
+                .or_else(|| field.get(i::DEFAULT))
+                .cloned()
+                .unwrap_or_else(|| toml::Value::String(String::new()));
+            self.value(&inner, field, &now);
+        }
     }
 
     /// Anything with no editor of its own: its text, written as it is typed.
@@ -549,16 +594,8 @@ impl<'a> Form<'a> {
         );
     }
 
-    /// A value as the reader knows it: what the script says it is spelled
-    /// as, else its path from `relative_to`.
+    /// A value as the reader knows it: its path from `relative_to`.
     fn shown(&self, value: &str) -> String {
-        for alias in &self.asked.aliases {
-            if let Some((held, shown)) = alias.split_once('\u{1f}')
-                && held == value
-            {
-                return shown.to_owned();
-            }
-        }
         if !self.asked.relative_to.is_empty()
             && let Some(rest) = value
                 .strip_prefix(self.asked.relative_to.as_str())

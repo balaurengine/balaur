@@ -17,7 +17,7 @@ const FAR: float = 1000.0;
 // centimetre or two, and that is noise rather than ground.
 const WOBBLE: float = 0.03;
 
-pub struct FirstPerson {
+pub class FirstPerson {
     node: Node,
     pub speed: float = 4.5,
     pub sensitivity: float = 0.12,

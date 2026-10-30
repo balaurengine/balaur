@@ -49,8 +49,8 @@ fn app_with_a_scene(scene: &str) -> (tempfile::TempDir, App) {
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     std::fs::create_dir(dir.path().join("fonts")).unwrap();
     let face = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../editor/fonts/ui-SourceSans3-Regular.ttf");
-    std::fs::copy(&face, dir.path().join("fonts/ui-SourceSans3-Regular.ttf")).unwrap();
+        .join("../../editor/fonts/SourceSans3-Regular.ttf");
+    std::fs::copy(&face, dir.path().join("fonts/SourceSans3-Regular.ttf")).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();

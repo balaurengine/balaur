@@ -1,7 +1,7 @@
 // The same property, read as the whole table: the spelling `component_read`
 // replaced, kept so the pair prices it.
 
-pub struct ComponentTable {
+pub class ComponentTable {
     node: Node,
     seen: float,
 }

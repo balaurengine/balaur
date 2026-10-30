@@ -145,6 +145,10 @@ pub(super) fn named(
             | ExprKind::Cast(a, _) => expr(a, out),
             ExprKind::StructLit(_, fields) => fields.iter().for_each(|(_, f)| expr(f, out)),
             ExprKind::ArrayLit(items) => items.iter().for_each(|i| expr(i, out)),
+            ExprKind::MapLit(entries) => entries.iter().for_each(|(key, value)| {
+                expr(key, out);
+                expr(value, out);
+            }),
             ExprKind::If(c, then, els) => {
                 expr(c, out);
                 block(then, out);

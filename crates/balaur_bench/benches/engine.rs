@@ -7,7 +7,7 @@ use balaur_bench::{Backend, Project, app};
 use balaur_core::scene;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
-const EMPTY: &str = "pub struct S { node: Node }\n";
+const EMPTY: &str = "pub class Bench { node: Node }\n";
 
 /// One looping track on the node itself, so the sampler runs and the write
 /// lands without a rig to resolve first.

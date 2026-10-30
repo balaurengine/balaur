@@ -34,7 +34,7 @@ cells = [[0, 0, 0]]
 [[nodes]]
 id = "n_world"
 name = "World"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [[nodes]]
 id = "n_a"
@@ -68,8 +68,8 @@ transform = { position = [0.0, 10.0, 0.0] }
 fn a_3d_voxel_grid_resizes_crops_and_joins_its_neighbour() {
     let mut b = boot::project(
         GRIDS,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.get_node("A").collider3d.combine_voxels(self.node.get_node("B"));
         self.node.get_node("Cropped").collider3d.crop_voxels(0, 0, 0, 1, 0, 0);

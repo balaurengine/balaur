@@ -64,7 +64,7 @@ kind = "list"
 text = ""
 height = 120
 row_height = 20
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 
 [[nodes]]
 id = "verbs"

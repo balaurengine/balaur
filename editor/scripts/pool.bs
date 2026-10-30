@@ -14,7 +14,7 @@ use util;
 /// The strip the chrome is made of: how many workspaces, documents and tools
 /// there are changes with the workspace and with what is open, so the bar can
 /// no more be authored than the inspector's form can.
-pub fn strip(S: editor::State, host_path: str, controls: any) {
+pub fn strip(state: editor::State, host_path: str, controls: any) {
     ui::fill_strip(host_path, controls);
 }
 
@@ -27,7 +27,7 @@ pub fn strip(S: editor::State, host_path: str, controls: any) {
 ///
 /// The rows are as wide as the host: `stacked` puts each label above its
 /// control column instead of beside it, for a host too narrow for both.
-pub fn sync(S: editor::State, host_path: str, specs: any, label_w: float, stacked: bool) {
+pub fn sync(state: editor::State, host_path: str, specs: any, label_w: float, stacked: bool) {
     ui::fill_rows(host_path, specs, label_w, stacked);
 }
 
@@ -37,40 +37,40 @@ pub fn sync(S: editor::State, host_path: str, specs: any, label_w: float, stacke
 ///
 /// A self-test run builds and fills anyway, and warns when the controls
 /// changed under a key that did not: an input the key left out.
-pub fn strip_when(S: &mut editor::State, host_path: str, key: any, build: fn(&mut editor::State) -> any) {
-    if S.pool_keys.get(host_path) == key {
-        if S.start_states != "" && ui::fill_strip(host_path, build(S)) {
+pub fn strip_when(state: &mut editor::State, host_path: str, key: any, build: fn(&mut editor::State) -> any) {
+    if state.pool_keys.get(host_path) == key {
+        if state.start_states != "" && ui::fill_strip(host_path, build(state)) {
             log::warn("the strip at {host_path} changed while its key did not");
         }
         return;
     }
-    S.pool_keys.set(host_path, key);
-    ui::fill_strip(host_path, build(S));
+    state.pool_keys.set(host_path, key);
+    ui::fill_strip(host_path, build(state));
 }
 
 /// Whether the strip at `host_path` wants filling for `key`: the key moved,
 /// or a self-test run checks that the controls did not move under it. Ask
 /// before building, then hand what was built to `strip_keyed`: the shape a
 /// builder that reads locals takes, where `strip_when` would need a closure.
-pub fn strip_due(S: editor::State, host_path: str, key: any) -> bool {
-    S.start_states != "" || S.pool_keys.get(host_path) != key
+pub fn strip_due(state: editor::State, host_path: str, key: any) -> bool {
+    state.start_states != "" || state.pool_keys.get(host_path) != key
 }
 
 /// `strip_when`'s fill, for controls built after `strip_due` said so.
-pub fn strip_keyed(S: &mut editor::State, host_path: str, key: any, controls: any) {
-    if S.pool_keys.get(host_path) == key {
+pub fn strip_keyed(state: &mut editor::State, host_path: str, key: any, controls: any) {
+    if state.pool_keys.get(host_path) == key {
         if ui::fill_strip(host_path, controls) {
             log::warn("the strip at {host_path} changed while its key did not");
         }
         return;
     }
-    S.pool_keys.set(host_path, key);
+    state.pool_keys.set(host_path, key);
     ui::fill_strip(host_path, controls);
 }
 
 /// `sync`, when `key` moved; the same contract as `strip_when`.
 pub fn sync_when(
-    S: &mut editor::State,
+    state: &mut editor::State,
     host_path: str,
     key: any,
     label_w: float,
@@ -78,53 +78,53 @@ pub fn sync_when(
     build: fn(&mut editor::State) -> any,
 ) {
     let full: any = [key, label_w, stacked];
-    if S.pool_keys.get(host_path) == full {
-        if S.start_states != "" && ui::fill_rows(host_path, build(S), label_w, stacked) {
+    if state.pool_keys.get(host_path) == full {
+        if state.start_states != "" && ui::fill_rows(host_path, build(state), label_w, stacked) {
             log::warn("the rows at {host_path} changed while their key did not");
         }
         return;
     }
-    S.pool_keys.set(host_path, full);
-    ui::fill_rows(host_path, build(S), label_w, stacked);
+    state.pool_keys.set(host_path, full);
+    ui::fill_rows(host_path, build(state), label_w, stacked);
 }
 
 /// `strip_due` for rows: whether the rows at `host_path` want filling for
 /// `key` at this label width and stacking. Hand what was built to
 /// `sync_keyed`.
-pub fn sync_due(S: editor::State, host_path: str, key: any, label_w: float, stacked: bool) -> bool {
+pub fn sync_due(state: editor::State, host_path: str, key: any, label_w: float, stacked: bool) -> bool {
     let full: any = [key, label_w, stacked];
-    S.start_states != "" || S.pool_keys.get(host_path) != full
+    state.start_states != "" || state.pool_keys.get(host_path) != full
 }
 
 /// `sync_when`'s fill, for rows built after `sync_due` said so.
-pub fn sync_keyed(S: &mut editor::State, host_path: str, key: any, label_w: float, stacked: bool, specs: any) {
+pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_w: float, stacked: bool, specs: any) {
     let full: any = [key, label_w, stacked];
-    if S.pool_keys.get(host_path) == full {
+    if state.pool_keys.get(host_path) == full {
         if ui::fill_rows(host_path, specs, label_w, stacked) {
             log::warn("the rows at {host_path} changed while their key did not");
         }
         return;
     }
-    S.pool_keys.set(host_path, full);
+    state.pool_keys.set(host_path, full);
     ui::fill_rows(host_path, specs, label_w, stacked);
 }
 
-/// `spec`, whose edit `f` hears with `data` and the edit: what a closure over
+/// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over
 /// the locals in `data` was. The Editor's `handle` makes the call.
-pub fn on(spec: any, f: fn(&mut editor::State, any, any), data: any) -> any {
-    spec.with("on", "handle").with("data", data.with("fn", f))
+pub fn on(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
+    spec.with("on", "handle").with("data", data.with("fn", handler))
 }
 
 /// `on` for Enter in a field, beside or instead of its edit.
-pub fn on_submit(spec: any, f: fn(&mut editor::State, any, any), data: any) -> any {
+pub fn on_submit(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
     let held = spec.get("data");
-    let d = if held.is_nil() { data } else { held };
-    spec.with("on_submit", "handle_submit").with("data", d.with("submit", f))
+    let carried = if held.is_nil() { data } else { held };
+    spec.with("on_submit", "handle_submit").with("data", carried.with("submit", handler))
 }
 
 /// Stop drawing the whole pool, for a panel that has nothing to show. What it
 /// was filled with goes back on when it shows again.
-pub fn hide(S: &mut editor::State, host_path: str) {
+pub fn hide(state: &mut editor::State, host_path: str) {
     util::hide(host_path);
-    S.pool_keys.remove(host_path);
+    state.pool_keys.remove(host_path);
 }

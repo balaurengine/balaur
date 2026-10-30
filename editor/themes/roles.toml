@@ -8,6 +8,15 @@ type = "widget_theme"
 font_size = 12
 control_height = 24
 
+# The editor's faces. A role names one by its name here, as it names a
+# colour by its token; `default` is every text that names none, `icon` the
+# glyphs a button or a row draws beside its caption.
+[fonts]
+default = "fonts/SourceSans3-Regular.ttf"
+heading = "fonts/SourceSans3-Semibold.ttf"
+mono = "fonts/JetBrainsMono-Regular.ttf"
+icon = "fonts/Phosphor-Fill.ttf"
+
 [panel]
 fill = "bg_panel"
 corner_radius = "radius_large"
@@ -24,12 +33,12 @@ corner_radius = "radius_large"
 text_color = "text_default"
 
 [roles.text_caption]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "text_subtle"
 
 [roles.text_caption_primary]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "primary_text"
 
@@ -46,24 +55,24 @@ text_align = "end"
 width = 28
 
 [roles.text_code]
-font_family = "mono"
+font = "mono"
 text_color = "text_default"
 
 [roles.text_code_quiet]
-font_family = "mono"
+font = "mono"
 text_color = "text_subtle"
 
 [roles.text_code_secondary]
-font_family = "mono"
+font = "mono"
 text_color = "secondary_text"
 padding_x = 7
 
 [roles.text_code_success]
-font_family = "mono"
+font = "mono"
 text_color = "success_text"
 
 [roles.text_heading]
-font_family = "heading"
+font = "heading"
 font_size = "font_size_small"
 font_weight = 700
 text_color = "text_muted"
@@ -85,29 +94,29 @@ font_size = 18
 text_color = "primary_text"
 
 [roles.text_mark_primary]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_large"
 text_color = "primary_text"
 
 [roles.text_mark_secondary]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_large"
 text_color = "secondary_text"
 
 [roles.text_note]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "text_muted"
 padding_x = 7
 
 [roles.text_title]
-font_family = "heading"
+font = "heading"
 font_size = "font_size_title"
 font_weight = 700
 text_color = "text_default"
 
 [roles.text_title_dialog]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_large"
 text_color = "text_default"
 
@@ -127,7 +136,7 @@ fill = "bg_control_hover"
 fill = "primary_bg"
 
 [roles.action_brand]
-font_family = "heading"
+font = "heading"
 font_size = "font_size_title"
 font_weight = 700
 text_color = "text_default"
@@ -293,7 +302,7 @@ text_color = "text_on_primary"
 fill = "primary_text"
 
 [roles.action_section]
-font_family = "heading"
+font = "heading"
 font_size = "font_size_small"
 font_weight = 700
 text_color = "text_muted"
@@ -305,7 +314,7 @@ height = "control_height_small"
 height = 29
 
 [roles.action_subsection]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "text_muted"
 text_align = "start"
@@ -531,7 +540,7 @@ text_color = "text_default"
 
 # Rows a list, a menu or a picker is made of.
 [roles.item]
-font_family = "mono"
+font = "mono"
 text_color = "text_default"
 text_align = "start"
 corner_radius = "radius_small"
@@ -548,7 +557,7 @@ fill = "primary_fill"
 fill = "primary_text"
 
 [roles.item_bar]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "text_muted"
 fill = "bg_control"
@@ -671,7 +680,7 @@ height = "control_height"
 height = "control_height_touch"
 
 [roles.input]
-font_family = "mono"
+font = "mono"
 text_color = "text_default"
 fill = "bg_control"
 corner_radius = "radius_small"
@@ -681,7 +690,7 @@ height = 22
 stroke = "border_default"
 
 [roles.input_dock]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "text_default"
 fill = "bg_control"
@@ -693,7 +702,7 @@ height = 22
 height = 31
 
 [roles.input_form]
-font_family = "mono"
+font = "mono"
 text_color = "text_default"
 fill = "bg_control"
 stroke = "border_default"
@@ -714,7 +723,7 @@ height = "control_height"
 height = "control_height_touch"
 
 [roles.input_path]
-font_family = "mono"
+font = "mono"
 text_color = "secondary_text"
 fill = "bg_control"
 stroke = "border_default"
@@ -745,7 +754,7 @@ height = "control_height"
 
 # Notes: a line that says something is wrong, or what to do.
 [roles.note_danger]
-font_family = "mono"
+font = "mono"
 font_size = "font_size_small"
 text_color = "danger_text"
 

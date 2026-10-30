@@ -43,12 +43,12 @@ fn schema() -> String {
             r#"{ type = "float", default = 1.0, min = 0.001, description = "Seconds from starting to `timeout`" }"#,
         ),
         (
-            k::ONE_SHOT,
-            r#"{ type = "bool", default = false, description = "Stop after one `timeout`; off, count the next one at once" }"#,
-        ),
-        (
             k::AUTOSTART,
             r#"{ type = "bool", default = false, description = "Start counting as soon as the node is in the scene" }"#,
+        ),
+        (
+            k::ONE_SHOT,
+            r#"{ type = "bool", default = false, description = "Stop after one `timeout`; off, count the next one at once" }"#,
         ),
         (
             k::RUNNING,

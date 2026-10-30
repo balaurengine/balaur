@@ -43,9 +43,10 @@ first; a cycle is refused with a message.
 
 **Culling is a pure function the simulation may ask.** Bounds are computed
 per renderable at attach — a shape's extent, a mesh asset's box, a sprite's
-quad — kept in parry's `Bvh`, the incremental index rapier's own broad phase
+quad, a text's shaped box — kept in parry's `Bvh`, the incremental index rapier's own broad phase
 uses, so the pass is a traversal rather than a walk of every node, and the
-same tree answers picking. `render.in_view(node)` answers whether the current
+same tree answers picking, the editor's included (PLAN-editor-ergonomics
+§1a). `render.in_view(node)` answers whether the current
 camera's frustum meets a node's bounds, computed from the `camera` component and
 `GlobalTransform` alone, so a headless run answers exactly as a windowed
 one. The backend uses the same answer to skip a draw. What makes that safe

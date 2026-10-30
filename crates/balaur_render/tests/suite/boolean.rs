@@ -368,7 +368,7 @@ fn a_three_dimensional_boolean_dresses_its_result() {
         &app,
         owner,
         "boolean3d",
-        "operation = \"union\"\ncolor = [0.0, 1.0, 0.0, 1.0]\ntexture = \"rock.png\"\ncast_shadow = false\nlight_layers = 2\nrender_layers = 4",
+        "operation = \"union\"\ncolor = [0.0, 1.0, 0.0, 1.0]\ntexture = \"rock.png\"\ncast_shadow = false\nlight_layers = [\"2\"]\nrender_layers = [\"3\"]",
     );
     let a = node(&app, "A", owner);
     add(&app, a, "shape3d", "kind = \"box\"");

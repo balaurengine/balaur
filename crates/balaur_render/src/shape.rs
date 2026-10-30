@@ -71,22 +71,22 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                 "shape3d",
                 &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(&[
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 3D shape" }}"#, words::BOX, options(words::SHAPES))),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but box, plane and pyramid" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube" }"#),
-                    (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box, plane or pyramid" }"#),
-                    (k::TUBE_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "Thickness of the ring, when kind is torus" }"#),
-                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.25, min = 0.01, description = "Radius of the hole, when kind is tube" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is box; zero is a square edge" }"#),
-                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around the axis, or across a plane" }"#),
-                    (k::RINGS, r#"{ type = "int", default = 16, min = 3, description = "Cuts along the axis, for ball, capsule and torus" }"#),
-                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset, drawn over the shape's own UVs; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
-                    (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
-                ], &crate::overlay::schema_3d(crate::overlay::Drawn::Builtin))),
+                    (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box, plane or pyramid", group = "shape" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but box, plane and pyramid", group = "shape" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube", group = "shape" }"#),
+                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.25, min = 0.01, description = "Radius of the hole, when kind is tube", group = "shape" }"#),
+                    (k::TUBE_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "Thickness of the ring, when kind is torus", group = "shape" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is box; zero is a square edge", group = "shape" }"#),
+                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism", group = "shape" }"#),
+                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around the axis, or across a plane", group = "shape" }"#),
+                    (k::RINGS, r#"{ type = "int", default = 16, min = 3, description = "Cuts along the axis, for ball, capsule and torus", group = "shape" }"#),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
+                    (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
+                    (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
+                ], &crate::overlay::schema_3d())),
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
@@ -123,13 +123,13 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                     map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                     map.insert(
                         k::LIGHT_LAYERS.into(),
-                        toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
+                        balaur_core::layers::names(renderable.layers),
                     );
                     map.insert(
                         k::RENDER_LAYERS.into(),
-                        toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
+                        balaur_core::layers::names(renderable.render_layers),
                     );
-                    crate::overlay::overlay_3d_to_map(&renderable.overlay, map);
+                    crate::overlay::overlay_3d_to_map(renderable.overlay, map);
                 }
                 Some(params)
             }),
@@ -221,29 +221,29 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
             doc: "A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
-                &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(&[
+                &balaur_core::components::ComponentDef::schema(&[
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECTANGLE, options(&words::shapes_2d()))),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, when kind is capsule" }"#),
-                    (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve" }"#),
-                    (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
-                    (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
-                    (k::JOIN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a polyline's segments meet" }}"#, stroke::ROUND, options(stroke::JOINS))),
-                    (k::CAP, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How an open polyline ends" }}"#, stroke::ROUND, options(stroke::CAPS))),
-                    (k::MITER_LIMIT, r#"{ type = "float", default = 4.0, min = 1.0, description = "How far a miter join may reach, in half-widths, before its corner is cut to a bevel" }"#),
-                    (k::TAPER, r#"{ type = "vec2", default = [1.0, 1.0], description = "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps" }"#),
-                    (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
-                    (k::GRADIENT_STEPS, &format!(r#"{{ type = "int", default = {}, min = 1, description = "How many colours a polyline's gradient steps through along its length" }}"#, stroke::GRADIENT_STEPS)),
-                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, the shape draws with: over a primitive's own UVs, and along a polyline repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle or ellipse" }"#),
-                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rectangle; zero is a square corner" }"#),
-                    (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star" }"#),
-                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon" }"#),
-                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
+                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, the shape draws with: over a primitive's own UVs, and along a polyline repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                ], &[crate::overlay::schema_2d(crate::overlay::Drawn::Builtin), crate::lit_2d::rows()].concat())),
+                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle or ellipse", group = "shape" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon", group = "shape" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, when kind is capsule", group = "shape" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rectangle; zero is a square corner", group = "shape" }"#),
+                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon", group = "shape" }"#),
+                    (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star", group = "shape" }"#),
+                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach", group = "shape" }"#),
+                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps", group = "shape" }"#),
+                    (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve", group = "line" }"#),
+                    (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline", group = "line" }"#),
+                    (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline", group = "line" }"#),
+                    (k::TAPER, r#"{ type = "vec2", default = [1.0, 1.0], description = "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps", group = "line" }"#),
+                    (k::JOIN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a polyline's segments meet", group = "line" }}"#, stroke::ROUND, options(stroke::JOINS))),
+                    (k::CAP, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How an open polyline ends", group = "line" }}"#, stroke::ROUND, options(stroke::CAPS))),
+                    (k::MITER_LIMIT, r#"{ type = "float", default = 4.0, min = 1.0, description = "How far a miter join may reach, in half-widths, before its corner is cut to a bevel", group = "line" }"#),
+                    (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient", group = "line" }"#),
+                    (k::GRADIENT_STEPS, &format!(r#"{{ type = "int", default = {}, min = 1, description = "How many colours a polyline's gradient steps through along its length", group = "line" }}"#, stroke::GRADIENT_STEPS)),
+                ]),
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -258,8 +258,6 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                 }
                 set_color(eng, entity, color_from_params(params))?;
                 crate::set_texture_2d(eng, entity, prop_str(params, k::TEXTURE))?;
-                crate::overlay_from_params(eng, entity, params)?;
-                crate::lit_2d::set_lit(eng, entity, params);
                 crate::material::set_material_2d(
                     eng,
                     entity,
@@ -295,8 +293,6 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     "material".into(),
                     toml::Value::String(renderable.material.clone()),
                 );
-                crate::overlay::overlay_2d_to_map(&renderable.overlay, &mut map);
-                crate::lit_2d::to_map(renderable.lit.as_ref(), &mut map);
                 Some(toml::Value::Table(map))
             }),
         },

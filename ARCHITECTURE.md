@@ -120,19 +120,22 @@ one backend; the Rune backend before it was one crate and went as one.
 
 ### Model
 
-- A script is a `pub struct` with a `node: Node` field and an `impl` of its
-  methods: `init()`, `update(dt: float)`, `fixed_update(dt: float)`,
-  `on_free()`. One instance per attached node. A method reads its fields as
-  `self.x`; a call back into the same node while one of its methods runs is
-  lent a second holder of the struct, so state that call must see sits in a
-  `class` field.
+- A script is a `pub class` named after its file, `door_bell.bs`'s
+  `DoorBell`, with a `node: Node` field and an `impl` of its methods:
+  `init()`, `update(dt: float)`, `fixed_update(dt: float)`, `on_free()`. One
+  object per attached node, in the module's memory; the host holds its
+  pointer, so a call copies nothing in or out, and a call back into the same
+  node sees the same object. A frame's `update` runs once for each run of
+  nodes in scene order that share a script (`T.update$batch`).
 - `use name;` links `name.bs`, found beside the file or in a folder above it,
   and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
-  struct is a module others use. Disk in a dev run, export pack when shipped.
-- Each file compiles once, alone, as a unit; a script runs its own unit with
-  the units of every module it uses, in one memory, each made on its first
-  call (`docs/PLAN-bs-linking.md`). A debugger's probes, a profiler, the
-  browser and a native build compile the whole file with its modules in.
+  class named after it is a module others use. Disk in a dev run, export pack when shipped.
+- Each file compiles once, alone, as a unit, and every unit of the project
+  is made in one instance, one memory, each on its first call
+  (`docs/PLAN-bs-linking.md`). A script holds another node's script as its
+  class, `let tree: scene_tree::SceneTree? = node.script;`, and calls it
+  directly. A debugger's probes, a profiler, the browser and a native build
+  compile the whole file with its modules in, an instance of its own.
 
 ### Exported properties
 
@@ -155,7 +158,8 @@ scene may tune; `script.props` overrides only what it names.
   resolved the way one is, and a path naming nothing is nil in its place.
 - A module's constants are read where they are declared, and a save of it
   rebuilds its unit, the units built against what it declares when that
-  changed, and reloads every script using it.
+  changed, and makes the project's instance again, every object carried
+  across by field name.
 
 ### Prefabs
 

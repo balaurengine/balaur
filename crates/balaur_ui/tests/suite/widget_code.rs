@@ -60,17 +60,17 @@ fn a_code_gutter_marks_the_lines_its_node_names() {
 /// in another.
 #[test]
 fn a_code_gutter_click_reports_its_line() {
-    let script = "pub struct Owner { node: Node, hit: int }
+    let script = "pub class Owner { node: Node, hit: int }
 impl Owner {
     pub fn on_hit(line: int) { self.hit = line; }
     pub fn hit() -> int { self.hit }
 }
 ";
-    let (_dir, mut app) = app_with_script(script);
+    let (_dir, mut app) = app_with_script("owner.bs", script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
+    host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let params = toml::toml! {
         kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0

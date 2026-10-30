@@ -71,11 +71,14 @@ pub(crate) fn absolute_in(eng: &Engine, root: &Path, value: &mut toml::Value, id
         Ids::Keep => None,
     };
     let spelled = crate::dependencies::spelling(eng, root);
+    let mut kept: Vec<(String, String)> = Vec::new();
     walk(
         &mut |text: &mut String| {
             if let Some(rest) = text.strip_prefix(crate::assets::ID_PREFIX) {
                 if let Some(named) = index.as_ref().and_then(|index| id_path(index, rest)) {
-                    *text = join(&spelled, &named);
+                    let resolved = join(&spelled, &named);
+                    kept.push((resolved.clone(), text.clone()));
+                    *text = resolved;
                 }
             } else if names_a_file(text) && files.exists(&root.join(&text)) {
                 *text = join(&spelled, text);
@@ -83,15 +86,34 @@ pub(crate) fn absolute_in(eng: &Engine, root: &Path, value: &mut toml::Value, id
         },
         value,
     );
+    // What each resolved path was read as, so [`relative_in`] writes the id.
+    if !kept.is_empty() {
+        if eng
+            .try_resource::<crate::scene_toml::IdSpellings>()
+            .is_none()
+        {
+            eng.insert_resource(crate::scene_toml::IdSpellings::default());
+        }
+        let spellings = eng.resource::<crate::scene_toml::IdSpellings>();
+        spellings.borrow_mut().0.extend(kept);
+    }
 }
 
 /// Put every path under `root` back to how that root's own project spells it,
-/// for a document about to be written to a file inside it.
-pub(crate) fn relative_in(root: &Path, value: &mut toml::Value) {
+/// for a document about to be written to a file inside it: an `id://` as it
+/// was read, any other path relative to the root.
+pub(crate) fn relative_in(eng: &Engine, root: &Path, value: &mut toml::Value) {
     let prefix = join(root, "");
+    let spellings = eng.try_resource::<crate::scene_toml::IdSpellings>();
+    let spellings = spellings.as_ref().map(|held| held.borrow());
     walk(
         &mut |text: &mut String| {
-            if let Some(rest) = text.strip_prefix(&prefix) {
+            if let Some(reference) = spellings
+                .as_ref()
+                .and_then(|held| held.0.get(text.as_str()))
+            {
+                *text = reference.clone();
+            } else if let Some(rest) = text.strip_prefix(&prefix) {
                 *text = rest.to_string();
             }
         },
@@ -121,6 +143,36 @@ pub(crate) fn prefixed_in(
         },
         value,
     );
+}
+
+/// The root of the project whose content `entity` plays, when that is not
+/// the engine's own: the game an editor edits, whose files a node there names
+/// as that project spells them.
+fn content_root_of(eng: &Engine, entity: hecs::Entity) -> Option<PathBuf> {
+    let root = crate::project::content_root(eng)?;
+    crate::project::in_content(eng, entity).then_some(root)
+}
+
+/// A value on its way onto a node playing another project's content, its
+/// paths made absolute against that project; `None` for any other node, which
+/// takes the value as it is.
+pub(crate) fn written_on(
+    eng: &Engine,
+    entity: hecs::Entity,
+    value: &toml::Value,
+) -> Option<toml::Value> {
+    let root = content_root_of(eng, entity)?;
+    let mut value = value.clone();
+    absolute_in(eng, &root, &mut value, Ids::Resolve);
+    Some(value)
+}
+
+/// A value read off a node playing another project's content, its paths
+/// spelled as that project spells them.
+pub(crate) fn read_off(eng: &Engine, entity: hecs::Entity, value: &mut toml::Value) {
+    if let Some(root) = content_root_of(eng, entity) {
+        relative_in(eng, &root, value);
+    }
 }
 
 /// Whether `id://` references are resolved on the way in.

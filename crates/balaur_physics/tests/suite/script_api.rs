@@ -19,17 +19,17 @@ fn run(body: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Body\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"scenario\"\nname = \"Body\"\nscript = { source = \"scripts/scenario.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.bs"),
-        format!("pub struct S {{ node: Node }}\nimpl S {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
+        dir.path().join("scripts/scenario.bs"),
+        format!("pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
     )
     .unwrap();
 
@@ -278,12 +278,12 @@ fn a_collider_property_is_read_and_written_as_a_field() {
 fn writing_one_property_field_leaves_the_others() {
     run_clean(
         r#"
-        self.node.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.75).with("friction", 0.25));
-        self.node.collider3d.friction = 0.9;
+        self.node.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.75).with("density", 2.5));
+        self.node.collider3d.density = 0.9;
         let radius = self.node.collider3d.radius;
         if math::abs(radius - 0.75) >= 0.0001 { log::error("radius became {radius}"); }
-        let friction = self.node.collider3d.friction;
-        if math::abs(friction - 0.9) >= 0.0001 { log::error("friction became {friction}"); }
+        let density = self.node.collider3d.density;
+        if math::abs(density - 0.9) >= 0.0001 { log::error("density became {density}"); }
         "#,
     );
 }

@@ -18,7 +18,7 @@ script = { source = "scripts/lobby.bs" }
 "#;
 
 const LOBBY_SCRIPT: &str = r#"
-pub struct Lobby { node: Node }
+pub class Lobby { node: Node }
 impl Lobby {
     pub fn host_match(transport: str) {
         multiplayer::host(map().with("transport", transport).with("name", "host"));
@@ -59,7 +59,7 @@ transform = { position = [0.0, 0.0, 0.0] }
 "#;
 
 const ARENA_SCRIPT: &str = r#"
-pub struct Arena { node: Node, view: Node }
+pub class Arena { node: Node, view: Node }
 impl Arena {
     fn init() {
         self.view = self.node.get_node("View");

@@ -1,4 +1,4 @@
-// The selection as an ordered set. `S.sel` is its head and stays the active
+// The selection as an ordered set. `state.sel` is its head and stays the active
 // node, so every command reading one index is unchanged; a command over many
 // iterates here instead.
 
@@ -10,7 +10,7 @@ use util;
 
 /// A selected root's pose when a drag began, so each frame applies a delta
 /// to that rather than to where the last frame left it.
-pub struct Entry4 {
+pub struct RootPose {
     index: int,
     pos: [float],
     scale: [float],
@@ -18,133 +18,134 @@ pub struct Entry4 {
     world: [float],
 }
 
-/// Replace the set with one node and make it active. Every writer of `S.sel`
-/// goes through this: a stale `S.sels` is a selection the gizmo disagrees with.
-pub fn only(S: &mut editor::State, i: int) {
-    S.sels = [i];
-    S.sel = i;
-    signals::outline(S);
+/// Replace the set with one node and make it active. Every writer of `state.sel`
+/// goes through this: a stale `state.sels` is a selection the gizmo disagrees with.
+pub fn only(state: &mut editor::State, row: int) {
+    state.sels = [row];
+    state.sel = row;
+    signals::outline(state);
 }
 
 /// Every selected index, active first.
-pub fn all(S: editor::State) -> [int] {
-    if S.sels.len() > 0 {
-        return S.sels;
+pub fn all(state: editor::State) -> [int] {
+    if state.sels.len() > 0 {
+        return state.sels;
     }
     // Empty, not `[-1]`: a click on empty space deselects, and a loop over
     // this must then do nothing rather than index the document with -1.
-    if S.sel < 0 {
+    if state.sel < 0 {
         return [];
     }
     // `return`: a list after a block reads as indexing the block.
-    return [S.sel];
+    return [state.sel];
 }
 
-pub fn count(S: editor::State) -> int {
-    all(S).len()
+pub fn count(state: editor::State) -> int {
+    all(state).len()
 }
 
-pub fn contains(S: editor::State, i: int) -> bool {
-    util::icontains(all(S), i)
+pub fn contains(state: editor::State, row: int) -> bool {
+    util::icontains(all(state), row)
 }
 
 /// Add or drop one node; an added one becomes active. Dropping the last one
 /// leaves nothing selected, which the panels and tools draw as an empty
 /// frame.
-pub fn toggle(S: &mut editor::State, i: int) {
-    let sels = S.sels;
-    let at = util::iposition(sels, i);
+pub fn toggle(state: &mut editor::State, row: int) {
+    let sels = state.sels;
+    let at = util::iposition(sels, row);
     if at.is_some() {
         if sels.len() > 1 {
             sels.remove(at.unwrap());
-            S.sel = sels[0];
+            state.sel = sels[0];
         }
     } else {
-        sels.insert(0, i);
-        S.sel = i;
+        sels.insert(0, row);
+        state.sel = row;
     }
-    signals::outline(S);
+    signals::outline(state);
 }
 
-/// Extend the set to the document rows between the active node and `i`, for
+/// Extend the set to the document rows between the active node and `row`, for
 /// a shift-click in the tree.
-pub fn extend_to(S: &mut editor::State, i: int) {
-    let lo = util::imin(S.sel, i);
-    let hi = util::imax(S.sel, i);
-    let out = [i];
-    for j in lo..hi + 1 {
-        if j != i {
-            out.push(j);
+pub fn extend_to(state: &mut editor::State, row: int) {
+    let lo = util::imin(state.sel, row);
+    let hi = util::imax(state.sel, row);
+    let out = [row];
+    for candidate in lo..hi + 1 {
+        if candidate != row {
+            out.push(candidate);
         }
     }
-    S.sels = out;
-    S.sel = i;
-    signals::outline(S);
+    state.sels = out;
+    state.sel = row;
+    signals::outline(state);
 }
 
 /// Select nothing: a click on empty space in the viewport, or a delete that
-/// took the last selected row. `S.sel` of -1 is the no-selection the panels
+/// took the last selected row. `state.sel` of -1 is the no-selection the panels
 /// and tools already test for.
-pub fn clear(S: &mut editor::State) {
-    S.sels = [];
-    S.sel = -1;
-    signals::outline(S);
+pub fn clear(state: &mut editor::State) {
+    state.sels = [];
+    state.sel = -1;
+    signals::outline(state);
 }
 
 /// Select exactly these rows; the first is active. An empty list is ignored.
-pub fn set(S: &mut editor::State, rows: [int]) {
+pub fn set(state: &mut editor::State, rows: [int]) {
     if rows.len() == 0 {
         return;
     }
-    S.sels = rows;
-    S.sel = rows[0];
-    signals::outline(S);
+    state.sels = rows;
+    state.sel = rows[0];
+    signals::outline(state);
 }
 
-pub fn select_all(S: &mut editor::State) {
+pub fn select_all(state: &mut editor::State) {
     let rows: [int] = [];
-    for i in 0..S.doc.len() {
-        if !is_locked(S, i) {
-            rows.push(i);
+    for row in 0..state.nodes.len() {
+        if !is_locked(state, row) {
+            rows.push(row);
         }
     }
-    set(S, rows);
+    set(state, rows);
 }
 
-/// Drop rows the document no longer has, after a delete or an undo.
-pub fn clamp(S: &mut editor::State) {
+/// Drop rows the scene no longer has.
+pub fn clamp(state: &mut editor::State) {
     let rows: [int] = [];
-    for i in all(S) {
-        if i >= 0 && i < S.doc.len() && !util::icontains(rows, i) {
-            rows.push(i);
+    for row in all(state) {
+        if row >= 0 && row < state.nodes.len() && !util::icontains(rows, row) {
+            rows.push(row);
         }
     }
     if rows.len() == 0 {
-        rows = [util::imax(0, util::imin(S.sel, S.doc.len() - 1))];
+        rows = [util::imax(0, util::imin(state.sel, state.nodes.len() - 1))];
     }
-    S.sels = rows;
-    S.sel = rows[0];
-    signals::outline(S);
+    state.sels = rows;
+    state.sel = rows[0];
+    signals::outline(state);
 }
 
-fn id_of(S: editor::State, i: int) -> str {
-    if i >= 0 && i < S.doc.len() { S.doc[i].id.as_str() } else { "" }
+fn id_of(state: editor::State, row: int) -> str {
+    let found = model::node(state, row);
+    if found.is_valid() { found.stable_id() } else { "" }
 }
 
 /// The selected rows with any descendant of another selected row dropped: a
 /// shared delta applied to both would move the child twice.
-pub fn roots(S: editor::State) -> [int] {
-    let rows = all(S);
+pub fn roots(state: editor::State) -> [int] {
+    let rows = all(state);
     let out: [int] = [];
-    for i in rows {
+    for row in rows {
         let nested = false;
-        for j in rows {
-            if j != i && model::has_ancestor(S.doc, S.doc[i], id_of(S, j)) {
+        for other in rows {
+            if other != row && model::is_within(model::node(state, row), model::node(state, other)) {
                 nested = true;
             }
         }
         if !nested {
-            out.push(i);
+            out.push(row);
         }
     }
     out
@@ -153,42 +154,42 @@ pub fn roots(S: editor::State) -> [int] {
 /// Locked rows are skipped by the gizmo, by picking and by box select. Editor
 /// state keyed by id, never written to the file: a lock nobody can see in the
 /// document is a lock nobody can explain.
-pub fn is_locked(S: editor::State, i: int) -> bool {
-    S.locks.has(id_of(S, i))
+pub fn is_locked(state: editor::State, row: int) -> bool {
+    state.locks.has(id_of(state, row))
 }
 
-pub fn set_locked(S: &mut editor::State, i: int, locked: bool) {
-    let id = id_of(S, i);
+pub fn set_locked(state: &mut editor::State, row: int, locked: bool) {
+    let id = id_of(state, row);
     if id == "" {
         return;
     }
     if locked {
-        S.locks.set(id, true);
+        state.locks.set(id, true);
     } else {
-        S.locks.remove(id);
+        state.locks.remove(id);
     }
-    signals::outline(S);
+    signals::outline(state);
 }
 
-pub fn unlock_all(S: &mut editor::State) {
-    S.locks = map();
-    signals::outline(S);
+pub fn unlock_all(state: &mut editor::State) {
+    state.locks = map();
+    signals::outline(state);
 }
 
 /// Every selected root's transform, taken once when a drag starts so each
 /// frame applies a delta to the pose the drag began from.
-pub fn snapshot(S: editor::State) -> [Entry4] {
-    let out: [Entry4] = [];
-    for i in roots(S) {
-        let found = model::live(S, i);
-        if is_locked(S, i) || !found.is_valid() {
+pub fn snapshot(state: editor::State) -> [RootPose] {
+    let out: [RootPose] = [];
+    for row in roots(state) {
+        let found = model::node(state, row);
+        if is_locked(state, row) || !found.is_valid() {
             continue;
         }
-        out.push(Entry4 {
-            index: i,
+        out.push(RootPose {
+            index: row,
             pos: util::xyz(found.transform.position),
             scale: util::xyz(found.transform.scale),
-            rot: model::doc_transform(S.doc[i], "rotation_euler", [0.0, 0.0, 0.0]),
+            rot: model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]),
             world: util::xyz(found.transform.global_position()),
         });
     }
@@ -202,35 +203,35 @@ fn snapped(pos: [float]) -> [float] {
 
 /// Offset every row in a snapshot by one world delta. `snap_to` rounds the
 /// result to half units when the Snap chip is on.
-pub fn move_by(S: &mut editor::State, snap: [Entry4], delta: [float], snap_to: bool) {
+pub fn move_by(state: &mut editor::State, snap: [RootPose], delta: [float], snap_to: bool) {
     for entry in snap {
         let pos = util::vadd(entry.pos, delta);
         if snap_to {
             pos = snapped(pos);
         }
-        model::set_transform(S, entry.index, rig::Parts { position: pos, rotation_euler: [], scale: [] });
+        model::set_transform(state, entry.index, rig::Parts { position: pos, rotation_euler: [], scale: [] });
     }
 }
 
 /// Multiply every row's scale by `factors`, and move it away from `pivot` by
 /// the same amount so a set scales as one body.
-pub fn scale_by(S: &mut editor::State, snap: [Entry4], factors: [float], pivot: [float]) {
+pub fn scale_by(state: &mut editor::State, snap: [RootPose], factors: [float], pivot: [float]) {
     let many = snap.len() > 1;
     for entry in snap {
-        let s = [entry.scale[0] * factors[0], entry.scale[1] * factors[1], entry.scale[2] * factors[2]];
-        let parts = rig::Parts { position: [], rotation_euler: [], scale: s };
+        let scaled = [entry.scale[0] * factors[0], entry.scale[1] * factors[1], entry.scale[2] * factors[2]];
+        let parts = rig::Parts { position: [], rotation_euler: [], scale: scaled };
         if many {
-            let d = util::vsub(entry.world, pivot);
-            let moved = [d[0] * factors[0], d[1] * factors[1], d[2] * factors[2]];
-            parts.position = util::vadd(entry.pos, util::vsub(moved, d));
+            let offset = util::vsub(entry.world, pivot);
+            let moved = [offset[0] * factors[0], offset[1] * factors[1], offset[2] * factors[2]];
+            parts.position = util::vadd(entry.pos, util::vsub(moved, offset));
         }
-        model::set_transform(S, entry.index, parts);
+        model::set_transform(state, entry.index, parts);
     }
 }
 
 /// Turn every row about its own axis, and about `pivot` when more than one is
 /// selected, so a set rotates as one body.
-pub fn rotate_by(S: &mut editor::State, snap: [Entry4], axis: int, angle: float, pivot: [float]) {
+pub fn rotate_by(state: &mut editor::State, snap: [RootPose], axis: int, angle: float, pivot: [float]) {
     let many = snap.len() > 1;
     for entry in snap {
         let parts = rig::Parts { position: [], rotation_euler: util::rotate_euler(entry.rot, axis, angle), scale: [] };
@@ -238,47 +239,47 @@ pub fn rotate_by(S: &mut editor::State, snap: [Entry4], axis: int, angle: float,
             let turned = util::rotate_about(entry.world, pivot, axis, angle);
             parts.position = util::vadd(entry.pos, util::vsub(turned, entry.world));
         }
-        model::set_transform(S, entry.index, parts);
+        model::set_transform(state, entry.index, parts);
     }
 }
 
 /// Offset every selected root by a world delta, read from where it is now.
-pub fn nudge(S: &mut editor::State, delta: [float], snap_to: bool) {
-    for i in roots(S) {
-        let found = model::live(S, i);
-        if is_locked(S, i) || !found.is_valid() {
+pub fn nudge(state: &mut editor::State, delta: [float], snap_to: bool) {
+    for row in roots(state) {
+        let found = model::node(state, row);
+        if is_locked(state, row) || !found.is_valid() {
             continue;
         }
         let pos = util::vadd(util::xyz(found.transform.position), delta);
         if snap_to {
             pos = snapped(pos);
         }
-        model::set_transform(S, i, rig::Parts { position: pos, rotation_euler: [], scale: [] });
+        model::set_transform(state, row, rig::Parts { position: pos, rotation_euler: [], scale: [] });
     }
 }
 
 /// Turn every selected root about one of its own axes by `angle`.
-pub fn spin(S: &mut editor::State, axis: int, angle: float) {
-    for i in roots(S) {
-        let found = model::live(S, i);
-        if is_locked(S, i) || !found.is_valid() {
+pub fn spin(state: &mut editor::State, axis: int, angle: float) {
+    for row in roots(state) {
+        let found = model::node(state, row);
+        if is_locked(state, row) || !found.is_valid() {
             continue;
         }
-        let r = util::xyz(found.transform.rotation_euler);
-        r[axis] = r[axis] + angle;
-        model::set_transform(S, i, rig::Parts { position: [], rotation_euler: r, scale: [] });
+        let rotation = util::xyz(found.transform.rotation_euler);
+        rotation[axis] = rotation[axis] + angle;
+        model::set_transform(state, row, rig::Parts { position: [], rotation_euler: rotation, scale: [] });
     }
 }
 
 /// Multiply every selected root's scale by one factor.
-pub fn grow(S: &mut editor::State, factor: float, planar: bool) {
-    for i in roots(S) {
-        let found = model::live(S, i);
-        if is_locked(S, i) || !found.is_valid() {
+pub fn grow(state: &mut editor::State, factor: float, planar: bool) {
+    for row in roots(state) {
+        let found = model::node(state, row);
+        if is_locked(state, row) || !found.is_valid() {
             continue;
         }
-        let s = found.transform.scale;
-        let z = if planar { s.z } else { s.z * factor };
-        model::set_transform(S, i, rig::Parts { position: [], rotation_euler: [], scale: [s.x * factor, s.y * factor, z] });
+        let scale = found.transform.scale;
+        let depth = if planar { scale.z } else { scale.z * factor };
+        model::set_transform(state, row, rig::Parts { position: [], rotation_euler: [], scale: [scale.x * factor, scale.y * factor, depth] });
     }
 }

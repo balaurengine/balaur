@@ -38,7 +38,7 @@ pub(crate) fn label(
 /// Borrowed, not owned: this is built twice a widget a frame and the shaper
 /// keeps nothing from it unless the cache misses.
 pub(crate) fn text_request<'a>(
-    widget: &'a Widget,
+    (widget, project): (&'a Widget, balaur_text::FontProject),
     caption: &'a str,
     width: Option<f32>,
     font: &egui::FontId,
@@ -61,8 +61,8 @@ pub(crate) fn text_request<'a>(
             _ => balaur_text::Align::Start,
         },
         markup: widget.markup,
-        font: widget.text_look.bitmap_font.as_str(),
-        family: crate::widget::theme::family_of(style, widget),
+        font: crate::widget::theme::font_of(style, widget),
+        project,
         line_height: widget.text_look.line_height,
         letter_spacing: widget.text_look.letter_spacing,
         options: &widget.text_look.options,
@@ -82,13 +82,13 @@ pub(crate) fn icon_px(widget: &crate::widget::node::Widget, caption: f32) -> f32
 /// `room` a `wrap` or `truncate` caption has, a block that wide whose lines
 /// sit the way the button places its face.
 pub(crate) fn caption_request<'a>(
-    widget: &'a Widget,
+    placed: (&'a Widget, balaur_text::FontProject),
     caption: &'a str,
     room: Option<f32>,
     font: &egui::FontId,
     style: &'a crate::widget::theme::Style,
 ) -> balaur_text::RequestRef<'a> {
-    let mut request = text_request(widget, caption, room, font, style);
+    let mut request = text_request(placed, caption, room, font, style);
     if room.is_some() {
         request.align = match style.align.as_deref() {
             Some(w::START) => balaur_text::Align::Start,
@@ -111,9 +111,15 @@ pub(crate) fn shaped_caption(
 ) -> Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)> {
     let state = balaur_text::state(at.eng)?;
     let look = at.look(index);
-    let widget = &at.arena[index].widget;
+    let placed = &at.arena[index];
     let mut state = state.borrow_mut();
-    let request = caption_request(widget, caption, room, font, &look.style);
+    let request = caption_request(
+        (&placed.widget, placed.project),
+        caption,
+        room,
+        font,
+        &look.style,
+    );
     let shaped = state.shape_for_egui(ui.ctx(), &request);
     Some((shaped, state.texture()))
 }
@@ -184,6 +190,7 @@ pub(crate) fn shaped_label(
     let placed = &at.arena[index];
     let entity = placed.entity;
     let widget = &placed.widget;
+    let project = placed.project;
     let (wrap, align, selectable) = (
         widget.wrap,
         crate::widget::theme::text_align_of(style, widget).to_owned(),
@@ -193,10 +200,10 @@ pub(crate) fn shaped_label(
     let (width, column) = label_width(widget, style, at.assigned.x, room);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
-        let request = text_request(widget, caption, width, font, style);
+        let request = text_request((widget, project), caption, width, font, style);
         (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
-    let elided = !wrap && elided(ui, &state, (widget, caption), width, (font, style));
+    let elided = !wrap && elided(ui, &state, (widget, project, caption), width, (font, style));
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
     let take = if width.is_none() && align != w::START {
@@ -270,14 +277,14 @@ pub(crate) fn shaped_label(
 fn elided(
     ui: &egui::Ui,
     state: &std::rc::Rc<std::cell::RefCell<balaur_text::TextState>>,
-    (widget, caption): (&Widget, &str),
+    (widget, project, caption): (&Widget, balaur_text::FontProject, &str),
     width: Option<f32>,
     (font, style): (&egui::FontId, &crate::widget::theme::Style),
 ) -> bool {
     widget.truncate
         && widget.egui.show_tooltip_when_elided
         && width.is_some_and(|room| {
-            let whole = text_request(widget, caption, None, font, style);
+            let whole = text_request((widget, project), caption, None, font, style);
             state.borrow_mut().shape_for_egui(ui.ctx(), &whole).size.x > room + 0.5
         })
 }
@@ -564,7 +571,7 @@ fn edit(
         }
         ui.fonts_mut(|fonts| fonts.layout_job(job))
     };
-    let slant = crate::widget::theme::slanted(&look.style, widget);
+    let slant = crate::widget::theme::slanted(&look.style, (widget, look.project));
     let mut edit = if multiline {
         egui::TextEdit::multiline(&mut buffer)
     } else {
@@ -595,9 +602,11 @@ fn edit(
     edit = dressed_edit(edit, widget, &look.style, multiline, submit);
     let response = ui.add(edit);
     // Only on the pass focus was put here: asking every frame would take the
-    // caret back from whatever the reader clicked next.
+    // caret back from whatever the reader clicked next. Focus given rather
+    // than clicked into selects what the field holds, so typing replaces it.
     if at.taking && at.focused == Some(entity) {
         response.request_focus();
+        select_all(ui, response.id, &buffer);
     }
     // A click into the field is focus arriving, as Tab reaching it is.
     if response.gained_focus()
@@ -611,22 +620,48 @@ fn edit(
     if response.changed() {
         at.edits.push((entity, Edit::Text(buffer.clone())));
     }
-    // The submit chord and a click away both submit; only the click away is
-    // a blur.
     if response.lost_focus() {
-        at.edits.push((entity, Edit::Submit(buffer.clone())));
-        let key = submit.map_or(egui::Key::Enter, |chord| chord.logical_key);
-        if !ui.input(|i| i.key_pressed(key)) {
-            at.edits.push((entity, Edit::Blurred));
-            if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
-                let mut focus = focus.borrow_mut();
-                if focus.focused == Some(entity) {
-                    focus.focused = None;
-                }
-            }
-        }
+        left(ui, at, entity, &buffer, submit);
     }
     state.borrow_mut().text_buffers.insert(key, buffer);
+}
+
+/// A field focus left: the submit chord and a click away both submit, and
+/// only the click away is a blur. Escape is a blur that keeps nothing, as it
+/// is on a number.
+fn left(
+    ui: &egui::Ui,
+    at: &mut Painting<'_>,
+    entity: balaur_core::hecs::Entity,
+    buffer: &str,
+    submit: Option<egui::KeyboardShortcut>,
+) {
+    if !ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        at.edits.push((entity, Edit::Submit(buffer.to_owned())));
+    }
+    let key = submit.map_or(egui::Key::Enter, |chord| chord.logical_key);
+    if ui.input(|i| i.key_pressed(key)) {
+        return;
+    }
+    at.edits.push((entity, Edit::Blurred));
+    if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
+        let mut focus = focus.borrow_mut();
+        if focus.focused == Some(entity) {
+            focus.focused = None;
+        }
+    }
+}
+
+/// Select the whole of a field's text, so what is typed next replaces it.
+pub(super) fn select_all(ui: &egui::Ui, id: egui::Id, text: &str) {
+    let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::two(
+            egui::text::CCursor::default(),
+            egui::text::CCursor::new(text.chars().count()),
+        )));
+    state.store(ui.ctx(), id);
 }
 
 /// The chord a `submit_key` names, or `None` for egui's own Enter.

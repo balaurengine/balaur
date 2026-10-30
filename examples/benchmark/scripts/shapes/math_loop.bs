@@ -1,7 +1,7 @@
 // A hundred arithmetic steps a frame: the language's own speed, with no
 // binding and no allocation in the way.
 
-pub struct MathLoop {
+pub class MathLoop {
     node: Node,
     out: float,
 }

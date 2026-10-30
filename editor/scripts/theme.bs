@@ -55,12 +55,12 @@ pub fn user_dir() -> str {
 }
 
 pub fn is_bundled(name: str) -> bool {
-    is_bundled_any_0(name, BUNDLED())
+    is_among(name, BUNDLED())
 }
 
-fn is_bundled_any_0(name: str, items: [str]) -> bool {
-    for b in items {
-        if b == name {
+fn is_among(name: str, items: [str]) -> bool {
+    for bundled in items {
+        if bundled == name {
             return true;
         }
     }
@@ -83,7 +83,7 @@ pub fn path_of(name: str, half: str) -> str {
 
 /// Every pair there is to pick: the bundled ones, then the person's, by name.
 pub fn names() -> [any] {
-    let out: [any] = names_collect_1(BUNDLED());
+    let out: [any] = copy_names(BUNDLED());
     for entry in util::vec(fs::list(user_dir())) {
         if entry.get("is_dir") && !is_bundled(entry.get("name").as_str()) {
             out.push(entry.get("name"));
@@ -92,7 +92,7 @@ pub fn names() -> [any] {
     out
 }
 
-fn names_collect_1(items: [str]) -> [str] {
+fn copy_names(items: [str]) -> [str] {
     let out: [str] = [];
     for item in items {
         out.push(item);
@@ -167,8 +167,8 @@ pub fn diff(base: any, doc: any) -> any {
 
 /// Equal as a file would spell them: `12` and `12.0` differ, and two values
 /// of different types compare without an error.
-pub fn same(a: any, b: any) -> bool {
-    a.kind() == b.kind() && a == b
+pub fn same(first: any, second: any) -> bool {
+    first.kind() == second.kind() && first == second
 }
 
 /// The bundled pair a document is filled in from: what it names, or balaur.
@@ -203,24 +203,26 @@ pub fn resolve(name: str, half: str) -> Resolve {
 }
 
 /// A document with every token worked out, flattened for a script's
-/// `k.<token>` lookup, keeping the document, its sizes, its pair and its half
-/// beside.
+/// `k.<token>` lookup, keeping the document, its sizes and fonts, its pair
+/// and its half beside.
 pub fn flat(name: str, half: str, doc: any) -> any {
     let done = ui::complete_theme(doc);
-    let t = map()
+    let fonts = doc.get("fonts");
+    let flattened = map()
         .with("dark", done.get("dark"))
         .with("roles", doc.get("roles"))
         .with("colors", done.get("colors"))
         .with("sizes", done.get("sizes"))
+        .with("fonts", if fonts.is_nil() { map() } else { fonts })
         .with("name", name)
         .with("half", half)
         .with("doc", doc);
-    let items1 = done.get("colors");
-    for key in items1.keys() {
-        let value = items1.get(key);
-        t.set(key, value);
+    let colors = done.get("colors");
+    for key in colors.keys() {
+        let value = colors.get(key);
+        flattened.set(key, value);
     }
-    t
+    flattened
 }
 
 pub fn load(name: str, half: str) -> any {
@@ -233,9 +235,9 @@ pub fn dark() -> any {
 }
 
 /// The half to wear: a start-up state's, else the mode's, else the system's.
-pub fn half_for(S: editor::State, system_dark: bool) -> any {
-    if S.theme_half != "" {
-        return S.theme_half;
+pub fn half_for(state: editor::State, system_dark: bool) -> any {
+    if state.theme_half != "" {
+        return state.theme_half;
     }
     let mode = settings::get(MODE_SETTING);
     if mode.as_str() == "dark" || mode.as_str() == "light" {
@@ -258,23 +260,23 @@ fn CODE_COLORS() -> [[str]] {
 // The document the engine wears: the theme's own, with the code colours
 // filled in from its tokens. A copy, so the Theme dialog lists what the file
 // says and nothing it does not.
-fn worn(t: any) -> any {
+fn worn(tokens: any) -> any {
     let doc = map();
-    let items1 = t.get("doc");
-    for key in items1.keys() {
-        let value = items1.get(key);
+    let own = tokens.get("doc");
+    for key in own.keys() {
+        let value = own.get(key);
         doc.set(key, value);
     }
     let colors = map();
-    let got2 = t.get("doc").get("colors");
-    let items3 = util::obj(if got2.is_nil() { map() } else { got2 });
-    for key in items3.keys() {
-        let value = items3.get(key);
+    let own_colors = tokens.get("doc").get("colors");
+    let own_color_table = util::obj(if own_colors.is_nil() { map() } else { own_colors });
+    for key in own_color_table.keys() {
+        let value = own_color_table.get(key);
         colors.set(key, value);
     }
     for pair in CODE_COLORS() {
         if !colors.has(pair[0]) {
-            let token = t.get("colors").get(pair[1]);
+            let token = tokens.get("colors").get(pair[1]);
             if !token.is_nil() {
                 colors.set(pair[0], token);
             }
@@ -285,9 +287,9 @@ fn worn(t: any) -> any {
 }
 
 // Push the active theme into egui, the widget nodes and the 3D viewport.
-pub fn apply(S: editor::State) {
-    let t = S.theme;
-    let doc = worn(t);
+pub fn apply(state: editor::State) {
+    let tokens = state.theme;
+    let doc = worn(tokens);
     ui::set_theme(doc);
     // The document itself, inline, on each root: one table both readers take,
     // so a role a script names and a role a node names cannot drift.
@@ -297,64 +299,64 @@ pub fn apply(S: editor::State) {
             root.patch_component("widget", map().with("theme", doc));
         }
     }
-    let bg = util::hex_to_rgb(t.bg_app.as_str());
-    render::set_background(bg.r, bg.g, bg.b);
-    let minor = util::hex_to_rgb(t.grid_minor.as_str());
-    let major = util::hex_to_rgb(t.grid_major.as_str());
-    render::set_grid_colors(minor.r, minor.g, minor.b, major.r, major.g, major.b);
+    let bg = util::hex_to_rgb(tokens.bg_app.as_str());
+    render::set_background(bg.red, bg.green, bg.blue);
+    let minor = util::hex_to_rgb(tokens.grid_minor.as_str());
+    let major = util::hex_to_rgb(tokens.grid_major.as_str());
+    render::set_grid_colors(minor.red, minor.green, minor.blue, major.red, major.green, major.blue);
 }
 
 /// Wear the named pair, in the half the mode and the system pick. The same
 /// pair and half again is a no-op, so an unrelated setting written while a
 /// theme is being edited does not throw the edit away.
-pub fn use_named(S: &mut editor::State, name: str) {
-    wear_half(S, name, half_for(S, engine::dark_mode()).as_str());
+pub fn use_named(state: &mut editor::State, name: str) {
+    wear_half(state, name, half_for(state, engine::dark_mode()).as_str());
 }
 
-fn wear_half(S: &mut editor::State, name: str, half: str) {
-    if S.theme.get("name").as_str() == name && S.theme.get("half").as_str() == half {
+fn wear_half(state: &mut editor::State, name: str, half: str) {
+    if state.theme.get("name").as_str() == name && state.theme.get("half").as_str() == half {
         return;
     }
-    S.theme = load(name, half);
-    S.theme_rev += 1;
-    signals::outline(S);
-    apply(S);
+    state.theme = load(name, half);
+    state.theme_rev += 1;
+    signals::outline(state);
+    apply(state);
 }
 
 /// The system turned dark or light: the worn pair follows under `system`.
-pub fn follow(S: &mut editor::State, system_dark: bool) {
-    wear_half(S, S.theme.get("name").as_str(), half_for(S, system_dark).as_str());
+pub fn follow(state: &mut editor::State, system_dark: bool) {
+    wear_half(state, state.theme.get("name").as_str(), half_for(state, system_dark).as_str());
 }
 
 /// Read the worn half from disk again, dropping an edit nobody saved.
-pub fn reload(S: &mut editor::State) {
-    S.theme = load(S.theme.get("name").as_str(), S.theme.get("half").as_str());
-    S.theme_rev += 1;
-    signals::outline(S);
-    apply(S);
+pub fn reload(state: &mut editor::State) {
+    state.theme = load(state.theme.get("name").as_str(), state.theme.get("half").as_str());
+    state.theme_rev += 1;
+    signals::outline(state);
+    apply(state);
 }
 
 /// Wear a document that is not on disk yet: the theme window's live edit.
-pub fn wear(S: &mut editor::State, name: str, doc: any) {
-    S.theme = flat(name, S.theme.get("half").as_str(), doc);
-    S.theme_rev += 1;
-    signals::outline(S);
-    apply(S);
+pub fn wear(state: &mut editor::State, name: str, doc: any) {
+    state.theme = flat(name, state.theme.get("half").as_str(), doc);
+    state.theme_rev += 1;
+    signals::outline(state);
+    apply(state);
 }
 
 // `on`, not `dark`: that name would shadow `dark()` and Rune would call the
 // bool. Pins the half for the run and leaves the person's setting alone.
-pub fn set_dark(S: &mut editor::State, on: bool) {
-    S.theme_half = if on { "dark" } else { "light" };
-    wear_half(S, S.theme.get("name").as_str(), S.theme_half);
+pub fn set_dark(state: &mut editor::State, on: bool) {
+    state.theme_half = if on { "dark" } else { "light" };
+    wear_half(state, state.theme.get("name").as_str(), state.theme_half);
 }
 
 /// The person flipping to the other half: remembered as the mode, so the
 /// settings screen shows it and the next start opens in it.
-pub fn toggle(S: &mut editor::State) {
-    let half = if S.theme.get("half").as_str() == "dark" { "light" } else { "dark" };
+pub fn toggle(state: &mut editor::State) {
+    let half = if state.theme.get("half").as_str() == "dark" { "light" } else { "dark" };
     settings::set(MODE_SETTING, half);
-    settings::commit_prefs(S);
-    S.theme_half = "";
-    wear_half(S, S.theme.get("name").as_str(), half);
+    settings::commit_prefs(state);
+    state.theme_half = "";
+    wear_half(state, state.theme.get("name").as_str(), half);
 }

@@ -10,6 +10,14 @@ foreground = "#e6e9ee"
 primary = "#6fa4d8"
 warning = "#d5814e"
 
+# The faces a kind or a role names by name, as it names a colour; `icon` is
+# what a button's glyph draws in.
+[fonts]
+default = "fonts/SourceSans3-Regular.ttf"
+heading = "fonts/SourceSans3-Semibold.ttf"
+mono = "fonts/JetBrainsMono-Regular.ttf"
+icon = "fonts/Phosphor-Fill.ttf"
+
 [panel]
 fill = "bg_panel"
 corner_radius = "radius_large"
@@ -49,13 +57,13 @@ corner_radius = "radius_large"
 padding_x = 10
 
 [roles.title]
-font_family = "heading"
+font = "heading"
 font_size = 22
 font_weight = 700
 text_color = "text_default"
 
 [roles.caption]
-font_family = "mono"
+font = "mono"
 font_size = 12
 text_color = "text_subtle"
 
@@ -69,7 +77,7 @@ fill = "warning_fill"
 
 # A group heading: the one role a whole section wears.
 [roles.group]
-font_family = "heading"
+font = "heading"
 font_size = 11
 font_weight = 700
 text_color = "text_subtle"

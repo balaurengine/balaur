@@ -1,11 +1,13 @@
 mod asyncs;
 mod batch;
 mod call;
+mod convert;
 mod direct;
 mod expr;
 mod func;
 mod hoist;
 mod host;
+mod intrinsics;
 mod lower;
 mod optional;
 mod rt;
@@ -104,12 +106,10 @@ pub(crate) struct Builtins {
     pub await_f64: u32,
     pub await_i32: u32,
     pub await_heap: u32,
+    pub parse_f64: u32,
+    pub script_of: u32,
     pub math: HashMap<&'static str, (u32, usize)>,
-    pub strs: HashMap<&'static str, u32>,
-    pub anys: HashMap<&'static str, u32>,
     pub dbg_probe: u32,
-    pub boxing: u32,
-    pub unboxing: u32,
 }
 
 pub(crate) const MATH: [(&str, usize); 10] = [
@@ -129,13 +129,28 @@ pub(crate) const MATH: [(&str, usize); 10] = [
 struct Dyn {
     base: u32,
     by_key: HashMap<String, u32>,
-    pending: Vec<(u32, Ty)>,
+    pending: Vec<(u32, Made)>,
     count: u32,
+}
+
+/// A function made only once something calls it.
+enum Made {
+    /// The release of a type the module touched.
+    Release(Ty),
+    /// A prelude function, by key.
+    Lazy(String),
+    /// A type into an `any`, or with false an `any` into the type.
+    Convert(Ty, bool),
 }
 
 pub(crate) struct Gen {
     pub structs: Structs,
     pub classes: BTreeSet<String>,
+    /// The file that declares each class, the script's own and its modules'.
+    pub class_files: HashMap<String, String>,
+    /// Each struct's declared field defaults, which a literal leaving the
+    /// field out takes.
+    pub field_defaults: HashMap<String, Vec<(String, Expr)>>,
     pub consts: HashMap<String, Expr>,
     pub sigs: HashMap<String, Sig>,
     pub h: Helpers,
@@ -161,6 +176,8 @@ pub(crate) struct Gen {
     pub links: HashMap<String, Linked>,
     /// A unit's module functions none of its own names: no index, no link.
     pub unused: std::collections::HashSet<String>,
+    /// The prelude's functions, by key, each given an index by its first call.
+    pub lazy: HashMap<String, FnDecl>,
 }
 
 impl Gen {
@@ -179,6 +196,7 @@ impl Gen {
                 v.push((ValType::I32, None));
                 v
             }
+            Ty::Map(..) => unreachable!("a map type is made its class before code is made"),
         }
     }
     /// A struct's fields laid flat: a value's slots, or a class object's.
@@ -263,16 +281,33 @@ impl Gen {
         if *ty == Ty::Str {
             return self.h.dec_str;
         }
-        let key = show(ty);
-        let mut d = self.dyns.borrow_mut();
-        if let Some(i) = d.by_key.get(&key) {
-            return *i;
+        self.made(show(ty), || Made::Release(ty.clone()))
+    }
+    /// The function converting a `ty` into an `any` (`into`) or back.
+    pub(crate) fn converter(&self, ty: &Ty, into: bool) -> u32 {
+        let tag = format!("{} {}", if into { "box" } else { "unbox" }, show(ty));
+        self.made(tag, || Made::Convert(ty.clone(), into))
+    }
+    /// The index a call to `key` goes to: its own, or for a prelude function
+    /// the one its first call gives it.
+    pub(crate) fn callee(&self, key: &str, sig: &Sig) -> u32 {
+        if !self.lazy.contains_key(key) {
+            return sig.idx;
         }
-        let i = d.base + d.count;
-        d.count += 1;
-        d.by_key.insert(key, i);
-        d.pending.push((i, ty.clone()));
-        i
+        self.made(format!("fn {key}"), || Made::Lazy(key.to_string()))
+    }
+    // The index of the function `tag` names, given the next free one and
+    // queued to be made the first time it is asked for.
+    fn made(&self, tag: String, made: impl FnOnce() -> Made) -> u32 {
+        let mut dyns = self.dyns.borrow_mut();
+        if let Some(index) = dyns.by_key.get(&tag) {
+            return *index;
+        }
+        let index = dyns.base + dyns.count;
+        dyns.count += 1;
+        dyns.by_key.insert(tag, index);
+        dyns.pending.push((index, made()));
+        index
     }
     pub(crate) fn probe(&self, p: Probe) -> u32 {
         let mut v = self.probes.borrow_mut();
@@ -521,21 +556,9 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
     let math = MATH
         .iter()
         .enumerate()
-        .map(|(k, (name, n))| (*name, (base + 5 + k as u32, *n)))
+        .map(|(slot, (name, arity))| (*name, (base + 7 + slot as u32, *arity)))
         .collect();
-    let strs = crate::strings::METHODS
-        .iter()
-        .enumerate()
-        .map(|(k, m)| (m.name, base + 5 + (MATH.len() + k) as u32))
-        .collect();
-    let after_strs = base + 5 + (MATH.len() + crate::strings::METHODS.len()) as u32;
-    let anys = crate::anys::METHODS
-        .iter()
-        .enumerate()
-        .map(|(k, m)| (m.name, after_strs + k as u32))
-        .collect();
-    let boxing = after_strs + crate::anys::METHODS.len() as u32;
-    let dbg = boxing + 2;
+    let dbg = base + 7 + MATH.len() as u32;
     let pick = |k: u32| if debug { dbg + k } else { u32::MAX };
     let imp = Builtins {
         fmt_f64: base,
@@ -543,21 +566,39 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         await_f64: base + 2,
         await_i32: base + 3,
         await_heap: base + 4,
+        parse_f64: base + 5,
+        script_of: base + 6,
         math,
-        strs,
-        anys,
         dbg_probe: pick(0),
-        boxing,
-        unboxing: boxing + 1,
     };
     let mut idx = dbg + u32::from(debug);
     let h = Helpers::at(idx);
     idx += HELPER_COUNT;
     let mut plan = UnitPlan::of(prog, options.unit);
     let idx = script_sigs(prog, &mut plan, idx, (&structs, &classes), &mut sigs)?;
+    let lazy = lazy_sigs(prog, &mut sigs);
+    let class_files = prog
+        .classes
+        .iter()
+        .map(|class| (class.clone(), options.path.clone()))
+        .chain(prog.class_origin.iter().cloned())
+        .collect();
+    let field_defaults = prog
+        .structs
+        .iter()
+        .map(|(name, fields)| {
+            let declared = fields
+                .iter()
+                .filter_map(|f| f.default.clone().map(|d| (f.name.clone(), d)))
+                .collect();
+            (name.clone(), declared)
+        })
+        .collect();
     Ok(Gen {
         structs,
         classes,
+        class_files,
+        field_defaults,
         consts: consts(prog, &options.host)?,
         sigs,
         h,
@@ -580,7 +621,26 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         unit: options.unit,
         links: plan.links,
         unused: plan.unused,
+        lazy,
     })
+}
+
+// The prelude's signatures, with no index until a call gives them one.
+fn lazy_sigs(prog: &Program, sigs: &mut HashMap<String, Sig>) -> HashMap<String, FnDecl> {
+    let mut lazy = HashMap::new();
+    for func in &prog.lazy {
+        let sig = Sig {
+            idx: u32::MAX,
+            params: func.params.iter().map(|param| param.ty.clone()).collect(),
+            refs: func.params.iter().map(|param| param.by_ref).collect(),
+            ret: func.ret.clone(),
+            owner: None,
+            kind: Kind::Script,
+        };
+        sigs.insert(func.key(), sig);
+        lazy.insert(func.key(), func.clone());
+    }
+    lazy
 }
 
 // Each function's signature and index from `idx`, and where the release
@@ -627,14 +687,6 @@ fn script_sigs(
         }
     }
     Ok(idx)
-}
-
-fn wasm_of(t: &Ty) -> ValType {
-    match t {
-        Ty::Int | Ty::Node => ValType::I64,
-        Ty::Float => ValType::F64,
-        _ => ValType::I32,
-    }
 }
 
 fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternInfo>, Vec<Import>) {
@@ -687,6 +739,8 @@ fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternIn
         (words::AWAIT_F64.into(), vec![I64], vec![F64]),
         (words::AWAIT_I32.into(), vec![I64], vec![I32]),
         (words::AWAIT_HEAP.into(), vec![I64], vec![I32]),
+        (words::PARSE_F64.into(), vec![I32], vec![F64]),
+        (words::SCRIPT_OF.into(), vec![I64, I32, I32], vec![I32]),
     ];
     builtins.extend(MATH.iter().map(|(name, n)| {
         (
@@ -695,26 +749,6 @@ fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternIn
             vec![F64],
         )
     }));
-    builtins.extend(crate::strings::METHODS.iter().map(|m| {
-        let p = crate::strings::params(m);
-        let r = crate::strings::ty(m.ret);
-        (
-            format!("{}{}", words::STR_PREFIX, m.name),
-            p.iter().map(wasm_of).collect(),
-            vec![wasm_of(&r)],
-        )
-    }));
-    builtins.extend(crate::anys::METHODS.iter().map(|m| {
-        let p = crate::anys::params(m);
-        let r = crate::anys::ty(m.ret);
-        (
-            format!("{}{}", words::ANY_PREFIX, m.name),
-            p.iter().map(wasm_of).collect(),
-            vec![wasm_of(&r)],
-        )
-    }));
-    builtins.push((words::BOX.into(), vec![I32, I32], vec![I32]));
-    builtins.push((words::UNBOX.into(), vec![I32, I32, I32], vec![]));
     if debug {
         builtins.push((words::DBG_PROBE.into(), vec![I32], vec![]));
     }
@@ -878,27 +912,72 @@ fn emit_sync(
     Ok((0, pts))
 }
 
-// The release function for each array type the module touched, in index order.
-fn emit_dyns(g: &Gen, out: &mut Emitted) -> Vec<(u32, Ty)> {
-    let mut dyns: Vec<(u32, Ty, FuncBody)> = vec![];
+// What the module's code called on the way: the release of each type it
+// touched and each prelude function, in index order. Making one may call
+// for more. The releases are handed back, for the exports.
+fn emit_dyns(g: &Gen, out: &mut Emitted) -> R<Vec<(u32, Ty)>> {
+    let mut dyns: Vec<(u32, Option<Ty>, u32, FuncBody)> = vec![];
     loop {
         let next = g.dyns.borrow_mut().pending.pop();
-        let Some((i, ty)) = next else { break };
-        let body = match &ty {
-            Ty::Array(et) => g.dec_array(et),
-            Ty::Any => g.dec_any(),
-            Ty::Struct(s) => g.dec_class(s),
-            _ => unreachable!("only arrays, classes and `any` get a generated release function"),
-        };
-        dyns.push((i, ty.clone(), body));
+        let Some((index, made)) = next else { break };
+        match made {
+            Made::Release(ty) => {
+                let body = match &ty {
+                    Ty::Array(element) => g.dec_array(element),
+                    Ty::Any => g.dec_any(),
+                    Ty::Struct(name) => g.dec_class(name),
+                    _ => unreachable!(
+                        "only arrays, classes and `any` get a generated release function"
+                    ),
+                };
+                let type_index = g.type_idx(vec![ValType::I32], vec![]);
+                dyns.push((index, Some(ty), type_index, body));
+            }
+            Made::Lazy(key) => {
+                let func = &g.lazy[&key];
+                let mut sig = g.sigs[&key].clone();
+                sig.idx = index;
+                let pid = out.func_names.len() as u32;
+                // The prelude's own line, not the script's that called it.
+                let (body, _) = sync_fn(g, &sig, func, (None, pid)).map_err(|error| Error {
+                    pos: error.pos,
+                    msg: format!("internal: in the prelude's `{key}`: {}", error.msg),
+                })?;
+                out.func_names.push(key);
+                let (params, results) = g.wasm_sig(&sig);
+                dyns.push((index, None, g.type_idx(params, results), body));
+            }
+            Made::Convert(ty, into) => {
+                let fields = match &ty {
+                    Ty::Struct(name) => g.structs[name].clone(),
+                    _ => vec![],
+                };
+                let func = convert::function(&ty, into, &fields);
+                let sig = Sig {
+                    idx: index,
+                    params: func.params.iter().map(|param| param.ty.clone()).collect(),
+                    refs: vec![false],
+                    ret: func.ret.clone(),
+                    owner: None,
+                    kind: Kind::Script,
+                };
+                let pid = out.func_names.len() as u32;
+                out.func_names.push(func.name.clone());
+                let (body, _) = sync_fn(g, &sig, &func, (None, pid))?;
+                let (params, results) = g.wasm_sig(&sig);
+                dyns.push((index, None, g.type_idx(params, results), body));
+            }
+        }
     }
-    dyns.sort_by_key(|d| d.0);
-    let list = dyns.iter().map(|d| (d.0, d.1.clone())).collect();
-    for (_, _, body) in dyns {
-        out.bodies
-            .push((g.type_idx(vec![ValType::I32], vec![]), body));
+    dyns.sort_by_key(|made| made.0);
+    let list = dyns
+        .iter()
+        .filter_map(|made| made.1.clone().map(|ty| (made.0, ty)))
+        .collect();
+    for (_, _, type_index, body) in dyns {
+        out.bodies.push((type_index, body));
     }
-    list
+    Ok(list)
 }
 
 pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Error> {
@@ -907,7 +986,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     let defaults = defaults(prog)?;
     let (imports, externs, import_list) = imports(&g, prog, debug);
     let mut out = emit_fns(&g, prog, debug, None)?;
-    let dyns = emit_dyns(&g, &mut out);
+    let dyns = emit_dyns(&g, &mut out)?;
     // A browser build calls the engine through its exports, never JavaScript.
     let direct = options.direct_imports && direct::applies(&import_list);
     let (imports, shift) = if direct {
@@ -1033,6 +1112,7 @@ fn sync_fn(
 ) -> R<(FuncBody, Vec<(usize, String)>)> {
     let (p, _) = g.wasm_sig(sig);
     let mut fg = FnGen::new(g, p.len(), Mode::Normal { ret: f.ret.clone() });
+    fg.prelude = crate::prelude::owns(&f.key()) || crate::maps::owns(&f.key());
     let mut slot = 0u32;
     if let Some(o) = &sig.owner {
         let n = g.slots(&Ty::Struct(o.clone())).len() as u32;

@@ -2,16 +2,19 @@
 //!
 //! Scripts own the palette: `ui::set_theme(doc)` takes the same document a
 //! `widget_theme` file holds, a few source colours and sizes in `[colors]` and
-//! `[sizes]`, and [`apply`] turns what it derives into egui's visuals. Fonts are loaded from `<project>/fonts/*.ttf` when
-//! present; the named families `heading`, `ui`, `mono` and `icon` always exist.
+//! `[sizes]` and its fonts in `[fonts]`, and [`apply`] turns what it derives
+//! into egui's visuals. egui is given a family for every font the shaper has
+//! read, so its own text draws in the faces the shaper's does.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::vocabulary::{keys as k, tokens as t, words as w};
+use crate::vocabulary::{keys as k, tokens as t};
+use balaur_text::FontProject;
 use balaur_text::fonts::{FontFace, system_static_bytes};
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
+use std::collections::HashSet;
 
 #[derive(Clone)]
 pub struct ThemeTokens {
@@ -19,6 +22,8 @@ pub struct ThemeTokens {
     /// Every token, the stated ones and the ones derived from the sources.
     pub colors: HashMap<String, Color32>,
     pub sizes: HashMap<String, f32>,
+    /// `[fonts]`: a font by the name a role or a kind writes for it.
+    pub fonts: HashMap<String, String>,
 }
 
 impl Default for ThemeTokens {
@@ -42,6 +47,11 @@ impl ThemeTokens {
             .flatten()
             .filter_map(|(name, v)| Some((name.clone(), parse_hex(v.as_str()?)?)))
             .collect();
+        let fonts: HashMap<String, String> = table(k::FONTS)
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, v)| Some((name.clone(), v.as_str()?.to_string())))
+            .collect();
         let sizes: HashMap<String, f32> = table(k::SIZES)
             .into_iter()
             .flatten()
@@ -56,7 +66,17 @@ impl ThemeTokens {
                 .unwrap_or(true),
             colors,
             sizes,
+            fonts,
         }
+    }
+
+    /// The font `[fonts]` names `name`, or the default font where it names
+    /// none.
+    pub fn font(&self, name: &str) -> &str {
+        self.fonts
+            .get(name)
+            .or_else(|| self.fonts.get(t::FONT_DEFAULT))
+            .map_or("", String::as_str)
     }
 
     pub fn color(&self, name: &str, fallback: Color32) -> Color32 {
@@ -156,21 +176,10 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
         state.corner_radius = control_radius;
     }
 
-    let body = tokens.size(t::FONT_SIZE);
-    let small = tokens.size(t::FONT_SIZE_SMALL);
-    let title = tokens.size(t::FONT_SIZE_TITLE);
     let sheet = CornerRadius::same(tokens.size(t::RADIUS_LARGE).round() as u8);
     ctx.set_visuals(visuals);
+    text_styles(ctx, tokens);
     ctx.all_styles_mut(|style| {
-        use egui::{FontId, TextStyle};
-        style.text_styles = [
-            (TextStyle::Small, FontId::new(small, family(w::UI))),
-            (TextStyle::Body, FontId::new(body, family(w::UI))),
-            (TextStyle::Button, FontId::new(body, family(w::UI))),
-            (TextStyle::Heading, FontId::new(title, family(w::HEADING))),
-            (TextStyle::Monospace, FontId::new(body, family(w::MONO))),
-        ]
-        .into();
         // 4 px base grid; panels/widgets add their own padding.
         style.spacing.item_spacing = egui::vec2(4.0, 4.0);
         style.spacing.button_padding = BUTTON_PADDING;
@@ -184,48 +193,63 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     });
 }
 
-/// The named family for a widget option value.
-pub(crate) fn family(name: &str) -> FontFamily {
-    thread_local! {
-        /// Made once: a family's name is shared text, and every widget that
-        /// draws a word asks for one or more a pass.
-        static FAMILIES: [FontFamily; 4] =
-            [w::HEADING, w::MONO, w::ICON, w::UI].map(|name| FontFamily::Name(name.into()));
-    }
-    let at = match name {
-        w::HEADING => 0,
-        w::MONO => 1,
-        w::ICON => 2,
-        _ => 3,
+/// egui's own text styles in the theme's fonts: `default` for body text,
+/// `heading` and `mono` where the theme names them.
+fn text_styles(ctx: &egui::Context, tokens: &ThemeTokens) {
+    use egui::{FontId, TextStyle};
+    let body = tokens.size(t::FONT_SIZE);
+    let small = tokens.size(t::FONT_SIZE_SMALL);
+    let title = tokens.size(t::FONT_SIZE_TITLE);
+    let family = |name: &str| weighted(FontProject::Host, tokens.font(name), 400.0, false);
+    let mono = if tokens.fonts.contains_key(t::FONT_MONO) {
+        family(t::FONT_MONO)
+    } else {
+        FontFamily::Monospace
     };
-    FAMILIES.with(|families| families[at].clone())
+    let styles: std::collections::BTreeMap<TextStyle, FontId> = [
+        (
+            TextStyle::Small,
+            FontId::new(small, family(t::FONT_DEFAULT)),
+        ),
+        (TextStyle::Body, FontId::new(body, family(t::FONT_DEFAULT))),
+        (
+            TextStyle::Button,
+            FontId::new(body, family(t::FONT_DEFAULT)),
+        ),
+        (
+            TextStyle::Heading,
+            FontId::new(title, family(t::FONT_HEADING)),
+        ),
+        (TextStyle::Monospace, FontId::new(body, mono)),
+    ]
+    .into();
+    ctx.all_styles_mut(|style| style.text_styles.clone_from(&styles));
 }
 
 /// The air either side of a button's caption, and above and below it, where
 /// neither the button nor its theme states any: egui's and the widget layer's.
 pub(crate) const BUTTON_PADDING: egui::Vec2 = egui::vec2(12.0, 0.0);
 
-/// The text chains that take a weight and a slant; the icon chain takes none.
-const WEIGHTED: [&str; 3] = [w::UI, w::HEADING, w::MONO];
-
-/// The weights a family is registered at: CSS's nine.
+/// The weights a font's families are registered at: CSS's nine.
 const WEIGHTS: std::ops::RangeInclusive<u16> = 1..=9;
 
-thread_local! {
-    /// The (chain, weight) pairs whose italic has no face of its own, so egui
-    /// slants the upright one. Written where the fonts are loaded.
-    static SLANTED: RefCell<std::collections::HashSet<(&'static str, u16)>> =
-        RefCell::new(std::collections::HashSet::new());
-}
+/// One font as egui names it: whose faces, which font, at what weight and
+/// slant.
+type FontKey = (FontProject, String, u16, bool);
 
-/// The chain a widget option value names, as `family` reads it.
-fn chain_of(name: &str) -> &'static str {
-    match name {
-        w::HEADING => w::HEADING,
-        w::MONO => w::MONO,
-        w::ICON => w::ICON,
-        _ => w::UI,
-    }
+thread_local! {
+    /// The families egui has taken. One given to `set_fonts` is taken at the
+    /// start of the next pass, and a family egui has not taken is a panic, not
+    /// a fallback.
+    static BOUND: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
+    /// The families given this pass, taken at the start of the next.
+    static GIVEN: RefCell<Option<HashSet<FontKey>>> = const { RefCell::new(None) };
+    /// The fonts a widget asked for that egui has no family for yet: the next
+    /// pass has the shaper read them, and egui takes their families after.
+    static WANTED: RefCell<HashSet<(FontProject, String)>> = RefCell::new(HashSet::new());
+    /// The fonts and weights whose italic has no face of its own, so egui
+    /// slants the upright one. Written where the fonts are given.
+    static SLANTED: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
 }
 
 /// A weight as a family is registered at: the nearest hundred, 100 to 900.
@@ -233,81 +257,70 @@ fn weight_step(weight: f32) -> u16 {
     ((weight / 100.0).round().clamp(1.0, 9.0) as u16) * 100
 }
 
-/// The family egui draws a chain in at `weight`, upright or italic: the face
-/// the shaper would pick for it, ahead of the chain's own.
-///
-/// Regular upright is the chain itself, which is every family a widget drew
-/// in before a weight reached egui.
-pub(crate) fn weighted(name: &str, weight: f32, italic: bool) -> FontFamily {
-    let chain = chain_of(name);
-    let weight = weight_step(weight);
-    if chain == w::ICON || (weight == 400 && !italic) {
-        return family(chain);
-    }
-    FontFamily::Name(weighted_name(chain, weight, italic).into())
+/// The name egui knows a font's family by at a weight and a slant.
+fn family_name((project, reference, weight, italic): &FontKey) -> String {
+    let slant = if *italic { " italic" } else { "" };
+    format!("{}|{reference}|{weight}{slant}", project.word())
 }
 
-fn weighted_name(chain: &str, weight: u16, italic: bool) -> String {
-    if italic {
-        format!("{chain} {weight} italic")
+/// The family egui draws `reference` in at `weight`, upright or italic: the
+/// face the shaper would pick for it, ahead of the project's others. A font
+/// egui has no family for yet draws in the project's default, and is asked
+/// for.
+pub(crate) fn weighted(
+    project: FontProject,
+    reference: &str,
+    weight: f32,
+    italic: bool,
+) -> FontFamily {
+    let key = (project, reference.to_string(), weight_step(weight), italic);
+    let bound = BOUND.with(|bound| bound.borrow().contains(&key));
+    if bound {
+        return FontFamily::Name(family_name(&key).into());
+    }
+    if !reference.is_empty() {
+        WANTED.with(|wanted| {
+            wanted.borrow_mut().insert((project, reference.to_string()));
+        });
+    }
+    let default = (project, String::new(), key.2, italic);
+    if BOUND.with(|bound| bound.borrow().contains(&default)) {
+        FontFamily::Name(family_name(&default).into())
     } else {
-        format!("{chain} {weight}")
+        FontFamily::Proportional
     }
 }
 
-/// Whether egui has to slant a chain's glyphs itself to draw it italic at
+/// Whether egui has to slant `reference`'s glyphs itself to draw it italic at
 /// `weight`: the project ships no italic face for it.
-pub(crate) fn slanted(name: &str, weight: f32, italic: bool) -> bool {
-    let chain = chain_of(name);
+pub(crate) fn slanted(project: FontProject, reference: &str, weight: f32, italic: bool) -> bool {
     italic
-        && chain != w::ICON
-        && SLANTED.with(|s| s.borrow().contains(&(chain, weight_step(weight))))
+        && SLANTED.with(|slanted| {
+            slanted
+                .borrow()
+                .contains(&(project, reference.to_string(), weight_step(weight), true))
+        })
 }
 
-/// A family per text chain, weight and slant, each led by the face the shaper
-/// picks for it and followed by the chain's own: `chains` in `WEIGHTED` order.
-fn add_weighted(fonts: &mut egui::FontDefinitions, faces: &[FontFace], chains: [&Vec<String>; 3]) {
-    let matcher = balaur_text::fonts::FaceMatcher::new(faces);
-    let mut slanted = std::collections::HashSet::new();
-    for (chain, list) in WEIGHTED.into_iter().zip(chains) {
-        for weight in WEIGHTS.map(|step| step * 100) {
-            for italic in [false, true] {
-                if weight == 400 && !italic {
-                    continue;
-                }
-                // Every pair is registered, matched or not: a family egui has
-                // not been given is a panic, not a fallback.
-                let mut faces_in = list.clone();
-                let picked = matcher.pick(chain, weight, italic);
-                if let Some((at, _)) = picked {
-                    let name = &faces[at].name;
-                    faces_in.retain(|held| held != name);
-                    faces_in.insert(0, name.clone());
-                }
-                if italic && !picked.is_some_and(|(_, real)| real) {
-                    slanted.insert((chain, weight));
-                }
-                fonts.families.insert(
-                    FontFamily::Name(weighted_name(chain, weight, italic).into()),
-                    faces_in,
-                );
-            }
-        }
+/// Take the families given last pass, and hand the shaper the fonts a widget
+/// asked egui for: what the start of every pass does.
+pub(crate) fn take_fonts(eng: &balaur_core::Engine, ctx: &egui::Context) {
+    if let Some(given) = GIVEN.with(|given| given.borrow_mut().take()) {
+        BOUND.with(|bound| *bound.borrow_mut() = given);
+        // egui's own text styles name families, which may only now exist.
+        let tokens = IN_FORCE.with(|theme| Rc::clone(&theme.borrow()));
+        text_styles(ctx, &tokens);
     }
-    SLANTED.with(|held| *held.borrow_mut() = slanted);
+    let wanted: Vec<(FontProject, String)> =
+        WANTED.with(|wanted| wanted.borrow_mut().drain().collect());
+    for (project, reference) in wanted {
+        balaur_text::load_font(eng, project, &reference);
+    }
 }
 
-/// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
-/// come first, then what the editor bundles, then the system's — so a game
-/// can ship the face its language needs without patching the editor.
-pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
-    let mut fonts = egui::FontDefinitions::default();
-    let mut heading_chain: Vec<String> = Vec::new();
-    let mut ui_chain: Vec<String> = Vec::new();
-    let mut mono_chain: Vec<String> = Vec::new();
-    let mut icon_chain: Vec<String> = Vec::new();
-    let mut system_chain: Vec<String> = Vec::new();
-
+/// Every face of each project's under a name of its own, with its import
+/// settings as egui's tweak.
+fn face_data(fonts: &mut egui::FontDefinitions, project: FontProject, faces: &[FontFace]) {
     for face in faces {
         // An OS face is cached for the process, so egui borrows those bytes;
         // a project's own are small and reload, so they keep a copy.
@@ -323,83 +336,70 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         });
         fonts
             .font_data
-            .insert(face.name.clone(), std::sync::Arc::new(data));
-        match face.chain {
-            w::HEADING => heading_chain.push(face.name.clone()),
-            w::MONO => mono_chain.push(face.name.clone()),
-            "icon" => icon_chain.push(face.name.clone()),
-            "system" => system_chain.push(face.name.clone()),
-            _ => ui_chain.push(face.name.clone()),
-        }
+            .insert(face_name(project, face), std::sync::Arc::new(data));
     }
+}
 
-    // Fall back to the built-ins so the named families always resolve.
-    let default_prop = fonts
+/// What egui knows one project's face by.
+fn face_name(project: FontProject, face: &FontFace) -> String {
+    format!("{}|{}", project.word(), face.name)
+}
+
+/// Give egui a family for every font the shaper has read, in either project,
+/// at every weight and slant: the face the shaper would pick first, then the
+/// project's every face in order, then egui's own. Taken at the start of the
+/// next pass.
+pub(crate) fn load_fonts(ctx: &egui::Context, state: &balaur_text::TextState) {
+    let mut fonts = egui::FontDefinitions::default();
+    let egui_own = fonts
         .families
         .get(&FontFamily::Proportional)
         .cloned()
         .unwrap_or_default();
-    let default_mono = fonts
-        .families
-        .get(&FontFamily::Monospace)
-        .cloned()
-        .unwrap_or_default();
-    if heading_chain.is_empty() {
-        heading_chain.clone_from(&ui_chain);
-    }
-    // Icons resolve wherever a glyph is written, so they join every chain.
-    let text_faces = ui_chain.clone();
-    for chain in [&mut heading_chain, &mut ui_chain, &mut mono_chain] {
-        chain.extend(icon_chain.iter().cloned());
-    }
-    // And the other way: an icon table names letters where a Fill face draws
-    // a tile — `×` closes a tab — and no icon face has those glyphs.
-    icon_chain.extend(text_faces.iter().cloned());
-    for chain in [
-        &mut heading_chain,
-        &mut ui_chain,
-        &mut mono_chain,
-        &mut icon_chain,
-    ] {
-        chain.extend(system_chain.iter().cloned());
-    }
-    for family in [FontFamily::Proportional, FontFamily::Monospace] {
-        if let Some(chain) = fonts.families.get_mut(&family) {
-            chain.extend(system_chain.iter().cloned());
+    let mut given = HashSet::new();
+    let mut slanted = HashSet::new();
+    for (project, held) in state.projects() {
+        let faces = held.faces();
+        face_data(&mut fonts, project, faces);
+        let every: Vec<String> = faces.iter().map(|face| face_name(project, face)).collect();
+        let default = held
+            .loaded()
+            .find(|(reference, _)| reference.is_empty())
+            .map(|(_, font)| font.clone());
+        for (reference, font) in held.loaded() {
+            for weight in WEIGHTS.map(|step| step * 100) {
+                for italic in [false, true] {
+                    // A bitmap font draws its glyphs itself; egui's text in it
+                    // takes the default font's face.
+                    let picked = held
+                        .face_for(font, weight, italic)
+                        .or_else(|| held.face_for(default.as_ref()?, weight, italic));
+                    let mut list = every.clone();
+                    if let Some((at, _)) = picked {
+                        let first = list.remove(at);
+                        list.insert(0, first);
+                    }
+                    list.extend(egui_own.iter().cloned());
+                    let key = (project, reference.to_string(), weight, italic);
+                    if italic && !picked.is_some_and(|(_, real)| real) {
+                        slanted.insert(key.clone());
+                    }
+                    fonts
+                        .families
+                        .insert(FontFamily::Name(family_name(&key).into()), list);
+                    given.insert(key);
+                }
+            }
+        }
+        // Without egui's bundled faces (`fallback-fonts`), the engine's own
+        // faces stand in for its base families.
+        if project == FontProject::Host && egui_own.is_empty() {
+            for family in [FontFamily::Proportional, FontFamily::Monospace] {
+                fonts.families.insert(family, every.clone());
+            }
         }
     }
-    // Without egui's bundled faces (`fallback-fonts`), the project's text
-    // faces stand in for them: the base families and a missing mono face.
-    let bundled = !default_prop.is_empty();
-    heading_chain.extend(default_prop.clone());
-    ui_chain.extend(default_prop.clone());
-    icon_chain.extend(default_prop);
-    if default_mono.is_empty() {
-        mono_chain.extend(text_faces);
-    } else {
-        mono_chain.extend(default_mono);
-    }
-    if !bundled {
-        fonts
-            .families
-            .insert(FontFamily::Proportional, ui_chain.clone());
-        fonts
-            .families
-            .insert(FontFamily::Monospace, mono_chain.clone());
-    }
-
-    add_weighted(&mut fonts, faces, [&ui_chain, &heading_chain, &mono_chain]);
-    fonts
-        .families
-        .insert(FontFamily::Name(w::HEADING.into()), heading_chain);
-    fonts
-        .families
-        .insert(FontFamily::Name(w::UI.into()), ui_chain);
-    fonts
-        .families
-        .insert(FontFamily::Name(w::MONO.into()), mono_chain);
-    fonts
-        .families
-        .insert(FontFamily::Name("icon".into()), icon_chain);
+    SLANTED.with(|held| *held.borrow_mut() = slanted);
+    GIVEN.with(|held| *held.borrow_mut() = Some(given));
     ctx.set_fonts(fonts);
 }

@@ -26,5 +26,11 @@ unicode-script = "0.5"
 # `FontRef` and not a second copy of it.
 swash = "0.2.10"
 
+# The faces a desktop has installed, listed for a picker that copies one into
+# a project: read from their files, mapped rather than loaded. The version is
+# cosmic-text's, so this only adds the features.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
+
 [lints]
 workspace = true

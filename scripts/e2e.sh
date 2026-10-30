@@ -115,7 +115,7 @@ RAN='selftest ok|script: .*skip|script: showcase '
 # its own first: the game loaded, its scene mirrored, every node resolved and
 # its assets rebound.
 EXAMPLE_STATES=(
-  test:undo test:rename                     # the history, and renaming
+  test:undo test:rename test:autosave       # the history, renaming, writing
   test:focus                                # the shell folds round the code
   test:rig test:populate                    # a bone grown and keyed; a multimesh
   test:marks                                # the outliner's eye and lock
@@ -123,6 +123,9 @@ EXAMPLE_STATES=(
   test:physics test:recipes test:change_types  # the Physics panel's rows
   test:assets test:picking test:camera      # the dock, an aimed pick, the mouse
   test:script_props test:composite_props    # exported script properties
+  test:record_assets                        # a material edited under its row
+  test:system_fonts                         # an installed face copied in
+  test:font_catalogue                       # a catalogue family fetched in
   test:instances test:placing test:selection  # prefabs, the selection set
   test:import_job                           # last: it writes into the project
 )
@@ -146,6 +149,7 @@ EDITOR_STATES=(
   test:drop test:events                     # drag-in; the Events view
   test:library test:rows test:pool test:camera_document test:warnings
   test:pen                                  # anchors, a handle, its asset
+  test:picture                              # the scene drawn by a second run
 )
 
 # The render and editor steps, off where a runner finishes neither: both want

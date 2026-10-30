@@ -79,6 +79,9 @@ pub(crate) struct FnGen<'a> {
     /// A profiled function: its row, and the locals holding the statement
     /// count and the callees' share when it began.
     pub prof: Option<(u32, u32, u32)>,
+    /// A prelude function, which may call the built-ins and the prelude's
+    /// others by name.
+    pub prelude: bool,
 }
 
 impl<'a> FnGen<'a> {
@@ -101,6 +104,7 @@ impl<'a> FnGen<'a> {
             fast: vec![],
             sites: HashMap::new(),
             prof: None,
+            prelude: false,
         }
     }
 
@@ -346,37 +350,55 @@ impl<'a> FnGen<'a> {
                 if self.place(b)?.is_none()
                     && matches!(b.kind, ExprKind::Index(..) | ExprKind::Field(..)) =>
             {
-                let Some(mut mp) = self.mem_place(b)? else {
+                let Some(inner) = self.mem_place(b)? else {
                     return Ok(None);
                 };
-                // A class held in memory: its object, kept while it is used.
-                if self.g.is_class(&mp.ty).is_some() {
-                    let obj = self.temp(&mp.ty);
-                    self.push_addr(mp.addr);
-                    self.emit([
-                        load(ValType::I32, mp.off),
-                        I::Call(self.g.h.retain),
-                        I::LocalSet(obj.slots[0]),
-                    ]);
-                    if let Some(r) = &mp.release {
-                        self.release(r);
-                    }
-                    let ty = obj.ty.clone();
-                    return Ok(Some(self.object_place(
-                        obj.slots[0],
-                        &ty,
-                        f,
-                        Some(obj),
-                        e.pos,
-                    )?));
-                }
-                let (slot, ty) = self.field_slot(&mp.ty, f, e.pos)?;
-                mp.off += 8 * slot as u64;
-                mp.ty = ty;
-                Ok(Some(mp))
+                self.field_in_memory(inner, f, e.pos)
             }
             _ => Ok(None),
         }
+    }
+
+    // Field `field` of the value at `inner`, itself somewhere in memory.
+    fn field_in_memory(
+        &mut self,
+        mut inner: MemPlace,
+        field: &str,
+        pos: Pos,
+    ) -> R<Option<MemPlace>> {
+        // A class held in memory: its object, kept while it is used.
+        if self.g.is_class(&inner.ty).is_some() {
+            let obj = self.temp(&inner.ty);
+            self.push_addr(inner.addr);
+            self.emit([
+                load(ValType::I32, inner.off),
+                I::Call(self.g.h.retain),
+                I::LocalSet(obj.slots[0]),
+            ]);
+            if let Some(release) = &inner.release {
+                self.release(release);
+            }
+            let ty = obj.ty.clone();
+            return Ok(Some(self.object_place(
+                obj.slots[0],
+                &ty,
+                field,
+                Some(obj),
+                pos,
+            )?));
+        }
+        // A node's component, `self.node.transform`, is no place: its getter
+        // reads it.
+        if !matches!(inner.ty, Ty::Struct(_)) {
+            if let Some(release) = &inner.release {
+                self.release(release);
+            }
+            return Ok(None);
+        }
+        let (slot, ty) = self.field_slot(&inner.ty, field, pos)?;
+        inner.off += 8 * slot as u64;
+        inner.ty = ty;
+        Ok(Some(inner))
     }
 
     /// Field `f` of the class object whose pointer is in local `obj`.
@@ -541,8 +563,8 @@ impl<'a> FnGen<'a> {
             && (**a == Ty::Any || **b == Ty::Any || **b == Ty::Optional(a.clone()))
         {
             // A list of one kind where a list of another goes: a copy, each
-            // element boxed or read back, through the host.
-            self.box_by_host(got);
+            // element boxed or read back.
+            self.convert(got, true);
             self.unbox_any(want);
             Ok(())
         } else if let Ty::Optional(inner) = want
@@ -584,8 +606,12 @@ impl<'a> FnGen<'a> {
             Ty::Fn(..) => (INT, Some(I::I64ExtendI32U)),
             Ty::Str => (STR, Some(I::I64ExtendI32U)),
             Ty::Array(et) if **et == Ty::Any => (LIST, Some(I::I64ExtendI32U)),
+            // An `any` map's keys are strings.
+            Ty::Struct(name) if crate::maps::is_map(name) && name.starts_with("{ int:") => {
+                return false;
+            }
             Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_) => {
-                self.box_by_host(got);
+                self.convert(got, true);
                 return true;
             }
             _ => return false,
@@ -598,7 +624,7 @@ impl<'a> FnGen<'a> {
     }
 
     /// The `any` on the stack as a `want`: a scalar read by its `as_` method,
-    /// a struct, list or optional rebuilt by the host into scratch memory.
+    /// a struct, list or optional by the function converting it.
     /// The `any` is released after; false for a type it cannot become.
     pub(crate) fn unbox_any(&mut self, want: &Ty) -> bool {
         let read = match want {
@@ -610,20 +636,21 @@ impl<'a> FnGen<'a> {
             Ty::Struct(_) | Ty::Array(_) | Ty::Optional(_) => None,
             _ => return false,
         };
-        let v = self.temp(&Ty::Any);
-        self.set_raw(&v);
-        if let Some(m) = read {
-            self.get_raw(&v);
-            self.e(I::Call(self.g.imp.anys[m]));
+        if let Some(method) = read {
+            self.call_prelude(&format!("any::{method}"));
             if matches!(want, Ty::Fn(..)) {
                 self.e(I::I32WrapI64);
             }
-        } else if matches!(want, Ty::Array(et) if **et == Ty::Any) {
+            return true;
+        }
+        let cell = self.temp(&Ty::Any);
+        self.set_raw(&cell);
+        if matches!(want, Ty::Array(element) if **element == Ty::Any) {
             // A list cell holds the `[any]` it boxed: handed back retained,
             // not rebuilt, so a map in it stays the one every holder changes.
-            self.get_raw(&v);
+            self.get_raw(&cell);
             self.e(I::If(BlockType::Result(ValType::I32)));
-            self.get_raw(&v);
+            self.get_raw(&cell);
             self.emit([
                 I::I32Load(mem(4, 2)),
                 I::I32Const(crate::anys::LIST),
@@ -633,71 +660,30 @@ impl<'a> FnGen<'a> {
                 I::End,
                 I::If(BlockType::Result(ValType::I32)),
             ]);
-            self.get_raw(&v);
+            self.get_raw(&cell);
             self.emit([
                 I::I64Load(mem(8, 3)),
                 I::I32WrapI64,
                 I::Call(self.g.h.retain),
                 I::Else,
             ]);
-            self.unbox_by_host(want, &v);
+            self.take_out(&cell);
+            self.convert(want, false);
             self.e(I::End);
         } else {
-            self.unbox_by_host(want, &v);
+            self.take_out(&cell);
+            self.convert(want, false);
         }
-        self.release(&v);
+        self.release(&cell);
         true
     }
 
-    // The `any` in `v` rebuilt as a `want` by the host, into scratch memory
-    // read back slot by slot.
-    fn unbox_by_host(&mut self, want: &Ty, v: &LVal) {
-        let slots = self.g.slots(want);
-        let addr = self.local(ValType::I32);
-        self.emit([
-            I::I32Const(8 * slots.len() as i32),
-            I::Call(self.g.h.alloc),
-            I::LocalSet(addr),
-        ]);
-        let text = self.g.str_addr(&show(want));
-        self.emit(text);
-        self.get_raw(v);
-        self.emit([I::LocalGet(addr), I::Call(self.g.imp.unboxing)]);
-        for (j, (vt, _)) in slots.into_iter().enumerate() {
-            self.emit([I::LocalGet(addr), super::rt::load(vt, 8 * j as u64)]);
-        }
-        self.emit([I::LocalGet(addr), I::Call(self.g.h.free)]);
-    }
-
-    // A list, struct or optional in an `any`: its slots written to scratch
-    // memory and read back by the host, which builds the cells. The value
-    // itself is released after.
-    fn box_by_host(&mut self, got: &Ty) {
-        let v = self.temp(got);
-        self.set_raw(&v);
-        let slots = self.g.slots(got);
-        let addr = self.local(ValType::I32);
-        self.emit([
-            I::I32Const(8 * slots.len() as i32),
-            I::Call(self.g.h.alloc),
-            I::LocalSet(addr),
-        ]);
-        for (j, (vt, _)) in slots.into_iter().enumerate() {
-            self.emit([
-                I::LocalGet(addr),
-                I::LocalGet(v.slots[j]),
-                super::rt::store(vt, 8 * j as u64),
-            ]);
-        }
-        let text = self.g.str_addr(&show(got));
-        self.emit(text);
-        self.emit([
-            I::LocalGet(addr),
-            I::Call(self.g.imp.boxing),
-            I::LocalGet(addr),
-            I::Call(self.g.h.free),
-        ]);
-        self.release(&v);
+    // The value on the stack through the function converting `ty` into an
+    // `any`, or with `into` false an `any` into a `ty`: the call takes it.
+    fn convert(&mut self, ty: &Ty, into: bool) {
+        let converter = self.g.converter(ty, into);
+        self.spill();
+        self.e(I::Call(converter));
     }
 
     /// A fresh `any` cell of `tag`, taking the i64 payload on the stack.
@@ -720,6 +706,14 @@ impl<'a> FnGen<'a> {
             I::I64Store(mem(8, 3)),
             I::LocalGet(cell),
         ]);
+    }
+
+    /// The class of the map `e` is, when it is one.
+    pub(crate) fn map_class(&mut self, e: &Expr) -> Option<String> {
+        match self.type_of(e).ok()? {
+            Ty::Struct(class) if crate::maps::is_map(&class) => Some(class),
+            _ => None,
+        }
     }
 
     pub(crate) fn expr_as(&mut self, e: &Expr, want: &Ty) -> R<()> {
@@ -773,6 +767,30 @@ impl<'a> FnGen<'a> {
             && matches!(want, Ty::Optional(_) | Ty::Any)
         {
             return self.if_as(c, then, els.as_ref(), want, e.pos);
+        }
+        if self.script_as(e, want)? {
+            return Ok(());
+        }
+        if let ExprKind::MapLit(entries) = &e.kind
+            && let Some(class) = map_wanted(want)
+        {
+            let (keys, values): (Vec<Expr>, Vec<Expr>) = entries.iter().cloned().unzip();
+            let list = |items| Expr {
+                kind: ExprKind::ArrayLit(items),
+                pos: e.pos,
+            };
+            let made = Expr {
+                kind: ExprKind::Call(
+                    crate::maps::function(class, "of"),
+                    vec![list(keys), list(values)],
+                ),
+                pos: e.pos,
+            };
+            self.expr_as(&made, &Ty::Struct(class.to_string()))?;
+            if matches!(want, Ty::Optional(_)) {
+                self.e(I::I32Const(1));
+            }
+            return Ok(());
         }
         let got = self.expr(e)?;
         self.coerce(&got, want, e.pos)
@@ -1034,6 +1052,15 @@ fn slot_offset(local: u32) -> u64 {
     u64::from(FRAME_HEADER) + 8 * u64::from(local)
 }
 
+// The map class `want` is, or holds when it is optional.
+fn map_wanted(want: &Ty) -> Option<&str> {
+    match want {
+        Ty::Struct(class) if crate::maps::is_map(class) => Some(class),
+        Ty::Optional(inner) => map_wanted(inner),
+        _ => None,
+    }
+}
+
 pub(crate) fn show(t: &Ty) -> String {
     match t {
         Ty::Int => "int".into(),
@@ -1043,9 +1070,10 @@ pub(crate) fn show(t: &Ty) -> String {
         Ty::Node => "Node".into(),
         Ty::Void => "nothing".into(),
         Ty::Array(e) => format!("[{}]", show(e)),
-        Ty::Struct(s) => s.clone(),
+        Ty::Struct(s) => crate::maps::shown(s).to_string(),
         Ty::Any => "any".into(),
         Ty::Optional(t) => format!("{}?", show(t)),
+        Ty::Map(key, value) => format!("{{ {}: {} }}", show(key), show(value)),
         Ty::Fn(params, ret, refs) => {
             let params: Vec<String> = params
                 .iter()

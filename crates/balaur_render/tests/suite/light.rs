@@ -527,41 +527,39 @@ fn a_spot_light2d_reads_its_cone_back_and_resolves_its_cosines() {
     assert!((spot.cone[1] - 0.5).abs() < 1e-5);
 }
 
+/// A 2D node is normal-mapped by its material: a shader-less one whose
+/// `normal` slot names the map, beside the strengths it shades with. A light
+/// keeps its height.
 #[test]
-fn a_normal_mapped_shape_keeps_its_shading_keys_and_a_light_its_height() {
+fn a_normal_mapped_shape_takes_its_shading_from_its_material_and_a_light_its_height() {
     let app = app();
     let sprite = node(&app);
     add(
         &app,
         sprite,
         "shape2d",
-        "normal_map = \"art/bumps_n.png\"\nspecular_strength = 0.5\nshininess = 32.0",
+        "material = { params = { normal = \"art/bumps_n.png\", specular_strength = 0.5, shininess = 32.0 } }",
     );
     let table = components::get(&app.engine, sprite, "shape2d").unwrap();
-    assert_eq!(table["normal_map"].as_str(), Some("art/bumps_n.png"));
-    assert!((table["specular_strength"].as_float().unwrap() - 0.5).abs() < 1e-6);
-    assert!((table["shininess"].as_float().unwrap() - 32.0).abs() < 1e-6);
-    assert!((table["normal_strength"].as_float().unwrap() - 1.0).abs() < 1e-6);
-    {
-        let world = app.engine.world();
-        let renderable = world.get::<&balaur_render::Renderable2d>(sprite).unwrap();
-        assert!(
-            renderable.lit.is_some(),
-            "the sprite draws with the lit material"
-        );
-    }
+    let named = table["material"].as_str().unwrap();
+    let builtin = balaur_render::material::builtin_of(&app.engine, named).unwrap();
+    let slot = balaur_render::material::TEXTURE_SLOTS
+        .iter()
+        .position(|name| *name == "normal")
+        .unwrap();
+    assert!(
+        builtin.maps[slot]
+            .as_deref()
+            .is_some_and(|path| path.ends_with("art/bumps_n.png")),
+        "{:?}",
+        builtin.maps
+    );
+    assert!((builtin.specular_strength - 0.5).abs() < 1e-6);
+    assert!((builtin.shininess - 32.0).abs() < 1e-6);
+    assert!((builtin.normal_strength - 1.0).abs() < 1e-6);
 
     let lamp = node(&app);
     add(&app, lamp, "light2d", "height = 0.4");
     let table = components::get(&app.engine, lamp, "light2d").unwrap();
     assert!((table["height"].as_float().unwrap() - 0.4).abs() < 1e-6);
-
-    let plain = node(&app);
-    add(&app, plain, "shape2d", "kind = \"circle\"");
-    let table = components::get(&app.engine, plain, "shape2d").unwrap();
-    assert_eq!(
-        table["normal_map"].as_str(),
-        Some(""),
-        "no normal map leaves the light map in charge"
-    );
 }

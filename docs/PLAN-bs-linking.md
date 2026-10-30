@@ -64,10 +64,49 @@ own types: a unit names a module struct `gd::Thing` where the module calls
 it `Thing`. An engine call from a module that reenters the script finds the
 script's methods in its own unit.
 
+## One instance per project
+
+Planned and built 2026-10-27 (PLAN-balaur-script §9 step 4). A unit was
+compiled once but made once per script: a module 40 scripts use was made 40
+times, in 40 memories, and one script reached another only through
+`node.call`, its arguments deep-copied. The units stay as they are; what
+changed is how many times they are made.
+
+- **One memory and one table for the project.** The host makes one instance
+  whose own unit has no code (`BsHost::project`), and every file built as
+  units is linked into it as it loads (`Runtime::link`), so `util.bs` is
+  made once and a class object passes between scripts by pointer. A unit
+  linked after the instance was made takes its static data from the heap,
+  since the space before the heap was laid out for the units known then.
+  An object and a task know their unit, and a call on one goes there
+  (`Runtime::in_unit`).
+- **A call to another script is a link**, as a call into a module is, typed
+  by a checked cast: `let tree: scene_tree::SceneTree? = node.script;` is
+  the node's script object when it runs that file's class in this instance,
+  else nil (`__script_of`, answered by the host from the node's instance).
+  The compiler knows each class's file from the linker.
+- **An edit** rebuilds the file's unit and the units built against it, and
+  the project's instance is made again with every file linked, each object
+  carried across by field name. A field that held another carried object
+  holds its replacement, so a script two others hold stays one. A reload a
+  script asks for while the instance runs is built at once, so it says what
+  broke, and swapped in between frames.
+- **A file built whole** for a debugger's probes, a profiler's counters, a
+  browser or a native export is an instance of its own, as before; turning
+  the debugger on moves its objects out of the project's instance, and off
+  moves them back. `node.script` there finds only that file's nodes.
+- **`node.call` stays between instances**: the editor and a plugin, the
+  editor and the game it plays. Inside one instance a call by a method's
+  name in a string is the step after (PLAN-balaur-script §9 step 5).
+- **Not yet**: two scripts holding each other is a cycle the counts never
+  free (a decode reads the inner one as nil rather than loop), and a
+  carried object's deeper references, in a list or a struct, are copied.
+
 ## Weighed and not taken
 
 - **One module for the whole game.** Simple, and every module compiled
   once, but every edit rebuilds the game and one broken file stops all.
+  One instance (above) keeps each file its own unit.
 - **wasmi's lazy translation for very large modules.** Cheaper machine
   code, but the front end still read 8 MB of source for each script.
 - **Dead-code elimination in the linker.** `classes.bs`'s dispatch reaches

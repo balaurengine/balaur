@@ -4,7 +4,7 @@
 use balaur::input::InputSnapshot;
 use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
-const SCRIPT: &str = "pub struct Runner { node: Node }
+const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
     fn fixed_update(dt: float) {
         if input::key_down(input::KEY_SPACE) { self.node.transform.translate(dt, 0.0, 0.0); }
@@ -16,15 +16,15 @@ fn project(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.bs\" }\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
+        "[[nodes]]\nid = \"runner\"\nname = \"Runner\"\nscript = { source = \"scripts/runner.bs\" }\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("runner.bs"), SCRIPT).unwrap();
 }
 
 fn booted(dir: &std::path::Path) -> App {

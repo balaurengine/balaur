@@ -79,6 +79,7 @@ graph TD
   balaur_cli --> balaur_plugin
   balaur_cli --> balaur_port
   balaur_cli --> balaur_script
+  balaur_cli --> balaur_text
   balaur_core --> balaur_script
   balaur_export --> balaur
   balaur_export --> balaur_plugin

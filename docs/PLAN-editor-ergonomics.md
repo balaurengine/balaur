@@ -2,7 +2,7 @@
 > `docs/PLAN-3d-rendering.md` (lights, environment, the material contract)
 > and `docs/PLAN-interactivity.md` (hooks, states, bindings) were built
 > alongside, because four of the eight steps here stood on them. What is
-> not built is named in §6.
+> not built is named in §6. §1a, making a picture, planned 2026-10-27.
 
 # Plan: editor ergonomics
 
@@ -128,6 +128,48 @@ thumbnails rendered offscreen at build time; dragging one copies the file
 into the project and drops it as above. Nothing at runtime references the
 library. A Gamend-hosted catalogue with the same manifest is
 `docs/PLAN-collaboration.md`'s, later.
+
+## 1a. Making a picture
+
+Planned 2026-10-27, from making one image, in a browser, the way a person
+does in Express or Affinity: a page, a picture on it, words over it, a file
+out. Each step today asks for something the editor should have known.
+
+- **A 2D page to start from.** *Built 2026-10-28.* The `page` template, which
+  the start screen and `balaur new --template page --size 1080x1350` offer:
+  a `camera2d` at 100 pixels to a unit framing white paper of that size,
+  and a `[window]` of it. `balaur run --offscreen --shot` writes it at that
+  size. A project from nothing is the `empty` template, built in where no
+  library is beside the binary.
+- **A dropped or pasted image is a sprite** at the pointer, in a browser as
+  on desktop (PLAN-web-editor §1), through the `dropin.bs` rule above. Change
+  type keeps its texture, as `recipes.bs` already carries colour, texture
+  and material.
+- **Add → Text is ready to type.** *Built 2026-10-28.* A node added at the
+  top of the scene lands where the view is looking, a child on its parent;
+  every added node is named for what it is (`text2d` is a `Text`); a text
+  opens in place with its words selected, as any field given focus does.
+- **Text is edited where it is drawn** (`textedit.bs`). *Built 2026-10-28.*
+  A double-click opens the edit over the text's box at the size its letters
+  are drawn, and a click away keeps what was typed. Escape drops it, on
+  every text field as on a number.
+- **A text is picked like anything drawn.** *Built 2026-10-28.* Picking
+  reads the bounds every drawable has (PLAN-views-and-culling §1):
+  `render::bounds` answers for a text with the lines it was last laid out
+  in, and the 2D gizmo carries a box's centre off the node's origin, so a
+  text aligned to its start is framed from where it starts.
+- **The common properties come first** (PLAN-property-types §5): a text's
+  `text` is its first row.
+- **A picture out.** *Built 2026-10-28.* The palette's "Write a picture of
+  the scene" writes the scene and has `picture.write` run it offscreen in a
+  second process, at the project's `[window]` size, as `--shot` does; the
+  PNG lands in `[export] output`'s `picture` folder or beside the manifest.
+  A tab has no second process and says so. `test:picture`.
+- **Nothing to save.** *Built 2026-10-28, for the scene.* `autosave.bs`
+  writes the scene once its edits have settled for 0.6 s, not while a game
+  plays, isolate hides part of it or a drag is under way; ⌘S still writes at
+  once. A run started with `--state` keeps its edits off disk. A script is
+  still written by ⌘S, since writing one is compiling it. `test:autosave`.
 
 ## 2. The surface
 

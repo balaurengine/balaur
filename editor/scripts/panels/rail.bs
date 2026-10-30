@@ -2,7 +2,7 @@
 // the workspace, the tool or the room moved, and the folded left dock's
 // handle over them. A mark runs its tool itself, then the rail fills again.
 
-pub struct Rail {
+pub class Rail {
     node: Node,
     editor: Node,
 }
@@ -43,8 +43,8 @@ impl Rail {
         sheet.get_node("Open").patch_component("widget", map()
             .with("icon", view.get("left").get("icon"))
             .with("tooltip", view.get("left").get("tooltip"))
-            .with("width", view.get("d"))
-            .with("height", view.get("d"))
-            .with("corner_radius", view.get("d").as_float() / 2.0));
+            .with("width", view.get("diameter"))
+            .with("height", view.get("diameter"))
+            .with("corner_radius", view.get("diameter").as_float() / 2.0));
     }
 }

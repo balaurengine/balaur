@@ -62,7 +62,9 @@ pub struct GlyphAtlas {
     texture_side: usize,
     cursor: (usize, usize),
     row_height: usize,
-    slots: HashMap<CacheKey, Option<Slot>>,
+    /// By the project whose font system rasterised the glyph: a cache key
+    /// names a face by its id, and ids are per database.
+    slots: HashMap<(crate::FontProject, CacheKey), Option<Slot>>,
     /// Bumped whenever the texture is replaced, so a layout holding UVs into
     /// the old one knows to rebuild.
     pub(crate) generation: u64,
@@ -119,7 +121,7 @@ impl GlyphAtlas {
     }
 
     /// Start over on a blank image; every slot handed out so far is void.
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.pixels.rgba.fill(0);
         self.cursor = (0, 0);
         self.row_height = 0;
@@ -274,10 +276,12 @@ impl GlyphAtlas {
         &mut self,
         fonts: &mut FontSystem,
         swash: &mut SwashCache,
+        project: crate::FontProject,
         key: CacheKey,
         hard: bool,
     ) -> Option<Slot> {
-        if let Some(slot) = self.slots.get(&key) {
+        let key_in = (project, key);
+        if let Some(slot) = self.slots.get(&key_in) {
             return *slot;
         }
         let image = swash.get_image(fonts, key).clone()?;
@@ -286,12 +290,12 @@ impl GlyphAtlas {
             image.placement.height as usize,
         );
         if width == 0 || height == 0 {
-            self.slots.insert(key, None);
+            self.slots.insert(key_in, None);
             return None;
         }
         if width + 2 * PAD > SIDE_MAX || height + 2 * PAD > SIDE_MAX {
             tracing::warn!("a glyph larger than the atlas was skipped");
-            self.slots.insert(key, None);
+            self.slots.insert(key_in, None);
             return None;
         }
         let pixels: Vec<Color32> = match image.content {
@@ -328,7 +332,7 @@ impl GlyphAtlas {
             offset: Vec2::new(image.placement.left as f32, image.placement.top as f32),
             colored: image.content != SwashContent::Mask,
         };
-        self.slots.insert(key, Some(slot));
+        self.slots.insert(key_in, Some(slot));
         Some(slot)
     }
 
@@ -362,7 +366,7 @@ impl GlyphAtlas {
     /// Every glyph key rasterised so far, for a test asking how it was drawn.
     #[cfg(test)]
     pub(crate) fn keys(&self) -> impl Iterator<Item = &CacheKey> {
-        self.slots.keys()
+        self.slots.keys().map(|(_, key)| key)
     }
 
     /// A shelf packer: rows left to right, rows top to bottom.
@@ -425,6 +429,7 @@ mod grow_tests {
             cosmic_text::CacheKeyFlags::empty(),
         )
         .0;
+        let key = (crate::FontProject::Host, key);
         atlas.slots.insert(
             key,
             Some(Slot {

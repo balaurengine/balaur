@@ -35,7 +35,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 
 [nodes.collider3d]
 kind = "capsule"
@@ -49,8 +49,8 @@ floor_snap_length = 0.0
 "#
         ),
         &format!(
-            "pub struct S {{ node: Node, ticks: int }}
-impl S {{
+            "pub class Scenario {{ node: Node, ticks: int }}
+impl Scenario {{
     fn fixed_update(dt: float) {{
         self.ticks += 1;
         self.node.character3d.move_character(0.1, 0.0, 0.0);
@@ -101,7 +101,7 @@ fn a_character_never_meets_its_own_body() {
 id = "n_player"
 name = "Player"
 body3d = { kind = "kinematic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 kind = "capsule"
@@ -123,8 +123,8 @@ position = [0.6, 0.0, 0.0]
 kind = "sphere"
 radius = 0.15
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character3d.move_character(0.1, 0.0, 0.0);
@@ -162,7 +162,7 @@ sensor = true
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider2d]
 kind = "circle"
@@ -171,8 +171,8 @@ radius = 0.4
 [nodes.character2d]
 floor_snap_length = 0.0
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character2d.move_character(0.1, 0.0);
@@ -410,11 +410,11 @@ fn boot(scene: &str, script: &str, ticks: u32) -> (tempfile::TempDir, App, Vec<S
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();
@@ -461,7 +461,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 {player}
 
 [nodes.character3d]
@@ -471,8 +471,8 @@ floor_snap_length = 0.0
     )
 }
 
-const WALK: &str = "pub struct S { node: Node }
-impl S {
+const WALK: &str = "pub class Scenario { node: Node }
+impl Scenario {
     fn fixed_update(dt: float) { self.node.character3d.move_character(0.05, 0.0, 0.0); }
 }
 ";
@@ -480,14 +480,14 @@ impl S {
 const CAPSULE: &str = "\n[nodes.collider3d]\nkind = \"capsule\"\nradius = 0.4\nheight = 2.0\n";
 
 #[test]
-fn each_character_length_reads_its_own_mode() {
+fn a_character_s_lengths_are_world_units_or_fractions_of_it() {
     let stop = |character: &str| {
         let (_dir, app, errors) = boot(&wall_and_player(CAPSULE, character), WALK, 60);
         assert!(errors.is_empty(), "{errors:#?}");
         position_of(&app, "World/Player").x
     };
     let absolute = stop("safe_margin = 0.2");
-    let relative = stop("safe_margin = 0.2\nsafe_margin_lengths = \"relative\"");
+    let relative = stop("safe_margin = 0.2\nlengths = \"relative\"");
     // Relative, the margin is a fifth of the capsule's height of 2.
     assert!(
         (absolute - 0.9).abs() < 0.05,
@@ -496,11 +496,6 @@ fn each_character_length_reads_its_own_mode() {
     assert!(
         (relative - 0.7).abs() < 0.05,
         "a relative margin of 0.2 stopped the player at {relative}"
-    );
-    let snapped = stop("safe_margin = 0.2\nfloor_snap_lengths = \"relative\"");
-    assert!(
-        (snapped - absolute).abs() < 1e-3,
-        "another length's mode moved the margin: {snapped}"
     );
 }
 
@@ -527,7 +522,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 body3d = {{ kind = "kinematic" }}
 character3d = {{ floor_snap_length = 0.0 }}
 {CAPSULE}
@@ -560,8 +555,8 @@ fn a_collision_reports_where_the_sweep_met_the_obstacle() {
         &wall_and_player(CAPSULE, ""),
         r#"fn x(v: any) -> float { v.at(0).as_float() }
 
-pub struct S { node: Node, done: bool }
-impl S {
+pub class Scenario { node: Node, done: bool }
+impl Scenario {
     fn fixed_update(dt: float) {
         let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
         if !self.done && moved.get("collisions").len() > 0 {
@@ -615,7 +610,7 @@ position = [0.0, -1.5, 0.0]
 [nodes.collider3d]
 kind = "box"
 size = [40.0, 1.0, 40.0]
-friction = 0.0
+physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
 id = "n_crate"
@@ -629,13 +624,13 @@ position = [1.2, -0.5, 0.0]
 [nodes.collider3d]
 kind = "box"
 size = [1.0, 1.0, 1.0]
-friction = 0.0
+physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 body3d = {{ kind = "kinematic" }}
 
 [nodes.transform]
@@ -711,7 +706,7 @@ size = [8.0, 1.0, 40.0]
 id = "n_car"
 name = "Car"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0, lock_translation = ["y"], lock_rotation = ["x", "y", "z"] }
 vehicle3d = { forward_axis = "-z" }
 
@@ -736,8 +731,8 @@ fn speed_and_wheel_state_read_the_kept_controller() {
         r#"fn x(v: any) -> float { v.at(0).as_float() }
 fn y(v: any) -> float { v.at(1).as_float() }
 
-pub struct S { node: Node, ticks: int }
-impl S {
+pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn init() {
         self.node.body3d.set_linear_velocity(0.0, 0.0, 4.0);
     }

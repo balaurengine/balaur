@@ -132,9 +132,16 @@ pub(crate) fn sync_tilemaps(
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         let visible = appearance.visible;
         let [r, g, b, a] = crate::sync_2d::modulate(map.color, appearance.tint.to_array());
+        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
+        let reference = if map.material.is_empty() {
+            appearance.material.reference().to_string()
+        } else {
+            map.material.clone()
+        };
+        let surface = crate::material::flat_surface_of(&app.engine, &reference);
         for chunk in slot.chunks.values_mut() {
             chunk.node.set_color(kiss3d::color::Color::new(r, g, b, a));
-            crate::overlay::apply_2d(&mut chunk.node, &map.overlay);
+            crate::overlay::apply_2d(&mut chunk.node, &surface, &debug);
         }
         slot.node
             .set_position(glamx::Vec2::new(global.position.x, global.position.y))

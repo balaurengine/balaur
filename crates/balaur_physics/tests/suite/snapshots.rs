@@ -14,7 +14,7 @@ fn boot(scene: &str) -> (App, tempfile::TempDir, std::sync::MutexGuard<'static, 
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();

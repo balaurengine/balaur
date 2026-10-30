@@ -20,7 +20,7 @@ fn two(a: &mut Tally, b: &mut Tally) -> int {
 }
 fn copy(s: State) { s.count = 99; }
 
-pub struct Editor { s: State, a: Tally, b: Tally, said: str }
+pub class Editor { s: State, a: Tally, b: Tally, said: str }
 impl Editor {
     fn tick(i: &mut Tally) -> int {
         i.hits += 1;
@@ -84,7 +84,7 @@ fn open_row(s: &mut State, name: str) {
     s.hits += 1;
     s.last = name;
 }
-pub struct Editor { s: State, said: str }
+pub class Editor { s: State, said: str }
 impl Editor {
     pub fn click() {
         let row = Row { name: "a.bs", on: open_row };
@@ -115,7 +115,7 @@ fn handle(s: &mut State, data: any, value: any) {
     let f: fn(&mut State, any, any) = data.fn;
     f(s, data, value);
 }
-pub struct Editor { s: State, said: str }
+pub class Editor { s: State, said: str }
 impl Editor {
     pub fn click() {
         self.s = State { log: "" };

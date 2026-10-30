@@ -1,0 +1,409 @@
+// The methods of a `str`, compiled into a program that calls them. Offsets
+// are bytes, as `len` counts them, moved back onto the start of a character.
+// A number that does not parse is 0. Case comes from the tables `build.rs`
+// writes from Rust's own, a character at a time.
+
+pub fn contains(text: str, needle: str) -> bool {
+    find_from(text, needle, 0) >= 0
+}
+
+pub fn starts_with(text: str, prefix: str) -> bool {
+    prefix.len() <= text.len() && same_at(text, 0, prefix)
+}
+
+pub fn ends_with(text: str, suffix: str) -> bool {
+    suffix.len() <= text.len() && same_at(text, text.len() - suffix.len(), suffix)
+}
+
+pub fn find(text: str, needle: str) -> int {
+    find_from(text, needle, 0)
+}
+
+pub fn slice(text: str, from: int, to: int) -> str {
+    let start = boundary(text, from);
+    let end = boundary(text, to);
+    if end < start {
+        end = start;
+    }
+    part(text, start, end)
+}
+
+pub fn to_upper(text: str) -> str {
+    recase(text, true)
+}
+
+pub fn to_lower(text: str) -> str {
+    recase(text, false)
+}
+
+pub fn trim(text: str) -> str {
+    let length = text.len();
+    let start = 0;
+    while start < length && white(code_at(text, start)) {
+        start += char_len(text, start);
+    }
+    let end = length;
+    while end > start {
+        let previous = char_start(text, end - 1);
+        if !white(code_at(text, previous)) {
+            break;
+        }
+        end = previous;
+    }
+    part(text, start, end)
+}
+
+// Every `from` in turn, left to right; an empty `from` changes nothing.
+pub fn replace(text: str, from: str, to: str) -> str {
+    if from.len() == 0 {
+        return text;
+    }
+    let parts: [str] = [];
+    let at = 0;
+    loop {
+        let hit = find_from(text, from, at);
+        if hit < 0 {
+            break;
+        }
+        parts.push(part(text, at, hit));
+        parts.push(to);
+        at = hit + from.len();
+    }
+    parts.push(part(text, at, text.len()));
+    join(parts)
+}
+
+// An empty separator splits into characters.
+pub fn split(text: str, sep: str) -> [str] {
+    if sep.len() == 0 {
+        return chars(text);
+    }
+    let out: [str] = [];
+    let at = 0;
+    loop {
+        let hit = find_from(text, sep, at);
+        if hit < 0 {
+            break;
+        }
+        out.push(part(text, at, hit));
+        at = hit + sep.len();
+    }
+    out.push(part(text, at, text.len()));
+    out
+}
+
+// Before and after the first separator, or nothing when there is none.
+pub fn split_once(text: str, sep: str) -> [str] {
+    let hit = find_from(text, sep, 0);
+    if hit < 0 {
+        return [];
+    }
+    return [part(text, 0, hit), part(text, hit + sep.len(), text.len())];
+}
+
+pub fn chars(text: str) -> [str] {
+    let out: [str] = [];
+    let at = 0;
+    while at < text.len() {
+        let width = char_len(text, at);
+        out.push(part(text, at, at + width));
+        at += width;
+    }
+    out
+}
+
+// An optional sign, then digits only; past an int's range is 0.
+pub fn parse_int(text: str) -> int {
+    let trimmed = trim(text);
+    let length = trimmed.len();
+    let at = 0;
+    let negative = false;
+    if length > 0 && (__byte(trimmed, 0) == 43 || __byte(trimmed, 0) == 45) {
+        negative = __byte(trimmed, 0) == 45;
+        at = 1;
+    }
+    if at == length {
+        return 0;
+    }
+    // Counted below zero, where the range reaches one further.
+    let least = -9223372036854775807 - 1;
+    let total = 0;
+    while at < length {
+        let digit = __byte(trimmed, at) - 48;
+        if digit < 0 || digit > 9 || total < -922337203685477580 {
+            return 0;
+        }
+        total = total * 10;
+        if total < least + digit {
+            return 0;
+        }
+        total -= digit;
+        at += 1;
+    }
+    if negative {
+        total
+    } else if total == least {
+        0
+    } else {
+        -total
+    }
+}
+
+pub fn parse_float(text: str) -> float {
+    __parse_float(trim(text))
+}
+
+// A key's place in a map's table (`crate::maps`), never negative: each byte
+// folded in by a large odd multiplier, then the high half into the low, which
+// the table's size picks from.
+fn hash(text: str) -> int {
+    let total = 0;
+    let at = 0;
+    while at < text.len() {
+        total = (total + __byte(text, at) + 1) * 1099511628211;
+        at += 1;
+    }
+    total = total + total / 4294967296;
+    if total < 0 {
+        -1 - total
+    } else {
+        total
+    }
+}
+
+// Whether `needle` sits in `text` at byte `at`.
+fn same_at(text: str, at: int, needle: str) -> bool {
+    let offset = 0;
+    while offset < needle.len() {
+        if __byte(text, at + offset) != __byte(needle, offset) {
+            return false;
+        }
+        offset += 1;
+    }
+    true
+}
+
+fn find_from(text: str, needle: str, from: int) -> int {
+    let last = text.len() - needle.len();
+    let at = from;
+    while at <= last {
+        if same_at(text, at, needle) {
+            return at;
+        }
+        at += 1;
+    }
+    return -1;
+}
+
+// `at` clamped into the string and moved back onto a character's start.
+fn boundary(text: str, at: int) -> int {
+    let clamped = if at < 0 {
+        0
+    } else if at > text.len() {
+        text.len()
+    } else {
+        at
+    };
+    while clamped < text.len() && continues(__byte(text, clamped)) {
+        clamped -= 1;
+    }
+    clamped
+}
+
+fn continues(byte: int) -> bool {
+    byte >= 128 && byte < 192
+}
+
+fn char_start(text: str, at: int) -> int {
+    let start = at;
+    while start > 0 && continues(__byte(text, start)) {
+        start -= 1;
+    }
+    start
+}
+
+fn char_len(text: str, at: int) -> int {
+    let lead = __byte(text, at);
+    if lead < 128 {
+        1
+    } else if lead < 224 {
+        2
+    } else if lead < 240 {
+        3
+    } else {
+        4
+    }
+}
+
+fn code_at(text: str, at: int) -> int {
+    let lead = __byte(text, at);
+    if lead < 128 {
+        return lead;
+    }
+    if lead < 224 {
+        return (lead - 192) * 64 + __byte(text, at + 1) - 128;
+    }
+    if lead < 240 {
+        return ((lead - 224) * 64 + __byte(text, at + 1) - 128) * 64 + __byte(text, at + 2) - 128;
+    }
+    (((lead - 240) * 64 + __byte(text, at + 1) - 128) * 64 + __byte(text, at + 2) - 128) * 64
+        + __byte(text, at + 3)
+        - 128
+}
+
+// Rust's `char::is_whitespace`, Unicode's White_Space.
+fn white(code: int) -> bool {
+    (code >= 9 && code <= 13)
+        || code == 32
+        || code == 133
+        || code == 160
+        || code == 5760
+        || (code >= 8192 && code <= 8202)
+        || code == 8232
+        || code == 8233
+        || code == 8239
+        || code == 8287
+        || code == 12288
+}
+
+// Bytes `start` up to `end`, which the caller has put on characters' starts.
+fn part(text: str, start: int, end: int) -> str {
+    if start == 0 && end == text.len() {
+        return text;
+    }
+    let out = __str_new(end - start);
+    __str_copy(out, 0, text, start, end - start);
+    out
+}
+
+fn join(parts: [str]) -> str {
+    let length = 0;
+    for piece in parts {
+        length += piece.len();
+    }
+    let out = __str_new(length);
+    let at = 0;
+    for piece in parts {
+        __str_copy(out, at, piece, 0, piece.len());
+        at += piece.len();
+    }
+    out
+}
+
+fn recase(text: str, up: bool) -> str {
+    let codes: [int] = [];
+    let length = text.len();
+    let at = 0;
+    while at < length {
+        let byte = __byte(text, at);
+        if byte < 128 {
+            if up && byte >= 97 && byte <= 122 {
+                codes.push(byte - 32);
+            } else if !up && byte >= 65 && byte <= 90 {
+                codes.push(byte + 32);
+            } else {
+                codes.push(byte);
+            }
+            at += 1;
+        } else {
+            let code = code_at(text, at);
+            at += char_len(text, at);
+            if up {
+                cased(UPPER, UPPER_MANY, code, codes);
+            } else {
+                cased(LOWER, LOWER_MANY, code, codes);
+            }
+        }
+    }
+    encode(codes)
+}
+
+// What `code` becomes by the tables: one character, several, or itself.
+fn cased(one: str, many: str, code: int, out: [int]) {
+    let single = search(one, 12, code);
+    if single >= 0 {
+        out.push(hex(one, single * 12 + 6, 6));
+        return;
+    }
+    let record = search(many, 25, code);
+    if record < 0 {
+        out.push(code);
+        return;
+    }
+    let made = 0;
+    while made < hex(many, record * 25 + 6, 1) {
+        out.push(hex(many, record * 25 + 7 + made * 6, 6));
+        made += 1;
+    }
+}
+
+// The record of `width` hex digits whose first six are `code`; -1 for none.
+fn search(table: str, width: int, code: int) -> int {
+    let lo = 0;
+    let hi = table.len() / width;
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        let key = hex(table, mid * width, 6);
+        if key == code {
+            return mid;
+        }
+        if key < code {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return -1;
+}
+
+fn hex(table: str, at: int, digits: int) -> int {
+    let total = 0;
+    let read = 0;
+    while read < digits {
+        let byte = __byte(table, at + read);
+        let digit = if byte >= 97 { byte - 87 } else { byte - 48 };
+        total = total * 16 + digit;
+        read += 1;
+    }
+    total
+}
+
+fn encode(codes: [int]) -> str {
+    let length = 0;
+    for code in codes {
+        let width = if code < 128 {
+            1
+        } else if code < 2048 {
+            2
+        } else if code < 65536 {
+            3
+        } else {
+            4
+        };
+        length += width;
+    }
+    let out = __str_new(length);
+    let at = 0;
+    for code in codes {
+        if code < 128 {
+            __str_put(out, at, code);
+            at += 1;
+        } else if code < 2048 {
+            __str_put(out, at, 192 + code / 64);
+            __str_put(out, at + 1, 128 + code % 64);
+            at += 2;
+        } else if code < 65536 {
+            __str_put(out, at, 224 + code / 4096);
+            __str_put(out, at + 1, 128 + code / 64 % 64);
+            __str_put(out, at + 2, 128 + code % 64);
+            at += 3;
+        } else {
+            __str_put(out, at, 240 + code / 262144);
+            __str_put(out, at + 1, 128 + code / 4096 % 64);
+            __str_put(out, at + 2, 128 + code / 64 % 64);
+            __str_put(out, at + 3, 128 + code % 64);
+            at += 4;
+        }
+    }
+    out
+}

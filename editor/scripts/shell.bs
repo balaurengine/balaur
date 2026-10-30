@@ -1,4 +1,4 @@
-// The editor's verbs on its state `S`: selection, workspaces, play, the
+// The editor's verbs on its state `state`: selection, workspaces, play, the
 // palette, breakpoints, the pause, and the start-up states.
 
 use about;
@@ -54,133 +54,131 @@ pub struct Capture {
     dir: str,
     from: int,
     every: int,
-    n: int,
+    count: int,
 }
 
-/// The debugger's own state, hung on `S.debug`. `demo` drives the breakdemo
+/// The debugger's own state, hung on `state.debug`. `demo` drives the breakdemo
 /// self-test's step/continue alternation.
 pub fn debug_state() -> DebugState {
     DebugState { frame: 0, breakpoints: map(), paused: nil, paused_rel: "", demo: nil, rows: [], owners: [] }
 }
 
-pub fn choose(S: &mut editor::State, i: int) {
-    if i != S.sel {
-        history::commit(S);
+pub fn choose(state: &mut editor::State, row: int) {
+    if row != state.sel {
+        history::commit(state);
     }
-    selection::only(S, i);
+    selection::only(state, row);
 }
 
 /// A click that may extend the set: ⌘ toggles one row, ⇧ takes the run
 /// between the active row and this one, and a plain click replaces the set.
-pub fn choose_click(S: &mut editor::State, i: int) {
+pub fn choose_click(state: &mut editor::State, row: int) {
     let additive = input::key_down(input::KEY_META) || input::key_down(input::KEY_CONTROL);
     let ranged = input::key_down(input::KEY_SHIFT);
     if !additive && !ranged {
-        choose(S, i);
+        choose(state, row);
         return;
     }
-    history::commit(S);
+    history::commit(state);
     if ranged {
-        selection::extend_to(S, i);
+        selection::extend_to(state, row);
     } else {
-        selection::toggle(S, i);
+        selection::toggle(state, row);
     }
 }
 
-// History owns the document; the mirror is rebuilt from it here, because
-// history must not depend on `model` (model records into history).
-fn step(S: &mut editor::State, label: str, moved_or: str?) {
+// An undo or a redo goes back to the scene as it was edited: a running game
+// stops first, said so, since the step is the edited scene's and not the
+// game's.
+fn stop_for(state: &mut editor::State, label: str) {
+    if state.playing {
+        stop_play(state);
+        log::info("{label} stopped the running scene");
+    }
+}
+
+fn stepped(state: &mut editor::State, label: str, moved_or: str?) {
     if moved_or.is_none() {
         log::info("nothing to {label}");
         return;
     }
-    let moved = moved_or.unwrap();
-    // Rebuilding stops play, so read the flag before it is cleared: a
-    // keystroke aimed at the document should not silently kill the game.
-    let was_playing = S.playing;
-    session::end(S, "stop");
-    model::build_mirror(S);
-    if was_playing {
-        log::info("{label} stopped the running scene");
-    }
-    theme::apply(S);
-    apply_camera(S);
-    log::info("{label}: {moved}");
+    log::info("{label}: {moved_or.unwrap()}");
 }
 
-pub fn undo(S: &mut editor::State) {
-    step(S, "undo", history::undo(S));
+pub fn undo(state: &mut editor::State) {
+    stop_for(state, "undo");
+    stepped(state, "undo", history::undo(state));
 }
 
-pub fn redo(S: &mut editor::State) {
-    step(S, "redo", history::redo(S));
+pub fn redo(state: &mut editor::State) {
+    stop_for(state, "redo");
+    stepped(state, "redo", history::redo(state));
 }
 
-pub fn set_workspace(S: &mut editor::State, id: str) {
-    S.workspace = id;
-    S.tool = "select";
-    signals::inspector(S);
+pub fn set_workspace(state: &mut editor::State, id: str) {
+    state.workspace = id;
+    state.tool = "select";
+    signals::inspector(state);
     if id == "script" {
-        open_doc(S, "script");
+        open_doc(state, "script");
     } else {
-        S.doctab = "scene";
-        signals::inspector(S);
+        state.doctab = "scene";
+        signals::inspector(state);
     }
     // A workspace is a set of open panels and nothing more: what it opens can
     // be closed again from a tab, and what it leaves out opened from the menu.
-    docks::apply_workspace(S, id);
+    docks::apply_workspace(state, id);
 }
 
 /// Show a document tab, opening it when it was closed.
-pub fn open_doc(S: &mut editor::State, id: str) {
+pub fn open_doc(state: &mut editor::State, id: str) {
     if id == "script" {
-        S.script_open = true;
-        signals::bars(S);
+        state.script_open = true;
+        signals::bars(state);
     }
     if id == "events" {
-        S.events_open = true;
-        signals::bars(S);
+        state.events_open = true;
+        signals::bars(state);
     }
-    S.doctab = id;
-    signals::inspector(S);
+    state.doctab = id;
+    signals::inspector(state);
 }
 
 /// Close a document tab; the scene is what is left.
-pub fn close_doc(S: &mut editor::State, id: str) {
+pub fn close_doc(state: &mut editor::State, id: str) {
     if id == "script" {
-        S.script_open = false;
-        signals::bars(S);
+        state.script_open = false;
+        signals::bars(state);
     }
     if id == "events" {
-        S.events_open = false;
-        signals::bars(S);
+        state.events_open = false;
+        signals::bars(state);
     }
-    if S.doctab == id {
-        S.doctab = "scene";
-        signals::inspector(S);
+    if state.doctab == id {
+        state.doctab = "scene";
+        signals::inspector(state);
     }
 }
 
 // Show the code and the viewport at once, or go back to one at a time. The
 // split is only ever drawn over a document, so turning it on opens one.
-pub fn toggle_split(S: &mut editor::State) {
-    S.split = !S.split;
-    signals::bars(S);
-    if S.split && S.doctab == "events" {
-        S.doctab = "scene";
-        signals::inspector(S);
+pub fn toggle_split(state: &mut editor::State) {
+    state.split = !state.split;
+    signals::bars(state);
+    if state.split && state.doctab == "events" {
+        state.doctab = "scene";
+        signals::inspector(state);
     }
     // Under focus this is the reader asking for the scene back beside the
     // code, so the record goes rather than undoing it on the way out.
-    drop_focus(S);
+    drop_focus(state);
 }
 
 /// Select the first node in the scene carrying a script; whether it found one.
-pub fn select_scripted(S: &mut editor::State) -> bool {
-    for i in 0..S.doc.len() {
-        let node = S.doc[i];
-        if node.has("script") {
-            selection::only(S, i);
+pub fn select_scripted(state: &mut editor::State) -> bool {
+    for row in 0..state.nodes.len() {
+        if !model::script_rel(state.nodes[row]).is_nil() {
+            selection::only(state, row);
             return true;
         }
     }
@@ -189,98 +187,98 @@ pub fn select_scripted(S: &mut editor::State) -> bool {
 
 /// Whether there is code to give the window to: the selection's script, or a
 /// shader opened from a material.
-pub fn focus_target(S: editor::State) -> bool {
-    S.shader_rel != "" || !model::script_rel(model::selected_node(S)).is_nil()
+pub fn focus_target(state: editor::State) -> bool {
+    state.shader_rel != "" || !model::script_rel(model::selected_node(state)).is_nil()
 }
 
 // The code with the window to itself: the three docks fold, the split goes,
 // and the layout they were in is kept for the way back.
-pub fn toggle_focus(S: &mut editor::State) {
-    if S.focus {
-        leave_focus(S);
+pub fn toggle_focus(state: &mut editor::State) {
+    if state.focus {
+        leave_focus(state);
         return;
     }
-    if !focus_target(S) {
+    if !focus_target(state) {
         log::warn("nothing to focus: the selection has no script");
         return;
     }
-    let was = map().with("split", S.split);
+    let was = map().with("split", state.split);
     for side in docks::sides() {
-        was.set(side, S.docks.get(side).shut);
-        S.docks.get(side).shut = true;
-        signals::docks(S);
+        was.set(side, state.docks.get(side).shut);
+        state.docks.get(side).shut = true;
+        signals::docks(state);
     }
-    S.focus_was = was;
-    S.focus = true;
-    S.split = false;
-    signals::bars(S);
-    open_doc(S, "script");
+    state.focus_was = was;
+    state.focus = true;
+    state.split = false;
+    signals::bars(state);
+    open_doc(state, "script");
 }
 
 /// Put back the layout focus folded away. A record that is gone means a panel
 /// was opened under it, and what is open now is what was asked for.
-pub fn leave_focus(S: &mut editor::State) {
-    let was = S.focus_was;
-    S.focus = false;
-    signals::bars(S);
-    S.focus_was = nil;
+pub fn leave_focus(state: &mut editor::State) {
+    let was = state.focus_was;
+    state.focus = false;
+    signals::bars(state);
+    state.focus_was = nil;
     if was.kind() != "map" {
         return;
     }
     for side in docks::sides() {
-        S.docks.get(side).shut = was.get(side).as_bool();
-        signals::docks(S);
+        state.docks.get(side).shut = was.get(side).as_bool();
+        signals::docks(state);
     }
-    S.split = was.split.as_bool();
-    signals::bars(S);
+    state.split = was.split.as_bool();
+    signals::bars(state);
 }
 
 /// Forget the layout focus folded, without putting it back: a verb asked for
 /// under focus wins over the record it would have restored.
-pub fn drop_focus(S: &mut editor::State) {
-    S.focus = false;
-    signals::bars(S);
-    S.focus_was = nil;
+pub fn drop_focus(state: &mut editor::State) {
+    state.focus = false;
+    signals::bars(state);
+    state.focus_was = nil;
 }
 
 /// Whether focus still holds, asked once a frame before the centre is laid
 /// out. A panel opened under it keeps its dock; leaving the code ends it.
-pub fn keep_focus(S: &mut editor::State) {
-    if !S.focus {
+pub fn keep_focus(state: &mut editor::State) {
+    if !state.focus {
         return;
     }
-    if !docks::all_folded(S) {
-        drop_focus(S);
+    if !docks::all_folded(state) {
+        drop_focus(state);
         return;
     }
-    if S.doctab != "script" {
-        leave_focus(S);
+    if state.doctab != "script" {
+        leave_focus(state);
     }
 }
 
-pub fn set_zoom(S: &mut editor::State, z: float) {
-    S.zoom = util::clamp(z, 25.0, 400.0);
-    apply_camera(S);
+pub fn set_zoom(state: &mut editor::State, zoom: float) {
+    state.zoom = util::clamp(zoom, 25.0, 400.0);
+    apply_camera(state);
 }
 
-pub fn open_palette(S: &mut editor::State, query: str) {
-    S.palette = true;
-    S.palette_query = query;
+pub fn open_palette(state: &mut editor::State, query: str) {
+    state.palette = true;
+    state.palette_query = query;
     // Dropped on every opening, so a component a reloaded plugin registered is
     // in the list the next time it is asked for.
-    S.palette_cache = nil;
-    window::picker_changed(S);
+    state.palette_cache = nil;
+    window::picker_changed(state);
 }
 
 /// The reader asking for a scale, which outranks what the screen wanted.
-pub fn ask_ui_scale(S: &mut editor::State, f: float) {
-    S.asked_scale = util::clamp(f, 0.75, 2.5);
-    set_ui_scale(S, S.asked_scale);
+pub fn ask_ui_scale(state: &mut editor::State, scale: float) {
+    state.asked_scale = util::clamp(scale, 0.75, 2.5);
+    set_ui_scale(state, state.asked_scale);
 }
 
-pub fn set_ui_scale(S: &mut editor::State, f: float) {
-    S.ui_scale = util::clamp(f, 0.75, 2.5);
-    ui::set_scale(S.ui_scale);
+pub fn set_ui_scale(state: &mut editor::State, scale: float) {
+    state.ui_scale = util::clamp(scale, 0.75, 2.5);
+    ui::set_scale(state.ui_scale);
 }
 
 // What a finger needs, and the box the theme's `touch` tables state for a
@@ -295,84 +293,97 @@ fn touch_scale() -> float {
 
 /// The scale this screen wants: what the reader set, and at least enough on a
 /// touch screen that the smallest control clears a finger.
-pub fn scale_for_screen(S: editor::State) -> float {
-    let asked = S.asked_scale;
+pub fn scale_for_screen(state: editor::State) -> float {
+    let asked = state.asked_scale;
     let wanted = touch_scale();
-    if S.touchscreen && asked < wanted {
+    if state.touchscreen && asked < wanted {
         return wanted;
     }
     asked
 }
 
-pub fn close_palette(S: &mut editor::State) {
-    S.palette = false;
-    window::picker_shut(S);
+pub fn close_palette(state: &mut editor::State) {
+    state.palette = false;
+    window::picker_shut(state);
 }
 
-pub fn toggle_play(S: &mut editor::State) {
-    if S.playing {
-        stop_play(S);
+pub fn toggle_play(state: &mut editor::State) {
+    if state.playing {
+        stop_play(state);
     } else {
-        // From the scene as authored, the world a replay rebuilds: a mirror
-        // scrubbed or posed while editing is not where the recording starts.
-        model::build_mirror(S);
+        begin_play(state);
         // Recording starts before the scripts attach: an `init` that opens a
         // socket belongs inside the session, and one that takes an await
         // token has to take the id the replay will hand back.
-        session::start(S);
+        session::start(state);
         // Real play-in-editor: attach the game's scripts to the mirrored
         // nodes (their init sets up physics etc.), then run.
-        model::attach_game_scripts(S);
+        model::attach_game_scripts(state);
         // The game looks through its own camera from here.
-        model::hold_game_cameras(S, true);
-        S.playing = true;
-        signals::inspector(S);
-        signals::changed(S, "debugger");
-        docks::show(S, "output");
+        model::hold_game_cameras(state, true);
+        state.playing = true;
+        signals::inspector(state);
+        signals::changed(state, "debugger");
+        docks::show(state, "output");
         // Physics and every animation player start next frame: the one a
         // session opens in is not recorded, so nothing may step in it.
-        S.release_at = S.frame + 1;
-        log::info("play: running " + S.game_name);
+        state.release_at = state.frame + 1;
+        log::info("play: running " + state.game_name);
     }
 }
 
 /// Let the world step: what play and a replay both do the frame after they
 /// start, so a replay's first frame is stepped exactly as the recording's was.
-pub fn release_world(S: &mut editor::State) {
-    if S.release_at < 0 || S.frame < S.release_at {
+pub fn release_world(state: &mut editor::State) {
+    if state.release_at < 0 || state.frame < state.release_at {
         return;
     }
-    S.release_at = -1;
+    state.release_at = -1;
     physics::set_paused(false);
-    // The mirror was built with every player held (model::build_mirror);
-    // play is what lets the engine advance them.
-    anim::resume_all(S);
+    // The scene was built with every player held (`model::build`); play is
+    // what lets the engine advance them.
+    anim::resume_all(state);
 }
 
-pub fn stop_play(S: &mut editor::State) {
-    if S.playing {
+/// The scene as authored, built again for a game to run in: the world a
+/// replay rebuilds, since a scene scrubbed or posed while editing is not
+/// where a recording starts. What it is now is what stop builds again, and
+/// nothing the game does is the edited scene's to undo.
+pub fn begin_play(state: &mut editor::State) {
+    history::commit(state);
+    state.played = model::scene_text(state);
+    model::build(state, state.played);
+    scene::keep_changes(nil);
+}
+
+pub fn stop_play(state: &mut editor::State) {
+    if state.playing {
         log::info("stop: scene reset");
     }
-    // A stop in the frame play started must not release the rebuilt mirror.
-    S.release_at = -1;
-    session::end(S, "stop");
-    model::build_mirror(S);
+    // A stop in the frame play started must not release the rebuilt scene.
+    state.release_at = -1;
+    session::end(state, "stop");
+    if state.played != "" {
+        model::build(state, state.played);
+        state.played = "";
+    }
+    state.playing = false;
     // The game may have restyled the viewport (background, camera).
-    theme::apply(S);
-    apply_camera(S);
+    theme::apply(state);
+    apply_camera(state);
 }
 
 // Viewport chip side effects (chips themselves live in center.bs).
-pub fn on_chip(S: editor::State, workspace: str, key: str, value: bool) {
+pub fn on_chip(state: editor::State, workspace: str, key: str, value: bool) {
     if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         physics::set_sleeping_allowed(value);
     }
 }
 
 // The other half of the pair: chips that command the engine read their
-// state back from it, so nothing is mirrored in `S.chip_state`. Nil for a
+// state back from it, so nothing is mirrored in `state.chip_state`. Nil for a
 // chip the editor owns outright.
-pub fn chip_value(S: editor::State, workspace: str, key: str) -> bool? {
+pub fn chip_value(state: editor::State, workspace: str, key: str) -> bool? {
     if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         return physics::sleeping_allowed();
     }
@@ -381,23 +392,23 @@ pub fn chip_value(S: editor::State, workspace: str, key: str) -> bool? {
 
 // Breakpoints are kept per game-relative script path; the host keys the
 // same file by the absolute path play attaches it under.
-pub fn breakpoint_lines(S: editor::State, rel: str) -> [int] {
+pub fn breakpoint_lines(state: editor::State, rel: str) -> [int] {
     let lines: [int] = [];
-    for line in util::vec(S.debug.breakpoints.get(rel)) {
+    for line in util::vec(state.debug.breakpoints.get(rel)) {
         lines.push(line.as_int());
     }
     lines.sort();
     lines
 }
 
-pub fn toggle_breakpoint(S: &mut editor::State, rel: str, line: int) {
+pub fn toggle_breakpoint(state: &mut editor::State, rel: str, line: int) {
     let kept: [int] = [];
     let had = false;
-    for l in breakpoint_lines(S, rel) {
-        if l == line {
+    for breakpoint in breakpoint_lines(state, rel) {
+        if breakpoint == line {
             had = true;
         } else {
-            kept.push(l);
+            kept.push(breakpoint);
         }
     }
     if !had {
@@ -405,12 +416,12 @@ pub fn toggle_breakpoint(S: &mut editor::State, rel: str, line: int) {
     }
     // The host reports where each request landed: a blank line moves to the
     // next line with code.
-    S.debug.breakpoints.set(rel, debugger::set_breakpoints(S.game_root + "/" + rel, kept));
+    state.debug.breakpoints.set(rel, debugger::set_breakpoints(state.game_root + "/" + rel, kept));
 }
 
 // Game-relative path of a script the host reports by absolute key.
-pub fn script_rel(S: editor::State, path: str) -> str {
-    let prefix = S.game_root + "/";
+pub fn script_rel(state: editor::State, path: str) -> str {
+    let prefix = state.game_root + "/";
     if path.starts_with(prefix) {
         return path.slice(prefix.len(), path.len());
     }
@@ -419,78 +430,70 @@ pub fn script_rel(S: editor::State, path: str) -> str {
 
 // The pause is over the moment it is asked to go; the poll would only
 // notice next frame, and a pause that follows at once must read as new.
-pub fn resume(S: &mut editor::State, mode: str) {
+pub fn resume(state: &mut editor::State, mode: str) {
     debugger::resume(mode);
-    S.debug.paused = nil;
-    signals::changed(S, "debugger");
+    state.debug.paused = nil;
+    signals::changed(state, "debugger");
 }
 
 /// Where a script is stopped, as the engine says it moved: a fresh stop shows
 /// its script and frame, and the self-test's walk steps on from each one.
-pub fn stopped(S: &mut editor::State, stop: any) {
-    if stop.kind() == "map" && S.debug.paused.kind() != "map" {
-        on_pause(S, stop);
+pub fn stopped(state: &mut editor::State, stop: any) {
+    if stop.kind() == "map" && state.debug.paused.kind() != "map" {
+        on_pause(state, stop);
     }
-    S.debug.paused = stop;
-    signals::changed(S, "debugger");
-    if S.debug.demo.is_some() {
-        let n = S.debug.demo.unwrap();
+    state.debug.paused = stop;
+    signals::changed(state, "debugger");
+    if state.debug.demo.is_some() {
+        let pauses = state.debug.demo.unwrap();
         if stop.kind() == "map" {
-            S.debug.demo = n + 1;
-            resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
+            state.debug.demo = pauses + 1;
+            resume(state, if (pauses + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
         }
     }
 }
 
 // A fresh pause: show the script and the frame it stopped in.
-pub fn on_pause(S: &mut editor::State, p: any) {
-    S.debug.paused_rel = script_rel(S, p.path.as_str());
-    S.debug.frame = 0;
-    let stopped = p.node.as_node().path();
-    for i in 0..S.doc.len() {
-        let found = model::live(S, i);
-        let same = found.is_valid() && found.path() == stopped;
-        if same || model::script_rel(S.doc[i]).as_str() == S.debug.paused_rel {
-            choose(S, i);
+pub fn on_pause(state: &mut editor::State, pause: any) {
+    state.debug.paused_rel = script_rel(state, pause.path.as_str());
+    state.debug.frame = 0;
+    let stopped = pause.node.as_node();
+    for row in 0..state.nodes.len() {
+        let found = state.nodes[row];
+        if found == stopped || model::script_rel(found).as_str() == state.debug.paused_rel {
+            choose(state, row);
             break;
         }
     }
-    set_workspace(S, defs::WORKSPACE_SCRIPT);
-    docks::show(S, "debugger");
-    log::info("paused at {S.debug.paused_rel}:{p.line} ({p.reason})");
+    set_workspace(state, defs::WORKSPACE_SCRIPT);
+    docks::show(state, "debugger");
+    log::info("paused at {state.debug.paused_rel}:{pause.line} ({pause.reason})");
 }
 
-/// A new `.bs` script: a struct named after the file, `door_bell.bs` a
+/// A new `.bs` script: a class named after the file, `door_bell.bs` a
 /// `DoorBell`, with the two hooks a node calls.
 fn bs_template(rel: str) -> str {
-    let parts = rel.split("/");
-    let stem = parts[parts.len() - 1].replace(".bs", "");
-    let name = "";
-    for part in stem.split("_") {
-        if part.len() > 0 {
-            name = name + part.slice(0, 1).to_upper() + part.slice(1, part.len());
-        }
-    }
-    "pub struct " + name + " {{\n    node: Node,\n}}\n\nimpl " + name + " {{\n    fn init() {{\n    }}\n\n    fn update(dt: float) {{\n    }}\n}}\n"
+    let name = util::class_of(rel);
+    "pub class " + name + " {{\n    node: Node,\n}}\n\nimpl " + name + " {{\n    fn init() {{\n    }}\n\n    fn update(dt: float) {{\n    }}\n}}\n"
 }
 
-pub fn attach_script(S: &mut editor::State) {
-    if !model::has_selection(S) {
+pub fn attach_script(state: &mut editor::State) {
+    if !model::has_selection(state) {
         return;
     }
-    let node = S.doc[S.sel];
-    if node.has("script") {
+    let node = model::selected_node(state);
+    if !model::script_rel(node).is_nil() {
         return;
     }
-    set_script_path(S, "scripts/" + node.name.as_str().to_lower() + ".bs");
+    set_script_path(state, "scripts/" + node.name().to_lower() + ".bs");
 }
 
 /// Every `.bs` under scripts/, for the inspector's picker.
-pub fn script_files(S: &mut editor::State) -> [str] {
+pub fn script_files(state: &mut editor::State) -> [str] {
     let files: [str] = [];
-    for f in model::list(S, "scripts") {
-        if !f.is_dir.as_bool() && f.name.as_str().ends_with(".bs") {
-            files.push("scripts/" + f.name.as_str());
+    for file in model::list(state, "scripts") {
+        if !file.is_dir.as_bool() && file.name.as_str().ends_with(".bs") {
+            files.push("scripts/" + file.name.as_str());
         }
     }
     files.sort();
@@ -498,29 +501,29 @@ pub fn script_files(S: &mut editor::State) -> [str] {
 }
 
 /// Take the script off the selected node. The file stays.
-pub fn detach_script(S: &mut editor::State) {
-    if !model::has_selection(S) {
+pub fn detach_script(state: &mut editor::State) {
+    if !model::has_selection(state) {
         return;
     }
-    let node = S.doc[S.sel];
+    let node = model::selected_node(state);
     let rel = model::script_rel(node);
     if rel.is_nil() {
         return;
     }
-    history::record(S, "detach script", nil);
-    node.remove("script");
-    close_doc(S, "script");
+    history::record(state, "detach script", nil);
+    node.set_script(nil, nil);
+    close_doc(state, "script");
     log::info("detached " + rel.as_str() + " (undo re-attaches it; the file stays)");
 }
 
 /// Point the selected node's script at `path`. An existing file is attached
 /// as it is; a name nothing is at moves the current file there, or starts a
 /// new one when the node had none.
-pub fn set_script_path(S: &mut editor::State, path: str) {
-    if !model::has_selection(S) {
+pub fn set_script_path(state: &mut editor::State, path: str) {
+    if !model::has_selection(state) {
         return;
     }
-    let node = S.doc[S.sel];
+    let node = model::selected_node(state);
     let rel = path.trim();
     if rel == "" {
         return;
@@ -532,48 +535,43 @@ pub fn set_script_path(S: &mut editor::State, path: str) {
     if was.as_str() == rel {
         return;
     }
-    let abs = S.game_root + "/" + rel;
-    history::record(S, if was.is_nil() { "attach script" } else { "move script" }, nil);
+    let abs = state.game_root + "/" + rel;
+    history::record(state, if was.is_nil() { "attach script" } else { "move script" }, nil);
     if !was.is_nil() {
         let old = was.as_str();
-        let old_abs = S.game_root + "/" + old;
+        let old_abs = state.game_root + "/" + old;
         if fs::exists(old_abs) && !fs::exists(abs) {
             // What is typed but unsaved goes with the file.
-            let buffer = S.script_buffers.get(old_abs);
+            let buffer = state.script_buffers.get(old_abs);
             if !buffer.is_nil() {
                 fs::write(old_abs, buffer.as_str());
             }
-            make_parent(S, rel);
+            make_parent(state, rel);
             fs::rename(old_abs, abs);
-            carry_script_state(S, old, rel);
+            carry_script_state(state, old, rel);
             log::info("moved {old} to {rel}");
         }
     }
     if !fs::exists(abs) {
-        make_parent(S, rel);
+        make_parent(state, rel);
         fs::write(abs, bs_template(rel));
     }
-    // The table form keeps the node's property overrides.
-    let current = node.script;
-    if current.kind() == "map" {
-        current.set("source", rel);
-    } else {
-        node.set("script", map().with("source", rel));
-    }
-    model::forget(S, nil);
-    S.script_open = true;
-    signals::bars(S);
-    lint::run(S);
+    // The node keeps the properties it set over the exports.
+    node.set_script(rel, model::script_props(node));
+    model::forget(state, nil);
+    state.script_open = true;
+    signals::bars(state);
+    lint::run(state);
     log::info("script: " + rel + " (undo puts it back)");
 }
 
-fn make_parent(S: editor::State, rel: str) {
+fn make_parent(state: editor::State, rel: str) {
     let parts = rel.split("/");
     if parts.len() <= 1 {
         return;
     }
     parts.pop();
-    let dir = S.game_root + "/" + util::join(parts, "/");
+    let dir = state.game_root + "/" + util::join(parts, "/");
     if !fs::exists(dir) {
         fs::create_directory(dir);
     }
@@ -581,22 +579,22 @@ fn make_parent(S: editor::State, rel: str) {
 
 // The editor's per-file state follows a moved file: its buffer, whether it
 // is unsaved, and its breakpoints.
-fn carry_script_state(S: &mut editor::State, old: str, rel: str) {
-    let old_abs = S.game_root + "/" + old;
-    let abs = S.game_root + "/" + rel;
-    let buffer = S.script_buffers.get(old_abs);
+fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
+    let old_abs = state.game_root + "/" + old;
+    let abs = state.game_root + "/" + rel;
+    let buffer = state.script_buffers.get(old_abs);
     if !buffer.is_nil() {
-        S.script_buffers.set(abs, buffer);
-        S.script_buffers.remove(old_abs);
+        state.script_buffers.set(abs, buffer);
+        state.script_buffers.remove(old_abs);
     }
-    if S.script_dirty.has(old_abs) {
-        S.script_dirty.remove(old_abs);
-        signals::bars(S);
+    if state.script_dirty.has(old_abs) {
+        state.script_dirty.remove(old_abs);
+        signals::bars(state);
     }
-    if S.debug.breakpoints.has(old) {
-        let lines = breakpoint_lines(S, old);
-        S.debug.breakpoints.remove(old);
-        S.debug.breakpoints.set(rel, debugger::set_breakpoints(abs, lines));
+    if state.debug.breakpoints.has(old) {
+        let lines = breakpoint_lines(state, old);
+        state.debug.breakpoints.remove(old);
+        state.debug.breakpoints.set(rel, debugger::set_breakpoints(abs, lines));
     }
 }
 
@@ -608,27 +606,27 @@ fn TARGET() -> [float] {
     [0.0, 1.0, 0.0]
 }
 
-pub fn apply_camera(S: &mut editor::State) {
-    if model::is_2d(S) {
+pub fn apply_camera(state: &mut editor::State) {
+    if model::is_2d(state) {
         // Keep the current pan; zoom in logical px per world unit.
         let at = render::camera_2d();
-        render::set_camera_2d(at.x, at.y, 55.0 * S.zoom / 100.0);
+        render::set_camera_2d(at.x, at.y, 55.0 * state.zoom / 100.0);
         return;
     }
-    let scale = 100.0 / S.zoom;
+    let scale = 100.0 / state.zoom;
     render::set_camera(TARGET()[0] + (BASE_EYE()[0] - TARGET()[0]) * scale, TARGET()[1] + (BASE_EYE()[1] - TARGET()[1]) * scale, TARGET()[2] + (BASE_EYE()[2] - TARGET()[2]) * scale, TARGET()[0], TARGET()[1], TARGET()[2]);
 }
 
 // Draw what a shader's line computes, for every pixel that reaches it.
 // Clicking the marked line again puts the picture back.
-pub fn toggle_shader_preview(S: &mut editor::State, rel: str, line: int) {
-    if S.preview_line == line && S.preview_rel == rel {
-        S.preview_line = 0;
-        S.preview_rel = "";
+pub fn toggle_shader_preview(state: &mut editor::State, rel: str, line: int) {
+    if state.preview_line == line && state.preview_rel == rel {
+        state.preview_line = 0;
+        state.preview_rel = "";
         render::set_shader_preview("", 0);
     } else {
-        S.preview_line = line;
-        S.preview_rel = rel;
+        state.preview_line = line;
+        state.preview_rel = rel;
         render::set_shader_preview(rel, line);
     }
 }
@@ -638,17 +636,17 @@ pub fn toggle_shader_preview(S: &mut editor::State, rel: str, line: int) {
 /// Jump to where the name at the caret is defined. A definition in the
 /// project opens that file at its line; engine API has no file, so the Docs
 /// dock shows its module instead.
-pub fn goto_definition(S: &mut editor::State) {
-    let node = model::selected_node(S);
-    if !node.has("script") {
+pub fn goto_definition(state: &mut editor::State) {
+    let node = model::selected_node(state);
+    if model::script_rel(node).is_nil() {
         return;
     }
     let rel = model::script_rel(node).as_str();
     if rel == "" {
         return;
     }
-    let source = buffer_of(S, rel);
-    let index = S.complete.at_index;
+    let source = buffer_of(state, rel);
+    let index = state.complete.at_index;
     if index < 0 {
         return;
     }
@@ -662,27 +660,27 @@ pub fn goto_definition(S: &mut editor::State) {
         // The URL names the module page; the dock renders it from the live
         // engine, so no browser is opened for something the editor holds.
         let module = found.url.split("/");
-        docs::show(S, module[module.len() - 1], "");
+        docs::show(state, module[module.len() - 1], "");
         return;
     }
-    open_script_at(S, found.file, found.line);
+    open_script_at(state, found.file, found.line);
 }
 
 /// The script at `rel` as it is open: its unsaved buffer, or the file.
-fn buffer_of(S: &mut editor::State, rel: str) -> str {
-    let buffer = S.script_buffers.get(S.game_root + "/" + rel);
-    if buffer.is_nil() { model::source(S, rel).as_str() } else { buffer.as_str() }
+fn buffer_of(state: &mut editor::State, rel: str) -> str {
+    let buffer = state.script_buffers.get(state.game_root + "/" + rel);
+    if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
 /// Show `rel` in the code pane, scrolled to `line`.
-pub fn open_script_at(S: &mut editor::State, rel: str, line: int) {
-    for i in 0..S.doc.len() {
-        if model::script_rel(S.doc[i]).as_str() == rel {
-            selection::only(S, i);
-            set_workspace(S, defs::WORKSPACE_SCRIPT);
-            S.doctab = "script";
-            signals::inspector(S);
-            S.preview_line = line;
+pub fn open_script_at(state: &mut editor::State, rel: str, line: int) {
+    for row in 0..state.nodes.len() {
+        if model::script_rel(state.nodes[row]).as_str() == rel {
+            selection::only(state, row);
+            set_workspace(state, defs::WORKSPACE_SCRIPT);
+            state.doctab = "script";
+            signals::inspector(state);
+            state.preview_line = line;
             return;
         }
     }
@@ -691,122 +689,144 @@ pub fn open_script_at(S: &mut editor::State, rel: str, line: int) {
 
 /// Lay the visible script buffer out with the language's own formatter. A
 /// shader is not a script, so it is left alone.
-pub fn format_active(S: &mut editor::State) {
-    if S.shader_rel != "" && S.doctab == "script" {
+pub fn format_active(state: &mut editor::State) {
+    if state.shader_rel != "" && state.doctab == "script" {
         return;
     }
-    let node = model::selected_node(S);
-    if !node.has("script") {
+    let node = model::selected_node(state);
+    if model::script_rel(node).is_nil() {
         return;
     }
     let rel = model::script_rel(node).as_str();
     if rel == "" {
         return;
     }
-    let abs = S.game_root + "/" + rel;
-    let source = buffer_of(S, rel);
+    let abs = state.game_root + "/" + rel;
+    let source = buffer_of(state, rel);
     let formatted = script::format(rel, source);
     if formatted == source {
         return;
     }
-    S.script_buffers.set(abs, formatted);
-    S.script_dirty.set(abs, true);
-    lint::touched(S);
-    signals::bars(S);
+    state.script_buffers.set(abs, formatted);
+    state.script_dirty.set(abs, true);
+    lint::touched(state);
+    signals::bars(state);
     // The code sheet writes its text again only when told the buffer moved.
-    center::code_written(S);
+    center::code_written(state);
     log::info("formatted " + rel);
 }
 
-pub fn save_active(S: &mut editor::State) {
+pub fn save_active(state: &mut editor::State) {
     // A shader is not a script: it is written and the watcher relinks the
     // materials naming it, with no unit to rebuild.
-    if S.shader_rel != "" && S.doctab == "script" {
-        let abs = S.game_root + "/" + S.shader_rel;
-        let buffer = S.script_buffers.get(abs);
+    if state.shader_rel != "" && state.doctab == "script" {
+        let abs = state.game_root + "/" + state.shader_rel;
+        let buffer = state.script_buffers.get(abs);
         if !buffer.is_nil() {
             fs::write(abs, buffer.as_str());
-            S.script_dirty.remove(abs);
-            signals::bars(S);
+            state.script_dirty.remove(abs);
+            signals::bars(state);
             // The watcher covers the editor's own root, not the game's.
             assets::invalidate();
-            log::info("saved " + S.shader_rel);
+            log::info("saved " + state.shader_rel);
         }
         return;
     }
-    let node = model::selected_node(S);
-    let in_script = (S.workspace == defs::WORKSPACE_SCRIPT || S.doctab == "script") && node.has("script");
+    let node = model::selected_node(state);
+    let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == "script") && !model::script_rel(node).is_nil();
     if in_script {
         let rel = model::script_rel(node).as_str();
-        let abs = S.game_root + "/" + rel;
-        let buffer = S.script_buffers.get(abs);
+        let abs = state.game_root + "/" + rel;
+        let buffer = state.script_buffers.get(abs);
         if !buffer.is_nil() {
             fs::write(abs, buffer.as_str());
-            model::forget(S, rel);
-            S.script_dirty.remove(abs);
-            signals::bars(S);
+            model::forget(state, rel);
+            state.script_dirty.remove(abs);
+            signals::bars(state);
             // A recording cannot survive its own code changing: the frames
             // after a reload came from a different game. The session ends
             // here, and what it caught until now is kept.
-            session::end(S, "reload");
+            session::end(state, "reload");
             // The reload is also the compile: it builds the unit whether or
             // not the script is live, and leaves the old one running on a
             // failure, so a save that does not compile can say so.
             let err = engine::reload_script(abs);
             // A save is the one moment the whole project is known good or
             // not; the idle sweep only catches up to it.
-            lint::run(S);
+            lint::run(state);
             if err == "" {
                 log::info("saved " + rel);
             } else {
-                say_failed(S, err);
+                say_failed(state, err);
             }
         }
         return;
     }
     // An external clip is its own file; an inline one rides along with the
     // scene. `anim::save` knows which it is looking at.
-    anim::save(S);
-    model::save(S);
+    anim::save(state);
+    model::save(state);
+}
+
+/// Write a picture of the scene as a run of it draws it, at the project's
+/// window size, from the files: the scene is written first, so the picture
+/// is of what the editor shows. Where it landed is logged when it has.
+pub fn write_picture(state: &mut editor::State) {
+    model::write(state);
+    let output = picture::write(state.game_root, state.scene_rel);
+    if output.is_none() {
+        log::warn("a picture is drawn by a second run of the game, which a browser tab cannot start");
+        return;
+    }
+    log::info("drawing a picture of {state.scene_rel}");
+}
+
+/// A picture the second run finished, or why it could not.
+pub fn picture_done(event: any) {
+    if event.kind == "written" {
+        log::info("wrote " + event.path.as_str());
+    } else {
+        log::warn("no picture: " + event.message.as_str());
+    }
 }
 
 // Rebuild every attached script's unit from disk, the way a save does for the
 // one file it wrote. A recording cannot span the change, so it ends first.
-pub fn reload_scripts(S: &mut editor::State) {
+pub fn reload_scripts(state: &mut editor::State) {
     let paths = map();
-    for node in S.doc {
-        let rel = model::script_rel(node);
+    for found in state.nodes {
+        let rel = model::script_rel(found);
         if !rel.is_nil() {
             paths.set(rel.as_str(), true);
         }
     }
-    session::end(S, "reload");
-    model::forget(S, nil);
+    session::end(state, "reload");
+    model::forget(state, nil);
     let done = 0;
     for rel in util::keys_sorted(paths) {
-        let err = engine::reload_script(S.game_root + "/" + rel);
+        let err = engine::reload_script(state.game_root + "/" + rel);
         if err == "" {
             done += 1;
         } else {
-            say_failed(S, err);
+            say_failed(state, err);
         }
     }
-    lint::run(S);
+    lint::run(state);
     log::info("reloaded {done} of {paths.len()} script(s)");
 }
 
 // A compile failure, a line at a time and against the game's own paths: the
 // dock is narrow, and the absolute key it was given says nothing more.
-fn say_failed(S: editor::State, err: str) {
+fn say_failed(state: editor::State, err: str) {
     for line in err.split("\n") {
-        log::error(line.replace(S.game_root + "/", ""));
+        log::error(line.replace(state.game_root + "/", ""));
     }
 }
 
-fn select_named(S: &mut editor::State, name: str) {
-    for i in 0..S.doc.len() {
-        if S.doc[i].name.as_str() == name {
-            selection::only(S, i);
+fn select_named(state: &mut editor::State, name: str) {
+    for row in 0..state.nodes.len() {
+        if state.nodes[row].name() == name {
+            selection::only(state, row);
         }
     }
 }
@@ -820,6 +840,7 @@ fn states() -> any {
         .with("test:picker", selftest::node_picker)
         .with("test:every_node", selftest::every_node)
         .with("test:rename", selftest::rename)
+        .with("test:autosave", selftest::autosaving)
         .with("light", state_light)
         .with("dark", state_dark)
         .with("play", state_play)
@@ -850,7 +871,6 @@ fn states() -> any {
         .with("test:state_machine", statemachine::selftest)
         .with("test:ragdoll", selftest::physical_bones)
         .with("test:physics", selftest::physics_panel)
-        .with("test:physics_clicks", selftest::physics_clicks)
         .with("test:deselect", selftest::deselected)
         .with("test:viewport_clicks", selftest::viewport_clicks)
         .with("test:camera", selftest::camera_keeps_pointer)
@@ -861,6 +881,9 @@ fn states() -> any {
         .with("test:picking", selftest::picking)
         .with("test:script_props", selftest::script_props)
         .with("test:composite_props", selftest::composite_props)
+        .with("test:record_assets", selftest::record_assets)
+        .with("test:system_fonts", selftest::system_fonts)
+        .with("test:font_catalogue", selftest::font_catalogue)
         .with("test:script_paths", selftest::script_paths)
         .with("test:instances", selftest::instances)
         .with("test:timings", selftest::timings)
@@ -885,6 +908,7 @@ fn states() -> any {
         .with("test:rows", selftest::row_views)
         .with("test:pool", selftest::pool_kinds)
         .with("test:camera_document", selftest::camera_document)
+        .with("test:picture", selftest::picture)
         .with("test:warnings", selftest::warning_marks)
         .with("test:recipes", selftest::soft_recipes)
         .with("test:change_types", selftest::change_types)
@@ -924,48 +948,49 @@ fn prefixed_states() -> [Prefixed] {
         Prefixed { prefix: "move:", run: state_move },
         Prefixed { prefix: "mode:", run: state_mode },
         Prefixed { prefix: "select:", run: state_select },
+        Prefixed { prefix: "add:", run: state_add },
         Prefixed { prefix: "zoom:", run: state_zoom },
     ]
 }
 
 // `focus`: the shell folded round the code, over the first scripted node when
 // the selection has none of its own.
-fn state_focus(S: &mut editor::State) {
-    if !focus_target(S) {
-        select_scripted(S);
+fn state_focus(state: &mut editor::State) {
+    if !focus_target(state) {
+        select_scripted(state);
     }
-    toggle_focus(S);
+    toggle_focus(state);
 }
 
-fn state_settings(S: &mut editor::State, category: str) {
-    settings::open_at(S, category);
+fn state_settings(state: &mut editor::State, category: str) {
+    settings::open_at(state, category);
 }
 
 // `theme:controls` opens the theme window on a page, and `theme:controls:tab`
 // with that role picked.
 // `wear:<name>` wears a theme for this run, leaving the setting alone.
-fn state_wear(S: &mut editor::State, name: str) {
-    theme::use_named(S, name);
+fn state_wear(state: &mut editor::State, name: str) {
+    theme::use_named(state, name);
 }
 
-fn state_theme(S: &mut editor::State, arg: str) {
+fn state_theme(state: &mut editor::State, arg: str) {
     let parts = arg.split(":");
     let path = if parts.len() > 1 { ["roles", parts[1]] } else { [] };
-    themewin::open_at(S, parts[0], path);
+    themewin::open_at(state, parts[0], path);
 }
 
-fn state_settings_search(S: &mut editor::State, query: str) {
-    settings::open_search(S, query);
+fn state_settings_search(state: &mut editor::State, query: str) {
+    settings::open_search(state, query);
 }
 
 // `override:<tag>` picks the settings page's override target, for a screenshot
 // of the rows that add one.
-fn state_override(S: &mut editor::State, tag: str) {
-    S.settings.target = tag;
+fn state_override(state: &mut editor::State, tag: str) {
+    state.settings.target = tag;
 }
 
 // `find:<query>` fills the scene tree's search, for a screenshot.
-fn state_find(S: &mut editor::State, query: str) {
+fn state_find(state: &mut editor::State, query: str) {
     let panel = scene::get_node("Editor/Shell/Body/Left/LeftSheet/SceneTree");
     if panel.is_valid() {
         panel.call("find", query);
@@ -974,11 +999,11 @@ fn state_find(S: &mut editor::State, query: str) {
 
 // One start-up state, mirroring the design prototype's startWorkspace prop. A
 // plugin may extend a built-in state rather than replace it, so both run.
-pub fn apply_start_state(S: &mut editor::State, start: str) {
+pub fn apply_start_state(state: &mut editor::State, start: str) {
     for one in prefixed_states() {
         if start.starts_with(one.prefix) {
             let run = one.run;
-            run(S, start.slice(one.prefix.len(), start.len()));
+            run(state, start.slice(one.prefix.len(), start.len()));
             return;
         }
     }
@@ -986,19 +1011,19 @@ pub fn apply_start_state(S: &mut editor::State, start: str) {
     let found = states().get(start);
     if !found.is_nil() {
         let run: fn(&mut editor::State) = found;
-        run(S);
+        run(state);
         ran = true;
     }
-    if plugins::has_start_state(S, start) {
-        plugins::run_start_state(S, start);
+    if plugins::has_start_state(state, start) {
+        plugins::run_start_state(state, start);
         ran = true;
     }
     if ran || start == "" {
         return;
     }
-    for w in defs::workspaces() {
-        if w.id == start {
-            state_workspace(S, start);
+    for workspace in defs::workspaces() {
+        if workspace.id == start {
+            state_workspace(state, start);
             return;
         }
     }
@@ -1010,14 +1035,14 @@ pub fn apply_start_state(S: &mut editor::State, start: str) {
 ///
 /// The rect is logged rather than cropped here: the renderer saves whole
 /// frames, and the last line a run logs is all a script needs to cut them up.
-fn state_view(S: &mut editor::State, id: str) {
-    docks::show(S, id);
-    S.view_shot = id;
+fn state_view(state: &mut editor::State, id: str) {
+    docks::show(state, id);
+    state.view_shot = id;
 }
 
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.
-fn state_frames(S: &mut editor::State, spec: str) {
+fn state_frames(state: &mut editor::State, spec: str) {
     // `dir` or `dir:from:every`; the default skips the start-up frames a
     // showcase clip does not want, and `0:1` is how the start-up is watched.
     let parts = spec.split(":");
@@ -1026,232 +1051,229 @@ fn state_frames(S: &mut editor::State, spec: str) {
     let every = if parts.len() > 2 { util::imax(parts[2].parse_int(), 1) } else { 2 };
     // No `fs::create_directory` here: the directory is the caller's, outside every root
     // `fs` may reach, and the screenshot makes it on the way past.
-    S.capture = Capture { dir: dir, from: from, every: every, n: 0 };
+    state.capture = Capture { dir: dir, from: from, every: every, count: 0 };
 }
 
-fn state_input(S: &mut editor::State) {
-    S.show_input = true;
-    signals::changed(S, "inputview");
+fn state_input(state: &mut editor::State) {
+    state.show_input = true;
+    signals::changed(state, "inputview");
 }
 
-fn state_show(S: &mut editor::State, name: str) {
-    showcase::start(S, name);
+fn state_show(state: &mut editor::State, name: str) {
+    showcase::start(state, name);
 }
 
 /// Pick a viewport tool. The Tiles tool brings its palette forward with it:
 /// there is nothing to paint with until a tile is chosen.
-pub fn set_tool(S: &mut editor::State, tool: str) {
-    S.tool = tool;
-    signals::inspector(S);
+pub fn set_tool(state: &mut editor::State, tool: str) {
+    state.tool = tool;
+    signals::inspector(state);
     if tool == "tiles" {
-        docks::show(S, "tiles");
+        docks::show(state, "tiles");
     }
 }
 
-fn state_tool(S: &mut editor::State, tool: str) {
-    set_tool(S, tool);
+fn state_tool(state: &mut editor::State, tool: str) {
+    set_tool(state, tool);
 }
 
 // `tab:<id>` picks a document tab; `tab:split` opens the code beside the
 // viewport. Both are shell state a screenshot cannot otherwise reach.
-fn state_tab(S: &mut editor::State, tab: str) {
+fn state_tab(state: &mut editor::State, tab: str) {
     if tab == "split" {
-        S.split = true;
-        signals::bars(S);
+        state.split = true;
+        signals::bars(state);
     } else {
-        S.doctab = tab;
-        signals::inspector(S);
+        state.doctab = tab;
+        signals::inspector(state);
     }
 }
 
 // `page:<dock>/<name>`: the page a plugin dock's sidebar is on, which the kit
 // remembers per dock. The one way in from outside it.
-fn state_page(S: &mut editor::State, arg: str) {
+fn state_page(state: &mut editor::State, arg: str) {
     let parts = arg.split("/");
     if parts.len() < 2 {
         return;
     }
-    if S.kit_state.is_nil() {
-        S.kit_state = map();
+    if state.kit_state.is_nil() {
+        state.kit_state = map();
     }
-    S.kit_state.set("tab:" + parts[0], parts[1]);
+    state.kit_state.set("tab:" + parts[0], parts[1]);
 }
 
-fn state_fontdemo(S: &mut editor::State) {
-    S.fontdemo = true;
-    selftest::font_sheet(S);
+fn state_fontdemo(state: &mut editor::State) {
+    state.fontdemo = true;
+    selftest::font_sheet(state);
 }
 
-fn state_menudemo(S: &mut editor::State) {
-    S.menu_open = true;
-    signals::bars(S);
+fn state_menudemo(state: &mut editor::State) {
+    state.menu_open = true;
+    signals::bars(state);
 }
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the
 // window has. A narrow layout is reachable no other way from a fixed capture.
-fn state_scale(S: &mut editor::State, arg: str) {
-    set_ui_scale(S, arg.parse_float());
+fn state_scale(state: &mut editor::State, arg: str) {
+    set_ui_scale(state, arg.parse_float());
 }
 
-fn state_shut(S: &mut editor::State, side: str) {
+fn state_shut(state: &mut editor::State, side: str) {
     if side == "rail" {
-        S.rail_shut = true;
-        signals::bars(S);
+        state.rail_shut = true;
+        signals::bars(state);
         return;
     }
     // Everything the shell draws over the scene: the chip strip and the
     // reading at its foot. What a picture of the scene itself wants.
     if side == "chrome" {
-        S.chrome_off = true;
+        state.chrome_off = true;
         return;
     }
-    S.docks.get(side).shut = true;
-    signals::docks(S);
+    state.docks.get(side).shut = true;
+    signals::docks(state);
 }
 
 // `move:<panel>:<side>`: put a panel in another dock, as its tab menu does.
-fn state_move(S: &mut editor::State, arg: str) {
+fn state_move(state: &mut editor::State, arg: str) {
     let parts = arg.split(":");
     if parts.len() == 2 {
-        docks::move_to(S, parts[0], parts[1]);
+        docks::move_to(state, parts[0], parts[1]);
     }
 }
 
-fn state_dock(S: &mut editor::State, dock: str) {
-    docks::show(S, dock);
+fn state_dock(state: &mut editor::State, dock: str) {
+    docks::show(state, dock);
 }
 
 // Self-test state: open the Assets dock on a file, which is what the Import
 // section draws for (e.g. asset:art/limb.png).
-fn state_asset(S: &mut editor::State, rel: str) {
-    docks::show(S, "assets");
+fn state_asset(state: &mut editor::State, rel: str) {
+    docks::show(state, "assets");
     let leaf = util::leaf(rel);
-    S.assets.dir = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
-    S.assets.sel = rel;
-    signals::changed(S, "assets");
+    state.assets.dir = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
+    state.assets.sel = rel;
+    signals::changed(state, "assets");
 }
 
 // `import:<path>`: the Assets dock, and that file imported into it.
-fn state_import(S: &mut editor::State, path: str) {
-    docks::show(S, "assets");
-    dropin::take(S, path);
+fn state_import(state: &mut editor::State, path: str) {
+    docks::show(state, "assets");
+    dropin::take(state, path);
 }
 
 // `imports:<path>;<path>`: several imports, one a frame once the shell has
 // formed, so a picture has the list of all of them.
-fn state_imports(S: &mut editor::State, list: str) {
-    docks::show(S, "assets");
-    S.import_queue = list.split(";");
-    S.import_drip = true;
+fn state_imports(state: &mut editor::State, list: str) {
+    docks::show(state, "assets");
+    state.import_queue = list.split(";");
+    state.import_drip = true;
 }
 
-fn state_mode(S: &mut editor::State, mode: str) {
-    polygon::set_mode(S, mode);
+fn state_mode(state: &mut editor::State, mode: str) {
+    polygon::set_mode(state, mode);
 }
 
 // `tiles:<mode>`: the Tiles dock on one of its tools, and `tiles:set` on the
 // rows that edit the tile itself.
-fn state_tiles(S: &mut editor::State, mode: str) {
-    docks::show(S, "tiles");
+fn state_tiles(state: &mut editor::State, mode: str) {
+    docks::show(state, "tiles");
     if mode == "set" {
-        S.tiles.editing = true;
-        signals::changed(S, "tiles");
+        state.tiles.editing = true;
+        signals::changed(state, "tiles");
         return;
     }
-    tiles::set_mode(S, mode);
+    tiles::set_mode(state, mode);
 }
 
 // Self-test state: select a node by name (e.g. select:Pig1).
-fn state_select(S: &mut editor::State, name: str) {
-    select_named(S, name);
+fn state_select(state: &mut editor::State, name: str) {
+    select_named(state, name);
 }
 
-fn state_zoom(S: &mut editor::State, pct: str) {
-    set_zoom(S, pct.parse_float());
+// `add:text2d` adds what the node picker's row of that name adds, under the
+// selection.
+fn state_add(state: &mut editor::State, kind: str) {
+    newnode::add(state, kind);
 }
 
-fn state_palette(S: &mut editor::State) {
-    open_palette(S, "");
+fn state_zoom(state: &mut editor::State, pct: str) {
+    set_zoom(state, pct.parse_float());
+}
+
+fn state_palette(state: &mut editor::State) {
+    open_palette(state, "");
 }
 
 // `palette:<query>`: the palette open on what it matches, for a screenshot.
-fn state_palette_query(S: &mut editor::State, query: str) {
-    open_palette(S, query);
+fn state_palette_query(state: &mut editor::State, query: str) {
+    open_palette(state, query);
 }
 
-fn state_light(S: &mut editor::State) {
-    theme::set_dark(S, false);
+fn state_light(state: &mut editor::State) {
+    theme::set_dark(state, false);
 }
 
-fn state_dark(S: &mut editor::State) {
-    theme::set_dark(S, true);
+fn state_dark(state: &mut editor::State) {
+    theme::set_dark(state, true);
 }
 
-fn state_play(S: &mut editor::State) {
-    toggle_play(S);
+fn state_play(state: &mut editor::State) {
+    toggle_play(state);
 }
 
-// Self-test state: author a clip on the Spinner when the mirror resolved it,
-// otherwise on any resolved node — keying reads a live transform.
-fn state_animdemo(S: &mut editor::State) {
+// Self-test state: author a clip on the Spinner, otherwise on any node.
+fn state_animdemo(state: &mut editor::State) {
     let pick: int? = nil;
-    for i in 0..S.doc.len() {
-        if model::live(S, i).is_valid() && (pick.is_none() || S.doc[i].name.as_str() == "Spinner") {
-            pick = i;
+    for row in 0..state.nodes.len() {
+        if pick.is_none() || state.nodes[row].name() == "Spinner" {
+            pick = row;
         }
     }
     if pick.is_none() {
-        log::warn("animdemo: the mirror resolved no node to animate");
+        log::warn("animdemo: the scene has no node to animate");
     } else {
-        let i = pick.unwrap();
-        selection::only(S, i);
-        anim::ensure_clip(S);
-        anim::add_key(S, 0.0);
-        let found = model::selected(S)._1;
+        let row = pick.unwrap();
+        selection::only(state, row);
+        anim::ensure_clip(state);
+        anim::add_key(state, 0.0);
+        let found = model::selected_node(state);
         if found.is_valid() {
             found.transform.position = Vec3 { x: 2.5, y: 2.5, z: 0.0 };
             found.transform.rotation_euler = Vec3 { x: 0.0, y: math::to_radians(180.0), z: 0.0 };
-            anim::add_key(S, 1.0);
+            anim::add_key(state, 1.0);
             found.transform.position = Vec3 { x: 2.5, y: 0.5, z: 0.0 };
-            anim::add_key(S, 2.0);
-            anim::seek(S, 0.6);
+            anim::add_key(state, 2.0);
+            anim::seek(state, 0.6);
         }
     }
-    set_workspace(S, defs::WORKSPACE_ANIMATION);
+    set_workspace(state, defs::WORKSPACE_ANIMATION);
 }
 
 // A bare name is a workspace; the script workspace also picks a scripted node so
 // the centre pane has something to show.
-fn state_workspace(S: &mut editor::State, name: str) {
-    set_workspace(S, name);
+fn state_workspace(state: &mut editor::State, name: str) {
+    set_workspace(state, name);
     if name == "script" {
-        for i in 0..S.doc.len() {
-            let node = S.doc[i];
-            if node.has("script") {
-                selection::only(S, i);
-                break;
-            }
-        }
+        select_scripted(state);
     }
 }
 
 // Self-test state: a breakpoint on the first scripted node's update, then
 // play; `update` alternates a step and a continue on every pause.
-pub fn break_demo(S: &mut editor::State) {
-    for i in 0..S.doc.len() {
-        let node = S.doc[i];
-        // The node's `script` is a table; the breakpoint wants the path in it.
-        let script = model::script_rel(node);
+pub fn break_demo(state: &mut editor::State) {
+    for row in 0..state.nodes.len() {
+        let script = model::script_rel(state.nodes[row]);
         if !script.is_nil() {
-            selection::only(S, i);
-            for hook in model::hooks(S, script.as_str()) {
+            selection::only(state, row);
+            for hook in model::hooks(state, script.as_str()) {
                 if hook.name.as_str() == "update" {
-                    toggle_breakpoint(S, script.as_str(), hook.line.as_int() + 1);
+                    toggle_breakpoint(state, script.as_str(), hook.line.as_int() + 1);
                 }
             }
             break;
         }
     }
-    S.debug.demo = 0;
-    toggle_play(S);
+    state.debug.demo = 0;
+    toggle_play(state);
 }

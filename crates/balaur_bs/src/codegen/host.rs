@@ -1,9 +1,13 @@
 // The engine functions a script reaches, found before layout so their imports
 // come first: `module::name(..)`, `node.op(..)`, `node.component.property`.
 
-use super::func::{FnGen, R};
-use crate::ast::{Block, Expr, ExprKind, Part, Program, Stmt, StmtKind, Ty};
+use super::func::{FnGen, R, err};
+use crate::ast::{Block, Expr, ExprKind, Part, Pos, Program, Stmt, StmtKind, Ty};
 use crate::{HostApi, HostSignature};
+use wasm_encoder::{Instruction as I, ValType};
+
+/// `node.script`: the node's script object, read as the class it is wanted as.
+pub(crate) const SCRIPT_FIELD: &str = "script";
 
 /// A component property's getter and setter import keys.
 pub(crate) fn property_keys(component: &str, property: &str) -> (String, String) {
@@ -124,6 +128,10 @@ impl Scan<'_> {
             ExprKind::Unary(_, a) | ExprKind::Cast(a, _) | ExprKind::Await(a) => self.expr(a),
             ExprKind::StructLit(_, fields) => fields.iter().for_each(|(_, v)| self.expr(v)),
             ExprKind::ArrayLit(items) => items.iter().for_each(|v| self.expr(v)),
+            ExprKind::MapLit(entries) => entries.iter().for_each(|(key, value)| {
+                self.expr(key);
+                self.expr(value);
+            }),
             ExprKind::If(c, t, el) => {
                 self.expr(c);
                 self.block(t);
@@ -184,5 +192,60 @@ impl FnGen<'_> {
     pub(crate) fn host_call(&mut self, key: &str) {
         let idx = self.g.sigs[key].idx;
         self.e(wasm_encoder::Instruction::Call(idx));
+    }
+
+    /// `node.script` where a `Class?` goes, when `e` is one: the node's script
+    /// object when it runs that class's file in this instance, else nil. A
+    /// call on it is a call into that script, nothing copied.
+    pub(crate) fn script_as(&mut self, e: &Expr, want: &Ty) -> R<bool> {
+        let ExprKind::Field(node, field) = &e.kind else {
+            return Ok(false);
+        };
+        let Ty::Optional(inner) = want else {
+            return Ok(false);
+        };
+        let Ty::Struct(class) = &**inner else {
+            return Ok(false);
+        };
+        if field != SCRIPT_FIELD || self.type_of(node)? != Ty::Node {
+            return Ok(false);
+        }
+        let own = class.rsplit("::").next().unwrap_or(class);
+        let file = self.g.class_files.get(class).cloned().unwrap_or_default();
+        if self.g.is_class(inner).is_none() || crate::script_class(&file) != own {
+            return err(
+                e.pos,
+                format!(
+                    "`{class}` is no script's class: `node.script` reads as the class a script file declares, named after it"
+                ),
+            );
+        }
+        self.expr_as(node, &Ty::Node)?;
+        let (file_at, class_at) = (self.g.str_addr(&file), self.g.str_addr(own));
+        self.emit(file_at);
+        self.emit(class_at);
+        let pointer = self.local(ValType::I32);
+        self.emit([
+            I::Call(self.g.imp.script_of),
+            I::LocalTee(pointer),
+            I::LocalGet(pointer),
+            I::I32Const(0),
+            I::I32Ne,
+        ]);
+        Ok(true)
+    }
+
+    /// `node.script` read with no class wanted, which says nothing of its type.
+    pub(crate) fn script_unwanted(&mut self, e: &Expr, pos: Pos) -> R<()> {
+        if let ExprKind::Field(node, field) = &e.kind
+            && field == SCRIPT_FIELD
+            && self.type_of(node)? == Ty::Node
+        {
+            return err(
+                pos,
+                "`node.script` reads as the class it is wanted as: `let tree: SceneTree? = node.script;`",
+            );
+        }
+        Ok(())
     }
 }

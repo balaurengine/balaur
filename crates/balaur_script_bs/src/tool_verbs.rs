@@ -4,7 +4,7 @@
 use crate::api::Structs;
 use crate::convert::{from_neutral_in, to_neutral};
 use crate::doc_types::Cx;
-use balaur_bs::runtime::Value as L;
+use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{HostSignature, Ty};
 use balaur_core::Engine;
 use balaur_script::Value;
@@ -89,7 +89,7 @@ pub(crate) fn verb(key: &str) -> Option<&'static str> {
 pub(crate) fn call(
     eng: &Engine,
     verb: &str,
-    args: &[L],
+    args: &dyn CallArgs,
     ret: &Ty,
     structs: &Structs,
 ) -> Result<L, String> {
@@ -97,14 +97,16 @@ pub(crate) fn call(
         let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
         return Ok(from_neutral_in(&answer, ret, structs));
     }
-    let Some(L::Str(path)) = args.first() else {
+    let Some(path) = args.text(0) else {
         return Err(format!("`script::{verb}` wants a path first"));
     };
     let key = crate::host::key_of(path);
     if verb == "exports" {
         return Ok(from_neutral_in(&exports(eng, &key), ret, structs));
     }
-    let after: Vec<Value> = args[1..].iter().map(to_neutral).collect();
+    let after: Vec<Value> = (1..args.len())
+        .map(|index| to_neutral(&args.value(index)))
+        .collect();
     let answer = eng.script_host().and_then(|scripts| {
         let tools = scripts.tools_for(&key)?;
         balaur_script::tool_answer(tools, verb, &key, &after)

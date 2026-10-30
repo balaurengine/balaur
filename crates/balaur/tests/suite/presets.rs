@@ -133,12 +133,12 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     std::fs::write(
-        dir.path().join("scripts/t.bs"),
+        dir.path().join("scripts/checks.bs"),
         r#"
         fn has(list: [str], item: str) -> bool {
             for x in list {
@@ -149,9 +149,9 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             false
         }
 
-        pub struct T { node: Node, done: int, failed: bool }
+        pub class Checks { node: Node, done: int, failed: bool }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let tags = scene::component_tags("collider2d").unwrap();
                 self.check(has(tags, "2d"), "collider2d should be tagged 2d");
@@ -213,7 +213,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     app.engine
         .script_host()
         .unwrap()
-        .attach(balaur::node_id_of(entity), "scripts/t.bs")
+        .attach(balaur::node_id_of(entity), "scripts/checks.bs")
         .unwrap();
     let host = app.engine.script_host().unwrap();
     assert_eq!(

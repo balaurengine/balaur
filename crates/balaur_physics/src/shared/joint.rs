@@ -12,7 +12,7 @@ mod reaction;
 mod schema;
 
 pub(crate) use reaction::{Metric, Row, applied};
-pub(crate) use schema::{DEFAULT_LINK_DAMPING, schema, softness};
+pub(crate) use schema::{DEFAULT_LINK_DAMPING, OwnRows, schema, softness};
 
 /// One `axes` record, read with the schema's defaults.
 pub(crate) struct AxisRecord<'a> {

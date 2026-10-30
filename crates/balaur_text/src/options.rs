@@ -1,5 +1,6 @@
-//! What a block is shaped with past its face and size: cosmic-text's own
-//! settings, each read from the word a scene spells it with.
+//! What a block is shaped with past its font and size: how its lines break
+//! and are cut, the lines drawn with its glyphs, and the words a scene spells
+//! each of cosmic-text's settings with, its font's among them.
 
 use egui::Color32;
 
@@ -313,14 +314,11 @@ pub struct Decoration {
     pub overline_color: Option<Color32>,
 }
 
-/// Every shaping setting past the face and size, as one value a request
-/// borrows: [`PLAIN`] is what a block asks for when it says nothing.
+/// Every setting of a block past its font and size, as one value a request
+/// borrows: [`PLAIN`] is what a block asks for when it says nothing. How the
+/// font itself is shaped is the font's ([`crate::font::FontSettings`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Options {
-    pub stretch: Stretch,
-    /// A family by name, ahead of the chain; empty shapes with the chain.
-    pub font_name: String,
-    pub features: Vec<Feature>,
     pub decoration: Decoration,
     pub line_break: LineBreak,
     pub truncate_at: TruncateAt,
@@ -328,22 +326,11 @@ pub struct Options {
     pub max_lines: u32,
     /// The height lines stop at, in the request's pixels.
     pub max_height: Option<f32>,
-    pub shaping: Shaping,
-    /// Round each advance to a whole pixel while laying out.
-    pub snap_advances: bool,
-    pub hinting: Hinting,
-    /// Rasterise on the pixel grid with no subpixel offset, for a pixel face.
-    pub pixel_snap: bool,
-    /// Resize a monospace face's glyphs to this advance, in pixels.
-    pub monospace_width: Option<f32>,
     /// Spaces between tab stops.
     pub tab_width: u16,
 }
 
 pub static PLAIN: Options = Options {
-    stretch: Stretch::Normal,
-    font_name: String::new(),
-    features: Vec::new(),
     decoration: Decoration {
         underline: Underline::None,
         underline_color: None,
@@ -356,11 +343,6 @@ pub static PLAIN: Options = Options {
     truncate_at: TruncateAt::End,
     max_lines: 0,
     max_height: None,
-    shaping: Shaping::Complex,
-    snap_advances: false,
-    hinting: Hinting::Auto,
-    pixel_snap: false,
-    monospace_width: None,
     tab_width: 8,
 };
 
@@ -376,7 +358,6 @@ impl Options {
         use std::hash::Hash as _;
         let colour = |c: Option<Color32>| c.map(|c| c.to_array());
         let d = &self.decoration;
-        (self.stretch, &self.font_name, &self.features).hash(hasher);
         (d.underline, colour(d.underline_color), d.strikethrough).hash(hasher);
         (
             colour(d.strikethrough_color),
@@ -386,24 +367,7 @@ impl Options {
             .hash(hasher);
         (self.line_break, self.truncate_at, self.max_lines).hash(hasher);
         self.max_height.map(f32::to_bits).hash(hasher);
-        (
-            self.shaping,
-            self.snap_advances,
-            self.hinting,
-            self.pixel_snap,
-        )
-            .hash(hasher);
-        self.monospace_width.map(f32::to_bits).hash(hasher);
         self.tab_width.hash(hasher);
-    }
-
-    /// The features as cosmic-text takes them.
-    pub(crate) fn font_features(&self) -> cosmic_text::FontFeatures {
-        let mut features = cosmic_text::FontFeatures::new();
-        for feature in &self.features {
-            features.set(cosmic_text::FeatureTag::new(&feature.tag), feature.value);
-        }
-        features
     }
 }
 

@@ -543,25 +543,76 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     let kinds = v::options(w::JOINT_KINDS);
     let axes = v::options(w::LOCK_AXES);
     let default = w::FIXED;
-    let shared = crate::shared::joint::schema(w::JOINT_AXES, w::ROTATION_X);
-    let schema = [
-        v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#)),
-            (k::CONNECTED_BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
-            (k::ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
-            (k::CONNECTED_ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
-            (k::AXIS, r#"{ type = "vec3", default = [0.0, 0.0, 1.0], description = "The joint frame's x axis: what a hinge turns about, a slider slides along, and a generic joint's x and rotation_x name" }"#),
-            (k::CONNECTED_AXIS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The same axis in the other node's space, for a hinge, a slider or a generic joint; zero takes axis" }"#),
-            (k::ANCHOR_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file" }"#),
-            (k::CONNECTED_ANCHOR_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The same for the other end's frame" }"#),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not slide along" }}"#)),
-            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not turn about" }}"#)),
-            (k::COUPLED_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already" }}"#)),
-            (k::COUPLED_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Free turning axes tied into one angle, whose limit and motor come from the first of them" }}"#)),
-        ]),
-        shared,
-    ]
-    .join("\n");
+    let schema = crate::shared::joint::schema(
+        w::JOINT_AXES,
+        w::ROTATION_X,
+        &crate::shared::joint::OwnRows {
+            primary: v::schema(&[
+                (
+                    k::KIND,
+                    &format!(
+                        r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#
+                    ),
+                ),
+                (
+                    k::CONNECTED_BODY,
+                    r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#,
+                ),
+            ]),
+            anchors: v::schema(&[
+                (
+                    k::ANCHOR,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space", group = "anchors" }"#,
+                ),
+                (
+                    k::CONNECTED_ANCHOR,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space", group = "anchors" }"#,
+                ),
+                (
+                    k::AXIS,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 1.0], description = "The joint frame's x axis: what a hinge turns about, a slider slides along, and a generic joint's x and rotation_x name", group = "anchors" }"#,
+                ),
+                (
+                    k::CONNECTED_AXIS,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The same axis in the other node's space, for a hinge, a slider or a generic joint; zero takes axis", group = "anchors" }"#,
+                ),
+                (
+                    k::ANCHOR_ROTATION,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file", group = "anchors" }"#,
+                ),
+                (
+                    k::CONNECTED_ANCHOR_ROTATION,
+                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The same for the other end's frame", group = "anchors" }"#,
+                ),
+            ]),
+            locks: v::schema(&[
+                (
+                    k::LOCK_TRANSLATION,
+                    &format!(
+                        r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not slide along", group = "locks" }}"#
+                    ),
+                ),
+                (
+                    k::LOCK_ROTATION,
+                    &format!(
+                        r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not turn about", group = "locks" }}"#
+                    ),
+                ),
+                (
+                    k::COUPLED_TRANSLATION,
+                    &format!(
+                        r#"{{ type = "flags", default = [], options = [{axes}], description = "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already", group = "locks" }}"#
+                    ),
+                ),
+                (
+                    k::COUPLED_ROTATION,
+                    &format!(
+                        r#"{{ type = "flags", default = [], options = [{axes}], description = "Free turning axes tied into one angle, whose limit and motor come from the first of them", group = "locks" }}"#
+                    ),
+                ),
+            ]),
+        },
+    );
     reg.register_component(
         c::JOINT_3D,
         ComponentDef {

@@ -13,7 +13,7 @@ use egui::Color32;
 use smol_str::SmolStr;
 
 use crate::widget::node::{Widget, lays_out};
-use crate::widget::theme::{Style, WidgetTheme, face, styled, theme_of};
+use crate::widget::theme::{Style, WidgetTheme, face, icon_family, styled, theme_of};
 
 /// One widget and the widgets laid out inside it, as an arena so the draw can
 /// recurse without holding a borrow of the world.
@@ -42,6 +42,9 @@ pub(crate) struct Placed {
     /// The alpha of the node's inherited tint: every ancestor's multiplied
     /// in, so a fade on a panel reaches what it lays out.
     pub(crate) alpha: f32,
+    /// Whose faces the widget's text draws in: the played content's under
+    /// the subtree that plays it, the engine's own everywhere else.
+    pub(crate) project: balaur_text::FontProject,
 }
 
 /// A widget's resolved look: what to paint it with and what face to draw its
@@ -50,6 +53,10 @@ pub(crate) struct Look {
     pub(crate) style: Rc<Style>,
     pub(crate) font: egui::FontId,
     pub(crate) ink: Color32,
+    /// What its icons draw in: the theme's icon font.
+    pub(crate) icon: egui::FontFamily,
+    /// Whose faces it draws in.
+    pub(crate) project: balaur_text::FontProject,
 }
 
 /// Whether the surface is on the side of every line the widget draws. A
@@ -66,8 +73,9 @@ fn fits(widget: &Widget, width: f32, height: f32) -> bool {
 
 /// One widget as this pass sees it: what the scene authored, with any class
 /// table the screen answers to folded over it.
-fn for_classes(widget: &Widget, classes: &[&str]) -> Widget {
-    crate::widget::schema::for_classes(widget, classes).unwrap_or_else(|| Widget::clone(widget))
+fn for_classes(eng: &Engine, widget: &Widget, classes: &[&str]) -> Widget {
+    crate::widget::schema::for_classes(eng, widget, classes)
+        .unwrap_or_else(|| Widget::clone(widget))
 }
 
 /// The theme in force at one node, folded down its ancestors.
@@ -100,8 +108,14 @@ pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme) -> Rc
         return Rc::clone(held);
     }
     let style = styled(theme, &placed.widget);
-    let (ink, font) = face(theme, &style, &placed.widget);
-    let made = Rc::new(Look { style, font, ink });
+    let (ink, font) = face(theme, &style, (&placed.widget, placed.project));
+    let made = Rc::new(Look {
+        style,
+        font,
+        ink,
+        icon: icon_family(theme, placed.project),
+        project: placed.project,
+    });
     *placed.look.borrow_mut() = Some(Rc::clone(&made));
     made
 }
@@ -257,7 +271,7 @@ fn patch(
         // Gone from the world, or its component removed: either way the shape
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
-        let widget = for_classes(&widget, classes);
+        let widget = for_classes(eng, &widget, classes);
         arena[index].authored_visible = widget.visible;
         arena[index].widget = widget;
         touched.push(index);
@@ -285,13 +299,21 @@ fn forest(
     arena.clear();
     roots.clear();
     index_of.clear();
-    // (node, the arena index of the widget laying it out, if any)
-    let mut stack: Vec<(Entity, Option<usize>)> = vec![(eng.root(), None)];
-    while let Some((entity, owner)) = stack.pop() {
+    // The subtree drawing in the played content's faces, when one is played.
+    let content_scope = balaur_core::project::content_scope(eng);
+    // (node, the arena index of the widget laying it out, if any, whose faces)
+    let mut stack: Vec<(Entity, Option<usize>, balaur_text::FontProject)> =
+        vec![(eng.root(), None, balaur_text::FontProject::Host)];
+    while let Some((entity, owner, project)) = stack.pop() {
+        let project = if content_scope == Some(entity) {
+            balaur_text::FontProject::Content
+        } else {
+            project
+        };
         let mut next_owner = owner;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
-            let widget = for_classes(&widget, classes);
+            let widget = for_classes(eng, &widget, classes);
             let name = world
                 .get::<&balaur_core::scene::Name>(entity)
                 .map_or_else(|_| SmolStr::default(), |n| SmolStr::new(&n.0));
@@ -308,6 +330,7 @@ fn forest(
                 children: Vec::new(),
                 look: RefCell::new(None),
                 alpha: 1.0,
+                project,
             });
             index_of.insert(entity.to_bits().get(), index);
             match owner {
@@ -318,7 +341,7 @@ fn forest(
         if let Ok(children) = world.get::<&Children>(entity) {
             // Pushed in reverse so the stack pops them in declaration order.
             for child in children.0.iter().rev() {
-                stack.push((*child, next_owner));
+                stack.push((*child, next_owner, project));
             }
         }
     }

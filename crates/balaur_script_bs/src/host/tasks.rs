@@ -6,7 +6,6 @@ use crate::convert::{from_neutral, to_neutral};
 use anyhow::{Result, anyhow};
 use balaur_bs::runtime::{Object, RunError, Runtime, Step, Task, Value as L};
 use balaur_script::Value;
-use std::rc::Rc;
 
 /// A method suspended on the engine.
 pub(super) struct Pending {
@@ -31,11 +30,12 @@ impl BsHost {
     ) -> Result<Option<Value>> {
         let key = format!("{}.{method}", file.ty);
         let mut rt = file
+            .home
             .rt
             .try_borrow_mut()
             .map_err(|_| anyhow!("[{}] {method}: the file is busy", inst.path))?;
         let task = rt
-            .start(&key, args)
+            .in_unit(file.unit, |rt| rt.start(&key, args))
             .map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
         let p = Pending {
             node: inst.node,
@@ -52,12 +52,11 @@ impl BsHost {
         Ok(None)
     }
 
-    /// Hands `payload` to the file awaiting `token`, then runs on what can.
+    /// Hands `payload` to the instance awaiting `token`, then runs on what can.
     pub(super) fn deliver(&self, token: u64, payload: &Value) {
-        let files: Vec<Rc<File>> = self.inner.files.borrow().values().cloned().collect();
         let mut woke = false;
-        for file in files {
-            let Ok(mut rt) = file.rt.try_borrow_mut() else {
+        for home in self.homes() {
+            let Ok(mut rt) = home.rt.try_borrow_mut() else {
                 continue;
             };
             if let Some(ty) = rt.awaits(token) {
@@ -111,7 +110,7 @@ impl BsHost {
         let (Some(file), Some(inst)) = (file, inst) else {
             return Err(anyhow!("[{}] {}: the instance is gone", p.path, p.method));
         };
-        let Ok(mut rt) = file.rt.try_borrow_mut() else {
+        let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return Ok(Polled::Waiting(p));
         };
         let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
@@ -167,9 +166,9 @@ impl BsHost {
             let Some(file) = self.inner.files.borrow().get(&p.path).cloned() else {
                 continue;
             };
-            let ended = match file.rt.try_borrow_mut() {
+            let ended = match file.home.rt.try_borrow_mut() {
                 Ok(mut rt) => rt.cancel(p.task),
-                Err(_) => file.reentry.cancel(p.task),
+                Err(_) => file.home.reentry.cancel(p.task),
             };
             if let Err(e) = ended {
                 tracing::error!("[{}] {}: {e}", p.path, p.method);

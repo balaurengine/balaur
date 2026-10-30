@@ -93,6 +93,15 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
         seen = true;
         input.file_drop_event(path.to_string_lossy().into_owned());
     }
+    // What a page handed over is the reader's to give, as a dropped file is:
+    // `fs` may read the folder it was written to.
+    for path in balaur_input::take_handed() {
+        seen = true;
+        if let Some(folder) = std::path::Path::new(&path).parent() {
+            balaur_core::file_api::add_root(&app.engine, folder);
+        }
+        input.file_drop_event(path);
+    }
     // A chance to save, not a veto, and outside the borrow above: a handler
     // reading input would re-enter that `RefCell`.
     drop(input);

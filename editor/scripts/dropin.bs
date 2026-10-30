@@ -55,10 +55,8 @@ pub fn kind_of(path: str) -> str {
     if lower.ends_with(".toml") {
         return "scene";
     }
-    for extension in ["ttf", "otf"] {
-        if lower.ends_with("." + extension) {
-            return "font";
-        }
+    if assets::kind_of(path) == "font" {
+        return "font";
     }
     ""
 }
@@ -81,157 +79,170 @@ pub fn stem_of(path: str) -> str {
 /// Copy a dropped file under `dir` inside the project, answering the
 /// project-relative path. A name already taken gets a numbered suffix, so a
 /// second drop of the same file never overwrites the first.
-pub fn copy_in(S: &mut editor::State, path: str, dir: str) -> str? {
-    let name = file_name(path);
-    let target = dir + "/" + name;
-    if fs::exists(S.game_root + "/" + target) {
-        let halves = name.split_once(".");
-        let stem = if halves.len() == 2 { halves[0] } else { name };
-        let extension = if name.len() > stem.len() { name.slice(stem.len(), name.len()) } else { "" };
-        let n = 2;
-        while fs::exists(S.game_root + "/" + dir + "/" + "{stem}_{n}{extension}") {
-            n += 1;
-        }
-        target = dir + "/" + "{stem}_{n}{extension}";
-    }
+pub fn copy_in(state: &mut editor::State, path: str, dir: str) -> str? {
+    let target = landing(state, path, dir);
     if !fs::exists(path) {
         log::warn("could not read " + path);
         return nil;
     }
-    fs::copy(path, S.game_root + "/" + target);
-    model::forget(S, nil);
+    fs::copy(path, state.game_root + "/" + target);
+    model::forget(state, nil);
+    target
+}
+
+/// Where a file copied into `dir` lands, project-relative: its own name, or
+/// that with a numbered suffix when the name is taken.
+fn landing(state: &mut editor::State, path: str, dir: str) -> str {
+    let name = file_name(path);
+    let target = dir + "/" + name;
+    if fs::exists(state.game_root + "/" + target) {
+        let halves = name.split_once(".");
+        let stem = if halves.len() == 2 { halves[0] } else { name };
+        let extension = if name.len() > stem.len() { name.slice(stem.len(), name.len()) } else { "" };
+        let suffix = 2;
+        while fs::exists(state.game_root + "/" + dir + "/" + "{stem}_{suffix}{extension}") {
+            suffix += 1;
+        }
+        target = dir + "/" + "{stem}_{suffix}{extension}";
+    }
+    target
+}
+
+/// An installed face copied into the project's `fonts/` as a dropped one is:
+/// an exported game cannot count on the face being installed where it runs.
+/// The project-relative path, or nil when it could not be copied.
+pub fn copy_system_font(state: &mut editor::State, path: str) -> str? {
+    let target = landing(state, path, HOMES().font);
+    if !project::copy_system_font(path, state.game_root + "/" + target) {
+        log::warn("could not copy " + path);
+        return nil;
+    }
+    model::forget(state, nil);
+    log::info("added " + target);
     target
 }
 
 /// Where a drop lands in the world: the pointer in 2D, and the point the
 /// camera looks at in 3D, so a dropped thing is where the view already is.
-fn drop_point(S: &mut editor::State) -> [float] {
-    if model::is_2d(S) {
+fn drop_point(state: &mut editor::State) -> [float] {
+    if model::is_2d(state) {
         let at = render::mouse_world_2d();
         return [at.x, at.y, 0.0];
     }
-    let pose = render::camera_pose();
-    return [pose[3], pose[4], pose[5]];
+    model::view_centre(state)
 }
 
-/// Add one node carrying `parts`, parented to the scene's root, at the drop
-/// point. History and the mirror rebuild are the caller's.
-fn place(S: &mut editor::State, name: str, parts: any) -> any {
-    let unique = model::unique_name(S.doc, name);
-    let entry = map()
-        .with("id", model::fresh_id(S.doc, unique))
-        .with("name", unique)
-        .with("parent", model::root_id(S.doc))
-        .with("transform", map().with("position", drop_point(S)));
+/// Add one node carrying `parts` under the scene's root, at the drop point.
+/// History is the caller's, and so is selecting what was placed.
+fn place(state: &mut editor::State, name: str, parts: any) -> Node {
+    let entry = map().with("transform", map().with("position", drop_point(state)));
     for key in parts.keys() {
         entry.set(key, parts.get(key));
     }
-    S.doc.push(entry);
-    entry
+    model::spawn(state, state.scene_root.unwrap(), name, entry)
 }
 
 /// An image becomes a `sprite` in 2D and a textured `shape3d` plane in 3D.
-fn drop_image(S: &mut editor::State, path: str) -> bool {
-    let rel_or = copy_in(S, path, HOMES().image);
+fn drop_image(state: &mut editor::State, path: str) -> Node {
+    let rel_or = copy_in(state, path, HOMES().image);
     if rel_or.is_none() {
-        return false;
+        return nil;
     }
     let rel = rel_or.unwrap();
-    place_image(S, rel, stem_of(path))
+    place_image(state, rel, stem_of(path))
 }
 
-fn place_image(S: &mut editor::State, rel: str, name: str) -> bool {
-    history::record(S, "drop " + rel, nil);
-    if model::is_2d(S) {
-        place(S, name, map().with("sprite", map().with("texture", rel)));
+fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
+    history::record(state, "drop " + rel, nil);
+    if model::is_2d(state) {
+        place(state, name, map().with("sprite", map().with("texture", rel)))
     } else {
-        place(S, name, map()
+        place(state, name, map()
             .with("shape3d", map().with("kind", render::SHAPE_BOX).with("size", [1.0, 0.002, 1.0]))
-            .with("mesh", map().with("texture", rel)));
+            .with("mesh", map().with("texture", rel)))
     }
-    true
 }
 
 /// A `.wesl` file becomes a shader and the `material` asset that names it.
-fn drop_shader(S: &mut editor::State, path: str) -> bool {
-    let rel_or = copy_in(S, path, HOMES().shader);
+fn drop_shader(state: &mut editor::State, path: str) -> Node {
+    let rel_or = copy_in(state, path, HOMES().shader);
     if rel_or.is_none() {
-        return false;
+        return nil;
     }
     let rel = rel_or.unwrap();
     let name = stem_of(path);
     let material = "materials/{name}.toml";
-    fs::create_directory(S.game_root + "/materials");
-    fs::write(S.game_root + "/" + material, toml::encode(map()
+    fs::create_directory(state.game_root + "/materials");
+    fs::write(state.game_root + "/" + material, toml::encode(map()
         .with("type", "material")
         .with("shader", rel)));
-    model::forget(S, nil);
+    model::forget(state, nil);
     log::info("wrote " + material);
-    false
+    nil
 }
 
 /// An `.hdr` or `.exr` becomes the scene's sky.
-fn drop_sky(S: &mut editor::State, path: str) -> bool {
-    let rel_or = copy_in(S, path, HOMES().sky);
+fn drop_sky(state: &mut editor::State, path: str) -> Node {
+    let rel_or = copy_in(state, path, HOMES().sky);
     if rel_or.is_none() {
-        return false;
+        return nil;
     }
     let rel = rel_or.unwrap();
-    name_sky(S, rel, "drop sky")
+    name_sky(state, rel, "drop sky")
 }
 
 /// Point the scene at a sky image already inside the project, which is what
-/// a drop and a library placement both end in.
-pub fn name_sky(S: &mut editor::State, rel: str, label: str) -> bool {
-    history::record(S, label, nil);
+/// a drop and a library placement both end in. Answers the node that holds
+/// the sky.
+pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
+    history::record(state, label, nil);
     // The last `environment` in tree order wins, so an existing one is
     // retargeted rather than joined by a second.
-    for node in S.doc {
-        if node.has("environment") {
-            node.get("environment").set("sky", rel);
+    for found in state.nodes {
+        if found.has_component("environment") {
+            found.patch_component("environment", map().with("sky", rel));
             log::info("sky is now " + rel);
-            return true;
+            return found;
         }
     }
-    place(S, "Environment", map().with("environment", map().with("sky", rel)));
-    true
+    place(state, "Environment", map().with("environment", map().with("sky", rel)))
 }
 
 /// A font is copied and nothing is placed: a font is named by a `text`
 /// component, not by a node of its own.
-fn drop_font(S: &mut editor::State, path: str) -> bool {
-    let rel = copy_in(S, path, HOMES().font);
+fn drop_font(state: &mut editor::State, path: str) -> Node {
+    let rel = copy_in(state, path, HOMES().font);
     if rel.is_some() {
         log::info("added " + rel.unwrap());
     }
-    false
+    nil
 }
 
 /// A scene file is instanced as a prefab. A file already inside the project is
-/// instanced where it lies rather than copied beside itself.
-fn drop_scene(S: &mut editor::State, path: str) -> bool {
-    let prefix = S.game_root + "/";
+/// instanced where it lies rather than copied beside itself. The instance
+/// selects itself.
+fn drop_scene(state: &mut editor::State, path: str) -> Node {
+    let prefix = state.game_root + "/";
     if path.starts_with(prefix) {
-        model::instance_scene(S, path.slice(prefix.len(), path.len()));
-        return false;
+        model::instance_scene(state, path.slice(prefix.len(), path.len()));
+        return nil;
     }
-    let rel = copy_in(S, path, "scenes");
+    let rel = copy_in(state, path, "scenes");
     if rel.is_some() {
-        model::instance_scene(S, rel.unwrap());
+        model::instance_scene(state, rel.unwrap());
     }
-    false
+    nil
 }
 
 /// A model, sprite sheet or level goes through `balaur import`, which runs a
 /// few files a frame and reports to `report` below; the scene it wrote is
 /// instanced when it says it is done.
-fn drop_import(S: editor::State, path: str) -> bool {
+fn drop_import(state: editor::State, path: str) {
     if !import::start(path) {
         // Refused: a recording is playing, and an import writing files into
         // the project mid-replay is not something to do quietly.
         log::warn("not importing " + file_name(path) + " while a recording plays");
     }
-    false
 }
 
 // How long an import that has ended stays in the list, in seconds.
@@ -239,71 +250,71 @@ const KEPT_FOR: float = 4.0;
 
 /// Every import of this batch added up, for the bar: what is written of what
 /// the whole batch holds, the ones that have ended included.
-pub fn job_totals(S: editor::State) -> JobTotals {
+pub fn job_totals(state: editor::State) -> JobTotals {
     let done = 0;
     let files = 0;
-    for source in S.jobs.keys() {
-        let job = S.jobs.get(source);
+    for source in state.jobs.keys() {
+        let job = state.jobs.get(source);
         done += job.done.as_int();
         files += job.files.as_int();
     }
     JobTotals { done: done, files: files }
 }
 
-/// How many imports are still running. The rest of `S.jobs` are the ones that
+/// How many imports are still running. The rest of `state.jobs` are the ones that
 /// ended and are still being shown.
-pub fn in_flight(S: editor::State) -> int {
-    let n = 0;
-    for source in S.jobs.keys() {
-        if S.jobs.get(source).over.as_str() == "" {
-            n += 1;
+pub fn in_flight(state: editor::State) -> int {
+    let count = 0;
+    for source in state.jobs.keys() {
+        if state.jobs.get(source).over.as_str() == "" {
+            count += 1;
         }
     }
-    n
+    count
 }
 
 /// Take the list down once the last of the batch has been finished a while.
 /// The whole of it goes at once: a line that left while its neighbours ran
 /// would take its files out of the count, and the bar would go backwards.
-pub fn sweep(S: &mut editor::State) {
-    let until = kept_until(S);
+pub fn sweep(state: &mut editor::State) {
+    let until = kept_until(state);
     if until > 0.0 && engine::unix_time() > until {
-        S.jobs = map();
+        state.jobs = map();
     }
 }
 
 /// When the list comes down: `KEPT_FOR` after the last of the batch ended,
 /// or zero while one still runs or there is none.
-pub fn kept_until(S: editor::State) -> float {
-    if S.jobs.len() == 0 || in_flight(S) > 0 {
+pub fn kept_until(state: editor::State) -> float {
+    if state.jobs.len() == 0 || in_flight(state) > 0 {
         return 0.0;
     }
     let last = 0.0;
-    for source in S.jobs.keys() {
-        last = util::max(last, S.jobs.get(source).at.as_float());
+    for source in state.jobs.keys() {
+        last = util::max(last, state.jobs.get(source).at.as_float());
     }
     last + KEPT_FOR
 }
 
 /// How many files the import of `source` has written, for the line that says
 /// so when it ends.
-fn written_by(S: editor::State, source: str) -> int {
-    S.jobs.get(source).done.as_int()
+fn written_by(state: editor::State, source: str) -> int {
+    state.jobs.get(source).done.as_int()
 }
 
 /// Mark one import as ended, leaving it in the list for a while: a batch of
 /// four files is over in two frames, and a reader who saw nothing at all
 /// cannot tell an import from a freeze.
-fn ended(S: &mut editor::State, source: str, over: str) {
+fn ended(state: &mut editor::State, source: str, over: str) {
     // Made here where there is none: a cancel is read at the top of a slice,
     // so one pressed early ends an import that never said it had started.
-    let job = S.jobs.get(source);
+    let job = state.jobs.get(source);
     if job.is_nil() {
         job = new_job(source, 0);
     }
     job.set("over", over);
     job.set("at", engine::unix_time());
-    S.jobs.set(source, job);
+    state.jobs.set(source, job);
 }
 
 // One import's line in the list, as it starts.
@@ -313,103 +324,111 @@ fn new_job(source: str, files: int) -> any {
 
 /// Every import reports here, one call per step: what is coming, each file as
 /// it lands, then the end.
-pub fn report(S: &mut editor::State, e: any) {
-    let ev = util::obj(e);
+pub fn report(state: &mut editor::State, event: any) {
+    let ev = util::obj(event);
     let kind = ev.kind.as_str();
     let source = ev.source.as_str();
     if kind == "started" {
         // Keyed by the source, because several can run at once and each
         // reports its own steps.
-        S.jobs.set(source, new_job(source, ev.files.as_int()));
+        state.jobs.set(source, new_job(source, ev.files.as_int()));
     } else if kind == "wrote" {
-        let job = S.jobs.get(source);
+        let job = state.jobs.get(source);
         if !job.is_nil() {
             job.set("done", ev.done.as_int());
             job.set("files", ev.files.as_int());
         }
     } else if kind == "done" {
-        let written = written_by(S, source);
-        ended(S, source, "imported");
-        model::forget(S, nil);
+        let written = written_by(state, source);
+        ended(state, source, "imported");
+        model::forget(state, nil);
         log::info("imported {file_name(source)} ({written} files)");
         let note = ev.note.as_str();
         if note != "" {
             log::info(note);
         }
         if ev.scene.kind() == "str" {
-            model::instance_scene(S, ev.scene.as_str());
+            model::instance_scene(state, ev.scene.as_str());
         }
     } else if kind == "cancelled" {
         let written = ev.done.as_int();
-        ended(S, source, "stopped");
+        ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
-        S.jobs.get(source).set("done", written);
-        model::forget(S, nil);
+        state.jobs.get(source).set("done", written);
+        model::forget(state, nil);
         log::info("stopped importing {file_name(source)} after {written} files");
     } else if kind == "failed" {
-        ended(S, source, "failed");
+        ended(state, source, "failed");
         log::error("importing {file_name(source)} failed: {ev.message.as_str()}");
         // A line in a dock nobody has open is not a report, so open it.
-        docks::show(S, "output");
+        docks::show(state, "output");
     }
     // The Assets tab's import button stops one running, and the files land.
-    signals::changed(S, "assets");
+    signals::changed(state, "assets");
 }
 
 /// Place a file already in the project where the pointer is, as a drag out
 /// of the Assets dock does: an image, a model, a scene or a sky.
-pub fn place_file(S: &mut editor::State, rel: str) -> bool {
+pub fn place_file(state: &mut editor::State, rel: str) -> bool {
     let kind = kind_of(rel);
+    if kind == "scene" {
+        model::instance_scene(state, rel);
+        return true;
+    }
     let placed = if kind == "image" {
-        place_image(S, rel, stem_of(rel))
+        place_image(state, rel, stem_of(rel))
     } else if kind == "sky" {
-        name_sky(S, rel, "drop sky")
-    } else if kind == "scene" {
-        model::instance_scene(S, rel);
-        false
-    } else if recipes::is_model(rel) && !model::is_2d(S) {
-        history::record(S, "drop " + rel, nil);
-        place(S, stem_of(rel), map().with("mesh", map().with("source", map().with("source", rel))));
-        true
+        name_sky(state, rel, "drop sky")
+    } else if recipes::is_model(rel) && !model::is_2d(state) {
+        history::record(state, "drop " + rel, nil);
+        place(state, stem_of(rel), map().with("mesh", map().with("source", map().with("source", rel))))
     } else {
         log::warn("{file_name(rel)} is not a thing to place in the scene");
-        false
+        nothing()
     };
-    if placed {
-        model::build_mirror(S);
-        selection::only(S, S.doc.len() - 1);
-        history::commit(S);
+    select_placed(state, placed);
+    placed.is_valid()
+}
+
+/// No node: what a verb that placed none answers.
+fn nothing() -> Node {
+    nil
+}
+
+/// List the rows again and select what a drop placed, one step closed.
+fn select_placed(state: &mut editor::State, placed: Node) {
+    if !placed.is_valid() {
+        return;
     }
-    placed
+    model::reindex(state);
+    selection::only(state, model::index_of_node(state, placed).unwrap_or(0));
+    history::commit(state);
 }
 
 /// Handle one dropped file. Public so a test can drive it with no window.
-pub fn take(S: &mut editor::State, path: str) {
+pub fn take(state: &mut editor::State, path: str) {
     let kind = kind_of(path);
     if kind == "" {
         log::warn("nothing to do with " + file_name(path));
         return;
     }
     let placed = if kind == "image" {
-        drop_image(S, path)
+        drop_image(state, path)
     } else if kind == "shader" {
-        drop_shader(S, path)
+        drop_shader(state, path)
     } else if kind == "sky" {
-        drop_sky(S, path)
+        drop_sky(state, path)
     } else if kind == "font" {
-        drop_font(S, path)
+        drop_font(state, path)
     } else if kind == "scene" {
-        drop_scene(S, path)
-    } else if kind == "import" {
-        drop_import(S, path)
+        drop_scene(state, path)
     } else {
-        false
+        if kind == "import" {
+            drop_import(state, path);
+        }
+        nothing()
     };
-    // Only a `place` needs the rebuild; the verbs that instance a scene did
-    // their own, and the ones that only copied a file changed no node.
-    if placed {
-        model::build_mirror(S);
-        selection::only(S, S.doc.len() - 1);
-        history::commit(S);
-    }
+    // A verb that instanced a scene selected it itself, and one that only
+    // copied a file changed no node.
+    select_placed(state, placed);
 }

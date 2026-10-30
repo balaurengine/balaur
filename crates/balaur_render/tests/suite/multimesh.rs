@@ -27,7 +27,7 @@ fn add(app: &App, entity: Entity, key: &str, params: &str) {
     components::add(&app.engine, entity, key, Some(&params)).unwrap();
 }
 
-/// A box drawn at each of `instances`, inline.
+/// Scenario box drawn at each of `instances`, inline.
 fn boxes(instances: &str) -> String {
     format!(
         "source = {{ type = \"multimesh\", mesh = {{ type = \"mesh\", kind = \"box\" }}, instances = [{instances}] }}"
@@ -136,7 +136,7 @@ fn an_empty_list_draws_nothing() {
     );
 }
 
-/// A child is not an instance: it draws once, where it is.
+/// Scenario child is not an instance: it draws once, where it is.
 #[test]
 fn a_child_draws_once() {
     let (_dir, mut app) = app();
@@ -198,7 +198,7 @@ fn two_nodes_share_one_asset_and_part_ways_once_one_is_changed() {
         "type = \"multimesh\"\nmesh = { type = \"mesh\", kind = \"box\" }\ninstances = [{ position = [1.0, 0.0, 0.0] }]\n",
     )
     .unwrap();
-    let a = node(&app, "A", app.engine.root());
+    let a = node(&app, "Scenario", app.engine.root());
     let b = node(&app, "B", app.engine.root());
     add(
         &app,
@@ -231,7 +231,7 @@ fn two_nodes_share_one_asset_and_part_ways_once_one_is_changed() {
     assert!(near(first.instances[0].position, Vec3::new(1.0, 0.0, 0.0)));
 }
 
-/// A patch of another key keeps what was done to the node's instances; a new
+/// Scenario patch of another key keeps what was done to the node's instances; a new
 /// source copies the new asset's.
 #[test]
 fn a_patch_that_keeps_the_source_keeps_the_nodes_instances() {
@@ -322,7 +322,7 @@ fn a_missing_asset_draws_nothing_rather_than_failing_the_node() {
     assert!(placed(&app, owner).is_empty());
 }
 
-/// A project whose main scene holds one `multimesh` asset and the two nodes
+/// Scenario project whose main scene holds one `multimesh` asset and the two nodes
 /// that draw it; the first carries `script`.
 fn run_shared(script: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     run_shared_as("multimesh3d", script, frames)
@@ -356,9 +356,9 @@ name = "World"
 
 [[nodes]]
 id = "a"
-name = "A"
+name = "Scenario"
 parent = "w"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.COMPONENT]
 source = "#posts"
@@ -374,7 +374,7 @@ source = "#posts"
         .replace("COMPONENT", component),
     )
     .unwrap();
-    std::fs::write(root.join("scripts/s.bs"), script).unwrap();
+    std::fs::write(root.join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut config = AppConfig::dev(root.to_string_lossy().as_ref());
@@ -401,8 +401,8 @@ source = "#posts"
 #[ignore = "needs engine: an instance's transform is a Transform3d, which a .bs any cannot hold or build"]
 fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
     let (app, errors, lines) = run_shared(
-        r#"pub struct A { node: Node }
-impl A {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn update(dt: float) {
         let x = self.node.multimesh3d.instance_transform(1).at(9).as_float() + 1.0;
         let moved: [float] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, x, 0.0, 0.0];
@@ -419,7 +419,7 @@ impl A {
         lines.iter().any(|l| l.contains("moved 4.0 of 2")),
         "expected three moves from 1, got {lines:#?}"
     );
-    let a = named(&app, "A");
+    let a = named(&app, "Scenario");
     let b = named(&app, "B");
     let world = app.engine.world();
     let moved = world.get::<&MultiMesh>(a).unwrap();
@@ -433,8 +433,8 @@ impl A {
 #[test]
 fn the_count_grows_with_plain_instances_and_keeps_those_below_it() {
     let (app, errors, lines) = run_shared(
-        r#"pub struct A { node: Node }
-impl A {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.multimesh3d.set_instance_count(4);
         let grown = self.node.multimesh3d.instances();
@@ -457,7 +457,7 @@ impl A {
             .any(|l| l.contains("grown 4 1.0 1.0 now 1 showing 0")),
         "{lines:#?}"
     );
-    let a = named(&app, "A");
+    let a = named(&app, "Scenario");
     assert!(
         app.engine
             .world()
@@ -471,8 +471,8 @@ impl A {
 #[test]
 fn an_index_past_the_end_is_an_error_that_names_the_count() {
     let (_app, errors, _) = run_shared(
-        r"pub struct A { node: Node }
-impl A {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() { self.node.multimesh3d.set_instance_color(5, [1.0, 1.0, 1.0, 1.0]); }
 }
 ",
@@ -491,8 +491,8 @@ impl A {
 #[test]
 fn instances_read_off_one_node_set_another_whole() {
     let (app, errors, _) = run_shared(
-        r#"pub struct A { node: Node }
-impl A {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let mine = self.node.multimesh3d.instances();
         mine.at(0).set("position", [0.0, 5.0, 0.0]);
@@ -514,13 +514,13 @@ impl A {
     assert!(same(multimesh.instances[1].custom, [1.0, 2.0, 3.0, 4.0]));
 }
 
-/// A shear a script hands an instance is kept as its basis.
+/// Scenario shear a script hands an instance is kept as its basis.
 #[test]
 #[ignore = "needs engine: an instance's transform is a Transform3d, which a .bs any cannot hold or build"]
 fn a_script_keeps_a_shear() {
     let (app, errors, _) = run_shared(
-        r"pub struct A { node: Node }
-impl A {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         let sheared: [float] = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0];
         self.node.multimesh3d.set_instance_transform(0, sheared);
@@ -530,7 +530,7 @@ impl A {
         1,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    let a = named(&app, "A");
+    let a = named(&app, "Scenario");
     let basis = app.engine.world().get::<&MultiMesh>(a).unwrap().instances[0].basis;
     assert!(
         basis.is_some_and(|b| (b.y_axis.x - 0.5).abs() < 1e-5),
@@ -538,13 +538,13 @@ impl A {
     );
 }
 
-/// A 2D instance's texture rectangle reads back as it was set.
+/// Scenario 2D instance's texture rectangle reads back as it was set.
 #[test]
 fn a_script_sets_a_texture_rectangle() {
     let (_app, errors, lines) = run_shared_as(
         "multimesh2d",
-        r#"pub struct A { node: Node }
-impl A {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.multimesh2d.set_instance_region(1, [8.0, 16.0], [32.0, 24.0]);
         let region = self.node.multimesh2d.instance_region(1);

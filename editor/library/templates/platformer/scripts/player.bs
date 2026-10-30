@@ -1,6 +1,6 @@
 // Left, right and jump, over the 2D character controller.
 
-pub struct Player {
+pub class Player {
     node: Node,
     pub speed: float = 6.0,
     pub jump: float = 9.0,

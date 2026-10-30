@@ -2,7 +2,7 @@
 // is what it orbits and what it looks at, so the rig works wherever the pivot
 // is put. Angles are degrees, which is what the inspector shows.
 
-pub struct OrbitCamera {
+pub class OrbitCamera {
     node: Node,
     pub distance: float = 8.0,
     pub min_distance: float = 1.5,

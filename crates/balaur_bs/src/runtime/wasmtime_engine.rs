@@ -7,6 +7,7 @@ use super::values::float;
 use crate::{Compiled, Slot, words};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
+use std::mem::MaybeUninit;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -18,6 +19,9 @@ use wasmtime::{
 
 struct Data {
     mem: Option<wasmtime::Memory>,
+    /// The module's allocator, found once: every string or array a host
+    /// function hands back is written into what it gives.
+    alloc: Option<wasmtime::TypedFunc<i32, i32>>,
     host: Shared,
     limits: Option<wasmtime::StoreLimits>,
     /// A script built as units: them all, its own first.
@@ -87,15 +91,51 @@ impl ImportCtx for Ctx<'_, '_> {
             let _ = g.set(&mut *self.0, Val::I32(value));
         }
     }
+    fn alloc(&mut self, size: usize) -> Result<usize, String> {
+        let Some(alloc) = self.0.data().alloc.clone() else {
+            return Err(format!("no export `{}`", words::ALLOC));
+        };
+        let size =
+            i32::try_from(size).map_err(|_| format!("{size} bytes is past what a module holds"))?;
+        alloc
+            .call(&mut *self.0, size)
+            .map(|pointer| pointer.cast_unsigned() as usize)
+            .map_err(|error| format!("{:#}", error.root_cause()))
+    }
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let f = self
-            .func(name)
-            .ok_or_else(|| format!("no export `{name}`"))?;
+        self.call_in(0, name, args, results)
+    }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        let f = if unit == 0 {
+            self.func(name)
+        } else {
+            let inst = unit_instance(&mut *self.0, unit)?;
+            inst.get_func(&mut *self.0, name)
+        }
+        .ok_or_else(|| format!("no export `{name}`"))?;
         let a: Vec<Val> = args.iter().map(|r| val(*r)).collect();
         let mut out = vec![Val::I32(0); results];
         f.call(&mut *self.0, &a, &mut out)
             .map_err(|e| format!("{:#}", e.root_cause()))?;
         Ok(out.iter().map(raw).collect())
+    }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        if unit == 0 {
+            return self.func(name).is_some();
+        }
+        unit_instance(&mut *self.0, unit)
+            .ok()
+            .and_then(|inst| inst.get_func(&mut *self.0, name))
+            .is_some()
+    }
+    fn link(&mut self, key: &str, unit: Arc<Compiled>) -> Result<usize, String> {
+        link_unit(&mut *self.0, key, unit)
     }
 }
 
@@ -129,6 +169,49 @@ fn slot_of(r: Raw) -> Slot {
         Raw::I32(_) => Slot::I32,
         Raw::I64(_) => Slot::I64,
         Raw::F64(_) => Slot::F64,
+    }
+}
+
+// A slot of a call's parameters, as its import declares it.
+fn raw_of(slot: Slot, value: ValRaw) -> Raw {
+    match slot {
+        Slot::I32 => Raw::I32(value.get_i32()),
+        Slot::I64 => Raw::I64(value.get_i64()),
+        Slot::F64 => Raw::F64(float(value.get_f64())),
+    }
+}
+
+fn slot_of_vt(val_type: &ValType) -> Slot {
+    match val_type {
+        ValType::I64 => Slot::I64,
+        ValType::F64 => Slot::F64,
+        _ => Slot::I32,
+    }
+}
+
+// An import as wasmtime calls it: its parameters, then its results, in one
+// run of raw slots, with nothing converted but what the host reads.
+fn import_call(
+    params: Vec<Slot>,
+    unit: usize,
+    index: usize,
+) -> impl Fn(Caller<'_, Data>, &mut [MaybeUninit<ValRaw>]) -> wasmtime::Result<()> + Send + Sync + 'static
+{
+    move |mut caller, slots| {
+        let host = caller.data().host.clone();
+        let args: Args = params
+            .iter()
+            .zip(slots.iter())
+            // SAFETY: wasmtime fills the first slots with the call's
+            // arguments, of the types the import declares, which `params` are.
+            .map(|(slot, value)| raw_of(*slot, unsafe { value.assume_init_read() }))
+            .collect();
+        let out = dispatch(&host, &mut Ctx(&mut caller), unit, index, &args)
+            .map_err(wasmtime::Error::msg)?;
+        for (slot, raw) in slots.iter_mut().zip(out) {
+            *slot = MaybeUninit::new(val_raw(raw));
+        }
+        Ok(())
     }
 }
 
@@ -297,18 +380,11 @@ pub(crate) fn instantiate(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
             imp.params.iter().map(|s| vt(*s)),
             imp.results.iter().map(|s| vt(*s)),
         );
-        let call = move |mut c: Caller<'_, Data>, params: &[Val], results: &mut [Val]| {
-            let host = c.data().host.clone();
-            let args: Args = params.iter().map(raw).collect();
-            let out =
-                dispatch(&host, &mut Ctx(&mut c), 0, index, &args).map_err(wasmtime::Error::msg)?;
-            for (slot, r) in results.iter_mut().zip(out) {
-                *slot = val(r);
-            }
-            Ok(())
-        };
-        linker
-            .func_new(words::HOST_MODULE, &imp.name, ty, call)
+        let call = import_call(imp.params.clone(), 0, index);
+        // SAFETY: `import_call` reads the parameters `imp.params` names and
+        // writes the results dispatch makes for this import, which are the
+        // types `ty` declares.
+        unsafe { linker.func_new_unchecked(words::HOST_MODULE, &imp.name, ty, call) }
             .map_err(|e| e.to_string())?;
     }
     let mut store = store_for(&engine, setup);
@@ -316,10 +392,11 @@ pub(crate) fn instantiate(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         .instantiate(&mut store, &module)
         .map_err(|e| e.to_string())?;
     store.data_mut().mem = inst.get_memory(&mut store, words::MEMORY);
+    store.data_mut().alloc = inst.get_typed_func(&mut store, words::ALLOC).ok();
     Ok(Box::new(Wasmtime {
         store,
         inst,
-        funcs: FxHashMap::default(),
+        funcs: vec![],
         slots: Vec::new(),
     }))
 }
@@ -332,6 +409,7 @@ fn store_for(eng: &Engine, setup: &Setup<'_>) -> Store<Data> {
         eng,
         Data {
             mem: None,
+            alloc: None,
             host: setup.host.clone(),
             limits,
             links: None,
@@ -399,12 +477,70 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     })));
     let unit = setup.meta.unit.as_ref().ok_or("not a unit")?;
     let inst = make_unit(&mut store, 0, setup.wasm, unit, 0, setup.key)?;
+    store.data_mut().alloc = inst.get_typed_func(&mut store, words::ALLOC).ok();
     Ok(Box::new(Wasmtime {
         store,
         inst,
-        funcs: FxHashMap::default(),
+        funcs: vec![],
         slots: Vec::new(),
     }))
+}
+
+// `unit` as unit `key` of the script, added unless it is one: its index. Its
+// static data takes a block of the heap, since the space before the heap was
+// laid out for the units known when the store was made. It is made on its
+// first call.
+fn link_unit(
+    mut cx: impl AsContextMut<Data = Data>,
+    key: &str,
+    unit: Arc<Compiled>,
+) -> Result<usize, String> {
+    let links = cx
+        .as_context()
+        .data()
+        .links
+        .clone()
+        .ok_or_else(|| format!("{key}: this script is not built as units"))?;
+    if let Some(index) = links.borrow().by_key.get(key) {
+        return Ok(*index);
+    }
+    let len = unit.meta.unit.as_ref().map_or(0, |u| u.data_len);
+    let base = if len == 0 {
+        0
+    } else {
+        let (root, live) = {
+            let l = links.borrow();
+            let live = words::UNIT_GLOBALS
+                .iter()
+                .position(|g| *g == words::LIVE)
+                .map(|at| l.globals[at]);
+            (
+                l.units[0].inst.ok_or("the script's own unit is not made")?,
+                live,
+            )
+        };
+        let e = |e: wasmtime::Error| format!("{key}: {e:#}");
+        let alloc = root
+            .get_typed_func::<i32, i32>(&mut cx, words::ALLOC)
+            .map_err(e)?;
+        let block = alloc.call(&mut cx, (len + 15) as i32).map_err(e)?;
+        // Held as long as the instance, so no object a leak count watches.
+        if let Some(live) = live
+            && let Val::I32(count) = live.get(&mut cx)
+        {
+            live.set(&mut cx, Val::I32(count - 1)).map_err(e)?;
+        }
+        (block as u32).next_multiple_of(16)
+    };
+    let mut links = links.borrow_mut();
+    let index = links.units.len();
+    links.by_key.insert(key.to_string(), index);
+    links.units.push(LinkUnit {
+        compiled: Some(unit),
+        base,
+        inst: None,
+    });
+    Ok(index)
 }
 
 // Unit `i` of the script, made now if this is its first call.
@@ -515,17 +651,11 @@ fn unit_imports(
             ExternType::Func(ty) => {
                 let at = index;
                 index += 1;
-                let call = move |mut c: Caller<'_, Data>, params: &[Val], results: &mut [Val]| {
-                    let host = c.data().host.clone();
-                    let args: Args = params.iter().map(raw).collect();
-                    let out = dispatch(&host, &mut Ctx(&mut c), numbered, at, &args)
-                        .map_err(wasmtime::Error::msg)?;
-                    for (slot, r) in results.iter_mut().zip(out) {
-                        *slot = val(r);
-                    }
-                    Ok(())
-                };
-                Func::new(&mut cx, ty, call).into()
+                let params = ty.params().map(|param| slot_of_vt(&param)).collect();
+                let call = import_call(params, numbered, at);
+                // SAFETY: the parameters read are the ones `ty` declares, and
+                // dispatch writes the results this import gives.
+                unsafe { Func::new_unchecked(&mut cx, ty, call) }.into()
             }
             ExternType::Memory(_) => memory.into(),
             ExternType::Table(_) => table.into(),
@@ -632,10 +762,11 @@ fn stand_in(
 struct Wasmtime {
     store: Store<Data>,
     inst: wasmtime::Instance,
-    /// Each export called so far, with its parameter and result kinds: the
-    /// host calls `update` on every instance every frame, and looking the
-    /// export up and checking its type each time was most of a call.
-    funcs: FxHashMap<String, Export>,
+    /// Each export called so far, by unit, with its parameter and result
+    /// kinds: the host calls `update` on every instance every frame, and
+    /// looking the export up and checking its type each time was most of a
+    /// call.
+    funcs: Vec<FxHashMap<String, Export>>,
     /// The parameters going in and the results coming out, kept between
     /// calls so a call allocates nothing.
     slots: Vec<ValRaw>,
@@ -648,10 +779,17 @@ struct Export {
 }
 
 impl Wasmtime {
-    fn export(&mut self, name: &str) -> Result<&Export, String> {
-        if !self.funcs.contains_key(name) {
-            let func = self
-                .inst
+    fn export(&mut self, unit: usize, name: &str) -> Result<&Export, String> {
+        if self.funcs.len() <= unit {
+            self.funcs.resize_with(unit + 1, FxHashMap::default);
+        }
+        if !self.funcs[unit].contains_key(name) {
+            let inst = if unit == 0 {
+                self.inst
+            } else {
+                unit_instance(&mut self.store, unit)?
+            };
+            let func = inst
                 .get_func(&mut self.store, name)
                 .ok_or_else(|| format!("no export `{name}`"))?;
             let ty = func.ty(&self.store);
@@ -669,15 +807,24 @@ impl Wasmtime {
                 params: kinds(&mut ty.params())?,
                 results: kinds(&mut ty.results())?,
             };
-            self.funcs.insert(name.to_string(), export);
+            self.funcs[unit].insert(name.to_string(), export);
         }
-        Ok(&self.funcs[name])
+        Ok(&self.funcs[unit][name])
     }
 }
 
 impl Wasm for Wasmtime {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let export = self.export(name)?;
+        self.call_in(0, name, args, results)
+    }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        let export = self.export(unit, name)?;
         let fits = args.len() == export.params.len()
             && results == export.results.len()
             && args
@@ -710,6 +857,18 @@ impl Wasm for Wasmtime {
     fn has_func(&mut self, name: &str) -> bool {
         self.inst.get_func(&mut self.store, name).is_some()
     }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        if unit == 0 {
+            return self.has_func(name);
+        }
+        unit_instance(&mut self.store, unit)
+            .ok()
+            .and_then(|inst| inst.get_func(&mut self.store, name))
+            .is_some()
+    }
+    fn link(&mut self, key: &str, unit: Arc<Compiled>) -> Result<usize, String> {
+        link_unit(&mut self.store, key, unit)
+    }
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
         self.store
             .data()
@@ -738,5 +897,8 @@ impl Wasm for Wasmtime {
     }
     fn set_fuel(&mut self, fuel: u64) {
         let _ = self.store.set_fuel(fuel);
+    }
+    fn fuel(&mut self) -> Option<u64> {
+        self.store.get_fuel().ok()
     }
 }

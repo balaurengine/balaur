@@ -88,3 +88,18 @@ pub(super) fn forget(eng: &Engine, entity: Entity, name: &str) {
     };
     authored.borrow_mut().0.swap_remove(&(entity, index));
 }
+
+/// Forget what was asked of every component in `present` on one node: it is
+/// being freed, and an entity the world hands out again starts asked for
+/// nothing.
+pub(super) fn forget_node(eng: &Engine, entity: Entity, present: u128) {
+    let Some(authored) = eng.try_resource::<Authored>() else {
+        return;
+    };
+    let mut authored = authored.borrow_mut();
+    for index in 0..128 {
+        if present & (1u128 << index) != 0 {
+            authored.0.swap_remove(&(entity, index));
+        }
+    }
+}

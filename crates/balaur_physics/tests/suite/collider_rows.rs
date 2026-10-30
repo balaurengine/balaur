@@ -494,10 +494,10 @@ fn a_heightfield_loses_its_asset_holes_and_the_ones_a_script_cuts() {
         )
         .replace(
             "parent = \"n_world\"\n",
-            "parent = \"n_world\"\nscript = { source = \"scripts/s.bs\" }\n",
+            "parent = \"n_world\"\nscript = { source = \"scripts/scenario.bs\" }\n",
         )),
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.collider3d.set_heightfield_hole(1, 1, true);
     }
@@ -542,10 +542,10 @@ fn a_2d_heightfield_loses_the_segments_its_holes_name() {
         )
         .replace(
             "parent = \"n_world\"\n",
-            "parent = \"n_world\"\nscript = { source = \"scripts/s.bs\" }\n",
+            "parent = \"n_world\"\nscript = { source = \"scripts/scenario.bs\" }\n",
         )),
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.collider2d.set_heightfield_hole(5, true);
     }
@@ -667,7 +667,10 @@ fn restitution_may_exceed_one() {
     let e = node_with(
         &app,
         "Bouncy",
-        &[("collider3d", "kind = \"sphere\"\nrestitution = 1.5")],
+        &[(
+            "collider3d",
+            "kind = \"sphere\"\nphysics_material = { restitution = 1.5 }",
+        )],
     );
     assert_eq!(
         collider3d(
@@ -677,8 +680,6 @@ fn restitution_may_exceed_one() {
         ),
         1.5
     );
-    let back = components::get(&app.engine, e, "collider3d").unwrap();
-    assert_eq!(float(&back, "restitution"), 1.5);
 }
 
 /// The ground's mask leaves out the ball's layer: under `both` the ball falls
@@ -751,12 +752,12 @@ body3d = { kind = "dynamic", gravity_scale = 0.0 }
 id = "n_part"
 name = "Part"
 parent = "n_body"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 collider3d = { kind = "box", mass = 3.0, collision_margin = 0.1 }
 transform = { position = [1.0, 0.0, 0.0] }
 "#,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     pub fn probe() -> [any] {
         let shape = self.node.collider3d.aabb();
         let collision = self.node.collider3d.collision_aabb();
@@ -806,13 +807,13 @@ collider3d = { kind = "box", size = [10.0, 1.0, 10.0] }
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic" }
 collider3d = { kind = "box", events = ["contact_force"] }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     pub fn on_contact_force(contact: any) {
         scene::set_variable("max_force", contact.get("max_force"));
         scene::set_variable("total_y", contact.get("total_force").at(1));

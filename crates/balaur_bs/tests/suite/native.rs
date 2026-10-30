@@ -63,7 +63,7 @@ fn same(src: &str, calls: &[(&str, &[Value])]) {
 }
 
 const MIXED: &str = r#"
-pub struct Mover { x: float, steps: int, name: str }
+pub class Mover { x: float, steps: int, name: str }
 impl Mover {
     pub fn walk(n: int) -> float {
         for i in 0..n {
@@ -325,11 +325,11 @@ type Reach = Rc<RefCell<(Option<Reentry>, Option<Object>, &'static str)>>;
 #[test]
 fn a_call_back_in_traps_on_its_own() {
     use balaur_bs::{HostApi, HostSignature, Ty};
-    let src = "pub struct C { n: int }
-impl C {
-    pub fn outer(k: int) -> int { other::poke(k) + self.n }
-    pub fn add(k: int) -> int { self.n += k; self.n }
-    pub fn crash(k: int) -> int { let a = [1]; a[k] }
+    let src = "pub class Counter { total: int }
+impl Counter {
+    pub fn outer(amount: int) -> int { other::poke(amount) + self.total }
+    pub fn add(amount: int) -> int { self.total += amount; self.total }
+    pub fn crash(index: int) -> int { let one = [1]; one[index] }
 }
 ";
     let api = HostApi {
@@ -367,8 +367,8 @@ impl C {
         out.map_err(|e| e.to_string())
     });
     let mut rt = on(EngineKind::Native, &c, host);
-    let mut me = rt.object("C", &[]).unwrap();
-    let theirs = rt.object("C", &[]).unwrap();
+    let mut me = rt.object("Counter", &[]).unwrap();
+    let theirs = rt.object("Counter", &[]).unwrap();
     *reach.borrow_mut() = (Some(rt.reentry()), Some(theirs), "add");
     let outer =
         |rt: &mut Runtime, me: &mut Object, k| rt.call_method(me, "outer", &[Value::Int(k)]);

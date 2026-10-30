@@ -2,7 +2,7 @@
 // handles over the viewport, shown as the Editor says when the workspace, the
 // docks, the room or a chip moved.
 
-pub struct Stage {
+pub class Stage {
     node: Node,
     editor: Node,
 }
@@ -43,9 +43,9 @@ impl Stage {
             sheet.get_node("Open").patch_component("widget", map()
                 .with("icon", handle.get("icon"))
                 .with("tooltip", handle.get("tooltip"))
-                .with("width", view.get("d"))
-                .with("height", view.get("d"))
-                .with("corner_radius", view.get("d").as_float() / 2.0));
+                .with("width", view.get("diameter"))
+                .with("height", view.get("diameter"))
+                .with("corner_radius", view.get("diameter").as_float() / 2.0));
         }
     }
 }

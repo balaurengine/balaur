@@ -1,7 +1,7 @@
 // A bouncing ball: sets up its own physics in init (Godot-style _ready), then
 // watches its own fall from update.
 
-pub struct Ball {
+pub class Ball {
     node: Node,
     reported: bool,
 }

@@ -2,7 +2,7 @@
 // Editor when what they show moved. A control's own handler runs first, then
 // the bar fills again to show what it changed.
 
-pub struct Topbar {
+pub class Topbar {
     node: Node,
     editor: Node,
 }

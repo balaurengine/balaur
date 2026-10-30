@@ -16,8 +16,8 @@ fn a_script_reads_the_public_api_of_the_server() {
     // harness reads a fifty-entry ring.
     let source = format!(
         r#"
-pub struct S {{ node: Node }}
-impl S {{
+pub class Scenario {{ node: Node }}
+impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
         let boards = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards?page=1").as_int());
@@ -52,8 +52,8 @@ fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
     let device = device_id();
     let source = format!(
         r#"
-pub struct S {{ node: Node, socket: int }}
-impl S {{
+pub class Scenario {{ node: Node, socket: int }}
+impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
         // A stock Gamend takes ten sign-ins a minute from one address.

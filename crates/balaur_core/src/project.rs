@@ -514,6 +514,45 @@ pub fn manifest_source(eng: &Engine) -> Option<String> {
 /// any plugin resolving project-relative paths).
 pub struct ProjectRoot(pub std::path::PathBuf);
 
+/// The project whose content this engine plays when that is not its own: the
+/// game the editor edits. Its string catalogues and its fonts are read from
+/// here, and the subtree [`Engine::debug_scope`] names draws in them. Each
+/// reader keeps the root it read under and reads again when this moves.
+pub struct ContentRoot(pub std::path::PathBuf);
+
+/// Play the content of the project at `root`; an empty `root` plays the
+/// project's own again.
+pub fn set_content_root(eng: &Engine, root: &str) {
+    if root.is_empty() {
+        eng.remove_resource::<ContentRoot>();
+    } else {
+        eng.insert_resource(ContentRoot(std::path::PathBuf::from(root)));
+    }
+}
+
+/// The root of the project whose content this engine plays, when it is not
+/// the engine's own.
+#[must_use]
+pub fn content_root(eng: &Engine) -> Option<std::path::PathBuf> {
+    eng.try_resource::<ContentRoot>()
+        .map(|root| root.borrow().0.clone())
+}
+
+/// The subtree playing the content of another project, when one is played:
+/// the editor's mirror of the game.
+#[must_use]
+pub fn content_scope(eng: &Engine) -> Option<Entity> {
+    eng.try_resource::<ContentRoot>()
+        .and_then(|_| eng.debug_scope())
+}
+
+/// Whether `entity` is content of the project the engine plays rather than
+/// its own: it sits in [`content_scope`].
+#[must_use]
+pub fn in_content(eng: &Engine, entity: Entity) -> bool {
+    content_scope(eng).is_some_and(|scope| crate::scene::is_within(&eng.world(), entity, scope))
+}
+
 /// A node's script, held until the whole tree exists: the node, the path, and
 /// the properties the scene set on it.
 type PendingScript = (Entity, String, Vec<(String, Value)>);
@@ -530,6 +569,23 @@ pub fn instantiate_scene(
     attach_scripts: bool,
 ) -> Result<()> {
     instantiate_from(eng, source, base, attach_scripts, None)
+}
+
+/// Instantiate a scene document whose files are named from another project's
+/// `root`, the way the editor builds the game it edits: every path is made
+/// absolute against that root, and [`crate::scene_toml::to_toml`] given the
+/// same root writes them back as it spells them.
+///
+/// # Errors
+/// If the scene does not build.
+pub fn instantiate_scene_from_root(
+    eng: &Engine,
+    source: &str,
+    base: Entity,
+    attach_scripts: bool,
+    root: &std::path::Path,
+) -> Result<()> {
+    instantiate_from(eng, source, base, attach_scripts, Some(root))
 }
 
 /// Instantiate the scene file at `path`, read the way a prefab is. Use this
@@ -690,22 +746,53 @@ pub(crate) fn scene_from_file(
 }
 
 fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
-    if !build.attach_scripts || build.pending.is_empty() {
+    // Named either way: a node built with its scripts held still says which
+    // script it has, and a save writes it back.
+    for (entity, script, props) in &build.pending {
+        scene::name_script(eng, *entity, Some((script, props)));
+    }
+    if !build.attach_scripts {
+        return Ok(());
+    }
+    attach_named(eng, &build.pending)
+}
+
+/// Run the scripts `pending` names, every `init` held until all of them are
+/// attached.
+fn attach_named(eng: &Engine, pending: &[PendingScript]) -> Result<()> {
+    if pending.is_empty() {
         return Ok(());
     }
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
     host.hold_inits();
-    let attached = build
-        .pending
-        .iter()
-        .try_for_each(|(entity, script, props)| {
-            scene::remember_script_props(eng, *entity, props);
-            host.attach_with_props(crate::node_id_of(*entity), script, props)
-        });
+    let attached = pending.iter().try_for_each(|(entity, script, props)| {
+        host.attach_with_props(crate::node_id_of(*entity), script, props)
+    });
     host.release_inits();
     attached
+}
+
+/// Run every script a node under `root` names, the root's included, children
+/// first as an instantiate attaches them: what starts a scene that was built
+/// with `{ scripts: false }`.
+///
+/// # Errors
+/// If a script does not attach, or no script backend is running.
+pub fn attach_scripts(eng: &Engine, root: Entity) -> Result<()> {
+    let mut pending: Vec<PendingScript> = {
+        let world = eng.world();
+        scene::collect_subtree(&world, root)
+            .into_iter()
+            .filter_map(|entity| {
+                let script = world.get::<&scene::NodeScript>(entity).ok()?;
+                Some((entity, script.path.clone(), script.props.clone()))
+            })
+            .collect()
+    };
+    children_first(eng, root, &mut pending);
+    attach_named(eng, &pending)
 }
 
 fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Build) -> Result<()> {
@@ -762,10 +849,17 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             scene_root = Some((node.name.as_str(), entity));
         }
         // The prefab lands first, so the node's own keys win over its root's.
-        if node.instance.is_some() {
+        if let Some(source) = &node.instance {
             instance(eng, node, &ids[index], entity, build)?;
             apply_own_keys(eng, node, entity, handlers, build)?;
-            apply_overrides(eng, node, entity, handlers, build);
+            let unmatched = apply_overrides(eng, node, entity, handlers, build);
+            eng.world_mut().insert_one(
+                entity,
+                crate::scene_toml::Instanced {
+                    source: source.clone(),
+                    unmatched,
+                },
+            )?;
         } else {
             apply_own_keys(eng, node, entity, handlers, build)?;
         }
@@ -845,13 +939,20 @@ fn apply_own_keys(
             return Err(why.context(format!("scene key '{key}' on node '{}'", node.name)));
         }
     }
-    for key in node.extra.keys() {
+    // Kept to be written back: a plugin this build lacks still owns the key.
+    let mut unhandled = toml::Table::new();
+    for (key, value) in &node.extra {
         if !handlers.iter().any(|(k, _)| k == key) {
             tracing::warn!(
                 "scene key '{key}' on node '{}' has no registered handler",
                 node.name
             );
+            unhandled.insert(key.clone(), value.clone());
         }
+    }
+    if !unhandled.is_empty() {
+        eng.world_mut()
+            .insert_one(entity, crate::scene_toml::Unhandled(unhandled))?;
     }
     if let Some(script) = &node.script {
         if script.source().is_empty() {
@@ -893,7 +994,8 @@ fn build_instance(
     outcome
 }
 
-/// Apply this node's `overrides` to the instance it just built.
+/// Apply this node's `overrides` to the instance it just built, answering
+/// the ones whose path names nothing inside it.
 ///
 /// A path that no longer names anything is reported and kept: the prefab may
 /// have moved a node, and dropping the edit would lose work the file still
@@ -905,13 +1007,15 @@ fn apply_overrides(
     entity: Entity,
     handlers: &[(String, SceneKeyHandler)],
     build: &mut Build,
-) {
+) -> toml::Table {
+    let mut unmatched = toml::Table::new();
     for (path, table) in &node.overrides {
         let Some(target) = scene::find_node(&eng.world(), entity, path) else {
             tracing::warn!(
                 "override '{path}' on node '{}' names nothing inside the instance",
                 node.name
             );
+            unmatched.insert(path.clone(), table.clone());
             continue;
         };
         let Some(table) = table.as_table() else {
@@ -955,6 +1059,7 @@ fn apply_overrides(
             }
         }
     }
+    unmatched
 }
 
 /// Retune a prefab node's script from the instance that named it: the
@@ -1156,7 +1261,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
     out
 }
 
-fn slug(name: &str) -> String {
+pub(crate) fn slug(name: &str) -> String {
     let mut s = String::from("n_");
     let mut last_underscore = true;
     for c in name.chars() {

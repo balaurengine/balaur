@@ -2,7 +2,7 @@
 // take turns on it, and whichever is up fills it through the Editor. What is
 // typed runs the field's own handler first, then the rows follow it.
 
-pub struct Picker {
+pub class Picker {
     node: Node,
     editor: Node,
 }

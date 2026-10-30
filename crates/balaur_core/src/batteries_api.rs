@@ -90,6 +90,28 @@ pub(crate) fn assets_directory(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Str(crate::assets::directory(eng, text(args, 0)?)))
 }
 
+/// Which importer kind a file belongs to by its extension: `texture`,
+/// `audio`, `font` or `model`, or empty for a file none claims.
+pub(crate) fn assets_kind_of(_: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::text(
+        crate::import::kind_of(text(args, 0)?).unwrap_or_default(),
+    ))
+}
+
+/// The properties a record asset type holds, in the order it writes them;
+/// nil for a type that is not a record.
+pub(crate) fn assets_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let Some(schema) = crate::assets::schema(eng, text(args, 0)?) else {
+        return Ok(Value::Nil);
+    };
+    Ok(Value::Map(
+        schema
+            .ordered()
+            .map(|(name, spec)| Ok((name.into(), crate::node_api::from_toml(spec)?)))
+            .collect::<Result<_>>()?,
+    ))
+}
+
 /// The three writers a script has. They emit through `tracing`, so a scripted
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
 /// which is what makes `log.recent` able to show both.

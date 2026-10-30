@@ -2,7 +2,7 @@
 // playhead or the room moved, and it hands back the scrubber, the key verbs
 // and a clip asked for. A key's own dot seeks to it.
 
-pub struct Timeline {
+pub class Timeline {
     node: Node,
     editor: Node,
 }
@@ -37,6 +37,8 @@ impl Timeline {
         let name = node.name();
         if name == "Scrub" && event == "change" {
             self.editor.call("timeline_seek", value);
+        } else if (name == "Length" || name == "Loop") && event == "change" {
+            self.editor.call("timeline_clip", name, value);
         } else if event == "click" && (name == "AddKey" || name == "DeleteKey" || name == "Create") {
             self.editor.call("timeline_verb", name);
         } else if event == "click" {

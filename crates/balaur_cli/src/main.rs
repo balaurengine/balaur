@@ -74,6 +74,10 @@ enum Command {
         /// node an empty project has. `--template list` names them.
         #[arg(long)]
         template: Option<String>,
+        /// The page a template with one is sized to, in pixels, and the
+        /// window the project opens at: `page` frames a picture of this size.
+        #[arg(long, value_name = "WIDTHxHEIGHT")]
+        size: Option<String>,
     },
     /// Add another project as a dependency: `owner/name` on Forge, fetched
     /// into `deps/<alias>/` and pinned in `project.lock`, or a project folder
@@ -471,6 +475,10 @@ fn import(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
 
 /// Each subcommand, to the one function that runs it.
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm a subcommand, each a call to the function that runs it"
+)]
 fn dispatch(command: Command) -> Result<()> {
     match command {
         Command::Api => api_dump::dump_api(),
@@ -480,7 +488,14 @@ fn dispatch(command: Command) -> Result<()> {
             project,
             layers,
         } => import(&file, &project, &layers),
-        Command::New { path, template } => new_project::create(&path, template.as_deref()),
+        Command::New {
+            path,
+            template,
+            size,
+        } => {
+            let page = size.as_deref().map(size_of).transpose()?;
+            new_project::create(&path, template.as_deref(), page)
+        }
         Command::Add {
             source,
             alias,
@@ -978,9 +993,11 @@ fn pretend_touchscreen(app: &balaur_core::App) {
 /// default where nothing asked. A size the shell cannot draw in is the
 /// caller's to choose: the point of the flag is to see what it does.
 fn offscreen_size(asked: Option<&str>) -> Result<(u32, u32)> {
-    let Some(text) = asked else {
-        return Ok(OFFSCREEN_SIZE);
-    };
+    asked.map_or(Ok(OFFSCREEN_SIZE), size_of)
+}
+
+/// `WIDTHxHEIGHT`, as every `--size` takes it.
+fn size_of(text: &str) -> Result<(u32, u32)> {
     let (wide, tall) = text
         .split_once(['x', 'X'])
         .ok_or_else(|| anyhow::anyhow!("--size wants WIDTHxHEIGHT, as in 390x844: got {text}"))?;

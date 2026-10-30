@@ -1,6 +1,6 @@
 // A path lookup every frame, which is the lazy way to reach another node.
 
-pub struct FindNode {
+pub class FindNode {
     node: Node,
     found: bool,
 }

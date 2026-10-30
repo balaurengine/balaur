@@ -5,7 +5,7 @@
 use crate::doc_types::{self, Cx, optional, schema_ty, split_top, tuple};
 use balaur_bs::{HostApi, HostSignature, Literal, Ty};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BoundFn, FnDoc, OwnedFn, RecordDoc, Value};
+use balaur_script::{Bindings, BoundFn, FnDoc, RecordDoc, TypedFn, Value};
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -15,7 +15,7 @@ pub(crate) type Structs = BTreeMap<String, Vec<(String, Ty)>>;
 
 pub(crate) enum Call {
     Raw(Rc<BoundFn<Engine>>),
-    Owned(Rc<OwnedFn<Engine>>),
+    Typed(Rc<TypedFn<Engine>>),
 }
 
 #[derive(Default)]
@@ -56,8 +56,8 @@ impl Registry {
             .and_then(|m| m.get(name))
             .ok_or_else(|| anyhow::anyhow!("no `{module}::{name}`"))?;
         match &entry.call {
-            Some(Call::Raw(f)) => Ok(Call::Raw(f.clone())),
-            Some(Call::Owned(f)) => Ok(Call::Owned(f.clone())),
+            Some(Call::Raw(func)) => Ok(Call::Raw(func.clone())),
+            Some(Call::Typed(func)) => Ok(Call::Typed(func.clone())),
             None => anyhow::bail!("`{module}::{name}` has no function"),
         }
     }
@@ -136,11 +136,11 @@ impl Module {
 }
 
 impl Bindings<Engine> for Module {
-    fn function_raw(&mut self, name: &str, f: BoundFn<Engine>) {
-        self.entry(name, |e| e.call = Some(Call::Raw(Rc::new(f))));
+    fn function_raw(&mut self, name: &str, func: BoundFn<Engine>) {
+        self.entry(name, |entry| entry.call = Some(Call::Raw(Rc::new(func))));
     }
-    fn function_owned(&mut self, name: &str, f: OwnedFn<Engine>) {
-        self.entry(name, |e| e.call = Some(Call::Owned(Rc::new(f))));
+    fn function_typed(&mut self, name: &str, func: TypedFn<Engine>) {
+        self.entry(name, |entry| entry.call = Some(Call::Typed(Rc::new(func))));
     }
     fn constant(&mut self, name: &str, value: Value) {
         let key = format!("{}::{name}", self.name);

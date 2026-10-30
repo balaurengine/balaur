@@ -22,6 +22,7 @@ mod batch_3d;
 mod boolean;
 mod camera;
 mod config;
+pub mod debug_draw;
 mod debug_view;
 mod draw_2d;
 mod instancing;
@@ -349,7 +350,7 @@ pub struct Renderable3d {
     pub layers: u32,
     /// Which cameras draw this node, by the same rule against a `camera3d`'s.
     pub render_layers: u32,
-    /// The wireframe, vertices and node flags beside the surface.
+    /// The segmentation id and whether shadows land on it.
     pub overlay: overlay::Overlay3d,
     /// Bumped when `shape` changes so backends know to rebuild their node.
     pub version: u64,
@@ -513,10 +514,6 @@ pub struct Renderable2d {
     /// The scale a sprite's size was derived at. Kept so `get` reports it and
     /// a patch of anything else does not re-derive the quad at the default.
     pub pixels_per_unit: f32,
-    /// The blend, wireframe, vertices and culling beside the surface.
-    pub overlay: overlay::Overlay2d,
-    /// A normal map and its shading, which draw it with `LitMaterial2d`.
-    pub lit: Option<lit_2d::Lit2d>,
     pub version: u64,
 }
 
@@ -535,8 +532,6 @@ impl Renderable2d {
             material: String::new(),
             sized: false,
             pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
-            overlay: overlay::Overlay2d::default(),
-            lit: None,
             version: 0,
         }
     }
@@ -653,12 +648,7 @@ pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::
         .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
-    let mask = |key: &str| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(u32::MAX, |v| v as i64 as u32)
-    };
+    let mask = |key: &str| balaur_core::layers::bits(params.get(key), true);
     let world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.shadows = shadows;
@@ -666,20 +656,6 @@ pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::
         r.render_layers = mask(crate::vocabulary::keys::RENDER_LAYERS);
         r.overlay = overlay::overlay_3d(params);
     }
-}
-
-/// The 2D overlay keys a drawable offers, onto the renderable it just gained.
-pub(crate) fn overlay_from_params(
-    eng: &Engine,
-    entity: Entity,
-    params: &toml::Value,
-) -> Result<()> {
-    let next = overlay::overlay_2d(params)?;
-    let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
-        r.overlay = next;
-    }
-    Ok(())
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
@@ -973,7 +949,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(retained::RetainedDraws::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(camera::CurrentCameras::default());
+        reg.insert_resource(camera::HeldCameras::default());
         reg.insert_resource(PostConfig::default());
+        reg.insert_resource(post::EffectsRead::default());
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot3d::default());
         reg.insert_resource(stats::Stats::default());
@@ -1033,6 +1011,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         particles::register_particles_component(reg);
         particles_3d::register_particles_3d_component(reg);
         notifier::register_notifier_component(reg);
+        debug_draw::register_debug_draw_component(reg);
+        post::register_camera_effects_asset(reg);
         reg.insert_resource(particles::Bursts::default());
         reg.add_system(Stage::FixedUpdate, particles::burst_system);
         // SceneSync, and after the core propagation system registered at

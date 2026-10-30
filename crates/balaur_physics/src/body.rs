@@ -20,76 +20,103 @@ use crate::query::overlaps_value;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use crate::{PhysicsState3d, node_pose};
 
-/// The schema `body3d` and `body2d` share, minus the dimension-shaped
-/// properties each adds for itself. One text, so a property cannot mean two
+/// The rows a dimension writes for itself, each set placed where the
+/// inspector shows it among the shared ones.
+pub(crate) struct OwnBodyRows {
+    /// Ungrouped and first: how physics drives the node.
+    pub(crate) primary: String,
+    /// The `mass` rows shaped by the dimension: centre and inertia.
+    pub(crate) mass: String,
+    /// The axes the body may not move or turn along.
+    pub(crate) locks: String,
+    /// The velocities the body is made with.
+    pub(crate) start: String,
+    /// Solver rows only one dimension has.
+    pub(crate) solver: String,
+}
+
+/// A body's schema in either dimension: the rows `own` holds among the
+/// shared ones. One text for the shared, so a property cannot mean two
 /// things in two dimensions.
-pub(crate) fn shared_body_schema() -> String {
-    v::schema(&[
-        (
-            k::LINEAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it", group = "damping" }"#,
-        ),
-        (
-            k::ANGULAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping", group = "damping" }"#,
-        ),
-        (
-            k::GRAVITY_SCALE,
-            r#"{ type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }"#,
-        ),
-        (
-            k::MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The body's total mass; 0 sums what its colliders weigh", group = "mass" }"#,
-        ),
-        (
-            k::DOMINANCE,
-            r#"{ type = "int", default = 0, min = -128, max = 127, description = "A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group", group = "solver" }"#,
-        ),
-        (
-            k::SOLVER_ITERATIONS,
-            r#"{ type = "int", default = 0, min = 0, description = "Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them", group = "solver" }"#,
-        ),
-        (
-            k::INTERNAL_ITERATIONS,
-            r#"{ type = "int", default = 0, min = 0, description = "Extra Gauss-Seidel iterations inside each substep for the island this body is in; the island runs the largest any of its bodies asks", group = "solver" }"#,
-        ),
-        (
-            k::CONTINUOUS_COLLISION,
-            r#"{ type = "bool", default = false, description = "Also sweep moving bodies: a fast dynamic body sweeps static colliders without this, and this adds kinematic and dynamic ones", group = "fast motion" }"#,
-        ),
-        (
-            k::SPECULATIVE_DISTANCE,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies", group = "fast motion" }"#,
-        ),
-        (
-            k::ALLOW_FAST_ROTATION,
-            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it", group = "fast motion" }"#,
-        ),
-        (
-            k::CAN_SLEEP,
-            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still", group = "sleep" }"#,
-        ),
-        (
-            k::TIME_TO_SLEEP,
-            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps", group = "sleep" }"#,
-        ),
-        (
-            k::SLEEP_THRESHOLD,
-            r#"{ type = "float", default = 0.05, min = 0.0, description = "The speed of the body's farthest point below which it counts as still, in length units per second scaled by [physics] length_unit", group = "sleep" }"#,
-        ),
-        (
-            k::SLEEP_ANGULAR_THRESHOLD,
-            r#"{ type = "float", default = 0.5, min = 0.0, unit = "degrees", description = "The spin below which a body with no collider counts as still; radians per second in the file", group = "sleep" }"#,
-        ),
-        (
-            k::START_ASLEEP,
-            r#"{ type = "bool", default = false, description = "Make the body asleep, with no velocity, until something wakes it; read once, when the body is made", group = "sleep" }"#,
-        ),
-        (
+pub(crate) fn shared_body_schema(own: &OwnBodyRows) -> String {
+    [
+        own.primary.as_str(),
+        &v::schema(&[
+                (
             k::ENABLED,
             r#"{ type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }"#,
         ),
-    ])
+                (
+            k::GRAVITY_SCALE,
+            r#"{ type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }"#,
+        ),
+                (
+            k::MASS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The body's total mass; 0 sums what its colliders weigh", group = "mass" }"#,
+        ),
+            ]),
+        &own.mass,
+        &v::schema(&[
+                (
+            k::LINEAR_DAMPING,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it", group = "damping" }"#,
+        ),
+                (
+            k::ANGULAR_DAMPING,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping", group = "damping" }"#,
+        ),
+            ]),
+        &own.locks,
+        &own.start,
+        &v::schema(&[
+                (
+            k::CONTINUOUS_COLLISION,
+            r#"{ type = "bool", default = false, description = "Also sweep moving bodies: a fast dynamic body sweeps static colliders without this, and this adds kinematic and dynamic ones", group = "fast motion" }"#,
+        ),
+                (
+            k::SPECULATIVE_DISTANCE,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies", group = "fast motion" }"#,
+        ),
+                (
+            k::ALLOW_FAST_ROTATION,
+            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it", group = "fast motion" }"#,
+        ),
+                (
+            k::CAN_SLEEP,
+            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still", group = "sleep" }"#,
+        ),
+                (
+            k::START_ASLEEP,
+            r#"{ type = "bool", default = false, description = "Make the body asleep, with no velocity, until something wakes it; read once, when the body is made", group = "sleep" }"#,
+        ),
+                (
+            k::TIME_TO_SLEEP,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps", group = "sleep" }"#,
+        ),
+                (
+            k::SLEEP_THRESHOLD,
+            r#"{ type = "float", default = 0.05, min = 0.0, description = "The speed of the body's farthest point below which it counts as still, in length units per second scaled by [physics] length_unit", group = "sleep" }"#,
+        ),
+                (
+            k::SLEEP_ANGULAR_THRESHOLD,
+            r#"{ type = "float", default = 0.5, min = 0.0, unit = "degrees", description = "The spin below which a body with no collider counts as still; radians per second in the file", group = "sleep" }"#,
+        ),
+                (
+            k::DOMINANCE,
+            r#"{ type = "int", default = 0, min = -128, max = 127, description = "A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group", group = "solver" }"#,
+        ),
+                (
+            k::SOLVER_ITERATIONS,
+            r#"{ type = "int", default = 0, min = 0, description = "Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them", group = "solver" }"#,
+        ),
+                (
+            k::INTERNAL_ITERATIONS,
+            r#"{ type = "int", default = 0, min = 0, description = "Extra Gauss-Seidel iterations inside each substep for the island this body is in; the island runs the largest any of its bodies asks", group = "solver" }"#,
+        ),
+            ]),
+        &own.solver,
+    ]
+    .join("\n")
 }
 
 crate::shared::body::functions!(
@@ -1052,21 +1079,56 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let kinds = v::options(w::BODY_KINDS);
     let axes = v::options(w::LOCK_AXES);
     let default = w::DYNAMIC;
-    let schema = [
-        v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not move along" }}"#)),
-            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
-            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
-            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders' shapes scaled to the mass, about center_of_mass when that is set" }"#),
-            (k::INERTIA_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", group = "mass", description = "Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file" }"#),
-            (k::INITIAL_LINEAR_VELOCITY, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "start", description = "How fast the body travels when it is made, in units per second; a later patch does not reapply it" }"#),
-            (k::INITIAL_ANGULAR_VELOCITY, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", group = "start", description = "How fast the body spins when it is made, about each axis; radians per second in the file, and a later patch does not reapply it" }"#),
-            (k::GYROSCOPIC_FORCES, r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
+    let schema = shared_body_schema(&OwnBodyRows {
+        primary: v::schema(&[(
+            k::KIND,
+            &format!(
+                r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#
+            ),
+        )]),
+        mass: v::schema(&[
+            (
+                k::CENTER_OF_MASS,
+                r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#,
+            ),
+            (
+                k::INERTIA,
+                r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders' shapes scaled to the mass, about center_of_mass when that is set" }"#,
+            ),
+            (
+                k::INERTIA_ROTATION,
+                r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", group = "mass", description = "Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file" }"#,
+            ),
         ]),
-        shared_body_schema(),
-    ]
-    .join("\n");
+        locks: v::schema(&[
+            (
+                k::LOCK_ROTATION,
+                &format!(
+                    r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#
+                ),
+            ),
+            (
+                k::LOCK_TRANSLATION,
+                &format!(
+                    r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not move along" }}"#
+                ),
+            ),
+        ]),
+        start: v::schema(&[
+            (
+                k::INITIAL_LINEAR_VELOCITY,
+                r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "start", description = "How fast the body travels when it is made, in units per second; a later patch does not reapply it" }"#,
+            ),
+            (
+                k::INITIAL_ANGULAR_VELOCITY,
+                r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", group = "start", description = "How fast the body spins when it is made, about each axis; radians per second in the file, and a later patch does not reapply it" }"#,
+            ),
+        ]),
+        solver: v::schema(&[(
+            k::GYROSCOPIC_FORCES,
+            r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#,
+        )]),
+    });
     reg.register_component(
         c::BODY_3D,
         ComponentDef {

@@ -2,7 +2,7 @@
 // and it runs again at a quarter speed. This script's node is `always`, so
 // its `update` runs through the pause it asks for. Nothing else does.
 
-pub struct Driver {
+pub class Driver {
     pub shot: str = "",
     pub frames: str = "",
     node: Node,
@@ -60,7 +60,7 @@ fn drop_box(parent: Node, n: int) {
     box.set_component("collider2d", map()
         .with("kind", "rectangle")
         .with("size", [0.68, 0.68])
-        .with("restitution", 0.3));
+        .with("physics_material", map().with("restitution", 0.3)));
     box.set_component("shape2d", map()
         .with("kind", "rectangle")
         .with("size", [0.68, 0.68])

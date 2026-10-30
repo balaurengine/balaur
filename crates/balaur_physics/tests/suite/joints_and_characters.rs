@@ -15,11 +15,11 @@ pub(crate) fn run(scene: &str, script: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -52,7 +52,7 @@ name = "World"
 id = "n_trigger"
 name = "Trigger"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 kind = "box"
@@ -73,8 +73,8 @@ position = [0.0, 6.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub struct S { node: Node, seen: int, left: int, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, seen: int, left: int, ticks: int }
+impl Scenario {
     pub fn on_collision_enter(collision: any) { self.seen += 1; }
     pub fn on_collision_exit(collision: any) { self.left += 1; }
 
@@ -112,7 +112,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -127,8 +127,8 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
@@ -156,7 +156,7 @@ id = "n_floor"
 name = "Floor"
 parent = "n_world"
 body3d = { kind = "static" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 kind = "box"
@@ -176,8 +176,8 @@ position = [0.0, 3.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub struct S { node: Node, hits: int, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, hits: int, ticks: int }
+impl Scenario {
     pub fn on_contact_force(contact: any) {
         if contact.get("force").as_float() > 0.0 && contact.get("other").as_node().name() == "Crate" {
             self.hits += 1;
@@ -218,7 +218,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -234,8 +234,8 @@ axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 break_force = 0.001
 "#,
-        r#"pub struct S { node: Node, broke: int, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, broke: int, ticks: int }
+impl Scenario {
     pub fn on_joint_break(broke: any) {
         let a = broke.get("a").as_node().name();
         let b = broke.get("b").as_node().name();
@@ -279,7 +279,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -299,8 +299,8 @@ connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
@@ -337,7 +337,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -356,8 +356,8 @@ kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0]
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
@@ -386,7 +386,7 @@ id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -410,8 +410,8 @@ body3d = { kind = "static" }
 kind = "sphere"
 radius = 0.2
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
@@ -450,7 +450,7 @@ size = [1.0, 8.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 kind = "capsule"
@@ -460,8 +460,8 @@ height = 1.0
 [nodes.character3d]
 floor_snap_length = 0.0
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character3d.move_character(0.1, 0.0, 0.05);
@@ -589,7 +589,7 @@ size = [16.0, 1.0, 16.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [0.0, 1.0, 0.0]
@@ -601,8 +601,8 @@ height = 1.0
 
 [nodes.character3d]
 "#,
-        r#"pub struct S { node: Node, ticks: int, parked: float, grounded: bool }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int, parked: float, grounded: bool }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks < 40 {
@@ -638,7 +638,7 @@ fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 rotation_euler = [0.0, 0.0, 1.5707963]
@@ -651,8 +651,8 @@ size = [2.0, 0.1]
 floor_snap_length = 0.0
 step_height = 0.0
 "#,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character2d.move_character(0.0, 0.0);
@@ -695,7 +695,7 @@ id = "n_faller"
 name = "Faller"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [0.0, -8.0, 0.0]
@@ -704,8 +704,8 @@ position = [0.0, -8.0, 0.0]
 kind = "sphere"
 radius = 0.5
 "#,
-        r#"pub struct S { node: Node, ticks: int, seen: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int, seen: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {

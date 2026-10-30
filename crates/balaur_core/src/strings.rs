@@ -65,9 +65,9 @@ pub struct Strings {
     fallback: smol_str::SmolStr,
     /// Locale name to its catalogue, read once and kept.
     loaded: RefCell<BTreeMap<String, Catalogue>>,
-    /// Where the catalogues are read from, when that is not the project root.
-    /// See [`set_root`].
-    root: Option<std::path::PathBuf>,
+    /// The content root `loaded` was read under, so a new one is read again
+    /// rather than answered from the last project's catalogues.
+    read_under: Option<std::path::PathBuf>,
     ready: bool,
 }
 
@@ -143,7 +143,7 @@ fn language_of(locale: &str) -> &str {
 /// than an error: a game may ship one language ahead of the rest.
 fn read(eng: &Engine, locale: &str) -> Catalogue {
     let path = format!("strings/{locale}.toml");
-    let root = eng.resource::<Strings>().borrow().root.clone();
+    let root = crate::project::content_root(eng);
     let read = match &root {
         Some(root) => crate::files::backend(eng)
             .read(&root.join(&path))
@@ -208,32 +208,28 @@ pub fn set_locale(eng: &Engine, locale: &str) {
     eng.resource::<Strings>().borrow_mut().current = locale.into();
 }
 
-/// Read the catalogues from `root` instead of the project root, and forget
-/// the ones already read.
-///
-/// For a host running a project other than its own: the editor's project root
-/// is the editor's, so without this every `text_key` in a played scene draws
-/// as its own key. An empty `root` puts it back on the project.
-pub fn set_root(eng: &Engine, root: &str) {
+/// Forget the catalogues read under another content root: the editor opening
+/// a game reads the game's `strings/`, not the editor's, which has none.
+fn follow_content_root(eng: &Engine) {
     let strings = eng.resource::<Strings>();
-    let mut strings = strings.borrow_mut();
-    strings.root = if root.is_empty() {
-        None
-    } else {
-        Some(std::path::PathBuf::from(root))
+    let moved = {
+        let held = strings.borrow();
+        match eng.try_resource::<crate::project::ContentRoot>() {
+            Some(root) => held.read_under.as_ref() != Some(&root.borrow().0),
+            None => held.read_under.is_some(),
+        }
     };
-    strings.loaded.borrow_mut().clear();
+    if moved {
+        let mut held = strings.borrow_mut();
+        held.read_under = crate::project::content_root(eng);
+        held.loaded.borrow_mut().clear();
+    }
 }
 
 /// Every locale the project ships a file for, in name order.
 pub fn locales(eng: &Engine) -> Vec<String> {
     let mut out = Vec::new();
-    let root = {
-        let strings = eng.resource::<Strings>();
-        let strings = strings.borrow();
-        strings.root.clone()
-    }
-    .unwrap_or_else(|| {
+    let root = crate::project::content_root(eng).unwrap_or_else(|| {
         eng.try_resource::<crate::project::ProjectRoot>()
             .map(|r| r.borrow().0.clone())
             .unwrap_or_default()
@@ -278,6 +274,7 @@ pub fn tr(eng: &Engine, key: &str, args: &[(String, balaur_script::Value)]) -> S
 
 /// One locale's answer for a key, if it has one.
 fn lookup(eng: &Engine, locale: &str, key: &str, count: Option<i64>) -> Option<String> {
+    follow_content_root(eng);
     // Read outside every borrow: a catalogue comes from the pack or the disk,
     // and that path reaches the script host.
     let missing = {

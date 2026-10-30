@@ -134,7 +134,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
     if wake && let Some(body) = state.world.bodies.get_mut(handle) {
         body.wake_up(true);
     }
-    let mask = v::layer_bits(&params, k::COLLISION_MASK, true);
+    let mask = balaur_core::layers::bits(params.get(k::COLLISION_MASK), true);
     let ignore = v::bits(
         &params,
         k::IGNORE,
@@ -423,7 +423,7 @@ fn axis_of(word: &str) -> (usize, Real) {
 
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     let axes = v::options(w::AXES);
-    let layers = v::layer_options();
+    let layers = balaur_core::layers::options();
     let ignores = v::options(w::IGNORES);
     reg.register_component(
         c::VEHICLE_3D,
@@ -434,10 +434,10 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
                 &v::schema(&[
-                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up, either way along it" }}"#, w::Y)),
                     (k::FORWARD_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points forward, either way along it: a negative axis drives and steers the other way round, and reads speed the other way" }}"#, w::Z)),
-                    (k::COLLISION_MASK, &format!(r#"{{ type = "flags", default = [], options = [{layers}], description = "The collision layers the wheels' rays hit; empty hits every layer" }}"#)),
-                    (k::IGNORE, &format!(r#"{{ type = "flags", default = ["{}"], options = [{ignores}], description = "What the wheels' rays pass through: static takes colliders with no body too. The chassis's own body is never hit" }}"#, w::SENSORS)),
+                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up, either way along it" }}"#, w::Y)),
+                    (k::COLLISION_MASK, &format!(r#"{{ type = "flags", default = [], options = [{layers}], description = "The collision layers the wheels' rays hit; empty hits every layer", group = "filtering" }}"#)),
+                    (k::IGNORE, &format!(r#"{{ type = "flags", default = ["{}"], options = [{ignores}], description = "What the wheels' rays pass through: static takes colliders with no body too. The chassis's own body is never hit", group = "filtering" }}"#, w::SENSORS)),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
@@ -469,16 +469,16 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
                 c::WHEEL_3D,
                 &v::schema(&[
                     (k::RADIUS, r#"{ type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }"#),
-                    (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
-                    (k::SUSPENSION_DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
                     (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
-                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness, scaled by the chassis's mass: higher is a stiffer, twitchier car" }"#),
-                    (k::DAMPING_COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
-                    (k::DAMPING_RELAXATION, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
-                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move either side of its rest length" }"#),
                     (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
                     (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
-                    (k::SUSPENSION_MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
+                    (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it", group = "suspension" }"#),
+                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness, scaled by the chassis's mass: higher is a stiffer, twitchier car", group = "suspension" }"#),
+                    (k::DAMPING_COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed", group = "suspension" }"#),
+                    (k::DAMPING_RELAXATION, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back", group = "suspension" }"#),
+                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move either side of its rest length", group = "suspension" }"#),
+                    (k::SUSPENSION_MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with", group = "suspension" }"#),
+                    (k::SUSPENSION_DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down", group = "suspension" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

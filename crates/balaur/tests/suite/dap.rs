@@ -11,7 +11,7 @@ use serde_json::{Value as Json, json};
 
 /// Line 6 has no code on it, so a breakpoint asked for there lands on 7.
 /// Line 8 calls out, for stepping into.
-const SCRIPT: &str = "pub struct Runner { node: Node, n: int, ran: int }
+const SCRIPT: &str = "pub class Runner { node: Node, n: int, ran: int }
 impl Runner {
     fn init() { self.n = 0; }
     fn update(dt: float) {
@@ -30,15 +30,15 @@ fn project(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.bs\" }\n",
+        "[[nodes]]\nid = \"runner\"\nname = \"Runner\"\nscript = { source = \"scripts/runner.bs\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("runner.bs"), SCRIPT).unwrap();
 }
 
 fn app_in(dir: &std::path::Path) -> App {
@@ -47,7 +47,7 @@ fn app_in(dir: &std::path::Path) -> App {
 
 fn script_path(dir: &std::path::Path) -> String {
     dir.join("scripts")
-        .join("s.bs")
+        .join("runner.bs")
         .to_string_lossy()
         .into_owned()
 }
@@ -264,7 +264,7 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let top = trace["stackFrames"][0].clone();
     assert_eq!(top["name"], json!("Runner.update"));
     assert_eq!(top["line"], json!(7));
-    assert_eq!(top["source"]["name"], json!("s.bs"));
+    assert_eq!(top["source"]["name"], json!("runner.bs"));
     assert!(
         std::path::Path::new(top["source"]["path"].as_str().unwrap()).is_absolute(),
         "the client must be able to open the file"
@@ -438,7 +438,7 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
         app.engine
             .script_host()
             .unwrap()
-            .breakpoints("scripts/s.bs")
+            .breakpoints("scripts/runner.bs")
             .is_empty(),
         "a debugger that walks away leaves nothing behind"
     );

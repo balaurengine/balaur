@@ -2,7 +2,7 @@
 // a word. The scene is the document, so the chips step back until the
 // pointer comes for them, the way a canvas tool's context bar does.
 
-pub struct Chips {
+pub class Chips {
     node: Node,
     editor: Node,
     near: bool,

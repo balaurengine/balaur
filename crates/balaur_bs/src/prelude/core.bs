@@ -1,0 +1,5 @@
+// The engine's vectors and colours, as every program sees them.
+
+pub struct Vec2 { x: float, y: float }
+pub struct Vec3 { x: float, y: float, z: float }
+pub struct Color { r: float, g: float, b: float, a: float }

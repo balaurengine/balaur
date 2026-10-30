@@ -77,7 +77,6 @@ pub(crate) mod keys {
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KNOB_COLOR: &str = "knob_color";
     pub(crate) const KNOB_RADIUS: &str = "knob_radius";
-    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const PRESSED_COLOR: &str = "pressed_color";
     pub(crate) const RADIUS: &str = "radius";
     pub(crate) const RECENTER: &str = "recenter";

@@ -129,7 +129,8 @@ pub struct Style {
     /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
     pub cursor: Option<String>,
     pub font_size: Option<f32>,
-    /// Which of the theme's families, by the names `font_family` offers.
+    /// The font, a token of the theme's `[fonts]` already read as the font
+    /// it names. Unset on a resolved style is the theme's default font.
     pub font: Option<String>,
     /// Weight on the CSS scale; a role's `strong = true` is 700.
     pub weight: Option<f32>,
@@ -280,13 +281,15 @@ impl Style {
 }
 
 /// A parsed theme: a style per widget kind, the same per named role, and the
-/// colour tokens both spell their fills with.
+/// colour, size and font tokens both spell theirs with.
 #[derive(Default)]
 pub struct WidgetTheme {
     kinds: BTreeMap<String, Style>,
     roles: BTreeMap<String, Style>,
     colors: BTreeMap<String, Color32>,
     sizes: BTreeMap<String, f32>,
+    /// `[fonts]`: a font by the name a kind or a role writes for it.
+    fonts: BTreeMap<String, String>,
     /// `resolved` remembered: a kind and a role name the same style for as
     /// long as the theme lives, and working it out walked two maps and cloned
     /// a style for every widget on the screen, every frame.
@@ -331,13 +334,23 @@ impl WidgetTheme {
             return Rc::clone(held);
         }
         let base = self.style(kind);
-        let settled = match self.roles.get(role) {
+        let mut settled = match self.roles.get(role) {
             Some(style) => style.over(&base),
             None => base,
         };
+        if settled.font.is_none() {
+            settled.font = self.fonts.get(t::FONT_DEFAULT).cloned();
+        }
         let made = Rc::new(in_classes(&settled, &active));
         self.settled.borrow_mut().insert(key, Rc::clone(&made));
         made
+    }
+
+    /// The font `[fonts]` names `name`; empty where it names none, which is
+    /// the project's default.
+    #[must_use]
+    pub fn font(&self, name: &str) -> &str {
+        self.fonts.get(name).map_or("", String::as_str)
     }
 
     /// A size by name: the theme's, or the one every theme derives when it
@@ -405,7 +418,16 @@ fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) ->
 
 /// The tables that name something other than a widget kind.
 fn is_reserved(key: &str) -> bool {
-    [k::TYPE, k::DARK, k::COLORS, k::ROLES, k::SIZES, k::BASE].contains(&key)
+    [
+        k::TYPE,
+        k::DARK,
+        k::COLORS,
+        k::ROLES,
+        k::SIZES,
+        k::FONTS,
+        k::BASE,
+    ]
+    .contains(&key)
 }
 
 // The class words in force, and a number that changes when they do, so the
@@ -508,11 +530,12 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
-/// The colours and sizes a theme's tables name, resolved from its `[colors]`
-/// and `[sizes]`.
+/// The colours, sizes and fonts a theme's tables name, resolved from its
+/// `[colors]`, `[sizes]` and `[fonts]`.
 pub(crate) struct Tokens {
     pub(crate) colors: BTreeMap<String, Color32>,
     pub(crate) sizes: BTreeMap<String, f32>,
+    pub(crate) fonts: BTreeMap<String, String>,
 }
 
 /// One `[kind]` or `[roles.name]` table as a style, with its state tables
@@ -561,10 +584,14 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .filter(|word| !word.is_empty())
             .map(str::to_string),
         font_size: number(k::FONT_SIZE),
-        font: body
-            .get(k::FONT_FAMILY)
-            .and_then(toml::Value::as_str)
-            .map(str::to_string),
+        // A font is written as one, or as the name of one `[fonts]` states.
+        font: body.get(k::FONT).and_then(toml::Value::as_str).map(|font| {
+            tokens
+                .fonts
+                .get(font)
+                .cloned()
+                .unwrap_or_else(|| font.to_string())
+        }),
         weight: number(k::FONT_WEIGHT),
         height: number(k::HEIGHT),
         width: number(k::WIDTH),
@@ -656,9 +683,20 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         })
         .unwrap_or_default();
     theme.sizes.clone_from(&sizes);
+    theme.fonts = table
+        .get(k::FONTS)
+        .and_then(toml::Value::as_table)
+        .map(|fonts| {
+            fonts
+                .iter()
+                .filter_map(|(name, v)| Some((name.clone(), v.as_str()?.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
     let tokens = Tokens {
         colors: theme.colors.clone(),
         sizes,
+        fonts: theme.fonts.clone(),
     };
     for (kind, body) in table {
         if is_reserved(kind) {
@@ -696,7 +734,7 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
 }
 
 /// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
+pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]`, `[sizes]` and `[fonts]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
 
 ```toml
 type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
@@ -718,6 +756,10 @@ tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
 font_size = 16                   # font_size_small, font_size_large and font_size_title follow
 radius = 6                       # radius_small and radius_large follow
 
+[fonts]                          # fonts by name; `default` is every text naming none, `icon` the glyphs
+default = "fonts/Inter-Regular.ttf"  # a widget draws beside its caption, `heading` and `mono` egui's own
+heading = "fonts/Inter-Semibold.ttf"
+
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "primary_fill"
 stroke = "border_default"
@@ -728,7 +770,7 @@ gap = 4.0
 font_size = "font_size_large"
 text_color = "text_on_primary"
 icon_color = "text_on_primary"
-font_family = "ui"               # ui, heading, mono or icon
+font = "heading"                 # a name [fonts] gives a font, or a font itself
 font_weight = 700
 text_align = "center"            # start, center or end
 cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
@@ -946,13 +988,11 @@ pub(crate) fn text_align_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str
     }
 }
 
-/// The theme family a widget draws in: the one it names, else its role's,
-/// else `ui`. The shaper needs the name as well as the face.
-pub(crate) fn family_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
-    // Unset is empty before the schema's default lands and `ui` after it, and
-    // both mean the same: whatever the role or the kind asked for.
-    if widget.font.is_empty() || widget.font == w::UI {
-        style.font.as_deref().unwrap_or(w::UI)
+/// The font a widget draws in: the one it names, else its role's or its
+/// kind's, else the theme's default; empty is the project's default.
+pub(crate) fn font_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
+    if widget.font.is_empty() {
+        style.font.as_deref().unwrap_or("")
     } else {
         widget.font.as_str()
     }
@@ -961,9 +1001,14 @@ pub(crate) fn family_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
 /// The ink and the face a widget draws its caption in.
 ///
 /// A property left at its default is the widget saying nothing, so the theme
-/// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
-/// and a weight of 400 each take what the role or the kind carries.
-pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Color32, egui::FontId) {
+/// answers: a transparent `text_color`, a `font_size` of 0, no `font` and a
+/// weight of 400 each take what the role or the kind carries. `project` is
+/// whose faces it draws in.
+pub(crate) fn face(
+    theme: &WidgetTheme,
+    style: &Style,
+    (widget, project): (&Widget, balaur_text::FontProject),
+) -> (Color32, egui::FontId) {
     // The theme's own text colour last, not a constant: a widget with no role
     // drew in near-white, which is invisible on a light theme.
     let ink = if widget.text_color[3] > 0.0 {
@@ -980,7 +1025,8 @@ pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Colo
         style.font_size.unwrap_or_else(|| theme.size(t::FONT_SIZE))
     };
     let family = crate::theme::weighted(
-        family_of(style, widget),
+        project,
+        font_of(style, widget),
         weight_of(style, widget),
         widget.font_style == w::ITALIC,
     );
@@ -988,13 +1034,32 @@ pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Colo
 }
 
 /// Whether egui slants a widget's text itself: it asks for italic, and the
-/// project ships no italic face for its family and weight.
-pub(crate) fn slanted(style: &Style, widget: &Widget) -> bool {
+/// project ships no italic face for its font and weight.
+pub(crate) fn slanted(
+    style: &Style,
+    (widget, project): (&Widget, balaur_text::FontProject),
+) -> bool {
     crate::theme::slanted(
-        family_of(style, widget),
+        project,
+        font_of(style, widget),
         weight_of(style, widget),
         widget.font_style == w::ITALIC,
     )
+}
+
+/// The family a theme's icons draw in: its `[fonts]` `icon`, else its
+/// default.
+pub(crate) fn icon_family(
+    theme: &WidgetTheme,
+    project: balaur_text::FontProject,
+) -> egui::FontFamily {
+    let icon = theme.font(t::FONT_ICON);
+    let font = if icon.is_empty() {
+        theme.font(t::FONT_DEFAULT)
+    } else {
+        icon
+    };
+    crate::theme::weighted(project, font, 400.0, false)
 }
 
 /// A caption as egui draws it, in `font` and slanted where [`slanted`] says.

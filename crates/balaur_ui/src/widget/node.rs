@@ -182,8 +182,9 @@ pub struct Widget {
     /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the
     /// font's own line height. Separate from `height`, which is the widget's.
     pub row_height: f32,
-    /// Which of the theme's families the widget draws in: `ui`, `mono`,
-    /// `heading` or `icon`.
+    /// The font its text draws in: a face file, a `font` asset, or the key an
+    /// inline definition was filed under. Empty takes the role's, the kind's,
+    /// then the theme's default.
     pub font: SmolStr,
     /// Whether a `checkbox` is ticked, or a `toggle` button held down.
     pub checked: bool,
@@ -192,7 +193,7 @@ pub struct Widget {
     /// The name a `checkbox` shares with the checks it is exclusive with: ticking
     /// one unticks the rest, and a ticked one clicked again stays ticked.
     /// Empty leaves the check on its own, flipping with every click.
-    pub group: SmolStr,
+    pub radio_group: SmolStr,
     /// Where a `slider` or `progress_bar` stands, between `min` and `max`.
     pub value: f32,
     pub min: f32,
@@ -365,10 +366,8 @@ pub(crate) struct Inspecting {
     pub(crate) component: SmolStr,
     /// How wide the label column is, in design pixels.
     pub(crate) label_width: f32,
-    /// The folder a file's path is shown from, and the spellings shown in
-    /// place of a value, each `value` then U+001F then `shown`.
+    /// The folder a file's path is shown from.
     pub(crate) relative_to: SmolStr,
-    pub(crate) aliases: Vec<SmolStr>,
 }
 
 /// The options the egui widget behind each kind takes: one struct for every

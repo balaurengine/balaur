@@ -140,19 +140,23 @@ pub(crate) mod words {
     pub(crate) const MASK: &str = "mask";
     pub(crate) const BLEND: &str = "blend";
     pub(crate) const PREMULTIPLIED: &str = "premultiplied";
-    /// How a surface's alpha is read: ignored, a cutout, a blend, or a blend
-    /// of a colour that already carries its alpha.
-    pub(crate) const ALPHA_MODES: &[&str] = &[OPAQUE, MASK, BLEND, PREMULTIPLIED];
-
     pub(crate) const AUTO: &str = "auto";
-    pub(crate) const ALPHA: &str = "alpha";
     pub(crate) const ADD: &str = "add";
     pub(crate) const MULTIPLY: &str = "multiply";
     pub(crate) const SCREEN: &str = "screen";
-    /// How a 2D surface lands on what is under it: kiss3d's `Blend2d`, and
-    /// `auto`, which follows the texture's `premultiply`.
-    pub(crate) const BLEND_MODES: &[&str] =
-        &[AUTO, ALPHA, PREMULTIPLIED, ADD, MULTIPLY, SCREEN, OPAQUE];
+    /// How a surface's alpha is read: as its dimension draws one by default,
+    /// ignored, a cutout, a blend, a blend of a colour that already carries
+    /// its alpha, or one of the 2D blends that light, shade or screen.
+    pub(crate) const ALPHA_MODES: &[&str] = &[
+        AUTO,
+        OPAQUE,
+        MASK,
+        BLEND,
+        PREMULTIPLIED,
+        ADD,
+        MULTIPLY,
+        SCREEN,
+    ];
 
     pub(crate) const WORLD: &str = "world";
     /// Whether a wireframe's or a vertex's size is in world units or pixels.
@@ -196,22 +200,6 @@ pub(crate) mod words {
     /// Upright, an italic face, or the upright face slanted.
     pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 
-    /// How wide a face is picked, narrowest first: CSS's nine.
-    pub(crate) const FONT_STRETCHES: &[&str] = &[
-        "ultra_condensed",
-        "extra_condensed",
-        "condensed",
-        "semi_condensed",
-        NORMAL,
-        "semi_expanded",
-        "expanded",
-        "extra_expanded",
-        "ultra_expanded",
-    ];
-    pub(crate) const SINGLE: &str = "single";
-    pub(crate) const DOUBLE: &str = "double";
-    /// The lines an underline draws.
-    pub(crate) const UNDERLINES: &[&str] = &[NONE, SINGLE, DOUBLE];
     pub(crate) const WORD_OR_GLYPH: &str = "word_or_glyph";
     pub(crate) const WORD: &str = "word";
     pub(crate) const GLYPH: &str = "glyph";
@@ -219,14 +207,6 @@ pub(crate) mod words {
     pub(crate) const LINE_BREAKS: &[&str] = &[WORD_OR_GLYPH, WORD, GLYPH];
     /// Which part of a cut line the ellipsis stands in for.
     pub(crate) const TRUNCATE_ATS: &[&str] = &[END, START, MIDDLE];
-    pub(crate) const COMPLEX: &str = "complex";
-    pub(crate) const SIMPLE: &str = "simple";
-    /// The shaper's two strategies.
-    pub(crate) const SHAPINGS: &[&str] = &[COMPLEX, SIMPLE];
-    pub(crate) const ON: &str = "on";
-    pub(crate) const OFF: &str = "off";
-    /// Whether glyphs are hinted: `auto` takes the face's import setting.
-    pub(crate) const HINTINGS: &[&str] = &[AUTO, ON, OFF];
 
     pub(crate) const PERSPECTIVE_PROJECTION: &str = "perspective";
     pub(crate) const ORTHOGRAPHIC_PROJECTION: &str = "orthographic";
@@ -298,11 +278,9 @@ pub(crate) mod keys {
     /// A primitive's keys are the mesher's, so a schema line here and the
     /// reader there cannot drift apart.
     pub(crate) const AMBIENT_COLOR: &str = "ambient_color";
-    pub(crate) const BITMAP_FONT: &str = "bitmap_font";
     pub(crate) const CAST_SHADOW: &str = "cast_shadow";
     pub(crate) const CORNER_RADIUS: &str = p::CORNER_RADIUS;
     pub(crate) const FOG_MODE: &str = "fog_mode";
-    pub(crate) const FONT_FAMILY: &str = "font_family";
     pub(crate) const IMAGE_ROTATION_DEGREES: &str = "image_rotation_degrees";
     pub(crate) const INNER_ANGLE_DEGREES: &str = "inner_angle_degrees";
     pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
@@ -424,6 +402,8 @@ pub(crate) mod keys {
     pub(crate) const FALLOFF: &str = "falloff";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
+    pub(crate) const FONT: &str = "font";
+    pub(crate) const TEXT_STYLE: &str = "text_style";
     pub(crate) const FONT_SIZE: &str = "font_size";
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
@@ -432,7 +412,6 @@ pub(crate) mod keys {
     pub(crate) const GRADIENT_STEPS: &str = "gradient_steps";
     pub(crate) const GRAVITY: &str = "gravity";
     pub(crate) const HEIGHT: &str = p::HEIGHT;
-    pub(crate) const NORMAL_MAP: &str = "normal_map";
     pub(crate) const SPECULAR_STRENGTH: &str = "specular_strength";
     pub(crate) const SHININESS: &str = "shininess";
     pub(crate) const NORMAL_STRENGTH: &str = "normal_strength";
@@ -442,29 +421,13 @@ pub(crate) mod keys {
     pub(crate) const MIRROR: &str = "mirror";
     pub(crate) const JOIN: &str = "join";
     pub(crate) const KIND: &str = p::KIND;
-    pub(crate) const LETTER_SPACING: &str = "letter_spacing";
-    pub(crate) const FONT_STRETCH: &str = "font_stretch";
-    pub(crate) const FONT_NAME: &str = "font_name";
-    pub(crate) const FONT_FEATURES: &str = "font_features";
-    pub(crate) const UNDERLINE: &str = "underline";
-    pub(crate) const UNDERLINE_COLOR: &str = "underline_color";
-    pub(crate) const STRIKETHROUGH: &str = "strikethrough";
-    pub(crate) const STRIKETHROUGH_COLOR: &str = "strikethrough_color";
-    pub(crate) const OVERLINE: &str = "overline";
-    pub(crate) const OVERLINE_COLOR: &str = "overline_color";
     pub(crate) const LINE_BREAK: &str = "line_break";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const TRUNCATE_AT: &str = "truncate_at";
     pub(crate) const MAX_LINES: &str = "max_lines";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
-    pub(crate) const SHAPING: &str = "shaping";
-    pub(crate) const SNAP_ADVANCES: &str = "snap_advances";
-    pub(crate) const HINTING: &str = "hinting";
-    pub(crate) const PIXEL_SNAP: &str = "pixel_snap";
-    pub(crate) const MONOSPACE_WIDTH: &str = "monospace_width";
     pub(crate) const TAB_WIDTH: &str = "tab_width";
     pub(crate) const LIFETIME: &str = "lifetime";
-    pub(crate) const LINE_HEIGHT: &str = "line_height";
     pub(crate) const LOOK_AT: &str = "look_at";
     pub(crate) const MATERIAL: &str = "material";
     pub(crate) const MARKUP: &str = "markup";
@@ -473,11 +436,13 @@ pub(crate) mod keys {
     pub(crate) const MITER_LIMIT: &str = "miter_limit";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ONE_SHOT: &str = "one_shot";
-    pub(crate) const OUTLINE_COLOR: &str = "outline_color";
-    pub(crate) const OUTLINE_SIZE: &str = "outline_size";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const PLATE: &str = "plate";
     pub(crate) const POST: &str = "post";
+    /// A camera's row naming the effects its frame resolves through.
+    pub(crate) const EFFECTS: &str = "effects";
+    /// The asset type a camera's `effects` row names.
+    pub(crate) const CAMERA_EFFECTS: &str = "camera_effects";
     pub(crate) const RADIUS: &str = p::RADIUS;
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
@@ -498,11 +463,6 @@ pub(crate) mod keys {
     pub(crate) const CONTRAST: &str = "contrast";
     pub(crate) const GAMMA: &str = "gamma";
     pub(crate) const SHADOW_DISTANCE: &str = "shadow_distance";
-    pub(crate) const SHADOW_COLOR: &str = "shadow_color";
-    /// A `draw_text` option, `[x, y]`; `text2d` splits it in two.
-    pub(crate) const SHADOW_OFFSET: &str = "shadow_offset";
-    pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
-    pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
     pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SIZE: &str = "size";
     pub(crate) const SIZE_END: &str = "size_end";
@@ -542,10 +502,10 @@ pub(crate) mod keys {
     pub(crate) const DOT_SIZING: &str = "dot_sizing";
     pub(crate) const DOT_COLOR: &str = "dot_color";
     pub(crate) const DRAW_SURFACE: &str = "draw_surface";
+    /// The component a node shows its geometry with, and its key.
+    pub(crate) const DEBUG_DRAW: &str = "debug_draw";
     pub(crate) const SEGMENTATION_ID: &str = "segmentation_id";
     pub(crate) const RECEIVE_SHADOWS: &str = "receive_shadows";
-    pub(crate) const BLEND_MODE: &str = "blend_mode";
-    pub(crate) const CULL_BACK_FACES: &str = "cull_back_faces";
     pub(crate) const NINE_SLICE_MARGINS_PIXELS: &str = "nine_slice_margins_pixels";
     /// An instance's 3x3, columns first, shear and all.
     pub(crate) const BASIS: &str = "basis";

@@ -1,6 +1,7 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
 > the code. §2, §3 and §4 are built. The order is bugs first, then one
-> delivery path, then the events the engine does not send yet.
+> delivery path, then the events the engine does not send yet. §5, the
+> change log, planned 2026-10-27.
 
 # Plan: events, and one way to hear each of them
 
@@ -126,7 +127,9 @@ In order of how often a game needs them.
    `pointer_enter`, `pointer_exit`, `pointer_down` and `pointer_up` with the
    button, as a world node does, and emits `double_click`, `focus` and
    `blur`; a click into a field is focus arriving. A field still submits on
-   Enter and on a click away, and only the click away is a `blur`.
+   Enter and on a click away, and only the click away is a `blur`; Escape
+   is a `blur` alone, which keeps nothing, as it is on a number. Focus a
+   script gives a field selects what it holds, so typing replaces it.
 3. **Widget commits:** built. A slider, number field and colour picker emit
    `commit` once a drag or an edit ends. A double-clicked row emits
    `activate`, and a tree caret emits `fold` with the row and whether it is
@@ -182,7 +185,46 @@ In order of how often a game needs them.
     resuming and changing language. A signal whose values differ from the
     event's, such as `item_activated`'s index, is left as the script's own.
 
-## 5. Not planned
+## 5. What a write changed
+
+Planned 2026-10-27; the engine's half built the same day
+(`balaur_core::changes`, the pump's `changed`), and the editor's on
+2026-10-28, when it came to read the live scene (PLAN-editor-as-scene §10)
+and `doc_rev` went. A snapshot restore records nothing yet. The same calls
+keep the changes under one subtree with what each replaced, for an undo
+(`scene.keep_changes`). Before it, nothing recorded what a
+write changed, so each reader guesses its own way: the editor bumps `doc_rev`
+on every edit and once more the next frame (`settle_revision`,
+PLAN-editor-performance §6j), and about 25 panels redo all their work on that
+one word; networking plans a generation counter per `(entity, component)`
+(PLAN-networking step 9). One fact, two mechanisms, neither saying what moved.
+
+- **The write path records it.** The one way a component changes,
+  `components::add`, `patch` and a property write by index
+  (PLAN-property-types §5), appends `(node, component, property)` to the
+  frame's change log when the value differs. Adding, freeing, renaming and
+  reparenting a node append a structural entry; so does what a snapshot
+  restore changed.
+- **One batch a frame.** At the top of `Update` the log goes out as one
+  `changed` event, delivered as an emitted event is (§1), then is cleared,
+  one entry for each node and component however often it was written. It is
+  kept only while someone listens, so a game nobody inspects pays one flag
+  test per write; the first frame a listener hears is the one after it
+  subscribed. A listener reads the entries it cares about: the editor's tree
+  the structure and names, its inspector the selected node, a renderer its
+  own component, networking what it replicates.
+- **Heard under a node.** `events::listen(listener, "changed", root)` hears
+  the entries under `root` alone, said from it: the editor listens from the
+  scene it edits and does not hear its own widgets. A component newly put on
+  a node is `attached`, apart from one written, so a reader of structure
+  tells the two apart.
+- **One source for the tree's events.** §4.4's `child_added`, `renamed` and
+  the rest are sent from the same entries, and stay silent on a load or a
+  restore as now.
+- **What goes**: `doc_rev`, `settle_revision` and the editor's `told`
+  guards; networking's generation counter.
+
+## 6. Not planned
 
 - **Upload progress in a browser:** `fetch` reports no upload, so a web
   build hears only the reply.

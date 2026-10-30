@@ -69,6 +69,11 @@ pub struct AssetType {
     /// What a definition table holds, for the generated reference. Markdown,
     /// one paragraph and a TOML example.
     pub doc: &'static str,
+    /// The properties a definition holds, for an asset that is a record of
+    /// settings rather than a file format: a definition has its defaults
+    /// filled in and its keys checked against it before `parse` sees it, as
+    /// a component's table is before `apply`, and an Inspector draws it.
+    pub schema: Option<Rc<crate::components::Schema>>,
 }
 
 /// Asset parsers, appended during plugin build and read-only afterwards:
@@ -88,6 +93,21 @@ impl AssetTypeRegistry {
     pub fn names(&self) -> Vec<String> {
         self.0.iter().map(|(n, _)| n.clone()).collect()
     }
+
+    /// The properties a record asset holds; `None` for any other type.
+    pub fn schema(&self, type_name: &str) -> Option<Rc<crate::components::Schema>> {
+        self.0
+            .iter()
+            .find(|(n, _)| n == type_name)
+            .and_then(|(_, t)| t.schema.clone())
+    }
+}
+
+/// The properties a record asset of `type_name` holds; `None` for a type
+/// that is not a record, or that nothing registered.
+pub fn schema(eng: &Engine, type_name: &str) -> Option<Rc<crate::components::Schema>> {
+    eng.try_resource::<AssetTypeRegistry>()
+        .and_then(|registry| registry.borrow().schema(type_name))
 }
 
 /// Where files of `type_name` belong, or empty when it declares no directory.
@@ -334,6 +354,70 @@ pub fn load_typed<T: 'static>(eng: &Engine, reference: &str) -> Result<Rc<T>> {
     })
 }
 
+/// The record asset a component's row names, typed: the file or the inline
+/// definition it names, or the type at its defaults where the row is empty.
+///
+/// A table a script handed over is recorded here as the component path
+/// records one, so a row reads the same however it was written; the empty
+/// row is the empty definition, which the schema fills in.
+pub fn record<T: 'static>(
+    eng: &Engine,
+    row: Option<&toml::Value>,
+    type_name: &str,
+) -> Result<Rc<T>> {
+    let reference = match row {
+        Some(toml::Value::String(named)) if !named.trim().is_empty() => named.clone(),
+        Some(table @ toml::Value::Table(_)) => {
+            define_inline(eng, type_name, table.clone())?.to_string()
+        }
+        _ => define_inline(eng, type_name, toml::Value::Table(toml::map::Map::new()))?.to_string(),
+    };
+    load_typed(eng, &reference)
+}
+
+/// The type a font definition declares.
+pub const FONT_ASSET_TYPE: &str = "font";
+
+/// The type a text style definition declares.
+pub const TEXT_STYLE_ASSET_TYPE: &str = "text_style";
+
+/// The row a text names its style in, in `group`: the one spelling
+/// `text2d`, `text3d` and a widget all take.
+#[must_use]
+pub fn text_style_row_spec(group: &str) -> String {
+    format!(
+        r#"{{ type = "asset", asset = "{TEXT_STYLE_ASSET_TYPE}", default = "", description = "How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain", group = "{group}" }}"#
+    )
+}
+
+/// The row a text names its font in, in `group`: the one spelling `text2d`,
+/// `text3d` and a widget all take.
+#[must_use]
+pub fn font_row_spec(group: &str) -> String {
+    format!(
+        r#"{{ type = "asset", asset = "{FONT_ASSET_TYPE}", default = "", description = "The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font", group = "{group}" }}"#
+    )
+}
+
+/// The key naming the file a texture or a font reads.
+pub const SOURCE: &str = "source";
+
+/// The asset a file of another format is of itself, as its definition: an
+/// image is a texture and a face a font, so a property of either type takes
+/// a plain path. `None` for a file that is a definition document.
+#[must_use]
+pub fn file_definition(path: &str) -> Option<(&'static str, toml::Value)> {
+    let type_name = match crate::import::kind_of(path)? {
+        crate::import::kinds::TEXTURE => crate::texture_asset::TEXTURE_ASSET_TYPE,
+        crate::import::kinds::FONT => FONT_ASSET_TYPE,
+        _ => return None,
+    };
+    let mut table = toml::Table::new();
+    table.insert("type".into(), toml::Value::String(type_name.into()));
+    table.insert(SOURCE.into(), toml::Value::String(path.to_string()));
+    Some((type_name, toml::Value::Table(table)))
+}
+
 /// A private copy: parsed fresh, never cached, never shared. Godot's
 /// `duplicate()`.
 pub fn duplicate(eng: &Engine, reference: &str) -> Result<Rc<dyn Any>> {
@@ -432,11 +516,22 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
     // it: an absolute path written into a game does not survive another machine.
     let mut definition = definition.clone();
     if let Some(owner) = crate::document_paths::owner_of(eng, &full) {
-        crate::document_paths::relative_in(&owner, &mut definition);
+        crate::document_paths::relative_in(eng, &owner, &mut definition);
     }
-    let text =
-        toml::to_string_pretty(&definition).with_context(|| format!("encoding '{reference}'"))?;
-    crate::files::backend(eng)
+    let backend = crate::files::backend(eng);
+    // A file a person wrote keeps its comments and its order: only the keys
+    // that changed are written, over the text that was there.
+    let existing = backend
+        .read(&full)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok());
+    let text = match (existing, definition.as_table()) {
+        (Some(existing), Some(table)) => crate::file_api::rewritten(&existing, table)
+            .with_context(|| format!("encoding '{reference}'"))?,
+        _ => toml::to_string_pretty(&definition)
+            .with_context(|| format!("encoding '{reference}'"))?,
+    };
+    backend
         .write(&full, text.as_bytes())
         .with_context(|| format!("writing {}", full.display()))?;
     reload(eng, reference)
@@ -520,22 +615,24 @@ fn cached_definition(eng: &Engine, key: &AssetRef, reference: &str) -> Result<De
 
 fn read_definition(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Definition> {
     match key {
-        // An image is a texture of itself, so a texture property takes a plain
-        // path; it is read to prove it is there, not parsed.
-        AssetRef::File(path) if crate::texture_asset::image_definition(path).is_some() => {
-            let body = crate::texture_asset::image_definition(path)
-                .unwrap_or_else(|| toml::Value::Table(toml::Table::new()));
+        // An image is a texture of itself and a face a font, so a property of
+        // either takes a plain path; the file is read to prove it is there,
+        // not parsed.
+        AssetRef::File(path) if file_definition(path).is_some() => {
+            let Some((type_name, body)) = file_definition(path) else {
+                return Err(anyhow!("asset reference '{reference}' names no asset"));
+            };
             let files = eng.try_resource::<crate::project::ProjectFiles>();
             if let Some(files) = files
                 && files.borrow().mtime(path).is_none()
                 && files.borrow().read(path).is_err()
             {
                 return Err(anyhow!(
-                    "asset reference '{reference}': no image at '{path}'"
+                    "asset reference '{reference}': no {type_name} at '{path}'"
                 ));
             }
             Ok(Definition {
-                type_name: Some(crate::texture_asset::TEXTURE_ASSET_TYPE.to_string()),
+                type_name: Some(type_name.to_string()),
                 body,
             })
         }
@@ -636,6 +733,14 @@ fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {
     let registry = eng
         .try_resource::<AssetTypeRegistry>()
         .ok_or_else(|| anyhow!("the asset type registry is missing"))?;
+    // Filled in before the registry is borrowed for the parser: a record's
+    // own asset rows resolve through the cache, which may parse.
+    let schema = registry.borrow().schema(&type_name);
+    let body = match schema {
+        Some(schema) => record_body(eng, &schema, &type_name, &definition.body)
+            .with_context(|| format!("parsing asset '{reference}'"))?,
+        None => definition.body,
+    };
     let registry = registry.borrow();
     let parser = registry.parser(&type_name).ok_or_else(|| {
         anyhow!(
@@ -643,7 +748,27 @@ fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {
             registry.names().join(", ")
         )
     })?;
-    parser(&definition.body).with_context(|| format!("parsing asset '{reference}'"))
+    parser(&body).with_context(|| format!("parsing asset '{reference}'"))
+}
+
+/// A record asset's definition as its parser takes it: every property it
+/// leaves out at its default, its own asset rows resolved, and a key its
+/// schema does not declare refused by name.
+fn record_body(
+    eng: &Engine,
+    schema: &crate::components::Schema,
+    type_name: &str,
+    body: &toml::Value,
+) -> Result<toml::Value> {
+    let mut own = body.as_table().cloned().unwrap_or_default();
+    own.remove("type");
+    if let Some(unknown) = own.keys().find(|key| schema.get(key.as_str()).is_none()) {
+        anyhow::bail!(
+            "`{unknown}` is not a property of a {type_name}, which has {}",
+            schema.order().join(", ")
+        );
+    }
+    crate::components::properties(eng, schema, Some(&toml::Value::Table(own)))
 }
 
 pub(crate) const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;

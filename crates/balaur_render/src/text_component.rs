@@ -17,6 +17,8 @@ use crate::world_text::{Align, TextRenderable, TextStyle};
 
 /// Write the component, keeping the version so the backend rebuilds.
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
+    // Not a property: where the node sits says whose faces it draws in.
+    next.style.in_content = balaur_core::project::in_content(eng, entity);
     let world = eng.world_mut();
     if let Ok(current) = world.get::<&TextRenderable>(entity) {
         if *current == next {
@@ -34,48 +36,26 @@ pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -
 fn shared_schema() -> Vec<(&'static str, String)> {
     vec![
         (k::TEXT, r#"{ type = "string", default = "", description = "The text drawn; `text_key` wins over it" }"#.into()),
-        (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A key in the project's strings, re-read every frame so a language change shows at once" }"#.into()),
-        (k::FONT_SIZE, r#"{ type = "float", default = 32.0, min = 1.0, description = "Height in font pixels, before pixels_per_unit sizes it in the world" }"#.into()),
-        (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold" }"#.into()),
-        (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright, the family's italic face, or the upright face slanted; a family with no italic is slanted either way" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
+        (k::FONT_SIZE, r#"{ type = "float", default = 32.0, min = 1.0, description = "Height in font pixels, before pixels_per_unit sizes it in the world" }"#.into()),
         (k::TEXT_ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin, and its lines within it: start and end follow the text's direction, left and right do not, justify stretches every full line" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
-        (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
-        (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
-        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
-        (k::LINE_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Baseline to baseline as a multiple of the size; zero takes the default" }"#.into()),
-        (k::LETTER_SPACING, r#"{ type = "float", default = 0.0, description = "Extra space between glyphs, in font pixels" }"#.into()),
-        (k::FONT_FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icon"], description = "Which of the project's font chains to shape with" }"#.into()),
-        (k::BITMAP_FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
-        (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
-        (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
-        (k::SHADOW_OFFSET_X, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along x; zero with y draws none" }"#.into()),
-        (k::SHADOW_OFFSET_Y, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along y" }"#.into()),
-        (k::SHADOW_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.5], description = "The shadow's colour" }"#.into()),
-        (k::ALPHA_CUTOFF, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Drop a pixel fainter than this and draw the rest opaque, as a material's `[surface] alpha_cutoff` does; zero blends every pixel" }"#.into()),
-        (k::MATERIAL, format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. On `text2d` a material replaces `alpha_cutoff`" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+        (k::MATERIAL, format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. Its `[surface]` says whether the glyphs are cut out (`alpha = \"mask\"`), which sides of a `text3d` draw and whether the scene hides it" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+        (k::FONT, balaur_core::assets::font_row_spec("font")),
+        (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold", group = "font" }"#.into()),
+        (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright, the family's italic face, or the upright face slanted; a family with no italic is slanted either way", group = "font" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
+        (k::TEXT_STYLE, balaur_core::assets::text_style_row_spec("font")),
+        (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A key in the project's strings, re-read every frame so a language change shows at once", group = "text" }"#.into()),
+        (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images", group = "text" }"#.into()),
+        (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line", group = "text" }"#.into()),
+        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized", group = "placement" }"#.into()),
     ]
     .into_iter()
     .chain(crate::world_text::Shaping::schema())
     .collect()
 }
 
-/// One colour key's channels, defaulting per channel: a decoration names two
-/// colours, and neither is the node's `color`.
-fn color_at(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
-    let channel = |i: usize| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback[i], |v| v as f32)
-    };
-    [channel(0), channel(1), channel(2), channel(3)]
-}
-
 /// One component's parameters read back into a renderable.
-fn from_params(params: &toml::Value, in_3d: bool) -> Result<TextRenderable> {
+fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
     let text = |key: &str| {
         params
             .get(key)
@@ -95,26 +75,14 @@ fn from_params(params: &toml::Value, in_3d: bool) -> Result<TextRenderable> {
             .and_then(toml::Value::as_bool)
             .unwrap_or(fallback)
     };
-    // -1, every layer, is how a scene spells an all-ones mask.
-    let mask = |key: &str| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(u32::MAX, |v| v as i64 as u32)
-    };
+    let mask = |key: &str| balaur_core::layers::bits(params.get(key), true);
     let max_width = number(k::MAX_WIDTH, 0.0);
-    let (overlay_3d, overlay_2d) = if in_3d {
-        (
-            crate::overlay::overlay_3d(params),
-            crate::overlay::Overlay2d::default(),
-        )
+    let overlay_3d = if in_3d {
+        crate::overlay::overlay_3d(params)
     } else {
-        (
-            crate::overlay::Overlay3d::default(),
-            crate::overlay::overlay_2d(params)?,
-        )
+        crate::overlay::Overlay3d::default()
     };
-    Ok(TextRenderable {
+    TextRenderable {
         text: text(k::TEXT),
         text_key: text(k::TEXT_KEY),
         style: TextStyle {
@@ -124,28 +92,18 @@ fn from_params(params: &toml::Value, in_3d: bool) -> Result<TextRenderable> {
             align: Align::of(&text(k::TEXT_ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
-            font: text(k::BITMAP_FONT),
-            family: text(k::FONT_FAMILY),
-            line_height: number(k::LINE_HEIGHT, 0.0).max(0.0),
-            letter_spacing: number(k::LETTER_SPACING, 0.0),
-            alpha_cutoff: number(k::ALPHA_CUTOFF, 0.0).clamp(0.0, 1.0),
+            font: text(k::FONT),
+            text_style: text(k::TEXT_STYLE),
+            in_content: false,
+            // A component's cutoff is its material's `[surface]`, read as
+            // the block is drawn; this one is the immediate API's.
+            alpha_cutoff: 0.0,
             shaping: crate::world_text::Shaping::from_params(params),
-            decoration: crate::world_text::Decoration {
-                outline_size: number(k::OUTLINE_SIZE, 0.0).max(0.0),
-                outline_color: color_at(params, k::OUTLINE_COLOR, [0.0, 0.0, 0.0, 1.0]),
-                shadow_offset: [
-                    number(k::SHADOW_OFFSET_X, 0.0),
-                    number(k::SHADOW_OFFSET_Y, 0.0),
-                ],
-                shadow_color: color_at(params, k::SHADOW_COLOR, [0.0, 0.0, 0.0, 0.5]),
-            },
         },
         pixels_per_unit: number(k::PIXELS_PER_UNIT, 100.0).max(0.01),
         in_3d,
         in_space: crate::world_text::SpaceOptions {
             billboard: flag(k::BILLBOARD, true),
-            double_sided: flag(k::DOUBLE_SIDED, true),
-            depth_test: flag(k::DEPTH_TEST, true),
             layers: crate::world_text::Layers3d {
                 cast_shadow: flag(k::CAST_SHADOW, true),
                 light_layers: mask(k::LIGHT_LAYERS),
@@ -154,9 +112,8 @@ fn from_params(params: &toml::Value, in_3d: bool) -> Result<TextRenderable> {
         },
         material: text(k::MATERIAL),
         overlay_3d,
-        overlay_2d,
         version: 0,
-    })
+    }
 }
 
 /// A renderable back into the table a scene file would have written.
@@ -182,43 +139,10 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
-    put(k::BITMAP_FONT, toml::Value::String(text.style.font.clone()));
+    put(k::FONT, toml::Value::String(text.style.font.clone()));
     put(
-        k::FONT_FAMILY,
-        toml::Value::String(text.style.family.clone()),
-    );
-    put(
-        k::LINE_HEIGHT,
-        toml::Value::Float(f64::from(text.style.line_height)),
-    );
-    put(
-        k::LETTER_SPACING,
-        toml::Value::Float(f64::from(text.style.letter_spacing)),
-    );
-    let decoration = text.style.decoration;
-    put(
-        k::OUTLINE_SIZE,
-        toml::Value::Float(f64::from(decoration.outline_size)),
-    );
-    put(
-        k::OUTLINE_COLOR,
-        crate::color_to_toml(decoration.outline_color),
-    );
-    put(
-        k::SHADOW_OFFSET_X,
-        toml::Value::Float(f64::from(decoration.shadow_offset[0])),
-    );
-    put(
-        k::SHADOW_OFFSET_Y,
-        toml::Value::Float(f64::from(decoration.shadow_offset[1])),
-    );
-    put(
-        k::SHADOW_COLOR,
-        crate::color_to_toml(decoration.shadow_color),
-    );
-    put(
-        k::ALPHA_CUTOFF,
-        toml::Value::Float(f64::from(text.style.alpha_cutoff)),
+        k::TEXT_STYLE,
+        toml::Value::String(text.style.text_style.clone()),
     );
     put(
         k::PIXELS_PER_UNIT,
@@ -227,19 +151,13 @@ fn to_params(text: &TextRenderable) -> toml::Value {
     put(k::MATERIAL, toml::Value::String(text.material.clone()));
     if text.in_3d {
         put(k::BILLBOARD, toml::Value::Boolean(text.in_space.billboard));
-        put(
-            k::DOUBLE_SIDED,
-            toml::Value::Boolean(text.in_space.double_sided),
-        );
 
         let layers = text.in_space.layers;
         put(k::CAST_SHADOW, toml::Value::Boolean(layers.cast_shadow));
-        let mask = |bits: u32| toml::Value::Integer(i64::from(bits.cast_signed()));
+        let mask = |bits: u32| balaur_core::layers::names(bits);
         put(k::LIGHT_LAYERS, mask(layers.light_layers));
         put(k::RENDER_LAYERS, mask(layers.render_layers));
-        crate::overlay::overlay_3d_to_map(&text.overlay_3d, &mut out);
-    } else {
-        crate::overlay::overlay_2d_to_map(&text.overlay_2d, &mut out);
+        crate::overlay::overlay_3d_to_map(text.overlay_3d, &mut out);
     }
     text.style.shaping.put_into(&mut out);
     toml::Value::Table(out)
@@ -247,9 +165,7 @@ fn to_params(text: &TextRenderable) -> toml::Value {
 
 /// `text2d`: a block of text in the 2D pass, sized like a sprite.
 pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
-    let mut schema = shared_schema();
-    schema.extend(crate::overlay::schema_2d(crate::overlay::Drawn::Text2d));
-    schema.sort_by(|a, b| a.0.cmp(b.0));
+    let schema = shared_schema();
     let lines: Vec<(&str, &str)> = schema.iter().map(|(k, v)| (*k, v.as_str())).collect();
     reg.register_component(
         "text2d",
@@ -264,7 +180,7 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                set_text(eng, entity, from_params(params, false)?)
+                set_text(eng, entity, from_params(params, false))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -284,12 +200,10 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
 pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
     let mut schema = shared_schema();
     schema.push((k::BILLBOARD, r#"{ type = "bool", default = true, description = "Turn to face the camera every frame; off leaves it in the node's own plane" }"#.into()));
-    schema.push((k::DOUBLE_SIDED, r#"{ type = "bool", default = true, description = "Draw the back of the quad as well as the front" }"#.into()));
-    schema.push((k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether it casts a shadow from the lights that cast. With `alpha_cutoff` above zero the shadow keeps the glyphs' shapes; at zero each glyph shadows as its whole quad" }"#.into()));
-    schema.push((k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#.into()));
-    schema.push((k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#.into()));
-    schema.extend(crate::overlay::schema_3d(crate::overlay::Drawn::Text3d));
-    schema.sort_by(|a, b| a.0.cmp(b.0));
+    schema.push((k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether it casts a shadow from the lights that cast. Through a material whose surface cuts the glyphs out, the shadow keeps their shapes; otherwise each glyph shadows as its whole quad", group = "shadows" }"#.into()));
+    schema.push((k::RENDER_LAYERS, balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")));
+    schema.push((k::LIGHT_LAYERS, balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")));
+    schema.extend(crate::overlay::schema_3d());
     let lines: Vec<(&str, &str)> = schema.iter().map(|(k, v)| (*k, v.as_str())).collect();
     reg.register_component(
         "text3d",
@@ -304,7 +218,7 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                set_text(eng, entity, from_params(params, true)?)
+                set_text(eng, entity, from_params(params, true))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -324,6 +238,14 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
 /// that changes every frame without rewriting the whole component.
 pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
+}
+
+/// The box a node's text was last laid out in, in its own space: what
+/// `render.bounds` answers for a text, so it is picked like anything drawn.
+/// The backend writes it when the block is shaped; a headless run has none.
+pub(crate) struct LaidText {
+    pub centre: glamx::Vec3,
+    pub half: glamx::Vec3,
 }
 
 /// One node's mesh and what it was built from.
@@ -348,6 +270,9 @@ pub(crate) struct TextSlot {
     /// The node's inherited material when this was built; a change rebuilds
     /// a block that names none of its own.
     inherited: balaur_core::scene::MaterialId,
+    /// The asset generation it was built under: a saved font or style file
+    /// rebuilds a block naming one.
+    assets: u64,
 }
 
 /// The two material caches a block's layers draw through, 2D and 3D.
@@ -398,13 +323,12 @@ pub(crate) fn sync_text(
     // upload covers the lot.
     let mut blocks = Vec::with_capacity(wanted.len());
     for (entity, text, resolved, raster, _) in &wanted {
-        match crate::world_text::shape_at(&app.engine, resolved, &text.style, *raster) {
-            Ok(block) => blocks.push(Some(block)),
-            Err(err) => {
-                crate::world_text::report_once(&err);
-                blocks.push(None);
-            }
-        }
+        blocks.push(Some(crate::world_text::shape_at(
+            &app.engine,
+            resolved,
+            &text.style,
+            *raster,
+        )));
         let _ = entity;
     }
     let texture = crate::world_text::atlas_texture(&app.engine);
@@ -413,14 +337,27 @@ pub(crate) fn sync_text(
         if let Some(mut old) = slots.remove(&entity) {
             old.detach();
         }
+        let debug = crate::debug_draw::DebugDraw::of(&app.engine.world(), entity);
         let Some(block) = block else { continue };
         let Some(texture) = texture.clone() else {
             continue;
         };
         // Shaped at `raster`, wanted at `font_size`: the block is scaled back.
         let scale = (text.style.size / raster) / text.pixels_per_unit;
+        let (centre, half) = crate::world_text::laid_box(&block, scale, text.style.align);
+        let _ = app.engine.world_mut().insert_one(
+            entity,
+            LaidText {
+                centre: centre.extend(0.0),
+                half: half.extend(0.0),
+            },
+        );
         let (custom_2d, custom_3d) =
             materials_of(app, &text, from_parent, (materials_2d, materials_3d));
+        // Which sides draw, the cutoff and the depth test: the material's
+        // `[surface]`, text drawing both sides where it says nothing.
+        let surface =
+            crate::material::flat_surface_of(&app.engine, &material_reference(&text, from_parent));
         let mut slot = TextSlot {
             group_2d: None,
             two_d: Vec::new(),
@@ -430,11 +367,14 @@ pub(crate) fn sync_text(
             raster,
             shaped: resolved,
             inherited: from_parent,
+            assets: balaur_core::assets::generation(&app.engine),
         };
         // Shadow, outline and text: a node each, drawn in that order.
-        for (layer, (shifts, [r, g, b, a], picks)) in crate::world_text::layers(&block, &text.style)
-            .into_iter()
-            .enumerate()
+        let look = balaur_text::text_style::of(&app.engine, &text.style.text_style);
+        for (layer, (shifts, [r, g, b, a], picks)) in
+            crate::world_text::layers(&block, &text.style, &look)
+                .into_iter()
+                .enumerate()
         {
             let tint = kiss3d::color::Color::new(r, g, b, a);
             if text.in_3d {
@@ -448,15 +388,15 @@ pub(crate) fn sync_text(
                 ) {
                     let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
                     node.set_texture(texture.clone());
-                    node.enable_backface_culling(!text.in_space.double_sided);
+                    node.enable_backface_culling(!surface.double_sided_or(true));
                     node.set_color(tint);
                     let layers = text.in_space.layers;
                     node.set_casts_shadows(layers.cast_shadow)
                         .set_light_layers(layers.light_layers)
                         .set_render_layers(layers.render_layers);
-                    crate::world_text::mask_3d(&mut node, text.style.alpha_cutoff);
-                    node.set_depth_test(text.in_space.depth_test);
-                    crate::overlay::apply_3d(&mut node, &text.overlay_3d);
+                    crate::world_text::mask_3d(&mut node, surface.cutoff());
+                    node.set_depth_test(surface.depth_test);
+                    crate::overlay::apply_3d(&mut node, text.overlay_3d, &debug);
                     if let Some(material) = custom_3d.clone() {
                         node.set_material(material);
                     }
@@ -470,8 +410,8 @@ pub(crate) fn sync_text(
                 let mut node = group.add_mesh(mesh, glamx::Vec2::ONE);
                 node.set_texture(texture.clone());
                 node.set_color(tint);
-                crate::world_text::mask_2d(&mut node, text.style.alpha_cutoff);
-                crate::overlay::apply_2d(&mut node, &text.overlay_2d);
+                crate::world_text::mask_2d(&mut node, surface.cutoff());
+                crate::overlay::apply_2d(&mut node, &surface, &debug);
                 if let Some(material) = custom_2d.clone() {
                     node.set_material(material);
                 }
@@ -506,6 +446,7 @@ fn stale_blocks(
     use balaur_core::{GlobalAppearance, GlobalTransform};
 
     let world = app.engine.world();
+    let generation = balaur_core::assets::generation(&app.engine);
     let mut seen = std::collections::HashSet::new();
     let mut wanted = Vec::new();
     for (entity, text, global) in &mut world.query::<(Entity, &TextRenderable, &GlobalTransform)>()
@@ -521,12 +462,35 @@ fn stale_blocks(
                 || slot.shaped != resolved
                 || (slot.raster - raster).abs() > f32::EPSILON
                 || (text.material.is_empty() && slot.inherited != from_parent)
+                || (slot.assets != generation && names_a_file(text))
         });
         if rebuild {
             wanted.push((entity, text.clone(), resolved, raster, from_parent));
         }
     }
     (seen, wanted)
+}
+
+/// Whether a block names a font or a style kept in a file, which a save can
+/// change under it.
+#[cfg(feature = "window")]
+fn names_a_file(text: &TextRenderable) -> bool {
+    [&text.style.font, &text.style.text_style]
+        .into_iter()
+        .any(|reference| balaur_text::text_style::names_a_file(reference))
+}
+
+/// The material a block draws with: its own, else the one it inherited.
+#[cfg(feature = "window")]
+fn material_reference(
+    text: &TextRenderable,
+    from_parent: balaur_core::scene::MaterialId,
+) -> String {
+    if text.material.is_empty() {
+        from_parent.reference().to_string()
+    } else {
+        text.material.clone()
+    }
 }
 
 /// The material a block's layers draw with, its own or the one it inherited,
@@ -544,11 +508,7 @@ fn materials_of(
     Option<crate::shader_material::SharedMaterial>,
     Option<crate::shader_material_3d::Shared3d>,
 ) {
-    let reference = if text.material.is_empty() {
-        from_parent.reference().to_string()
-    } else {
-        text.material.clone()
-    };
+    let reference = material_reference(text, from_parent);
     if text.in_3d {
         (None, materials_3d.for_node(app, &reference, ""))
     } else {

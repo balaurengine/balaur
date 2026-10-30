@@ -32,7 +32,7 @@ pub struct Cam {
     fov: any,
     dpi: any,
     wpp: float,
-    m: any,
+    matrix: any,
     ray_o: [float],
     ray_d: [float],
     rect: Rect,
@@ -42,27 +42,22 @@ pub struct Cam {
 pub struct Rect {
     x: float,
     y: float,
-    w: float,
-    h: float,
-}
-
-pub struct MouseDesignPx {
-    _0: float,
-    _1: float,
+    width: float,
+    height: float,
 }
 
 pub struct Project {
-    _0: float,
-    _1: float,
+    x: float,
+    y: float,
 }
 
 pub struct ExtentsAt {
-    _0: [float],
-    _1: [float],
-    _2: [[float]],
+    centre: [float],
+    half: [float],
+    basis: [[float]],
 }
 
-pub struct Geo2 {
+pub struct Geo3d {
     center: [float],
     basis: [[float]],
     he: [float],
@@ -70,20 +65,14 @@ pub struct Geo2 {
     marker: float,
 }
 
-pub struct Pair10 {
-    _0: float,
-    _1: float,
-    _2: float,
-}
-
 pub struct Corner {
-    p: [float],
+    point: [float],
     signs: [float],
 }
 
 pub struct FaceAxes {
-    _0: int,
-    _1: int,
+    first: int,
+    second: int,
 }
 
 /// One face of the gizmo's box: the axis it faces along and which way, its
@@ -97,7 +86,7 @@ pub struct Face {
 
 /// What the pointer is over: a `ring`, a `facerect`, a `handle` or a `face`,
 /// with the index, axis and sign that kind names.
-pub struct Part2 {
+pub struct Part {
     kind: str,
     index: int?,
     axis: int?,
@@ -105,17 +94,12 @@ pub struct Part2 {
     signs: [float],
 }
 
-fn part(kind: str, index: int?, axis: int?, sign: float?) -> Part2 {
-    Part2 { kind: kind, index: index, axis: axis, sign: sign, signs: [] }
-}
-
-pub struct ScreenDir {
-    _0: Project?,
-    _1: Project?,
+fn part(kind: str, index: int?, axis: int?, sign: float?) -> Part {
+    Part { kind: kind, index: index, axis: axis, sign: sign, signs: [] }
 }
 
 /// The box-select drag, in design px, from its first point to the pointer.
-pub struct M2 {
+pub struct Marquee {
     x1: float,
     x0: float,
     y1: float,
@@ -123,8 +107,8 @@ pub struct M2 {
 }
 
 pub struct Drag {
-    part: Part2,
-    set: [selection::Entry4],
+    part: Part,
+    set: [selection::RootPose],
     pivot: [float],
     pos: [float],
     scale: [float],
@@ -142,14 +126,7 @@ pub struct Drag {
     angle0: float,
 }
 
-pub struct M3 {
-    x1: float,
-    y1: float,
-    x0: float,
-    y0: float,
-}
-
-/// The gizmo's own state, hung on `S.gizmo`.
+/// The gizmo's own state, hung on `state.gizmo`.
 pub fn state() -> GizmoState {
     // `key` and `drawn` are what the hover and the line list were last built
     // for; `marquee` is the box-select drag, from its first point to the pointer.
@@ -158,25 +135,25 @@ pub fn state() -> GizmoState {
 
 // What the hover answers to: the pointer, the camera and the gizmo's own box.
 // Comparing them is cheap; `hit_test` behind them is the frame's dearest call.
-fn hover_key(S: editor::State, cam: Cam, geo: Geo2?, mx: float, my: float) -> [any] {
-    let out: [any] = [mx, my, S.screen_w, S.screen_h, cam.dpi, cam.dist];
-    for v in cam.eye {
-        out.push(v);
+fn hover_key(state: editor::State, cam: Cam, geo: Geo3d?, mx: float, my: float) -> [any] {
+    let out: [any] = [mx, my, state.screen_w, state.screen_h, cam.dpi, cam.dist];
+    for value in cam.eye {
+        out.push(value);
     }
-    for v in cam.forward {
-        out.push(v);
+    for value in cam.forward {
+        out.push(value);
     }
     if geo.is_some() {
         let geo = geo.unwrap();
-        for v in geo.center {
-            out.push(v);
+        for value in geo.center {
+            out.push(value);
         }
-        for v in geo.he {
-            out.push(v);
+        for value in geo.he {
+            out.push(value);
         }
         for row in geo.basis {
-            for v in row {
-                out.push(v);
+            for value in row {
+                out.push(value);
             }
         }
         out.push(geo.ring);
@@ -188,50 +165,50 @@ fn hover_key(S: editor::State, cam: Cam, geo: Geo2?, mx: float, my: float) -> [a
 }
 
 // center + basis-space offset -> world point.
-fn local_point(geo: Geo2, ox: float, oy: float, oz: float) -> [float] {
-    let b = geo.basis;
+fn local_point(geo: Geo3d, ox: float, oy: float, oz: float) -> [float] {
+    let basis = geo.basis;
     [
-        geo.center[0].as_float() + b[0][0].as_float() * ox + b[1][0].as_float() * oy + b[2][0].as_float() * oz,
-        geo.center[1].as_float() + b[0][1].as_float() * ox + b[1][1].as_float() * oy + b[2][1].as_float() * oz,
-        geo.center[2].as_float() + b[0][2].as_float() * ox + b[1][2].as_float() * oy + b[2][2].as_float() * oz,
+        geo.center[0].as_float() + basis[0][0].as_float() * ox + basis[1][0].as_float() * oy + basis[2][0].as_float() * oz,
+        geo.center[1].as_float() + basis[0][1].as_float() * ox + basis[1][1].as_float() * oy + basis[2][1].as_float() * oz,
+        geo.center[2].as_float() + basis[0][2].as_float() * ox + basis[1][2].as_float() * oy + basis[2][2].as_float() * oz,
     ]
 }
 
 // The viewport rectangle in design px, as the layout last placed the stage.
-pub fn viewport_rect(S: editor::State) -> editor::Viewport {
-    S.viewport
+pub fn viewport_rect(state: editor::State) -> editor::Viewport {
+    state.viewport
 }
 
 // Camera basis + world-units-per-design-px at the target's depth. The 3D
 // scene renders across the whole window (panels overlay it), so projection
 // maps NDC to the full screen, not the visible viewport region.
-fn camera_frame(S: editor::State) -> Cam {
-    let ex_ey_ez_tx_ty_tz_fov_dpi_1 = render::camera_pose();
-    let ex = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(0);
-    let ey = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(1);
-    let ez = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(2);
-    let tx = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(3);
-    let ty = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(4);
-    let tz = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(5);
-    let fov = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(6);
-    let dpi = ex_ey_ez_tx_ty_tz_fov_dpi_1.at(7);
+fn camera_frame(state: editor::State) -> Cam {
+    let pose = render::camera_pose();
+    let ex = pose.at(0);
+    let ey = pose.at(1);
+    let ez = pose.at(2);
+    let tx = pose.at(3);
+    let ty = pose.at(4);
+    let tz = pose.at(5);
+    let fov = pose.at(6);
+    let dpi = pose.at(7);
     let eye = [ex, ey, ez];
-    let forward_dist_2 = util::vnorm(util::vsub([tx, ty, tz], eye));
-    let forward = forward_dist_2.dir;
-    let dist = forward_dist_2.len;
-    let right_3 = util::vnorm(util::vcross(forward, [0.0, 1.0, 0.0]));
-    let right = right_3.dir;
+    let heading = util::vnorm(util::vsub([tx, ty, tz], eye));
+    let forward = heading.dir;
+    let dist = heading.len;
+    let sideways = util::vnorm(util::vcross(forward, [0.0, 1.0, 0.0]));
+    let right = sideways.dir;
     let up = util::vcross(right, forward);
-    let sw = S.screen_w;
-    let sh = S.screen_h;
+    let sw = state.screen_w;
+    let sh = state.screen_h;
     let wpp = 2.0 * dist.as_float() * math::tan(fov.as_float() / 2.0) / util::max(sh, 1.0);
-    let rox_roy_roz_rdx_rdy_rdz_4 = render::mouse_ray();
-    let rox = rox_roy_roz_rdx_rdy_rdz_4.at(0);
-    let roy = rox_roy_roz_rdx_rdy_rdz_4.at(1);
-    let roz = rox_roy_roz_rdx_rdy_rdz_4.at(2);
-    let rdx = rox_roy_roz_rdx_rdy_rdz_4.at(3);
-    let rdy = rox_roy_roz_rdx_rdy_rdz_4.at(4);
-    let rdz = rox_roy_roz_rdx_rdy_rdz_4.at(5);
+    let ray = render::mouse_ray();
+    let rox = ray.at(0);
+    let roy = ray.at(1);
+    let roz = ray.at(2);
+    let rdx = ray.at(3);
+    let rdy = ray.at(4);
+    let rdz = ray.at(5);
     Cam {
         eye: eye,
         forward: forward,
@@ -242,81 +219,70 @@ fn camera_frame(S: editor::State) -> Cam {
         dpi: dpi,
         wpp: wpp,
         // The renderer's exact projection*view (column-major).
-        m: util::vec(render::camera_matrix()),
+        matrix: util::vec(render::camera_matrix()),
         ray_o: [rox, roy, roz],
         ray_d: [rdx, rdy, rdz],
-        rect: Rect { x: 0.0, y: 0.0, w: sw, h: sh },
-        vp: viewport_rect(S),
+        rect: Rect { x: 0.0, y: 0.0, width: sw, height: sh },
+        vp: viewport_rect(state),
     }
 }
 
-// Intersect the current mouse ray with a plane (point p, normal n).
-fn ray_plane(cam: Cam, p: [float], n: [float]) -> [float]? {
-    let denom = util::vdot(cam.ray_d, n);
+// Intersect the current mouse ray with a plane (a `point` on it, its `normal`).
+fn ray_plane(cam: Cam, point: [float], normal: [float]) -> [float]? {
+    let denom = util::vdot(cam.ray_d, normal);
     if util::abs(denom.as_float()) < 1e-6 {
         return nil;
     }
-    let t = util::vdot(util::vsub(p, cam.ray_o), n) / denom;
-    if t.as_float() < 0.0 {
+    let distance = util::vdot(util::vsub(point, cam.ray_o), normal) / denom;
+    if distance.as_float() < 0.0 {
         return nil;
     }
-    util::vadd(cam.ray_o, util::vscale(cam.ray_d, t.as_float()))
-}
-
-fn mouse_design_px(S: editor::State, cam: Cam) -> MouseDesignPx {
-    let mx_my_1 = input::mouse_position();
-    let mx = mx_my_1.at(0);
-    let my = mx_my_1.at(1);
-    MouseDesignPx { _0: (mx / cam.dpi).as_float() / S.ui_scale, _1: (my / cam.dpi).as_float() / S.ui_scale }
+    util::vadd(cam.ray_o, util::vscale(cam.ray_d, distance.as_float()))
 }
 
 // Project a world point to design-px screen coordinates using the
 // renderer's exact projection*view matrix (`None` if behind the camera).
-pub fn project(cam: Cam, p: [float]) -> Project? {
-    let m = cam.m;
-    let x = p[0];
-    let y = p[1];
-    let z = p[2];
-    let cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+pub fn project(cam: Cam, point: [float]) -> Project? {
+    let matrix = cam.matrix;
+    let world_x = point[0];
+    let world_y = point[1];
+    let world_z = point[2];
+    let cw = matrix[3] * world_x + matrix[7] * world_y + matrix[11] * world_z + matrix[15];
     if cw.as_float() < 1e-4 {
         return nil;
     }
-    let cx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / cw;
-    let cy = (m[1] * x + m[5] * y + m[9] * z + m[13]) / cw;
-    let r = cam.rect;
-    Project { _0: r.w * (0.5 + cx.as_float() * 0.5), _1: r.h * (0.5 - cy.as_float() * 0.5) }
+    let cx = (matrix[0] * world_x + matrix[4] * world_y + matrix[8] * world_z + matrix[12]) / cw;
+    let cy = (matrix[1] * world_x + matrix[5] * world_y + matrix[9] * world_z + matrix[13]) / cw;
+    let rect = cam.rect;
+    Project { x: rect.width * (0.5 + cx.as_float() * 0.5), y: rect.height * (0.5 - cy.as_float() * 0.5) }
 }
 
 // Selection geometry: center, padded half-extents, handle size, ring radius.
-fn geometry(S: editor::State) -> Geo2? {
-    if selection::count(S) > 1 {
-        return set_geometry(S);
+fn geometry(state: editor::State) -> Geo3d? {
+    if selection::count(state) > 1 {
+        return set_geometry(state);
     }
-    geometry_at(S, S.sel)
+    geometry_at(state, state.sel)
 }
 
 // The half-extents a row's `shape3d` or `collider3d` describes, before the
 // node's own scale. A row with neither is the default box.
-fn half_extents(node: any) -> [float] {
+fn half_extents(found: Node) -> [float] {
     let hx = 0.6;
     let hy = 0.6;
     let hz = 0.6;
-    let matched1 = node.get("shape3d");
-    let shape = if !matched1.is_nil() {
-        let shape = matched1;
-        shape
+    let shape = if found.has_component("shape3d") {
+        found.get_component("shape3d")
     } else {
-        node.get("collider3d")
+        found.get_component("collider3d")
     };
-    let shape_some = shape;
-    if !shape_some.is_nil() {
-        let shape = shape_some;
+    if !shape.is_nil() {
         if shape.kind() == "map" {
             if shape.has("radius") && shape.get("kind") == render::SHAPE_SPHERE {
-                let r = util::f(shape.get("radius"));
-                hx = r;
-                hy = r;
-                hz = r;
+                let radius = shape.get("radius").as_float();
+                hx = radius;
+                hy = radius;
+                hz = radius;
             } else {
                 let size = shape.get("size");
                 if !size.is_nil() {
@@ -337,32 +303,32 @@ fn half_extents(node: any) -> [float] {
 // One row's box before the handle padding: its world centre, its half-extents
 // along its own axes, and those axes. The engine's own bounds first: an
 // authored `size` says nothing about a mesh, nor a body a solver deforms.
-pub fn extents_at(S: editor::State, i: int) -> ExtentsAt? {
-    let found = model::live(S, i);
+pub fn extents_at(state: editor::State, row: int) -> ExtentsAt? {
+    let found = model::node(state, row);
     if !found.is_valid() {
         return nil;
     }
-    let s = found.transform.global_scale();
+    let scale = found.transform.global_scale();
     let at = util::xyz(found.transform.global_position());
     let basis = util::basis_from_euler(util::xyz(found.transform.global_rotation_euler()));
     let drawn = render::bounds(found);
     if drawn.is_some() && drawn.unwrap().len() == 2 {
-        let c = drawn.unwrap()[0];
+        let box_centre = drawn.unwrap()[0];
         let he = drawn.unwrap()[1];
         // The box is in the node's own space, so its centre turns with it.
-        let off = [c.x * s.x, c.y * s.y, c.z * s.z];
+        let off = [box_centre.x * scale.x, box_centre.y * scale.y, box_centre.z * scale.z];
         let centre = util::vadd(at, along(basis, off));
-        return ExtentsAt { _0: centre, _1: [he.x * s.x, he.y * s.y, he.z * s.z], _2: basis };
+        return ExtentsAt { centre: centre, half: [he.x * scale.x, he.y * scale.y, he.z * scale.z], basis: basis };
     }
-    let he = half_extents(S.doc[i]);
-    ExtentsAt { _0: at, _1: [he[0] * s.x, he[1] * s.y, he[2] * s.z], _2: basis }
+    let he = half_extents(found);
+    ExtentsAt { centre: at, half: [he[0] * scale.x, he[1] * scale.y, he[2] * scale.z], basis: basis }
 }
 
 // A vector in a basis's own axes, put into the world's.
-fn along(basis: [[float]], v: [float]) -> [float] {
+fn along(basis: [[float]], offset: [float]) -> [float] {
     let out: [float] = [0.0, 0.0, 0.0];
     for axis in 0..3 {
-        out[axis] = basis[0][axis] * v[0].as_float() + basis[1][axis] * v[1].as_float() + basis[2][axis] * v[2].as_float();
+        out[axis] = basis[0][axis] * offset[0].as_float() + basis[1][axis] * offset[1].as_float() + basis[2][axis] * offset[2].as_float();
     }
     out
 }
@@ -378,38 +344,37 @@ fn world_half(he: [float], basis: [[float]]) -> [float] {
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
 // where a designer would draw one frame.
-fn set_geometry(S: editor::State) -> Geo2? {
+fn set_geometry(state: editor::State) -> Geo3d? {
     let lo = [math::INFINITY, math::INFINITY, math::INFINITY];
     let hi = [-math::INFINITY, -math::INFINITY, -math::INFINITY];
-    let any_ = false;
-    for i in selection::all(S) {
-        let found = extents_at(S, i);
-        let found_some = found;
-        if found_some.is_some() {
-            let c = found_some.unwrap()._0;
-            let he = found_some.unwrap()._1;
-            let basis = found_some.unwrap()._2;
-            any_ = true;
+    let found_any = false;
+    for row in selection::all(state) {
+        let found = extents_at(state, row);
+        if found.is_some() {
+            let box_centre = found.unwrap().centre;
+            let he = found.unwrap().half;
+            let basis = found.unwrap().basis;
+            found_any = true;
             let he: [float] = world_half(he, basis);
             for axis in 0..3 {
-                lo[axis] = util::min(lo[axis].as_float(), (c[axis] - he[axis]).as_float());
-                hi[axis] = util::max(hi[axis], (c[axis] + he[axis]).as_float());
+                lo[axis] = util::min(lo[axis].as_float(), (box_centre[axis] - he[axis]).as_float());
+                hi[axis] = util::max(hi[axis], (box_centre[axis] + he[axis]).as_float());
             }
         }
     }
-    if !any_ {
+    if !found_any {
         return nil;
     }
     let center = util::vscale(util::vadd(lo, hi), 0.5);
     let he: [float] = util::vscale(util::vsub(hi, lo), 0.5);
-    let ex_ey_ez_1 = render::camera_pose();
-    let ex = ex_ey_ez_1.at(0);
-    let ey = ex_ey_ez_1.at(1);
-    let ez = ex_ey_ez_1.at(2);
+    let pose = render::camera_pose();
+    let ex = pose.at(0);
+    let ey = pose.at(1);
+    let ez = pose.at(2);
     let dist = util::dist(center, [ex, ey, ez]);
     let marker = 0.6 * dist * 0.0144;
     let min_he = util::min(he[0].as_float() + 0.06, util::min(he[1].as_float() + 0.06, he[2].as_float() + 0.06));
-    Geo2 {
+    Geo3d {
         center: center,
         // Axis-aligned: a set has no one rotation to align the frame to.
         basis: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
@@ -419,31 +384,31 @@ fn set_geometry(S: editor::State) -> Geo2? {
     }
 }
 
-fn geometry_at(S: editor::State, i: int) -> Geo2? {
+fn geometry_at(state: editor::State, row: int) -> Geo3d? {
     // The same source the multi-selection box and box-select read, so one
     // node's frame and a set's agree about what a node covers.
-    let found = extents_at(S, i);
+    let found = extents_at(state, row);
     if found.is_none() {
         return nil;
     }
-    let c_he_basis_2 = found.unwrap();
-    let c = c_he_basis_2._0;
-    let he = c_he_basis_2._1;
-    let basis = c_he_basis_2._2;
+    let extents = found.unwrap();
+    let centre = extents.centre;
+    let he = extents.half;
+    let basis = extents.basis;
     let hx = he[0].as_float() + 0.06;
     let hy = he[1].as_float() + 0.06;
     let hz = he[2].as_float() + 0.06;
     let min_he = util::min(hx, util::min(hy, hz));
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
-    let ex_ey_ez_3 = render::camera_pose();
-    let ex = ex_ey_ez_3.at(0);
-    let ey = ex_ey_ez_3.at(1);
-    let ez = ex_ey_ez_3.at(2);
-    let dist = math::sqrt(((c[0] - ex) * (c[0] - ex) + (c[1] - ey) * (c[1] - ey) + (c[2] - ez) * (c[2] - ez)).as_float());
+    let pose = render::camera_pose();
+    let ex = pose.at(0);
+    let ey = pose.at(1);
+    let ez = pose.at(2);
+    let dist = math::sqrt(((centre[0] - ex) * (centre[0] - ex) + (centre[1] - ey) * (centre[1] - ey) + (centre[2] - ez) * (centre[2] - ez)).as_float());
     let marker = 0.6 * dist * 0.0144;
-    Geo2 {
-        center: c,
+    Geo3d {
+        center: centre,
         basis: basis,
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
@@ -457,16 +422,15 @@ fn geometry_at(S: editor::State, i: int) -> Geo2? {
 ///
 /// Measured against the gizmo's centre, which is the selected node's own: an
 /// object closer than that is between the camera and what is selected.
-fn took_click_in_front(S: &mut editor::State, cam: Cam, geo: Geo2) -> bool {
+fn took_click_in_front(state: &mut editor::State, cam: Cam, geo: Geo3d) -> bool {
     let hit = render::pick_ray_at(cam.ray_o[0].as_float(), cam.ray_o[1].as_float(), cam.ray_o[2].as_float(), cam.ray_d[0].as_float(), cam.ray_d[1].as_float(), cam.ray_d[2].as_float());
     if hit.is_none() {
         return false;
     }
     let found = hit.unwrap();
-    let dx_dy_dz_1 = Pair10 { _0: (geo.center[0] - cam.ray_o[0]).as_float(), _1: (geo.center[1] - cam.ray_o[1]).as_float(), _2: (geo.center[2] - cam.ray_o[2]).as_float() };
-    let dx = dx_dy_dz_1._0;
-    let dy = dx_dy_dz_1._1;
-    let dz = dx_dy_dz_1._2;
+    let dx = (geo.center[0] - cam.ray_o[0]).as_float();
+    let dy = (geo.center[1] - cam.ray_o[1]).as_float();
+    let dz = (geo.center[2] - cam.ray_o[2]).as_float();
     // Clear of the whole gizmo, not merely nearer than its centre: the ground
     // a selected node stands on is nearer than that centre, and taking the
     // click there would cost the drag the handle was pressed for.
@@ -474,26 +438,25 @@ fn took_click_in_front(S: &mut editor::State, cam: Cam, geo: Geo2) -> bool {
     if found.at >= math::sqrt(dx * dx + dy * dy + dz * dz) - reach.as_float() {
         return false;
     }
-    let landed = model::index_of_live(S, found.node);
-    let landed_some = landed;
-    if landed_some.is_none() {
+    let landed = model::index_of_live(state, found.node);
+    if landed.is_none() {
         return false;
     }
-    let i = landed_some.unwrap();
-    if selection::is_locked(S, i) || selection::contains(S, i) {
+    let row = landed.unwrap();
+    if selection::is_locked(state, row) || selection::contains(state, row) {
         return false;
     }
-    shell::choose_click(S, i);
+    shell::choose_click(state, row);
     true
 }
 
-fn corners(geo: Geo2) -> [Corner] {
+fn corners(geo: Geo3d) -> [Corner] {
     let out: [Corner] = [];
     for sx in [-1.0, 1.0] {
         for sy in [-1.0, 1.0] {
             for sz in [-1.0, 1.0] {
                 out.push(Corner {
-                    p: local_point(geo, sx * geo.he[0], sy * geo.he[1], sz * geo.he[2]),
+                    point: local_point(geo, sx * geo.he[0], sy * geo.he[1], sz * geo.he[2]),
                     signs: [sx, sy, sz],
                 });
             }
@@ -505,29 +468,29 @@ fn corners(geo: Geo2) -> [Corner] {
 // The two axes spanning the face normal to each axis.
 fn face_axes(axis: int) -> FaceAxes {
     if axis == 0 {
-        FaceAxes { _0: 1, _1: 2 }
+        FaceAxes { first: 1, second: 2 }
     } else if axis == 1 {
-        FaceAxes { _0: 0, _1: 2 }
+        FaceAxes { first: 0, second: 2 }
     } else {
-        FaceAxes { _0: 0, _1: 1 }
+        FaceAxes { first: 0, second: 1 }
     }
 }
 
-fn faces(geo: Geo2) -> [Face] {
+fn faces(geo: Geo3d) -> [Face] {
     let out: [Face] = [];
     for axis in 0..3 {
         for sign in [-1.0, 1.0] {
             let offset = [0.0, 0.0, 0.0];
             offset[axis] = sign * geo.he[axis];
-            let u_axis_v_axis_1 = face_axes(axis);
-            let u_axis = u_axis_v_axis_1._0;
-            let v_axis = u_axis_v_axis_1._1;
+            let spanning = face_axes(axis);
+            let u_axis = spanning.first;
+            let v_axis = spanning.second;
             let quad: [[float]] = [];
             for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
-                let o = [offset[0], offset[1], offset[2]];
-                o[u_axis] = o[u_axis] + uv[0] * geo.he[u_axis];
-                o[v_axis] = o[v_axis] + uv[1] * geo.he[v_axis];
-                quad.push(local_point(geo, o[0], o[1], o[2]));
+                let quad_corner = [offset[0], offset[1], offset[2]];
+                quad_corner[u_axis] = quad_corner[u_axis] + uv[0] * geo.he[u_axis];
+                quad_corner[v_axis] = quad_corner[v_axis] + uv[1] * geo.he[v_axis];
+                quad.push(local_point(geo, quad_corner[0], quad_corner[1], quad_corner[2]));
             }
             out.push(Face { axis: axis, sign: sign, pos: local_point(geo, offset[0], offset[1], offset[2]), quad: quad });
         }
@@ -538,21 +501,21 @@ fn faces(geo: Geo2) -> [Face] {
 // Point-in-quad (screen space) via consistent cross-product winding.
 fn quad_contains(cam: Cam, quad: [[float]], mx: float, my: float) -> bool {
     let pts: [[float]] = [];
-    for c in quad {
-        let matched1 = project(cam, c);
-        if matched1.is_some() {
-            let sx = matched1.unwrap()._0;
-            let sy = matched1.unwrap()._1;
+    for corner in quad {
+        let projected = project(cam, corner);
+        if projected.is_some() {
+            let sx = projected.unwrap().x;
+            let sy = projected.unwrap().y;
             pts.push([sx, sy]);
         } else {
             return false;
         }
     }
     let sign: bool? = nil;
-    for i in 0..4 {
-        let a = pts[i];
-        let b = pts[(i + 1) % 4];
-        let cross = (b[0] - a[0]) * (my - a[1]) - (b[1] - a[1]) * (mx - a[0]);
+    for edge in 0..4 {
+        let from = pts[edge];
+        let to = pts[(edge + 1) % 4];
+        let cross = (to[0] - from[0]) * (my - from[1]) - (to[1] - from[1]) * (mx - from[0]);
         if util::abs(cross) > 1e-6 {
             let positive = cross > 0.0;
             if sign.is_none() {
@@ -569,44 +532,44 @@ fn quad_contains(cam: Cam, quad: [[float]], mx: float, my: float) -> bool {
 }
 
 // The small floating rectangle at a face's center (scale along the normal).
-fn face_rect_points(geo: Geo2, face: Face) -> [[float]] {
-    let u_axis_v_axis_1 = face_axes(face.axis);
-    let u_axis = u_axis_v_axis_1._0;
-    let v_axis = u_axis_v_axis_1._1;
-    let h = geo.marker * 0.9;
+fn face_rect_points(geo: Geo3d, face: Face) -> [[float]] {
+    let spanning = face_axes(face.axis);
+    let u_axis = spanning.first;
+    let v_axis = spanning.second;
+    let half = geo.marker * 0.9;
     let out: [[float]] = [];
     for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
-        let o = [0.0, 0.0, 0.0];
+        let corner = [0.0, 0.0, 0.0];
         // Float slightly off the face so it never z-fights the surface.
-        o[face.axis] = face.sign * (geo.he[face.axis] + geo.marker * 0.25);
-        o[u_axis] = o[u_axis] + uv[0] * h;
-        o[v_axis] = o[v_axis] + uv[1] * h;
-        out.push(local_point(geo, o[0], o[1], o[2]));
+        corner[face.axis] = face.sign * (geo.he[face.axis] + geo.marker * 0.25);
+        corner[u_axis] = corner[u_axis] + uv[0] * half;
+        corner[v_axis] = corner[v_axis] + uv[1] * half;
+        out.push(local_point(geo, corner[0], corner[1], corner[2]));
     }
     out
 }
 
-fn ring_point(geo: Geo2, axis: int, t: float) -> [float] {
-    let angle = t * math::PI.as_float() * 2.0;
-    let o = [0.0, 0.0, 0.0];
-    o[(axis + 1) % 3] = math::cos(angle) * geo.ring;
-    o[(axis + 2) % 3] = math::sin(angle) * geo.ring;
-    local_point(geo, o[0], o[1], o[2])
+fn ring_point(geo: Geo3d, axis: int, turn: float) -> [float] {
+    let angle = turn * math::PI.as_float() * 2.0;
+    let offset = [0.0, 0.0, 0.0];
+    offset[(axis + 1) % 3] = math::cos(angle) * geo.ring;
+    offset[(axis + 2) % 3] = math::sin(angle) * geo.ring;
+    local_point(geo, offset[0], offset[1], offset[2])
 }
 
-fn face_normal(geo: Geo2, face: Face) -> [float] {
+fn face_normal(geo: Geo3d, face: Face) -> [float] {
     util::vscale(geo.basis[face.axis], face.sign)
 }
 
-fn face_front_facing(cam: Cam, geo: Geo2, face: Face) -> bool {
+fn face_front_facing(cam: Cam, geo: Geo3d, face: Face) -> bool {
     util::vdot(face_normal(geo, face), util::vsub(cam.eye, face.pos)) > 0.0
 }
 
-fn near(cam: Cam, p: [float], mx: float, my: float, radius: float) -> bool {
-    let matched1 = project(cam, p);
-    if matched1.is_some() {
-        let sx = matched1.unwrap()._0;
-        let sy = matched1.unwrap()._1;
+fn near(cam: Cam, point: [float], mx: float, my: float, radius: float) -> bool {
+    let projected = project(cam, point);
+    if projected.is_some() {
+        let sx = projected.unwrap().x;
+        let sy = projected.unwrap().y;
         (sx - mx) * (sx - mx) + (sy - my) * (sy - my) < radius * radius
     } else {
         false
@@ -615,17 +578,17 @@ fn near(cam: Cam, p: [float], mx: float, my: float, radius: float) -> bool {
 
 // How far from a handle still counts as aiming at it: a finger covers what
 // it points at, so half a touch target answers around the handle.
-fn reach(S: editor::State, drawn: float) -> float {
-    if S.touchscreen { util::max(drawn, shell::TOUCH_TARGET / 2.0) } else { drawn }
+fn reach(state: editor::State, drawn: float) -> float {
+    if state.touchscreen { util::max(drawn, shell::TOUCH_TARGET / 2.0) } else { drawn }
 }
 
 // What the cursor is over. Priority mirrors steadyum: the rotation ball
 // always wins over the face behind it, then the face-center scale rects,
 // then corner brackets, and finally the face surfaces (plane translate).
-fn hit_test(S: editor::State, cam: Cam, geo: Geo2, mx: float, my: float) -> Part2? {
+fn hit_test(state: editor::State, cam: Cam, geo: Geo3d, mx: float, my: float) -> Part? {
     for axis in 0..3 {
-        for t in 0..48 {
-            if near(cam, ring_point(geo, axis, t.as_float() / 48.0), mx, my, reach(S, 12.0)) {
+        for step in 0..48 {
+            if near(cam, ring_point(geo, axis, step.as_float() / 48.0), mx, my, reach(state, 12.0)) {
                 return part("ring", nil, axis, nil);
             }
         }
@@ -633,64 +596,64 @@ fn hit_test(S: editor::State, cam: Cam, geo: Geo2, mx: float, my: float) -> Part
     // Face-center scale rects and corner brackets: only front-facing /
     // generous radii so the hotspot is at least as big as the visual.
     let all_faces = faces(geo);
-    for i in 0..all_faces.len() {
-        let face = all_faces[i];
+    for index in 0..all_faces.len() {
+        let face = all_faces[index];
         if face_front_facing(cam, geo, face) {
-            if quad_contains(cam, face_rect_points(geo, face), mx, my) || near(cam, face.pos, mx, my, reach(S, 16.0)) {
-                return part("facerect", i, face.axis, face.sign);
+            if quad_contains(cam, face_rect_points(geo, face), mx, my) || near(cam, face.pos, mx, my, reach(state, 16.0)) {
+                return part("facerect", index, face.axis, face.sign);
             }
         }
     }
     let all_corners = corners(geo);
-    for i in 0..all_corners.len() {
-        if near(cam, all_corners[i].p, mx, my, reach(S, 18.0)) {
-            return part("handle", i, nil, nil);
+    for index in 0..all_corners.len() {
+        if near(cam, all_corners[index].point, mx, my, reach(state, 18.0)) {
+            return part("handle", index, nil, nil);
         }
     }
     // Face surfaces (plane translate): only the faces looking at the
     // camera; front faces tile the silhouette, so the hit is unambiguous.
-    for i in 0..all_faces.len() {
-        let face = all_faces[i];
+    for index in 0..all_faces.len() {
+        let face = all_faces[index];
         if face_front_facing(cam, geo, face) && quad_contains(cam, face.quad, mx, my) {
-            return part("face", i, face.axis, face.sign);
+            return part("face", index, face.axis, face.sign);
         }
     }
     nil
 }
 
 // steadyum's 6px stroke, 30% thinner per taste.
-const W: float = 4.2;
+const STROKE_WIDTH: float = 4.2;
 
 // One segment onto `out`, in `render::draw_lines`' eleven numbers.
-fn line(out: [any], a: [float], b: [float], color: [float], width: float, on_top: bool) {
+fn line(out: [any], from: [float], to: [float], color: [float], width: float, on_top: bool) {
     let top = if on_top { 1.0 } else { 0.0 };
-    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, top]);
+    out.extend([from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width, top]);
 }
 
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12
 // edges, draw only those with at least one outward face (faces whose sign
 // matches the handle's corner sign), leaving an open bracket.
-fn draw_handle_marker(out: [any], geo: Geo2, signs: [float], half: float, color: [float]) {
+fn draw_handle_marker(out: [any], geo: Geo3d, signs: [float], half: float, color: [float]) {
     // Corner offset in the box's local frame.
     let base = [signs[0] * geo.he[0], signs[1] * geo.he[1], signs[2] * geo.he[2]];
     for axis in 0..3 {
-        let b_axis_c_axis_1 = face_axes(axis);
-        let b_axis = b_axis_c_axis_1._0;
-        let c_axis = b_axis_c_axis_1._1;
+        let spanning = face_axes(axis);
+        let b_axis = spanning.first;
+        let c_axis = spanning.second;
         for b_sign in [-1.0, 1.0] {
             for c_sign in [-1.0, 1.0] {
                 let b_inner = b_sign == -signs[b_axis];
                 let c_inner = c_sign == -signs[c_axis];
                 if !(b_inner && c_inner) {
-                    let a = [base[0], base[1], base[2]];
-                    let b = [base[0], base[1], base[2]];
-                    a[axis] = a[axis] - half;
-                    b[axis] = b[axis] + half;
-                    a[b_axis] = a[b_axis] + b_sign * half;
-                    b[b_axis] = b[b_axis] + b_sign * half;
-                    a[c_axis] = a[c_axis] + c_sign * half;
-                    b[c_axis] = b[c_axis] + c_sign * half;
-                    line(out, local_point(geo, a[0], a[1], a[2]), local_point(geo, b[0], b[1], b[2]), color, W, false);
+                    let from = [base[0], base[1], base[2]];
+                    let to = [base[0], base[1], base[2]];
+                    from[axis] = from[axis] - half;
+                    to[axis] = to[axis] + half;
+                    from[b_axis] = from[b_axis] + b_sign * half;
+                    to[b_axis] = to[b_axis] + b_sign * half;
+                    from[c_axis] = from[c_axis] + c_sign * half;
+                    to[c_axis] = to[c_axis] + c_sign * half;
+                    line(out, local_point(geo, from[0], from[1], from[2]), local_point(geo, to[0], to[1], to[2]), color, STROKE_WIDTH, false);
                 }
             }
         }
@@ -698,7 +661,7 @@ fn draw_handle_marker(out: [any], geo: Geo2, signs: [float], half: float, color:
 }
 
 // Which gizmo part is "hot" (dragged part wins over hover).
-fn hot_is(hot: Part2?, kind: str) -> bool {
+fn hot_is(hot: Part?, kind: str) -> bool {
     if hot.is_some() {
         let part = hot.unwrap();
         part.kind == kind
@@ -708,29 +671,29 @@ fn hot_is(hot: Part2?, kind: str) -> bool {
 }
 
 // Draw the frame, handles and rings (steadyum: orange, hot element blue).
-pub fn draw(S: &mut editor::State) {
+pub fn draw(state: &mut editor::State) {
     // A picture of the scene has nothing selected in it.
-    if S.chrome_off {
+    if state.chrome_off {
         return;
     }
-    if model::is_2d(S) {
-        gizmo2d::draw(S);
+    if model::is_2d(state) {
+        gizmo2d::draw(state);
         return;
     }
-    let geo_or = geometry(S);
+    let geo_or = geometry(state);
     if geo_or.is_none() {
         return;
     }
     let geo = geo_or.unwrap();
-    if S.workspace == defs::WORKSPACE_SCRIPT {
+    if state.workspace == defs::WORKSPACE_SCRIPT {
         return;
     }
-    let hot = viewport::hot_part(S);
+    let hot = viewport::hot_part(state);
     // The lines follow from the box, the hot part and the two colours, and
     // none of them moves while the pointer is still: replay the list.
     let key = drawn_key(geo, hot);
-    if key == S.gizmo.drawn {
-        render::draw_lines(S.gizmo.lines);
+    if key == state.gizmo.drawn {
+        render::draw_lines(state.gizmo.lines);
         return;
     }
     let out: [any] = [];
@@ -740,17 +703,17 @@ pub fn draw(S: &mut editor::State) {
     // hovered face when its fixed position on the face's normal axis
     // matches the face's sign.
     for axis in 0..3 {
-        let b_axis_c_axis_1 = face_axes(axis);
-        let b_axis = b_axis_c_axis_1._0;
-        let c_axis = b_axis_c_axis_1._1;
-        for sb in [-1.0, 1.0] {
-            for sc2 in [-1.0, 1.0] {
+        let spanning = face_axes(axis);
+        let b_axis = spanning.first;
+        let c_axis = spanning.second;
+        for b_sign in [-1.0, 1.0] {
+            for c_sign in [-1.0, 1.0] {
                 let color = viewport::orange();
                 if hot_face.is_some() {
                     let face = hot_face.unwrap();
                     let axis = face.axis.or(-1);
                     let sign = face.sign.or(0.0);
-                    if (b_axis == axis && sb == sign) || (c_axis == axis && sc2 == sign) {
+                    if (b_axis == axis && b_sign == sign) || (c_axis == axis && c_sign == sign) {
                         color = viewport::hover_color();
                     }
                 }
@@ -758,39 +721,39 @@ pub fn draw(S: &mut editor::State) {
                 let b_off = [0.0, 0.0, 0.0];
                 a_off[axis] = -he[axis];
                 b_off[axis] = he[axis];
-                for o in [a_off, b_off] {
-                    o[b_axis] = sb * he[b_axis];
-                    o[c_axis] = sc2 * he[c_axis];
+                for edge_end in [a_off, b_off] {
+                    edge_end[b_axis] = b_sign * he[b_axis];
+                    edge_end[c_axis] = c_sign * he[c_axis];
                 }
-                line(out, local_point(geo, a_off[0], a_off[1], a_off[2]), local_point(geo, b_off[0], b_off[1], b_off[2]), color, W, false);
+                line(out, local_point(geo, a_off[0], a_off[1], a_off[2]), local_point(geo, b_off[0], b_off[1], b_off[2]), color, STROKE_WIDTH, false);
             }
         }
     }
-    let items2 = corners(geo);
-    for i in 0..items2.len() {
-        let corner = items2[i];
+    let all_corners = corners(geo);
+    for index in 0..all_corners.len() {
+        let corner = all_corners[index];
         let hot_handle = if hot.is_some() {
             let part = hot.unwrap();
-            part.kind == "handle" && part.index == i
+            part.kind == "handle" && part.index == index
         } else {
             false
         };
         draw_handle_marker(out, geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Face-center scale rectangles (drag = scale along the face normal).
-    let items3 = faces(geo);
-    for i in 0..items3.len() {
-        let face = items3[i];
+    let all_faces = faces(geo);
+    for index in 0..all_faces.len() {
+        let face = all_faces[index];
         let hot_rect = if hot.is_some() {
             let part = hot.unwrap();
-            part.kind == "facerect" && part.index == i
+            part.kind == "facerect" && part.index == index
         } else {
             false
         };
         let color = if hot_rect { viewport::hover_color() } else { viewport::orange() };
         let pts = face_rect_points(geo, face);
-        for j in 0..4 {
-            line(out, pts[j], pts[(j + 1) % 4], color, W, false);
+        for side in 0..4 {
+            line(out, pts[side], pts[(side + 1) % 4], color, STROKE_WIDTH, false);
         }
     }
     for axis in 0..3 {
@@ -802,38 +765,38 @@ pub fn draw(S: &mut editor::State) {
         };
         let color = if hot_ring { viewport::hover_color() } else { viewport::orange() };
         let prev = ring_point(geo, axis, 0.0);
-        for t in 1..49 {
-            let next = ring_point(geo, axis, (t as float) / 48.0);
-            line(out, prev, next, color, W, true);
+        for step in 1..49 {
+            let next = ring_point(geo, axis, (step as float) / 48.0);
+            line(out, prev, next, color, STROKE_WIDTH, true);
             prev = next;
         }
     }
     render::draw_lines(out);
-    S.gizmo.drawn = key;
-    S.gizmo.lines = out;
+    state.gizmo.drawn = key;
+    state.gizmo.lines = out;
 }
 
 // What the drawn lines follow from, as plain values so `==` compares them.
-fn drawn_key(geo: Geo2, hot: Part2?) -> [any] {
+fn drawn_key(geo: Geo3d, hot: Part?) -> [any] {
     let out: [any] = [];
-    for v in geo.center {
-        out.push(v);
+    for value in geo.center {
+        out.push(value);
     }
-    for v in geo.he {
-        out.push(v);
+    for value in geo.he {
+        out.push(value);
     }
     for row in geo.basis {
-        for v in row {
-            out.push(v);
+        for value in row {
+            out.push(value);
         }
     }
     out.push(geo.ring);
     out.push(geo.marker);
-    for v in viewport::orange() {
-        out.push(v);
+    for value in viewport::orange() {
+        out.push(value);
     }
-    for v in viewport::hover_color() {
-        out.push(v);
+    for value in viewport::hover_color() {
+        out.push(value);
     }
     if hot.is_some() {
         let part = hot.unwrap();
@@ -849,12 +812,13 @@ fn drawn_key(geo: Geo2, hot: Part2?) -> [any] {
 
 // Screen direction (design px per world unit) of a world direction at a point.
 fn screen_dir(cam: Cam, center: [float], dir: [float]) -> [float]? {
-    let matched1 = ScreenDir { _0: project(cam, center), _1: project(cam, util::vadd(center, dir)) };
-    if matched1._0.is_some() && matched1._1.is_some() {
-        let ax = matched1._0.unwrap()._0;
-        let ay = matched1._0.unwrap()._1;
-        let bx = matched1._1.unwrap()._0;
-        let by = matched1._1.unwrap()._1;
+    let projected_centre = project(cam, center);
+    let projected_tip = project(cam, util::vadd(center, dir));
+    if projected_centre.is_some() && projected_tip.is_some() {
+        let ax = projected_centre.unwrap().x;
+        let ay = projected_centre.unwrap().y;
+        let bx = projected_tip.unwrap().x;
+        let by = projected_tip.unwrap().y;
         [bx - ax, by - ay]
     } else {
         nil
@@ -863,22 +827,21 @@ fn screen_dir(cam: Cam, center: [float], dir: [float]) -> [float]? {
 
 // Rows whose projected box overlaps the marquee. The box, not the origin: a
 // node whose origin sits off screen is still on screen.
-fn rows_in_box(S: editor::State, cam: Cam, x0: float, y0: float, x1: float, y1: float) -> [int] {
+fn rows_in_box(state: editor::State, cam: Cam, x0: float, y0: float, x1: float, y1: float) -> [int] {
     let lo_x = util::min(x0, x1);
     let hi_x: any = util::max(x0, x1);
     let lo_y = util::min(y0, y1);
     let hi_y: any = util::max(y0, y1);
     let out: [int] = [];
-    for i in 0..S.doc.len() {
-        if selection::is_locked(S, i) || S.doc[i].get("visible") == false {
+    for row in 0..state.nodes.len() {
+        if selection::is_locked(state, row) || !state.nodes[row].visible() {
             continue;
         }
-        let found = extents_at(S, i);
-        let found_some = found;
-        if found_some.is_some() {
-            let c = found_some.unwrap()._0;
-            let he = found_some.unwrap()._1;
-            let basis = found_some.unwrap()._2;
+        let found = extents_at(state, row);
+        if found.is_some() {
+            let box_centre = found.unwrap().centre;
+            let he = found.unwrap().half;
+            let basis = found.unwrap().basis;
             let bx0 = math::INFINITY;
             let by0 = math::INFINITY;
             let bx1 = -math::INFINITY;
@@ -887,12 +850,11 @@ fn rows_in_box(S: editor::State, cam: Cam, x0: float, y0: float, x1: float, y1: 
             for sx in [-1.0, 1.0] {
                 for sy in [-1.0, 1.0] {
                     for sz in [-1.0, 1.0] {
-                        let corner = util::vadd(c, along(basis, [sx * he[0].as_float(), sy * he[1].as_float(), sz * he[2].as_float()]));
+                        let corner = util::vadd(box_centre, along(basis, [sx * he[0].as_float(), sy * he[1].as_float(), sz * he[2].as_float()]));
                         let at = project(cam, corner);
-                        let at_some = at;
-                        if at_some.is_some() {
-                            let px = at_some.unwrap()._0;
-                            let py = at_some.unwrap()._1;
+                        if at.is_some() {
+                            let px = at.unwrap().x;
+                            let py = at.unwrap().y;
                             seen = true;
                             bx0 = util::min(bx0.as_float(), px);
                             by0 = util::min(by0.as_float(), py);
@@ -903,7 +865,7 @@ fn rows_in_box(S: editor::State, cam: Cam, x0: float, y0: float, x1: float, y1: 
                 }
             }
             if seen && bx0 <= hi_x && bx1.as_float() >= lo_x && by0 <= hi_y && by1.as_float() >= lo_y {
-                out.push(i);
+                out.push(row);
             }
         }
     }
@@ -912,45 +874,42 @@ fn rows_in_box(S: editor::State, cam: Cam, x0: float, y0: float, x1: float, y1: 
 
 /// Place the box select's dashed outline where the drag has got to, or put
 /// it away once the drag is over. After the pointer did something.
-pub fn fill_marquee(S: editor::State) {
-    if S.gizmo.marquee.is_none() {
+pub fn fill_marquee(state: editor::State) {
+    if state.gizmo.marquee.is_none() {
         util::fill(MARQUEE, map().with("visible", false));
         return;
     }
-    let m: M2 = S.gizmo.marquee.unwrap();
-    let w = util::abs(m.x1 - m.x0);
-    let h = util::abs(m.y1 - m.y0);
+    let marquee: Marquee = state.gizmo.marquee.unwrap();
+    let width = util::abs(marquee.x1 - marquee.x0);
+    let height = util::abs(marquee.y1 - marquee.y0);
     util::fill(MARQUEE, map()
-        .with("visible", S.viewport_live && (w >= 2.0 || h >= 2.0))
-        .with("x", util::min(m.x0, m.x1))
-        .with("y", util::min(m.y0, m.y1))
-        .with("width", w)
-        .with("height", h));
+        .with("visible", state.viewport_live && (width >= 2.0 || height >= 2.0))
+        .with("x", util::min(marquee.x0, marquee.x1))
+        .with("y", util::min(marquee.y0, marquee.y1))
+        .with("width", width)
+        .with("height", height));
 }
 
 const MARQUEE: str = "Editor/Marquee";
 
-fn start_gizmo_drag(S: &mut editor::State, cam: Cam, geo: Geo2, part: Part2, mx: float, my: float) {
-    history::record(S, "{part.kind} handle", nil);
-    let node_found_1 = model::selected(S);
-    let node = node_found_1._0;
-    let found = node_found_1._1;
-    let found = found;
-    let p = found.get("transform").get("position");
-    let s = found.get("transform").get("scale");
-    let rot = model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]);
-    let cx_cy_2 = project(cam, geo.center).unwrap_or(Project { _0: 0.0, _1: 0.0 });
-    let cx = cx_cy_2._0;
-    let cy = cx_cy_2._1;
+fn start_gizmo_drag(state: &mut editor::State, cam: Cam, geo: Geo3d, part: Part, mx: float, my: float) {
+    history::record(state, "{part.kind} handle", nil);
+    let found = model::selected_node(state);
+    let position = found.transform.position;
+    let scale = found.transform.scale;
+    let rot = model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]);
+    let screen_centre = project(cam, geo.center).unwrap_or(Project { x: 0.0, y: 0.0 });
+    let cx = screen_centre.x;
+    let cy = screen_centre.y;
     let axis = part.axis.unwrap_or(0);
     let drag = Drag {
         part: part,
         // Every selected root's pose at the start, so each frame applies one
         // delta to where the drag began rather than to where it got to.
-        set: selection::snapshot(S),
+        set: selection::snapshot(state),
         pivot: geo.center,
-        pos: util::xyz(p),
-        scale: util::xyz(s),
+        pos: util::xyz(position),
+        scale: util::xyz(scale),
         rot: [rot[0], rot[1], rot[2]],
         basis: geo.basis,
         mouse: [mx, my],
@@ -966,106 +925,105 @@ fn start_gizmo_drag(S: &mut editor::State, cam: Cam, geo: Geo2, part: Part2, mx:
     };
     if part.kind == "face" {
         // Anchor: where the mouse ray first hits the face's plane.
-        let n = util::vscale(geo.basis[part.axis.or(0)], part.sign.or(1.0));
-        drag.plane_n = n;
+        let normal = util::vscale(geo.basis[part.axis.or(0)], part.sign.or(1.0));
+        drag.plane_n = normal;
         drag.plane_p = [geo.center[0], geo.center[1], geo.center[2]];
-        drag.anchor = ray_plane(cam, drag.plane_p, n);
+        drag.anchor = ray_plane(cam, drag.plane_p, normal);
     }
-    S.gizmo.drag = drag;
+    state.gizmo.drag = drag;
 }
 
-fn apply_gizmo_drag(S: &mut editor::State, cam: Cam, mx: float, my: float) {
-    let d = S.gizmo.drag.unwrap();
-    if d.set.len() == 0 {
+fn apply_gizmo_drag(state: &mut editor::State, cam: Cam, mx: float, my: float) {
+    let drag = state.gizmo.drag.unwrap();
+    if drag.set.len() == 0 {
         return;
     }
-    if d.part.kind == "handle" {
+    if drag.part.kind == "handle" {
         // Uniform scale by radial distance from the projected center.
-        let d0 = util::max(8.0, math::sqrt(((d.mouse[0] - d.center[0]) * (d.mouse[0] - d.center[0]) + (d.mouse[1] - d.center[1]) * (d.mouse[1] - d.center[1])).as_float()));
-        let d1 = math::sqrt((mx - d.center[0].as_float()) * (mx - d.center[0].as_float()) + (my - d.center[1].as_float()) * (my - d.center[1].as_float()));
-        let f = util::clamp(d1 / d0, 0.05, 20.0);
-        selection::scale_by(S, d.set, [f, f, f], d.pivot);
-    } else if d.part.kind == "ring" {
+        let d0 = util::max(8.0, math::sqrt(((drag.mouse[0] - drag.center[0]) * (drag.mouse[0] - drag.center[0]) + (drag.mouse[1] - drag.center[1]) * (drag.mouse[1] - drag.center[1])).as_float()));
+        let d1 = math::sqrt((mx - drag.center[0].as_float()) * (mx - drag.center[0].as_float()) + (my - drag.center[1].as_float()) * (my - drag.center[1].as_float()));
+        let factor = util::clamp(d1 / d0, 0.05, 20.0);
+        selection::scale_by(state, drag.set, [factor, factor, factor], drag.pivot);
+    } else if drag.part.kind == "ring" {
         // Screen-angle delta around the projected center, applied about the
         // node's LOCAL axis (the rings rotate with the object), signed by
         // whether that axis points toward the camera.
-        let a0 = math::atan((d.mouse[1] - d.center[1]).as_float(), d.mouse[0] - d.center[0]);
-        let a1 = math::atan(my - d.center[1].as_float(), mx - d.center[0].as_float());
-        let axis_dir = d.basis[d.part.axis.or(0)];
-        let toward = util::vdot(axis_dir, util::vsub(cam.eye, d.world_center));
+        let a0 = math::atan((drag.mouse[1] - drag.center[1]).as_float(), drag.mouse[0] - drag.center[0]);
+        let a1 = math::atan(my - drag.center[1].as_float(), mx - drag.center[0].as_float());
+        let axis_dir = drag.basis[drag.part.axis.or(0)];
+        let toward = util::vdot(axis_dir, util::vsub(cam.eye, drag.world_center));
         let delta = (a1 - a0) * (if toward.as_float() >= 0.0 { -1.0 } else { 1.0 });
-        selection::rotate_by(S, d.set, d.part.axis.or(0), delta, d.pivot);
-    } else if d.part.kind == "facerect" {
+        selection::rotate_by(state, drag.set, drag.part.axis.or(0), delta, drag.pivot);
+    } else if drag.part.kind == "facerect" {
         // Scale along the face's (rotated) normal: mouse movement projected
         // onto its screen direction, converted to world units.
-        let axis = d.part.axis.or(0);
-        let matched1 = screen_dir(cam, d.world_center, d.basis[axis]);
-        if matched1.is_some() {
-            let dir = matched1.unwrap();
+        let axis = drag.part.axis.or(0);
+        let screen = screen_dir(cam, drag.world_center, drag.basis[axis]);
+        if screen.is_some() {
+            let dir = screen.unwrap();
             let len2 = dir[0] * dir[0] + dir[1] * dir[1];
             if len2 > 1e-6 {
-                let moved = ((mx - d.mouse[0].as_float()) * dir[0] + (my - d.mouse[1].as_float()) * dir[1]) / len2;
-                let ext0 = util::max(d.extent, 1e-3);
-                let f = util::clamp((ext0 + moved * d.part.sign.or(1.0)) / ext0, 0.05, 20.0);
+                let moved = ((mx - drag.mouse[0].as_float()) * dir[0] + (my - drag.mouse[1].as_float()) * dir[1]) / len2;
+                let ext0 = util::max(drag.extent, 1e-3);
+                let factor = util::clamp((ext0 + moved * drag.part.sign.or(1.0)) / ext0, 0.05, 20.0);
                 let factors = [1.0, 1.0, 1.0];
-                factors[axis] = f;
-                selection::scale_by(S, d.set, factors, d.pivot);
+                factors[axis] = factor;
+                selection::scale_by(state, drag.set, factors, drag.pivot);
             }
         }
-    } else if d.part.kind == "face" {
+    } else if drag.part.kind == "face" {
         // Slide the object in the face's plane: the world-space delta
         // between where the mouse ray hits that plane now vs at drag start.
-        let anchor_some = d.anchor;
-        if anchor_some.is_some() {
-            let anchor = anchor_some.unwrap();
-            let matched2 = ray_plane(cam, d.plane_p, d.plane_n);
-            if matched2.is_some() {
-                let hit = matched2.unwrap();
-                selection::move_by(S, d.set, util::vsub(hit, anchor), viewport::snapping(S).as_bool());
+        if drag.anchor.is_some() {
+            let anchor = drag.anchor.unwrap();
+            let plane_hit = ray_plane(cam, drag.plane_p, drag.plane_n);
+            if plane_hit.is_some() {
+                let hit = plane_hit.unwrap();
+                selection::move_by(state, drag.set, util::vsub(hit, anchor), viewport::snapping(state));
             }
         }
     }
 }
 
-pub fn update(S: &mut editor::State) {
-    if model::is_2d(S) {
-        gizmo2d::update(S, viewport_rect(S));
+pub fn update(state: &mut editor::State) {
+    if model::is_2d(state) {
+        gizmo2d::update(state, viewport_rect(state));
         return;
     }
-    let cam = camera_frame(S);
-    let mx_my_1 = mouse_design_px(S, cam);
-    let mx = mx_my_1._0;
-    let my = mx_my_1._1;
-    let geo = geometry(S);
-    let over_viewport = viewport::owns_pointer(S, mx, my);
+    let cam = camera_frame(state);
+    let pointer = viewport::pointer(state);
+    let mx = pointer.x;
+    let my = pointer.y;
+    let geo = geometry(state);
+    let over_viewport = viewport::owns_pointer(state, mx, my);
     // The Rig bone tool owns the click in 3D too: a bone under the cursor is
     // selected, anywhere else grows one under the selection.
-    if S.tool == "bone" {
-        S.gizmo.hover = nil;
-        S.gizmo.drag = nil;
-        S.rig.hover = if over_viewport { rig::pick_3d(S, mx, my, cam) } else { nil };
+    if state.tool == "bone" {
+        state.gizmo.hover = nil;
+        state.gizmo.drag = nil;
+        state.rig.hover = if over_viewport { rig::pick_3d(state, mx, my, cam) } else { nil };
         if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) {
-            if S.rig.hover.is_some() {
-                let hover = S.rig.hover.unwrap();
-                shell::choose(S, hover);
+            if state.rig.hover.is_some() {
+                let hover = state.rig.hover.unwrap();
+                shell::choose(state, hover);
             } else {
-                rig::add_bone(S, S.sel, 0.0, 0.0);
+                rig::add_bone(state, state.sel, 0.0, 0.0);
             }
         }
         return;
     }
-    S.rig.hover = nil;
-    if S.gizmo.drag.is_none() {
+    state.rig.hover = nil;
+    if state.gizmo.drag.is_none() {
         // Re-test only when something the answer depends on moved. A click is
         // always let through: it acts on the hover rather than changing it.
-        let key = hover_key(S, cam, geo.unwrap(), mx, my);
+        let key = hover_key(state, cam, geo.unwrap(), mx, my);
         let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int());
-        if pressed || key != S.gizmo.key {
-            S.gizmo.key = key;
-            S.gizmo.hover = if geo.is_some() {
+        if pressed || key != state.gizmo.key {
+            state.gizmo.key = key;
+            state.gizmo.hover = if geo.is_some() {
                 let geo = geo.unwrap();
-                if over_viewport && S.workspace != defs::WORKSPACE_SCRIPT {
-                    hit_test(S, cam, geo, mx, my)
+                if over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
+                    hit_test(state, cam, geo, mx, my)
                 } else {
                     nil
                 }
@@ -1076,28 +1034,27 @@ pub fn update(S: &mut editor::State) {
     } else {
         // A drag moves the node under the gizmo, so the key it was tested
         // against is stale the moment the drag ends.
-        S.gizmo.key = [];
+        state.gizmo.key = [];
     }
     if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) && over_viewport {
-        if !S.gizmo.hover.is_nil() && geo.is_some() {
-            let part: Part2 = S.gizmo.hover;
-            let g = geo.unwrap();
+        if !state.gizmo.hover.is_nil() && geo.is_some() {
+            let part: Part = state.gizmo.hover;
+            let box_geo = geo.unwrap();
             // A handle is drawn over whatever is behind it, so an object
             // in front of the gizmo takes the click: what the user aimed
             // at is the object, not the handle covering it.
-            if !took_click_in_front(S, cam, g) {
-                start_gizmo_drag(S, cam, g, part, mx, my);
+            if !took_click_in_front(state, cam, box_geo) {
+                start_gizmo_drag(state, cam, box_geo, part, mx, my);
             }
         } else {
-            S.gizmo.in_viewport = true;
-            if S.tool == "select" {
+            state.gizmo.in_viewport = true;
+            if state.tool == "select" {
                 // Rigging: a bone's thin octahedron loses to any origin
                 // near it, so in the Animation workspace bones are tried first.
-                let bone = if S.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(S, mx, my, cam) } else { nil };
-                let bone_some = bone;
-                if bone_some.is_some() {
-                    let bone = bone_some.unwrap();
-                    shell::choose(S, bone);
+                let bone = if state.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(state, mx, my, cam) } else { nil };
+                if bone.is_some() {
+                    let bone = bone.unwrap();
+                    shell::choose(state, bone);
                     return;
                 }
                 // What the ray meets, asked of the engine: it holds the
@@ -1105,86 +1062,82 @@ pub fn update(S: &mut editor::State) {
                 let hit = render::pick_ray(cam.ray_o[0].as_float(), cam.ray_o[1].as_float(), cam.ray_o[2].as_float(), cam.ray_d[0].as_float(), cam.ray_d[1].as_float(), cam.ray_d[2].as_float());
                 let landed: int? = nil;
                 if hit.is_valid() {
-                    landed = model::index_of_live(S, hit);
+                    landed = model::index_of_live(state, hit);
                 }
-                let landed_some = landed;
-                if landed_some.is_some() {
-                    let i = landed_some.unwrap();
-                    if !selection::is_locked(S, i) {
-                        shell::choose_click(S, i);
+                if landed.is_some() {
+                    let row = landed.unwrap();
+                    if !selection::is_locked(state, row) {
+                        shell::choose_click(state, row);
                     }
                 } else {
                     // Nothing under the pointer starts a marquee; the
                     // selection only changes when the drag is released.
-                    S.gizmo.marquee = map().with("x0", mx).with("y0", my).with("x1", mx).with("y1", my);
+                    state.gizmo.marquee = map().with("x0", mx).with("y0", my).with("x1", mx).with("y1", my);
                 }
             }
         }
     }
-    let marquee_some: any = S.gizmo.marquee;
-    if marquee_some.is_some() {
-        let m = marquee_some.unwrap();
-        m.x1 = mx;
-        m.y1 = my;
+    let marquee: any = state.gizmo.marquee;
+    if marquee.is_some() {
+        let box_drag = marquee.unwrap();
+        box_drag.x1 = mx;
+        box_drag.y1 = my;
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
-            S.gizmo.marquee = nil;
-            S.gizmo.in_viewport = false;
-            if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
-                let rows = rows_in_box(S, cam, m.x0, m.y0, m.x1, m.y1);
+            state.gizmo.marquee = nil;
+            state.gizmo.in_viewport = false;
+            if util::abs(box_drag.x1 - box_drag.x0) > 3.0 || util::abs(box_drag.y1 - box_drag.y0) > 3.0 {
+                let rows = rows_in_box(state, cam, box_drag.x0, box_drag.y0, box_drag.x1, box_drag.y1);
                 if rows.len() > 0 {
-                    history::commit(S);
-                    selection::set(S, rows);
+                    history::commit(state);
+                    selection::set(state, rows);
                 }
             } else {
                 // A click rather than a drag, and it landed on nothing: what
                 // was selected stops being.
-                history::commit(S);
-                selection::clear(S);
+                history::commit(state);
+                selection::clear(state);
             }
         }
         return;
     }
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
-        S.gizmo.drag = nil;
-        S.gizmo.in_viewport = false;
+        state.gizmo.drag = nil;
+        state.gizmo.in_viewport = false;
     }
-    if S.gizmo.drag.is_some() {
-        apply_gizmo_drag(S, cam, mx, my);
+    if state.gizmo.drag.is_some() {
+        apply_gizmo_drag(state, cam, mx, my);
         return;
     }
-    if !S.gizmo.in_viewport {
+    if !state.gizmo.in_viewport {
         return;
     }
     // Rail-tool fallbacks: drag anywhere in the viewport.
-    let matched3 = viewport::rail_drag(S, cam.dpi);
-    let dx_dy_found_4 = if matched3.is_some() {
-        let drag = matched3.unwrap();
-        drag
-    } else {
+    let dragged = viewport::rail_drag(state);
+    if dragged.is_none() {
         return;
-    };
-    let dx = dx_dy_found_4._0;
-    let dy = dx_dy_found_4._1;
-    let found = dx_dy_found_4._2;
-    if S.tool == "move" {
+    }
+    let dx = dragged.unwrap().dx;
+    let dy = dragged.unwrap().dy;
+    let found = dragged.unwrap().node;
+    if state.tool == "move" {
         let delta: [float] = [0.0, 0.0, 0.0];
         if input::key_down(input::KEY_SHIFT.as_str()) {
             delta[1] = (-dy).as_float() * cam.wpp;
         } else {
-            let flat_5 = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);
-            let flat = flat_5.dir;
-            let d = util::vadd(util::vscale(cam.right, dx.as_float() * cam.wpp), util::vscale(flat, (-dy).as_float() * cam.wpp));
-            delta[0] = d[0];
-            delta[2] = d[2];
+            let flat_heading = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);
+            let flat = flat_heading.dir;
+            let moved = util::vadd(util::vscale(cam.right, dx.as_float() * cam.wpp), util::vscale(flat, (-dy).as_float() * cam.wpp));
+            delta[0] = moved[0];
+            delta[2] = moved[2];
         }
-        selection::nudge(S, delta, viewport::snapping(S).as_bool());
-    } else if S.tool == "rotate" {
+        selection::nudge(state, delta, viewport::snapping(state));
+    } else if state.tool == "rotate" {
         // The live node, like every other writer here; the document copy
         // drifted when a rotation reached the node any other way.
-        selection::spin(S, 1, dx.as_float() * 0.01);
-    } else if S.tool == "scale" {
-        selection::grow(S, util::clamp(1.0 - dy.as_float() * 0.01, 0.2, 5.0), false);
-    } else if S.tool == "zoom" {
-        shell::set_zoom(S, S.zoom - dy.as_float() * 0.5);
+        selection::spin(state, 1, dx.as_float() * 0.01);
+    } else if state.tool == "scale" {
+        selection::grow(state, util::clamp(1.0 - dy.as_float() * 0.01, 0.2, 5.0), false);
+    } else if state.tool == "zoom" {
+        shell::set_zoom(state, state.zoom - dy.as_float() * 0.5);
     }
 }

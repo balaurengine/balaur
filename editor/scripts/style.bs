@@ -3,7 +3,6 @@
 
 use editor;
 use shell;
-use util;
 
 /// The type scale, in design pixels. Four steps and no others: a call site
 /// that wants a size names one of these, and everything else takes the size
@@ -22,24 +21,24 @@ pub const XL: float = 17.0;
 
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.
-pub fn role_px(S: editor::State, role: str, key: str, fallback: float) -> float {
-    let table = S.theme.roles.get(role);
+pub fn role_px(state: editor::State, role: str, key: str, fallback: float) -> float {
+    let table = state.theme.roles.get(role);
     if table.is_nil() {
         return fallback;
     }
     let touch = table.touch.get(key);
-    if S.touchscreen && !touch.is_nil() {
-        return px(S, touch);
+    if state.touchscreen && !touch.is_nil() {
+        return px(state, touch);
     }
     let own = table.get(key);
-    if own.is_nil() { fallback } else { px(S, own) }
+    if own.is_nil() { fallback } else { px(state, own) }
 }
 
 /// A number a theme states, or the size it names: `"control_height"` is
 /// whatever the worn theme makes of it.
-pub fn px(S: editor::State, value: any) -> float {
+pub fn px(state: editor::State, value: any) -> float {
     if value.kind() == "str" {
-        S.theme.sizes.get(value.as_str()).as_float()
+        state.theme.sizes.get(value.as_str()).as_float()
     } else {
         value.as_float()
     }
@@ -47,6 +46,6 @@ pub fn px(S: editor::State, value: any) -> float {
 
 /// A form row, and the field or search box in one: the theme's touch box
 /// where a finger picks it, a cursor's line otherwise.
-pub fn row_h(S: editor::State) -> float {
-    if S.touchscreen { shell::TOUCH_CONTROL } else { 24.0 }
+pub fn row_h(state: editor::State) -> float {
+    if state.touchscreen { shell::TOUCH_CONTROL } else { 24.0 }
 }

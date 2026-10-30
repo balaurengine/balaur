@@ -2,7 +2,7 @@
 // actions, so the rig works in a project that has declared none: swap them for
 // `input::action_*` to rebind.
 
-pub struct PlatformerRig {
+pub class PlatformerRig {
     node: Node,
     pub speed: float = 6.0,
     pub jump: float = 9.0,

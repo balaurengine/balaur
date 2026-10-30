@@ -1,7 +1,7 @@
 // The Docs tab's one script: it shows the module the Editor says is picked,
 // filtered by its own search, and tells the Editor a new pick.
 
-pub struct Docs {
+pub class Docs {
     node: Node,
     query: str,
     editor: Node,

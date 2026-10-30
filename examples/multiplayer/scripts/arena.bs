@@ -2,7 +2,7 @@
 // its slot pressed, read back with `rollback::input`. Only a machine's own
 // input comes from its own keys, or from a fixed pattern under `-- auto`.
 
-pub struct Arena {
+pub class Arena {
     node: Node,
     auto: bool,
 }

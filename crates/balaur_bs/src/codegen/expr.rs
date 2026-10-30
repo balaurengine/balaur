@@ -67,6 +67,12 @@ impl FnGen<'_> {
             ExprKind::Method(base, name, args) => self.method(base, name, args, e.pos)?,
             ExprKind::StructLit(s, fields) => self.struct_lit(s, fields, e.pos)?,
             ExprKind::ArrayLit(items) => self.array_lit(items, None, e.pos)?,
+            ExprKind::MapLit(_) => {
+                return err(
+                    e.pos,
+                    "a map literal is typed by where it goes: `let ages: { str: int } = { \"ada\": 36 };`",
+                );
+            }
             ExprKind::ArrayRepeat(v, n) => self.array_repeat(v, n)?,
             ExprKind::If(c, then, els) => self.if_expr(c, then, els.as_ref(), e.pos)?,
             ExprKind::Cast(a, to) => self.cast(a, to, e.pos)?,
@@ -82,6 +88,12 @@ impl FnGen<'_> {
 
     // A variable, a field or an element: a retained copy of what is there.
     fn read(&mut self, e: &Expr) -> R<Ty> {
+        // `map[key]`: its value, nil for a missing key.
+        if let ExprKind::Index(base, key) = &e.kind
+            && self.map_class(base).is_some()
+        {
+            return self.method(base, "get", std::slice::from_ref(&**key), e.pos);
+        }
         if let Some((node, get, _, ty)) = self.component_access(e)? {
             self.expr(&node)?;
             self.host_call(&get);
@@ -101,6 +113,7 @@ impl FnGen<'_> {
         let ExprKind::Field(base, f) = &e.kind else {
             return err(e.pos, "this cannot be read");
         };
+        self.script_unwanted(e, e.pos)?;
         let bt = self.expr(base)?;
         let tmp = self.temp(&bt);
         self.set_raw(&tmp);
@@ -142,6 +155,37 @@ impl FnGen<'_> {
         Ok(t)
     }
 
+    // What a literal of struct `s` gives field `f` of type `t`: what it
+    // names, else the field's declared default, else nil for an optional.
+    fn field_value(
+        &self,
+        s: &str,
+        f: &str,
+        t: &Ty,
+        fields: &[(String, Expr)],
+        pos: Pos,
+    ) -> R<Expr> {
+        if let Some((_, given)) = fields.iter().find(|(n, _)| n == f) {
+            return Ok(given.clone());
+        }
+        let declared = self
+            .g
+            .field_defaults
+            .get(s)
+            .and_then(|defaults| defaults.iter().find(|(n, _)| n == f));
+        match declared {
+            Some((_, default)) => Ok(default.clone()),
+            None if matches!(t, Ty::Optional(_)) => Ok(Expr {
+                kind: ExprKind::Nil,
+                pos,
+            }),
+            None => err(
+                pos,
+                format!("missing field `{f}` of {s}: name it, or declare its default in {s}"),
+            ),
+        }
+    }
+
     fn struct_lit(&mut self, s: &str, fields: &[(String, Expr)], pos: Pos) -> R<Ty> {
         let decl = self.g.structs.get(s).cloned().ok_or(Error {
             pos,
@@ -169,11 +213,8 @@ impl FnGen<'_> {
         });
         let mut off = super::OBJ_HEADER;
         for (f, t) in &decl {
-            let (_, fe) = fields.iter().find(|(n, _)| n == f).ok_or(Error {
-                pos,
-                msg: format!("missing field `{f}` of {s}"),
-            })?;
-            self.expr_as(fe, t)?;
+            let fe = self.field_value(s, f, t, fields, pos)?;
+            self.expr_as(&fe, t)?;
             if let Some(obj) = obj {
                 let v = self.alloc(t);
                 self.set_raw(&v);
@@ -216,6 +257,7 @@ impl FnGen<'_> {
                     Ty::Bool => self.g.imp.await_i32,
                     Ty::Str | Ty::Array(_) | Ty::Any => self.g.imp.await_heap,
                     Ty::Void => return Ok(Ty::Void),
+                    Ty::Map(..) => unreachable!("a map type is made its class before code is made"),
                     Ty::Struct(_) | Ty::Optional(_) | Ty::Fn(..) => {
                         return err(
                             pos,
@@ -404,11 +446,7 @@ impl FnGen<'_> {
             }
             // What `.text()` says of it.
             Ty::Any => {
-                let v = self.temp(&Ty::Any);
-                self.set_raw(&v);
-                self.get_raw(&v);
-                self.e(I::Call(self.g.imp.anys["text"]));
-                self.release(&v);
+                self.call_prelude("any::text");
             }
             _ => {
                 return err(
@@ -638,14 +676,7 @@ impl FnGen<'_> {
         self.coerce(ta, &Ty::Any, pos)?;
         self.take_out(&b);
         self.coerce(tb, &Ty::Any, pos)?;
-        let both = (self.temp(&Ty::Any), self.temp(&Ty::Any));
-        self.set_raw(&both.1);
-        self.set_raw(&both.0);
-        self.get_raw(&both.0);
-        self.get_raw(&both.1);
-        self.e(I::Call(self.g.imp.anys["equals"]));
-        self.release(&both.0);
-        self.release(&both.1);
+        self.call_prelude("any::equals");
         if op == BinOp::Ne {
             self.e(I::I32Eqz);
         }

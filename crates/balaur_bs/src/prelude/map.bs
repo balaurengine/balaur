@@ -1,0 +1,121 @@
+// A map from `K` to `V`, made for each pair a program names (`crate::maps`):
+// its entries in the order each key was first set, and a table of where each
+// key's entry sits, probed from the key's hash. A table made with its fields'
+// defaults is empty, and takes a table of slots with its first entry.
+
+pub class Table { keys_in_order: [K], values_in_order: [V], slots: [int], mask: int }
+
+impl Table {
+    pub fn len() -> int {
+        self.keys_in_order.len()
+    }
+
+    pub fn has(key: K) -> bool {
+        self.find(key) >= 0
+    }
+
+    // `map[key]`.
+    pub fn get(key: K) -> V? {
+        let at = self.find(key);
+        if at < 0 {
+            return nil;
+        }
+        self.values_in_order[at]
+    }
+
+    // `map[key] = value`: replaced where it was, else added last.
+    pub fn set(key: K, value: V) {
+        let at = self.find(key);
+        if at >= 0 {
+            self.values_in_order[at] = value;
+            return;
+        }
+        self.keys_in_order.push(key);
+        self.values_in_order.push(value);
+        if self.slots.len() == 0 {
+            self.index();
+        } else if self.keys_in_order.len() * 2 > self.mask {
+            self.mask = self.mask * 2 + 1;
+            self.index();
+        } else {
+            self.place(self.keys_in_order.len() - 1);
+        }
+    }
+
+    // The entry taken out, its value handed back; the rest keep their order.
+    pub fn remove(key: K) -> V? {
+        let at = self.find(key);
+        if at < 0 {
+            return nil;
+        }
+        self.keys_in_order.remove(at);
+        let value = self.values_in_order.remove(at);
+        self.index();
+        value
+    }
+
+    pub fn keys() -> [K] {
+        let out: [K] = [];
+        for key in self.keys_in_order {
+            out.push(key);
+        }
+        out
+    }
+
+    pub fn values() -> [V] {
+        let out: [V] = [];
+        for value in self.values_in_order {
+            out.push(value);
+        }
+        out
+    }
+
+    // Where `key`'s entry sits, or -1.
+    fn find(key: K) -> int {
+        if self.slots.len() == 0 {
+            return -1;
+        }
+        let at = __hash(key) % (self.mask + 1);
+        while self.slots[at] != 0 {
+            let entry = self.slots[at] - 1;
+            if self.keys_in_order[entry] == key {
+                return entry;
+            }
+            at = (at + 1) % (self.mask + 1);
+        }
+        -1
+    }
+
+    // Entry `entry` in the table, at the first free slot from its key's hash.
+    fn place(entry: int) {
+        let at = __hash(self.keys_in_order[entry]) % (self.mask + 1);
+        while self.slots[at] != 0 {
+            at = (at + 1) % (self.mask + 1);
+        }
+        self.slots[at] = entry + 1;
+    }
+
+    // The table made again, for every entry.
+    fn index() {
+        if self.mask < 7 {
+            self.mask = 7;
+        }
+        self.slots = [0; self.mask + 1];
+        let entry = 0;
+        while entry < self.keys_in_order.len() {
+            self.place(entry);
+            entry += 1;
+        }
+    }
+}
+
+// `{k: v, ..}`: each key set in turn, so a key given twice keeps the last.
+pub fn of(keys: [K], values: [V]) -> Table {
+    let table = Table { keys_in_order: [], values_in_order: [], slots: [], mask: 7 };
+    let at = 0;
+    while at < keys.len() {
+        table.set(keys[at], values[at]);
+        at += 1;
+    }
+    table
+}

@@ -16,7 +16,7 @@ fn one_node() -> (tempfile::TempDir, balaur_core::App, Entity) {
     let project = Project::new(Backend::Bs, &script("", "")).unwrap();
     let app = app(Backend::Bs, &project).unwrap();
     let entity =
-        balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", app.engine.root());
+        balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "probe", app.engine.root());
     let Project { dir } = project;
     (dir, app, entity)
 }

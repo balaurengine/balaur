@@ -533,7 +533,7 @@ impl Painting<'_> {
     /// an italic face: see [`crate::widget::theme::slanted`].
     pub(crate) fn slant(&self, index: usize) -> bool {
         let look = look_of(self.arena, index, &self.theme);
-        crate::widget::theme::slanted(&look.style, &self.arena[index].widget)
+        crate::widget::theme::slanted(&look.style, (&self.arena[index].widget, look.project))
     }
 
     /// The look of the widget at `index`, resolved once a frame.
@@ -543,11 +543,14 @@ impl Painting<'_> {
         if Rc::ptr_eq(&styled, &look.style) {
             return look;
         }
-        let (ink, font) = face(&self.theme, &styled, &self.arena[index].widget);
+        let placed = &self.arena[index];
+        let (ink, font) = face(&self.theme, &styled, (&placed.widget, placed.project));
         Rc::new(Look {
             style: styled,
             font,
             ink,
+            icon: look.icon.clone(),
+            project: placed.project,
         })
     }
 

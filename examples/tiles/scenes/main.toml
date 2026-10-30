@@ -19,7 +19,7 @@ cells = [
 ]
 
 [nodes.tile_collision]
-friction = 0.6
+physics_material = { friction = 0.6 }
 
 [[nodes]]
 id = "n_crate"

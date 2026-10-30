@@ -12,9 +12,15 @@ pub(crate) struct Booted {
     _log: std::sync::MutexGuard<'static, ()>,
 }
 
-/// The project whose `main.toml` is `scene` and whose `scripts/s.bs` is
+/// The project whose `main.toml` is `scene` and whose `scripts/scenario.bs` is
 /// `script`, loaded and not yet ticked.
 pub(crate) fn project(scene: &str, script: &str) -> Booted {
+    project_with(scene, script, &[])
+}
+
+/// [`project`] with more files beside the scene, each a project-relative
+/// path and its text.
+pub(crate) fn project_with(scene: &str, script: &str, files: &[(&str, &str)]) -> Booted {
     let log = crate::LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -22,11 +28,16 @@ pub(crate) fn project(scene: &str, script: &str) -> Booted {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
+    for (path, text) in files {
+        let path = dir.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = balaur::standard_app(crate::dev_config(dir.path())).unwrap();

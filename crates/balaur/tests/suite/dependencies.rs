@@ -11,7 +11,7 @@ use super::bs::{booted, field, ticked};
 
 const BUTTON: &str = "use util;
 
-pub struct Button {
+pub class Button {
     node: Node,
     value: int,
     found: bool,

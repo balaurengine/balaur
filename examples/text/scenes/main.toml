@@ -17,12 +17,11 @@ position = [0.0, 3.2, 0.0]
 
 [nodes.text3d]
 text = "Text in the world"
-font_family = "heading"
+font = "fonts/SourceSans3-Semibold.ttf"
 font_size = 96
 color = [0.96, 0.87, 0.62, 1.0]
 pixels_per_unit = 110
-outline_size = 3.0
-outline_color = [0.12, 0.09, 0.05, 1.0]
+text_style = { outline_size = 3.0, outline_color = [0.12, 0.09, 0.05, 1.0] }
 
 # A sign sits in its own plane, like paint on a board.
 [[nodes]]
@@ -39,7 +38,7 @@ font_size = 52
 color = [0.72, 0.86, 0.98, 1.0]
 pixels_per_unit = 110
 billboard = false
-line_height = 1.15
+text_style = { line_height = 1.15 }
 
 # A nameplate turns to the camera, so it reads from anywhere.
 [[nodes]]
@@ -55,7 +54,7 @@ text = "a name\nfollows you"
 font_size = 52
 color = [0.68, 0.94, 0.76, 1.0]
 pixels_per_unit = 110
-line_height = 1.15
+text_style = { line_height = 1.15 }
 
 [[nodes]]
 id = "shadowed"
@@ -70,9 +69,7 @@ text = "a shadow behind it"
 font_size = 60
 color = [0.98, 0.98, 0.98, 1.0]
 pixels_per_unit = 110
-shadow_offset_x = 5.0
-shadow_offset_y = 5.0
-shadow_color = [0.0, 0.0, 0.0, 0.55]
+text_style = { shadow_color = [0.0, 0.0, 0.0, 0.55], shadow_offset_x = 5.0, shadow_offset_y = 5.0 }
 
 # Markup: the same tags a widget's label reads.
 [[nodes]]
@@ -101,12 +98,12 @@ position = [0.0, -2.1, 0.0]
 
 [nodes.text3d]
 text = "A block wraps at the width it is given, and the lines sit where the shaper put them."
-font_family = "mono"
+font = "fonts/JetBrainsMono-Regular.ttf"
 font_size = 34
 max_width = 620
-line_height = 1.35
 color = [0.74, 0.76, 0.84, 1.0]
 pixels_per_unit = 110
+text_style = { line_height = 1.35 }
 
 # 2D text is sized like a sprite and lives in the 2D pass.
 [[nodes]]

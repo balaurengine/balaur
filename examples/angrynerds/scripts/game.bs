@@ -2,7 +2,7 @@
 // restarts. The level itself is pure scene data (2D components); this
 // script only drives it, so everything stays editable in the balaur editor.
 
-pub struct Game {
+pub class Game {
     node: Node,
     root: Node,
     score: int,

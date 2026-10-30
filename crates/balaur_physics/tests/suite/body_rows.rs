@@ -225,7 +225,7 @@ fn a_body_held_awake_keeps_its_sleep_thresholds() {
 const SPINNER_3D: &str = r#"[[nodes]]
 id = "n_spinner"
 name = "Spinner"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.0, 0.5, 0.0], inertia = [1.0, 2.0, 3.0], inertia_rotation = [0.0, 0.5, 0.0], lock_translation = ["x"], initial_angular_velocity = [0.0, 0.0, 1.0] }
 collider3d = { kind = "sphere", radius = 0.5 }
 "#;
@@ -234,8 +234,8 @@ collider3d = { kind = "sphere", radius = 0.5 }
 fn the_body_readers_answer_what_rapier_works_out() {
     let booted = boot::project(
         SPINNER_3D,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     pub fn probe() -> [any] {
         let n = self.node;
         [n.body3d.is_ccd_active(), n.body3d.world_center_of_mass(), n.body3d.local_center_of_mass(), n.body3d.total_inertia(),
@@ -296,12 +296,12 @@ fn teleport_can_turn_a_body_too() {
         r#"[[nodes]]
 id = "n_crate"
 name = "Crate"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 collider3d = { kind = "box" }
 "#,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.body3d.teleport(1.0, 2.0, 3.0, map().with("rotation", [0.0, 0.5, 0.0]));
     }
@@ -330,12 +330,12 @@ fn the_2d_body_readers_answer_what_rapier_works_out() {
         r#"[[nodes]]
 id = "n_puck"
 name = "Puck"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.5, 0.0], inertia = 3.0, lock_translation = ["y"], initial_angular_velocity = 1.0 }
 collider2d = { kind = "circle", radius = 0.5 }
 "#,
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.body2d.add_constant_force(4.0, 0.0);
     }

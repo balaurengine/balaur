@@ -271,7 +271,8 @@ fn structs(p: &mut Project, m: usize) -> Vec<String> {
             lines.push(field);
         }
         let vis = "pub ";
-        let kind = if crate::project::class_name(&name) && !s.script {
+        // A node's script is a class, as is any state the port shares.
+        let kind = if s.script || crate::project::class_name(&name) {
             "class"
         } else {
             "struct"

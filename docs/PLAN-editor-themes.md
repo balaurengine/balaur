@@ -130,7 +130,14 @@ and runs it. Nothing installs an export on a device.
 
 ## Steps
 
-None left.
+1. **The roles chore**, moved here from the retired type plan. The look is
+   data, and a call site should say only what it changes. Counted
+   2026-09-03, these keys are still spelled at call sites: `height` 127,
+   `size` 79, `fill` 78, `strong` 49, `stroke` 23, `radius` 22, `font` 7.
+   Most of the `height` and `fill` remainder is layout rather than look, a
+   row sized to its container or a fill chosen from live state. The rest
+   wants more roles, not more overrides; a role is a line of TOML. Fonts in
+   a theme are PLAN-fonts.
 
 ## Not done
 

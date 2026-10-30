@@ -189,7 +189,7 @@ pub(crate) fn order_layer_2d(
             layers.indices(),
             |entity| {
                 placeable.emitters.contains_key(&entity)
-                    || crate::lit_2d::lights_itself(&world, entity)
+                    || crate::lit_2d::lights_itself(&app.engine, &world, entity)
             },
             placeable.composite.is_some(),
         )
@@ -348,12 +348,10 @@ pub(crate) fn build_slot_2d(
     };
     if let Some(material) = materials.for_node(app, reference, channel) {
         node.set_material(material);
-    } else if let Some(lit) = renderable
-        .lit
-        .as_ref()
-        .filter(|_| renderable.shape != Shape2d::Polygon)
+    } else if let Some(lit) =
+        crate::lit_2d::of(&app.engine, reference).filter(|_| renderable.shape != Shape2d::Polygon)
     {
-        crate::lit_2d::dress(app, &mut node, lit);
+        crate::lit_2d::dress(app, &mut node, &lit);
     }
     Some(Slot2d {
         node,
@@ -398,7 +396,16 @@ fn cut_runs(
         let material = world
             .get::<&GlobalAppearance>(entity)
             .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
-        Some(crate::batch_2d::key_of(&renderable, mesh, material))
+        let reference = if renderable.material.is_empty() {
+            material.reference().to_string()
+        } else {
+            renderable.material.clone()
+        };
+        if crate::lit_2d::of(&app.engine, &reference).is_some() {
+            return None;
+        }
+        let debug = crate::debug_draw::DebugDraw::of(world, entity);
+        Some(crate::batch_2d::key_of(&renderable, mesh, debug, material))
     });
     let same = cut.len() == batches.runs.len()
         && cut
@@ -425,7 +432,8 @@ fn cut_runs(
             if let crate::batch_2d::Mesh::NineSlice(key) = &run.key.mesh {
                 set_nine_mesh(&mut node, Some(key));
             }
-            crate::overlay::apply_2d(&mut node, &run.key.overlay);
+            let surface = crate::material::flat_surface_of(&app.engine, &run.key.material);
+            crate::overlay::apply_2d(&mut node, &surface, &run.key.debug);
             // The shader multiplies the object's colour by the instance's, so
             // the object stays white and every member's tint rides in its own.
             node.set_position(Vec2::ZERO)
@@ -591,16 +599,18 @@ pub(crate) fn sync_2d(
                 crate::skinned_2d::write_deform(&world, entity, polygon, handle, slot.deformed);
         }
         tint_pieces(slot, &renderable, inherited);
-        if slot.overlay != Some(renderable.overlay) {
-            crate::overlay::apply_2d(&mut slot.node, &renderable.overlay);
+        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
+        let reference = if renderable.material.is_empty() {
+            appearance.material.reference().to_string()
+        } else {
+            renderable.material.clone()
+        };
+        let surface = crate::material::flat_surface_of(&app.engine, &reference);
+        if slot.overlay != Some((surface, debug)) {
+            crate::overlay::apply_2d(&mut slot.node, &surface, &debug);
             let mesh = overlay_mesh(app, &slot.node, &renderable, appearance.material);
-            crate::overlay::companion_2d(
-                &mut slot.node,
-                &mut slot.companion,
-                &renderable.overlay,
-                mesh,
-            );
-            slot.overlay = Some(renderable.overlay);
+            crate::overlay::companion_2d(&mut slot.node, &mut slot.companion, &debug, mesh);
+            slot.overlay = Some((surface, debug));
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         let shift = lean_and_shift(slot, &renderable, &global);

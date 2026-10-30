@@ -2,7 +2,7 @@
 // `balaur run examples/multiplayer -- host` in one terminal and `-- join`
 // in another. A join retries each second until the host is up.
 
-pub struct Lobby {
+pub class Lobby {
     node: Node,
     retry_in: int,
     joining: bool,

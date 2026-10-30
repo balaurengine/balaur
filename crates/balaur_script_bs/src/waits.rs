@@ -2,7 +2,7 @@
 // the engine. Each answers with a token the engine wakes at a fixed step, so
 // a wait replays exactly.
 
-use balaur_bs::runtime::Value as L;
+use balaur_bs::runtime::CallArgs;
 use balaur_bs::{HostSignature, Ty};
 use balaur_core::Engine;
 
@@ -47,14 +47,14 @@ pub(crate) fn is_wait(key: &str) -> bool {
 }
 
 /// The token `key(args)` waits on, when `key` is one of these.
-pub(crate) fn token(eng: &Engine, key: &str, args: &[L]) -> Option<u64> {
+pub(crate) fn token(eng: &Engine, key: &str, args: &dyn CallArgs) -> Option<u64> {
     let name = key.strip_prefix(MODULE)?.strip_prefix("::")?;
-    Some(match (name, args.first()) {
-        ("seconds", Some(L::Float(s))) => balaur_core::timers::after_seconds(eng, *s as f32),
-        ("frames", Some(L::Int(n))) => {
-            balaur_core::timers::after_frames(eng, u32::try_from(*n).unwrap_or(0))
+    Some(match (name, args.float(0), args.int(0)) {
+        ("seconds", Some(seconds), _) => balaur_core::timers::after_seconds(eng, seconds as f32),
+        ("frames", _, Some(frames)) => {
+            balaur_core::timers::after_frames(eng, u32::try_from(frames).unwrap_or(0))
         }
-        ("wait", Some(L::Int(t))) => t.cast_unsigned(),
+        ("wait", _, Some(token)) => token.cast_unsigned(),
         _ => return None,
     })
 }

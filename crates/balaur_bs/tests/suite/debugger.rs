@@ -4,7 +4,7 @@ use balaur_bs::runtime::{Command, HostFns, Paused, StopReason, Value};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const SCRIPT: &str = "pub struct Mover { x: float, steps: int }
+const SCRIPT: &str = "pub class Mover { x: float, steps: int }
 impl Mover {
     pub fn walk(n: int) -> float {
         for i in 0..n {
@@ -280,7 +280,7 @@ mod parked {
     }
 
     const GUARD: &str = "extern async fn wait(seconds: float);
-pub struct Guard { hp: int }
+pub class Guard { hp: int }
 impl Guard {
     pub async fn patrol(rounds: int) -> int {
         for r in 0..rounds {
@@ -340,6 +340,7 @@ impl Guard {
         let done = rt.resume_task(Command::Continue, &mut task, Some(&mut g));
         assert_eq!(done.unwrap(), Step::Done(Value::Int(3)));
         assert_eq!(rt.get(&g, "hp"), Some(Value::Int(3)));
+        rt.drop_object(g);
         assert_eq!(rt.live(), 0);
     }
 }

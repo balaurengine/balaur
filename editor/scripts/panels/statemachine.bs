@@ -1,7 +1,7 @@
 // The State machine tab's one script: it has the Editor fill the header and
 // the rows when the machine, the selection or a frame of play moved.
 
-pub struct Statemachine {
+pub class Statemachine {
     node: Node,
     editor: Node,
 }

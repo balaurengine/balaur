@@ -20,17 +20,17 @@ fn rects(out: &egui::FullOutput) -> Vec<egui::Rect> {
 /// span's rather than the label's.
 #[test]
 fn a_url_span_calls_on_link_with_its_target() {
-    let script = "pub struct Owner { node: Node, went: str }
+    let script = "pub class Owner { node: Node, went: str }
 impl Owner {
     pub fn on_go(target: str) { self.went = target; }
     pub fn went() -> str { self.went }
 }
 ";
-    let (_dir, mut app) = app_with_script(script);
+    let (_dir, mut app) = app_with_script("owner.bs", script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
+    host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let label = toml::toml! {
         kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0
@@ -79,17 +79,17 @@ fn a_url_span_emits_its_target_with_no_handler_named() {
 /// clicked, not the label around it.
 #[test]
 fn a_click_beside_a_url_span_reports_nothing() {
-    let script = "pub struct Owner { node: Node, went: str }
+    let script = "pub class Owner { node: Node, went: str }
 impl Owner {
     pub fn on_go(target: str) { self.went = target; }
     pub fn went() -> str { self.went }
 }
 ";
-    let (_dir, mut app) = app_with_script(script);
+    let (_dir, mut app) = app_with_script("owner.bs", script);
     let root = app.engine.root();
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur::node_id_of(owner), "scripts/paint.bs")
+    host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let label = toml::toml! {
         kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0
@@ -265,27 +265,19 @@ fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
 fn a_widget_takes_the_text_keys_text2d_takes() {
     let (_dir, app) = app();
     let label = toml::toml! {
-        kind = "label" text = "hello"
-        underline = "double" strikethrough = true letter_spacing = 2.0 line_height = 1.5
-        font_features = ["smcp", "liga=0"] font_stretch = "condensed" truncate_at = "middle"
-        outline_size = 1.0 shadow_offset_x = 2.0 text_background = [0.0, 0.0, 1.0, 0.5]
+        kind = "label" text = "hello" truncate_at = "middle"
+        font = "fonts/SourceSans3-Regular.ttf" text_background = [0.0, 0.0, 1.0, 0.5]
+        text_style = { underline = "double", strikethrough = true, letter_spacing = 2.0 }
     };
     let entity = add_widget(&app, &label.into());
     let got = balaur::components::get(&app.engine, entity, "widget").unwrap();
     let read = |key: &str| got.get(key).cloned().unwrap();
-    assert_eq!(read("underline").as_str(), Some("double"));
-    assert_eq!(read("strikethrough").as_bool(), Some(true));
-    assert_eq!(read("letter_spacing").as_float(), Some(2.0));
-    assert_eq!(read("line_height").as_float(), Some(1.5));
-    assert_eq!(read("font_stretch").as_str(), Some("condensed"));
     assert_eq!(read("truncate_at").as_str(), Some("middle"));
-    assert_eq!(read("outline_size").as_float(), Some(1.0));
-    assert_eq!(read("shadow_offset_x").as_float(), Some(2.0));
-    let features: Vec<String> = read("font_features")
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| f.as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(features, ["smcp", "liga=0"]);
+    assert_eq!(read("font").as_str(), Some("fonts/SourceSans3-Regular.ttf"));
+    // The style is filed as an inline definition, and the widget takes it.
+    let key = read("text_style");
+    let style =
+        balaur_core::assets::duplicate_definition(&app.engine, key.as_str().unwrap()).unwrap();
+    assert_eq!(style["underline"].as_str(), Some("double"));
+    assert_eq!(style["letter_spacing"].as_float(), Some(2.0));
 }

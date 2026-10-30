@@ -34,26 +34,26 @@ pub struct Run {
 }
 
 /// Queue the states. Called by `shell::apply_start_state` for `suite:`.
-pub fn begin(S: &mut editor::State, list: str) {
+pub fn begin(state: &mut editor::State, list: str) {
     let queue: [str] = [];
     for item in list.split("+") {
         if item != "" {
             queue.push(item);
         }
     }
-    S.suite = Run { queue: queue, current: "", frames: 0, quiet: 0, budget: 0, opened: false, boot_due: false };
+    state.suite = Run { queue: queue, current: "", frames: 0, quiet: 0, budget: 0, opened: false, boot_due: false };
 }
 
 /// One frame of the run, at the end of the editor's `update`: start the next
 /// state on a fresh editor once the one before has gone quiet.
-pub fn step(S: &mut editor::State) {
-    if S.suite.is_none() {
+pub fn step(state: &mut editor::State) {
+    if state.suite.is_none() {
         return;
     }
-    let run = S.suite.unwrap();
+    let run = state.suite.unwrap();
     if run.current != "" {
-        if waiting(S, run) {
-            S.suite = run;
+        if waiting(state, run) {
+            state.suite = run;
             return;
         }
         if run.frames < MAX_FRAMES {
@@ -64,7 +64,7 @@ pub fn step(S: &mut editor::State) {
         run.current = "";
     }
     if run.queue.len() == 0 {
-        S.suite = nil;
+        state.suite = nil;
         engine::quit(0);
         return;
     }
@@ -73,98 +73,76 @@ pub fn step(S: &mut editor::State) {
     // would; every later one on a reopened one, from the frame after the
     // reopen, before anything the reload started has moved.
     if run.opened {
-        reopen(S);
+        reopen(state);
         run.boot_due = true;
     }
     run.opened = true;
     run.current = next;
     run.frames = 0;
     run.quiet = 0;
-    let state = next;
+    let states = next;
     run.budget = 0;
     let at = util::index_of(next, "@");
     if at.is_some() {
-        state = next.slice(0, at.unwrap());
+        states = next.slice(0, at.unwrap());
         run.budget = next.slice(at.unwrap() + 1, next.len()).parse_int();
     }
-    S.suite = run;
+    state.suite = run;
     // The frame applies the list once the screen is measured: the first state
     // on the screen `init` measured, a later one once its reopen has.
-    S.start_states = state.replace("&", ",");
-    S.states_applied = false;
+    state.start_states = states.replace("&", ",");
+    state.states_applied = false;
     log::info("suite: start {next}");
 }
 
 // Whether the running state still has frames to take; counts this one.
-fn waiting(S: editor::State, run: &mut Run) -> bool {
+fn waiting(state: editor::State, run: &mut Run) -> bool {
     run.frames += 1;
     // A lazy UI takes no frame unless asked, and the run counts in frames:
     // the pass that applies the state, then the quiet ones that end it.
     ui::request_repaint();
-    if !S.states_applied {
+    if !state.states_applied {
         return run.frames < MAX_FRAMES;
     }
     if run.budget > 0 {
         return run.frames < run.budget;
     }
-    run.quiet = if busy(S) { 0 } else { run.quiet + 1 };
+    run.quiet = if busy(state) { 0 } else { run.quiet + 1 };
     (run.frames < MIN_FRAMES || run.quiet < QUIET_FRAMES) && run.frames < MAX_FRAMES
 }
 
 /// At the top of the editor's `update`: boot the fresh state the end of the
 /// last one put in place. Booted in a call of its own, so a call the boot
 /// makes back into the Editor is handed the new state, not the one before.
-pub fn reboot(S: &mut editor::State, editor: Node) {
-    if S.suite.is_none() || !S.suite.unwrap().boot_due {
+pub fn reboot(state: &mut editor::State, editor: Node) {
+    if state.suite.is_none() || !state.suite.unwrap().boot_due {
         return;
     }
-    let run = S.suite.unwrap();
+    let run = state.suite.unwrap();
     run.boot_due = false;
-    S.suite = run;
-    editor::boot(S, editor, false);
+    state.suite = run;
+    editor::boot(state, editor, false);
 }
 
 /// The editor as `init` leaves it, over the same mirror node so the reload
 /// frees it: a fresh state, which `reboot` reads the project into and applies
 /// the theme and the camera to. What a state changed on disk stays changed.
-fn reopen(S: &mut editor::State) {
-    if S.playing {
-        shell::stop_play(S);
+fn reopen(state: &mut editor::State) {
+    if state.playing {
+        shell::stop_play(state);
     }
     // The sheet and the picker stay open until shut, and a fresh state never
     // shuts what the last one opened: a scrim left up takes every press.
-    window::hide(S);
-    window::picker_shut(S);
-    let mirror = S.mirror;
-    S = editor::fresh_state();
-    S.mirror = mirror;
+    window::hide(state);
+    window::picker_shut(state);
+    let mirror = state.mirror;
+    state = editor::fresh_state();
+    state.mirror = mirror;
 }
 
-/// Whether a self-test is still stepping: every per-frame driver the editor's
-/// `update` runs. A driver added there belongs here too, or the run starts
-/// the next state on top of it.
-fn busy(S: editor::State) -> bool {
-    S.start_check.is_some()
-        || S.session.demo.is_some()
-        || S.layout_demo >= 0
-        || S.rows_demo >= 0
-        || S.import_demo >= 0
-        || S.import_queue.len() > 0
-        || S.gesture_demo >= 0
-        || S.phys_click.is_some()
-        || S.viewport_check.is_some()
-        || S.empty_note.is_some()
-        || S.reselect.is_some()
-        || S.pick_check.is_some()
-        || S.camera_check.is_some()
-        || S.pool_check.is_some()
-        || S.settings.demo >= 0
-        || S.themewin.demo >= 0
-        || S.window.demo >= 0
-        || S.machine.demo >= 0
-        || S.plugin_demo >= 0
-        || S.profile_demo >= 0
-        || S.events_demo >= 0
-        || S.palette_demo >= 0
-        || S.showcase.is_some()
+/// Whether a self-test is still stepping, an import is still landing or a
+/// showcase still plays: a stepping self-test is listed in `stepping` until
+/// it is done, so a new driver needs no line here.
+fn busy(state: editor::State) -> bool {
+    state.stepping.len() > 0 || state.import_queue.len() > 0 || state.showcase.is_some()
 }

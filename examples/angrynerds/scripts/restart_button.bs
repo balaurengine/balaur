@@ -1,7 +1,7 @@
 // The Restart button. `on_click` names a method on the button's own node, so
 // this one forwards to the game script next door.
 
-pub struct RestartButton {
+pub class RestartButton {
     node: Node,
 }
 

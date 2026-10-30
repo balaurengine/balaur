@@ -101,7 +101,7 @@ impl Loaded {
 #[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_declares_itself_into_a_running_app() {
     let probe = loaded(
-        "pub struct Probe { node: Node }\n\
+        "pub class Probe { node: Node }\n\
          impl Probe {\n\
              pub fn greet() -> str { greeter::greet(\"world\") }\n\
              pub fn version() -> str { greeter::VERSION }\n\
@@ -136,7 +136,7 @@ fn an_extension_declares_itself_into_a_running_app() {
 #[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_cannot_reach_a_resource_the_host_inserted() {
     let probe = loaded(
-        "pub struct Probe { node: Node }\n\
+        "pub class Probe { node: Node }\n\
          impl Probe { pub fn root() -> str { greeter::project_root() } }\n",
     );
     assert_eq!(
@@ -152,7 +152,7 @@ fn an_extension_cannot_reach_a_resource_the_host_inserted() {
 #[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_owns_a_resource_the_engine_keeps() {
     let probe = loaded(
-        "pub struct Probe { node: Node }\n\
+        "pub class Probe { node: Node }\n\
          impl Probe {\n\
              pub fn greetings() -> int { greeter::greetings() }\n\
              pub fn greet() { greeter::greet(\"again\"); }\n\

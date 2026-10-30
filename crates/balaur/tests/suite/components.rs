@@ -19,9 +19,9 @@ fn plugin_components_roundtrip_through_the_registry() {
             false
         }
 
-        pub struct T { node: Node, done: int, failed: bool }
+        pub class Checks { node: Node, done: int, failed: bool }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let names = scene::component_types();
                 for expected in ["body3d", "collider3d", "shape3d", "widget"] {
@@ -81,12 +81,12 @@ fn run_script(dir: &std::path::Path, app: &balaur::App, source: &str) {
     balaur::logbuf::capture_for_test();
     balaur::logbuf::clear();
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
-    std::fs::write(dir.join("scripts/t.bs"), source).unwrap();
+    std::fs::write(dir.join("scripts/checks.bs"), source).unwrap();
     let node = spawn(app, "Tester");
     app.engine
         .script_host()
         .unwrap()
-        .attach(balaur::node_id_of(node), "scripts/t.bs")
+        .attach(balaur::node_id_of(node), "scripts/checks.bs")
         .unwrap();
     let host = app.engine.script_host().unwrap();
     assert_eq!(
@@ -104,7 +104,7 @@ fn app_with_every_component() -> (tempfile::TempDir, balaur::App) {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
@@ -292,9 +292,9 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         dir.path(),
         &app,
         r##"
-        pub struct T { node: Node, done: int }
+        pub class Checks { node: Node, done: int }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let n = scene::root().add_child("Curve");
                 n.set_component("shape2d", map()
@@ -422,9 +422,9 @@ fn a_one_property_write_leaves_the_rest() {
         dir.path(),
         &app,
         r#"
-        pub struct T { node: Node, done: int, failed: bool }
+        pub class Checks { node: Node, done: int, failed: bool }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let n = scene::root().add_child("Moved");
                 n.set_component("transform", map().with("position", [1.0, 2.0, 3.0]).with("scale", [4.0, 4.0, 4.0]));
@@ -463,9 +463,9 @@ fn a_handle_on_a_missing_component_reads_its_defaults() {
         dir.path(),
         &app,
         r#"
-        pub struct T { node: Node, done: int }
+        pub class Checks { node: Node, done: int }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let bare = scene::root().add_child("Bare");
                 bare.remove_component("transform");
@@ -493,9 +493,9 @@ fn a_keyed_read_answers_one_property() {
         dir.path(),
         &app,
         r#"
-        pub struct T { node: Node, done: int, failed: bool }
+        pub class Checks { node: Node, done: int, failed: bool }
 
-        impl T {
+        impl Checks {
             fn init() {
                 let n = scene::root().add_child("Keyed");
                 n.set_component("widget", map().with("text", "hi").with("kind", "button"));

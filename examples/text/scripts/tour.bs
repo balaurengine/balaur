@@ -1,7 +1,7 @@
 // The camera walks a slow arc so the billboard turns and the sign does not,
 // and the score counts up through `render.set_text`.
 
-pub struct Tour {
+pub class Tour {
     node: Node,
     score: int,
     at: float,
@@ -31,7 +31,7 @@ impl Tour {
         self.score += 1;
         let node = scene::get_node("Tour/Nameplate");
         if node.is_valid() {
-            node.text2d.text = "a name\nfollows you · {self.score / 60}";
+            node.text3d.text = "a name\nfollows you · {self.score / 60}";
         }
         // The immediate calls need no node: a label for one frame, over the floor.
         render::draw_text_3d(0.0, -4.4, 0.0, "drawn for one frame, from a script", map()

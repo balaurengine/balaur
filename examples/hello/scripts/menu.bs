@@ -1,7 +1,7 @@
 // The menu's own script. Each button's `on_click` names a method here, and
 // the buttons say nothing about where they sit — the panel lays them out.
 
-pub struct Menu {
+pub class Menu {
     node: Node,
     spinner: Node,
 }

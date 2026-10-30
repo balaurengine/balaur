@@ -19,21 +19,21 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 collider3d = {{ kind = "box", size = [10.0, 1.0, 10.0], events = [{events}] }}
 
 [[nodes]]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = {{ source = "scripts/s.bs" }}
+script = {{ source = "scripts/scenario.bs" }}
 body3d = {{ kind = "dynamic" }}
 collider3d = {{ kind = "box", events = [{events}] }}
 transform = {{ position = [0.0, 1.5, 0.0] }}
 "#
         ),
-        r#"pub struct S { node: Node, entered: [any], left: [any], forces: [any] }
-impl S {
+        r#"pub class Scenario { node: Node, entered: [any], left: [any], forces: [any] }
+impl Scenario {
     pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
     pub fn on_collision_exit(collision: any) { self.left.push(collision); }
     pub fn on_contact_force(contact: any) { self.forces.push(contact); }
@@ -115,7 +115,7 @@ name = "World"
 id = "n_zone"
 name = "Zone"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 collider3d = { kind = "box", size = [4.0, 1.0, 4.0], sensor = true, events = ["collision"] }
 
 [[nodes]]
@@ -126,8 +126,8 @@ body3d = { kind = "dynamic" }
 collider3d = { kind = "sphere", radius = 0.25 }
 transform = { position = [0.0, 1.5, 0.0] }
 "#,
-        r"pub struct S { node: Node, entered: [any], left: [any] }
-impl S {
+        r"pub class Scenario { node: Node, entered: [any], left: [any] }
+impl Scenario {
     pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
     pub fn on_collision_exit(collision: any) { self.left.push(collision); }
     pub fn entered() -> [any] { self.entered }

@@ -28,37 +28,40 @@ macro_rules! material {
         /// The mechanical properties: stiffness per constraint family, the
         /// elastic model's own parameters, how the body yields, and when it
         /// tears.
-        pub(crate) fn $material(params: &toml::Value) -> crate::$rapier::prelude::SoftBodyMaterial {
+        pub(crate) fn $material(
+            params: &toml::Value,
+            made: &toml::Value,
+        ) -> crate::$rapier::prelude::SoftBodyMaterial {
             use crate::$rapier::prelude::{SoftBodyMaterial, SoftEdgePlasticFlow};
             SoftBodyMaterial {
-                edge_softness: $springs(params, k::EDGE_HZ, k::EDGE_DAMPING, (30.0, 1.0)),
-                bend_softness: $springs(params, k::BEND_HZ, k::BEND_DAMPING, (10.0, 1.0)),
-                volume_softness: $springs(params, k::VOLUME_HZ, k::VOLUME_DAMPING, (30.0, 1.0)),
+                edge_softness: $springs(made, k::EDGE_HZ, k::EDGE_DAMPING, (30.0, 1.0)),
+                bend_softness: $springs(made, k::BEND_HZ, k::BEND_DAMPING, (10.0, 1.0)),
+                volume_softness: $springs(made, k::VOLUME_HZ, k::VOLUME_DAMPING, (30.0, 1.0)),
                 shape_matching_softness: $springs(
-                    params,
+                    made,
                     k::SHAPE_MATCHING_HZ,
                     k::SHAPE_MATCHING_DAMPING,
                     (10.0, 1.0),
                 ),
-                young_modulus: crate::scalar::real(v::f(params, k::YOUNG_MODULUS, 1.0e4)),
-                poisson_ratio: crate::scalar::real(v::f(params, k::POISSON_RATIO, 0.3)),
-                elastic_damping_ratio: crate::scalar::real(v::f(params, k::ELASTIC_DAMPING, 1.0)),
-                plastic_yield: crate::scalar::real(v::f(params, k::PLASTIC_YIELD, 0.0)),
-                plastic_creep: crate::scalar::real(v::f(params, k::PLASTIC_CREEP, 1.0)),
-                plastic_max: crate::scalar::real(v::f(params, k::PLASTIC_MAX, 1.0)),
-                deformation_damping: crate::scalar::real(v::f(params, k::DEFORMATION_DAMPING, 0.0)),
-                edge_plastic_yield: crate::scalar::real(v::f(params, k::EDGE_PLASTIC_YIELD, 0.0)),
-                edge_plastic_creep: crate::scalar::real(v::f(params, k::EDGE_PLASTIC_CREEP, 1.0)),
-                edge_plastic_max: crate::scalar::real(v::f(params, k::EDGE_PLASTIC_MAX, 0.5)),
-                edge_plastic_flow: match v::text(params, k::EDGE_PLASTIC_FLOW, w::BOTH) {
+                young_modulus: crate::scalar::real(v::f(made, k::YOUNG_MODULUS, 1.0e4)),
+                poisson_ratio: crate::scalar::real(v::f(made, k::POISSON_RATIO, 0.3)),
+                elastic_damping_ratio: crate::scalar::real(v::f(made, k::ELASTIC_DAMPING, 1.0)),
+                plastic_yield: crate::scalar::real(v::f(made, k::PLASTIC_YIELD, 0.0)),
+                plastic_creep: crate::scalar::real(v::f(made, k::PLASTIC_CREEP, 1.0)),
+                plastic_max: crate::scalar::real(v::f(made, k::PLASTIC_MAX, 1.0)),
+                deformation_damping: crate::scalar::real(v::f(made, k::DEFORMATION_DAMPING, 0.0)),
+                edge_plastic_yield: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_YIELD, 0.0)),
+                edge_plastic_creep: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_CREEP, 1.0)),
+                edge_plastic_max: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_MAX, 0.5)),
+                edge_plastic_flow: match v::text(made, k::EDGE_PLASTIC_FLOW, w::BOTH) {
                     w::COMPRESSION_FLOW => SoftEdgePlasticFlow::Compression,
                     w::TENSION => SoftEdgePlasticFlow::Tension,
                     _ => SoftEdgePlasticFlow::Both,
                 },
-                tear_strain: $flow(params, k::TEAR_STRAIN),
-                tear_force: $flow(params, k::TEAR_FORCE),
-                tear_smoothing: crate::scalar::real(v::f(params, k::TEAR_SMOOTHING, 0.0)),
-                interior_strength: crate::scalar::real(v::f(params, k::INTERIOR_STRENGTH, 1.0)),
+                tear_strain: $flow(made, k::TEAR_STRAIN),
+                tear_force: $flow(made, k::TEAR_FORCE),
+                tear_smoothing: crate::scalar::real(v::f(made, k::TEAR_SMOOTHING, 0.0)),
+                interior_strength: crate::scalar::real(v::f(made, k::INTERIOR_STRENGTH, 1.0)),
                 // A schema writes "no limit" as zero; rapier writes it as the
                 // largest number of tears a step could possibly ask for.
                 max_tears_per_step: match v::f(params, k::MAX_TEARS_PER_STEP, 0.0) {
@@ -79,10 +82,10 @@ macro_rules! material {
         }
 
         pub(crate) fn $cell_model(
-            params: &toml::Value,
+            made: &toml::Value,
         ) -> crate::$rapier::prelude::SoftBodyCellModel {
             use crate::$rapier::prelude::SoftBodyCellModel;
-            match v::text(params, k::CELL_MODEL, w::VOLUME) {
+            match v::text(made, k::CELL_MODEL, w::VOLUME) {
                 w::COROTATIONAL => SoftBodyCellModel::Corotational,
                 w::NEO_HOOKEAN => SoftBodyCellModel::NeoHookean,
                 _ => SoftBodyCellModel::Volume,
@@ -142,6 +145,28 @@ pub(crate) fn particle_count(params: &toml::Value, least: f32) -> f64 {
 }
 
 /// What a body with nothing of its own to deform is drawn in.
+mod schema;
+pub(crate) use schema::{
+    collision_schema, filtering_schema, overrides_schema, particles_schema, primary_schema,
+    seams_schema, solver_schema, tearing_schema,
+};
+
+/// What a soft body is made of and what its surface is: both of its
+/// material rows, read once a build or a patch.
+pub(crate) struct Materials {
+    pub(crate) surface: std::rc::Rc<crate::material::PhysicsMaterial>,
+    pub(crate) body: std::rc::Rc<crate::soft_material::SoftMaterial>,
+}
+
+impl Materials {
+    pub(crate) fn of(eng: &balaur_core::Engine, params: &toml::Value) -> anyhow::Result<Self> {
+        Ok(Self {
+            surface: crate::material::of(eng, params)?,
+            body: crate::soft_material::of(eng, params)?,
+        })
+    }
+}
+
 pub(crate) const DEFAULT_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 
 /// A particle radius past this share of the body's width reads as hovering.
@@ -243,41 +268,14 @@ pub(crate) use stamp_colliders;
 const IN_PLACE: &[&str] = {
     use crate::vocabulary::keys as k;
     &[
-        k::EDGE_HZ,
-        k::EDGE_DAMPING,
-        k::BEND_HZ,
-        k::BEND_DAMPING,
-        k::VOLUME_HZ,
-        k::VOLUME_DAMPING,
-        k::SHAPE_MATCHING_HZ,
-        k::SHAPE_MATCHING_DAMPING,
-        k::YOUNG_MODULUS,
-        k::POISSON_RATIO,
-        k::ELASTIC_DAMPING,
-        k::PLASTIC_YIELD,
-        k::PLASTIC_CREEP,
-        k::PLASTIC_MAX,
-        k::DEFORMATION_DAMPING,
-        k::EDGE_PLASTIC_YIELD,
-        k::EDGE_PLASTIC_CREEP,
-        k::EDGE_PLASTIC_MAX,
-        k::EDGE_PLASTIC_FLOW,
-        k::TEAR_STRAIN,
-        k::TEAR_FORCE,
-        k::TEAR_SMOOTHING,
-        k::INTERIOR_STRENGTH,
         k::MAX_TEARS_PER_STEP,
         k::MIN_PIECE,
         k::SOLVER,
-        k::VOLUME_FACTOR,
-        k::VOLUME_PRESERVATION,
         k::SOLVER_ITERATIONS,
         k::COLOR,
         k::ENABLED,
-        k::FRICTION,
-        k::RESTITUTION,
-        k::FRICTION_COMBINE,
-        k::RESTITUTION_COMBINE,
+        k::SOFT_MATERIAL,
+        k::PHYSICS_MATERIAL,
         k::COLLISION_LAYER,
         k::COLLISION_MASK,
         k::SOLVER_LAYER,
@@ -312,11 +310,11 @@ pub(crate) fn oriented(params: &toml::Value) -> Option<bool> {
     }
 }
 
-/// `shape_matching` as a choice over the layout's own: `None` keeps what the
-/// generator chose.
-pub(crate) fn shape_matching(params: &toml::Value) -> Option<bool> {
+/// A material's `shape_matching` as a choice over the layout's own: `None`
+/// keeps what the generator chose.
+pub(crate) fn shape_matching(made: &toml::Value) -> Option<bool> {
     use crate::vocabulary::{self as v, keys as k, words as w};
-    match v::text(params, k::SHAPE_MATCHING, w::AUTO) {
+    match v::text(made, k::SHAPE_MATCHING, w::AUTO) {
         w::ON => Some(true),
         w::OFF => Some(false),
         _ => None,
@@ -328,16 +326,22 @@ pub(crate) fn shape_matching(params: &toml::Value) -> Option<bool> {
 /// body, the surface rows on each of its colliders.
 macro_rules! patch_in_place {
     ($name:ident, $world:ty, $handle:ty, $material:ident, $solver:ident) => {
-        fn $name(world: &mut $world, root: $handle, params: &toml::Value) {
+        fn $name(
+            world: &mut $world,
+            root: $handle,
+            params: &toml::Value,
+            materials: &crate::shared::softbody::Materials,
+        ) {
             use crate::shared::softbody::Family;
+            let made = &materials.body.0;
             for piece in world.soft_bodies.family(root) {
                 let Some(body) = world.soft_bodies.get_mut(piece) else {
                     continue;
                 };
-                body.set_material($material(params));
+                body.set_material($material(params, made));
                 body.set_solver($solver(params));
-                body.set_volume_factor(crate::scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)));
-                body.enable_volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true));
+                body.set_volume_factor(crate::scalar::real(v::f(made, k::VOLUME_FACTOR, 1.0)));
+                body.enable_volume_preservation(v::boolean(made, k::VOLUME_PRESERVATION, true));
                 body.set_additional_pgs_iterations(
                     v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize,
                 );
@@ -345,7 +349,7 @@ macro_rules! patch_in_place {
                 let colliders: Vec<_> = body.meshes().map(|mesh| mesh.collider()).collect();
                 for handle in colliders {
                     if let Some(collider) = world.colliders.get_mut(handle) {
-                        patch_surface(collider, params);
+                        patch_surface(collider, params, &materials.surface);
                     }
                 }
             }
@@ -378,8 +382,8 @@ macro_rules! surface {
         ) -> crate::$rapier::prelude::InteractionGroups {
             use crate::$rapier::prelude::{Group, InteractionGroups, InteractionTestMode};
             InteractionGroups::new(
-                Group::from_bits_truncate(v::layer_bits(params, layer, false)),
-                Group::from_bits_truncate(v::layer_bits(params, mask, true)),
+                Group::from_bits_truncate(balaur_core::layers::bits(params.get(layer), false)),
+                Group::from_bits_truncate(balaur_core::layers::bits(params.get(mask), true)),
                 InteractionTestMode::And,
             )
         }
@@ -405,40 +409,34 @@ macro_rules! surface {
         }
 
         /// The collider every soft body meets the world through.
-        fn surface_collider(params: &toml::Value) -> crate::$rapier::prelude::ColliderBuilder {
-            let real = |key: &str, default: f32| crate::scalar::real(v::f(params, key, default));
+        fn surface_collider(
+            params: &toml::Value,
+            material: &crate::material::PhysicsMaterial,
+        ) -> crate::$rapier::prelude::ColliderBuilder {
             let builder = $events(
                 $layers(crate::$rapier::prelude::ColliderBuilder::ball(1.0), params),
                 params,
             );
             builder
-                .friction(real(k::FRICTION, 0.5))
-                .restitution(real(k::RESTITUTION, 0.0))
-                .friction_combine_rule(combine(v::text(params, k::FRICTION_COMBINE, w::AVERAGE)))
-                .restitution_combine_rule(combine(v::text(
-                    params,
-                    k::RESTITUTION_COMBINE,
-                    w::AVERAGE,
-                )))
+                .friction(crate::scalar::real(material.friction))
+                .restitution(crate::scalar::real(material.restitution))
+                .friction_combine_rule(combine(&material.friction_combine))
+                .restitution_combine_rule(combine(&material.restitution_combine))
                 .solver_groups(groups(params, k::SOLVER_LAYER, k::SOLVER_MASK))
                 .active_collision_types(collision_types(params))
                 .sensor(v::boolean(params, k::SENSOR, false))
         }
 
-        fn patch_surface(collider: &mut crate::$rapier::prelude::Collider, params: &toml::Value) {
+        fn patch_surface(
+            collider: &mut crate::$rapier::prelude::Collider,
+            params: &toml::Value,
+            material: &crate::material::PhysicsMaterial,
+        ) {
             let real = |key: &str, default: f32| crate::scalar::real(v::f(params, key, default));
-            collider.set_friction(real(k::FRICTION, 0.5));
-            collider.set_restitution(real(k::RESTITUTION, 0.0));
-            collider.set_friction_combine_rule(combine(v::text(
-                params,
-                k::FRICTION_COMBINE,
-                w::AVERAGE,
-            )));
-            collider.set_restitution_combine_rule(combine(v::text(
-                params,
-                k::RESTITUTION_COMBINE,
-                w::AVERAGE,
-            )));
+            collider.set_friction(crate::scalar::real(material.friction));
+            collider.set_restitution(crate::scalar::real(material.restitution));
+            collider.set_friction_combine_rule(combine(&material.friction_combine));
+            collider.set_restitution_combine_rule(combine(&material.restitution_combine));
             collider.set_collision_groups(groups(params, k::COLLISION_LAYER, k::COLLISION_MASK));
             collider.set_solver_groups(groups(params, k::SOLVER_LAYER, k::SOLVER_MASK));
             collider.set_active_collision_types(collision_types(params));
@@ -450,57 +448,6 @@ macro_rules! surface {
 }
 
 pub(crate) use surface;
-
-/// The surface rows every soft body shares beyond its layers and events:
-/// what its collider is made of and which pairs it meets.
-pub(crate) fn surface_schema() -> String {
-    use crate::vocabulary::{self as v, keys as k, words as w};
-    let rules = v::options(w::COMBINE_RULES);
-    let average = w::AVERAGE;
-    let layers = v::layer_options();
-    let pairs = v::options(&v::flags::collision_types().map(|(name, _)| name));
-    let defaults = v::options(w::DEFAULT_COLLISIONS);
-    v::schema(&[
-        (
-            k::FRICTION_COMBINE,
-            &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{rules}], description = "How the body's friction combines with what it touches", group = "surface" }}"#
-            ),
-        ),
-        (
-            k::RESTITUTION_COMBINE,
-            &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{rules}], description = "How its bounciness combines with what it touches", group = "surface" }}"#
-            ),
-        ),
-        (
-            k::SOLVER_LAYER,
-            &format!(
-                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "The layers the solver alone reads: a pair whose solver layers do not match still reports contacts but never pushes", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::SOLVER_MASK,
-            &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "The solver layers it is pushed by; empty means every layer", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::CONTACT_PAIRS,
-            &format!(
-                r#"{{ type = "flags", default = [{defaults}], options = [{pairs}], description = "Which kinds of body pair its collider is tested against", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::SENSOR,
-            r#"{ type = "bool", default = false, description = "Report contacts and push nothing: the body passes through what it touches", group = "surface" }"#,
-        ),
-        (
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Take part in the simulation; off leaves the body where it is with no contacts or constraints until it is on again, without a rebuild", group = "surface" }"#,
-        ),
-    ])
-}
 
 /// A vector a script passed: a `Vec2`, a `Vec3` or a list of numbers, of
 /// which the first `N` are read.
@@ -720,6 +667,7 @@ macro_rules! collision_mesh {
             handle: crate::$rapier::prelude::SoftBodyHandle,
             params: &toml::Value,
             mesh: Option<cap::Mesh<crate::$rapier::math::Vector>>,
+            materials: &cap::Materials,
         ) -> anyhow::Result<()> {
             use crate::$rapier::dynamics::SoftMeshBinding;
             let Some((vertices, indices)) = mesh else {
@@ -736,7 +684,7 @@ macro_rules! collision_mesh {
                 .ok_or_else(|| anyhow::anyhow!("the soft body's cluster has no body"))?
                 .position();
             let count = vertices.len() as u32;
-            let mut collider = surface_collider(params);
+            let mut collider = surface_collider(params, &materials.surface);
             collider.shape = $shape(vertices, indices)?;
             let collider = collider.position(frame.inverse());
             let binding = match v::text(params, k::COLLISION_BINDING, w::NEAREST) {
@@ -862,76 +810,4 @@ pub(crate) fn tuples<const N: usize>(
                 })
         })
         .collect()
-}
-
-/// The schema rows every body shares for single particles and edges.
-pub(crate) fn edge_schema() -> String {
-    use crate::vocabulary::keys as k;
-    let (a, b) = (k::A, k::B);
-    let (resistance, hz, damping) = (k::RESISTANCE, k::HZ, k::DAMPING);
-    crate::vocabulary::schema(&[
-        (
-            k::MASSES,
-            r#"{ type = "list", of = { type = "float" }, default = [], description = "Each particle's own mass, by index; empty spreads `mass` over them evenly", group = "particles" }"#,
-        ),
-        (
-            k::TEAR_RESISTANCE,
-            &format!(
-                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }}, {resistance} = {{ type = "float", default = 1.0 }} }} }}, default = [], description = "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam", group = "tearing" }}"#
-            ),
-        ),
-        (
-            k::EDGE_SPRINGS,
-            &format!(
-                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }}, {hz} = {{ type = "float", default = 30.0 }}, {damping} = {{ type = "float", default = 1.0 }} }} }}, default = [], description = "Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins", group = "stiffness" }}"#
-            ),
-        ),
-        (
-            k::SEAMS,
-            &format!(
-                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }} }} }}, default = [], description = "Structural edges added between particles the layout left apart, each as long as its two particles stand at the start", group = "stiffness" }}"#
-            ),
-        ),
-        (
-            k::TENSION_ONLY_EDGES,
-            &format!(
-                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }} }} }}, default = [], description = "The edges that resist stretching only when tension_only is listed, each named by the two particles it joins", group = "volume" }}"#
-            ),
-        ),
-        (
-            k::COLLIDES,
-            r#"{ type = "bool", default = true, description = "Meet the world at all; off, the body passes through everything and only its pins and ties hold it", group = "surface" }"#,
-        ),
-        (
-            k::COLLISION_MESH,
-            r#"{ type = "asset", asset = "mesh", default = "", description = "A mesh, in the node's space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D", group = "surface" }"#,
-        ),
-        (
-            k::COLLISION_BINDING,
-            &format!(
-                r#"{{ type = "enum", default = "{nearest}", options = [{bindings}], description = "How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh", group = "surface" }}"#,
-                nearest = crate::vocabulary::words::NEAREST,
-                bindings = crate::vocabulary::options(crate::vocabulary::words::COLLISION_BINDINGS),
-            ),
-        ),
-        (
-            k::COLLISION_BINDING_DISTANCE,
-            r#"{ type = "float", default = 0.01, min = 0.0, description = "How far a collision-mesh vertex may sit from the particle `nearest` binds it to", group = "surface" }"#,
-        ),
-        (
-            k::COLLISION_SELF_CONTACTS,
-            r#"{ type = "bool", default = false, description = "Let the collision mesh collide with itself", group = "surface" }"#,
-        ),
-        (
-            k::REGIONS,
-            &format!(
-                r#"{{ type = "list", of = {{ type = "record", fields = {{ {particles} = {{ type = "list", of = {{ type = "int" }}, default = [] }}, {stiffness} = {{ type = "float", default = 1.0 }}, {tear} = {{ type = "float", default = 1.0 }}, {matching} = {{ type = "bool", default = false }}, {pinned} = {{ type = "bool", default = false }}, {hz} = {{ type = "float", default = 0.0 }}, {damping} = {{ type = "float", default = 1.0 }} }} }}, default = [], description = "Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to", group = "regions" }}"#,
-                particles = k::PARTICLES,
-                stiffness = k::STIFFNESS_SCALE,
-                tear = k::TEAR_RESISTANCE,
-                matching = k::SHAPE_MATCHING,
-                pinned = k::PINNED,
-            ),
-        ),
-    ])
 }

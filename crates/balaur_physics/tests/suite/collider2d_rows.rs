@@ -171,7 +171,7 @@ cells = [[0, 0, 0]]
 [[nodes]]
 id = "n_world"
 name = "World"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [[nodes]]
 id = "n_a"
@@ -205,8 +205,8 @@ transform = { position = [0.0, 10.0, 0.0] }
 fn a_2d_voxel_grid_resizes_crops_and_joins_its_neighbour() {
     let mut b = boot::project(
         GRIDS,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.get_node("A").collider2d.combine_voxels(self.node.get_node("B"));
         self.node.get_node("Cropped").collider2d.crop_voxels(0, 0, 1, 0);
@@ -259,7 +259,7 @@ name = "World"
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, initial_linear_velocity = [6.0, 0.0] }
 collider2d = { kind = "circle", radius = 0.5 }
 
@@ -277,8 +277,8 @@ parent = "n_world"
 collider2d = { kind = "voxels", voxels = "#one" }
 transform = { position = [0.0, 8.0, 0.0] }
 "##,
-        r#"pub struct S { node: Node }
-impl S {
+        r#"pub class Scenario { node: Node }
+impl Scenario {
     pub fn probe() -> [any] {
         let n = self.node;
         let wall = n.parent().get_node("Wall");

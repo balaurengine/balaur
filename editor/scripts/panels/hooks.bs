@@ -2,7 +2,7 @@
 // edited, beside the code, filled by the Editor when the file or its buffer
 // moved.
 
-pub struct Hooks {
+pub class Hooks {
     node: Node,
     editor: Node,
 }

@@ -140,7 +140,7 @@ id = "n_balla"
 name = "BallA"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.5, restitution = 0.4 }
+collider2d = { kind = "circle", radius = 0.5, physics_material = { restitution = 0.4 } }
 
 [nodes.transform]
 position = [0.1, 5.0, 0.0]

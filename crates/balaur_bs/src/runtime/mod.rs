@@ -5,7 +5,7 @@
 //! fields and hands them back, so a reload is a new instance plus a copy of
 //! each object's fields by name.
 
-mod anys;
+mod args;
 mod debugger;
 mod engine;
 mod host;
@@ -22,6 +22,7 @@ mod wasmtime_engine;
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
 mod web_engine;
 
+pub use args::{CallArgs, Read};
 pub use debugger::{Command, Debugger, Frame, Paused, StopReason};
 pub use engine::EngineKind;
 pub use host::{Bound, HostFns};
@@ -34,7 +35,7 @@ use engine::{Raw, Setup, Shared, Wasm};
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 use std::sync::Arc;
-use values::{Reader, decode, has_heap, rd32, slots, width, zero};
+use values::{Reader, decode, has_heap, rd32, rd64, slots, width, zero};
 
 /// Keep what an engine compiles to machine code in `dir` between runs, so a
 /// script compiles once rather than on every load. The first call wins; a
@@ -105,11 +106,13 @@ pub struct Limits {
     pub engine: EngineKind,
 }
 
-/// A struct value held by the host: its fields, owning their strings and arrays.
+/// A class object held by the host: its pointer, counted once for the host,
+/// and the unit whose class it is.
 #[derive(Debug)]
 pub struct Object {
     ty: String,
     raw: Vec<Raw>,
+    unit: usize,
 }
 
 impl Object {
@@ -125,6 +128,8 @@ pub struct Task {
     frame: u32,
     waiting: Option<i64>,
     done: bool,
+    /// The unit whose function runs.
+    unit: usize,
 }
 
 impl Task {
@@ -144,7 +149,14 @@ impl Reader for Live<'_> {
 pub struct Runtime {
     wasm: Box<dyn Wasm>,
     host: Shared,
+    /// The types and functions of the unit calls go to now ([`Runtime::in_unit`]).
     meta: Arc<Meta>,
+    /// Each unit's, by its index in the instance, the script's own first: a
+    /// project's scripts are units of one instance ([`Runtime::link`]).
+    units: Rc<RefCell<Vec<Arc<Meta>>>>,
+    /// The unit calls go to now: the script's own, 0, unless a call on
+    /// another's object runs.
+    unit: usize,
     limits: Limits,
     parked_call: Option<stepping::ParkedCall>,
     error_stop: Option<Paused>,
@@ -170,10 +182,20 @@ impl Runtime {
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;
+        let units = std::iter::once(meta.clone())
+            .chain(
+                compiled
+                    .linked
+                    .iter()
+                    .map(|(_, unit)| Arc::new(unit.meta.clone())),
+            )
+            .collect();
         let mut rt = Runtime {
             wasm,
             host: state,
             meta,
+            units: Rc::new(RefCell::new(units)),
+            unit: 0,
             limits,
             parked_call: None,
             error_stop: None,
@@ -187,8 +209,71 @@ impl Runtime {
         &self.meta
     }
 
+    /// `unit` and the units of the modules it uses, `uses`, as units of this
+    /// instance, each added unless it is one: the index `unit` has, for
+    /// [`Runtime::in_unit`]. Each is made on its first call. A project's
+    /// scripts are units of one instance this way, so a class object passes
+    /// between them by pointer and a module they share is made once.
+    ///
+    /// # Errors
+    /// A runtime not built as units, or a module allocation that traps.
+    pub fn link(
+        &mut self,
+        key: &str,
+        unit: &Arc<Compiled>,
+        uses: &[(String, Arc<Compiled>)],
+    ) -> Result<usize, RunError> {
+        self.refuel();
+        for (used, compiled) in uses {
+            self.link_one(used, compiled)?;
+        }
+        self.link_one(key, unit)
+    }
+
+    fn link_one(&mut self, key: &str, unit: &Arc<Compiled>) -> Result<usize, RunError> {
+        let index = self
+            .wasm
+            .link(key, unit.clone())
+            .map_err(|msg| RunError { msg, line: None })?;
+        let mut units = self.units.borrow_mut();
+        if index == units.len() {
+            units.push(Arc::new(unit.meta.clone()));
+        }
+        Ok(index)
+    }
+
+    /// `f` with calls going to unit `unit` and types read in its declarations:
+    /// a free function, an async method or a new object of another script of
+    /// this instance. A call on an [`Object`] goes to its own unit by itself.
+    pub fn in_unit<R>(&mut self, unit: usize, f: impl FnOnce(&mut Runtime) -> R) -> R {
+        if unit == self.unit {
+            return f(self);
+        }
+        let Some(meta) = self.units.borrow().get(unit).cloned() else {
+            return f(self);
+        };
+        let was = (
+            std::mem::replace(&mut self.unit, unit),
+            std::mem::replace(&mut self.meta, meta),
+        );
+        let out = f(self);
+        (self.unit, self.meta) = was;
+        out
+    }
+
     pub fn debugger(&mut self) -> RefMut<'_, Debugger> {
         RefMut::map(self.host.borrow_mut(), |h| &mut h.debugger)
+    }
+
+    /// The fuel the last call left, when the engine meters it: the limit less
+    /// this is what the call spent.
+    pub fn fuel_left(&mut self) -> Option<u64> {
+        self.wasm.fuel()
+    }
+
+    /// Calls out of the module so far, to the host or the engine.
+    pub fn host_calls(&self) -> u64 {
+        self.host.borrow().calls
     }
 
     /// Objects allocated in the module and not yet freed: a leak shows here.
@@ -261,6 +346,7 @@ impl Runtime {
             frame,
             waiting,
             done,
+            unit,
             ..
         } = task;
         if done {
@@ -273,77 +359,100 @@ impl Runtime {
             h.tokens.retain(|_, (awaiting, _)| *awaiting != handle);
         }
         drop(h);
-        self.invoke(words::FREE, &[Raw::I32(frame as i32)], 0)?;
+        self.in_unit(unit, |rt| {
+            rt.invoke(words::FREE, &[Raw::I32(frame as i32)], 0)
+        })?;
         Ok(())
     }
 
-    /// A new `ty`: fields from `init`, then each field's declared default, then empty.
+    /// A new `ty`, a class: fields from `init`, then each field's declared
+    /// default, then empty. It lives in the module, and the host holds its
+    /// pointer, so a call copies nothing in or out.
     pub fn object(&mut self, ty: &str, init: &[(&str, Value)]) -> Result<Object, RunError> {
-        if self.meta.is_class(ty) {
+        if self.meta.fields(ty).is_none() {
+            return fail(format!("no class `{ty}`"));
+        }
+        if !self.meta.is_class(ty) {
             return fail(format!(
-                "`{ty}` is a class: a script's own object is a struct, which may hold one"
+                "`{ty}` is a struct: a script's own object is a class, `pub class {ty}`"
             ));
         }
-        let fields = self
-            .meta
-            .fields(ty)
-            .ok_or(RunError {
-                msg: format!("no struct `{ty}`"),
-                line: None,
-            })?
-            .to_vec();
-        let defaults = self.meta.defaults(ty).to_vec();
-        let mut raw = vec![];
-        for (n, t) in &fields {
-            let given = init.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone());
-            let declared = defaults
-                .iter()
-                .find(|(k, _, _)| k == n)
-                .map(|(_, _, l)| literal(l));
-            match given.or(declared) {
-                Some(v) => raw.extend(self.encode(t, &v)?),
-                None => raw.extend(self.default_of(t)?),
-            }
-        }
-        Ok(Object { ty: ty.into(), raw })
+        let fields = init
+            .iter()
+            .map(|(name, value)| ((*name).to_string(), value.clone()))
+            .collect();
+        let raw = self.encode(&Ty::Struct(ty.into()), &Value::Struct(ty.into(), fields))?;
+        Ok(Object {
+            ty: ty.into(),
+            raw,
+            unit: self.unit,
+        })
     }
 
     pub fn get(&mut self, obj: &Object, field: &str) -> Option<Value> {
-        let (off, t) = self.field_at(&obj.ty, field)?;
-        let n = width(&self.meta, &t);
-        Some(decode(
-            &self.meta,
-            &Live(&*self.wasm),
-            &t,
-            &obj.raw[off..off + n],
-        ))
+        self.in_unit(obj.unit, |rt| {
+            let (off, ty) = rt.field_at(&obj.ty, field)?;
+            let raw = rt.held(obj, off, &ty);
+            Some(decode(&rt.meta, &Live(&*rt.wasm), &ty, &raw))
+        })
+    }
+
+    // The slots of the field at `off` in `obj`'s object.
+    fn held(&self, obj: &Object, off: usize, ty: &Ty) -> Vec<Raw> {
+        let base = obj.raw[0].i32() as u32 as usize + values::OBJ_HEADER + 8 * off;
+        slots(&self.meta, ty)
+            .iter()
+            .enumerate()
+            .map(|(index, (slot, _))| {
+                let bits = rd64(&Live(&*self.wasm), base + 8 * index);
+                match slot {
+                    crate::Slot::I32 => Raw::I32(bits as u32 as i32),
+                    crate::Slot::I64 => Raw::I64(bits.cast_signed()),
+                    crate::Slot::F64 => Raw::F64(values::float(bits)),
+                }
+            })
+            .collect()
     }
 
     /// Every field of `obj`, by name.
     pub fn fields(&mut self, obj: &Object) -> Vec<(String, Value)> {
-        let ty = Ty::Struct(obj.ty.clone());
-        match decode(&self.meta, &Live(&*self.wasm), &ty, &obj.raw) {
-            Value::Struct(_, fields) => fields,
-            _ => vec![],
-        }
+        self.in_unit(obj.unit, |rt| {
+            let ty = Ty::Struct(obj.ty.clone());
+            match decode(&rt.meta, &Live(&*rt.wasm), &ty, &obj.raw) {
+                Value::Struct(_, fields) => fields,
+                _ => vec![],
+            }
+        })
     }
 
-    pub fn set(&mut self, obj: &mut Object, field: &str, v: &Value) -> Result<(), RunError> {
-        let (off, t) = self.field_at(&obj.ty, field).ok_or(RunError {
-            msg: format!("no field `{field}`"),
-            line: None,
-        })?;
-        let new = self.encode(&t, v)?;
-        let old: Vec<Raw> = obj.raw.splice(off..off + new.len(), new).collect();
-        self.release(&t, &old);
-        Ok(())
+    pub fn set(&mut self, obj: &mut Object, field: &str, value: &Value) -> Result<(), RunError> {
+        self.in_unit(obj.unit, |rt| {
+            let (off, ty) = rt.field_at(&obj.ty, field).ok_or(RunError {
+                msg: format!("no field `{field}`"),
+                line: None,
+            })?;
+            let new = rt.encode(&ty, value)?;
+            let old = rt.held(obj, off, &ty);
+            let base = obj.raw[0].i32() as u32 as usize + values::OBJ_HEADER + 8 * off;
+            let bytes: Vec<u8> = new.iter().flat_map(|raw| raw.bytes()).collect();
+            rt.wasm.write(base, &bytes);
+            rt.release(&ty, &old);
+            Ok(())
+        })
+    }
+
+    /// Where `obj` lives in the module: what a script holding it holds.
+    pub fn pointer(obj: &Object) -> i32 {
+        obj.raw.first().map_or(0, |raw| raw.i32())
     }
 
     // Taking the object is the point: once released, its fields must not be read.
     #[allow(clippy::needless_pass_by_value)]
     pub fn drop_object(&mut self, obj: Object) {
-        let ty = Ty::Struct(obj.ty.clone());
-        self.release(&ty, &obj.raw);
+        self.in_unit(obj.unit, |rt| {
+            let ty = Ty::Struct(obj.ty.clone());
+            rt.release(&ty, &obj.raw);
+        });
     }
 
     /// A second holder of `obj`, for a call into it while another runs: the
@@ -352,7 +461,7 @@ impl Runtime {
     /// list or an `any`, which the running call may free under the copy.
     /// [`Runtime::drop_object`] lets go of it.
     pub fn share(&mut self, obj: &Object) -> Option<Object> {
-        let plan = self.share_plan(&obj.ty)?;
+        let plan = self.in_unit(obj.unit, |rt| rt.share_plan(&obj.ty))?;
         for &k in plan.iter() {
             let p = obj.raw[k].i32();
             if p != 0 {
@@ -363,13 +472,20 @@ impl Runtime {
         Some(Object {
             ty: obj.ty.clone(),
             raw: obj.raw.clone(),
+            unit: obj.unit,
         })
     }
 
     // The class slots of a `ty`, or nil when it holds other heap values: a
     // walk of its fields the first time, and a lookup on every call after.
     fn share_plan(&self, ty: &str) -> Option<Rc<[usize]>> {
-        if let Some(plan) = self.host.borrow().shares.get(ty) {
+        if let Some(plan) = self
+            .host
+            .borrow()
+            .shares
+            .get(self.unit)
+            .and_then(|shares| shares.get(ty))
+        {
             return plan.clone();
         }
         let slots = slots(&self.meta, &Ty::Struct(ty.to_string()));
@@ -381,10 +497,11 @@ impl Runtime {
                 let heap = slots.iter().enumerate().filter(|(_, (_, h))| h.is_some());
                 heap.map(|(k, _)| k).collect::<Rc<[usize]>>()
             });
-        self.host
-            .borrow_mut()
-            .shares
-            .insert(ty.to_string(), plan.clone());
+        let mut host = self.host.borrow_mut();
+        if host.shares.len() <= self.unit {
+            host.shares.resize_with(self.unit + 1, Default::default);
+        }
+        host.shares[self.unit].insert(ty.to_string(), plan.clone());
         plan
     }
 
@@ -407,6 +524,49 @@ impl Runtime {
         Ok(self.take(&info.ret, &out))
     }
 
+    /// `method` on each of `objs`, all `ty`s, with the same arguments, in one
+    /// call: a frame's `update` costs one call however many nodes run the
+    /// script. False when the method has no batch entry, one that takes or
+    /// gives a string, an array or an `any`.
+    pub fn call_batch(
+        &mut self,
+        ty: &str,
+        objs: &[Object],
+        method: &str,
+        args: &[Value],
+    ) -> Result<bool, RunError> {
+        let unit = objs.first().map_or(self.unit, |obj| obj.unit);
+        self.in_unit(unit, |rt| rt.batch_here(ty, objs, method, args))
+    }
+
+    fn batch_here(
+        &mut self,
+        ty: &str,
+        objs: &[Object],
+        method: &str,
+        args: &[Value],
+    ) -> Result<bool, RunError> {
+        let key = format!("{ty}.{method}{}", words::BATCH);
+        let meta = self.meta.clone();
+        let unit = self.unit;
+        let Some(info) = meta
+            .method(ty, method)
+            .filter(|_| self.wasm.has_func_in(unit, &key))
+        else {
+            return Ok(false);
+        };
+        let base = self.alloc((8 * objs.len()) as u32)?;
+        let bytes: Vec<u8> = objs.iter().flat_map(|obj| obj.raw[0].bytes()).collect();
+        self.wasm.write(base as usize, &bytes);
+        let mut raw = vec![Raw::I32(base as i32), Raw::I32(objs.len() as i32)];
+        for (ty, value) in info.params.iter().zip(args) {
+            raw.extend(self.encode(ty, value)?);
+        }
+        let out = self.invoke(&key, &raw, 0);
+        self.invoke(words::FREE, &[Raw::I32(base as i32)], 0)?;
+        out.map(|_| true)
+    }
+
     /// Calls `Struct.method` on `obj`, which comes back with whatever the method changed.
     pub fn call_method(
         &mut self,
@@ -414,7 +574,12 @@ impl Runtime {
         method: &str,
         args: &[Value],
     ) -> Result<Value, RunError> {
-        let meta = self.meta.clone();
+        let meta = self
+            .units
+            .borrow()
+            .get(obj.unit)
+            .cloned()
+            .unwrap_or_else(|| self.meta.clone());
         let info = meta.method(&obj.ty, method).ok_or_else(|| RunError {
             msg: format!("no method `{}.{method}`", obj.ty),
             line: None,
@@ -430,15 +595,17 @@ impl Runtime {
         info: &FnInfo,
         args: &[Value],
     ) -> Result<Value, RunError> {
-        let mut a = obj.raw.clone();
-        for (t, v) in info.params.iter().zip(args) {
-            a.extend(self.encode(t, v)?);
-        }
-        let nself = obj.raw.len();
-        let ret = width(&self.meta, &info.ret);
-        let out = self.invoke(&info.key, &a, nself + ret)?;
-        obj.raw.copy_from_slice(&out[..nself]);
-        Ok(self.take(&info.ret, &out[nself..]))
+        self.in_unit(obj.unit, |rt| {
+            let mut a = obj.raw.clone();
+            for (t, v) in info.params.iter().zip(args) {
+                a.extend(rt.encode(t, v)?);
+            }
+            let nself = obj.raw.len();
+            let ret = width(&rt.meta, &info.ret);
+            let out = rt.invoke(&info.key, &a, nself + ret)?;
+            obj.raw.copy_from_slice(&out[..nself]);
+            Ok(rt.take(&info.ret, &out[nself..]))
+        })
     }
 
     /// Starts `key` (`fn` or `Struct.method`); [`Runtime::poll`] runs it.
@@ -461,6 +628,7 @@ impl Runtime {
             frame,
             waiting: None,
             done: false,
+            unit: self.unit,
         })
     }
 
@@ -471,11 +639,13 @@ impl Runtime {
         task: &mut Task,
         obj: Option<&mut Object>,
     ) -> Result<Option<Value>, RunError> {
-        let Some(call) = self.poll_call(task, obj.as_deref())? else {
-            return Ok(None);
-        };
-        let out = self.invoke(&call.name, &call.args, call.results)?;
-        self.polled(task, obj, &call.ret, &out)
+        self.in_unit(task.unit, |rt| {
+            let Some(call) = rt.poll_call(task, obj.as_deref())? else {
+                return Ok(None);
+            };
+            let out = rt.invoke(&call.name, &call.args, call.results)?;
+            rt.polled(task, obj, &call.ret, &out)
+        })
     }
 
     // What polling `task` calls; `None` while what it waits for is pending.
@@ -556,42 +726,116 @@ impl Runtime {
         objects: &mut [&mut Object],
     ) -> Result<Vec<Vec<String>>, RunError> {
         let mut fresh = Runtime::new(next, host, self.limits)?;
-        fresh.host.borrow_mut().now = self.now();
+        let kept = self.carry_to(&mut fresh, objects, &vec![0; objects.len()])?;
+        *self = fresh;
+        Ok(kept)
+    }
+
+    /// Each of `objects` carried across by field name into `into`, the one at
+    /// each index into the unit `units` gives it there: a field that kept its
+    /// name and type keeps its value, a new one starts from its default. Each
+    /// object is copied, so two that held one class object hold a copy each,
+    /// and a task running on one does not move with it. What its fields held
+    /// here is let go of.
+    pub fn carry_to(
+        &mut self,
+        into: &mut Runtime,
+        objects: &mut [&mut Object],
+        units: &[usize],
+    ) -> Result<Vec<Vec<String>>, RunError> {
+        into.host.borrow_mut().now = self.now();
+        // A field holding another of `objects` is pointed at its replacement
+        // rather than copied, so a script two others hold stays one.
+        let carried_at: rustc_hash::FxHashMap<i32, usize> = objects
+            .iter()
+            .enumerate()
+            .map(|(index, obj)| (Runtime::pointer(obj), index))
+            .collect();
+        let mut links: Vec<(usize, String, usize)> = vec![];
         let mut kept_all = vec![];
         let mut replacements = vec![];
-        for obj in objects.iter() {
-            let old_fields = self.meta.fields(&obj.ty).unwrap_or(&[]).to_vec();
+        for (index, (obj, unit)) in objects.iter().zip(units).enumerate() {
+            let old_fields = self
+                .in_unit(obj.unit, |rt| rt.meta.fields(&obj.ty).map(<[_]>::to_vec))
+                .unwrap_or_default();
+            let new_fields = into
+                .in_unit(*unit, |rt| rt.meta.fields(&obj.ty).map(<[_]>::to_vec))
+                .unwrap_or_default();
             let carried: Vec<(String, Value)> = self
                 .fields(obj)
                 .into_iter()
-                .filter(|(n, _)| {
-                    let t = old_fields
+                .filter(|(name, _)| {
+                    let old = old_fields.iter().find(|(k, _)| k == name).map(|(_, t)| t);
+                    new_fields
                         .iter()
-                        .find(|(k, _)| k == n)
-                        .map(|(_, t)| t.clone());
-                    fresh
-                        .meta
-                        .fields(&obj.ty)
-                        .unwrap_or(&[])
-                        .iter()
-                        .any(|(k, kt)| k == n && Some(kt) == t.as_ref())
+                        .any(|(k, ty)| k == name && Some(ty) == old)
                 })
                 .collect();
-            let init: Vec<(&str, Value)> = carried
-                .iter()
-                .map(|(n, v)| (n.as_str(), v.clone()))
-                .collect();
-            replacements.push(fresh.object(&obj.ty, &init)?);
-            kept_all.push(carried.into_iter().map(|(n, _)| n).collect());
+            let mut init: Vec<(&str, Value)> = vec![];
+            for (name, value) in &carried {
+                let held = self.in_unit(obj.unit, |rt| rt.held_object(obj, name));
+                match held.and_then(|pointer| carried_at.get(&pointer)) {
+                    Some(target) => links.push((index, name.clone(), *target)),
+                    None => init.push((name.as_str(), value.clone())),
+                }
+            }
+            replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &init))?);
+            kept_all.push(carried.into_iter().map(|(name, _)| name).collect());
+        }
+        for (holder, field, target) in &links {
+            let pointer = Runtime::pointer(&replacements[*target]);
+            into.point_field(&replacements[*holder], field, pointer)?;
         }
         // Nothing changes until every object has its replacement.
         for (obj, replacement) in objects.iter_mut().zip(replacements) {
             let ty = Ty::Struct(obj.ty.clone());
-            self.release(&ty, &obj.raw);
+            self.in_unit(obj.unit, |rt| rt.release(&ty, &obj.raw));
             obj.raw = replacement.raw;
+            obj.unit = replacement.unit;
         }
-        *self = fresh;
         Ok(kept_all)
+    }
+
+    // The object field `field` of `obj` holds, a class or a class that is
+    // there; `None` for a field of another type, or nil.
+    fn held_object(&self, obj: &Object, field: &str) -> Option<i32> {
+        let (off, ty) = self.field_at(&obj.ty, field)?;
+        let raw = self.held(obj, off, &ty);
+        match &ty {
+            Ty::Struct(class) if self.meta.is_class(class) => Some(raw[0].i32()),
+            Ty::Optional(inner) => match &**inner {
+                Ty::Struct(class) if self.meta.is_class(class) && raw[1].i32() != 0 => {
+                    Some(raw[0].i32())
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+        .filter(|pointer| *pointer != 0)
+    }
+
+    // Field `field` of `obj`, a class or a class that may be nil, pointed at
+    // the object at `pointer`, counted once more; what it held is let go of.
+    fn point_field(&mut self, obj: &Object, field: &str, pointer: i32) -> Result<(), RunError> {
+        self.in_unit(obj.unit, |rt| {
+            let (off, ty) = rt.field_at(&obj.ty, field).ok_or(RunError {
+                msg: format!("no field `{field}`"),
+                line: None,
+            })?;
+            let new = match &ty {
+                Ty::Optional(_) => [Raw::I32(pointer), Raw::I32(1)].to_vec(),
+                _ => vec![Raw::I32(pointer)],
+            };
+            let count = rd32(&Live(&*rt.wasm), pointer as u32 as usize);
+            rt.wasm
+                .write(pointer as u32 as usize, &(count + 1).to_le_bytes());
+            let old = rt.held(obj, off, &ty);
+            let base = obj.raw[0].i32() as u32 as usize + values::OBJ_HEADER + 8 * off;
+            let bytes: Vec<u8> = new.iter().flat_map(|raw| raw.bytes()).collect();
+            rt.wasm.write(base, &bytes);
+            rt.release(&ty, &old);
+            Ok(())
+        })
     }
 
     fn field_at(&self, ty: &str, field: &str) -> Option<(usize, Ty)> {
@@ -620,7 +864,7 @@ impl Runtime {
         self.refuel();
         self.sync_debugger();
         self.wasm
-            .call(name, args, results)
+            .call_in(self.unit, name, args, results)
             .map_err(|msg| self.trapped(msg))
     }
 
@@ -857,7 +1101,14 @@ impl Runtime {
             Ty::Struct(name) => Some(name),
             _ => None,
         };
-        if let Some(plan) = key.and_then(|k| self.host.borrow().releases.get(k).cloned()) {
+        let unit = self.unit;
+        if let Some(plan) = key.and_then(|k| {
+            self.host
+                .borrow()
+                .releases
+                .get(unit)
+                .and_then(|releases| releases.get(k).cloned())
+        }) {
             return plan;
         }
         let plan: Rc<[host::Release]> = slots(&self.meta, ty)
@@ -866,15 +1117,16 @@ impl Runtime {
             .filter_map(|(slot, (_, heap))| {
                 let ty = heap?;
                 let name = format!("{}{}", words::DEC, show(&ty));
-                let dec = self.wasm.has_func(&name).then_some(name);
+                let dec = self.wasm.has_func_in(unit, &name).then_some(name);
                 Some(host::Release { slot, ty, dec })
             })
             .collect();
         if let Some(k) = key {
-            self.host
-                .borrow_mut()
-                .releases
-                .insert(k.clone(), plan.clone());
+            let mut host = self.host.borrow_mut();
+            if host.releases.len() <= unit {
+                host.releases.resize_with(unit + 1, Default::default);
+            }
+            host.releases[unit].insert(k.clone(), plan.clone());
         }
         plan
     }

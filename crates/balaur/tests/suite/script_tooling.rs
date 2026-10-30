@@ -8,12 +8,12 @@
 use balaur::{App, AppConfig, standard_app};
 use balaur_script::LanguageTools;
 
-const PATH: &str = "main.bs";
+const PATH: &str = "ball.bs";
 
 const SCRIPT: &str = "\
 use helper;
 
-pub struct Ball { node: Node, speed: float = 4.0 }
+pub class Ball { node: Node, speed: float = 4.0 }
 impl Ball {
     fn init() {
         let node = self.node;
@@ -39,12 +39,12 @@ fn host() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"main.bs\" }\n",
+        "[[nodes]]\nid = \"ball\"\nname = \"Root\"\nscript = { source = \"ball.bs\" }\n",
     )
     .unwrap();
     std::fs::write(dir.path().join(PATH), SCRIPT).unwrap();

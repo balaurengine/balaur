@@ -1,7 +1,7 @@
 // A moving platform this script does not move: the engine samples the clip in
 // animations/platform.toml, and its method track calls `on_reached_end` here.
 
-pub struct Platform {
+pub class Platform {
     node: Node,
     turns: int,
 }

@@ -19,7 +19,7 @@ use crate::import::{self, Resolved, kinds};
 pub const TEXTURE_ASSET_TYPE: &str = "texture";
 
 /// The key naming the image a texture reads.
-pub const SOURCE: &str = "source";
+pub use crate::assets::SOURCE;
 
 const TEXTURE_ASSET_DOC: &str = "An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.\n\n```toml\ntype = \"texture\"\nsource = \"art/hero.png\"\nfilter = \"nearest\"                # this use crisp, the sidecar's smooth\npixels_per_unit = 32\n```";
 
@@ -62,23 +62,6 @@ pub fn parse(value: &toml::Value) -> Result<TextureAsset> {
         source: source.to_string(),
         settings,
     })
-}
-
-/// What a reference to an image file is, when the asset layer is asked for
-/// its definition: `{ type = "texture", source = <path> }`. Answers `None`
-/// for a path that is not an image.
-#[must_use]
-pub fn image_definition(path: &str) -> Option<toml::Value> {
-    if import::kind_of(path) != Some(kinds::TEXTURE) {
-        return None;
-    }
-    let mut table = toml::Table::new();
-    table.insert(
-        "type".into(),
-        toml::Value::String(TEXTURE_ASSET_TYPE.into()),
-    );
-    table.insert(SOURCE.into(), toml::Value::String(path.to_string()));
-    Some(toml::Value::Table(table))
 }
 
 /// A texture property resolved: the image to read, and the settings it is
@@ -151,7 +134,7 @@ pub fn source(eng: &Engine, reference: &str) -> Result<TextureSource> {
 
 #[cfg(test)]
 mod tests {
-    use super::{image_definition, is_plain_image, parse};
+    use super::{is_plain_image, parse};
 
     #[test]
     fn a_texture_keeps_its_settings_and_drops_its_names() {
@@ -175,9 +158,14 @@ mod tests {
 
     #[test]
     fn an_image_path_is_a_texture_of_itself() {
-        let value = image_definition("art/hero.png").unwrap();
+        let (type_name, value) = crate::assets::file_definition("art/hero.png").unwrap();
+        assert_eq!(type_name, super::TEXTURE_ASSET_TYPE);
         assert_eq!(parse(&value).unwrap().source, "art/hero.png");
-        assert!(image_definition("scenes/main.toml").is_none());
+        assert!(crate::assets::file_definition("scenes/main.toml").is_none());
+        assert_eq!(
+            crate::assets::file_definition("fonts/Inter.ttc").map(|(name, _)| name),
+            Some(crate::assets::FONT_ASSET_TYPE)
+        );
         assert!(is_plain_image("art/hero.png"));
         assert!(!is_plain_image("#crisp") && !is_plain_image("textures/hero.toml"));
     }

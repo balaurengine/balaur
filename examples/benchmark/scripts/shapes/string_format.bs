@@ -1,7 +1,7 @@
 // One interpolated string a frame: a label that follows a number, and the
 // allocation that comes with it.
 
-pub struct StringFormat {
+pub class StringFormat {
     node: Node,
     text: str,
 }

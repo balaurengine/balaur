@@ -112,16 +112,17 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
 fn light_schema() -> String {
     let kinds = crate::vocabulary::options(words::LIGHT_KINDS_3D);
     let default = words::DIRECTIONAL;
+    let layer_options = balaur_core::layers::options();
     format!(
         r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims" }}
 color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
 intensity = {{ type = "float", default = 3.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
 range = {{ type = "float", default = 30.0, min = 0.0, description = "How far a point or spot light reaches, in world units" }}
-inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees" }}
-outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether this light casts shadows from the nodes that say they cast" }}
-light_layers = {{ type = "int", default = -1, description = "Light-layer bitmask; a node is lit when its own `light_layers` share a bit with these. -1 is every layer" }}
-source_radius = {{ type = "float", default = 0.0, min = 0.0, description = "Radius of the sphere the light shines from, in world units, which softens its shadows. Read by the path tracer only; the rasterizer's edge is `environment.shadow_softness`" }}"#
+inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees", group = "cone" }}
+outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees", group = "cone" }}
+shadow_enabled = {{ type = "bool", default = true, description = "Whether this light casts shadows from the nodes that say they cast", group = "shadows" }}
+source_radius = {{ type = "float", default = 0.0, min = 0.0, description = "Radius of the sphere the light shines from, in world units, which softens its shadows. Read by the path tracer only; the rasterizer's edge is `environment.shadow_softness`", group = "shadows" }}
+light_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The light layers this light reaches: a node whose `light_layers` share one; empty is every layer", group = "layers" }}"#
     )
 }
 
@@ -147,10 +148,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                 let num = |key: &str, default: f64| {
                     params.get(key).and_then(as_f64).unwrap_or(default) as f32
                 };
-                let layers = params
-                    .get(k::LIGHT_LAYERS)
-                    .and_then(as_f64)
-                    .map_or(u32::MAX, |v| v as i64 as u32);
+                let layers = balaur_core::layers::bits(params.get(k::LIGHT_LAYERS), true);
                 set_light(
                     eng,
                     entity,
@@ -192,7 +190,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                 map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
                 map.insert(
                     k::LIGHT_LAYERS.into(),
-                    toml::Value::Integer(i64::from(light.layers.cast_signed())),
+                    balaur_core::layers::names(light.layers),
                 );
                 map.insert(
                     k::SOURCE_RADIUS.into(),
@@ -428,41 +426,34 @@ fn environment_schema() -> String {
     format!(
         r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
 sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
-sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts" }}
-sky_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees" }}
-sky_enabled = {{ type = "bool", default = true, description = "False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky" }}
 ambient_color = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do" }}
-fog_mode = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance" }}
-fog_color = {{ type = "color", default = [0.624, 0.706, 0.784, 1.0], description = "What distance fades toward" }}
-fog_density = {{ type = "float", default = 0.02, min = 0.0, description = "Thickness, for exponential fog" }}
-fog_start = {{ type = "float", default = 10.0, min = 0.0, description = "Where linear fog begins, in world units" }}
-fog_end = {{ type = "float", default = 80.0, min = 0.0, description = "Where linear fog is total, in world units" }}
-fog_height_falloff = {{ type = "float", default = 0.0, min = 0.0, description = "How fast fog thins with height; zero fills the scene evenly" }}
-exposure = {{ type = "float", default = 1.0, min = 0.0, description = "Linear multiplier before the tonemap" }}
 tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], description = "The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped" }}
-saturation = {{ type = "float", default = 1.0, min = 0.0, description = "Colour multiplier around luminance; zero is grey" }}
-contrast = {{ type = "float", default = 1.0, min = 0.0, description = "Contrast around mid grey" }}
-gamma = {{ type = "float", default = 1.0, min = 0.01, description = "Gamma applied in linear space" }}
-white_balance = {{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone" }}
-hue_degrees = {{ type = "float", default = 0.0, description = "Turns every hue about the grey axis before the tonemap, in degrees" }}
-auto_exposure_enabled = {{ type = "bool", default = false, description = "Measure the frame's average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ" }}
-auto_exposure_speed = {{ type = "float", default = 3.0, min = 0.0, description = "How fast auto-exposure follows the scene, per second" }}
-auto_exposure_min = {{ type = "float", default = 0.05, min = 0.0, description = "The lowest exposure auto-exposure settles at, for the brightest scenes" }}
-auto_exposure_max = {{ type = "float", default = 8.0, min = 0.0, description = "The highest exposure auto-exposure settles at, for the darkest scenes" }}
-auto_exposure_key = {{ type = "float", default = 0.18, min = 0.0, description = "The mid grey auto-exposure maps the frame's average brightness to" }}
-transmission_enabled = {{ type = "bool", default = true, description = "Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes" }}
-transmission_blur_quality = {{ type = "enum", default = "{high}", options = [{qualities}], description = "How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky" }}
-transmission_steps = {{ type = "int", default = 1, min = 1, description = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether any light casts shadows at all" }}
-shadow_resolution = {{ type = "int", default = 2048, min = 256, description = "Side of the shadow map, in texels" }}
-shadow_softness = {{ type = "float", default = 1.0, min = 0.0, description = "How far a shadow's edge is blurred" }}
-shadow_distance = {{ type = "float", default = 60.0, min = 0.0, description = "How far along the view a directional light's cascades reach, in world units; the camera's `far` caps it" }}
+exposure = {{ type = "float", default = 1.0, min = 0.0, description = "Linear multiplier before the tonemap" }}
+sky_enabled = {{ type = "bool", default = true, description = "False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky", group = "sky" }}
+sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts", group = "sky" }}
+sky_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees", group = "sky" }}
+sky_light = {{ type = "string", default = "", description = "Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too", group = "sky" }}
+sky_light_intensity = {{ type = "float", default = -1.0, min = -1.0, description = "Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity`", group = "sky" }}
+fog_mode = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance", group = "fog" }}
+fog_color = {{ type = "color", default = [0.624, 0.706, 0.784, 1.0], description = "What distance fades toward", group = "fog" }}
+fog_density = {{ type = "float", default = 0.02, min = 0.0, description = "Thickness, for exponential fog", group = "fog" }}
+fog_start = {{ type = "float", default = 10.0, min = 0.0, description = "Where linear fog begins, in world units", group = "fog" }}
+fog_end = {{ type = "float", default = 80.0, min = 0.0, description = "Where linear fog is total, in world units", group = "fog" }}
+fog_height_falloff = {{ type = "float", default = 0.0, min = 0.0, description = "How fast fog thins with height; zero fills the scene evenly", group = "fog" }}
+contrast = {{ type = "float", default = 1.0, min = 0.0, description = "Contrast around mid grey", group = "grading" }}
+saturation = {{ type = "float", default = 1.0, min = 0.0, description = "Colour multiplier around luminance; zero is grey", group = "grading" }}
+hue_degrees = {{ type = "float", default = 0.0, description = "Turns every hue about the grey axis before the tonemap, in degrees", group = "grading" }}
+white_balance = {{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone", group = "grading" }}
+gamma = {{ type = "float", default = 1.0, min = 0.01, description = "Gamma applied in linear space", group = "grading" }}
+auto_exposure_enabled = {{ type = "bool", default = false, description = "Measure the frame's average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ", group = "auto exposure" }}
+auto_exposure_key = {{ type = "float", default = 0.18, min = 0.0, description = "The mid grey auto-exposure maps the frame's average brightness to", group = "auto exposure" }}
+auto_exposure_min = {{ type = "float", default = 0.05, min = 0.0, description = "The lowest exposure auto-exposure settles at, for the brightest scenes", group = "auto exposure" }}
+auto_exposure_max = {{ type = "float", default = 8.0, min = 0.0, description = "The highest exposure auto-exposure settles at, for the darkest scenes", group = "auto exposure" }}
+auto_exposure_speed = {{ type = "float", default = 3.0, min = 0.0, description = "How fast auto-exposure follows the scene, per second", group = "auto exposure" }}
 {budget}"#,
-        budget = shadow_budget_schema(),
+        budget = budget_schema(),
         none = words::NONE,
         neutral = words::NEUTRAL,
-        high = words::HIGH,
-        qualities = crate::vocabulary::options(words::BLUR_QUALITIES),
     )
 }
 
@@ -575,20 +566,30 @@ fn count(params: &toml::Value, key: &str) -> u32 {
     u32::try_from(prop_i64(params, key).max(0)).unwrap_or(u32::MAX)
 }
 
-/// The shadow knobs past distance, the sky's own light, and the limits the
-/// renderer sizes its buffers by: one of each per window, so on `environment`.
-fn shadow_budget_schema() -> &'static str {
-    r#"shadow_cascades = { type = "int", default = 4, min = 1, max = 4, description = "How many cascades a directional light splits its shadow range into; each takes one of `shadow_views`" }
-shadow_first_cascade_distance = { type = "float", default = 12.0, min = 0.01, description = "How far along the view the first, sharpest cascade reaches, in world units" }
-shadow_bias = { type = "float", default = 0.0012, min = 0.0, description = "Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material" }
-shadow_constant_bias = { type = "int", default = 1, description = "Depth-buffer units the shadow pass pushes every caster back by" }
-shadow_slope_bias = { type = "float", default = 1.75, description = "How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself" }
-shadow_views = { type = "int", default = 16, min = 1, max = 64, description = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes" }
-sky_light = { type = "string", default = "", description = "Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too" }
-sky_light_intensity = { type = "float", default = -1.0, min = -1.0, description = "Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity`" }
-probe_capture_size_pixels = { type = "int", default = 256, min = 2, max = 4096, description = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again" }
-cluster_grid = { type = "vec3", default = [16.0, 9.0, 24.0], description = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute" }
-cluster_max_lights = { type = "int", default = 256, min = 1, description = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer" }"#
+/// The rows that spend the frame: shadows, glass seen through glass, and the
+/// many-light clusters and probe captures. Split from [`environment_schema`]
+/// under `MAX_FN_LINES`.
+fn budget_schema() -> String {
+    format!(
+        r#"shadow_enabled = {{ type = "bool", default = true, description = "Whether any light casts shadows at all", group = "shadows" }}
+shadow_distance = {{ type = "float", default = 60.0, min = 0.0, description = "How far along the view a directional light's cascades reach, in world units; the camera's `far` caps it", group = "shadows" }}
+shadow_softness = {{ type = "float", default = 1.0, min = 0.0, description = "How far a shadow's edge is blurred", group = "shadows" }}
+shadow_cascades = {{ type = "int", default = 4, min = 1, max = 4, description = "How many cascades a directional light splits its shadow range into; each takes one of `shadow_views`", group = "shadows" }}
+shadow_first_cascade_distance = {{ type = "float", default = 12.0, min = 0.01, description = "How far along the view the first, sharpest cascade reaches, in world units", group = "shadows" }}
+shadow_bias = {{ type = "float", default = 0.0012, min = 0.0, description = "Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material", group = "shadows" }}
+shadow_slope_bias = {{ type = "float", default = 1.75, description = "How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself", group = "shadows" }}
+shadow_constant_bias = {{ type = "int", default = 1, description = "Depth-buffer units the shadow pass pushes every caster back by", group = "shadows" }}
+shadow_resolution = {{ type = "int", default = 2048, min = 256, description = "Side of the shadow map, in texels", group = "shadows" }}
+shadow_views = {{ type = "int", default = 16, min = 1, max = 64, description = "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes", group = "shadows" }}
+transmission_enabled = {{ type = "bool", default = true, description = "Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes", group = "transmission" }}
+transmission_blur_quality = {{ type = "enum", default = "{high}", options = [{qualities}], description = "How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky", group = "transmission" }}
+transmission_steps = {{ type = "int", default = 1, min = 1, description = "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass", group = "transmission" }}
+cluster_grid = {{ type = "vec3", default = [16.0, 9.0, 24.0], description = "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute", group = "quality" }}
+cluster_max_lights = {{ type = "int", default = 256, min = 1, description = "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer", group = "quality" }}
+probe_capture_size_pixels = {{ type = "int", default = 256, min = 2, max = 4096, description = "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again", group = "quality" }}"#,
+        high = words::HIGH,
+        qualities = crate::vocabulary::options(words::BLUR_QUALITIES),
+    )
 }
 
 /// The `environment` component: sky, ambient, fog, exposure, tonemap, grading

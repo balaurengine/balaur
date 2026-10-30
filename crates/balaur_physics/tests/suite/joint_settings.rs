@@ -261,11 +261,11 @@ fn run_checked(scene: &str, script: &str, ticks: u32, done: &str) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
@@ -299,7 +299,7 @@ id = "n_swing"
 name = "Swing"
 parent = "n_world"
 body3d = { kind = "dynamic", mass = 1.0 }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -339,8 +339,8 @@ axes = [{ axis = "rotation_x", limits = [-0.3, 0.3] }]
 fn joint_state_reads_a_hinges_angle_its_coordinates_and_its_limit() {
     run_checked(
         PENDULUMS,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 20 {
@@ -381,7 +381,7 @@ id = "n_upper"
 name = "Upper"
 parent = "n_world"
 body3d = { kind = "dynamic", mass = 1.0 }
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -423,8 +423,8 @@ gear_offset = 0.2
 fn a_geared_joint_follows_the_joint_it_names() {
     run_checked(
         GEARED,
-        r#"pub struct S { node: Node, ticks: int }
-impl S {
+        r#"pub class Scenario { node: Node, ticks: int }
+impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {

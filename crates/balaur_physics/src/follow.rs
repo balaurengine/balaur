@@ -152,47 +152,15 @@ fn schema() -> String {
     let axes = v::options(w::LOCK_AXES);
     v::schema(&[
         (
+            k::TARGET,
+            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
+        ),
+        (
             k::KIND,
             &format!(
                 r#"{{ type = "enum", default = "{}", options = [{kinds}], description = "Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push" }}"#,
                 w::PD
             ),
-        ),
-        (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
-        ),
-        (
-            k::TARGET_LINEAR_VELOCITY,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second" }"#,
-        ),
-        (
-            k::TARGET_ANGULAR_VELOCITY,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The spin the body is pulled to match about each axis, radians a second in the file" }"#,
-        ),
-        (
-            k::POSITION_GAIN,
-            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step" }"#,
-        ),
-        (
-            k::VELOCITY_GAIN,
-            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it" }"#,
-        ),
-        (
-            k::INTEGRAL_GAIN,
-            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`" }"#,
-        ),
-        (
-            k::ROTATION_GAIN,
-            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in rotation pulls, per axis" }"#,
-        ),
-        (
-            k::SPIN_GAIN,
-            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in spin a step corrects, per axis" }"#,
-        ),
-        (
-            k::ROTATION_INTEGRAL_GAIN,
-            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in rotation summed over time pulls, per axis, with `pid`" }"#,
         ),
         (
             k::TRANSLATION_AXES,
@@ -211,6 +179,38 @@ fn schema() -> String {
                 w::Y,
                 w::Z
             ),
+        ),
+        (
+            k::POSITION_GAIN,
+            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step", group = "gains" }"#,
+        ),
+        (
+            k::VELOCITY_GAIN,
+            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it", group = "gains" }"#,
+        ),
+        (
+            k::ROTATION_GAIN,
+            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in rotation pulls, per axis", group = "gains" }"#,
+        ),
+        (
+            k::SPIN_GAIN,
+            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in spin a step corrects, per axis", group = "gains" }"#,
+        ),
+        (
+            k::INTEGRAL_GAIN,
+            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`", group = "gains" }"#,
+        ),
+        (
+            k::ROTATION_INTEGRAL_GAIN,
+            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in rotation summed over time pulls, per axis, with `pid`", group = "gains" }"#,
+        ),
+        (
+            k::TARGET_LINEAR_VELOCITY,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second", group = "velocity" }"#,
+        ),
+        (
+            k::TARGET_ANGULAR_VELOCITY,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The spin the body is pulled to match about each axis, radians a second in the file", group = "velocity" }"#,
         ),
     ])
 }

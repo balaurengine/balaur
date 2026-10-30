@@ -30,7 +30,7 @@ impl Script<'_> {
     fn source(&self) -> String {
         let sep = if self.fields.is_empty() { "" } else { ", " };
         format!(
-            "pub struct Root {{ node: Node, ran: int{sep}{} }}\n\
+            "pub class Root {{ node: Node, ran: int{sep}{} }}\n\
              impl Root {{\n\
              pub fn update(dt: float) {{\nself.ran += 1;\n{}\n}}\n\
              {}\n}}\n",
@@ -40,7 +40,7 @@ impl Script<'_> {
 }
 
 /// A label under `Root`, so a pass has something to draw.
-const LABEL: &str = "[[nodes]]\nid = \"l\"\nname = \"Label\"\nparent = \"n\"\n\
+const LABEL: &str = "[[nodes]]\nid = \"label\"\nname = \"Label\"\nparent = \"root\"\n\
      widget = { kind = \"label\", text = \"x\", x = 0.0, y = 0.0 }\n";
 
 /// A project whose `update` runs `body`, after two ticks and two passes.
@@ -70,12 +70,12 @@ pub(crate) fn run(script: &Script<'_>) -> (tempfile::TempDir, App, egui::Context
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"scripts/s.bs\" }}\n\n{}",
+            "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = {{ source = \"scripts/root.bs\" }}\n\n{}",
             script.scene
         ),
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script.source()).unwrap();
+    std::fs::write(dir.path().join("scripts/root.bs"), script.source()).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -140,7 +140,7 @@ fn the_shaper_is_made_by_whoever_asks_first_and_kept() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
@@ -178,7 +178,7 @@ fn a_run_with_no_window_still_draws_its_ui() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        format!("[[nodes]]\nid = \"n\"\nname = \"Root\"\n\n{LABEL}"),
+        format!("[[nodes]]\nid = \"root\"\nname = \"Root\"\n\n{LABEL}"),
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
@@ -293,7 +293,7 @@ fn a_cmd_chord_answers_to_control_and_to_command() {
     let (_dir, mut app, ctx, errors) = run(&Script {
         fields: "focus: int",
         methods: "pub fn hit() { self.focus += 1; }",
-        scene: "[[nodes]]\nid = \"b\"\nname = \"Go\"\nparent = \"n\"\n\
+        scene: "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
                 widget = { kind = \"button\", text = \"Go\", shortcut = \"cmd+shift+backslash\", on_click = \"hit\" }\n",
         ..Script::default()
     });
@@ -432,23 +432,23 @@ fn a_headless_run_answers_the_window_the_project_states() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.bs\" }\n",
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"root.bs\" }\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("s.bs"),
-        "pub struct Root { node: Node, w: float, h: float }\n\
+        dir.path().join("root.bs"),
+        "pub class Root { node: Node, width: float, height: float }\n\
          impl Root {\n    fn update(dt: float) {\n        let size = ui::window_size();\n        \
-         self.w = size.x;\n        self.h = size.y;\n    }\n}\n",
+         self.width = size.x;\n        self.height = size.y;\n    }\n}\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
     assert_eq!(
-        field(&app, "w"),
+        field(&app, "width"),
         Some(840.0),
         "outside a pass, with no screen"
     );
-    assert_eq!(field(&app, "h"), Some(1920.0));
+    assert_eq!(field(&app, "height"), Some(1920.0));
 }

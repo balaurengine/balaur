@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use balaur_script::{NodeId, Value};
 
 use crate::engine::Engine;
-use crate::scene::{Children, Name, Parent, ScriptAttachment, collect_subtree};
+use crate::scene::{Children, Name, NodeScript, Parent, collect_subtree};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -577,11 +577,11 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
                 let parent = above
                     .filter(|&p| p != root)
                     .and_then(|p| crate::ids::of(&world, p));
-                let script = world
-                    .get::<&ScriptAttachment>(entity)
-                    .ok()
-                    .map(|s| s.path.clone());
-                let props = crate::scene::script_props(&world, entity);
+                let (script, props) = world
+                    .get::<&NodeScript>(entity)
+                    .map_or((None, Vec::new()), |s| {
+                        (Some(s.path.clone()), s.props.clone())
+                    });
                 (id, name, parent, index, script, props)
             })
         }) else {
@@ -729,7 +729,7 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     if let Some(path) = &node.script
         && let Some(host) = eng.script_host()
     {
-        crate::scene::remember_script_props(eng, entity, &node.props);
+        crate::scene::name_script(eng, entity, Some((path, &node.props)));
         if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
             tracing::error!(error = %e, node = %node.id, "reattaching a script");
         }

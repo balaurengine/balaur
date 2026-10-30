@@ -10,7 +10,7 @@ mod layers;
 mod read;
 mod soft;
 
-pub(crate) use layers::{bits, flags, layer_bit, layer_bits, layer_names, layer_options, names};
+pub(crate) use layers::{bits, flags, names};
 pub(crate) use read::{Opts, axis, boolean, color, f, flag, indices, map, text, vec2, vec3};
 
 /// The closed sets of words a scene file, a script table and the inspector all
@@ -336,9 +336,10 @@ pub(crate) mod keys {
     pub(crate) const DROP_DUPLICATE_TRIANGLES: &str = "drop_duplicate_triangles";
     pub(crate) const DYNAMIC_COLOR: &str = "dynamic_color";
     pub(crate) const EDGES: &str = "edges";
+    /// Whether a character's lengths are world units or fractions of it.
+    pub(crate) const LENGTHS: &str = "lengths";
     pub(crate) const FILL_CAVITIES: &str = "fill_cavities";
     pub(crate) const FIX_SELF_INTERSECTIONS: &str = "fix_self_intersections";
-    pub(crate) const FLOOR_SNAP_LENGTHS: &str = "floor_snap_lengths";
     /// A contact force's or a broken joint's size, in an event payload.
     pub(crate) const FORCE: &str = "force";
     pub(crate) const DAMPING: &str = "damping";
@@ -455,11 +456,19 @@ pub(crate) mod keys {
     pub(crate) const OVERLAP: &str = "overlap";
     pub(crate) const OWN_NORMAL: &str = "own_normal";
     pub(crate) const OWN_POINT: &str = "own_point";
+    /// The node a ragdoll keeps its bodies under.
+    pub(crate) const PARENT: &str = "parent";
     pub(crate) const PASSIVE_REST: &str = "passive_rest";
     pub(crate) const PASSIVE_STIFFNESS: &str = "passive_stiffness";
     /// A world's entry in what `physics` reports for both, named for its module.
     pub(crate) const PHYSICS_2D: &str = "physics2d";
     pub(crate) const PHYSICS_3D: &str = "physics3d";
+    /// The row naming what a collider's surface is made of, and the asset
+    /// type it names.
+    pub(crate) const PHYSICS_MATERIAL: &str = "physics_material";
+    /// The row naming what a soft body is made of, and the asset type it
+    /// names.
+    pub(crate) const SOFT_MATERIAL: &str = "soft_material";
     pub(crate) const PIECES: &str = "pieces";
     pub(crate) const PLANE_DOWNSAMPLING: &str = "plane_downsampling";
     pub(crate) const REVOLUTION_BIAS: &str = "revolution_bias";
@@ -494,7 +503,6 @@ pub(crate) mod keys {
     pub(crate) const REST_LENGTH: &str = "rest_length";
     pub(crate) const ROTATION: &str = "rotation";
     pub(crate) const SAFE_MARGIN: &str = "safe_margin";
-    pub(crate) const SAFE_MARGIN_LENGTHS: &str = "safe_margin_lengths";
     pub(crate) const SCALE: &str = "scale";
     pub(crate) const SELF_COLLISION: &str = "self_collision";
     pub(crate) const SENSOR: &str = "sensor";
@@ -531,9 +539,7 @@ pub(crate) mod keys {
     pub(crate) const STATUS: &str = "status";
     pub(crate) const STEERING: &str = "steering";
     pub(crate) const STEP_HEIGHT: &str = "step_height";
-    pub(crate) const STEP_HEIGHT_LENGTHS: &str = "step_height_lengths";
     pub(crate) const STEP_MIN_WIDTH: &str = "step_min_width";
-    pub(crate) const STEP_MIN_WIDTH_LENGTHS: &str = "step_min_width_lengths";
     pub(crate) const STEP_MS: &str = "step_ms";
     pub(crate) const STEP_ON_DYNAMIC: &str = "step_on_dynamic";
     pub(crate) const STIFFNESS: &str = "stiffness";
@@ -566,7 +572,6 @@ pub(crate) mod keys {
     pub(crate) const ROTATION_INTEGRAL_GAIN: &str = "rotation_integral_gain";
     pub(crate) const TRANSLATION_AXES: &str = "translation_axes";
     pub(crate) const ROTATION_AXES: &str = "rotation_axes";
-    pub(crate) const FOLLOW_ROTATION: &str = "follow_rotation";
     pub(crate) const UP_DIRECTION: &str = "up_direction";
     pub(crate) const USER_CHANGES_MS: &str = "user_changes_ms";
     pub(crate) const VELOCITIES: &str = "velocities";

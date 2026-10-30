@@ -176,12 +176,9 @@ fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         (k::LIGHT_LAYERS, renderable.layers),
         (k::RENDER_LAYERS, renderable.render_layers),
     ] {
-        map.insert(
-            key.into(),
-            toml::Value::Integer(i64::from(mask.cast_signed())),
-        );
+        map.insert(key.into(), balaur_core::layers::names(mask));
     }
-    crate::overlay::overlay_3d_to_map(&renderable.overlay, &mut map);
+    crate::overlay::overlay_3d_to_map(renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 
@@ -209,73 +206,79 @@ fn schema() -> String {
                 r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#,
             ),
             (
-                k::SPEED,
-                r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }"#,
-            ),
-            (
-                k::DIRECTION,
-                r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the particles leave, in world space; [0, 1, 0] is straight up" }"#,
-            ),
-            (
-                k::SPREAD_DEGREES,
-                r#"{ type = "float", default = 30.0, min = 0.0, max = 180.0, description = "Half-angle of the emission cone; 180 scatters every way" }"#,
-            ),
-            (
                 k::SIZE,
                 r#"{ type = "float", default = 0.1, min = 0.0, description = "A particle's edge length in world units" }"#,
-            ),
-            (
-                k::SIZE_END,
-                r#"{ type = "float", default = -1.0, description = "The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`" }"#,
-            ),
-            (
-                k::GRAVITY,
-                r#"{ type = "vec3", default = [0.0, -3.0, 0.0], description = "Acceleration applied over a particle's life, in world space" }"#,
             ),
             (
                 k::COLOR,
                 r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
             ),
-            (
-                k::COLOR_END,
-                r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life" }"#,
-            ),
-            (
-                k::ONE_SHOT,
-                r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another" }"#,
-            ),
-            (
-                k::EXPLOSIVENESS,
-                r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime" }"#,
-            ),
-            (
-                k::ROTATION_DEGREES,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned in its own plane at birth, either way, in degrees" }"#,
-            ),
-            (
-                k::ANGULAR_SPEED_DEGREES,
-                r#"{ type = "float", default = 0.0, description = "The fastest a particle spins in its own plane, in degrees a second; each takes a speed at random between zero and this" }"#,
-            ),
-            (
-                k::BILLBOARD,
-                r#"{ type = "bool", default = true, description = "Turn each particle to face the camera; off lays every one in the node's own XY plane" }"#,
-            ),
             (k::TEXTURE, &texture),
             (k::MATERIAL, &material),
             (
-                k::CAST_SHADOW,
-                r#"{ type = "bool", default = false, description = "Whether the particles cast a shadow from the lights that cast" }"#,
+                k::ONE_SHOT,
+                r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another", group = "emission" }"#,
             ),
             (
-                k::LIGHT_LAYERS,
-                r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#,
+                k::EXPLOSIVENESS,
+                r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime", group = "emission" }"#,
+            ),
+            (
+                k::SPEED,
+                r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second", group = "motion" }"#,
+            ),
+            (
+                k::DIRECTION,
+                r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the particles leave, in world space; [0, 1, 0] is straight up", group = "motion" }"#,
+            ),
+            (
+                k::SPREAD_DEGREES,
+                r#"{ type = "float", default = 30.0, min = 0.0, max = 180.0, description = "Half-angle of the emission cone; 180 scatters every way", group = "motion" }"#,
+            ),
+            (
+                k::GRAVITY,
+                r#"{ type = "vec3", default = [0.0, -3.0, 0.0], description = "Acceleration applied over a particle's life, in world space", group = "motion" }"#,
+            ),
+            (
+                k::ROTATION_DEGREES,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned in its own plane at birth, either way, in degrees", group = "motion" }"#,
+            ),
+            (
+                k::ANGULAR_SPEED_DEGREES,
+                r#"{ type = "float", default = 0.0, description = "The fastest a particle spins in its own plane, in degrees a second; each takes a speed at random between zero and this", group = "motion" }"#,
+            ),
+            (
+                k::SIZE_END,
+                r#"{ type = "float", default = -1.0, description = "The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`", group = "paint" }"#,
+            ),
+            (
+                k::COLOR_END,
+                r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life", group = "paint" }"#,
+            ),
+            (
+                k::BILLBOARD,
+                r#"{ type = "bool", default = true, description = "Turn each particle to face the camera; off lays every one in the node's own XY plane", group = "paint" }"#,
+            ),
+            (
+                k::CAST_SHADOW,
+                r#"{ type = "bool", default = false, description = "Whether the particles cast a shadow from the lights that cast", group = "shadows" }"#,
             ),
             (
                 k::RENDER_LAYERS,
-                r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#,
+                &balaur_core::layers::row_of_all(
+                    "The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one",
+                    "layers",
+                ),
+            ),
+            (
+                k::LIGHT_LAYERS,
+                &balaur_core::layers::row_of_all(
+                    "The light layers this is lit on: a `light3d` lights it when their `light_layers` share one",
+                    "layers",
+                ),
             ),
         ],
-        &crate::overlay::schema_3d(crate::overlay::Drawn::Builtin),
+        &crate::overlay::schema_3d(),
     ))
 }
 

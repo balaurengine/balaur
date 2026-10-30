@@ -778,7 +778,7 @@ mod tests {
 
     fn ui_face() -> Vec<u8> {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../editor/fonts/ui-SourceSans3-Regular.ttf");
+            .join("../../editor/fonts/SourceSans3-Regular.ttf");
         std::fs::read(path).unwrap()
     }
 

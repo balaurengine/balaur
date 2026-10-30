@@ -1,7 +1,7 @@
 //! Inline marks in a string: the small tag set a localized string carries.
 //!
 //! `[b]`, `[i]`, `[u]`, `[s]`, `[o]`, `[color=#rrggbb]`, `[size=24]`,
-//! `[font=mono]`, `[wave amp=8 freq=4]`, `[url=target]` and `[hint=text]` wrap
+//! `[font=fonts/Mono.ttf]`, `[wave amp=8 freq=4]`, `[url=target]` and `[hint=text]` wrap
 //! text; `[center]`, `[left]` and `[right]` set the block's alignment;
 //! `[img=path width=32 height=32]` stands alone. Anything else in brackets is
 //! text, so a string that was never markup still reads as it was written.
@@ -17,7 +17,7 @@ pub(crate) struct Span {
     pub(crate) color: Option<Color32>,
     /// A size in the request's pixels, over the block's.
     pub(crate) size: Option<f32>,
-    /// A named chain, over the block's.
+    /// A font, as a text's `font` row names one, over the block's.
     pub(crate) font: Option<String>,
     /// Amplitude in pixels and frequency in cycles per second.
     pub(crate) wave: Option<(f32, f32)>,
@@ -154,7 +154,7 @@ impl Style {
                 };
             }
             Tag::Size(size) => push_or_pop(&mut self.sizes, size),
-            Tag::Font(chain) => push_or_pop(&mut self.fonts, chain),
+            Tag::Font(font) => push_or_pop(&mut self.fonts, font),
             Tag::Color(color) => push_or_pop(&mut self.colors, color),
             Tag::Wave(wave) => push_or_pop(&mut self.waves, wave),
             Tag::Link(target) => scoped(links, &mut self.links, target),
@@ -266,7 +266,7 @@ enum Tag {
     Color(Option<Color32>),
     /// A size in the request's pixels; `None` closes.
     Size(Option<f32>),
-    /// A named chain; `None` closes.
+    /// A font, by the reference a `font` row takes; `None` closes.
     Font(Option<String>),
     Wave(Option<(f32, f32)>),
     /// `None` closes; the alignment stays what the opener set.
@@ -299,8 +299,8 @@ fn tag_of(tag: &str) -> Option<Tag> {
             .map(|size| Tag::Size(Some(size))),
         ("font", true) => Some(Tag::Font(None)),
         ("font", false) => {
-            let chain = args.trim();
-            (!chain.is_empty()).then(|| Tag::Font(Some(chain.to_string())))
+            let font = args.trim();
+            (!font.is_empty()).then(|| Tag::Font(Some(font.to_string())))
         }
         ("color", true) => Some(Tag::Color(None)),
         ("color", false) => color_of(args.trim()).map(|c| Tag::Color(Some(c))),

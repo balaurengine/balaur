@@ -209,7 +209,7 @@ impl Material3d {
 }
 
 /// What a definition table holds, for the generated reference.
-pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws as if none were named.
+pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws the built-in material, lit per pixel by every `light2d` when its `normal` slot names a normal map. Its `[surface]` is read in both dimensions: how a node blends, which sides draw and whether the scene hides it.
 
 ```toml
 [[assets]]
@@ -222,10 +222,13 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 # How a node drawing it rasterizes, rather than what colour it comes out.
 [surface]
-alpha = "blend"              # opaque, mask (a cutout), blend, or premultiplied, a blend
-                             # whose colour carries its alpha (a shader draws it as blend)
+alpha = "blend"              # auto (the default: solid in 3D, in 2D as the texture was uploaded),
+                             # opaque, mask (a cutout), blend, premultiplied (a blend whose colour
+                             # carries its alpha; a shader draws it as blend), or the 2D blends
+                             # add, multiply and screen, which a 3D surface draws as blend
 alpha_cutoff = 0.5           # what a mask drops a fragment below
-double_sided = true
+double_sided = true          # unset is the node's own: the front alone in 3D, both sides in 2D and on text
+depth_test = true            # off draws it over everything drawn before it
 transmission = 0.9           # above zero is glass: it refracts the scene behind it
 ior = 1.5                    # how sharply it bends light
 thickness = 0.2              # how far light travels inside it, in world units
@@ -236,7 +239,7 @@ mirror_intensity = 1.0
 mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
 mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
 mirror_resolution_scale = 1.0     # the mirror's picture against the viewport, 0.01 to 4
-mirror_render_layers = 3          # what the mirror draws, by render_layers; unset follows the camera
+mirror_render_layers = ["1", "2"] # what the mirror draws, by render_layers; unset follows the camera
 trace_surface = "glass"      # what the path tracer takes it for: opaque, glass, metal or light
 ssr = true                   # take screen-space reflections, while the camera's post has `ssr`;
                              # a node with a shader material writes none yet
@@ -266,7 +269,11 @@ anisotropy = 0.0             # -1 to 1 stretches the highlight across or along t
 anisotropy_rotation_degrees = 0.0
 subsurface = 0.0             # read by the path tracer only
 subsurface_radius = 0.0      # read by nothing yet
-normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height
+normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height;
+                             # on a 2D node, `normal` lights it per pixel by every light2d
+normal_strength = 1.0        # 2D: how far the normal map bends the surface; zero lights it flat
+shininess = 16.0             # 2D: how tight a light's highlight is; higher is smaller and sharper
+specular_strength = 0.0      # 2D: how bright the highlight is; zero draws none
 height = "art/panel_h.png"
 parallax_scale = 0.1         # how deep the height map reads, in UV units
 parallax_layers = 16
@@ -391,6 +398,17 @@ pub fn surface_of(eng: &Engine, reference: &str) -> Surface {
             alpha: AlphaMode::Blend,
             ..Surface::default()
         };
+    }
+    balaur_core::assets::load_typed::<Material3d>(eng, reference)
+        .map_or_else(|_| Surface::default(), |material| material.surface)
+}
+
+/// The `[surface]` a 2D node draws with: its material's, or, naming none,
+/// the default, whose blend follows how the texture was uploaded.
+#[must_use]
+pub fn flat_surface_of(eng: &Engine, reference: &str) -> Surface {
+    if reference.is_empty() {
+        return Surface::default();
     }
     balaur_core::assets::load_typed::<Material3d>(eng, reference)
         .map_or_else(|_| Surface::default(), |material| material.surface)
@@ -565,7 +583,7 @@ mod tests {
     #[test]
     fn a_surface_reads_its_mirror_trace_and_reflection_keys() {
         let m = parse(&table(
-            "[surface]\nalpha = \"premultiplied\"\ntrace_surface = \"glass\"\nssr = false\nmirror_resolution_scale = 0.5\nmirror_render_layers = 2",
+            "[surface]\nalpha = \"premultiplied\"\ntrace_surface = \"glass\"\nssr = false\nmirror_resolution_scale = 0.5\nmirror_render_layers = [\"2\"]",
         ))
         .unwrap();
         assert_eq!(m.surface.alpha, AlphaMode::Premultiplied);

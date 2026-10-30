@@ -25,7 +25,7 @@ collision = "full"
 [[nodes]]
 id = "n_map"
 name = "Map"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.tilemap]
 tileset = "#dungeon"
@@ -36,7 +36,7 @@ cells = [
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
-friction = 0.9
+physics_material = { friction = 0.9 }
 "##;
 
 fn run(script: &str, frames: u32) -> (App, Vec<String>) {
@@ -56,11 +56,11 @@ fn boot_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), script).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
@@ -107,7 +107,7 @@ fn filled(app: &App) -> [bool; 4] {
 
 #[test]
 fn the_solid_cells_of_a_map_become_one_voxel_collider() {
-    let (app, errors) = run("pub struct S { node: Node }\n", 1);
+    let (app, errors) = run("pub class Scenario { node: Node }\n", 1);
     assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
     assert_eq!(
         filled(&app),
@@ -135,8 +135,8 @@ fn the_solid_cells_of_a_map_become_one_voxel_collider() {
 #[test]
 fn digging_a_cell_rebuilds_what_the_map_collides_with() {
     let (app, errors) = run(
-        r"pub struct S { node: Node }
-impl S {
+        r"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         self.node.tilemap.set_cell(0, 0, -1);
     }
@@ -177,7 +177,7 @@ flags = [[0, 1]]
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
-friction = 0.5
+physics_material = { friction = 0.5 }
 "##;
 
 /// The corner above the middle of each shaped cell's triangle, in the cell's
@@ -233,8 +233,8 @@ fn one_way_on_the_component_lets_a_body_up_through_full_cells() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let scene = SCENE
-        .replace("script = { source = \"scripts/s.bs\" }\n", "")
-        .replace("friction = 0.9", "one_way = true")
+        .replace("script = { source = \"scripts/scenario.bs\" }\n", "")
+        .replace("physics_material = { friction = 0.9 }", "one_way = true")
         + r#"
 [[nodes]]
 id = "n_ball"
@@ -273,7 +273,7 @@ position = [0.5, -4.0, 0.0]
 fn one_way_on_the_component_reaches_plain_shaped_tiles() {
     let scene = SLOPES
         .replace("one_way = true\n", "")
-        .replace("friction = 0.5", "one_way = true");
+        .replace("physics_material = { friction = 0.5 }", "one_way = true");
     let (app, errors) = run_scene(&scene, "", 1);
     assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
     let map = map_node(&app);

@@ -40,8 +40,8 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 COMPONENT,
                 &ComponentDef::schema(&[
-                    (k::OFFSET, r#"{ type = "vec2", default = [-0.5, -0.5], description = "The box's lower corner from the node, in the node's own units: scaled and turned with it" }"#),
                     (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "The box's width and height, in the node's own units: scaled and turned with it" }"#),
+                    (k::OFFSET, r#"{ type = "vec2", default = [-0.5, -0.5], description = "The box's lower corner from the node, in the node's own units: scaled and turned with it" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],

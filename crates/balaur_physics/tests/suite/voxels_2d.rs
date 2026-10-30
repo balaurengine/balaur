@@ -18,7 +18,7 @@ cells = [[0, 0, 0], [0, 1, 0], [1, 0, 0]]
 [[nodes]]
 id = "n_wall"
 name = "Wall"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/scenario.bs" }
 
 [nodes.collider2d]
 kind = "voxels"
@@ -27,8 +27,8 @@ voxels = "#wall"
 
 /// The script's last write is the control: a cell nothing else fills, which
 /// the assertion below reads back off the shape.
-const SCRIPT: &str = r#"pub struct S { node: Node }
-impl S {
+const SCRIPT: &str = r#"pub class Scenario { node: Node }
+impl Scenario {
     fn init() {
         if !self.node.collider2d.voxel(0, 1) { log::error("the cell above the corner should be filled"); }
         if self.node.collider2d.voxel(4, 4) { log::error("a cell nobody wrote should be empty"); }
@@ -49,11 +49,11 @@ fn run() -> (App, Vec<String>) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scripts/s.bs"), SCRIPT).unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), SCRIPT).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();

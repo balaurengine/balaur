@@ -15,7 +15,7 @@ fn project(dir: &std::path::Path, input: &str, script: &str) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n\n{input}"),
+        format!("[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n\n{input}"),
     )
     .unwrap();
     std::fs::write(
@@ -28,11 +28,11 @@ name = "Game"
 id = "n"
 name = "Runner"
 parent = "root"
-script = { source = "scripts/s.bs" }
+script = { source = "scripts/runner.bs" }
 "#,
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.bs"), script).unwrap();
+    std::fs::write(dir.join("scripts").join("runner.bs"), script).unwrap();
 }
 
 fn booted(dir: &std::path::Path) -> App {
@@ -77,7 +77,7 @@ fn run_to_done(app: &mut App, ticks: usize) {
 const VERBS: &str = r#"
 fn near(a: float, b: float) -> bool { math::abs(a - b) < 1e-4 }
 
-pub struct Runner { node: Node, tick: int, done: int, failed: bool }
+pub class Runner { node: Node, tick: int, done: int, failed: bool }
 
 impl Runner {
     fn update(dt: float) {
@@ -152,7 +152,7 @@ fn a_fed_pad_reads_through_every_verb_and_answers_neutrally_once_gone() {
 }
 
 const RUMBLE: &str = r#"
-pub struct Runner { node: Node, tick: int, started: int, refused: int, finished: int, finished_at: int }
+pub class Runner { node: Node, tick: int, started: int, refused: int, finished: int, finished_at: int }
 
 impl Runner {
     fn init() {
@@ -240,7 +240,7 @@ fn trigger_down(app: &App) -> bool {
 fn the_project_s_numbers_shape_every_pad() {
     let dir = tempfile::tempdir().unwrap();
     let input = "[input]\ngamepad_deadzone = 0.5\ngamepad_press = 0.9\ngamepad_release = 0.2\n";
-    project(dir.path(), input, "pub struct Runner { node: Node }\n");
+    project(dir.path(), input, "pub class Runner { node: Node }\n");
     let mut app = booted(dir.path());
     let trigger = balaur::input::PAD_BUTTON_NAMES
         .iter()
@@ -272,7 +272,7 @@ fn the_project_s_numbers_shape_every_pad() {
 const ACTIONS: &str = "[input.actions]\njump = [\"gamepad:south\"]\nmove_x = [\"axis:left_x\"]\n";
 
 const PLAYER: &str = r#"
-pub struct Runner { node: Node }
+pub class Runner { node: Node }
 
 impl Runner {
     fn fixed_update(dt: float) {

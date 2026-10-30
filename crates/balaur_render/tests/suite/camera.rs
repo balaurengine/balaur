@@ -35,6 +35,19 @@ fn add_camera_2d(app: &App, entity: balaur_core::hecs::Entity, params: &str) {
     components::add(&app.engine, entity, "camera2d", Some(&table)).unwrap();
 }
 
+/// What a camera's `effects` row holds: the definition it names, every row
+/// at its value or its default.
+fn effects_read(app: &App, entity: balaur_core::hecs::Entity, component: &str) -> toml::Value {
+    let read = components::get(&app.engine, entity, component).unwrap();
+    let named = read["effects"].as_str().unwrap().to_owned();
+    let mut written = balaur_core::assets::definition(&app.engine, &named).unwrap();
+    if let Some(table) = written.as_table_mut() {
+        table.remove("type");
+    }
+    let schema = balaur_core::assets::schema(&app.engine, "camera_effects").unwrap();
+    components::merge_defaults(&schema, Some(&written)).unwrap()
+}
+
 #[track_caller]
 fn assert_close(actual: Vec3, expected: Vec3) {
     assert!(
@@ -173,7 +186,7 @@ fn a_cameras_post_effects_reach_the_config() {
     add_camera_3d(
         &app,
         cam,
-        "post = [\"bloom\", \"dof\"]\nbloom_threshold = 0.8",
+        "[effects]\npost = [\"bloom\", \"dof\"]\nbloom_threshold = 0.8",
     );
     {
         let config = app.engine.resource::<PostConfig>();
@@ -197,7 +210,7 @@ fn a_cameras_post_effects_reach_the_config() {
 fn unchanged_post_effects_do_not_reassert_themselves() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_3d(&app, cam, "post = [\"bloom\"]");
+    add_camera_3d(&app, cam, "[effects]\npost = [\"bloom\"]");
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
     assert!(
@@ -232,9 +245,9 @@ fn the_post_list_round_trips() {
     add_camera_3d(
         &app,
         cam,
-        "post = [\"ssr\", \"bloom\"]\nbloom_intensity = 0.25",
+        "[effects]\npost = [\"ssr\", \"bloom\"]\nbloom_intensity = 0.25",
     );
-    let saved = components::get(&app.engine, cam, "camera3d").unwrap();
+    let saved = effects_read(&app, cam, "camera3d");
     let table = saved.as_table().unwrap();
     let post: Vec<&str> = table["post"]
         .as_array()
@@ -254,9 +267,9 @@ fn a_name_the_engine_does_not_know_is_a_material() {
     add_camera_3d(
         &app,
         cam,
-        "post = [\"ssao\", \"materials/fog.toml\", \"tonemap\", \"materials/grade.toml\"]",
+        "[effects]\npost = [\"ssao\", \"materials/fog.toml\", \"tonemap\", \"materials/grade.toml\"]",
     );
-    let saved = components::get(&app.engine, cam, "camera3d").unwrap();
+    let saved = effects_read(&app, cam, "camera3d");
     let post: Vec<&str> = saved.as_table().unwrap()["post"]
         .as_array()
         .unwrap()
@@ -312,7 +325,7 @@ fn the_camera_hands_its_two_chains_to_the_backend() {
     add_camera_3d(
         &app,
         cam,
-        "post = [\"materials/fog.toml\", \"tonemap\", \"bloom\", \"materials/grade.toml\"]",
+        "[effects]\npost = [\"materials/fog.toml\", \"tonemap\", \"bloom\", \"materials/grade.toml\"]",
     );
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
@@ -329,7 +342,7 @@ fn patching_one_camera_property_leaves_the_rest_alone() {
     add_camera_3d(
         &app,
         cam,
-        "post = [\"ssao\", \"vignette\"]\nssao_bias = 0.25\nssao_radius = 0.6\nvignette_amount = 0.32",
+        "[effects]\npost = [\"ssao\", \"vignette\"]\nssao_bias = 0.25\nssao_radius = 0.6\nvignette_amount = 0.32",
     );
     // What a script driving the view does every frame.
     let aim: toml::Value = toml::from_str("look_at = [1.0, 2.0, 3.0]").unwrap();
@@ -452,7 +465,7 @@ fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
     add_camera_3d(
         &app,
         cam,
-        "fov_degrees = 70.0\nnear = 0.5\nfar = 80.0\nprojection = \"orthographic\"\nrender_layers = 2",
+        "fov_degrees = 70.0\nnear = 0.5\nfar = 80.0\nprojection = \"orthographic\"\nrender_layers = [\"2\"]",
     );
     app.engine
         .resource::<CameraConfig3d>()
@@ -507,7 +520,8 @@ fn the_post_pass_knobs_reach_the_config_and_read_back() {
     add_camera_3d(
         &app,
         cam,
-        r#"post = ["ssr", "dof", "crt", "loupe"]
+        r#"[effects]
+post = ["ssr", "dof", "crt", "loupe"]
 bloom_knee = 0.25
 ssr_max_steps = 12
 ssr_thickness = 0.75
@@ -548,14 +562,18 @@ loupe_border_color = [0.0, 1.0, 0.0, 1.0]"#,
             [0.0, 1.0, 0.0]
         ));
     }
-    let read = components::get(&app.engine, cam, "camera3d").unwrap();
+    let read = effects_read(&app, cam, "camera3d");
     assert_eq!(read["ssr_max_steps"].as_integer(), Some(12));
     assert_eq!(read["dof_mode"].as_str(), Some("gaussian"));
     assert_eq!(read["loupe_corner"].as_str(), Some("top_left"));
     assert!((read["sharpen_amount"].as_float().unwrap() - 0.8).abs() < 1e-6);
     let flat = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_2d(&app, flat, "crt_curvature = 0.4\nloupe_zoom = 2.0");
-    let read = components::get(&app.engine, flat, "camera2d").unwrap();
+    add_camera_2d(
+        &app,
+        flat,
+        "[effects]\ncrt_curvature = 0.4\nloupe_zoom = 2.0",
+    );
+    let read = effects_read(&app, flat, "camera2d");
     assert!((read["crt_curvature"].as_float().unwrap() - 0.4).abs() < 1e-6);
 }
 
@@ -568,7 +586,8 @@ fn the_fork_passes_are_drawn_where_the_list_puts_them() {
     add_camera_2d(
         &app,
         cam,
-        r#"post = ["grayscale", "tonemap", "crt", "waves", "loupe", "stereo"]"#,
+        r#"[effects]
+post = ["grayscale", "tonemap", "crt", "waves", "loupe", "stereo"]"#,
     );
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
@@ -587,11 +606,12 @@ fn the_fork_passes_are_drawn_where_the_list_puts_them() {
 fn turning_a_pass_knob_raises_a_post_change() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_3d(&app, cam, "post = [\"crt\"]");
+    add_camera_3d(&app, cam, "effects = { post = [\"crt\"] }");
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
     config.borrow_mut().changed = false;
-    let turned: toml::Value = toml::from_str("crt_vignette = 0.9").unwrap();
+    let turned: toml::Value =
+        toml::from_str("effects = { post = [\"crt\"], crt_vignette = 0.9 }").unwrap();
     components::patch(&app.engine, cam, "camera3d", &turned).unwrap();
     app.tick(1.0 / 60.0);
     assert!(config.borrow().changed);
@@ -633,7 +653,7 @@ fn an_orthographic_height_reaches_the_config_and_reads_back() {
     add_camera_3d(
         &app,
         spatial,
-        "projection = \"orthographic\"\northographic_height = 8.0\nbloom_mips = 9",
+        "projection = \"orthographic\"\northographic_height = 8.0\neffects = { bloom_mips = 9 }",
     );
     app.tick(1.0 / 60.0);
     {
@@ -642,7 +662,10 @@ fn an_orthographic_height_reaches_the_config_and_reads_back() {
     }
     let read = components::get(&app.engine, spatial, "camera3d").unwrap();
     assert!((read["orthographic_height"].as_float().unwrap() - 8.0).abs() < 1e-6);
-    assert_eq!(read["bloom_mips"].as_integer(), Some(9));
+    assert_eq!(
+        effects_read(&app, spatial, "camera3d")["bloom_mips"].as_integer(),
+        Some(9)
+    );
 }
 
 /// A camera answers to its node alone: the mouse controls kiss3d's cameras
@@ -671,7 +694,7 @@ fn neither_camera_takes_mouse_controls() {
 fn a_cameras_bloom_levels_reach_the_post_config() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_2d(&app, cam, "post = [\"bloom\"]\nbloom_mips = 3");
+    add_camera_2d(&app, cam, "[effects]\npost = [\"bloom\"]\nbloom_mips = 3");
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
     assert_eq!(config.borrow().bloom_mips, 3);
@@ -699,7 +722,7 @@ fn a_2d_cameras_gi_pass_and_its_knobs_reach_the_post_config() {
     add_camera_2d(
         &app,
         flat,
-        "post = [\"gi\"]\ngi_rays = 4\ngi_solver = \"cascades\"\ngi_probe_spacing = 4\ngi_screen_occluders = true",
+        "[effects]\npost = [\"gi\"]\ngi_rays = 4\ngi_solver = \"cascades\"\ngi_probe_spacing = 4\ngi_screen_occluders = true",
     );
     app.tick(1.0 / 60.0);
     {
@@ -713,7 +736,7 @@ fn a_2d_cameras_gi_pass_and_its_knobs_reach_the_post_config() {
         assert_eq!(config.effects.gi.rays, 4);
         assert!(config.effects.gi.cascades && config.effects.gi.screen_occluders);
     }
-    let read = components::get(&app.engine, flat, "camera2d").unwrap();
+    let read = effects_read(&app, flat, "camera2d");
     assert_eq!(read["gi_solver"].as_str(), Some("cascades"));
     assert_eq!(read["gi_probe_spacing"].as_integer(), Some(4));
     assert_eq!(read["gi_max_steps"].as_integer(), Some(32));

@@ -44,7 +44,7 @@ color = [0.20, 0.22, 0.26, 1.0]
 [nodes.collider2d]
 kind = "rectangle"
 size = [22.0, 0.6]
-friction = 0.8
+physics_material = { friction = 0.8 }
 
 # Cells laid out by a generator, draped over a peg.
 [[nodes]]
@@ -76,8 +76,8 @@ position = [-8.0, 1.5, 0.0]
 kind = "grid"
 size = [2.0, 1.5]
 cells = [10.0, 8.0]
-edge_hz = 12.0
 color = [0.88, 0.42, 0.28, 1.0]
+soft_material = { edge_hz = 12.0 }
 
 # A hoop of particles around nothing: the area it holds is what keeps it
 # round, and the box that lands on it squashes it.
@@ -149,8 +149,7 @@ color = [0.62, 0.45, 0.78, 1.0]
 kind = "volumetric"
 mesh = "#arch"
 cell_size = 0.15
-cell_model = "corotational"
-young_modulus = 60000.0
+soft_material = { cell_model = "corotational", young_modulus = 60000.0 }
 
 # A rope pinned at both ends, and a ball dropped into it.
 [[nodes]]

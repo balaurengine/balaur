@@ -1,0 +1,32 @@
+# A page to make a picture on: a camera framing it at 100 pixels to a world
+# unit, which is what a text or a sprite counts at its own default, and the
+# paper itself.
+
+[[nodes]]
+id = "page"
+name = "Page"
+
+[[nodes]]
+id = "camera"
+name = "Camera"
+parent = "page"
+
+[nodes.transform]
+position = [0, 0, 10]
+
+[nodes.camera2d]
+current = true
+pixels_per_unit = 100
+
+[[nodes]]
+id = "paper"
+name = "Paper"
+parent = "page"
+
+[nodes.transform]
+position = [0, 0, -1]
+
+[nodes.shape2d]
+kind = "rectangle"
+size = ["{{page_width}}", "{{page_height}}"]
+color = "#ffffff"

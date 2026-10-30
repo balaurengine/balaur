@@ -202,7 +202,9 @@ is one screenshot test, and it is the test that says the feature works.
 
 **Structure is a document edit, and the engine does the arithmetic.** Every
 verb in §2's structure column is a transform of `S.doc` followed by
-`build_mirror`, undoable for free because history holds whole documents. The
+`build_mirror`, undoable for free because history holds whole documents
+(until the live scene is the document and undo a list of changes,
+PLAN-editor-as-scene §10). The
 transform never does matrix work itself: it calls `set_parent` on the mirror
 node, which computes the world-preserving local transform
 (`scene::reparent:572-589`), and reads `position` / `rotation_euler` /

@@ -2,7 +2,7 @@
 // selection moved, and it hands back the verbs. A row's own buttons pick,
 // open and empty it.
 
-pub struct Bonemap {
+pub class Bonemap {
     node: Node,
     editor: Node,
 }

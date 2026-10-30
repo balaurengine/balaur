@@ -10,7 +10,8 @@
 > account and a project kept on Gamend rather than in one browser; the native
 > half of step 7, which is a linker and a signing toolchain; step 8's real
 > directory; and step 9's debugger. The order below is still the one the
-> browser forces, and the rows it has already taken are marked.
+> browser forces, and the rows it has already taken are marked. Files handed
+> to the page (§1), planned 2026-10-27.
 
 # Plan: the editor in a browser
 
@@ -95,6 +96,20 @@ makes this possible at all rather than a rewrite of every caller.
   with git still underneath it. The most useful tier and the least portable
   — Chromium only today — which is why it is not the one everything else is
   built on.
+
+**A file handed to the page lands as it does on desktop.** Planned
+2026-10-27; the engine's half built 2026-10-28: `hand_files` writes what the
+page was given under `/handed/<n>/` in the tab's files and the next frame
+says it as dropped (`balaur_input::hand_files`), its folder a root `fs` may
+read. Forge's half is the hook below and a route for a file too large for
+the draft's body. A file dropped on the stage, pasted, or picked with the page's
+file picker is written into the project's files and then said as
+`files_dropped`, so `dropin.bs`'s rule places it (PLAN-editor-ergonomics
+§1a): an image is a sprite, a font a font asset. Forge hosts the page: its
+editor hook takes the drop, the paste and the picker, and a file goes up on
+a route of its own, since the draft sync is base64 JSON under Gamend's 1 MB
+body limit. The page reaches only its own origin, so a font catalogue is
+fetched through Forge (PLAN-fonts).
 
 **The browser is a full editor and half an exporter.** Producing an export pack is
 file work: scripts checked, scenes and manifest bundled, no linker involved,

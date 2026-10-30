@@ -29,7 +29,7 @@ pub struct Particles {
     pub angle: f32,
     /// Half-angle of the emission cone in degrees.
     pub spread: f32,
-    /// Particle size in logical pixels.
+    /// A particle's edge length in world units, as every other 2D size is.
     pub size: f32,
     /// Acceleration applied over a particle's life.
     pub gravity: [f32; 2],
@@ -58,8 +58,6 @@ pub struct Particles {
     /// The `material` asset the particles draw with; empty takes an inherited
     /// one, else the built-in one.
     pub material: String,
-    /// The blend, wireframe, vertices and culling every particle draws with.
-    pub overlay: crate::overlay::Overlay2d,
 }
 
 pub(crate) const PARTICLES_2D: &str = "particles2d";
@@ -223,31 +221,31 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
             doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 PARTICLES_2D,
-                &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(&[
+                &balaur_core::components::ComponentDef::schema(&[
                     (k::EMITTING, r#"{ type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }"#),
                     (k::RATE, r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#),
                     (k::LIFETIME, r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#),
-                    (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }"#),
-                    (k::DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the particles leave; [0, 1] is straight up" }"#),
-                    (k::SPREAD_DEGREES, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
-                    (k::SIZE, r#"{ type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }"#),
-                    (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }"#),
+                    (k::SIZE, r#"{ type = "float", default = 0.1, min = 0.0, description = "A particle's edge length in world units" }"#),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::COLOR_END, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life" }"#),
-                    (k::SIZE_END, r#"{ type = "float", default = -1.0, description = "The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`" }"#),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, each particle draws with; empty draws a flat square" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::ONE_SHOT, r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another" }"#),
-                    (k::EXPLOSIVENESS, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime" }"#),
-                    (k::ROTATION_DEGREES, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned at birth, either way, in degrees; each takes a turn at random up to this" }"#),
-                    (k::ANGULAR_SPEED_DEGREES, r#"{ type = "float", default = 0.0, description = "The fastest a particle spins, in degrees a second, counter-clockwise when positive; each takes a speed at random between zero and this" }"#),
-                    (k::SHEET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A `sprite_sheet` whose frames each particle steps through over its life, first to last; its image is drawn when `texture` is empty" }}"#, crate::sheet::SPRITE_SHEET_ASSET_TYPE)),
                     (k::MATERIAL, &crate::material::material_line_2d()),
-                ], &crate::overlay::schema_2d(crate::overlay::Drawn::Builtin))),
+                    (k::ONE_SHOT, r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another", group = "emission" }"#),
+                    (k::EXPLOSIVENESS, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime", group = "emission" }"#),
+                    (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second", group = "motion" }"#),
+                    (k::DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the particles leave; [0, 1] is straight up", group = "motion" }"#),
+                    (k::SPREAD_DEGREES, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees", group = "motion" }"#),
+                    (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life", group = "motion" }"#),
+                    (k::ROTATION_DEGREES, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned at birth, either way, in degrees; each takes a turn at random up to this", group = "motion" }"#),
+                    (k::ANGULAR_SPEED_DEGREES, r#"{ type = "float", default = 0.0, description = "The fastest a particle spins, in degrees a second, counter-clockwise when positive; each takes a speed at random between zero and this", group = "motion" }"#),
+                    (k::SIZE_END, r#"{ type = "float", default = -1.0, description = "The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`", group = "paint" }"#),
+                    (k::COLOR_END, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life", group = "paint" }"#),
+                    (k::SHEET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A `sprite_sheet` whose frames each particle steps through over its life, first to last; its image is drawn when `texture` is empty", group = "paint" }}"#, crate::sheet::SPRITE_SHEET_ASSET_TYPE)),
+                ]),
             ),
             tags: &[crate::vocabulary::words::ORTHOGRAPHIC, balaur_core::components::tag::RENDER],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                set_particles(eng, entity, particles_from_params(params)?)
+                set_particles(eng, entity, particles_from_params(params))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -275,7 +273,6 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     k::MATERIAL.into(),
                     toml::Value::String(emitter.material.clone()),
                 );
-                crate::overlay::overlay_2d_to_map(&emitter.overlay, &mut out);
                 out.insert(
                     k::EXPLOSIVENESS.into(),
                     toml::Value::Float(f64::from(emitter.explosiveness)),
@@ -313,7 +310,7 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
 }
 
 /// An emitter as its params describe it, every number bounded.
-fn particles_from_params(params: &toml::Value) -> anyhow::Result<Particles> {
+fn particles_from_params(params: &toml::Value) -> Particles {
     let num = |key: &str, default: f64| {
         params
             .get(key)
@@ -328,14 +325,14 @@ fn particles_from_params(params: &toml::Value) -> anyhow::Result<Particles> {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(default) as f32
     };
-    Ok(Particles {
+    Particles {
         emitting: params.get(k::EMITTING).and_then(toml::Value::as_bool) != Some(false),
         rate: num(k::RATE, 20.0).max(0.0),
         lifetime: num(k::LIFETIME, 1.0).max(0.05),
         speed: num(k::SPEED, 2.0).max(0.0),
         angle: direction_degrees(params),
         spread: num(k::SPREAD_DEGREES, 30.0).max(0.0),
-        size: num(k::SIZE, 4.0).max(0.5),
+        size: num(k::SIZE, 0.1).max(0.0),
         gravity: [gravity(0, 0.0), gravity(1, -3.0)],
         color: crate::color_from_params(params),
         color_end: color_end_from_params(params),
@@ -351,8 +348,7 @@ fn particles_from_params(params: &toml::Value) -> anyhow::Result<Particles> {
         angular_speed: prop_f32(params, k::ANGULAR_SPEED_DEGREES),
         sheet: prop_str(params, k::SHEET).to_string(),
         material: prop_str(params, k::MATERIAL).to_string(),
-        overlay: crate::overlay::overlay_2d(params)?,
-    })
+    }
 }
 
 /// The `color_end` property: the schema's transparent default when absent.
@@ -482,12 +478,10 @@ pub(crate) struct ParticleFrame<'a> {
 }
 
 /// Step every emitter by the frame's dt and draw its live particles as
-/// instances of one quad under the emitter's group, sized in logical pixels
-/// like the 2D camera zoom.
+/// instances of one quad under the emitter's group, sized in world units.
 #[cfg(feature = "window")]
 pub(crate) fn sync_particles(
     app: &balaur_core::App,
-    window: &kiss3d::window::Window,
     scene: &mut kiss3d::scene::SceneNode2d,
     slots: &mut std::collections::HashMap<Entity, EmitterSlot>,
     frame: &mut ParticleFrame<'_>,
@@ -495,14 +489,6 @@ pub(crate) fn sync_particles(
     use balaur_core::{GlobalAppearance, GlobalTransform};
 
     let world = app.engine.world();
-    let scale = window.scale_factor() as f32;
-    // Sizes are in logical pixels; the quads live in world units, so the
-    // camera's zoom (pixels per unit) converts.
-    let zoom = app
-        .engine
-        .try_resource::<crate::ViewportSnapshot2d>()
-        .map_or(crate::DEFAULT_PIXELS_PER_UNIT, |v| v.borrow().zoom)
-        .max(0.01);
     let mut seen: std::collections::HashSet<Entity> = std::collections::HashSet::new();
     for (entity, emitter, global) in &mut world.query::<(Entity, &Particles, &GlobalTransform)>() {
         seen.insert(entity);
@@ -531,6 +517,7 @@ pub(crate) fn sync_particles(
         } else {
             emitter.material.clone()
         };
+        let surface = crate::material::flat_surface_of(&app.engine, &material);
         ensure_quad(
             app,
             slot,
@@ -539,7 +526,11 @@ pub(crate) fn sync_particles(
             frame.reloaded,
         );
         if let Some(quad) = &mut slot.quad {
-            crate::overlay::apply_2d(quad, &emitter.overlay);
+            crate::overlay::apply_2d(
+                quad,
+                &surface,
+                &crate::debug_draw::DebugDraw::of(&world, entity),
+            );
         }
         let size_of_sheet = sheet
             .as_ref()
@@ -558,7 +549,7 @@ pub(crate) fn sync_particles(
                 let t = (particle.age / particle.lifetime).clamp(0.0, 1.0);
                 let color =
                     crate::sync_2d::modulate(blend(emitter.color, emitter.color_end, t), inherited);
-                let size = (emitter.size + (end - emitter.size) * t) * scale / zoom;
+                let size = emitter.size + (end - emitter.size) * t;
                 let (sin, cos) = libm::sincosf(particle.turn + particle.spin * particle.age);
                 let uv = sheet.as_ref().filter(|s| !s.is_empty()).map_or(
                     kiss3d::scene::UV_WHOLE_2D,
@@ -681,7 +672,6 @@ mod tests {
             angular_speed,
             sheet: String::new(),
             material: String::new(),
-            overlay: crate::overlay::Overlay2d::default(),
         }
     }
 

@@ -337,6 +337,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let look = crate::widget::code::CodeLook {
         widget: &widget,
         theme: &at.theme,
+        project: at.arena[index].project,
     };
     let (text, changed, hit, caret) =
         crate::widget::code::code_editor(at.eng, &mut inner, &id, &look);

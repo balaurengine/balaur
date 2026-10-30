@@ -12,6 +12,10 @@
 > built: the gizmo and overlay line lists since 2026-09-27 (§6i), §6's
 > tessellation cache 2026-10-17. §6m, the binding seam, built 2026-10-18.
 > §9, the `dev` and `web` build profiles, changed 2026-10-18.
+>
+> §10, what one edit costs, measured 2026-10-27: it overturns §6g, replaces
+> §6j and the `inspector` kind, and orders the work that follows, each piece
+> in the doc that owns it.
 
 # Plan: what the editor's frame costs
 
@@ -61,7 +65,8 @@ Read the spread, not the middle: two runs of the same command differ by up to
 intermittently, and until that is found only the ratios here are safe to
 quote.
 
-**Built 2026-10-17, the inspector on an `inspector` kind.** The widget names
+**Built 2026-10-17, the inspector on an `inspector` kind; to be removed
+(PLAN-editor-as-scene §9.4, §10 below).** The widget names
 a node and one of its components. Every pass it reads the registry's schema
 and the node and fills the pool's own rows, so `inspector.bs` states one
 control for a run of properties instead of a table a row. An edit comes back
@@ -455,6 +460,9 @@ thirteen, and unboxing the values on top is another 2.5x. But at one to three
 builds a frame in a game, and seven in the editor, the whole refactor is worth
 about a microsecond a frame. It also no longer fits: `record` nests, so a flat
 value enum cannot hold one. The bench stays as the record of what was priced.
+Overturned 2026-10-27 for another reason (§10): a property is addressed by
+its index in a derived schema (PLAN-property-types §5) so that one write is
+one field and one change-log entry.
 
 What the counting did prove is that **a missing reader key is invisible**. The
 fallback answers correctly and costs forty keys, so nothing fails and nothing
@@ -578,7 +586,9 @@ on `doc_rev` alone misses a rename or a component added.
 
 ## 6j. A revision every edit bumps
 
-**Built 2026-09-26.** `doc_rev` is bumped by every edit to `S.doc` now:
+**Built 2026-09-26; replaced by the engine's change log (PLAN-events §5),
+and `doc_rev` goes with `S.doc` (PLAN-editor-as-scene §10).** `doc_rev` is
+bumped by every edit to `S.doc` now:
 `history::record` before a recorded one, a drag's continuing steps included;
 undo and redo; and `model::record_override`, which every unrecorded writer
 ends in. The frame after a bump bumps once more, in `model::settle_revision`,
@@ -694,8 +704,8 @@ Counted on `examples/hello`, 1000 frames offscreen:
   allocator in open question 2. Rune's own run loop and binary operators make
   39% of those, and the whole-widget read above 22%.
 
-What changed is in the Rune backend and `balaur_ui`. The neutral seam is
-still the contract a second language implements.
+What changed is in the Rune backend and `balaur_ui`. A typed binding reads
+its arguments where the script left them since PLAN-balaur-script §9 step 2.
 
 - `Bindings::function_owned` hands a typed binding the slots its call built,
   and `FromArg::take_arg` moves a string or a table out of its slot. The
@@ -889,6 +899,94 @@ No browser was timed. A native build with the `web` profile, fat LTO and
 on the template. 3 runs the same cycles for twice the bytes. Wasm's own
 overhead sits on top of these, so only the ratio carries over to a browser.
 
+## 10. One edit
+
+Measured 2026-10-27 on the editor build of `a8f03337`: `balaur edit
+examples/text --offscreen`, one edit a frame made by a `bench:` state,
+instructions retired over a run that edits nothing.
+
+| one edit a frame | instructions an edit | frame |
+| --- | ---: | ---: |
+| none | | 3 ms |
+| the engine writes `text2d.text`, the text reshaped | 0.1 M | 2.9 ms |
+| the Inspector writes `text2d.text` | 650 M | 193 ms |
+| the Inspector writes `text2d.color` | 660 M | 185 ms |
+| the Inspector writes `transform.position` | 590 M | 85 ms |
+
+Of the 650 M:
+
+- **380 M is one `outline_changed`.** About 25 panel handlers run, hidden
+  ones too, and every cache keyed on `doc_rev` is dropped: the warnings, the
+  tree, the chrome, the 2D check. `settle_revision` sends a second the next
+  frame.
+- **200 M is the Inspector filling its whole form**, hidden or not, and every
+  frame while the scene plays.
+- **60 M is the Editor's own write**: the whole component read, merged into
+  `S.doc`, written, read back.
+
+A sample of the same run puts 2% of the frame in compiled script code, 6% in
+the engine and about 90% in the script runtime answering `any` and string
+methods (PLAN-balaur-script §9). hecs and the component registry do not
+show.
+
+So the work is the editor's model and the language's runtime, in this
+order, each in the doc that owns it:
+
+1. The prelude as the standard library, with its budgets (PLAN-balaur-script
+   §9 steps 1 and 8).
+2. One typed engine interface (§9 step 2).
+3. State in the module (§9 step 3).
+4. The change log (PLAN-events §5).
+5. A stricter language and one instance per project (§9 steps 4 and 5,
+   PLAN-bs-linking). Built 2026-10-28: the one instance, typed maps and
+   struct literals with defaults. The engine's records and `map()`'s
+   retirement follow step 7, since the editor code they change is the code
+   steps 6 and 7 rewrite.
+6. The live scene as the document (PLAN-editor-as-scene §10). Built
+   2026-10-28: the engine writes the scene back and keeps what each write
+   replaced; `S.doc`, its revision and the mirror rebuild are gone, undo is
+   a list of changes and play keeps the scene's text for stop.
+7. The Inspector as a viewer (PLAN-editor-as-scene §9.4).
+8. Order, groups and the derive, a property by its index (PLAN-property-types
+   §5, PLAN-balaur-script §9 step 6). Built 2026-10-28: order and groups,
+   every schema in PLAN-component-order's order, the Inspector, settings and
+   reference following it. The derive follows step 9, since the moves change
+   the rows a component's struct would declare.
+9. Assets taking what a component repeats (PLAN-component-order §2), in
+   that plan's §5 order. Started 2026-10-28: record assets, the Inspector
+   editing one under its row, `physics_material`, the
+   `debug_draw` component, `soft_material`, `camera_effects` and the
+   material's surface and 2D lit rows. `font` and `text_style` go with
+   step 10.
+10. Fonts (PLAN-fonts).
+11. Making a picture: a drop or a paste in a browser (PLAN-web-editor §1),
+    picking text (PLAN-views-and-culling §1), the flows of
+    PLAN-editor-ergonomics §1a.
+12. The editor native (PLAN-balaur-script §9 step 7).
+
+The budget, open question 3's answer: one property edit costs the editor
+under 1 M instructions, measured as above.
+
+Measured again 2026-10-28, the same way, after steps 1 to 5 and the first
+of 6 and 7: the panels follow the change log for a property edit, which
+sends `outline_changed` no more, and the Inspector rewrites the rows of
+the properties the log names.
+
+| one edit a frame | after step 5 | after the change log's panels |
+| --- | ---: | ---: |
+| the Inspector writes `text2d.text` | 181 M | 23 M |
+| the Inspector writes `transform.position` | | 9 M |
+| `outline_changed` alone, every panel waking | 168 M | |
+| the Inspector filling its whole form alone | 100 M | |
+| the engine writes `text2d.text`, the Inspector's rows following | 2.3 M | 18 M |
+
+Of the 23 M, the Inspector's rows are about 4 M; the rest is the UI pass
+laying the whole shell out again once one widget changed (`taffy`), which
+an incremental layout takes next. The order above moved for that
+measurement: of the 650 M, the panels and the Inspector were 580 M and
+the document's own copy 60 M, so the change log's panels (PLAN-editor-as-
+scene §9.2) and the Inspector's rows came before the document's removal.
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind
@@ -917,4 +1015,5 @@ overhead sits on top of these, so only the ratio carries over to a browser.
    and that belongs in `docs/PLAN-scripting.md`. §6m took the seam's copies
    out; what allocates now is mostly the scripts' own strings and tables.
 3. **What the budget is.** A 60 Hz frame is 16.7 ms, and the editor shares it
-   with the game it is editing while playing.
+   with the game it is editing while playing. One property edit: under 1 M
+   instructions (§10).

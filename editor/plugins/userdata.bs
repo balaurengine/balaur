@@ -2,7 +2,7 @@
 // prefs among them, opened as structures and edited in place. What a game
 // played here writes lands in the same folder as the game run on its own.
 
-pub struct Userdata {
+pub class Userdata {
     node: Node,
 }
 

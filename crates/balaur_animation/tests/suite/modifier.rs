@@ -509,7 +509,7 @@ fn every_kind_reads_back_the_way_it_was_written() {
     for kind in ["look_at", "two_bone_ik", "fabrik", "ccdik", "jiggle"] {
         let params: toml::Value = toml::from_str(&format!(
             "kind = \"{kind}\"\ntarget = \"T\"\nchain_count = 3\niterations = 7\nangle_limit = 0.5\n\
-             stiffness = 2.5\ndamping = 0.25\nmass = 1.5\ngravity = [0.0, -3.0, 0.0]\n\
+             stiffness = 2.5\ndamping = 0.25\nmass = 1.5\ngravity = [0.0, -3.0]\n\
              use_gravity = true"
         ))
         .unwrap();
@@ -520,7 +520,7 @@ fn every_kind_reads_back_the_way_it_was_written() {
         assert_eq!(got.get("iterations").unwrap().as_integer(), Some(7));
         assert_eq!(got.get("use_gravity").unwrap().as_bool(), Some(true));
         let gravity = got.get("gravity").unwrap().as_array().unwrap();
-        assert_eq!(gravity.len(), 3);
+        assert_eq!(gravity.len(), 2, "a 2D modifier pulls in two dimensions");
     }
     let bad: toml::Value = toml::from_str("kind = \"wobble\"").unwrap();
     let why = components::add(&app.engine, rig, "modifier2d", Some(&bad)).unwrap_err();
@@ -535,7 +535,7 @@ fn following(app: &App, lag: f32, offset: (f32, f32), target: (f32, f32)) -> Ent
     let follower = node_at(app, "Follower", rig, 0.0, 0.0);
     node_at(app, "Target", rig, target.0, target.1);
     let params: toml::Value = toml::from_str(&format!(
-        "kind = \"follow\"\ntarget = \"../Target\"\nlag = {lag}\noffset = [{}, {}, 0.0]",
+        "kind = \"follow\"\ntarget = \"../Target\"\nlag = {lag}\noffset = [{}, {}]",
         offset.0, offset.1
     ))
     .unwrap();

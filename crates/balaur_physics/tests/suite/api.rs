@@ -153,7 +153,7 @@ fn removing_a_body_stops_it_being_simulated() {
 }
 
 #[test]
-fn a_3d_collider_takes_friction_restitution_and_density() {
+fn a_3d_collider_takes_its_material_and_density() {
     let mut app = app();
     let root = app.engine.root();
     let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
@@ -172,7 +172,7 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
         toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
     components::add(&app.engine, ball, "body3d", Some(&body)).unwrap();
     let bouncy: toml::Value = toml::from_str(
-        "kind = \"sphere\"\nradius = 0.5\nrestitution = 0.9\nfriction = 0.2\ndensity = 3.0",
+        "kind = \"sphere\"\nradius = 0.5\nphysics_material = { restitution = 0.9, friction = 0.2 }\ndensity = 3.0",
     )
     .expect("literal collider params parse");
     components::add(&app.engine, ball, "collider3d", Some(&bouncy)).unwrap();
@@ -184,9 +184,18 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
             .and_then(components::as_f64)
             .unwrap_or_else(|| panic!("collider reports no `{key}`: {got:?}"))
     };
-    assert!((f("restitution") - 0.9).abs() < 1e-6);
-    assert!((f("friction") - 0.2).abs() < 1e-6);
     assert!((f("density") - 3.0).abs() < 1e-6);
+    let (restitution, friction) = {
+        let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+        let state = state.borrow();
+        let collider = &state.world.colliders[state.colliders[&ball][0]];
+        (collider.restitution(), collider.friction())
+    };
+    assert!(
+        (restitution - 0.9).abs() < 1e-6,
+        "restitution {restitution}"
+    );
+    assert!((friction - 0.2).abs() < 1e-6, "friction {friction}");
 
     let mut min_y = f32::MAX;
     let mut rebounded = false;

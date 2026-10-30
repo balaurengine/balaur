@@ -69,39 +69,41 @@ pub struct NameSlot {
     pub count: u32,
 }
 
-/// Which script file drives this node, if any. The live instance is kept
-/// by the script host, keyed by entity.
-pub struct ScriptAttachment {
+/// The script a node names and what it sets over the script's exported
+/// defaults: its scene's `script` key, or the last `attach_script`.
+///
+/// Kept whether or not the script runs, so a scene built with
+/// `{ scripts: false }` still says which script each node has and writes it
+/// back (PLAN-editor-as-scene §10.1). The running instance is the script
+/// host's, keyed by entity.
+pub struct NodeScript {
     pub path: String,
+    /// Only what differs from the exports, so a changed default reaches every
+    /// node that did not set it.
+    pub props: Vec<(String, balaur_script::Value)>,
 }
 
-/// What the node's `script` key set over the script's exported defaults.
-///
-/// Kept because `init` reads them: a node put back by a snapshot has to
-/// re-attach with the tuned values, not with the exports.
-pub struct ScriptProps(pub Vec<(String, balaur_script::Value)>);
-
-/// Record what a node was attached with, replacing whatever it carried.
-pub fn remember_script_props(
+/// Name the node's script, replacing whatever it named; `None` takes it off.
+pub fn name_script(
     eng: &Engine,
     entity: Entity,
-    props: &[(String, balaur_script::Value)],
+    script: Option<(&str, &[(String, balaur_script::Value)])>,
 ) {
     let mut world = eng.world_mut();
-    if props.is_empty() {
-        let _ = world.remove_one::<ScriptProps>(entity);
-        return;
+    match script {
+        Some((path, props)) => {
+            let _ = world.insert_one(
+                entity,
+                NodeScript {
+                    path: path.to_string(),
+                    props: props.to_vec(),
+                },
+            );
+        }
+        None => {
+            let _ = world.remove_one::<NodeScript>(entity);
+        }
     }
-    let _ = world.insert_one(entity, ScriptProps(props.to_vec()));
-}
-
-/// What [`remember_script_props`] recorded, empty for a node that set none.
-#[must_use]
-pub fn script_props(world: &World, entity: Entity) -> Vec<(String, balaur_script::Value)> {
-    world
-        .get::<&ScriptProps>(entity)
-        .map(|p| p.0.clone())
-        .unwrap_or_default()
 }
 
 /// Local (parent-relative) transform, TRS convention.
@@ -932,21 +934,6 @@ fn sheared_local(parent: &GlobalTransform, child: &GlobalTransform, z: f32) -> T
     }
 }
 
-/// Whether `entity` is `ancestor` or sits somewhere beneath it.
-#[must_use]
-pub fn is_under(world: &World, entity: Entity, ancestor: Entity) -> bool {
-    let mut current = entity;
-    loop {
-        if current == ancestor {
-            return true;
-        }
-        match world.get::<&Parent>(current) {
-            Ok(parent) => current = parent.0,
-            Err(_) => return false,
-        }
-    }
-}
-
 /// Collect a subtree in despawn order (children before parents is not
 /// required by hecs, but callers also use this to tear down script
 /// instances and plugin state).
@@ -1112,8 +1099,7 @@ pub fn announce_added_since(eng: &Engine, parent: Entity, before: usize) {
         |c| c.0.iter().skip(before).copied().collect(),
     );
     for child in added {
-        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
-        crate::events::announce(eng, parent, crate::node_api::CHILD_ADDED_EVENT, child);
+        crate::changes::added(eng, parent, child);
     }
 }
 
@@ -1147,9 +1133,9 @@ pub fn announce_leaving(eng: &Engine, entities: &[Entity]) {
         }
     }
     for (parent, child) in told {
-        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
-        crate::events::announce(eng, parent, crate::node_api::CHILD_REMOVED_EVENT, child);
+        crate::changes::freed(eng, parent, child);
     }
+    crate::changes::announced_leaving(eng);
 }
 
 /// Despawn a node and its whole subtree, unlinking it from its parent.

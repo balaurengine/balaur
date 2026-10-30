@@ -7,7 +7,7 @@
 //! the same operation gets the same answer.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, as_f64, prop_bool, prop_f32, prop_str};
+use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str};
 use balaur_core::csg::{self, Op};
 use balaur_core::geometry2d::{self, BooleanOptions, FillRule, Op2d, Shapes2d};
 use balaur_core::hecs::Entity;
@@ -49,7 +49,6 @@ pub(crate) struct Boolean2d {
     pub(crate) op: Op2d,
     options: BooleanOptions,
     look: Look,
-    overlay: crate::overlay::Overlay2d,
     shapes: Shapes2d,
     signature: u64,
 }
@@ -87,12 +86,12 @@ fn boolean3d_schema() -> String {
     format!(
         r#"operation = {{ type = "enum", default = "{union}", options = [{ops}], description = "How the children are combined, in the order they are declared" }}
 {look}
-cast_shadow = {{ type = "bool", default = true, description = "Whether the result casts a shadow from the lights that cast" }}
-light_layers = {{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights the result when their masks share a bit. -1 is every layer" }}
-render_layers = {{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws the result when their `render_layers` share a bit. -1 is every layer" }}
+cast_shadow = {{ type = "bool", default = true, description = "Whether the result casts a shadow from the lights that cast", group = "shadows" }}
+render_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The layers the result is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer", group = "layers" }}
+light_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The light layers the result is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer", group = "layers" }}
 {overlay}"#,
-        overlay =
-            crate::overlay::toml_lines(&crate::overlay::schema_3d(crate::overlay::Drawn::Builtin)),
+        overlay = crate::overlay::toml_lines(&crate::overlay::schema_3d()),
+        layer_options = balaur_core::layers::options(),
         union = csg::words::UNION,
         ops = options(csg::words::OPS),
         look = look_schema(
@@ -107,13 +106,10 @@ fn boolean2d_schema() -> String {
     format!(
         r#"operation = {{ type = "enum", default = "{union}", options = [{ops}], description = "How the children are combined, in the order they are declared" }}
 fill_rule = {{ type = "enum", default = "{even_odd}", options = [{rules}], description = "Which parts of crossing or nested outlines count as inside: an odd number of them, any winding, or only counter-clockwise or clockwise winding" }}
-min_area = {{ type = "float", default = 0.0, min = 0.0, description = "A result outline or hole enclosing less than this area, in square units of the node's own space, is dropped" }}
-keep_collinear = {{ type = "bool", default = false, description = "Keep a point that sits on the straight line between its neighbours, in the children and in the result" }}
-clean_result = {{ type = "bool", default = true, description = "Clear the result of the near-duplicate points rounding leaves" }}
 {look}
-{overlay}"#,
-        overlay =
-            crate::overlay::toml_lines(&crate::overlay::schema_2d(crate::overlay::Drawn::Pipeline)),
+clean_result = {{ type = "bool", default = true, description = "Clear the result of the near-duplicate points rounding leaves", group = "mesh cleanup" }}
+keep_collinear = {{ type = "bool", default = false, description = "Keep a point that sits on the straight line between its neighbours, in the children and in the result", group = "mesh cleanup" }}
+min_area = {{ type = "float", default = 0.0, min = 0.0, description = "A result outline or hole enclosing less than this area, in square units of the node's own space, is dropped", group = "mesh cleanup" }}"#,
         union = g::UNION,
         ops = options(g::OPS),
         even_odd = g::EVEN_ODD,
@@ -125,16 +121,9 @@ clean_result = {{ type = "bool", default = true, description = "Clear the result
     )
 }
 
-/// A layer mask as a scene writes it, -1 for every layer.
+/// A layer set as a scene writes it, empty for every layer.
 fn mask(params: &toml::Value, key: &str) -> u32 {
-    params
-        .get(key)
-        .and_then(as_f64)
-        .map_or(u32::MAX, |v| v as i64 as u32)
-}
-
-fn mask_value(mask: u32) -> toml::Value {
-    toml::Value::Integer(i64::from(mask.cast_signed()))
+    balaur_core::layers::bits(params.get(key), true)
 }
 
 fn boolean3d_from_params(params: &toml::Value) -> Result<Boolean3d> {
@@ -212,9 +201,15 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
             );
             look_to_map(&boolean.look, &mut map);
             map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(boolean.shadows));
-            map.insert(k::LIGHT_LAYERS.into(), mask_value(boolean.layers));
-            map.insert(k::RENDER_LAYERS.into(), mask_value(boolean.render_layers));
-            crate::overlay::overlay_3d_to_map(&boolean.overlay, &mut map);
+            map.insert(
+                k::LIGHT_LAYERS.into(),
+                balaur_core::layers::names(boolean.layers),
+            );
+            map.insert(
+                k::RENDER_LAYERS.into(),
+                balaur_core::layers::names(boolean.render_layers),
+            );
+            crate::overlay::overlay_3d_to_map(boolean.overlay, &mut map);
             Some(toml::Value::Table(map))
         }),
     };
@@ -234,7 +229,6 @@ fn boolean2d_from_params(params: &toml::Value) -> Result<Boolean2d> {
             clean_result: prop_bool(params, k::CLEAN_RESULT),
         },
         look: look_from_params(params),
-        overlay: crate::overlay::overlay_2d(params)?,
         shapes: Vec::new(),
         signature: 0,
     })
@@ -297,7 +291,6 @@ pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
                 toml::Value::Boolean(boolean.options.clean_result),
             );
             look_to_map(&boolean.look, &mut map);
-            crate::overlay::overlay_2d_to_map(&boolean.overlay, &mut map);
             Some(toml::Value::Table(map))
         }),
     };
@@ -311,16 +304,14 @@ fn dress_2d(eng: &Engine, entity: Entity) -> Result<()> {
         let Ok(boolean) = world.get::<&Boolean2d>(entity) else {
             return Ok(());
         };
-        (boolean.look.clone(), boolean.overlay)
+        boolean.look.clone()
     };
-    let (look, overlay) = look;
     {
         let world = eng.world_mut();
         let Ok(mut r) = world.get::<&mut Renderable2d>(entity) else {
             return Ok(());
         };
         r.color = look.color;
-        r.overlay = overlay;
     }
     crate::material::set_material_2d(eng, entity, &look.material)
 }

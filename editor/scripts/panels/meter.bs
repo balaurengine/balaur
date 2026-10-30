@@ -2,7 +2,7 @@
 // measured, read four times a second while the tab shows. The one panel that
 // reads on a clock, because what it shows is the cost of the frames.
 
-pub struct Meter {
+pub class Meter {
     node: Node,
     what: str,
     editor: Node,

@@ -1,7 +1,7 @@
 // The HUD's one script: the axes, the zoom and the folded bottom dock's
 // handle along the scene's foot, shown and read as the Editor says.
 
-pub struct Hud {
+pub class Hud {
     node: Node,
     editor: Node,
 }
@@ -20,12 +20,12 @@ impl Hud {
         if event != "click" {
             return;
         }
-        let matched1 = node.name();
-        let verb = if matched1 == "Out" {
+        let name = node.name();
+        let verb = if name == "Out" {
             "zoom_out"
-        } else if matched1 == "In" {
+        } else if name == "In" {
             "zoom_in"
-        } else if matched1 == "Open" {
+        } else if name == "Open" {
             "open_bottom"
         } else {
             ""
@@ -40,7 +40,7 @@ impl Hud {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")).with("height", view.get("h")));
+        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")).with("height", view.get("height")));
         if !view.get("shown").as_bool() {
             return;
         }

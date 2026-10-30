@@ -83,8 +83,9 @@ asks, a CRDT over the node table: `automerge` — a JSON-shaped document with a
 Rust core — holding each scene as nodes of properties, with the TOML file as
 the materialised view written on save so git and the patcher keep working;
 scripts as text CRDTs from the same library. `yrs` is the alternative with
-the same shape. The editor's `S.doc` already is a node table, which is what
-makes the mapping honest. Operational transform is not planned.
+the same shape. The editor's document is a node table, the live scene
+once PLAN-editor-as-scene §10 lands, and its change log (PLAN-events §5) is
+what a CRDT is fed, which is what makes the mapping honest. Operational transform is not planned.
 
 **The catalogue.** Once files live on Gamend,
 `docs/PLAN-editor-ergonomics.md`'s library grows a hosted half: a
