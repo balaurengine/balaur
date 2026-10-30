@@ -1,8 +1,8 @@
-// What an engine function is handed: the call's arguments where the module
-// left them. A number, a flag or a node is read from its slot when asked
-// for. A string or a value of another kind is read out of the module's memory
-// before the call, once: the engine function may call back into the module,
-// which changes that memory.
+//! What an engine function is handed: the call's arguments where the module
+//! left them. A number, a flag or a node is read from its slot when asked
+//! for. A string or a value of another kind is read out of the module's memory
+//! before the call, once: the engine function may call back into the module,
+//! which changes that memory.
 
 use super::engine::{ImportCtx, Raw};
 use super::host::CtxReader;

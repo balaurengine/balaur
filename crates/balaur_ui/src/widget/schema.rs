@@ -1,6 +1,5 @@
 //! The `widget` component's schema: what a scene file may say about a
-//! widget, the presets the picker offers, and the table a `Widget` reads
-//! back as.
+//! widget, and the table a `Widget` reads back as.
 
 use anyhow::Result;
 use balaur_core::components::ComponentDef;
@@ -769,91 +768,6 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         k::SCROLL_DEADZONE.into(),
         toml::Value::Float(f64::from(widget.deadzone)),
     );
-}
-
-/// The widget kinds as recipes, so the picker offers "Column" rather than
-/// "a `widget`, then set `kind`".
-///
-/// Presets, not node types: balaur has no classes, and one for UI alone would
-/// be a second model of what a node is (`balaur_core::presets`).
-pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
-    use balaur_core::presets::preset;
-    let recipes = [
-        (w::LABEL, "A line of text"),
-        (w::TEXT_FIELD, "A line the player types into"),
-        (w::BUTTON, "Text that reports its clicks"),
-        (w::PANEL, "A framed box that lays out what is inside it"),
-        (
-            w::ROW,
-            "Children side by side, sharing the leftover by `grow`",
-        ),
-        (
-            w::COLUMN,
-            "Children stacked, sharing the leftover by `grow`",
-        ),
-        (
-            w::SCROLL,
-            "A box that holds its size and clips what runs past it",
-        ),
-        (
-            w::STACK,
-            "Children over one another, each placed in the box by its `anchor`",
-        ),
-        (
-            w::TABS,
-            "One child showing, the rest named on a strip above it",
-        ),
-        (
-            w::IMAGE,
-            "A picture from the project, sized by itself or by what it states",
-        ),
-        (w::CHECKBOX, "A box that ticks"),
-        (w::DROPDOWN, "One of its `options`, picked from a list"),
-        (w::SLIDER, "A number dragged between `min` and `max`"),
-        (
-            w::PROGRESS_BAR,
-            "A bar filled to `value` between `min` and `max`",
-        ),
-        (
-            w::GRID,
-            "Children in the columns `grid_columns` names, two equal ones where it names none",
-        ),
-        (
-            w::FLOW,
-            "Children left to right, wrapping when the row is full",
-        ),
-        (w::FOLD, "A header that shows or hides what is under it"),
-        (
-            w::TOAST,
-            "A message that stacks at its anchor and leaves when its `duration` is up",
-        ),
-        (
-            w::DIALOG,
-            "A panel over everything, with the screen behind it dimmed and deaf",
-        ),
-        ("separator", "A line between siblings"),
-        (
-            w::WINDOW,
-            "A panel with a title bar, moved by dragging it and shut by its cross",
-        ),
-    ];
-    for (name, description) in recipes {
-        // A window is dragged by its title bar; no other root moves unasked.
-        let params = if name == w::WINDOW {
-            format!("{} = \"{name}\"\n{} = true", k::KIND, k::MOVABLE)
-        } else {
-            format!("{} = \"{name}\"", k::KIND)
-        };
-        reg.register_preset(
-            name,
-            preset(
-                description,
-                &[balaur_core::components::tag::UI],
-                &[("widget", Some(params.as_str()))],
-            )?,
-        );
-    }
-    Ok(())
 }
 
 /// A `Widget` built from a full property table (defaults already merged).

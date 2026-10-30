@@ -486,10 +486,10 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     }))
 }
 
-// `unit` as unit `key` of the script, added unless it is one: its index. Its
-// static data takes a block of the heap, since the space before the heap was
-// laid out for the units known when the store was made. It is made on its
-// first call.
+/// `unit` as unit `key` of the script, added unless it is one: its index. Its
+/// static data takes a block of the heap, since the space before the heap was
+/// laid out for the units known when the store was made. It is made on its
+/// first call.
 fn link_unit(
     mut cx: impl AsContextMut<Data = Data>,
     key: &str,

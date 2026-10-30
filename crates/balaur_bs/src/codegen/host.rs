@@ -182,6 +182,11 @@ impl FnGen<'_> {
             return Ok(None);
         };
         let Some(ty) = self.g.host.property(comp, prop).cloned() else {
+            // On a node, `node.c.p` names a component's property: say which
+            // half is wrong rather than that a node has no field `c`.
+            if comp != SCRIPT_FIELD && self.type_of(node).ok() == Some(Ty::Node) {
+                return err(e.pos, self.no_property(comp, prop));
+            }
             return Ok(None);
         };
         if self.type_of(node)? != Ty::Node {
@@ -189,6 +194,22 @@ impl FnGen<'_> {
         }
         let (get, set) = property_keys(comp, prop);
         Ok(Some(((**node).clone(), get, set, ty)))
+    }
+
+    /// Why `node.comp.prop` names nothing: no such component, or no such
+    /// property on it, with the names it does have.
+    fn no_property(&self, comp: &str, prop: &str) -> String {
+        match self.g.host.components.iter().find(|(name, _)| name == comp) {
+            Some((_, props)) => format!(
+                "`{comp}` has no property `{prop}`; it has {}",
+                props
+                    .iter()
+                    .map(|(name, _)| format!("`{name}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            None => format!("no component `{comp}`"),
+        }
     }
 
     pub(crate) fn host_call(&mut self, key: &str) {

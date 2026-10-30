@@ -1,10 +1,10 @@
-// What every program has without a `use`: the engine's vectors and colours,
-// and the methods of `str` and `any`, written in Balaur Script. A method is
-// its module's `pub` function, named as `prefix` names a linked module's
-// (`str::find`, a helper `str::#part`), and a program compiles one in only
-// once a call reaches it, as it does a release (`codegen::Gen::callee`).
-// Only these functions may call the built-ins that read a string's bytes or
-// a cell's parts (`codegen::call`'s `intrinsic`).
+//! What every program has without a `use`: the engine's vectors and colours,
+//! and the methods of `str` and `any`, written in Balaur Script. A method is
+//! its module's `pub` function, named as `prefix` names a linked module's
+//! (`str::find`, a helper `str::#part`), and a program compiles one in only
+//! once a call reaches it, as it does a release (`codegen::Gen::callee`).
+//! Only these functions may call the built-ins that read a string's bytes or
+//! a cell's parts (`codegen::call`'s `intrinsic`).
 
 use crate::Error;
 use crate::ast::{Expr, FnDecl, Program, Ty};

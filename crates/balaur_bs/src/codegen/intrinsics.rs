@@ -1,8 +1,8 @@
-// The built-ins only the prelude may call (`crate::prelude`): a string's
-// bytes, a string made and filled byte by byte, and the parts of an `any`'s
-// cell. Each is a few loads and stores, with no call out. A string's index is
-// checked against its length and traps outside it; a cell's kind is the
-// caller's to check.
+//! The built-ins only the prelude may call (`crate::prelude`): a string's
+//! bytes, a string made and filled byte by byte, and the parts of an `any`'s
+//! cell. Each is a few loads and stores, with no call out. A string's index is
+//! checked against its length and traps outside it; a cell's kind is the
+//! caller's to check.
 
 use super::func::{FnGen, R, err, show};
 use super::rt::mem;

@@ -3,9 +3,7 @@
 //! clipboard, pacing and the pooled rows. Nothing here draws: a UI is
 //! `widget` nodes in a scene, and [`crate::widget`] draws them.
 
-use anyhow::Result;
 use balaur_core::Engine;
-use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::bridge::with_ctx;
@@ -131,10 +129,7 @@ fn names_of(list: Option<balaur_script::Value>) -> Option<Vec<String>> {
     }
 }
 
-pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
-    let mut m = reg.script_module("ui")?;
-    let m: &mut dyn Bindings<Engine> = &mut *m;
-
+pub(crate) fn install_ui_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
     );
@@ -159,8 +154,6 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::pacing::install(m);
     crate::loading::install(m);
     install_queries(m);
-
-    Ok(())
 }
 
 /// `ui.*` bindings: theme.

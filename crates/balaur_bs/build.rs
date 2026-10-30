@@ -26,10 +26,10 @@ fn main() {
     case_tables();
 }
 
-// Rust's own case mapping, as the tables the prelude's `to_upper` and
-// `to_lower` search (`src/prelude/str.bs`): a record of twelve hex digits for
-// a character that becomes one, the code point then what it becomes, and of
-// twenty-five for one that becomes several, with their count between.
+/// Rust's own case mapping, as the tables the prelude's `to_upper` and
+/// `to_lower` search (`src/prelude/str.bs`): a record of twelve hex digits for
+/// a character that becomes one, the code point then what it becomes, and of
+/// twenty-five for one that becomes several, with their count between.
 fn case_tables() {
     use std::fmt::Write;
     let mut out = String::from(

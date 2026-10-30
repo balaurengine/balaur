@@ -1,8 +1,8 @@
-// `--state bench:<edit>`: one edit a frame to the selection, the way the
-// Inspector writes it, so a run can be measured by the instructions it
-// retires against one that edits nothing (PLAN-editor-performance §10). The
-// edits: `text` and `color` on a `text2d`, `position` on its transform, and
-// `engine_text`, the engine's own write that the Inspector's rows follow.
+//! `--state bench:<edit>`: one edit a frame to the selection, the way the
+//! Inspector writes it, so a run can be measured by the instructions it
+//! retires against one that edits nothing (PLAN-editor-performance §10). The
+//! edits: `text` and `color` on a `text2d`, `position` on its transform, and
+//! `engine_text`, the engine's own write that the Inspector's rows follow.
 
 use editor;
 use model;

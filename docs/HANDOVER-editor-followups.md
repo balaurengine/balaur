@@ -18,6 +18,9 @@ is rewritten in the same commit).
 | Editor: one struct for the stage's two sheet handles | `center::SheetHandle`; the typed-link blocker written into PLAN-balaur-script §9 step 4 |
 | Animation / Sound / Physics / Input / Render: … are derived | every component of those crates on the derive, schemas proven unchanged; what a system works out is a cache beside the struct |
 | Components: bones and bindings are derived, and a refused write puts back what was held | `bone2d`/`bone3d` fill `Bone`, `bindings` rows fill `Bindings`; core's `Layer`; an f32 reads back as its shortest decimal, `7.0` fills an int, a refusal restores the struct or takes an added one off |
+| Script: `node.c.p` binds to its component once | the property imports find the component's index at load (§9 step 6) |
+| House lints / Comment lints | no file past 1,200 lines (pure moves into submodules); long comments became the docs they were |
+| Components: a hook hears which property one write changed | `Written::Property(index)` |
 
 ## Where the derive stands
 
@@ -42,14 +45,15 @@ is rewritten in the same commit).
 ## Left to do, in order
 
 1. **Finish the derive.**
-   - `widget` (`balaur_ui/src/widget/schema.rs`, ~200 rows): goes with the
-     per-kind split (step 3). Until then it keeps `answers_property`.
-   - Then delete: `PropertyReaders`/`PropertyWriters` and
-     `answers_property`/`writes_property` (widget is the last user),
-     `Authored` (a save reads the typed value; check what an inline asset
-     definition saves as), the `read: None, write: None` lines left on
-     plugin and test definitions where they can go, and the doubled doc
-     comment above `node_api::set_property_at`.
+   - `widget` (`balaur_ui/src/widget/schema.rs`, ~200 rows) onto the derive,
+     schema unchanged, a one-property write updating only what it feeds in
+     the `Widget` cache; then `PropertyReaders`/`PropertyWriters` and
+     `answers_property`/`writes_property` go (widget is the last user). An
+     agent was on this when this was written: check `git status` for
+     `crates/balaur_ui` and `crates/balaur_core/src/components/property.rs`.
+   - `Authored` (a save reads the typed value; check what an inline asset
+     definition saves as), and the `read: None, write: None` lines left on
+     plugin and test definitions where they can go.
 2. **Property by index end to end** (§9 step 6): the compiler could hand the
    host the property's index rather than its name; and verify a component or
    property the schema lacks does not compile.
@@ -64,11 +68,12 @@ is rewritten in the same commit).
      `join`, `cap`, `miter_limit`, `gradient`, `gradient_steps`) → `line2d`.
      Then decide the primitives' few per-kind rows (`corner_radius`, `sides`,
      `points`, `inner_radius`, `height`).
-   - `collider2d`/`collider3d` (64 rows on 2D): the mesh, mesh-cleanup,
-     decomposition, heightfield and voxel groups → components beside the
-     collider, the shared rows (layers, material, mass, events) staying on it.
-   - `softbody2d/3d` `shape` rows, `joint2d/3d` rope/spring/generic and the
-     8 articulation rows.
+   - `collider2d`/`collider3d` (64 rows on 2D): the mesh-processing,
+     mesh-cleanup and decomposition rows → components beside the collider,
+     absent meaning defaults; `softbody2d/3d` `shape` rows; `joint2d/3d`
+     rope/spring/generic and the 8 articulation rows. An agent was on these
+     when this was written: check `git status` for `crates/balaur_physics`,
+     scenes and editor scripts.
    - `tilemap` cells/terrain/flags are string-encoded grids.
 4. **A stricter language** (§9 step 5).
    - Engine records for the functions that take or give an `any` options
@@ -89,18 +94,15 @@ is rewritten in the same commit).
 7. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.
-8. **House lints** (`python3 scripts/house_lints.py`): 12 errors, files
-   over 1,200 lines (`components.rs`, `node_api.rs`, `engine_api.rs`,
-   `project.rs`, `host.rs`, `balaur_cli/src/main.rs`, `runtime/mod.rs`,
-   `widget/schema.rs`) and four `register_*`/`install_*` functions taking
-   the wrong registry type (`post.rs`, `font.rs`, `text_style.rs`,
-   `balaur_ui/src/api.rs`).
-9. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
+8. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
    --workspace --all-targets -- -D warnings`, the wasm clippy
    (`scripts/precommit.sh`), `cargo test --workspace --no-fail-fast`,
    `python3 scripts/gen_docs.py` then `python3 scripts/api_lints.py
    --api-json docs/generated/api.json --fail-on-error`, `balaur check editor
-   --strict`, `balaur fmt editor`, and the full `scripts/e2e.sh`.
+   --strict`, `balaur fmt editor`, the full `scripts/e2e.sh`, and
+   `python3 scripts/house_lints.py`, `comment_lints.py`, `prose_lints.py`
+   (all three at 0 errors after "House lints" and "Comment lints"). Build
+   with `CARGO_INCREMENTAL=0`: the incremental cache once filled the disk.
 
 ## Measured
 
@@ -119,7 +121,7 @@ Mac under load; count instructions (`/usr/bin/time -l`).
   the bare words `color`, `node`, `flags`. `Record` for a struct a property
   holds, `Enum` for a fieldless enum.
 - `ComponentDef { tags, events, expects, warnings, ..ComponentDef::of::<T>(after_write) }`.
-  `after_write(eng, entity, Written::Added | Changed)` does what holding the
+  `after_write(eng, entity, Written::Added | Changed | Property(index))` does what holding the
   values does not; an `Err` is the refusal.
 - The struct holds what was asked for and nothing else. A parsed expression,
   a resolved handle, a built body or a runtime counter is the system's cache

@@ -61,11 +61,14 @@ pub trait Component: Fields + Send + Sync + 'static {
 /// alone cannot judge.
 pub type AfterWriteFn = fn(&Engine, Entity, Written) -> Result<()>;
 
-/// Whether a write gave the node the component or changed the one it had.
+/// What a write did: gave the node the component, changed the one it had
+/// whole, or changed one property of it, by its index, so a hook can redo
+/// only what that property feeds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Written {
     Added,
     Changed,
+    Property(usize),
 }
 
 /// Every property of `held`, as the table a file holds.
@@ -511,7 +514,7 @@ impl ComponentDef {
                 let Some(after) = after_write else {
                     return Ok(true);
                 };
-                after(eng, entity, Written::Changed).inspect_err(|_| {
+                after(eng, entity, Written::Property(index)).inspect_err(|_| {
                     let world = eng.world_mut();
                     if let (Ok(mut held), Some(before)) = (world.get::<&mut C>(entity), &before) {
                         let _ = held.write(index, before);

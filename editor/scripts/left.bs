@@ -75,10 +75,10 @@ const MARK_EYE: str = "eye";
 
 const MARK_LOCK: str = "lock";
 
-// Rebuilt only when the rows were listed again (`model::reindex` drops the
-// key) or a fold changed. The rows are the tree in order already, so this is
-// one pass: a node's depth is its parent's and one, and a folded node hides
-// the rows under it.
+/// Rebuilt only when the rows were listed again (`model::reindex` drops the
+/// key) or a fold changed. The rows are the tree in order already, so this is
+/// one pass: a node's depth is its parent's and one, and a folded node hides
+/// the rows under it.
 fn open_rows(state: &mut editor::State) -> [any] {
     let key = "{state.nodes.len()}:{state.collapsed.len()}";
     if state.tree_cache.key == key {

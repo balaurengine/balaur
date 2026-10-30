@@ -1,7 +1,7 @@
-// The edited project and its scene. The scene is the live nodes under
-// `state.mirror`, which the engine builds from the scene file, holds unscripted
-// and unstepped until play, and writes back (PLAN-editor-as-scene §10).
-// `state.nodes` lists them in tree order: a row is a node.
+//! The edited project and its scene. The scene is the live nodes under
+//! `state.mirror`, which the engine builds from the scene file, holds unscripted
+//! and unstepped until play, and writes back (PLAN-editor-as-scene §10).
+//! `state.nodes` lists them in tree order: a row is a node.
 
 use arrange;
 use defs;
