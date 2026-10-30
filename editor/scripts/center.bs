@@ -41,20 +41,15 @@ pub struct StageView {
     safe: bool,
     resolution: bool,
     res_inset: [float],
-    left: Left,
-    right: Right,
+    left: SheetHandle,
+    right: SheetHandle,
     rail_handle: bool,
     pad: float,
     diameter: float,
 }
 
-pub struct Left {
-    shown: bool,
-    icon: str,
-    tooltip: str,
-}
-
-pub struct Right {
+/// The round button that opens a side sheet over the stage.
+pub struct SheetHandle {
     shown: bool,
     icon: str,
     tooltip: str,
@@ -332,12 +327,12 @@ pub fn stage_view(state: editor::State) -> StageView {
         safe: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_SAFE),
         resolution: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_RESOLUTION),
         res_inset: frame_16_9(state.layout.stage),
-        left: Left {
+        left: SheetHandle {
             shown: state.viewport_live && handles.left.shown && !over_rail,
             icon: handles.left.icon,
             tooltip: handles.left.tooltip,
         },
-        right: Right {
+        right: SheetHandle {
             shown: state.viewport_live && handles.right.shown,
             icon: handles.right.icon,
             tooltip: handles.right.tooltip,

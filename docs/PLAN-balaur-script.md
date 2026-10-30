@@ -446,6 +446,13 @@ the table:
    cast: `let tree: scene_tree::SceneTree? = node.script;`. `node.call`
    stays only between instances: the editor and a plugin, the editor and
    the game it plays.
+   Found 2026-10-30, moving the editor's 39 panels onto `editor::Editor?`:
+   a build of whole files (the profiler's, the debugger's, the browser's, a
+   native export) makes each file an instance of its own, so the cast is
+   nil there and every panel stops filling; the profiler's rebuild also
+   took 64 s rather than 4, each panel compiling the editor whole. The
+   panels keep `node.call` to the Editor until those builds link a project
+   as units too.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
      plugin's payload. The 405 engine functions that take or give an `any`
