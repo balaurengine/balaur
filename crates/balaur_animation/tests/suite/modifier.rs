@@ -527,6 +527,23 @@ fn every_kind_reads_back_the_way_it_was_written() {
     assert!(format!("{why:#}").contains("wobble"), "{why:#}");
 }
 
+/// A modifier holds what it was asked, a damping past 1, a lag below 0 and a
+/// chain of fewer than no bones included: the solver clamps them where it
+/// reads them, and the read-back is what was written.
+#[test]
+fn a_value_past_its_range_reads_back_as_written() {
+    let app = app();
+    let root = app.engine.root();
+    let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
+    let params: toml::Value =
+        toml::from_str("kind = \"jiggle\"\ndamping = 1.5\nlag = -1.0\nchain_count = -2").unwrap();
+    components::add(&app.engine, rig, "modifier3d", Some(&params)).unwrap();
+    let got = components::get(&app.engine, rig, "modifier3d").unwrap();
+    assert_eq!(got.get("damping").unwrap().as_float(), Some(1.5));
+    assert_eq!(got.get("lag").unwrap().as_float(), Some(-1.0));
+    assert_eq!(got.get("chain_count").unwrap().as_integer(), Some(-2));
+}
+
 /// A follower and the node it chases, side by side under one parent so the
 /// follower's own move cannot carry the target with it.
 fn following(app: &App, lag: f32, offset: (f32, f32), target: (f32, f32)) -> Entity {
