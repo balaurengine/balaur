@@ -32,13 +32,15 @@ pub struct ScreenNotifier2d {
 
 /// Whether any of a notifier's box was on screen when last looked: the
 /// system's, not the component's.
-pub(crate) struct OnScreen(bool);
+pub(crate) struct OnScreen {
+    on_screen: bool,
+}
 
 /// A notifier starts off screen; a written one keeps what it last saw.
 fn after_write(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
     if written == Written::Added {
         eng.world_mut()
-            .insert_one(entity, OnScreen(false))
+            .insert_one(entity, OnScreen { on_screen: false })
             .map_err(|_| anyhow!("node is dead"))?;
     }
     Ok(())
@@ -136,8 +138,8 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
                 .map_or(true, |appearance| appearance.visible);
             let [x0, y0, x1, y1] = span(notifier, global);
             let on = shown && x0 <= view[2] && x1 >= view[0] && y0 <= view[3] && y1 >= view[1];
-            if on != seen.0 {
-                seen.0 = on;
+            if on != seen.on_screen {
+                seen.on_screen = on;
                 changed.push((entity, on));
             }
         }
@@ -168,6 +170,6 @@ pub(crate) fn install_notifier_api(m: &mut dyn Bindings<Engine>) {
         let seen = world
             .get::<&OnScreen>(entity)
             .map_err(|_| anyhow!("this node has no `{COMPONENT}`"))?;
-        Ok(seen.0)
+        Ok(seen.on_screen)
     });
 }

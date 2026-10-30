@@ -1606,7 +1606,6 @@
       "render::SHAPE_ELLIPSE": "ellipse",
       "render::SHAPE_NGON": "ngon",
       "render::SHAPE_PLANE": "plane",
-      "render::SHAPE_POLYLINE": "polyline",
       "render::SHAPE_PRISM": "prism",
       "render::SHAPE_PYRAMID": "pyramid",
       "render::SHAPE_RECTANGLE": "rectangle",
@@ -6822,6 +6821,8 @@
   },
   "component_docs": {
     "animation": "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
+    "articulation2d": "Solves the node's `joint2d` in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break.",
+    "articulation3d": "Solves the node's `joint3d` in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break.",
     "bindings": "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
     "body2d": "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
     "body3d": "A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.",
@@ -6835,17 +6836,24 @@
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
     "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
+    "convex_decomposition2d": "How the node's `collider2d` cuts its mesh into convex pieces, for a convex_decomposition.",
+    "convex_decomposition3d": "How the node's `collider3d` cuts its mesh into convex pieces, for a convex_decomposition or a fit to one.",
     "debug_draw": "A wireframe over every triangle edge of the node's drawing, a dot on every vertex, and whether its surface draws at all, for any drawable in either dimension.",
     "environment": "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and how shadows fall. The last `current` one wins; per-view effects stay on `camera.post`, and what the device can afford is `[render]`.",
     "follow2d": "Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.",
     "follow3d": "Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.",
+    "generic_joint2d": "Which axes a `joint2d` of kind generic locks, and which free ones it ties into one.",
+    "generic_joint3d": "Which axes a `joint3d` of kind generic locks, and which free ones it ties into one.",
     "joint2d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.",
     "joint3d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.",
     "light2d": "A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the `environment`'s `ambient_color`.",
     "light3d": "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
+    "line2d": "A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.",
     "listener": "The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.",
     "material": "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
     "mesh": "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
+    "mesh_collider2d": "How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.",
+    "mesh_collider3d": "How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.",
     "meta": "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
     "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
     "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
@@ -6857,12 +6865,29 @@
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
     "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
+    "rope_joint2d": "How long a `joint2d` of kind rope may stretch.",
+    "rope_joint3d": "How long a `joint3d` of kind rope may stretch.",
     "screen_notifier2d": "A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
-    "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
+    "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`; a stroked line is `line2d`.",
     "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+    "soft_circle2d": "The size of a `softbody2d` laid out as a circle: a disk of particles inside a rim.",
+    "soft_cloth_tube3d": "The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped around a segment.",
+    "soft_custom2d": "The particles and elements of a custom `softbody2d`, as the author lists them.",
+    "soft_custom3d": "The particles and elements of a custom `softbody3d`, as the author lists them.",
+    "soft_grid2d": "The size and the cells of a `softbody2d` laid out as a grid: a sheet of particles.",
+    "soft_grid3d": "The size and the cells of a `softbody3d` laid out as a box or a cloth: a block of particles, or a sheet of them.",
+    "soft_outline2d": "The corners of a `softbody2d` laid out as an outline: a ring of particles around an inside.",
+    "soft_polyline2d": "Which segments of its mesh a `softbody2d` laid out as a polyline joins.",
+    "soft_rope2d": "Where a `softbody2d` laid out as a rope runs, and how many particles it is made of.",
+    "soft_rope3d": "Where a `softbody3d` laid out as a rope runs, and how many particles it is made of.",
+    "soft_sphere3d": "The size of a `softbody3d` laid out as a sphere: a refined icosahedron of particles.",
+    "soft_volumetric2d": "How a volumetric `softbody2d` fills its mesh's outline with triangles.",
+    "soft_volumetric3d": "How a volumetric `softbody3d` fills its mesh with tetrahedra.",
     "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
     "softbody3d": "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
     "sound": "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.",
+    "spring_joint2d": "The length a `joint2d` of kind spring pulls back to.",
+    "spring_joint3d": "The length a `joint3d` of kind spring pulls back to.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
     "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
     "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
@@ -7177,6 +7202,24 @@
       "speed_scale",
       "root_node"
     ],
+    "articulation2d": [
+      "self_collision",
+      "kinematic_link",
+      "passive_stiffness",
+      "passive_rest",
+      "gear_with",
+      "gear_ratio",
+      "gear_offset"
+    ],
+    "articulation3d": [
+      "self_collision",
+      "kinematic_link",
+      "passive_stiffness",
+      "passive_rest",
+      "gear_with",
+      "gear_ratio",
+      "gear_offset"
+    ],
     "bindings": [
       "rows"
     ],
@@ -7355,33 +7398,10 @@
       "events",
       "contact_force_threshold",
       "mesh",
-      "fit",
-      "edges",
-      "oriented",
-      "keep_collinear",
-      "fill",
-      "fill_cavities",
-      "fix_self_intersections",
       "heightfield",
       "scale",
       "voxels",
-      "voxel_size",
-      "merge_vertices",
-      "drop_degenerate_triangles",
-      "drop_duplicate_triangles",
-      "drop_bad_topology",
-      "topology",
-      "connected_components",
-      "method",
-      "overlap",
-      "max_concavity",
-      "max_convex_hulls",
-      "resolution",
-      "approximate_hulls",
-      "hull_downsampling",
-      "plane_downsampling",
-      "symmetry_bias",
-      "revolution_bias"
+      "voxel_size"
     ],
     "collider3d": [
       "kind",
@@ -7421,21 +7441,24 @@
       "events",
       "contact_force_threshold",
       "mesh",
-      "fit",
-      "edges",
-      "oriented",
-      "fill",
-      "fill_cavities",
       "heightfield",
       "scale",
       "voxels",
-      "voxel_size",
-      "merge_vertices",
-      "drop_degenerate_triangles",
-      "drop_duplicate_triangles",
-      "drop_bad_topology",
-      "topology",
-      "connected_components",
+      "voxel_size"
+    ],
+    "convex_decomposition2d": [
+      "method",
+      "overlap",
+      "max_concavity",
+      "max_convex_hulls",
+      "resolution",
+      "approximate_hulls",
+      "hull_downsampling",
+      "plane_downsampling",
+      "symmetry_bias",
+      "revolution_bias"
+    ],
+    "convex_decomposition3d": [
       "method",
       "max_concavity",
       "max_convex_hulls",
@@ -7521,6 +7544,17 @@
       "target_linear_velocity",
       "target_angular_velocity"
     ],
+    "generic_joint2d": [
+      "lock_translation",
+      "lock_rotation",
+      "coupled_translation"
+    ],
+    "generic_joint3d": [
+      "lock_translation",
+      "lock_rotation",
+      "coupled_translation",
+      "coupled_rotation"
+    ],
     "joint2d": [
       "kind",
       "connected_body",
@@ -7533,23 +7567,10 @@
       "connected_axis",
       "anchor_rotation",
       "connected_anchor_rotation",
-      "max_length",
-      "rest_length",
-      "lock_translation",
-      "lock_rotation",
-      "coupled_translation",
       "softness_hz",
       "softness_damping_ratio",
       "break_force",
-      "break_torque",
-      "articulation",
-      "self_collision",
-      "kinematic_link",
-      "passive_stiffness",
-      "passive_rest",
-      "gear_with",
-      "gear_ratio",
-      "gear_offset"
+      "break_torque"
     ],
     "joint3d": [
       "kind",
@@ -7563,24 +7584,10 @@
       "connected_axis",
       "anchor_rotation",
       "connected_anchor_rotation",
-      "max_length",
-      "rest_length",
-      "lock_translation",
-      "lock_rotation",
-      "coupled_translation",
-      "coupled_rotation",
       "softness_hz",
       "softness_damping_ratio",
       "break_force",
-      "break_torque",
-      "articulation",
-      "self_collision",
-      "kinematic_link",
-      "passive_stiffness",
-      "passive_rest",
-      "gear_with",
-      "gear_ratio",
-      "gear_offset"
+      "break_torque"
     ],
     "light2d": [
       "kind",
@@ -7604,6 +7611,21 @@
       "source_radius",
       "light_layers"
     ],
+    "line2d": [
+      "mesh",
+      "color",
+      "texture",
+      "material",
+      "closed",
+      "width",
+      "taper",
+      "join",
+      "cap",
+      "miter_limit",
+      "segments",
+      "gradient",
+      "gradient_steps"
+    ],
     "listener": [
       "current",
       "ear_distance",
@@ -7624,6 +7646,34 @@
       "light_layers",
       "receive_shadows",
       "segmentation_id"
+    ],
+    "mesh_collider2d": [
+      "fit",
+      "edges",
+      "oriented",
+      "keep_collinear",
+      "fill",
+      "fill_cavities",
+      "fix_self_intersections",
+      "merge_vertices",
+      "drop_degenerate_triangles",
+      "drop_duplicate_triangles",
+      "drop_bad_topology",
+      "topology",
+      "connected_components"
+    ],
+    "mesh_collider3d": [
+      "fit",
+      "edges",
+      "oriented",
+      "fill",
+      "fill_cavities",
+      "merge_vertices",
+      "drop_degenerate_triangles",
+      "drop_duplicate_triangles",
+      "drop_bad_topology",
+      "topology",
+      "connected_components"
     ],
     "meta": [],
     "modifier2d": [
@@ -7752,6 +7802,12 @@
       "capture_near",
       "capture_far"
     ],
+    "rope_joint2d": [
+      "max_length"
+    ],
+    "rope_joint3d": [
+      "max_length"
+    ],
     "screen_notifier2d": [
       "size",
       "offset"
@@ -7768,16 +7824,7 @@
       "sides",
       "points",
       "inner_radius",
-      "segments",
-      "mesh",
-      "closed",
-      "width",
-      "taper",
-      "join",
-      "cap",
-      "miter_limit",
-      "gradient",
-      "gradient_steps"
+      "segments"
     ],
     "shape3d": [
       "kind",
@@ -7799,6 +7846,71 @@
       "receive_shadows",
       "segmentation_id"
     ],
+    "soft_circle2d": [
+      "radius",
+      "particle_count"
+    ],
+    "soft_cloth_tube3d": [
+      "radius",
+      "end_radius",
+      "axis",
+      "cells"
+    ],
+    "soft_custom2d": [
+      "points",
+      "cell_indices",
+      "edge_indices",
+      "bend_edge_indices",
+      "surface_indices"
+    ],
+    "soft_custom3d": [
+      "points",
+      "cell_indices",
+      "edge_indices",
+      "bend_edge_indices",
+      "dihedral_indices",
+      "surface_indices",
+      "wire_indices"
+    ],
+    "soft_grid2d": [
+      "size",
+      "cells"
+    ],
+    "soft_grid3d": [
+      "size",
+      "cells"
+    ],
+    "soft_outline2d": [
+      "points"
+    ],
+    "soft_polyline2d": [
+      "edges"
+    ],
+    "soft_rope2d": [
+      "particle_count",
+      "a",
+      "b"
+    ],
+    "soft_rope3d": [
+      "particle_count",
+      "a",
+      "b"
+    ],
+    "soft_sphere3d": [
+      "radius",
+      "subdivisions"
+    ],
+    "soft_volumetric2d": [
+      "cell_size",
+      "min_angle"
+    ],
+    "soft_volumetric3d": [
+      "fill",
+      "cell_size",
+      "boundary_subdivisions",
+      "smoothing",
+      "smoothing_guard"
+    ],
     "softbody2d": [
       "kind",
       "enabled",
@@ -7807,23 +7919,9 @@
       "color",
       "soft_material",
       "physics_material",
-      "size",
-      "cells",
-      "radius",
-      "particle_count",
-      "a",
-      "b",
       "mesh",
       "skin",
-      "cell_size",
-      "min_angle",
-      "edges",
       "seams",
-      "points",
-      "cell_indices",
-      "edge_indices",
-      "bend_edge_indices",
-      "surface_indices",
       "pinned_particles",
       "masses",
       "linear_damping",
@@ -7865,30 +7963,9 @@
       "color",
       "soft_material",
       "physics_material",
-      "size",
-      "cells",
-      "radius",
-      "end_radius",
-      "axis",
-      "subdivisions",
-      "particle_count",
-      "a",
-      "b",
       "mesh",
       "skin",
-      "fill",
-      "cell_size",
-      "boundary_subdivisions",
-      "smoothing",
-      "smoothing_guard",
       "seams",
-      "points",
-      "cell_indices",
-      "edge_indices",
-      "bend_edge_indices",
-      "dihedral_indices",
-      "surface_indices",
-      "wire_indices",
       "pinned_particles",
       "masses",
       "linear_damping",
@@ -7946,6 +8023,12 @@
       "fade_in_time",
       "fade_out_time",
       "crossfade_time"
+    ],
+    "spring_joint2d": [
+      "rest_length"
+    ],
+    "spring_joint3d": [
+      "rest_length"
     ],
     "sprite": [
       "texture",
@@ -8330,6 +8413,14 @@
     "animation": [
       "animation"
     ],
+    "articulation2d": [
+      "2d",
+      "physics"
+    ],
+    "articulation3d": [
+      "3d",
+      "physics"
+    ],
     "bindings": [
       "interaction"
     ],
@@ -8381,6 +8472,14 @@
       "3d",
       "physics"
     ],
+    "convex_decomposition2d": [
+      "2d",
+      "physics"
+    ],
+    "convex_decomposition3d": [
+      "3d",
+      "physics"
+    ],
     "debug_draw": [
       "render"
     ],
@@ -8392,6 +8491,14 @@
       "physics"
     ],
     "follow3d": [
+      "3d",
+      "physics"
+    ],
+    "generic_joint2d": [
+      "2d",
+      "physics"
+    ],
+    "generic_joint3d": [
       "3d",
       "physics"
     ],
@@ -8411,6 +8518,10 @@
       "3d",
       "render"
     ],
+    "line2d": [
+      "2d",
+      "render"
+    ],
     "listener": [
       "audio"
     ],
@@ -8420,6 +8531,14 @@
     "mesh": [
       "3d",
       "render"
+    ],
+    "mesh_collider2d": [
+      "2d",
+      "physics"
+    ],
+    "mesh_collider3d": [
+      "3d",
+      "physics"
     ],
     "meta": [
       "interaction"
@@ -8464,6 +8583,14 @@
       "3d",
       "render"
     ],
+    "rope_joint2d": [
+      "2d",
+      "physics"
+    ],
+    "rope_joint3d": [
+      "3d",
+      "physics"
+    ],
     "screen_notifier2d": [
       "2d",
       "render"
@@ -8475,6 +8602,58 @@
     "shape3d": [
       "3d",
       "render"
+    ],
+    "soft_circle2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_cloth_tube3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_custom2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_custom3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_grid2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_grid3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_outline2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_polyline2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_rope2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_rope3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_sphere3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_volumetric2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_volumetric3d": [
+      "3d",
+      "physics"
     ],
     "softbody2d": [
       "2d",
@@ -8488,6 +8667,14 @@
     ],
     "sound": [
       "audio"
+    ],
+    "spring_joint2d": [
+      "2d",
+      "physics"
+    ],
+    "spring_joint3d": [
+      "3d",
+      "physics"
     ],
     "sprite": [
       "2d",
@@ -8564,6 +8751,82 @@
         "default": 1.0,
         "description": "Playback rate for every clip on this node",
         "type": "float"
+      }
+    },
+    "articulation2d": {
+      "gear_offset": {
+        "default": 0.0,
+        "description": "Where this joint stands when the gear_with joint is at 0",
+        "type": "float"
+      },
+      "gear_ratio": {
+        "default": 1.0,
+        "description": "How far this joint turns or slides per unit of the gear_with joint's",
+        "type": "float"
+      },
+      "gear_with": {
+        "default": "",
+        "description": "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis",
+        "type": "node"
+      },
+      "kinematic_link": {
+        "default": false,
+        "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
+        "type": "bool"
+      },
+      "passive_rest": {
+        "default": 0.0,
+        "description": "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one",
+        "type": "float"
+      },
+      "passive_stiffness": {
+        "default": 0.0,
+        "description": "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none",
+        "min": 0.0,
+        "type": "float"
+      },
+      "self_collision": {
+        "default": true,
+        "description": "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off",
+        "type": "bool"
+      }
+    },
+    "articulation3d": {
+      "gear_offset": {
+        "default": 0.0,
+        "description": "Where this joint stands when the gear_with joint is at 0",
+        "type": "float"
+      },
+      "gear_ratio": {
+        "default": 1.0,
+        "description": "How far this joint turns or slides per unit of the gear_with joint's",
+        "type": "float"
+      },
+      "gear_with": {
+        "default": "",
+        "description": "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis",
+        "type": "node"
+      },
+      "kinematic_link": {
+        "default": false,
+        "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
+        "type": "bool"
+      },
+      "passive_rest": {
+        "default": 0.0,
+        "description": "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one",
+        "type": "float"
+      },
+      "passive_stiffness": {
+        "default": 0.0,
+        "description": "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none",
+        "min": 0.0,
+        "type": "float"
+      },
+      "self_collision": {
+        "default": true,
+        "description": "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off",
+        "type": "bool"
       }
     },
     "bindings": {
@@ -9622,12 +9885,6 @@
         "group": "shape",
         "type": "vec2"
       },
-      "approximate_hulls": {
-        "default": true,
-        "description": "Estimate each piece's hull while cutting rather than building it exactly",
-        "group": "decomposition",
-        "type": "bool"
-      },
       "b": {
         "default": [
           1.0,
@@ -9754,12 +10011,6 @@
         ],
         "type": "enum"
       },
-      "connected_components": {
-        "default": false,
-        "description": "Work out which triangles form each separate piece of the mesh",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
@@ -9792,41 +10043,12 @@
         "min": 0.0,
         "type": "float"
       },
-      "drop_bad_topology": {
-        "default": false,
-        "description": "Drop the triangles that stop the mesh's edge topology from being built",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
-      "drop_degenerate_triangles": {
-        "default": false,
-        "description": "Drop triangles that name one vertex twice; merges vertices too",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
-      "drop_duplicate_triangles": {
-        "default": false,
-        "description": "Drop a triangle whose three vertices another one already names; merges vertices too",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "edge_radius": {
         "default": 0.0,
         "description": "Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition's pieces by this radius, so it slides over seams instead of catching on them",
         "group": "shape",
         "min": 0.0,
         "type": "float"
-      },
-      "edges": {
-        "default": "chain",
-        "description": "Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them",
-        "group": "mesh",
-        "options": [
-          "chain",
-          "outline",
-          "mesh"
-        ],
-        "type": "enum"
       },
       "enabled": {
         "default": true,
@@ -9843,43 +10065,10 @@
         ],
         "type": "flags"
       },
-      "fill": {
-        "default": "solid",
-        "description": "Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition",
-        "group": "mesh",
-        "options": [
-          "solid",
-          "surface"
-        ],
-        "type": "enum"
-      },
-      "fill_cavities": {
-        "default": false,
-        "description": "When a solid fill floods an outline, leave the holes it walls off empty",
-        "group": "mesh",
-        "type": "bool"
-      },
-      "fit": {
-        "default": "convex_hull",
-        "description": "The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at",
-        "group": "mesh",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb"
-        ],
-        "type": "enum"
-      },
       "fix_internal_edges": {
         "default": true,
         "description": "Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them",
         "group": "contacts",
-        "type": "bool"
-      },
-      "fix_self_intersections": {
-        "default": false,
-        "description": "When a solid fill floods an outline, handle the places it crosses itself",
-        "group": "mesh",
         "type": "bool"
       },
       "height": {
@@ -9895,25 +10084,12 @@
         "group": "mesh",
         "type": "asset"
       },
-      "hull_downsampling": {
-        "default": 4,
-        "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
       "inertia": {
         "default": 0.0,
         "description": "This collider's resistance to spin; 0 with a center_of_mass takes the shape's own about that centre",
         "group": "mass",
         "min": 0.0,
         "type": "float"
-      },
-      "keep_collinear": {
-        "default": false,
-        "description": "Keep the points that lie on a straight edge of a convex_polygon instead of dropping them",
-        "group": "mesh",
-        "type": "bool"
       },
       "kind": {
         "default": "rectangle",
@@ -9945,43 +10121,12 @@
         "min": 0.0,
         "type": "float"
       },
-      "max_concavity": {
-        "default": 0.1,
-        "description": "How deep a dent a piece may keep before it is cut again",
-        "group": "decomposition",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_convex_hulls": {
-        "default": 1024,
-        "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
-      "merge_vertices": {
-        "default": false,
-        "description": "Merge vertices at exactly the same place when building a triangle_mesh",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "mesh": {
         "asset": "mesh",
         "default": "",
         "description": "Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws",
         "group": "mesh",
         "type": "asset"
-      },
-      "method": {
-        "default": "exact",
-        "description": "How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts",
-        "group": "decomposition",
-        "options": [
-          "exact",
-          "vhacd",
-          "voxels"
-        ],
-        "type": "enum"
       },
       "normal": {
         "default": [
@@ -10032,52 +10177,16 @@
         "group": "contacts",
         "type": "vec2"
       },
-      "oriented": {
-        "default": false,
-        "description": "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid",
-        "group": "mesh",
-        "type": "bool"
-      },
-      "overlap": {
-        "default": 0.9,
-        "description": "How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it",
-        "group": "decomposition",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
       "physics_material": {
         "asset": "physics_material",
         "default": "",
         "description": "What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults",
         "type": "asset"
       },
-      "plane_downsampling": {
-        "default": 4,
-        "description": "How coarsely the cutting planes are searched first; 1 tries every one",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
       "radius": {
         "default": 0.5,
         "description": "Circle radius, when kind is circle or capsule",
         "min": 0.01,
-        "type": "float"
-      },
-      "resolution": {
-        "default": 256,
-        "description": "How fine the voxel grid a decomposition cuts is",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
-      "revolution_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers an axis of revolution",
-        "group": "decomposition",
-        "max": 1.0,
-        "min": 0.0,
         "type": "float"
       },
       "scale": {
@@ -10203,20 +10312,6 @@
         "group": "contacts",
         "type": "vec2"
       },
-      "symmetry_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers a plane of symmetry",
-        "group": "decomposition",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "topology": {
-        "default": false,
-        "description": "Build the mesh's half-edge topology",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "two_sided_edges": {
         "default": false,
         "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
@@ -10258,12 +10353,6 @@
         "description": "First corner, when kind is triangle or segment, and a capsule's first end when its height is 0",
         "group": "shape",
         "type": "vec3"
-      },
-      "approximate_hulls": {
-        "default": true,
-        "description": "Estimate each piece's hull while cutting rather than building it exactly",
-        "group": "decomposition",
-        "type": "bool"
       },
       "b": {
         "default": [
@@ -10394,12 +10483,6 @@
         ],
         "type": "enum"
       },
-      "connected_components": {
-        "default": false,
-        "description": "Work out which triangles form each separate piece of the mesh",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
@@ -10432,40 +10515,12 @@
         "min": 0.0,
         "type": "float"
       },
-      "drop_bad_topology": {
-        "default": false,
-        "description": "Drop the triangles that stop the mesh's edge topology from being built",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
-      "drop_degenerate_triangles": {
-        "default": false,
-        "description": "Drop triangles that name one vertex twice; merges vertices too",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
-      "drop_duplicate_triangles": {
-        "default": false,
-        "description": "Drop a triangle whose three vertices another one already names; merges vertices too",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "edge_radius": {
         "default": 0.0,
         "description": "Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them",
         "group": "shape",
         "min": 0.0,
         "type": "float"
-      },
-      "edges": {
-        "default": "chain",
-        "description": "Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles",
-        "group": "mesh",
-        "options": [
-          "chain",
-          "mesh"
-        ],
-        "type": "enum"
       },
       "enabled": {
         "default": true,
@@ -10481,34 +10536,6 @@
           "contact_force"
         ],
         "type": "flags"
-      },
-      "fill": {
-        "default": "solid",
-        "description": "Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid",
-        "group": "mesh",
-        "options": [
-          "solid",
-          "surface"
-        ],
-        "type": "enum"
-      },
-      "fill_cavities": {
-        "default": false,
-        "description": "When a solid fill floods a mesh, leave the cavities a closed surface walls off empty",
-        "group": "mesh",
-        "type": "bool"
-      },
-      "fit": {
-        "default": "convex_hull",
-        "description": "The shape fitted to the mesh, when kind is fit",
-        "group": "mesh",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb",
-          "convex_decomposition"
-        ],
-        "type": "enum"
       },
       "fix_internal_edges": {
         "default": true,
@@ -10528,13 +10555,6 @@
         "description": "Terrain grid, when kind is heightfield; the asset's holes are cut out of it",
         "group": "mesh",
         "type": "asset"
-      },
-      "hull_downsampling": {
-        "default": 4,
-        "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
       },
       "inertia": {
         "default": [
@@ -10589,42 +10609,12 @@
         "min": 0.0,
         "type": "float"
       },
-      "max_concavity": {
-        "default": 0.01,
-        "description": "How deep a dent a piece may keep before it is cut again",
-        "group": "decomposition",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_convex_hulls": {
-        "default": 1024,
-        "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
-      "merge_vertices": {
-        "default": false,
-        "description": "Merge vertices at exactly the same place when building a triangle_mesh",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "mesh": {
         "asset": "mesh",
         "default": "",
         "description": "Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider",
         "group": "mesh",
         "type": "asset"
-      },
-      "method": {
-        "default": "vhacd",
-        "description": "How a convex_decomposition is cut: into convex hulls, or into voxel parts",
-        "group": "decomposition",
-        "options": [
-          "vhacd",
-          "voxels"
-        ],
-        "type": "enum"
       },
       "normal": {
         "default": [
@@ -10682,44 +10672,16 @@
         "group": "contacts",
         "type": "vec3"
       },
-      "oriented": {
-        "default": false,
-        "description": "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful",
-        "group": "mesh",
-        "type": "bool"
-      },
       "physics_material": {
         "asset": "physics_material",
         "default": "",
         "description": "What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults",
         "type": "asset"
       },
-      "plane_downsampling": {
-        "default": 4,
-        "description": "How coarsely the cutting planes are searched first; 1 tries every one",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
       "radius": {
         "default": 0.5,
         "description": "Radius, for ball, capsule, cylinder and cone",
         "min": 0.01,
-        "type": "float"
-      },
-      "resolution": {
-        "default": 64,
-        "description": "How fine the voxel grid a decomposition cuts is",
-        "group": "decomposition",
-        "min": 1,
-        "type": "int"
-      },
-      "revolution_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers an axis of revolution",
-        "group": "decomposition",
-        "max": 1.0,
-        "min": 0.0,
         "type": "float"
       },
       "scale": {
@@ -10848,20 +10810,6 @@
         "group": "contacts",
         "type": "vec3"
       },
-      "symmetry_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers a plane of symmetry",
-        "group": "decomposition",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "topology": {
-        "default": false,
-        "description": "Build the mesh's half-edge topology",
-        "group": "mesh cleanup",
-        "type": "bool"
-      },
       "two_sided_edges": {
         "default": false,
         "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
@@ -10892,6 +10840,134 @@
         "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
         "group": "mesh",
         "type": "asset"
+      }
+    },
+    "convex_decomposition2d": {
+      "approximate_hulls": {
+        "default": true,
+        "description": "Estimate each piece's hull while cutting rather than building it exactly",
+        "type": "bool"
+      },
+      "hull_downsampling": {
+        "default": 4,
+        "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
+        "min": 1,
+        "type": "int"
+      },
+      "max_concavity": {
+        "default": 0.1,
+        "description": "How deep a dent a piece may keep before it is cut again",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_convex_hulls": {
+        "default": 1024,
+        "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
+        "min": 1,
+        "type": "int"
+      },
+      "method": {
+        "default": "exact",
+        "description": "How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts",
+        "options": [
+          "exact",
+          "vhacd",
+          "voxels"
+        ],
+        "type": "enum"
+      },
+      "overlap": {
+        "default": 0.9,
+        "description": "How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "plane_downsampling": {
+        "default": 4,
+        "description": "How coarsely the cutting planes are searched first; 1 tries every one",
+        "min": 1,
+        "type": "int"
+      },
+      "resolution": {
+        "default": 256,
+        "description": "How fine the voxel grid a decomposition cuts is",
+        "min": 1,
+        "type": "int"
+      },
+      "revolution_bias": {
+        "default": 0.05,
+        "description": "How much a cut prefers an axis of revolution",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "symmetry_bias": {
+        "default": 0.05,
+        "description": "How much a cut prefers a plane of symmetry",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "convex_decomposition3d": {
+      "approximate_hulls": {
+        "default": true,
+        "description": "Estimate each piece's hull while cutting rather than building it exactly",
+        "type": "bool"
+      },
+      "hull_downsampling": {
+        "default": 4,
+        "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
+        "min": 1,
+        "type": "int"
+      },
+      "max_concavity": {
+        "default": 0.01,
+        "description": "How deep a dent a piece may keep before it is cut again",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_convex_hulls": {
+        "default": 1024,
+        "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
+        "min": 1,
+        "type": "int"
+      },
+      "method": {
+        "default": "vhacd",
+        "description": "How a convex_decomposition is cut: into convex hulls, or into voxel parts",
+        "options": [
+          "vhacd",
+          "voxels"
+        ],
+        "type": "enum"
+      },
+      "plane_downsampling": {
+        "default": 4,
+        "description": "How coarsely the cutting planes are searched first; 1 tries every one",
+        "min": 1,
+        "type": "int"
+      },
+      "resolution": {
+        "default": 64,
+        "description": "How fine the voxel grid a decomposition cuts is",
+        "min": 1,
+        "type": "int"
+      },
+      "revolution_bias": {
+        "default": 0.05,
+        "description": "How much a cut prefers an axis of revolution",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "symmetry_bias": {
+        "default": 0.05,
+        "description": "How much a cut prefers a plane of symmetry",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
       }
     },
     "debug_draw": {
@@ -11441,6 +11517,73 @@
         "type": "vec3"
       }
     },
+    "generic_joint2d": {
+      "coupled_translation": {
+        "default": [],
+        "description": "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple both already",
+        "options": [
+          "x",
+          "y"
+        ],
+        "type": "flags"
+      },
+      "lock_rotation": {
+        "default": false,
+        "description": "Stop a generic joint turning",
+        "type": "bool"
+      },
+      "lock_translation": {
+        "default": [],
+        "description": "The axes a generic joint may not slide along",
+        "options": [
+          "x",
+          "y"
+        ],
+        "type": "flags"
+      }
+    },
+    "generic_joint3d": {
+      "coupled_rotation": {
+        "default": [],
+        "description": "Free turning axes tied into one angle, whose limit and motor come from the first of them",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "coupled_translation": {
+        "default": [],
+        "description": "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "lock_rotation": {
+        "default": [],
+        "description": "The axes a generic joint may not turn about",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "lock_translation": {
+        "default": [],
+        "description": "The axes a generic joint may not slide along",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      }
+    },
     "joint2d": {
       "anchor": {
         "default": [
@@ -11457,12 +11600,6 @@
         "group": "anchors",
         "type": "float",
         "unit": "degrees"
-      },
-      "articulation": {
-        "default": false,
-        "description": "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break",
-        "group": "articulation",
-        "type": "bool"
       },
       "axes": {
         "default": [],
@@ -11633,38 +11770,10 @@
         "description": "The node at the joint's other end; this node is the first end",
         "type": "node"
       },
-      "coupled_translation": {
-        "default": [],
-        "description": "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple both already",
-        "group": "locks",
-        "options": [
-          "x",
-          "y"
-        ],
-        "type": "flags"
-      },
       "enabled": {
         "default": true,
         "description": "Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch",
         "type": "bool"
-      },
-      "gear_offset": {
-        "default": 0.0,
-        "description": "Where this joint stands when the gear_with joint is at 0",
-        "group": "articulation",
-        "type": "float"
-      },
-      "gear_ratio": {
-        "default": 1.0,
-        "description": "How far this joint turns or slides per unit of the gear_with joint's",
-        "group": "articulation",
-        "type": "float"
-      },
-      "gear_with": {
-        "default": "",
-        "description": "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis",
-        "group": "articulation",
-        "type": "node"
       },
       "kind": {
         "default": "fixed",
@@ -11679,61 +11788,6 @@
           "generic"
         ],
         "type": "enum"
-      },
-      "kinematic_link": {
-        "default": false,
-        "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
-        "group": "articulation",
-        "type": "bool"
-      },
-      "lock_rotation": {
-        "default": false,
-        "description": "Stop a generic joint turning",
-        "group": "locks",
-        "type": "bool"
-      },
-      "lock_translation": {
-        "default": [],
-        "description": "The axes a generic joint may not slide along",
-        "group": "locks",
-        "options": [
-          "x",
-          "y"
-        ],
-        "type": "flags"
-      },
-      "max_length": {
-        "default": 0.0,
-        "description": "The rope's greatest length",
-        "group": "length",
-        "min": 0.0,
-        "type": "float"
-      },
-      "passive_rest": {
-        "default": 0.0,
-        "description": "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one",
-        "group": "articulation",
-        "type": "float"
-      },
-      "passive_stiffness": {
-        "default": 0.0,
-        "description": "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none",
-        "group": "articulation",
-        "min": 0.0,
-        "type": "float"
-      },
-      "rest_length": {
-        "default": 0.0,
-        "description": "The length a spring pulls back to",
-        "group": "length",
-        "min": 0.0,
-        "type": "float"
-      },
-      "self_collision": {
-        "default": true,
-        "description": "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off",
-        "group": "articulation",
-        "type": "bool"
       },
       "softness_damping_ratio": {
         "default": 1.0,
@@ -11771,12 +11825,6 @@
         "group": "anchors",
         "type": "vec3",
         "unit": "degrees"
-      },
-      "articulation": {
-        "default": false,
-        "description": "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break",
-        "group": "articulation",
-        "type": "bool"
       },
       "axes": {
         "default": [],
@@ -11957,50 +12005,10 @@
         "description": "The node at the joint's other end; this node is the first end",
         "type": "node"
       },
-      "coupled_rotation": {
-        "default": [],
-        "description": "Free turning axes tied into one angle, whose limit and motor come from the first of them",
-        "group": "locks",
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
-        "type": "flags"
-      },
-      "coupled_translation": {
-        "default": [],
-        "description": "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already",
-        "group": "locks",
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
-        "type": "flags"
-      },
       "enabled": {
         "default": true,
         "description": "Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch",
         "type": "bool"
-      },
-      "gear_offset": {
-        "default": 0.0,
-        "description": "Where this joint stands when the gear_with joint is at 0",
-        "group": "articulation",
-        "type": "float"
-      },
-      "gear_ratio": {
-        "default": 1.0,
-        "description": "How far this joint turns or slides per unit of the gear_with joint's",
-        "group": "articulation",
-        "type": "float"
-      },
-      "gear_with": {
-        "default": "",
-        "description": "On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis",
-        "group": "articulation",
-        "type": "node"
       },
       "kind": {
         "default": "fixed",
@@ -12015,67 +12023,6 @@
           "generic"
         ],
         "type": "enum"
-      },
-      "kinematic_link": {
-        "default": false,
-        "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
-        "group": "articulation",
-        "type": "bool"
-      },
-      "lock_rotation": {
-        "default": [],
-        "description": "The axes a generic joint may not turn about",
-        "group": "locks",
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
-        "type": "flags"
-      },
-      "lock_translation": {
-        "default": [],
-        "description": "The axes a generic joint may not slide along",
-        "group": "locks",
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
-        "type": "flags"
-      },
-      "max_length": {
-        "default": 0.0,
-        "description": "The rope's greatest length",
-        "group": "length",
-        "min": 0.0,
-        "type": "float"
-      },
-      "passive_rest": {
-        "default": 0.0,
-        "description": "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one",
-        "group": "articulation",
-        "type": "float"
-      },
-      "passive_stiffness": {
-        "default": 0.0,
-        "description": "On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none",
-        "group": "articulation",
-        "min": 0.0,
-        "type": "float"
-      },
-      "rest_length": {
-        "default": 0.0,
-        "description": "The length a spring pulls back to",
-        "group": "length",
-        "min": 0.0,
-        "type": "float"
-      },
-      "self_collision": {
-        "default": true,
-        "description": "On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off",
-        "group": "articulation",
-        "type": "bool"
       },
       "softness_damping_ratio": {
         "default": 1.0,
@@ -12264,6 +12211,105 @@
         "type": "float"
       }
     },
+    "line2d": {
+      "cap": {
+        "default": "round",
+        "description": "How an open line ends",
+        "options": [
+          "round",
+          "butt",
+          "square"
+        ],
+        "type": "enum"
+      },
+      "closed": {
+        "default": false,
+        "description": "Join the last point back to the first, making a polygon outline",
+        "type": "bool"
+      },
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "gradient": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient",
+        "group": "gradient",
+        "type": "color"
+      },
+      "gradient_steps": {
+        "default": 32,
+        "description": "How many colours the gradient steps through along the line",
+        "group": "gradient",
+        "min": 1,
+        "type": "int"
+      },
+      "join": {
+        "default": "round",
+        "description": "How the line's segments meet",
+        "options": [
+          "round",
+          "miter",
+          "bevel"
+        ],
+        "type": "enum"
+      },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material this draws with; empty draws with the built-in one",
+        "type": "asset"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Where the line's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve",
+        "type": "asset"
+      },
+      "miter_limit": {
+        "default": 4.0,
+        "description": "How far a miter join may reach, in half-widths, before its corner is cut to a bevel",
+        "min": 1.0,
+        "type": "float"
+      },
+      "segments": {
+        "default": 32,
+        "description": "Cuts around a round join or cap",
+        "min": 3,
+        "type": "int"
+      },
+      "taper": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Multipliers on `width` at the line's start and end, blended along it; anything but [1, 1] draws round joins and caps",
+        "type": "vec2"
+      },
+      "texture": {
+        "asset": "texture",
+        "default": "",
+        "description": "An image, or a `texture` asset, the line draws with, repeating once per world unit of its length",
+        "type": "asset"
+      },
+      "width": {
+        "default": 0.02,
+        "description": "Line thickness in world units",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
     "listener": {
       "current": {
         "default": true,
@@ -12429,6 +12475,170 @@
         "default": "",
         "description": "Image file, project-relative, or a `texture` asset; empty draws the colour alone",
         "type": "asset"
+      }
+    },
+    "mesh_collider2d": {
+      "connected_components": {
+        "default": false,
+        "description": "Work out which triangles form each separate piece of the mesh",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_bad_topology": {
+        "default": false,
+        "description": "Drop the triangles that stop the mesh's edge topology from being built",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_degenerate_triangles": {
+        "default": false,
+        "description": "Drop triangles that name one vertex twice; merges vertices too",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_duplicate_triangles": {
+        "default": false,
+        "description": "Drop a triangle whose three vertices another one already names; merges vertices too",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "edges": {
+        "default": "chain",
+        "description": "Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them",
+        "options": [
+          "chain",
+          "outline",
+          "mesh"
+        ],
+        "type": "enum"
+      },
+      "fill": {
+        "default": "solid",
+        "description": "Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition",
+        "options": [
+          "solid",
+          "surface"
+        ],
+        "type": "enum"
+      },
+      "fill_cavities": {
+        "default": false,
+        "description": "When a solid fill floods an outline, leave the holes it walls off empty",
+        "type": "bool"
+      },
+      "fit": {
+        "default": "convex_hull",
+        "description": "The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at",
+        "options": [
+          "convex_hull",
+          "aabb",
+          "obb"
+        ],
+        "type": "enum"
+      },
+      "fix_self_intersections": {
+        "default": false,
+        "description": "When a solid fill floods an outline, handle the places it crosses itself",
+        "type": "bool"
+      },
+      "keep_collinear": {
+        "default": false,
+        "description": "Keep the points that lie on a straight edge of a convex_polygon instead of dropping them",
+        "type": "bool"
+      },
+      "merge_vertices": {
+        "default": false,
+        "description": "Merge vertices at exactly the same place when building a triangle_mesh",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "oriented": {
+        "default": false,
+        "description": "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid",
+        "type": "bool"
+      },
+      "topology": {
+        "default": false,
+        "description": "Build the mesh's half-edge topology",
+        "group": "mesh cleanup",
+        "type": "bool"
+      }
+    },
+    "mesh_collider3d": {
+      "connected_components": {
+        "default": false,
+        "description": "Work out which triangles form each separate piece of the mesh",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_bad_topology": {
+        "default": false,
+        "description": "Drop the triangles that stop the mesh's edge topology from being built",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_degenerate_triangles": {
+        "default": false,
+        "description": "Drop triangles that name one vertex twice; merges vertices too",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "drop_duplicate_triangles": {
+        "default": false,
+        "description": "Drop a triangle whose three vertices another one already names; merges vertices too",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "edges": {
+        "default": "chain",
+        "description": "Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles",
+        "options": [
+          "chain",
+          "mesh"
+        ],
+        "type": "enum"
+      },
+      "fill": {
+        "default": "solid",
+        "description": "Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid",
+        "options": [
+          "solid",
+          "surface"
+        ],
+        "type": "enum"
+      },
+      "fill_cavities": {
+        "default": false,
+        "description": "When a solid fill floods a mesh, leave the cavities a closed surface walls off empty",
+        "type": "bool"
+      },
+      "fit": {
+        "default": "convex_hull",
+        "description": "The shape fitted to the mesh, when kind is fit",
+        "options": [
+          "convex_hull",
+          "aabb",
+          "obb",
+          "convex_decomposition"
+        ],
+        "type": "enum"
+      },
+      "merge_vertices": {
+        "default": false,
+        "description": "Merge vertices at exactly the same place when building a triangle_mesh",
+        "group": "mesh cleanup",
+        "type": "bool"
+      },
+      "oriented": {
+        "default": false,
+        "description": "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful",
+        "type": "bool"
+      },
+      "topology": {
+        "default": false,
+        "description": "Build the mesh's half-edge topology",
+        "group": "mesh cleanup",
+        "type": "bool"
       }
     },
     "meta": {},
@@ -13344,6 +13554,22 @@
         "type": "enum"
       }
     },
+    "rope_joint2d": {
+      "max_length": {
+        "default": 0.0,
+        "description": "The rope's greatest length",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "rope_joint3d": {
+      "max_length": {
+        "default": 0.0,
+        "description": "The rope's greatest length",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
     "screen_notifier2d": {
       "offset": {
         "default": [
@@ -13363,23 +13589,6 @@
       }
     },
     "shape2d": {
-      "cap": {
-        "default": "round",
-        "description": "How an open polyline ends",
-        "group": "line",
-        "options": [
-          "round",
-          "butt",
-          "square"
-        ],
-        "type": "enum"
-      },
-      "closed": {
-        "default": false,
-        "description": "Join the last point back to the first, making a polygon outline",
-        "group": "line",
-        "type": "bool"
-      },
       "color": {
         "default": [
           0.8,
@@ -13397,24 +13606,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "gradient": {
-        "default": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient",
-        "group": "line",
-        "type": "color"
-      },
-      "gradient_steps": {
-        "default": 32,
-        "description": "How many colours a polyline's gradient steps through along its length",
-        "group": "line",
-        "min": 1,
-        "type": "int"
-      },
       "height": {
         "default": 2.0,
         "description": "Length along y, tip to tip, when kind is capsule",
@@ -13429,17 +13620,6 @@
         "min": 0.01,
         "type": "float"
       },
-      "join": {
-        "default": "round",
-        "description": "How a polyline's segments meet",
-        "group": "line",
-        "options": [
-          "round",
-          "miter",
-          "bevel"
-        ],
-        "type": "enum"
-      },
       "kind": {
         "default": "rectangle",
         "description": "Rendered 2D shape",
@@ -13449,8 +13629,7 @@
           "capsule",
           "ellipse",
           "star",
-          "ngon",
-          "polyline"
+          "ngon"
         ],
         "type": "enum"
       },
@@ -13459,20 +13638,6 @@
         "default": "",
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
-      },
-      "mesh": {
-        "asset": "mesh",
-        "default": "",
-        "description": "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve",
-        "group": "line",
-        "type": "asset"
-      },
-      "miter_limit": {
-        "default": 4.0,
-        "description": "How far a miter join may reach, in half-widths, before its corner is cut to a bevel",
-        "group": "line",
-        "min": 1.0,
-        "type": "float"
       },
       "points": {
         "default": 5,
@@ -13490,7 +13655,7 @@
       },
       "segments": {
         "default": 32,
-        "description": "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps",
+        "description": "Cuts around a circle, an ellipse or a rounded corner",
         "group": "shape",
         "min": 3,
         "type": "int"
@@ -13511,27 +13676,11 @@
         "group": "shape",
         "type": "vec2"
       },
-      "taper": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps",
-        "group": "line",
-        "type": "vec2"
-      },
       "texture": {
         "asset": "texture",
         "default": "",
-        "description": "An image, or a `texture` asset, the shape draws with: over a primitive's own UVs, and along a polyline repeating once per world unit of its length",
+        "description": "An image, or a `texture` asset, the shape draws with over its own UVs",
         "type": "asset"
-      },
-      "width": {
-        "default": 0.02,
-        "description": "Line thickness in world units, when kind is polyline",
-        "group": "line",
-        "min": 0.001,
-        "type": "float"
       }
     },
     "shape3d": {
@@ -13740,14 +13889,281 @@
         "type": "float"
       }
     },
-    "softbody2d": {
+    "soft_circle2d": {
+      "particle_count": {
+        "default": 16,
+        "description": "How many particles the rim of a circle is made of",
+        "min": 2,
+        "type": "int"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
+    "soft_cloth_tube3d": {
+      "axis": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "The segment a cloth_tube is wrapped around, relative to the node",
+        "type": "vec3"
+      },
+      "cells": {
+        "default": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "description": "Particles around the tube, then cells along it; the third is not read",
+        "type": "vec3"
+      },
+      "end_radius": {
+        "default": 0.0,
+        "description": "A cloth_tube's radius at its end; 0 takes radius",
+        "min": 0.0,
+        "type": "float"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius at the tube's start",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
+    "soft_custom2d": {
+      "bend_edge_indices": {
+        "default": [],
+        "description": "A custom body's bending edges, each a pair of particle indices",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "cell_indices": {
+        "default": [],
+        "description": "A custom body's triangles, three particle indices each, counter-clockwise",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "edge_indices": {
+        "default": [],
+        "description": "A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "points": {
+        "default": [],
+        "description": "The particles of a custom body, relative to the node",
+        "of": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "type": "vec2"
+        },
+        "type": "list"
+      },
+      "surface_indices": {
+        "default": [],
+        "description": "A custom body's outward boundary segments, each a pair of particle indices: what holds its area and what it collides through; empty takes the cells' boundary",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      }
+    },
+    "soft_custom3d": {
+      "bend_edge_indices": {
+        "default": [],
+        "description": "A custom body's bending edges, each a pair of particle indices",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "cell_indices": {
+        "default": [],
+        "description": "A custom body's tetrahedra, four particle indices each, positively oriented",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "dihedral_indices": {
+        "default": [],
+        "description": "A custom body's bending hinges between two triangles: the shared edge's two particles, then the two opposite ones",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "edge_indices": {
+        "default": [],
+        "description": "A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "points": {
+        "default": [],
+        "description": "A custom body's particles, relative to the node",
+        "of": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "type": "vec3"
+        },
+        "type": "list"
+      },
+      "surface_indices": {
+        "default": [],
+        "description": "A custom body's outward triangles, three particle indices each: what holds its volume and what it collides through; empty takes the cells' boundary",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      },
+      "wire_indices": {
+        "default": [],
+        "description": "A custom body's segments it collides through when it has no surface, as a rope does, each a pair of particle indices",
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
+      }
+    },
+    "soft_grid2d": {
+      "cells": {
+        "default": [
+          4.0,
+          4.0
+        ],
+        "description": "How many cells along each axis of a grid",
+        "type": "vec2"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Whole size of the sheet",
+        "type": "vec2"
+      }
+    },
+    "soft_grid3d": {
+      "cells": {
+        "default": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "description": "How many cells along each axis, for box; a cloth reads the first two",
+        "type": "vec3"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Whole size along each axis: a box's block, or a cloth's sheet along x and z",
+        "type": "vec3"
+      }
+    },
+    "soft_outline2d": {
+      "points": {
+        "default": [],
+        "description": "The outline's corners counter-clockwise, relative to the node",
+        "of": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "type": "vec2"
+        },
+        "type": "list"
+      }
+    },
+    "soft_polyline2d": {
+      "edges": {
+        "default": "chain",
+        "description": "Which segments a polyline body joins: its mesh's points in order, or the edges of its mesh's triangles",
+        "options": [
+          "chain",
+          "mesh"
+        ],
+        "type": "enum"
+      }
+    },
+    "soft_rope2d": {
       "a": {
         "default": [
           0.0,
           0.0
         ],
         "description": "Where a rope starts, relative to the node",
-        "group": "shape",
         "type": "vec2"
       },
       "b": {
@@ -13756,58 +14172,114 @@
           -1.0
         ],
         "description": "Where a rope ends, relative to the node",
-        "group": "shape",
         "type": "vec2"
       },
-      "bend_edge_indices": {
-        "default": [],
-        "description": "A custom body's bending edges, each a pair of particle indices",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
+      "particle_count": {
+        "default": 16,
+        "description": "How many particles a rope is made of",
+        "min": 2,
+        "type": "int"
+      }
+    },
+    "soft_rope3d": {
+      "a": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where a rope starts, relative to the node",
+        "type": "vec3"
       },
+      "b": {
+        "default": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "description": "Where a rope ends, relative to the node",
+        "type": "vec3"
+      },
+      "particle_count": {
+        "default": 16,
+        "description": "How many particles a rope is made of",
+        "min": 2,
+        "type": "int"
+      }
+    },
+    "soft_sphere3d": {
+      "radius": {
+        "default": 0.5,
+        "description": "Radius",
+        "min": 0.001,
+        "type": "float"
+      },
+      "subdivisions": {
+        "default": 2,
+        "description": "How many times a sphere's icosahedron is refined; each level quadruples the triangles",
+        "max": 6,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    "soft_volumetric2d": {
+      "cell_size": {
+        "default": 0.25,
+        "description": "How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear",
+        "min": 0.001,
+        "type": "float"
+      },
+      "min_angle": {
+        "default": 0.5235988,
+        "description": "The smallest corner a volumetric body's triangles aim for; past 30 degrees the fill may not finish. Radians in the file",
+        "max": 30.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "degrees"
+      }
+    },
+    "soft_volumetric3d": {
+      "boundary_subdivisions": {
+        "default": 0,
+        "description": "How many times a solid fill's cells along the mesh's surface are halved, finer than cell_size",
+        "max": 4,
+        "min": 0,
+        "type": "int"
+      },
+      "cell_size": {
+        "default": 0.25,
+        "description": "How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear",
+        "min": 0.001,
+        "type": "float"
+      },
+      "fill": {
+        "default": "solid",
+        "description": "What a volumetric body's cells cover: the mesh's whole inside, which needs a closed mesh, or a crust along its surface alone, which does not",
+        "options": [
+          "solid",
+          "surface"
+        ],
+        "type": "enum"
+      },
+      "smoothing": {
+        "default": 0,
+        "description": "How many passes pull a solid fill's blocky boundary towards the mesh; 0 leaves it on the cell lattice",
+        "min": 0,
+        "type": "int"
+      },
+      "smoothing_guard": {
+        "default": 0.15,
+        "description": "How close to the mesh smoothing may pull the boundary, as a fraction of the cell size",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "softbody2d": {
       "can_sleep": {
         "default": true,
         "description": "Let the body stop being simulated once it settles",
         "group": "particles",
         "type": "bool"
-      },
-      "cell_indices": {
-        "default": [],
-        "description": "A custom body's triangles, three particle indices each, counter-clockwise",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
-      "cell_size": {
-        "default": 0.25,
-        "description": "How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear",
-        "group": "shape",
-        "min": 0.001,
-        "type": "float"
-      },
-      "cells": {
-        "default": [
-          4.0,
-          4.0
-        ],
-        "description": "How many cells along each axis of a grid",
-        "group": "shape",
-        "type": "vec2"
       },
       "collides": {
         "default": true,
@@ -13971,20 +14443,6 @@
         "min": -127,
         "type": "int"
       },
-      "edge_indices": {
-        "default": [],
-        "description": "A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
       "edge_springs": {
         "default": [],
         "description": "Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins",
@@ -14017,16 +14475,6 @@
           "type": "record"
         },
         "type": "list"
-      },
-      "edges": {
-        "default": "chain",
-        "description": "Which segments a polyline body joins: its mesh's points in order, or the edges of its mesh's triangles",
-        "group": "shape",
-        "options": [
-          "chain",
-          "mesh"
-        ],
-        "type": "enum"
       },
       "enabled": {
         "default": true,
@@ -14101,15 +14549,6 @@
         "group": "shape",
         "type": "asset"
       },
-      "min_angle": {
-        "default": 0.5235988,
-        "description": "The smallest corner a volumetric body's triangles aim for; past 30 degrees the fill may not finish. Radians in the file",
-        "group": "shape",
-        "max": 30.0,
-        "min": 0.0,
-        "type": "float",
-        "unit": "degrees"
-      },
       "min_piece": {
         "default": 0,
         "description": "The smallest piece, in elements, a tear may split off; 0 lets rapier choose",
@@ -14127,13 +14566,6 @@
           "shell"
         ],
         "type": "enum"
-      },
-      "particle_count": {
-        "default": 16,
-        "description": "How many particles a rope or the rim of a circle is made of",
-        "group": "shape",
-        "min": 2,
-        "type": "int"
       },
       "particle_radius": {
         "default": 0.0,
@@ -14157,26 +14589,6 @@
           "type": "int"
         },
         "type": "list"
-      },
-      "points": {
-        "default": [],
-        "description": "The particles of a custom body, or an outline's corners counter-clockwise, relative to the node",
-        "group": "shape",
-        "of": {
-          "default": [
-            0.0,
-            0.0
-          ],
-          "type": "vec2"
-        },
-        "type": "list"
-      },
-      "radius": {
-        "default": 0.5,
-        "description": "Radius, when kind is circle",
-        "group": "shape",
-        "min": 0.001,
-        "type": "float"
       },
       "regions": {
         "default": [],
@@ -14264,15 +14676,6 @@
         "description": "Report contacts and push nothing: the body passes through what it touches",
         "group": "collision",
         "type": "bool"
-      },
-      "size": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "Whole size of the sheet, when kind is grid",
-        "group": "shape",
-        "type": "vec2"
       },
       "skin": {
         "default": true,
@@ -14400,20 +14803,6 @@
         "min": 0,
         "type": "int"
       },
-      "surface_indices": {
-        "default": [],
-        "description": "A custom body's outward boundary segments, each a pair of particle indices: what holds its area and what it collides through; empty takes the cells' boundary",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
       "tear_resistance": {
         "default": [],
         "description": "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam",
@@ -14478,94 +14867,11 @@
       }
     },
     "softbody3d": {
-      "a": {
-        "default": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "Where a rope starts, relative to the node",
-        "group": "shape",
-        "type": "vec3"
-      },
-      "axis": {
-        "default": [
-          0.0,
-          1.0,
-          0.0
-        ],
-        "description": "The segment a cloth_tube is wrapped around, relative to the node",
-        "group": "shape",
-        "type": "vec3"
-      },
-      "b": {
-        "default": [
-          0.0,
-          -1.0,
-          0.0
-        ],
-        "description": "Where a rope ends, relative to the node",
-        "group": "shape",
-        "type": "vec3"
-      },
-      "bend_edge_indices": {
-        "default": [],
-        "description": "A custom body's bending edges, each a pair of particle indices",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
-      "boundary_subdivisions": {
-        "default": 0,
-        "description": "How many times a solid fill's cells along the mesh's surface are halved, finer than cell_size",
-        "group": "shape",
-        "max": 4,
-        "min": 0,
-        "type": "int"
-      },
       "can_sleep": {
         "default": true,
         "description": "Let the body stop being simulated once it settles",
         "group": "particles",
         "type": "bool"
-      },
-      "cell_indices": {
-        "default": [],
-        "description": "A custom body's tetrahedra, four particle indices each, positively oriented",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
-      "cell_size": {
-        "default": 0.25,
-        "description": "How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear",
-        "group": "shape",
-        "min": 0.001,
-        "type": "float"
-      },
-      "cells": {
-        "default": [
-          4.0,
-          4.0,
-          4.0
-        ],
-        "description": "How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along",
-        "group": "shape",
-        "type": "vec3"
       },
       "collides": {
         "default": true,
@@ -14721,20 +15027,6 @@
         ],
         "type": "flags"
       },
-      "dihedral_indices": {
-        "default": [],
-        "description": "A custom body's bending hinges between two triangles: the shared edge's two particles, then the two opposite ones",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
       "dominance": {
         "default": 0,
         "description": "Which body wins a contact: a higher one is never pushed by a lower one",
@@ -14742,20 +15034,6 @@
         "max": 127,
         "min": -127,
         "type": "int"
-      },
-      "edge_indices": {
-        "default": [],
-        "description": "A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
       },
       "edge_springs": {
         "default": [],
@@ -14795,13 +15073,6 @@
         "description": "Take part in the simulation; off leaves the body where it is with no contacts or constraints until it is on again, without a rebuild",
         "type": "bool"
       },
-      "end_radius": {
-        "default": 0.0,
-        "description": "A cloth_tube's radius at its end; 0 takes radius",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
       "events": {
         "default": [],
         "description": "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
@@ -14811,16 +15082,6 @@
           "contact_force"
         ],
         "type": "flags"
-      },
-      "fill": {
-        "default": "solid",
-        "description": "What a volumetric body's cells cover: the mesh's whole inside, which needs a closed mesh, or a crust along its surface alone, which does not",
-        "group": "shape",
-        "options": [
-          "solid",
-          "surface"
-        ],
-        "type": "enum"
       },
       "gravity_scale": {
         "default": 1.0,
@@ -14897,13 +15158,6 @@
         ],
         "type": "enum"
       },
-      "particle_count": {
-        "default": 16,
-        "description": "How many particles a rope is made of",
-        "group": "shape",
-        "min": 2,
-        "type": "int"
-      },
       "particle_radius": {
         "default": 0.0,
         "description": "How thick the particles are; 0 takes what the layout works out",
@@ -14926,27 +15180,6 @@
           "type": "int"
         },
         "type": "list"
-      },
-      "points": {
-        "default": [],
-        "description": "A custom body's particles, relative to the node",
-        "group": "shape",
-        "of": {
-          "default": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "type": "vec3"
-        },
-        "type": "list"
-      },
-      "radius": {
-        "default": 0.5,
-        "description": "Radius, for sphere and cloth_tube: a tube's at its start",
-        "group": "shape",
-        "min": 0.001,
-        "type": "float"
       },
       "regions": {
         "default": [],
@@ -15035,16 +15268,6 @@
         "group": "collision",
         "type": "bool"
       },
-      "size": {
-        "default": [
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "Whole size along each axis: a box's block, or a cloth's sheet along x and z",
-        "group": "shape",
-        "type": "vec3"
-      },
       "skin": {
         "default": false,
         "description": "Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it",
@@ -15056,20 +15279,6 @@
         "description": "Meet the world through the skin rather than the cells' boundary",
         "group": "collision",
         "type": "bool"
-      },
-      "smoothing": {
-        "default": 0,
-        "description": "How many passes pull a solid fill's blocky boundary towards the mesh; 0 leaves it on the cell lattice",
-        "group": "shape",
-        "min": 0,
-        "type": "int"
-      },
-      "smoothing_guard": {
-        "default": 0.15,
-        "description": "How close to the mesh smoothing may pull the boundary, as a fraction of the cell size",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
       },
       "soft_material": {
         "asset": "soft_material",
@@ -15185,28 +15394,6 @@
         "min": 0,
         "type": "int"
       },
-      "subdivisions": {
-        "default": 2,
-        "description": "How many times a sphere's icosahedron is refined; each level quadruples the triangles",
-        "group": "shape",
-        "max": 6,
-        "min": 0,
-        "type": "int"
-      },
-      "surface_indices": {
-        "default": [],
-        "description": "A custom body's outward triangles, three particle indices each: what holds its volume and what it collides through; empty takes the cells' boundary",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
-        },
-        "type": "list"
-      },
       "tear_resistance": {
         "default": [],
         "description": "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam",
@@ -15266,20 +15453,6 @@
             }
           },
           "type": "record"
-        },
-        "type": "list"
-      },
-      "wire_indices": {
-        "default": [],
-        "description": "A custom body's segments it collides through when it has no surface, as a rope does, each a pair of particle indices",
-        "group": "shape",
-        "of": {
-          "default": [],
-          "of": {
-            "default": 0,
-            "type": "int"
-          },
-          "type": "list"
         },
         "type": "list"
       }
@@ -15440,6 +15613,22 @@
       "volume_linear": {
         "default": 1.0,
         "description": "Linear gain; 1 is the file's own level",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "spring_joint2d": {
+      "rest_length": {
+        "default": 0.0,
+        "description": "The length a spring pulls back to",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "spring_joint3d": {
+      "rest_length": {
+        "default": 0.0,
+        "description": "The length a spring pulls back to",
         "min": 0.0,
         "type": "float"
       }
@@ -16613,7 +16802,7 @@
       "rotation_euler": {
         "default": [
           0.0,
-          0.0,
+          -0.0,
           0.0
         ],
         "description": "Local rotation as euler angles in radians, x then y then z",
@@ -22486,7 +22675,7 @@
         "reset_softbody_forces": "Take back every force `add_softbody_force` and `add_particle_force` gave the body.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second.",
         "set_cell_tear_resistance": "The same for one cell's tear strain.",
-        "set_collider": "Replace the node's collider from a `collider2d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component's own vocabulary.",
+        "set_collider": "Replace the node's collider from a `collider2d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them.",
         "set_constant_force": "Replace the constant force with this one; zero stops the push.",
         "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_edge_tear_resistance": "How many times the material's threshold one edge takes to tear; 1 is the material's.",
@@ -22500,7 +22689,7 @@
         "set_particle_position": "Put one particle at `at` with no change of velocity.",
         "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
         "set_particle_velocity": "Set one particle's velocity; a held one keeps moving at it.",
-        "set_softbody": "Build the node's soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.",
+        "set_softbody": "Build the node's soft body from a `softbody2d` table: `kind` and the rest of its own rows, with the shape its kind reads from the component beside it (`soft_grid2d`, `soft_rope2d` and the rest) as the node holds it.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
         "set_voxel_size": "Resize every cell of a voxel collider, keeping which cells are filled.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
@@ -23762,7 +23951,7 @@
         "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
         "set_brake": "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0.",
         "set_cell_tear_resistance": "The same for one cell's tear strain.",
-        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component's own vocabulary.",
+        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them.",
         "set_constant_force": "Replace the constant force with this one; zero stops the push.",
         "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_edge_tear_resistance": "How many times the material's threshold one edge takes to tear; 1 is the material's.",
@@ -23777,7 +23966,7 @@
         "set_particle_position": "Put one particle at `at` with no change of velocity.",
         "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
         "set_particle_velocity": "Set one particle's velocity; a held one keeps moving at it.",
-        "set_softbody": "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.",
+        "set_softbody": "Build the node's soft body from a `softbody3d` table: `kind` and the rest of its own rows, with the shape its kind reads from the component beside it (`soft_grid3d`, `soft_rope3d` and the rest) as the node holds it.",
         "set_steering": "Turn this wheel, in radians.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
         "set_voxel_size": "Resize every cell of a voxel collider, keeping which cells are filled.",
@@ -24602,10 +24791,6 @@
         {
           "name": "SHAPE_PLANE",
           "value": "\"plane\""
-        },
-        {
-          "name": "SHAPE_POLYLINE",
-          "value": "\"polyline\""
         },
         {
           "name": "SHAPE_PRISM",
