@@ -47,7 +47,7 @@ Built, and not built for this:
 | A `material` asset: a WESL shader, `features`, `params` read off the shader's `Params` struct | `material.rs`, `render.material_params` |
 | One albedo `texture` per `mesh` node | `mesh.rs`, bind group 2 |
 | 2D lights, occluders and a light map, resolved headless | `light.rs`, `light_map.rs` |
-| glTF import that keeps every factor and map, one `material` and one mesh node per material | `balaur_core::glb`, `mesh::parse_part` |
+| glTF import that keeps every factor and map, one `material` and one mesh node per material | `balaur_asset::glb`, `mesh::parse_part` |
 | An HDR film, tonemap and bloom in the fork, driven by Balaur for bloom only | `kiss3d::post_processing::hdr` |
 | Headless `wesl` evaluation of pure shader functions, and offscreen golden frames | `render.shader_probe`, `balaur run --offscreen`, `scripts/showcase.sh` |
 

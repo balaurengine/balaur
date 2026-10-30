@@ -381,7 +381,7 @@ has none of clearcoat, anisotropy, specular tint, subsurface or parallax, and
 materials need those in `pbr.wesl` to match the built-in one.
 
 The glTF importer drops data kiss3d draws: `BLEND` imports as `opaque`
-(`crates/balaur_core/src/glb_material.rs:270-275`), KHR_materials_specular's
+(`crates/balaur_asset/src/glb_material.rs:270-275`), KHR_materials_specular's
 colour is not read, and `gltf`'s `KHR_materials_unlit`,
 `KHR_texture_transform`, `KHR_materials_pbrSpecularGlossiness`,
 `KHR_materials_variants` and `KHR_lights_punctual` features are off
@@ -419,7 +419,7 @@ Exposed: `kind`, the shape sizes, `segments`, `rings`, `sides`, `color`,
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
 | `Object3d::set_texture` (`object3d.rs:1665`) | `texture` | "" | The solids carry UVs, but only `Shape3d::Mesh` takes a texture (`crates/balaur_render/src/kiss3d_backend/geometry.rs:61`) |
-| `procedural::unit_hemisphere` (`kiss3d: procedural/sphere.rs:201`) | `kind` word `hemisphere` | | Balaur's primitives come from `balaur_core::primitive` so colliders and picking match; each is a new mesher kind there |
+| `procedural::unit_hemisphere` (`kiss3d: procedural/sphere.rs:201`) | `kind` word `hemisphere` | | Balaur's primitives come from `balaur_geometry::primitive` so colliders and picking match; each is a new mesher kind there |
 | `procedural::bezier_surface` (`kiss3d: procedural/bezier.rs:82`) | `kind` word `bezier_patch`, `control_points` | | as above |
 | `procedural::quad(w, h, usubdivs, vsubdivs)` (`kiss3d: procedural/quad.rs:28`) | `segments` as vec2 on `plane` | | as above |
 | `procedural::quad_with_vertices` (`quad.rs:65`) | `kind` word `grid`, `heights` | | as above |
@@ -463,7 +463,7 @@ Exposed: `operation`. The result's renderable is hard-coded
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
 | `set_color` | `color` | 0.8 grey today | |
-| `set_texture` | `texture` | "" | The CSG keeps UVs (`crates/balaur_core/src/csg.rs:410-419`); `Shape3d::Built` attaches none |
+| `set_texture` | `texture` | "" | The CSG keeps UVs (`crates/balaur_geometry/src/csg.rs:410-419`); `Shape3d::Built` attaches none |
 | `set_material` | `material` | "" | Works today only through an inherited `material` component |
 | `set_casts_shadows`, layers | `cast_shadow`, `light_layers`, `render_layers` | true, -1, -1 | |
 
@@ -617,7 +617,7 @@ Exposed: `operation` (`union`/`difference`/`intersection`), over i_overlay.
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
 | `OverlayRule::Xor`, `InverseDifference` (`i_overlay: core/overlay_rule.rs:13-21`) | `operation` words `symmetric_difference`, `reverse_difference` | | `Subject` and `Clip` pass one operand through |
-| `FillRule` (`i_overlay: core/fill_rule.rs:9-15`) | `fill_rule` (`even_odd`/`non_zero`/`positive`/`negative`) | even_odd today, non_zero in the crate | Hard-coded (`crates/balaur_core/src/geometry2d.rs:341`) |
+| `FillRule` (`i_overlay: core/fill_rule.rs:9-15`) | `fill_rule` (`even_odd`/`non_zero`/`positive`/`negative`) | even_odd today, non_zero in the crate | Hard-coded (`crates/balaur_geometry/src/geometry2d.rs:341`) |
 | `OverlayOptions` (`i_overlay: float/overlay.rs:34-52,496-508`) | `min_area`, `keep_collinear`, `clean_result` | 0.0 | |
 | Holes | none | | Balaur keeps the first ring only (`crates/balaur_render/src/boolean.rs:408-430`) |
 | `set_color`, `set_texture`, `set_material` | `color`, `texture`, `material` | | |
@@ -809,7 +809,7 @@ Exposed: the shared collider keys.
 | `allowed_angle` | `one_way_angle` | 0.1 rad | as `collider2d` |
 | `round_convex_hull` for shaped tiles | `edge_radius` | 0 | Voxel cells have no border to round |
 | Concave tile polygons, hulled silently (`tiles.rs:195`) | `fit` (`convex_hull`/`aabb`/`obb`/`convex_decomposition`) | convex_hull | |
-| Per-tile material | none | | One table for every collider; voxels carry no per-cell data (`crates/balaur_core/src/tiles/mod.rs:98-99`), so a collider per material group |
+| Per-tile material | none | | One table for every collider; voxels carry no per-cell data (`crates/balaur_geometry/src/tiles/mod.rs:98-99`), so a collider per material group |
 | The `collider2d` mass, test-mode and surface-velocity rows | the same keys | | |
 
 `get` returns the authored table; nothing reports the collider count, mass or

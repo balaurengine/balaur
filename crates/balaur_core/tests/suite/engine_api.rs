@@ -6,14 +6,10 @@ use balaur_core::engine_api::{ApiPart, EngineOp, kernel_api};
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
 
-/// Every call this crate's tables declare.
+/// Every call the kernel's tables declare.
 fn ops() -> Vec<&'static EngineOp> {
     kernel_api()
         .into_iter()
-        .chain([
-            ApiPart::Ops(balaur_core::desktop_api::OPS),
-            ApiPart::Ops(balaur_core::profile_api::OPS),
-        ])
         .filter_map(|part| match part {
             ApiPart::Ops(ops) => Some(ops.iter()),
             ApiPart::Module(..) => None,

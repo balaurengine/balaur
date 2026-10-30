@@ -206,17 +206,6 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
     }
 }
 
-struct NoScripts;
-
-impl balaur_script::ScriptCompiler for NoScripts {
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-    fn compile(&self, _: &str, _: &str) -> anyhow::Result<Vec<u8>> {
-        Ok(Vec::new())
-    }
-}
-
 /// A shipped game had no presets at all: `ProjectFiles` serves the pack's
 /// *assets*, and `presets.toml` is filed with the pack's documents.
 #[test]
@@ -238,7 +227,7 @@ fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
     )
     .unwrap();
 
-    let pack = balaur_core::Pack::build(dir.path(), &NoScripts).unwrap();
+    let pack = crate::packs::of_files(dir.path());
     // A project root that does not exist, so nothing can fall back to disk.
     let mut packed = App::new(AppConfig {
         pack: Some(pack.clone()),

@@ -71,6 +71,31 @@ pub fn matching<'a>(patterns: &'a [String], rel: &str) -> Option<&'a str> {
         let pattern = pattern.trim_end_matches('/');
         std::iter::once(rel)
             .chain(rel.match_indices('/').map(|(at, _)| &rel[..at]))
-            .any(|part| crate::pack::glob_matches(pattern, part))
+            .any(|part| glob_matches(pattern, part))
     })
+}
+
+/// Whether `pattern` matches `text`, with `*` inside a path segment and `**`
+/// across them. Byte-wise: a wildcard spans whatever it spans, and everything
+/// else is compared literally.
+pub fn glob_matches(pattern: &str, text: &str) -> bool {
+    fn matches(pattern: &[u8], text: &[u8]) -> bool {
+        match pattern.first() {
+            None => text.is_empty(),
+            Some(b'*') if pattern.get(1) == Some(&b'*') => {
+                let rest = &pattern[2..];
+                // `**/` stands for no directory at all as well as for many.
+                if rest.first() == Some(&b'/') && matches(&rest[1..], text) {
+                    return true;
+                }
+                (0..=text.len()).any(|at| matches(rest, &text[at..]))
+            }
+            Some(b'*') => {
+                let segment = text.iter().position(|&b| b == b'/').unwrap_or(text.len());
+                (0..=segment).any(|at| matches(&pattern[1..], &text[at..]))
+            }
+            Some(&byte) => text.first() == Some(&byte) && matches(&pattern[1..], &text[1..]),
+        }
+    }
+    matches(pattern.as_bytes(), text.as_bytes())
 }

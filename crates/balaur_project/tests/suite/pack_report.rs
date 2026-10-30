@@ -22,25 +22,30 @@ fn two_textures() -> Pack {
 #[test]
 fn a_texture_a_scene_names_is_not_reported_as_unreferenced() {
     assert!(
-        !two_textures()
-            .unreferenced(&[])
+        !balaur_project::packing::unreferenced(&two_textures(), &[])
             .contains(&"art/hero.png".to_string())
     );
 }
 
 #[test]
 fn an_asset_no_scene_names_is_reported_as_unreferenced() {
-    assert_eq!(two_textures().unreferenced(&[]), vec!["art/spare.png"]);
+    assert_eq!(
+        balaur_project::packing::unreferenced(&two_textures(), &[]),
+        vec!["art/spare.png"]
+    );
 }
 
 #[test]
 fn stripping_removes_exactly_what_the_report_named() {
     let mut pack = two_textures();
-    let report = pack.report();
-    assert_eq!(pack.strip(&[]), report.unreferenced);
+    let report = balaur_project::packing::report(&pack);
+    assert_eq!(
+        balaur_project::packing::strip(&mut pack, &[]),
+        report.unreferenced
+    );
     assert!(pack.assets.contains_key("art/hero.png"));
     assert!(!pack.assets.contains_key("art/spare.png"));
-    assert!(pack.unreferenced(&[]).is_empty());
+    assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
 }
 
 #[test]
@@ -49,10 +54,13 @@ fn a_keep_glob_protects_an_asset_nothing_names() {
     pack.assets
         .insert("sfx/deep/step.wav".to_string(), vec![3; 16]);
     let keep = vec!["sfx/**".to_string(), "art/sp*.png".to_string()];
-    assert!(pack.unreferenced(&keep).is_empty());
-    assert_eq!(pack.strip(&keep), Vec::<String>::new());
+    assert!(balaur_project::packing::unreferenced(&pack, &keep).is_empty());
     assert_eq!(
-        pack.unreferenced(&["art/**".to_string()]),
+        balaur_project::packing::strip(&mut pack, &keep),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        balaur_project::packing::unreferenced(&pack, &["art/**".to_string()]),
         vec!["sfx/deep/step.wav"]
     );
 }
@@ -65,7 +73,7 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
         b"pub class Player { node: Node }\nimpl Player { fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
             .to_vec(),
     );
-    assert!(pack.unreferenced(&[]).is_empty());
+    assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
 }
 
 /// The window shows the icon while the game runs, from the pack.
@@ -73,7 +81,7 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
 fn a_picture_the_manifest_names_survives_a_strip() {
     let mut pack = two_textures();
     pack.manifest = "[application]\nname = \"p\"\nicon = \"art/spare.png\"\n".to_string();
-    assert!(pack.strip(&[]).is_empty());
+    assert!(balaur_project::packing::strip(&mut pack, &[]).is_empty());
     assert!(pack.assets.contains_key("art/spare.png"));
 }
 
@@ -82,7 +90,10 @@ fn a_script_that_is_bytecode_leaves_the_walk_alone() {
     let mut pack = two_textures();
     pack.scripts
         .insert("player.bs".to_string(), vec![0xff, 0xfe, 0x00, 0x01]);
-    assert_eq!(pack.unreferenced(&[]), vec!["art/spare.png"]);
+    assert_eq!(
+        balaur_project::packing::unreferenced(&pack, &[]),
+        vec!["art/spare.png"]
+    );
 }
 
 #[test]
@@ -93,7 +104,10 @@ fn a_directory_a_scene_names_covers_the_files_under_it() {
         "[bank]\nfolder = \"sfx\"\n".to_string(),
     );
     pack.assets.insert("sfx/step.wav".to_string(), vec![3; 16]);
-    assert_eq!(pack.unreferenced(&[]), vec!["art/spare.png"]);
+    assert_eq!(
+        balaur_project::packing::unreferenced(&pack, &[]),
+        vec!["art/spare.png"]
+    );
 }
 
 #[test]
@@ -103,7 +117,7 @@ fn a_reference_with_an_entry_still_names_its_file() {
         "clip.toml".to_string(),
         "[clip]\nsource = \"art/spare.png#run\"\n".to_string(),
     );
-    assert!(pack.unreferenced(&[]).is_empty());
+    assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
 }
 
 #[test]
@@ -114,7 +128,7 @@ fn an_id_reference_resolves_through_the_asset_index() {
         "abc123 = \"art/spare.png\"\n".to_string(),
     );
     assert_eq!(
-        pack.unreferenced(&[]),
+        balaur_project::packing::unreferenced(&pack, &[]),
         vec!["art/spare.png"],
         "the index alone is a map, not a reference"
     );
@@ -122,7 +136,7 @@ fn an_id_reference_resolves_through_the_asset_index() {
         "props.toml".to_string(),
         "[node]\ntexture = \"id://abc123\"\n".to_string(),
     );
-    assert!(pack.unreferenced(&[]).is_empty());
+    assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
 }
 
 #[test]
@@ -138,19 +152,22 @@ fn a_bitmap_fonts_page_counts_as_referenced() {
     );
     pack.assets
         .insert("fonts/pixel_0.png".to_string(), vec![4; 48]);
-    assert_eq!(pack.unreferenced(&[]), vec!["art/spare.png"]);
+    assert_eq!(
+        balaur_project::packing::unreferenced(&pack, &[]),
+        vec!["art/spare.png"]
+    );
 }
 
 #[test]
 fn a_fnt_descriptor_is_an_extension_a_pack_ships() {
-    assert!(balaur_core::pack::ASSET_EXTENSIONS.contains(&"fnt"));
+    assert!(balaur_project::packing::ASSET_EXTENSIONS.contains(&"fnt"));
 }
 
 #[test]
 fn the_reports_section_bytes_add_up_to_the_encoded_pack() {
     let mut pack = two_textures();
     pack.scripts.insert("player.bs".to_string(), vec![7; 100]);
-    let report = pack.report();
+    let report = balaur_project::packing::report(&pack);
     assert_eq!(report.total, pack.encode().len());
     assert_eq!(
         report.sections.iter().map(|s| s.bytes).sum::<usize>(),
@@ -164,7 +181,7 @@ fn the_report_counts_assets_by_extension_and_names_the_heaviest() {
     let mut pack = two_textures();
     pack.assets
         .insert("sfx/step.wav".to_string(), vec![3; 1000]);
-    let report = pack.report();
+    let report = balaur_project::packing::report(&pack);
     let png = report
         .extensions
         .iter()
@@ -178,7 +195,7 @@ fn the_report_counts_assets_by_extension_and_names_the_heaviest() {
 
 #[test]
 fn the_reports_display_names_every_section_and_the_unreferenced_count() {
-    let printed = two_textures().report().to_string();
+    let printed = balaur_project::packing::report(&two_textures()).to_string();
     for expected in [
         "manifest",
         "scenes",
@@ -209,7 +226,10 @@ fn a_font_is_never_unreferenced_though_nothing_names_it() {
     pack.assets
         .insert("fonts/ui-Regular.ttf".into(), vec![1, 2, 3]);
     pack.assets.insert("art/unused.png".into(), vec![4, 5, 6]);
-    assert_eq!(pack.unreferenced(&[]), vec!["art/unused.png".to_string()]);
+    assert_eq!(
+        balaur_project::packing::unreferenced(&pack, &[]),
+        vec!["art/unused.png".to_string()]
+    );
 }
 #[test]
 fn print_a_real_report() {
@@ -233,7 +253,10 @@ fn print_a_real_report() {
             pack.assets.insert(name, std::fs::read(&p).unwrap());
         }
     }
-    println!("----8<----\n{}\n---->8----", pack.report());
+    println!(
+        "----8<----\n{}\n---->8----",
+        balaur_project::packing::report(&pack)
+    );
 }
 
 /// Every file under `base/dir`, at any depth, by its path from `base`: the

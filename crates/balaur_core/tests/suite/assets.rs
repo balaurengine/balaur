@@ -440,18 +440,6 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
 }
 
 /// A shipped game has no source tree, so an asset that only resolves off disk
-struct NoScripts;
-
-impl balaur_script::ScriptCompiler for NoScripts {
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-
-    fn compile(&self, _: &str, _: &str) -> anyhow::Result<Vec<u8>> {
-        Ok(Vec::new())
-    }
-}
-
 /// is an asset that works in development and vanishes on release.
 #[test]
 fn a_packed_run_resolves_an_asset_exactly_as_a_dev_run_does() {
@@ -459,8 +447,7 @@ fn a_packed_run_resolves_an_asset_exactly_as_a_dev_run_does() {
     let dev = app_in(dir.path(), None);
     let from_disk = assets::definition(&dev.engine, "notes/scale.toml#high").unwrap();
 
-    let pack = Pack::build(dir.path(), &NoScripts).unwrap();
-    assert!(pack.scenes.contains_key("notes/scale.toml"));
+    let pack = crate::packs::of_files(dir.path());
 
     // A project root that does not exist, so nothing can fall back to disk.
     let elsewhere = dir.path().join("shipped");

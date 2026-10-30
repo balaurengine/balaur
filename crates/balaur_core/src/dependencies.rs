@@ -426,7 +426,7 @@ fn mount(eng: &Engine, backend: Rc<dyn FileBackend>, table: Vec<(PathBuf, PathBu
 }
 
 /// `[<table>] <key>` as a list of strings.
-pub(crate) fn strings_at(document: &toml::Table, table: &str, key: &str) -> Vec<String> {
+pub fn strings_at(document: &toml::Table, table: &str, key: &str) -> Vec<String> {
     document
         .get(table)
         .and_then(|t| t.get(key))

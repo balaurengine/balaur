@@ -490,6 +490,7 @@ dependencies = [
  "balaur_audio",
  "balaur_browser",
  "balaur_core",
+ "balaur_debug",
  "balaur_gamend",
  "balaur_geometry",
  "balaur_http",
@@ -499,6 +500,7 @@ dependencies = [
  "balaur_physics",
  "balaur_platform",
  "balaur_plugin",
+ "balaur_project",
  "balaur_render",
  "balaur_script",
  "balaur_script_bs",
@@ -721,6 +723,17 @@ dependencies = [
  "tracing-subscriber",
  "web-sys",
  "web-time",
+]
+
+[[package]]
+name = "balaur_debug"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+ "balaur_script",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -953,6 +966,21 @@ dependencies = [
  "rune",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "balaur_project"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "balaur_cfg",
+ "balaur_core",
+ "balaur_script",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "tracing",
+ "web-sys",
 ]
 
 [[package]]

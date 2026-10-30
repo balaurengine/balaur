@@ -6,7 +6,7 @@
 //!
 //! # Not a system in the engine
 //!
-//! The DAP server ([`balaur_core::dap`]) lives inside a running game because
+//! The DAP server ([`balaur_debug::dap`]) lives inside a running game because
 //! debugging is a conversation with one: a breakpoint has to land at a point
 //! in the frame. Checking has no such tie — it needs the engine's script API
 //! and nothing else — so this is a process an editor spawns, boots the project

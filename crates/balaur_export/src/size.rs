@@ -106,12 +106,12 @@ pub fn prepare_for(
 ) -> Result<Summary> {
     let mut summary = Summary::default();
     if config.strip {
-        for key in pack.unreferenced(&config.include) {
+        for key in balaur::packing::unreferenced(pack, &config.include) {
             let bytes = pack.assets.get(&key).map_or(0, Vec::len);
             summary.dropped_bytes += bytes;
             summary.dropped.push(key);
         }
-        pack.strip(&config.include);
+        balaur::packing::strip(pack, &config.include);
     }
     let keep = code_points(pack, config);
     let pages = crate::textures::font_pages(
@@ -253,7 +253,7 @@ fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
 fn kept_whole(path: &str, patterns: &[String]) -> bool {
     patterns
         .iter()
-        .any(|pattern| balaur::pack::glob_matches(pattern, path))
+        .any(|pattern| balaur::ignore::glob_matches(pattern, path))
 }
 
 /// Every code point a subset face has to keep.

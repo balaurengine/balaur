@@ -32,7 +32,7 @@ Built, and load-bearing for a 2D game:
 | Have | Where |
 | --- | --- |
 | Scene tree, prefabs with `overrides`, stable ids, TOML scenes | `balaur_core::scene`, `ARCHITECTURE.md` "Prefabs" |
-| `sprite` with sheets, flip and tint; `polygon` GPU-skinned from a `mesh` with a `skin`; `bone2d`; the `skeleton` module | `crates/balaur_render/src/{sprite,polygon}.rs`, `crates/balaur_core/src/skeleton.rs` |
+| `sprite` with sheets, flip and tint; `polygon` GPU-skinned from a `mesh` with a `skin`; `bone2d`; the `skeleton` module | `crates/balaur_render/src/{sprite,polygon}.rs`, `crates/balaur_geometry/src/skeleton.rs` |
 | Animation clips with property and method tracks, `play`/`queue`/`seek`, negative `speed` for backwards, 12 easing curves × 4 modes, `animation.tween` and `tween_to` | `crates/balaur_animation`, `player.rs:249` |
 | Rapier 2D: every body kind, sensors with `overlaps`, joints, `character2d`, the query pipeline, 32 layers, one-way platforms | `crates/balaur_physics/src/dim2`, `docs/PLAN-rapier.md` |
 | `tilemap` over a `tileset` atlas; `particles`; `shape2d` polyline with `width`, `closed` and `material`; `light2d` and `occluder2d` | `crates/balaur_render/src/{tilemap,particles,shape,light}.rs` |
@@ -101,7 +101,7 @@ the §2 rows say where:
 - **Tweens run to a value and stop.** No delay, no chaining, no
   completion handler, no tween over a value a script owns.
 - **No 2D polygon booleans.** Ear clipping only
-  (`crates/balaur_core/src/triangulate.rs`); no union, intersection or
+  (`crates/balaur_geometry/src/triangulate.rs`); no union, intersection or
   difference, no point-in-polygon.
 - **The device is mute.** No safe-area insets, no dark-mode query, no
   keep-awake, no vibration on a phone, no OS locale (`Cargo.lock`: no
@@ -323,7 +323,7 @@ in the game; "not planned" is a deliberate no.
 | Classify nodes and query by class | Have: `tags = ["door", "obstacle"]` on a node, `node.tags`, `has_tag`, `add_tag`, `remove_tag`, `scene.tagged(name)`; in the digest and the snapshot |
 | Wait a frame, wait a second | Have: `task::frames(n).await` and `task::seconds(t).await`, counted on the fixed step so they replay and survive a snapshot |
 | Defer a call to the next frame | Have: `events.emit` to self; `node.queue_free` already defers |
-| Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_core::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
+| Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_geometry::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
 | Base64, a random id | Have: `encoding.base64`/`from_base64`; `random.uuid()` from the engine's own stream, so it replays |
 | A test runner for a game's own headless tests | Have: `balaur test` runs every `tests/**/*.rn` on its own node in a headless copy of the project; Rune's own `assert!` is the assertion, a logged script error fails the test, and the exit code says so |
 | Threads | Have: none, by design; I/O lands on a tick |

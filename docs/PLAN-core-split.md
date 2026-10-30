@@ -1,6 +1,7 @@
-> **Status:** planned 2026-10-30. Step 1 (the graph) done 2026-10-30: the
-> table below is from it. Step 8 of PLAN-foundations: after the per-kind
-> splits, before the ECS work.
+> **Status:** built 2026-10-30, steps 1 and 3 to 6: the kernel is 28k lines
+> and five crates sit around it (the table below is what was built). Step 7,
+> the guard, and step 8, the record, follow. Step 2's baseline was measured
+> after the split, against the commit before it (§5).
 
 # Plan: the core split
 
@@ -22,13 +23,29 @@ reads `files`, `project`, `settings`, `replay`, `assets` and
 
 | Crate | Modules | Lines |
 | --- | --- | ---: |
-| `balaur_core`, the kernel | everything not below: `engine`, `scene`, `components`, `node_api`, `events`, `hooks`, `replay`, `snapshot`, `files`, `project`, `settings`, `assets`, `document_paths`, ... (52) | 21,228 |
-| composition (the `balaur` crate) | `app`, the `engine_api` registrations of the crates below | 2,374 |
-| `balaur_geometry` | `primitive`, `csg`, `geometry2d`, `triangulate`, `path`, `stroke`, `heightfield`, `voxels`, `skeleton`, `tiles`, and `mesh`'s data | 7,046 |
-| `balaur_asset` | `pixels`, `texture_asset`, `glb`, `glb_material` and its `.wesl`, `import`, `mesh`'s loaders, the `svg` feature | 4,314 |
-| `balaur_net` | `rollback`, `rollback_api`, `netsession`, `transport` | 1,510 |
-| `balaur_project` | `pack`, `project_files`, `asset_index`, `dependencies`, `desktop`, `desktop_api`, `standalone`, `batteries_api` | 4,002 |
-| `balaur_debug` | `dap`, `debugger_api`, `profile_api`, `debug_lines`, `engine_docs` | 1,407 |
+| `balaur_core`, the kernel | everything not below: `engine`, `scene`, `components`, `node_api`, `events`, `hooks`, `replay`, `rollback`, `snapshot`, `files`, `project`, `settings`, `assets`, `import`, `document_paths`, `dependencies`, `asset_index`, `project_files`, `standalone`, `batteries_api`, `engine_docs`, `debug_lines`, `pack`'s data and wire format, `app` and the kernel's `engine_api` | 28,155 |
+| composition (the `balaur` crate) | `builtins()`: every crate's registration steps and script modules, in the order they registered before the split | |
+| `balaur_geometry` | `primitive`, `csg`, `geometry2d`, `triangulate`, `path`, `stroke`, `heightfield`, `voxels`, `skeleton`, `tiles`, and `mesh`'s data and its `ModelReader` seam | 8,570 |
+| `balaur_asset` | `pixels`, `texture_asset`, `glb`, `glb_material` and its `.wesl`, the `svg` feature | 2,123 |
+| `balaur_net` | `netsession`, `transport`, `rollback_api` | 1,112 |
+| `balaur_project` | `packing` (building a pack, its report and strip), `desktop`, `desktop_api` | 1,144 |
+| `balaur_debug` | `dap`, `debugger_api`, `profile_api` | 1,082 |
+
+Where the build moved the first table:
+
+- `import`, `rollback`, `dependencies`, `asset_index`, `project_files`,
+  `standalone`, `batteries_api` and `engine_docs` stay in the kernel: the
+  kernel's asset loader, replay and project paths read them.
+- `app` stays in the kernel. What it wired by name is a list it is given,
+  `Builtins` (registration steps and script modules), which the composition
+  layer fills; a bare app gets the kernel's own.
+- `pack` splits: a game runs from a `Pack`, so its data and wire format are
+  the kernel's, and building one is `balaur_project::packing`.
+  `glob_matches` moved to `ignore`, which matches paths with it.
+- `debug_lines` stays: physics, scripts and the editor fill it and the
+  renderer drains it, and none of them should depend on the debugger.
+- glTF reaches the geometry crate's mesh loader through `ModelReader`, a
+  resource the asset crate inserts, as `TextGeometry` reaches text.
 
 What still crosses, 34 edges, and how each goes:
 

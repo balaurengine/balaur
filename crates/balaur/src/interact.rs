@@ -389,7 +389,7 @@ fn fill_action_runners(app: &balaur_core::App) {
         eng,
         Action::OpenUrl,
         Rc::new(|_eng: &Engine, _entity, value: &Value| {
-            balaur_core::desktop::open_url(&text_of(value))
+            balaur_project::desktop::open_url(&text_of(value))
         }),
     );
     set_runner(

@@ -8,7 +8,7 @@
 use anyhow::Result;
 use balaur_script::Value;
 
-use crate::engine::Engine;
+use balaur_core::engine::Engine;
 
 /// `engine.set_script_profiling(on)`: start or stop counting what each script
 /// costs. Turning it on clears the tally.
@@ -62,18 +62,18 @@ fn cost_rows(named: &str, rows: Vec<(String, u64, u64)>) -> Value {
 }
 
 /// The `engine` calls that count what scripts cost.
-pub const OPS: &[crate::engine_api::EngineOp] = &[
-    crate::engine_api::EngineOp {
+pub const OPS: &[balaur_core::engine_api::EngineOp] = &[
+    balaur_core::engine_api::EngineOp {
         module: "engine",
         name: "set_script_profiling",
         call: set_script_profiling,
     },
-    crate::engine_api::EngineOp {
+    balaur_core::engine_api::EngineOp {
         module: "engine",
         name: "script_costs",
         call: script_costs,
     },
-    crate::engine_api::EngineOp {
+    balaur_core::engine_api::EngineOp {
         module: "engine",
         name: "function_costs",
         call: function_costs,

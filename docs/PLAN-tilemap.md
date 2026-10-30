@@ -50,7 +50,7 @@ Three constraints the code imposes on everything below:
 
 ## 1. Design
 
-**Core owns the data.** `balaur_core::tiles` holds the tileset parse, the
+**Core owns the data.** `balaur_geometry::tiles` holds the tileset parse, the
 grid, the layout functions (cell to world and back, for every layout), the
 occluder outline union — core already has `geometry2d` — and the rule
 resolver. Backend-free, so a headless test asserts a merged run count or a

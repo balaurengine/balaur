@@ -682,8 +682,9 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
 
             # ExternalIo is the recorded seam, and its worker `Sender` is
             # unreachable except through `start`, which does nothing while a
-            # recording plays. Core owns the one sanctioned channel (dap.rs).
-            if crate != "balaur_core" and not in_test_mod and not io_guarded:
+            # recording plays. The DAP server is the one sanctioned channel.
+            if (crate != "balaur_core" and not str(rel).endswith("balaur_debug/src/dap.rs")
+                    and not in_test_mod and not io_guarded):
                 opened = re.search(r"std::sync::mpsc::(?:sync_)?channel\s*\(", line) or (
                     mpsc_imported and re.search(r"(?<![\w:])(?:sync_)?channel\s*\(", line)
                 )

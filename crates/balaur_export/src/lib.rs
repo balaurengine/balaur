@@ -315,7 +315,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
-    tracing::info!("\n{}", pack.report_with(&config.include));
+    tracing::info!("\n{}", balaur::packing::report_with(&pack, &config.include));
     if summary.total_saved() > 0 {
         tracing::info!("{summary}");
     }

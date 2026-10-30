@@ -25,7 +25,7 @@ Built, and not built for this:
 | A desktop game as one file: the template binary with the export pack appended | `balaur::standalone`, `crates/balaur_cli` |
 | A signed macOS `.app` with the export pack as a resource | `bundle.rs::export_macos_app` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
-| A transport trait with reliable streams and unreliable datagrams | `balaur_core::transport::Transport` |
+| A transport trait with reliable streams and unreliable datagrams | `balaur_net::transport::Transport` |
 | Gamepads, and an action layer over them whose bindings a recording carries | `balaur_input`, gilrs, `App::add_replay_setup` |
 | A save file, atomic, versioned, in the user data directory | `balaur_core::save` |
 | A server with login, REST and hooks to verify a ticket against | `balaur_gamend` |

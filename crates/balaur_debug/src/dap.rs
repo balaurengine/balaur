@@ -34,16 +34,16 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::time::Instant;
+use balaur_core::time::Instant;
 
 use anyhow::{Context, Result};
 use balaur_script::{Pause, PauseReason, ScriptHost, StepMode, Value};
 use serde_json::{Map as JsonMap, Value as Json, json};
 
-use crate::Stage;
-use crate::app::App;
-use crate::engine::Engine;
-use crate::project::ProjectRoot;
+use balaur_core::Stage;
+use balaur_core::app::App;
+use balaur_core::engine::Engine;
+use balaur_core::project::ProjectRoot;
 
 /// The one thread a client sees. The engine runs the game on a single thread
 /// and stops all of it at once, so there is exactly one, always id 1.
@@ -242,7 +242,7 @@ fn read_messages(stream: TcpStream, requests: &Sender<Json>) {
                 if requests.send(message).is_err() {
                     return;
                 }
-                crate::wake::wake();
+                balaur_core::wake::wake();
             }
             Err(err) => tracing::warn!("debug adapter: unreadable message: {err}"),
         }
@@ -680,7 +680,7 @@ impl Session {
             );
             self.send(message, false);
         }
-        let fresh: Vec<crate::logbuf::LogEntry> = crate::logbuf::recent(LOG_SCAN)
+        let fresh: Vec<balaur_core::logbuf::LogEntry> = balaur_core::logbuf::recent(LOG_SCAN)
             .into_iter()
             .filter(|entry| entry.time > self.log_cursor)
             .collect();

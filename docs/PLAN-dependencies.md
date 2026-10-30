@@ -27,7 +27,7 @@ with Make local.
 | A library dock that copies a file and what it `needs` into the project | `editor/library/catalog.toml`: `id`, `kind`, `name`, `file`, `needs`, `note` |
 | Prefabs placed by path, changed through sparse per-path `overrides` | ARCHITECTURE.md "Prefabs" |
 | A rename that rewrites every TOML reference, comments intact | `assets.rename` |
-| An export that drops what nothing names, when asked | `[export] strip`, off by default; `[export] include` keeps globs; `Pack::unreferenced` in `crates/balaur_core/src/pack.rs` |
+| An export that drops what nothing names, when asked | `[export] strip`, off by default; `[export] include` keeps globs; `packing::unreferenced` in `crates/balaur_project/src/packing.rs` |
 | Script modules found by path | `use a::b;` is `a/b.bs`, beside the file or in a folder above it |
 | A project kept on Forge as a bare git repository, served over smart HTTP | Forge's `Forge.Git`, `/git/<owner>/<name>.git` |
 | The browser editor's copy of a Forge project, fetched by blob id, saved as commits | Forge's `Forge.Git.Sync`: `tree`, `blob`, `put_draft`, `save` |

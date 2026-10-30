@@ -12,8 +12,8 @@ use std::rc::Rc;
 use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, ScriptHost, StepMode, Value};
 
-use crate::engine::Engine;
-use crate::engine_api::{EngineOp, optional_node, text};
+use balaur_core::engine::Engine;
+use balaur_core::engine_api::{EngineOp, optional_node, text};
 
 pub const DEBUGGER_OPS: &[EngineOp] = &[
     EngineOp {
@@ -148,7 +148,7 @@ fn resume(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(other) => return Err(anyhow!("resume takes a step mode, got {other:?}")),
     };
     host(eng)?.resume(mode);
-    crate::events::resumed(eng);
+    balaur_core::events::resumed(eng);
     Ok(Value::Nil)
 }
 
@@ -181,5 +181,5 @@ fn set_scope(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn scope(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(eng
         .debug_scope()
-        .map_or(Value::Nil, |e| Value::Node(crate::node_id_of(e).0)))
+        .map_or(Value::Nil, |e| Value::Node(balaur_core::node_id_of(e).0)))
 }

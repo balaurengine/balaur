@@ -176,7 +176,7 @@ against that list. What is there now:
   takes the case of the half it replaced, so `Arm_L` mirrors to `Arm_R`.
 - **A mesh traced from the texture's alpha.** Spine's Generate: a Trace
   button with a tolerance in pixels, over `render.trace_texture`, over
-  `balaur_core::geometry2d`'s `trace` and `simplify` — a marched pixel
+  `balaur_geometry::geometry2d`'s `trace` and `simplify` — a marched pixel
   boundary and Ramer-Douglas-Peucker, both with headless tests.
 - **Deform keys.** The Points mode edits the offset rather than the mesh
   while the Animate workspace is armed, and the Deform row keys them on

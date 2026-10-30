@@ -21,17 +21,8 @@ pub mod bindings;
 pub mod changes;
 pub mod collections;
 pub mod components;
-#[cfg(not(target_family = "wasm"))]
-pub mod dap;
 pub mod debug_lines;
-pub mod debugger_api;
 pub mod dependencies;
-pub mod profile_api;
-mod regex_api;
-// Opening a URL is a shell's job and a tab is one; revealing a folder is a
-// desktop's alone, so only that half is gated, inside.
-pub mod desktop;
-pub mod desktop_api;
 pub mod digest;
 pub mod document_paths;
 pub mod engine;
@@ -58,6 +49,7 @@ pub mod presets;
 pub mod process;
 pub mod project;
 mod project_files;
+mod regex_api;
 pub mod replay;
 pub mod replay_api;
 pub mod resources;

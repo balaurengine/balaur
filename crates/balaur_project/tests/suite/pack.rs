@@ -83,7 +83,7 @@ const PNG: &[u8] = &[
 #[test]
 fn a_pack_round_trips_through_bytes() {
     let dir = project();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     let decoded = Pack::decode(&pack.encode()).unwrap();
 
     assert_eq!(decoded.manifest, pack.manifest);
@@ -97,7 +97,7 @@ fn a_pack_round_trips_through_bytes() {
 #[test]
 fn binary_assets_travel_inside_the_pack() {
     let dir = project();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
 
     assert_eq!(
         pack.assets.get("art/hero.png").map(Vec::as_slice),
@@ -118,7 +118,9 @@ fn binary_assets_travel_inside_the_pack() {
 #[test]
 fn a_corrupted_asset_is_caught_by_its_hash() {
     let dir = project();
-    let mut bytes = Pack::build(dir.path(), &Reversing).unwrap().encode();
+    let mut bytes = balaur_project::packing::build(dir.path(), &Reversing)
+        .unwrap()
+        .encode();
     // Flip the asset section's last byte: the payload ends on the `api`
     // section, its count alone (four bytes) for a compiler that keeps none.
     let last = bytes.len() - 5;
@@ -135,7 +137,7 @@ fn a_corrupted_asset_is_caught_by_its_hash() {
 fn project_files_serve_a_packed_asset_without_touching_disk() {
     use balaur_core::project::{AssetSource, ProjectFiles};
     let dir = project();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     // A root that does not exist: anything found had to come from the pack.
     let files = ProjectFiles::packed(
         "/nonexistent".into(),
@@ -198,7 +200,7 @@ fn a_missing_asset_names_where_it_looked() {
 #[test]
 fn the_backend_decides_what_a_script_compiles_to() {
     let dir = project();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     assert_eq!(
         pack.scripts.get("s.txt").map(Vec::as_slice),
         Some(b"cba".as_slice())
@@ -216,7 +218,7 @@ fn a_font_s_licence_ships_beside_it() {
         "SIL Open Font License",
     )
     .unwrap();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     assert!(
         pack.assets.contains_key("fonts/Inter.ttc"),
         "a collection is a face"
@@ -229,7 +231,7 @@ fn a_font_s_licence_ships_beside_it() {
 fn unclaimed_extensions_are_left_alone() {
     let dir = project();
     std::fs::write(dir.path().join("readme.md"), "hello").unwrap();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     assert!(!pack.scripts.contains_key("readme.md"));
     assert!(!pack.scenes.contains_key("readme.md"));
 }
@@ -237,7 +239,7 @@ fn unclaimed_extensions_are_left_alone() {
 #[test]
 fn scenes_are_gathered_but_the_manifest_is_not_one_of_them() {
     let dir = project();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     assert!(pack.scenes.contains_key("m.toml"));
     assert!(!pack.scenes.contains_key("project.toml"));
     assert!(pack.manifest.contains("name = \"p\""));
@@ -246,7 +248,7 @@ fn scenes_are_gathered_but_the_manifest_is_not_one_of_them() {
 #[test]
 fn a_compile_error_fails_the_build() {
     let dir = project();
-    let err = Pack::build(dir.path(), &Failing).unwrap_err();
+    let err = balaur_project::packing::build(dir.path(), &Failing).unwrap_err();
     assert!(err.to_string().contains("no good"), "unhelpful: {err}");
 }
 
@@ -254,7 +256,9 @@ fn a_compile_error_fails_the_build() {
 fn every_script_that_fails_to_compile_is_named_not_only_the_first() {
     let dir = project();
     std::fs::write(dir.path().join("b.txt"), "second").unwrap();
-    let err = Pack::build(dir.path(), &Failing).unwrap_err().to_string();
+    let err = balaur_project::packing::build(dir.path(), &Failing)
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("2 script(s) did not compile"), "{err}");
     assert!(err.contains("no good: b.txt"), "{err}");
 }
@@ -262,13 +266,15 @@ fn every_script_that_fails_to_compile_is_named_not_only_the_first() {
 #[test]
 fn a_project_without_a_manifest_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(Pack::build(dir.path(), &Reversing).is_err());
+    assert!(balaur_project::packing::build(dir.path(), &Reversing).is_err());
 }
 
 #[test]
 fn truncated_or_foreign_bytes_do_not_decode() {
     let dir = project();
-    let bytes = Pack::build(dir.path(), &Reversing).unwrap().encode();
+    let bytes = balaur_project::packing::build(dir.path(), &Reversing)
+        .unwrap()
+        .encode();
     assert!(Pack::decode(&bytes[..bytes.len() / 2]).is_err());
     assert!(Pack::decode(b"not a pack at all").is_err());
     assert!(Pack::decode(&[]).is_err());
@@ -359,7 +365,7 @@ fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
             ],
         );
         balaur_core::files::set_default(fs);
-        let pack = Pack::build(root, &Reversing).unwrap();
+        let pack = balaur_project::packing::build(root, &Reversing).unwrap();
         assert!(pack.manifest.contains("name = \"p\""), "{}", pack.manifest);
         assert_eq!(
             pack.scripts.get("s.txt").map(Vec::as_slice),
@@ -394,7 +400,7 @@ fn a_pack_leaves_out_what_the_project_ignores() {
     std::fs::create_dir_all(dir.path().join("art/wip")).unwrap();
     std::fs::write(dir.path().join("art/wip/sketch.png"), PNG).unwrap();
     std::fs::write(dir.path().join("art/hero.blend1"), "backup").unwrap();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     let held: Vec<&String> = pack.assets.keys().chain(pack.scenes.keys()).collect();
     assert!(
         held.iter().any(|path| path.as_str() == "art/hero.png"),
@@ -431,7 +437,9 @@ fn ignoring_a_module(script: &str) -> tempfile::TempDir {
 #[test]
 fn a_shipped_script_that_uses_an_ignored_module_fails_the_build() {
     let dir = ignoring_a_module("use addons/gamend/prefs.txt\n");
-    let err = Pack::build(dir.path(), &Importing).unwrap_err().to_string();
+    let err = balaur_project::packing::build(dir.path(), &Importing)
+        .unwrap_err()
+        .to_string();
     assert!(
         err.contains("s.txt uses addons/gamend/prefs.txt"),
         "the script and its module are named: {err}"
@@ -452,7 +460,7 @@ fn a_script_left_out_with_the_module_it_uses_builds() {
         "use addons/gamend/prefs.txt\n",
     )
     .unwrap();
-    let pack = Pack::build(dir.path(), &Importing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Importing).unwrap();
     assert!(pack.scripts.contains_key("lib.txt"));
     assert!(!pack.scripts.contains_key("art/wip/sketch.txt"));
 }
@@ -463,7 +471,7 @@ fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
     std::fs::create_dir_all(dir.path().join("data")).unwrap();
     std::fs::write(dir.path().join("data/levels.json"), "{\"first\": 1}").unwrap();
     std::fs::write(dir.path().join("data/words.csv"), "en,ro\nsea,mare\n").unwrap();
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
     assert_eq!(
         pack.assets.get("data/levels.json").map(Vec::as_slice),
         Some(&b"{\"first\": 1}"[..])
@@ -488,7 +496,7 @@ fn a_nested_projects_scripts_ship_as_source() {
     .unwrap();
     std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
 
-    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
 
     assert_eq!(
         pack.scripts.get("s.txt").map(Vec::as_slice),
@@ -525,7 +533,8 @@ fn a_nested_projects_scripts_are_not_compiled() {
     .unwrap();
     std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
 
-    let pack = Pack::build(dir.path(), &Failing).expect("the nested script is not compiled");
+    let pack = balaur_project::packing::build(dir.path(), &Failing)
+        .expect("the nested script is not compiled");
 
     assert_eq!(
         pack.scripts.get("library/s.txt").map(Vec::as_slice),

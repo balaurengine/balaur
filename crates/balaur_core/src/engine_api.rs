@@ -1134,14 +1134,16 @@ pub(crate) fn integer(args: &[Value], i: usize) -> Result<i64> {
     }
 }
 
-pub(crate) fn text(args: &[Value], i: usize) -> Result<&str> {
+/// Argument `i` as a string, or an error naming its place.
+pub fn text(args: &[Value], i: usize) -> Result<&str> {
     match args.get(i) {
         Some(Value::Str(s)) => Ok(s),
         other => Err(anyhow!("argument {i} should be a string, got {other:?}")),
     }
 }
 
-pub(crate) fn optional_node(args: &[Value], i: usize) -> Result<Option<hecs::Entity>> {
+/// Argument `i` as a node, `None` where it is nil or missing.
+pub fn optional_node(args: &[Value], i: usize) -> Result<Option<hecs::Entity>> {
     match args.get(i) {
         None | Some(Value::Nil) => Ok(None),
         Some(Value::Node(id)) => Ok(Some(crate::entity_of(balaur_script::NodeId(*id))?)),

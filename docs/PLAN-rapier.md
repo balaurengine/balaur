@@ -120,7 +120,7 @@
    **Triangulation consolidated onto `i_triangle`, 2026-09-06.** parry's ear
    clipper is `pub(crate)`, so the duplication to remove was our own: the
    hand-written clipper in core and the `i_triangle` that `balaur_ui::glyph`
-   filled glyph outlines with. `balaur_core::triangulate` is now the only
+   filled glyph outlines with. `balaur_geometry::triangulate` is now the only
    place either is named, in two forms, because the two callers want
    different things:
 

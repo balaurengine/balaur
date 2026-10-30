@@ -28,7 +28,7 @@ interpreter. Rune scripts are interpreted either way.
 
 `engine.open_url` and the `open_url` binding action work on every desktop and,
 since 2026-09-07, in a browser tab through `window.open`. On iOS and Android
-they do not: `balaur_core::desktop` spawns an opener process, and a phone has
+they do not: `balaur_project::desktop` spawns an opener process, and a phone has
 none, so the call reports that it has no opener rather than pretending.
 
 What each wants, when someone wires it up:

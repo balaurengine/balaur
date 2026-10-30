@@ -24,9 +24,9 @@ over the rollback session that already exists.
 
 | Have | Where |
 | --- | --- |
-| One link to one peer: a reliable ordered channel and datagrams, polled once per tick and recorded verbatim | `balaur_core::transport::Transport`, `Received` |
+| One link to one peer: a reliable ordered channel and datagrams, polled once per tick and recorded verbatim | `balaur_net::transport::Transport`, `Received` |
 | A rollback session: journal, snapshot ring, prediction by repeating the last input, digest per tick, and players who left played as nil | `balaur_core::rollback::Session`, `set_absent` |
-| The same session over links bound to the slots they speak for, relaying for a host, with ping, loss and bytes per link and a lead check that makes a fast machine wait | `balaur_core::netsession::NetSession`, `add_bound_peer`, `should_wait` |
+| The same session over links bound to the slots they speak for, relaying for a host, with ping, loss and bytes per link and a lead check that makes a fast machine wait | `balaur_net::netsession::NetSession`, `add_bound_peer`, `should_wait` |
 | `multiplayer.*`: host, join, start, leave, bots, the roster, input, events, stats | `crates/balaur_multiplayer` |
 | The frame hook a match steps the world through | `balaur_core::app::FrameDriver` |
 | Nodes a digest leaves out: a camera or HUD that differs per machine | `digest::TAG_LOCAL`, `multiplayer.TAG_LOCAL` |

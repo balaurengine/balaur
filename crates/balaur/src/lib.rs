@@ -11,11 +11,13 @@
 pub use balaur_animation::AnimationPlugin;
 pub use balaur_asset::*;
 pub use balaur_core::*;
+pub use balaur_debug::*;
 pub use balaur_geometry::*;
 pub use balaur_input::InputPlugin;
 pub use balaur_net::*;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_platform::PlatformPlugin;
+pub use balaur_project::*;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
 
@@ -123,7 +125,7 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
 }
 
 /// [`build_pack`], keeping script sources in the pack when `keep_sources`
-/// — see [`Pack::build_with`] for when a runtime needs that.
+/// — see [`balaur_project::packing::build_with`] for when a runtime needs that.
 pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Result<Pack> {
     build_pack_using(project_root, keep_sources, &mut [])
 }
@@ -135,7 +137,7 @@ pub fn build_pack_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
     with_host(project_root, extra, |engine, host| {
-        let pack = Pack::build_with(project_root, host, keep_sources)?;
+        let pack = balaur_project::packing::build_with(project_root, host, keep_sources)?;
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
         #[cfg(not(feature = "compile"))]
@@ -169,15 +171,15 @@ pub fn builtins() -> Builtins {
         ],
         api: vec![
             ApiPart::Ops(KERNEL_OPS[0]),
-            ApiPart::Ops(balaur_core::desktop_api::OPS),
+            ApiPart::Ops(balaur_project::desktop_api::OPS),
             ApiPart::Ops(KERNEL_OPS[1]),
-            ApiPart::Ops(balaur_core::profile_api::OPS),
+            ApiPart::Ops(balaur_debug::profile_api::OPS),
             ApiPart::Ops(KERNEL_OPS[2]),
             ApiPart::Ops(balaur_geometry::skeleton::OPS),
             ApiPart::Ops(KERNEL_OPS[3]),
             KERNEL_MODULES[0],
             KERNEL_MODULES[1],
-            ApiPart::Module("debugger", balaur_core::debugger_api::install_debugger_api),
+            ApiPart::Module("debugger", balaur_debug::debugger_api::install_debugger_api),
             KERNEL_MODULES[2],
             KERNEL_MODULES[3],
             ApiPart::Module("rollback", balaur_net::rollback_api::install_rollback_api),
@@ -357,7 +359,7 @@ pub fn check_project_using(
 
 /// Each file the script at `rel` links in that `[application] ignore` leaves
 /// out of an export: it compiles here, beside the module on disk, and the
-/// export refuses it ([`Pack::build_with`]).
+/// export refuses it ([`balaur_project::packing::build_with`]).
 fn ignored_uses(
     host: &dyn balaur_script::ScriptCompiler,
     ignored: &[String],

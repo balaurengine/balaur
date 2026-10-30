@@ -174,7 +174,7 @@ noun:
 | --- | --- |
 | `shape2d` | `Flat::outline()` (`primitive.rs:364`) — the exact points the shape fills from, so the silhouette does not change |
 | `collider2d` | `light.rs:394` already derives one per kind |
-| `sprite` | The alpha trace, which `docs/PLAN-editor.md` §6 already plans as CPU code in `balaur_core::geometry2d` with a test. **Not duplicated here** — this plan consumes it |
+| `sprite` | The alpha trace, which `docs/PLAN-editor.md` §6 already plans as CPU code in `balaur_geometry::geometry2d` with a test. **Not duplicated here** — this plan consumes it |
 | `polygon` | It is already a mesh |
 | `boolean2d` | Its settled outline, which needs a 2D `render.built_mesh` twin |
 

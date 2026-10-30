@@ -19,13 +19,21 @@ names.
 │ physics  │ render  │ audio  │ input  │ anim  │ your plugin │
 │ (rapier) │ (kiss3d)│ (rodio)│ (gilrs)│ (clip)│             │
 ├──────────┴─────────┴────────┴────────┴───────┴─────────────┤
-│  balaur_core: hecs ECS + scene tree + assets + scheduler.  │
-│  Names no scripting language.                              │
+│  geometry · asset · net · project · debug: shapes, models  │
+│  and pictures, sessions, packs, the debugger               │
+├────────────────────────────────────────────────────────────┤
+│  balaur_core, the kernel: hecs ECS + scene tree + assets + │
+│  scheduler. Names no scripting language, decodes no image. │
 └────────────────────────────────────────────────────────────┘
 ```
 
 Backends depend on core; core never depends on a backend. The compiler enforces
-the direction, and it is what keeps core language-free.
+the direction, and it is what keeps core language-free. The five crates around
+the kernel (`docs/PLAN-core-split.md`) depend on it and on nothing above it,
+and a test keeps the kernel's manifest free of them and of the image, glTF and
+mesh crates they took. `balaur::builtins()` composes an app: every crate's
+registration steps and script modules, in one order, handed to `App::new` as
+a `Builtins`; a bare app gets the kernel's own.
 
 ## Foundations
 
@@ -43,7 +51,7 @@ the direction, and it is what keeps core language-free.
 - Hand-written instead: `primitive` (parry returns no UVs or normals and lacks
   half the shapes), `csg` (parry has intersection only), `geometry2d`'s booleans
   on `i_overlay`, the 2D convex hull. Triangulation is `i_triangle`, named in
-  `balaur_core::triangulate` alone — parry's ear clipper is `pub(crate)` —
+  `balaur_geometry::triangulate` alone — parry's ear clipper is `pub(crate)` —
   with two forms: one over the caller's own points, which refuses a loop that
   crosses itself, and one that returns the vertex a crossing or a hole needed.
 - **`Engine`** is a clonable `Rc` handle over world, resources, command queue
@@ -400,14 +408,14 @@ content is `asset`.
   same world. That is why downscaling is an export key and not an import one:
   `[export] max_size` records the drawn `size` beside what it shrank. An SVG's
   `scale` and a model's `scale` do set sizes, and every build reads them alike.
-- Every reader of a picture goes through `balaur_core::pixels`: a raster
+- Every reader of a picture goes through `balaur_asset::pixels`: a raster
   decoded, an SVG rasterized, then `bleed` and `flip_green` applied. An export
   writes an SVG's raster under its own name, so a game runtime has no
   rasterizer.
 - A texture property is asset-typed, `asset = "texture"`: a plain image path
   resolves as `{ source = <path> }`, so the asset layer reads no file, and a
   `textures/*.toml`, `[[assets]]` block or inline table adds settings that win
-  over the sidecar. `balaur_core::texture_asset::source` is the one resolver.
+  over the sidecar. `balaur_asset::texture_asset::source` is the one resolver.
 - A model's `lods` are index lists over its own vertices, simplified at load by
   `meshopt-rs` and swapped by camera distance in the renderer alone, so no
   simulation reads which copy is drawn.
@@ -471,7 +479,7 @@ its `Cargo.toml` and fails if one appears.
 
 ### Objects: every shape is a mesh
 
-A shape is a function from parameters to `MeshData` in `balaur_core::primitive`
+A shape is a function from parameters to `MeshData` in `balaur_geometry::primitive`
 on `libm`. So a collider fitted to a torus, a ray picking one, a headless test
 and the triangles on screen are the same triangles.
 

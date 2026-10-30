@@ -8,21 +8,23 @@
 use anyhow::Result;
 use balaur_script::Value;
 
-use crate::Engine;
+use balaur_core::Engine;
 
 /// Neither reaches the world on a replay: a session replayed for a bug report
 /// must not open the reporter's browser.
 pub(crate) fn open_url(eng: &Engine, args: &[Value]) -> Result<Value> {
-    if !crate::replay::suppressed(eng) {
-        crate::desktop::open_url(crate::engine_api::text(args, 0)?)?;
+    if !balaur_core::replay::suppressed(eng) {
+        crate::desktop::open_url(balaur_core::engine_api::text(args, 0)?)?;
     }
     Ok(Value::Nil)
 }
 
 #[cfg(desktop)]
 pub(crate) fn reveal(eng: &Engine, args: &[Value]) -> Result<Value> {
-    if !crate::replay::suppressed(eng) {
-        crate::desktop::reveal(std::path::Path::new(crate::engine_api::text(args, 0)?))?;
+    if !balaur_core::replay::suppressed(eng) {
+        crate::desktop::reveal(std::path::Path::new(balaur_core::engine_api::text(
+            args, 0,
+        )?))?;
     }
     Ok(Value::Nil)
 }
@@ -34,13 +36,13 @@ pub(crate) fn reveal(_: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 /// The `engine` calls that open a link or a folder in the desktop's own apps.
-pub const OPS: &[crate::engine_api::EngineOp] = &[
-    crate::engine_api::EngineOp {
+pub const OPS: &[balaur_core::engine_api::EngineOp] = &[
+    balaur_core::engine_api::EngineOp {
         module: "engine",
         name: "open_url",
         call: open_url,
     },
-    crate::engine_api::EngineOp {
+    balaur_core::engine_api::EngineOp {
         module: "engine",
         name: "reveal",
         call: reveal,

@@ -290,7 +290,7 @@ pub fn delivered_from(eng: &Engine, from: Entity, name: &str) -> Vec<Value> {
 /// frame where nothing is mid-iteration.
 /// Forget the stop the last pump saw, as a `resume` lets it go: the next one
 /// is heard even where a loop stops on the same line with the same locals.
-pub(crate) fn resumed(eng: &Engine) {
+pub fn resumed(eng: &Engine) {
     if let Some(state) = eng.try_resource::<EventState>() {
         state.borrow_mut().stop_seen = None;
     }

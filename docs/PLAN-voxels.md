@@ -10,7 +10,7 @@
 
 Built:
 
-- The **`voxels` asset** (`crates/balaur_core/src/voxels.rs`): a cell `size`
+- The **`voxels` asset** (`crates/balaur_geometry/src/voxels.rs`): a cell `size`
   and a list of filled `cells`, signed and unbounded, in `voxels/`.
 - **`collider3d` with `kind = "voxels"`** over `ColliderBuilder::voxels`
   (`crates/balaur_physics/src/collider.rs:109`), and `kind =

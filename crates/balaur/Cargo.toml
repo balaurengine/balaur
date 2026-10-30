@@ -75,6 +75,8 @@ fallback-fonts = ["balaur_ui/fallback-fonts"]
 
 [dependencies]
 balaur_net.workspace = true
+balaur_project.workspace = true
+balaur_debug.workspace = true
 balaur_core.workspace = true
 balaur_geometry.workspace = true
 balaur_asset.workspace = true
