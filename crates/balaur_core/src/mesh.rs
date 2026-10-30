@@ -445,7 +445,7 @@ morphs = [{ name = "smile", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]
 /// positions = [[0,0,0], [1,0,0], [0,1,0]]
 /// indices = [[0, 1, 2]]
 /// ```
-pub(crate) fn register_mesh_asset(app: &mut App) {
+pub fn register_mesh_asset(app: &mut App) {
     app.register_asset_type(MESH_ASSET_TYPE, "models", MESH_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>)
     });

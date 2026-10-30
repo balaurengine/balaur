@@ -1,6 +1,5 @@
 //! Bones: rest poses, the rig walk, and the joint palette a skin deforms by.
 
-use balaur_core::engine_api::ENGINE_OPS;
 use balaur_core::scene::{self, Transform, propagate_transforms};
 use balaur_core::skeleton::{
     self, Bone, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest,
@@ -315,7 +314,7 @@ position = [0, 1, 0]
 }
 
 fn call(eng: &Engine, name: &str, args: &[Value]) -> Value {
-    let op = ENGINE_OPS
+    let op = skeleton::OPS
         .iter()
         .find(|d| d.module == "skeleton" && d.name == name)
         .unwrap_or_else(|| panic!("`skeleton.{name}` is not declared"));

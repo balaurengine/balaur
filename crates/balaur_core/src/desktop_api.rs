@@ -32,3 +32,17 @@ pub(crate) fn reveal(eng: &Engine, args: &[Value]) -> Result<Value> {
 pub(crate) fn reveal(_: &Engine, _: &[Value]) -> Result<Value> {
     Err(anyhow::anyhow!("engine.reveal needs a desktop"))
 }
+
+/// The `engine` calls that open a link or a folder in the desktop's own apps.
+pub const OPS: &[crate::engine_api::EngineOp] = &[
+    crate::engine_api::EngineOp {
+        module: "engine",
+        name: "open_url",
+        call: open_url,
+    },
+    crate::engine_api::EngineOp {
+        module: "engine",
+        name: "reveal",
+        call: reveal,
+    },
+];

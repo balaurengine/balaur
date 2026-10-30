@@ -650,6 +650,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
 | Where this build runs | `engine.target` | Cargo |
+| What an app registers before any plugin, in order | `AppConfig::builtins`, `Builtins` (`steps`, `api`), `ApiPart`; the kernel's `Builtins::kernel` | none |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |
 | Jobs in flight | `export.running_count`, `import.running_count` | none |

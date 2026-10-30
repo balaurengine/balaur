@@ -30,7 +30,7 @@ pub fn ensure(eng: &crate::Engine, entity: Entity) {
     crate::components::mark_present(&mut world, entity, crate::components::TRANSFORM_BIT);
 }
 
-pub(crate) fn register_transform_component(app: &mut App) {
+pub fn register_transform_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {

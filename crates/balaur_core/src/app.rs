@@ -132,6 +132,41 @@ pub struct AppConfig {
     /// Where extension libraries load from; `None` is the project's own
     /// `extensions/`. Only a build with the `extensions` feature reads it.
     pub extensions: Option<PathBuf>,
+    /// What the app registers before any plugin, in order.
+    pub builtins: Builtins,
+}
+
+/// The engine's own registrations, in the order an app makes them, before
+/// any plugin.
+///
+/// The order is the components' places in the registry, and the digest walks
+/// a node's components in that order, so every app built from one list hashes
+/// a world the same way. The kernel's list is [`Builtins::kernel`]; the
+/// `balaur` crate's adds the crates around the kernel in their places.
+#[derive(Clone)]
+pub struct Builtins {
+    /// Each registers components, assets, resources, or snapshot and replay
+    /// sources.
+    pub steps: Vec<fn(&mut App)>,
+    /// The script API, module by module.
+    pub api: Vec<crate::engine_api::ApiPart>,
+}
+
+impl Builtins {
+    /// The kernel's own, and nothing of the crates around it.
+    #[must_use]
+    pub fn kernel() -> Self {
+        Self {
+            steps: vec![
+                crate::transform::register_transform_component,
+                register_scene_content,
+                crate::snapshot::build_core_sources,
+                register_facts,
+                register_core_settings,
+            ],
+            api: crate::engine_api::kernel_api(),
+        }
+    }
 }
 
 impl AppConfig {
@@ -143,6 +178,7 @@ impl AppConfig {
             script_args: Vec::new(),
             script_backend: None,
             extensions: None,
+            builtins: Builtins::default(),
         }
     }
 
@@ -174,6 +210,36 @@ impl AppConfig {
                 .ok()
                 .map(|exe| crate::standalone::extensions_beside(&exe)),
             ..Self::bare(".")
+        }
+    }
+}
+
+/// The project's settings rows the kernel declares.
+pub fn register_core_settings(app: &mut App) {
+    crate::settings::build_core_settings(&app.engine);
+}
+
+/// Every built-in this crate holds, in the order an app has always made them.
+// The crates the core split moves out take their steps and calls with them.
+impl Default for Builtins {
+    fn default() -> Self {
+        Self {
+            steps: vec![
+                crate::mesh::register_mesh_asset,
+                crate::texture_asset::register_texture_asset,
+                crate::path::register_path_assets,
+                crate::heightfield::register_heightfield_asset,
+                crate::voxels::register_voxels_asset,
+                crate::transform::register_transform_component,
+                crate::skeleton::register_bone2d_component,
+                crate::skeleton::register_bone3d_component,
+                register_scene_content,
+                crate::snapshot::build_core_sources,
+                crate::netsession::build_session_source,
+                register_facts,
+                register_core_settings,
+            ],
+            api: crate::engine_api::full_api(),
         }
     }
 }
@@ -271,7 +337,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
 
 /// The facts and timers every app carries: recorded as replay sources so a
 /// replay answers as the original run did, and timers in the snapshot.
-fn register_facts(app: &mut App) {
+pub fn register_facts(app: &mut App) {
     app.engine.insert_resource(crate::facts::Facts::default());
     app.engine
         .insert_resource(crate::facts::WallClock::default());
@@ -319,21 +385,10 @@ fn register_facts(app: &mut App) {
     );
 }
 
-/// The assets and components core owns, and the resources behind them.
-///
-/// Geometry is core content, not a rendering concern: physics reads the same
-/// asset for its trimesh colliders. A bone is scene-tree data the same way.
-/// Interactivity is core because a binding's actions are calls core already
-/// has, and because the digest carries what they change.
-fn register_core_content(app: &mut App) {
-    crate::mesh::register_mesh_asset(app);
-    crate::texture_asset::register_texture_asset(app);
-    crate::path::register_path_assets(app);
-    crate::heightfield::register_heightfield_asset(app);
-    crate::voxels::register_voxels_asset(app);
-    crate::transform::register_transform_component(app);
-    crate::skeleton::register_bone2d_component(app);
-    crate::skeleton::register_bone3d_component(app);
+/// The kernel's components past the transform, and the resources behind
+/// them. Interactivity is core because a binding's actions are calls core
+/// already has, and because the digest carries what they change.
+pub fn register_scene_content(app: &mut App) {
     crate::states::register_states_component(app);
     crate::timer::register_timer_component(app);
     crate::bindings::register_bindings_component(app);
@@ -350,6 +405,7 @@ impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         insert_core_resources(&engine, &config);
+        let builtins = std::mem::take(&mut config.builtins);
         match config.script_backend.take() {
             Some(make) => {
                 engine.set_script_host(make(ScriptSetup {
@@ -358,7 +414,7 @@ impl App {
                     pack: config.pack.clone(),
                     watch: config.watch,
                 })?);
-                crate::engine_api::install_engine_api(&engine)?;
+                crate::engine_api::install_engine_api(&engine, &builtins.api)?;
             }
             _ => {
                 tracing::info!("no script backend configured; scripting is off");
@@ -377,11 +433,9 @@ impl App {
         // A test binary builds many apps on one thread, and the rate is that
         // thread's: each starts at the default until its project moves it.
         set_tick_hz(DEFAULT_TICK_HZ);
-        register_core_content(&mut app);
-        crate::snapshot::build_core_sources(&mut app);
-        crate::netsession::build_session_source(&mut app);
-        register_facts(&mut app);
-        crate::settings::build_core_settings(&app.engine);
+        for step in &builtins.steps {
+            step(&mut app);
+        }
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
         app.add_system(Stage::First, |eng, _| {

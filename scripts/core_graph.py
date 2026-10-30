@@ -13,14 +13,13 @@ import re
 import sys
 
 PLAN = {
-    "top": "app engine_api",
     "geometry": "primitive csg geometry2d triangulate path stroke heightfield voxels skeleton tiles",
     "asset": "pixels texture_asset glb glb_material import mesh",
     "net": "rollback rollback_api netsession transport",
-    "project": "pack desktop desktop_api standalone batteries_api dependencies asset_index project_files",
-    "debug": "dap debugger_api profile_api debug_lines engine_docs",
+    "project": "pack desktop desktop_api standalone batteries_api",
+    "debug": "dap debugger_api profile_api debug_lines",
 }
-RANK = {"kernel": 0, "geometry": 1, "net": 1, "asset": 2, "project": 3, "debug": 3, "top": 9}
+RANK = {"kernel": 0, "geometry": 1, "net": 1, "asset": 2, "project": 3, "debug": 3}
 
 
 def main() -> None:

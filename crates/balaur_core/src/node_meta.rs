@@ -21,7 +21,7 @@ pub const COMPONENT: &str = "meta";
 #[derive(Clone, Debug, Default)]
 pub struct Meta(pub toml::map::Map<String, toml::Value>);
 
-pub(crate) fn register_meta_component(app: &mut App) {
+pub fn register_meta_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {

@@ -104,7 +104,7 @@ fn schema() -> String {
 
 /// The `states` component. Every key that is not `current` or `duration` is a
 /// state, so the file reads as the thing it is.
-pub(crate) fn register_states_component(app: &mut App) {
+pub fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {

@@ -172,7 +172,7 @@ points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone
 
 /// Register both path types, so a scene, a mesh and a stroke all name a
 /// curve the same way.
-pub(crate) fn register_path_assets(app: &mut App) {
+pub fn register_path_assets(app: &mut App) {
     app.register_asset_type(PATH2D_ASSET_TYPE, "paths", PATH_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_2d(value)?) as std::rc::Rc<dyn std::any::Any>)
     });

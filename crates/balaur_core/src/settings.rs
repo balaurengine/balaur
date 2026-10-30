@@ -594,7 +594,7 @@ fn prune_empty(table: &mut dyn toml_edit::TableLike) {
 }
 
 /// Core's own settings. Plugins define theirs from their own `build`.
-pub(crate) fn build_core_settings(eng: &Engine) {
+pub fn build_core_settings(eng: &Engine) {
     let parse = |name: &str, text: &str| crate::components::ComponentDef::parse_schema(name, text);
     define_group(
         eng,

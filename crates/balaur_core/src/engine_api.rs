@@ -24,7 +24,6 @@ use crate::file_api::{
     fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
     json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
-use crate::profile_api::{function_costs, script_costs, set_script_profiling};
 use crate::regex_api::{
     regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
 };
@@ -47,606 +46,632 @@ pub struct EngineOp {
     pub call: fn(&Engine, &[Value]) -> Result<Value>,
 }
 
-/// Everything the engine itself exposes to scripts.
-pub const ENGINE_OPS: &[EngineOp] = &[
-    EngineOp {
-        module: "engine",
-        name: "time",
-        call: time,
-    },
-    EngineOp {
-        module: "engine",
-        name: "delta",
-        call: delta,
-    },
-    EngineOp {
-        module: "engine",
-        name: "tick",
-        call: tick,
-    },
-    EngineOp {
-        module: "engine",
-        name: "set_paused",
-        call: set_paused,
-    },
-    EngineOp {
-        module: "engine",
-        name: "paused",
-        call: paused,
-    },
-    EngineOp {
-        module: "engine",
-        name: "set_time_scale",
-        call: set_time_scale,
-    },
-    EngineOp {
-        module: "engine",
-        name: "time_scale",
-        call: time_scale,
-    },
-    EngineOp {
-        module: "engine",
-        name: "tick_hz",
-        call: tick_hz,
-    },
-    EngineOp {
-        module: "engine",
-        name: "quit",
-        call: quit,
-    },
-    EngineOp {
-        module: "engine",
-        name: "args",
-        call: args,
-    },
-    EngineOp {
-        module: "engine",
-        name: "set_content_root",
-        call: engine_set_content_root,
-    },
-    EngineOp {
-        module: "engine",
-        name: "environment",
-        call: environment,
-    },
-    EngineOp {
-        module: "engine",
-        name: "reload_script",
-        call: reload_script,
-    },
-    EngineOp {
-        module: "engine",
-        name: "user_data_directory",
-        call: user_data_dir,
-    },
-    EngineOp {
-        module: "engine",
-        name: "open_url",
-        call: crate::desktop_api::open_url,
-    },
-    EngineOp {
-        module: "engine",
-        name: "reveal",
-        call: crate::desktop_api::reveal,
-    },
-    EngineOp {
-        module: "engine",
-        name: "target",
-        call: platform,
-    },
-    EngineOp {
-        module: "engine",
-        name: "device_id",
-        call: device_id,
-    },
-    EngineOp {
-        module: "engine",
-        name: "unix_time",
-        call: unix_time,
-    },
-    EngineOp {
-        module: "engine",
-        name: "focused",
-        call: focused,
-    },
-    EngineOp {
-        module: "engine",
-        name: "dark_mode",
-        call: dark_mode,
-    },
-    EngineOp {
-        module: "scene",
-        name: "root",
-        call: root,
-    },
-    EngineOp {
-        module: "scene",
-        name: "get_node",
-        call: get_node,
-    },
-    EngineOp {
-        module: "scene",
-        name: "node_by_id",
-        call: node_by_id,
-    },
-    EngineOp {
-        module: "scene",
-        name: "with_component",
-        call: with_component,
-    },
-    EngineOp {
-        module: "scene",
-        name: "instantiate",
-        call: instantiate,
-    },
-    EngineOp {
-        module: "scene",
-        name: "to_toml",
-        call: to_toml,
-    },
-    EngineOp {
-        module: "scene",
-        name: "attach_scripts",
-        call: attach_scripts,
-    },
-    EngineOp {
-        module: "scene",
-        name: "keep_changes",
-        call: keep_changes,
-    },
-    EngineOp {
-        module: "scene",
-        name: "take_changes",
-        call: take_changes,
-    },
-    EngineOp {
-        module: "scene",
-        name: "source",
-        call: source,
-    },
-    EngineOp {
-        module: "scene",
-        name: "component_types",
-        call: component_types,
-    },
-    EngineOp {
-        module: "scene",
-        name: "component_tags",
-        call: component_tags,
-    },
-    EngineOp {
-        module: "scene",
-        name: "component_expects",
-        call: component_expects,
-    },
-    EngineOp {
-        module: "scene",
-        name: "presets",
-        call: presets,
-    },
-    EngineOp {
-        module: "scene",
-        name: "preset_info",
-        call: preset_info,
-    },
-    EngineOp {
-        module: "scene",
-        name: "apply_preset",
-        call: apply_preset,
-    },
-    EngineOp {
-        module: "scene",
-        name: "warnings",
-        call: warnings,
-    },
-    EngineOp {
-        module: "scene",
-        name: "component_schema",
-        call: component_schema,
-    },
-    EngineOp {
-        module: "scene",
-        name: "component_properties",
-        call: component_properties,
-    },
-    EngineOp {
-        module: "scene",
-        name: "switch",
-        call: crate::scene_api::scene_switch,
-    },
-    EngineOp {
-        module: "scene",
-        name: "bindable_events",
-        call: crate::scene_api::bindable_events,
-    },
-    EngineOp {
-        module: "scene",
-        name: "binding_actions",
-        call: crate::scene_api::binding_actions,
-    },
-    EngineOp {
-        module: "scene",
-        name: "variable",
-        call: crate::scene_api::scene_variable,
-    },
-    EngineOp {
-        module: "scene",
-        name: "set_variable",
-        call: crate::scene_api::scene_set_variable,
-    },
-    EngineOp {
-        module: "scene",
-        name: "variables",
-        call: crate::scene_api::scene_variables,
-    },
-    EngineOp {
-        module: "engine",
-        name: "timings",
-        call: timings,
-    },
-    EngineOp {
-        module: "engine",
-        name: "set_script_profiling",
-        call: set_script_profiling,
-    },
-    EngineOp {
-        module: "engine",
-        name: "script_costs",
-        call: script_costs,
-    },
-    EngineOp {
-        module: "engine",
-        name: "function_costs",
-        call: function_costs,
-    },
-    EngineOp {
-        module: "save",
-        name: "write",
-        call: save_write,
-    },
-    EngineOp {
-        module: "save",
-        name: "read",
-        call: save_read,
-    },
-    EngineOp {
-        module: "save",
-        name: "slots",
-        call: save_slots,
-    },
-    EngineOp {
-        module: "save",
-        name: "remove",
-        call: save_remove,
-    },
-    EngineOp {
-        module: "save",
-        name: "version",
-        call: save_version,
-    },
-    EngineOp {
-        module: "save",
-        name: "directory",
-        call: save_folder,
-    },
-    EngineOp {
-        module: "engine",
-        name: "user_data_directory_of",
-        call: user_data_dir_of_project,
-    },
-    EngineOp {
-        module: "regex",
-        name: "matches",
-        call: regex_matches,
-    },
-    EngineOp {
-        module: "regex",
-        name: "search",
-        call: regex_search,
-    },
-    EngineOp {
-        module: "regex",
-        name: "search_all",
-        call: regex_search_all,
-    },
-    EngineOp {
-        module: "regex",
-        name: "replace",
-        call: regex_replace,
-    },
-    EngineOp {
-        module: "regex",
-        name: "split",
-        call: regex_split,
-    },
-    EngineOp {
-        module: "regex",
-        name: "escape",
-        call: regex_escape,
-    },
-    EngineOp {
-        module: "strings",
-        name: "tr",
-        call: strings_tr,
-    },
-    EngineOp {
-        module: "strings",
-        name: "locale",
-        call: strings_locale,
-    },
-    EngineOp {
-        module: "strings",
-        name: "set_locale",
-        call: strings_set_locale,
-    },
-    EngineOp {
-        module: "strings",
-        name: "locales",
-        call: strings_locales,
-    },
-    EngineOp {
-        module: "strings",
-        name: "system_locale",
-        call: strings_system_locale,
-    },
-    EngineOp {
-        module: "scene",
-        name: "tagged",
-        call: scene_tagged,
-    },
-    EngineOp {
-        module: "skeleton",
-        name: "apply_rest",
-        call: crate::skeleton::apply_rest_op,
-    },
-    EngineOp {
-        module: "skeleton",
-        name: "overwrite_rest",
-        call: crate::skeleton::overwrite_rest_op,
-    },
-    EngineOp {
-        module: "skeleton",
-        name: "bones",
-        call: crate::skeleton::bones_op,
-    },
-    EngineOp {
-        module: "assets",
-        name: "load",
-        call: assets_load,
-    },
-    EngineOp {
-        module: "assets",
-        name: "duplicate",
-        call: assets_duplicate,
-    },
-    EngineOp {
-        module: "assets",
-        name: "exists",
-        call: assets_exists,
-    },
-    EngineOp {
-        module: "assets",
-        name: "reload",
-        call: assets_reload,
-    },
-    EngineOp {
-        module: "assets",
-        name: "invalidate",
-        call: assets_invalidate,
-    },
-    EngineOp {
-        module: "assets",
-        name: "save",
-        call: assets_save,
-    },
-    EngineOp {
-        module: "assets",
-        name: "directory",
-        call: assets_directory,
-    },
-    EngineOp {
-        module: "assets",
-        name: "schema",
-        call: assets_schema,
-    },
-    EngineOp {
-        module: "assets",
-        name: "kind_of",
-        call: assets_kind_of,
-    },
-    EngineOp {
-        module: "assets",
-        name: "rename",
-        call: assets_rename,
-    },
-    EngineOp {
-        module: "assets",
-        name: "id",
-        call: assets_id,
-    },
-    EngineOp {
-        module: "assets",
-        name: "assign_id",
-        call: assets_assign_id,
-    },
-    EngineOp {
-        module: "assets",
-        name: "path",
-        call: assets_path,
-    },
-    EngineOp {
-        module: "log",
-        name: "info",
-        call: log_info,
-    },
-    EngineOp {
-        module: "log",
-        name: "warn",
-        call: log_warn,
-    },
-    EngineOp {
-        module: "log",
-        name: "error",
-        call: log_error,
-    },
-    EngineOp {
-        module: "log",
-        name: "print",
-        call: log_print,
-    },
-    EngineOp {
-        module: "log",
-        name: "recent",
-        call: log_recent,
-    },
-    EngineOp {
-        module: "log",
-        name: "clear",
-        call: log_clear,
-    },
-    EngineOp {
-        module: "log",
-        name: "since",
-        call: log_since,
-    },
-    EngineOp {
-        module: "log",
-        name: "file",
-        call: log_file,
-    },
-    EngineOp {
-        module: "random",
-        name: "seed",
-        call: rng_seed,
-    },
-    EngineOp {
-        module: "random",
-        name: "float",
-        call: rng_random,
-    },
-    EngineOp {
-        module: "random",
-        name: "range",
-        call: rng_range,
-    },
-    EngineOp {
-        module: "random",
-        name: "int",
-        call: rng_int,
-    },
-    EngineOp {
-        module: "random",
-        name: "uuid",
-        call: rng_uuid,
-    },
-    EngineOp {
-        module: "hash",
-        name: "sha256",
-        call: hash_sha256,
-    },
-    EngineOp {
-        module: "hash",
-        name: "sha256_text",
-        call: hash_sha256_text,
-    },
-    EngineOp {
-        module: "encoding",
-        name: "base64",
-        call: encoding_base64,
-    },
-    EngineOp {
-        module: "encoding",
-        name: "from_base64",
-        call: encoding_from_base64,
-    },
-    EngineOp {
-        module: "fs",
-        name: "read",
-        call: fs_read,
-    },
-    EngineOp {
-        module: "fs",
-        name: "write",
-        call: fs_write,
-    },
-    EngineOp {
-        module: "fs",
-        name: "exists",
-        call: fs_exists,
-    },
-    EngineOp {
-        module: "fs",
-        name: "list",
-        call: fs_list,
-    },
-    EngineOp {
-        module: "fs",
-        name: "remove",
-        call: fs_remove,
-    },
-    EngineOp {
-        module: "fs",
-        name: "create_directory",
-        call: fs_mkdir,
-    },
-    EngineOp {
-        module: "fs",
-        name: "rename",
-        call: fs_rename,
-    },
-    EngineOp {
-        module: "fs",
-        name: "copy",
-        call: fs_copy,
-    },
-    EngineOp {
-        module: "fs",
-        name: "modified_time",
-        call: fs_mtime,
-    },
-    EngineOp {
-        module: "engine",
-        name: "plugins",
-        call: loaded_plugins,
-    },
-    EngineOp {
-        module: "engine",
-        name: "has_plugin",
-        call: has_plugin,
-    },
-    EngineOp {
-        module: "engine",
-        name: "plugin_version",
-        call: plugin_version,
-    },
-    EngineOp {
-        module: "toml",
-        name: "parse",
-        call: toml_parse,
-    },
-    EngineOp {
-        module: "toml",
-        name: "encode",
-        call: toml_encode,
-    },
-    EngineOp {
-        module: "toml",
-        name: "patch",
-        call: toml_patch,
-    },
-    EngineOp {
-        module: "json",
-        name: "parse",
-        call: json_parse,
-    },
-    EngineOp {
-        module: "json",
-        name: "encode",
-        call: json_encode,
-    },
+/// The kernel's own calls, in four runs: the calls of the crates around the
+/// kernel go between them, in the order the API has always listed them
+/// ([`full_api`]).
+pub const KERNEL_OPS: [&[EngineOp]; 4] = [
+    &[
+        EngineOp {
+            module: "engine",
+            name: "time",
+            call: time,
+        },
+        EngineOp {
+            module: "engine",
+            name: "delta",
+            call: delta,
+        },
+        EngineOp {
+            module: "engine",
+            name: "tick",
+            call: tick,
+        },
+        EngineOp {
+            module: "engine",
+            name: "set_paused",
+            call: set_paused,
+        },
+        EngineOp {
+            module: "engine",
+            name: "paused",
+            call: paused,
+        },
+        EngineOp {
+            module: "engine",
+            name: "set_time_scale",
+            call: set_time_scale,
+        },
+        EngineOp {
+            module: "engine",
+            name: "time_scale",
+            call: time_scale,
+        },
+        EngineOp {
+            module: "engine",
+            name: "tick_hz",
+            call: tick_hz,
+        },
+        EngineOp {
+            module: "engine",
+            name: "quit",
+            call: quit,
+        },
+        EngineOp {
+            module: "engine",
+            name: "args",
+            call: args,
+        },
+        EngineOp {
+            module: "engine",
+            name: "set_content_root",
+            call: engine_set_content_root,
+        },
+        EngineOp {
+            module: "engine",
+            name: "environment",
+            call: environment,
+        },
+        EngineOp {
+            module: "engine",
+            name: "reload_script",
+            call: reload_script,
+        },
+        EngineOp {
+            module: "engine",
+            name: "user_data_directory",
+            call: user_data_dir,
+        },
+    ],
+    &[
+        EngineOp {
+            module: "engine",
+            name: "target",
+            call: platform,
+        },
+        EngineOp {
+            module: "engine",
+            name: "device_id",
+            call: device_id,
+        },
+        EngineOp {
+            module: "engine",
+            name: "unix_time",
+            call: unix_time,
+        },
+        EngineOp {
+            module: "engine",
+            name: "focused",
+            call: focused,
+        },
+        EngineOp {
+            module: "engine",
+            name: "dark_mode",
+            call: dark_mode,
+        },
+        EngineOp {
+            module: "scene",
+            name: "root",
+            call: root,
+        },
+        EngineOp {
+            module: "scene",
+            name: "get_node",
+            call: get_node,
+        },
+        EngineOp {
+            module: "scene",
+            name: "node_by_id",
+            call: node_by_id,
+        },
+        EngineOp {
+            module: "scene",
+            name: "with_component",
+            call: with_component,
+        },
+        EngineOp {
+            module: "scene",
+            name: "instantiate",
+            call: instantiate,
+        },
+        EngineOp {
+            module: "scene",
+            name: "to_toml",
+            call: to_toml,
+        },
+        EngineOp {
+            module: "scene",
+            name: "attach_scripts",
+            call: attach_scripts,
+        },
+        EngineOp {
+            module: "scene",
+            name: "keep_changes",
+            call: keep_changes,
+        },
+        EngineOp {
+            module: "scene",
+            name: "take_changes",
+            call: take_changes,
+        },
+        EngineOp {
+            module: "scene",
+            name: "source",
+            call: source,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_types",
+            call: component_types,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_tags",
+            call: component_tags,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_expects",
+            call: component_expects,
+        },
+        EngineOp {
+            module: "scene",
+            name: "presets",
+            call: presets,
+        },
+        EngineOp {
+            module: "scene",
+            name: "preset_info",
+            call: preset_info,
+        },
+        EngineOp {
+            module: "scene",
+            name: "apply_preset",
+            call: apply_preset,
+        },
+        EngineOp {
+            module: "scene",
+            name: "warnings",
+            call: warnings,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_schema",
+            call: component_schema,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_properties",
+            call: component_properties,
+        },
+        EngineOp {
+            module: "scene",
+            name: "switch",
+            call: crate::scene_api::scene_switch,
+        },
+        EngineOp {
+            module: "scene",
+            name: "bindable_events",
+            call: crate::scene_api::bindable_events,
+        },
+        EngineOp {
+            module: "scene",
+            name: "binding_actions",
+            call: crate::scene_api::binding_actions,
+        },
+        EngineOp {
+            module: "scene",
+            name: "variable",
+            call: crate::scene_api::scene_variable,
+        },
+        EngineOp {
+            module: "scene",
+            name: "set_variable",
+            call: crate::scene_api::scene_set_variable,
+        },
+        EngineOp {
+            module: "scene",
+            name: "variables",
+            call: crate::scene_api::scene_variables,
+        },
+        EngineOp {
+            module: "engine",
+            name: "timings",
+            call: timings,
+        },
+    ],
+    &[
+        EngineOp {
+            module: "save",
+            name: "write",
+            call: save_write,
+        },
+        EngineOp {
+            module: "save",
+            name: "read",
+            call: save_read,
+        },
+        EngineOp {
+            module: "save",
+            name: "slots",
+            call: save_slots,
+        },
+        EngineOp {
+            module: "save",
+            name: "remove",
+            call: save_remove,
+        },
+        EngineOp {
+            module: "save",
+            name: "version",
+            call: save_version,
+        },
+        EngineOp {
+            module: "save",
+            name: "directory",
+            call: save_folder,
+        },
+        EngineOp {
+            module: "engine",
+            name: "user_data_directory_of",
+            call: user_data_dir_of_project,
+        },
+        EngineOp {
+            module: "regex",
+            name: "matches",
+            call: regex_matches,
+        },
+        EngineOp {
+            module: "regex",
+            name: "search",
+            call: regex_search,
+        },
+        EngineOp {
+            module: "regex",
+            name: "search_all",
+            call: regex_search_all,
+        },
+        EngineOp {
+            module: "regex",
+            name: "replace",
+            call: regex_replace,
+        },
+        EngineOp {
+            module: "regex",
+            name: "split",
+            call: regex_split,
+        },
+        EngineOp {
+            module: "regex",
+            name: "escape",
+            call: regex_escape,
+        },
+        EngineOp {
+            module: "strings",
+            name: "tr",
+            call: strings_tr,
+        },
+        EngineOp {
+            module: "strings",
+            name: "locale",
+            call: strings_locale,
+        },
+        EngineOp {
+            module: "strings",
+            name: "set_locale",
+            call: strings_set_locale,
+        },
+        EngineOp {
+            module: "strings",
+            name: "locales",
+            call: strings_locales,
+        },
+        EngineOp {
+            module: "strings",
+            name: "system_locale",
+            call: strings_system_locale,
+        },
+        EngineOp {
+            module: "scene",
+            name: "tagged",
+            call: scene_tagged,
+        },
+    ],
+    &[
+        EngineOp {
+            module: "assets",
+            name: "load",
+            call: assets_load,
+        },
+        EngineOp {
+            module: "assets",
+            name: "duplicate",
+            call: assets_duplicate,
+        },
+        EngineOp {
+            module: "assets",
+            name: "exists",
+            call: assets_exists,
+        },
+        EngineOp {
+            module: "assets",
+            name: "reload",
+            call: assets_reload,
+        },
+        EngineOp {
+            module: "assets",
+            name: "invalidate",
+            call: assets_invalidate,
+        },
+        EngineOp {
+            module: "assets",
+            name: "save",
+            call: assets_save,
+        },
+        EngineOp {
+            module: "assets",
+            name: "directory",
+            call: assets_directory,
+        },
+        EngineOp {
+            module: "assets",
+            name: "schema",
+            call: assets_schema,
+        },
+        EngineOp {
+            module: "assets",
+            name: "kind_of",
+            call: assets_kind_of,
+        },
+        EngineOp {
+            module: "assets",
+            name: "rename",
+            call: assets_rename,
+        },
+        EngineOp {
+            module: "assets",
+            name: "id",
+            call: assets_id,
+        },
+        EngineOp {
+            module: "assets",
+            name: "assign_id",
+            call: assets_assign_id,
+        },
+        EngineOp {
+            module: "assets",
+            name: "path",
+            call: assets_path,
+        },
+        EngineOp {
+            module: "log",
+            name: "info",
+            call: log_info,
+        },
+        EngineOp {
+            module: "log",
+            name: "warn",
+            call: log_warn,
+        },
+        EngineOp {
+            module: "log",
+            name: "error",
+            call: log_error,
+        },
+        EngineOp {
+            module: "log",
+            name: "print",
+            call: log_print,
+        },
+        EngineOp {
+            module: "log",
+            name: "recent",
+            call: log_recent,
+        },
+        EngineOp {
+            module: "log",
+            name: "clear",
+            call: log_clear,
+        },
+        EngineOp {
+            module: "log",
+            name: "since",
+            call: log_since,
+        },
+        EngineOp {
+            module: "log",
+            name: "file",
+            call: log_file,
+        },
+        EngineOp {
+            module: "random",
+            name: "seed",
+            call: rng_seed,
+        },
+        EngineOp {
+            module: "random",
+            name: "float",
+            call: rng_random,
+        },
+        EngineOp {
+            module: "random",
+            name: "range",
+            call: rng_range,
+        },
+        EngineOp {
+            module: "random",
+            name: "int",
+            call: rng_int,
+        },
+        EngineOp {
+            module: "random",
+            name: "uuid",
+            call: rng_uuid,
+        },
+        EngineOp {
+            module: "hash",
+            name: "sha256",
+            call: hash_sha256,
+        },
+        EngineOp {
+            module: "hash",
+            name: "sha256_text",
+            call: hash_sha256_text,
+        },
+        EngineOp {
+            module: "encoding",
+            name: "base64",
+            call: encoding_base64,
+        },
+        EngineOp {
+            module: "encoding",
+            name: "from_base64",
+            call: encoding_from_base64,
+        },
+        EngineOp {
+            module: "fs",
+            name: "read",
+            call: fs_read,
+        },
+        EngineOp {
+            module: "fs",
+            name: "write",
+            call: fs_write,
+        },
+        EngineOp {
+            module: "fs",
+            name: "exists",
+            call: fs_exists,
+        },
+        EngineOp {
+            module: "fs",
+            name: "list",
+            call: fs_list,
+        },
+        EngineOp {
+            module: "fs",
+            name: "remove",
+            call: fs_remove,
+        },
+        EngineOp {
+            module: "fs",
+            name: "create_directory",
+            call: fs_mkdir,
+        },
+        EngineOp {
+            module: "fs",
+            name: "rename",
+            call: fs_rename,
+        },
+        EngineOp {
+            module: "fs",
+            name: "copy",
+            call: fs_copy,
+        },
+        EngineOp {
+            module: "fs",
+            name: "modified_time",
+            call: fs_mtime,
+        },
+        EngineOp {
+            module: "engine",
+            name: "plugins",
+            call: loaded_plugins,
+        },
+        EngineOp {
+            module: "engine",
+            name: "has_plugin",
+            call: has_plugin,
+        },
+        EngineOp {
+            module: "engine",
+            name: "plugin_version",
+            call: plugin_version,
+        },
+        EngineOp {
+            module: "toml",
+            name: "parse",
+            call: toml_parse,
+        },
+        EngineOp {
+            module: "toml",
+            name: "encode",
+            call: toml_encode,
+        },
+        EngineOp {
+            module: "toml",
+            name: "patch",
+            call: toml_patch,
+        },
+        EngineOp {
+            module: "json",
+            name: "parse",
+            call: json_parse,
+        },
+        EngineOp {
+            module: "json",
+            name: "encode",
+            call: json_encode,
+        },
+    ],
 ];
 
-/// Register every engine module into the host, plus the node API under `node`.
+/// Part of the engine's script API, registered in order ([`App`]'s builtins).
+///
+/// [`App`]: crate::App
+#[derive(Clone, Copy)]
+pub enum ApiPart {
+    /// Calls from a table, each into its module. A run of one module's calls
+    /// fills that module, across tables too.
+    Ops(&'static [EngineOp]),
+    /// A whole module, filled by its installer.
+    Module(&'static str, fn(&mut dyn balaur_script::Bindings<Engine>)),
+}
+
+/// The kernel's script API, in its order.
+#[must_use]
+pub fn kernel_api() -> Vec<ApiPart> {
+    let mut api: Vec<ApiPart> = KERNEL_OPS.iter().map(|ops| ApiPart::Ops(ops)).collect();
+    api.extend(KERNEL_MODULES.iter().copied());
+    api
+}
+
+/// The kernel's modules filled by an installer of their own, after its calls.
+const KERNEL_MODULES: [ApiPart; 6] = [
+    ApiPart::Module("node", crate::node_api::install_node_api),
+    ApiPart::Module(
+        "dependency",
+        crate::dependencies::api::install_dependencies_api,
+    ),
+    ApiPart::Module("replay", crate::replay_api::install_replay_api),
+    ApiPart::Module("math", crate::math_api::install_math_api),
+    ApiPart::Module("settings", crate::settings_api::install_settings_api),
+    ApiPart::Module("events", crate::events::install_events_api),
+];
+
+/// Every part this crate holds, in the order the API has always listed them.
+#[must_use]
+pub fn full_api() -> Vec<ApiPart> {
+    vec![
+        ApiPart::Ops(KERNEL_OPS[0]),
+        ApiPart::Ops(crate::desktop_api::OPS),
+        ApiPart::Ops(KERNEL_OPS[1]),
+        ApiPart::Ops(crate::profile_api::OPS),
+        ApiPart::Ops(KERNEL_OPS[2]),
+        ApiPart::Ops(crate::skeleton::OPS),
+        ApiPart::Ops(KERNEL_OPS[3]),
+        KERNEL_MODULES[0],
+        KERNEL_MODULES[1],
+        ApiPart::Module("debugger", crate::debugger_api::install_debugger_api),
+        KERNEL_MODULES[2],
+        KERNEL_MODULES[3],
+        ApiPart::Module("rollback", crate::rollback_api::install_rollback_api),
+        KERNEL_MODULES[4],
+        KERNEL_MODULES[5],
+        ApiPart::Module("geometry2d", crate::geometry2d::install_geometry2d_api),
+    ]
+}
+
+/// Register every part of the engine's script API into the host, in order.
 ///
 /// Called once when an app gains a script backend. A backend that gives its
 /// node handle method syntax still walks `node_api::NODE_OPS` for the
@@ -656,41 +681,34 @@ pub const ENGINE_OPS: &[EngineOp] = &[
 /// `install_*`, it creates the modules on the host itself instead of filling
 /// one it was handed, because the operations it registers span several
 /// modules.
-pub fn install_engine_api(eng: &Engine) -> Result<()> {
+pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
     let mut current: Option<(&str, Box<dyn balaur_script::Bindings<Engine>>)> = None;
-    for d in ENGINE_OPS {
-        let m = match &mut current {
-            Some((name, m)) if *name == d.module => m,
-            _ => {
-                let mut fresh = host.module(d.module)?;
-                document(d.module, &mut *fresh);
-                current = Some((d.module, fresh));
-                &mut current.as_mut().expect("just assigned").1
+    for part in api {
+        match part {
+            ApiPart::Ops(ops) => {
+                for d in *ops {
+                    let m = match &mut current {
+                        Some((name, m)) if *name == d.module => m,
+                        _ => {
+                            let mut fresh = host.module(d.module)?;
+                            document(d.module, &mut *fresh);
+                            current = Some((d.module, fresh));
+                            &mut current.as_mut().expect("just assigned").1
+                        }
+                    };
+                    m.function_raw(d.name, Box::new(d.call));
+                }
             }
-        };
-        m.function_raw(d.name, Box::new(d.call));
+            ApiPart::Module(name, install) => {
+                current = None;
+                let mut m = host.module(name)?;
+                install(&mut *m);
+            }
+        }
     }
-    let mut node = host.module("node")?;
-    crate::node_api::install_node_api(&mut *node);
-    let mut dependencies = host.module("dependency")?;
-    crate::dependencies::api::install_dependencies_api(&mut *dependencies);
-    let mut debugger = host.module("debugger")?;
-    crate::debugger_api::install_debugger_api(&mut *debugger);
-    let mut replay = host.module("replay")?;
-    crate::replay_api::install_replay_api(&mut *replay);
-    let mut math = host.module("math")?;
-    crate::math_api::install_math_api(&mut *math);
-    let mut rollback = host.module("rollback")?;
-    crate::rollback_api::install_rollback_api(&mut *rollback);
-    let mut settings = host.module("settings")?;
-    crate::settings_api::install_settings_api(&mut *settings);
-    let mut events = host.module("events")?;
-    crate::events::install_events_api(&mut *events);
-    let mut geometry2d = host.module("geometry2d")?;
-    crate::geometry2d::install_geometry2d_api(&mut *geometry2d);
     Ok(())
 }
 

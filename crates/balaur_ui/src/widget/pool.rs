@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::engine_api::ENGINE_OPS;
+use balaur_core::engine_api::KERNEL_OPS;
 use balaur_core::node_api::NODE_OPS;
 use balaur_script::{Bindings, BindingsExt, CallbackHost as _, CallbackId, ScriptHost, Value};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -90,8 +90,9 @@ impl Ops {
     fn resolve() -> Option<Self> {
         let node_op = |name: &str| NODE_OPS.iter().find(|o| o.name == name).map(|o| o.call);
         Some(Self {
-            scene_node: ENGINE_OPS
+            scene_node: KERNEL_OPS
                 .iter()
+                .flat_map(|ops| ops.iter())
                 .find(|o| o.module == "scene" && o.name == "get_node")?
                 .call,
             node: node_op("get_node")?,

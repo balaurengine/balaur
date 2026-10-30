@@ -65,7 +65,7 @@ holes = [[1, 1]]
 /// columns = 3
 /// heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 /// ```
-pub(crate) fn register_heightfield_asset(app: &mut App) {
+pub fn register_heightfield_asset(app: &mut App) {
     app.register_asset_type(
         HEIGHTFIELD_ASSET_TYPE,
         "heightfields",

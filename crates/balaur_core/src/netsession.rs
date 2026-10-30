@@ -203,7 +203,7 @@ pub struct Arrival {
 pub struct PeerTraffic(ExternalIo<Arrival>);
 
 /// Register the session's recording source. Called once by `App`.
-pub(crate) fn build_session_source(app: &mut App) {
+pub fn build_session_source(app: &mut App) {
     app.add_replay_source(
         SOURCE,
         |eng| eng.resource::<PeerTraffic>().borrow().0.capture(),

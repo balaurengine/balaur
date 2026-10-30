@@ -629,7 +629,7 @@ fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
     }
 }
 
-pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );

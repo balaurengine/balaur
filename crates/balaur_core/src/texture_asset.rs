@@ -30,7 +30,7 @@ pub struct TextureAsset {
     pub settings: toml::Table,
 }
 
-pub(crate) fn register_texture_asset(app: &mut App) {
+pub fn register_texture_asset(app: &mut App) {
     app.register_asset_type(TEXTURE_ASSET_TYPE, "textures", TEXTURE_ASSET_DOC, |value| {
         Ok(Rc::new(parse(value)?) as Rc<dyn std::any::Any>)
     });

@@ -515,7 +515,7 @@ fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
 }
 
 /// The `bone2d` component: the asked-for struct, and the [`Bone`] it fills.
-pub(crate) fn register_bone2d_component(app: &mut App) {
+pub fn register_bone2d_component(app: &mut App) {
     app.register_component(
         <Bone2d as Component>::NAME,
         ComponentDef {
@@ -536,7 +536,7 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
 }
 
 /// The `bone3d` component: the asked-for struct, and the [`Bone`] it fills.
-pub(crate) fn register_bone3d_component(app: &mut App) {
+pub fn register_bone3d_component(app: &mut App) {
     app.register_component(
         <Bone3d as Component>::NAME,
         ComponentDef {
@@ -589,3 +589,22 @@ pub(crate) fn bones_op(eng: &Engine, args: &[Value]) -> Result<Value> {
             .collect(),
     ))
 }
+
+/// The `skeleton` module's calls.
+pub const OPS: &[crate::engine_api::EngineOp] = &[
+    crate::engine_api::EngineOp {
+        module: "skeleton",
+        name: "apply_rest",
+        call: apply_rest_op,
+    },
+    crate::engine_api::EngineOp {
+        module: "skeleton",
+        name: "overwrite_rest",
+        call: overwrite_rest_op,
+    },
+    crate::engine_api::EngineOp {
+        module: "skeleton",
+        name: "bones",
+        call: bones_op,
+    },
+];

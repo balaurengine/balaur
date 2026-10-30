@@ -143,7 +143,7 @@ impl CheckpointRing {
 /// Deliberately not components. A component's `apply` may have side effects —
 /// re-adding `body` rebuilds the rigid body and throws away its velocity — so
 /// the subsystem that owns the state restores it, exactly as with digests.
-pub(crate) fn build_core_sources(app: &mut crate::app::App) {
+pub fn build_core_sources(app: &mut crate::app::App) {
     // First: it decides which entities exist, and every source below writes
     // into them.
     app.add_snapshot_source("nodes", save_nodes, load_nodes);

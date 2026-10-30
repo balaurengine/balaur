@@ -4,7 +4,7 @@
 //! as the original run did.
 #![allow(
     clippy::unnecessary_wraps,
-    reason = "every op has the one signature the `ENGINE_OPS` table takes"
+    reason = "every op has the one signature an `OPS` table takes"
 )]
 
 use anyhow::{Result, anyhow};

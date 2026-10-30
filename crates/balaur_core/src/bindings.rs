@@ -418,7 +418,7 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
 }
 
 /// The `bindings` component: the rows as written, and [`Bindings`] parsed.
-pub(crate) fn register_bindings_component(app: &mut App) {
+pub fn register_bindings_component(app: &mut App) {
     app.register_component(
         <BindingRows as Component>::NAME,
         ComponentDef {

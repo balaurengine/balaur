@@ -97,7 +97,7 @@ pub(crate) fn step_system(eng: &Engine, dt: f32) {
     }
 }
 
-pub(crate) fn register_timer_component(app: &mut App) {
+pub fn register_timer_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {

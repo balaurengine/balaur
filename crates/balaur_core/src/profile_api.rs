@@ -1,7 +1,7 @@
 //! `engine.set_script_profiling`, `engine.script_costs` and `engine.function_costs`:
 //! what the script host counted, as the rows a profiler lists.
 
-// Every declaration shares one signature so they can sit in `ENGINE_OPS`;
+// Every declaration shares one signature so they can sit in an `OPS` table;
 // none of these has anything to fail at.
 #![allow(clippy::unnecessary_wraps)]
 
@@ -60,3 +60,22 @@ fn cost_rows(named: &str, rows: Vec<(String, u64, u64)>) -> Value {
             .collect(),
     )
 }
+
+/// The `engine` calls that count what scripts cost.
+pub(crate) const OPS: &[crate::engine_api::EngineOp] = &[
+    crate::engine_api::EngineOp {
+        module: "engine",
+        name: "set_script_profiling",
+        call: set_script_profiling,
+    },
+    crate::engine_api::EngineOp {
+        module: "engine",
+        name: "script_costs",
+        call: script_costs,
+    },
+    crate::engine_api::EngineOp {
+        module: "engine",
+        name: "function_costs",
+        call: function_costs,
+    },
+];
