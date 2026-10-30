@@ -1,5 +1,6 @@
-> **Status:** planned 2026-10-30, nothing built. Step 8 of
-> PLAN-foundations: after the per-kind splits, before the ECS work.
+> **Status:** planned 2026-10-30. Step 1 (the graph) done 2026-10-30: the
+> table below is from it. Step 8 of PLAN-foundations: after the per-kind
+> splits, before the ECS work.
 
 # Plan: the core split
 
@@ -12,19 +13,42 @@ all 24.
 
 ## 1. The crates
 
-A kernel and four crates around it. This is a first cut by module name;
-step 1 checks it against the real `use` graph before anything moves.
+A kernel, a composition layer above it, and five crates around it, from
+the `use` graph (`scripts/core_graph.py`, step 1, 2026-10-30). The first cut
+by module name crossed the lines 55 times and made two cycles: the kernel
+reads `files`, `project`, `settings`, `replay`, `assets` and
+`document_paths` everywhere, so they stay in it, and `app` and
+`engine_api` wire every crate together, so they go above.
 
-| Crate | Modules |
-| --- | --- |
-| `balaur_core`, the kernel | `engine`, `app`, `resources`, `plugins`, `scene`, `scene_switch`, `scene_toml`, `ids`, `transform`, `process`, `time`, `timer`, `timers`, `interpolate`, `components` (with `derived`, `schema`, `property`, `accepts`, `attached`, `authored` until it goes), `node_api`, `node_meta`, `engine_api`, `scene_api`, `events`, `hooks`, `changes`, `bindings`, `variables`, `states`, `presets`, `tags`, `layers`, `digest`, `attachments`, `handler`, `collections`, `rng`, `warnings`, `logbuf`, `timings`, `wake`, `task`, `facts`, `math_api`, `regex_api` |
-| `balaur_geometry` | `mesh`, `primitive`, `csg`, `geometry2d`, `triangulate`, `path`, `stroke`, `heightfield`, `tiles`, `voxels`, `skeleton` |
-| `balaur_asset` | `assets`, `asset_index`, `pixels`, `texture_asset`, `glb`, `glb_material` and its `.wesl`, `import`, `document_paths`, the `svg` feature |
-| `balaur_replay` | `replay`, `replay_api`, `rollback`, `rollback_api`, `snapshot`, `netsession`, `transport` |
-| `balaur_project` | `project`, `project_files`, `pack`, `settings`, `settings_api`, `files`, `file_api`, `save`, `strings`, `ignore`, `dependencies`, `desktop`, `desktop_api`, `standalone`, `batteries_api` |
+| Crate | Modules | Lines |
+| --- | --- | ---: |
+| `balaur_core`, the kernel | everything not below: `engine`, `scene`, `components`, `node_api`, `events`, `hooks`, `replay`, `snapshot`, `files`, `project`, `settings`, `assets`, `document_paths`, ... (52) | 21,228 |
+| composition (the `balaur` crate) | `app`, the `engine_api` registrations of the crates below | 2,374 |
+| `balaur_geometry` | `primitive`, `csg`, `geometry2d`, `triangulate`, `path`, `stroke`, `heightfield`, `voxels`, `skeleton`, `tiles`, and `mesh`'s data | 7,046 |
+| `balaur_asset` | `pixels`, `texture_asset`, `glb`, `glb_material` and its `.wesl`, `import`, `mesh`'s loaders, the `svg` feature | 4,314 |
+| `balaur_net` | `rollback`, `rollback_api`, `netsession`, `transport` | 1,510 |
+| `balaur_project` | `pack`, `project_files`, `asset_index`, `dependencies`, `desktop`, `desktop_api`, `standalone`, `batteries_api` | 4,002 |
+| `balaur_debug` | `dap`, `debugger_api`, `profile_api`, `debug_lines`, `engine_docs` | 1,407 |
 
-`dap`, `debugger_api`, `profile_api`, `debug_lines` and `engine_docs` go to
-`balaur_script_bs` or a `balaur_debug` crate, whichever the graph favours.
+What still crosses, 34 edges, and how each goes:
+
+- Into `app`: `Stage` and `ScriptArgs` (kernel types defined there) move to
+  the kernel; `App` itself is used only by tests, which move up with it.
+- Into `engine_api`: `text`, `from_json`, `resolve` and `user_data_dir_of`
+  are kernel helpers and move to the kernel; each crate below registers its
+  own script calls, called from the composition layer in the order they register now.
+- `mesh`: its data types (`Mesh`, the vertex streams) are geometry and
+  `primitive`, `path` and `csg` build them; its glTF and import loaders are
+  asset. It splits.
+- `assets` (kernel) reaches `import`, `texture_asset`, `asset_index` and
+  `dependencies`: a loader registration by extension, as the script host's
+  is, so the kernel calls what a crate registered.
+- `replay` reaches `rollback`, and `settings` reaches `transport`: a
+  rollback hook and the transport's settings rows move to the kernel side
+  that reads them.
+- `project` and `document_paths` reach `dependencies`, `project_files` and
+  `asset_index`: the dependency mounts are a kernel fact (where a path
+  resolves), and stay; the installer and the index go to `balaur_project`.
 
 ## 2. Rules
 
