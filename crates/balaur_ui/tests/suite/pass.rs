@@ -270,6 +270,38 @@ fn a_paste_is_read_after_the_pass_that_saw_it() {
     );
 }
 
+/// An image pasted where no field took it is said as `pasted_image` with its
+/// size, and a script writes it into the project as a PNG, once.
+#[test]
+fn a_pasted_image_is_said_and_written_out() {
+    let (dir, mut app, ctx, errors) = run(&Script {
+        fields: "got: str",
+        methods: "pub fn init() { events::listen(self.node, \"pasted_image\"); }\n\
+                  pub fn on_pasted_image(size: any) {\n\
+                  let saved = ui::save_pasted_image(\"pasted.png\");\n\
+                  let again = ui::save_pasted_image(\"again.png\");\n\
+                  self.got = \"{size.width}x{size.height} {saved} {again}\";\n\
+                  }",
+        ..Script::default()
+    });
+    assert!(errors.is_empty(), "{errors:#?}");
+    let image = egui::ColorImage::filled([3, 2], egui::Color32::RED);
+    feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PasteImage(std::sync::Arc::new(image))],
+    );
+    app.tick(balaur_core::DEFAULT_FIXED_DT);
+    let root = node(&app, "Root");
+    assert_eq!(
+        crate::support::script_text(&app, root, "got").as_deref(),
+        Some("3x2 true false")
+    );
+    let written = std::fs::read(dir.path().join("pasted.png")).unwrap();
+    let decoded = image::load_from_memory(&written).unwrap();
+    assert_eq!((decoded.width(), decoded.height()), (3, 2));
+}
+
 #[test]
 fn a_theme_can_be_set_from_a_script() {
     run_clean(

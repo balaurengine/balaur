@@ -105,6 +105,8 @@ pub class State {
     schemas: any,
     expects: any,
     opened: any,
+    // Each open buffer typed into since it was written, by its path, with
+    // the wall-clock second it was last typed into.
     script_dirty: any,
     collapsed: any,
     view_shot: str,
@@ -1553,6 +1555,12 @@ impl Editor {
     /// copied node.
     pub fn on_pasted(text: str) {
         model::paste_nodes(self.state, text.as_str());
+    }
+
+    /// An image pasted where no field took it is a sprite at the pointer, as
+    /// a dropped one is.
+    pub fn on_pasted_image(_size: any) {
+        dropin::paste_image(self.state);
     }
 
     /// A shell key's command, by the name of its node in scenes/panels/keys.toml.

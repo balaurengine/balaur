@@ -189,7 +189,7 @@ fn accept(state: &mut editor::State) {
     }
     let path = state.game_root + "/" + state.complete.rel;
     state.script_buffers.set(path, head + state.complete.items[picked].insert + tail);
-    state.script_dirty.set(path, true);
+    state.script_dirty.set(path, engine::unix_time());
     lint::touched(state);
     signals::bars(state);
     center::code_written(state);

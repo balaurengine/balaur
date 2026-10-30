@@ -6385,6 +6385,10 @@
         "least": 1,
         "signature": "(Node, str?, any) -> bool"
       },
+      "ui::save_pasted_image": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
       "ui::scale": {
         "least": 0,
         "signature": "() -> float"
@@ -25769,6 +25773,7 @@
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
         "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead.",
         "reread": "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
+        "save_pasted_image": "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
         "set_clipboard": "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
@@ -25804,6 +25809,7 @@
         "pasted_text",
         "request_repaint",
         "reread",
+        "save_pasted_image",
         "scale",
         "set_clipboard",
         "set_focus",
@@ -25840,6 +25846,7 @@
         "pasted_text": "() -> str",
         "request_repaint": "(any)",
         "reread": "(Node, str?, any) -> bool",
+        "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",
         "set_clipboard": "(str)",
         "set_focus": "(Node)",

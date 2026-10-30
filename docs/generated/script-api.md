@@ -54,7 +54,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 33 | 66 |
+| [`ui`](#ui) | 34 | 66 |
 | [`websocket`](#websocket) | 4 | 9 |
 | [`window`](#window) | 8 | 0 |
 
@@ -1540,6 +1540,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `pasted_text` | `() -> str` |
 | `request_repaint` | `(any)` |
 | `reread` | `(Node, str?, any) -> bool` |
+| `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
 | `set_focus` | `(Node)` |

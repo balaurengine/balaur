@@ -1,17 +1,22 @@
 // Nothing to save: an edit to the scene is written to its file once the
-// edits stop for a moment, so a closed tab or a crash loses at most that
-// moment. A script stays the code panel's to write, since writing one is
-// compiling it.
+// edits stop for a moment, and a script or a shader once its typing stops
+// for a little longer, since writing a script is compiling it. A closed tab
+// or a crash loses at most that moment.
 
 use anim;
 use editor;
 use history;
 use manager;
 use model;
+use shell;
 
 // Seconds without a new edit before the scene is written: past a drag's last
 // frame and a typed number's last key, short of anyone reaching for a save.
 pub const SETTLE: float = 0.6;
+
+// Seconds a script or shader buffer rests before it is written: a pause in
+// typing, not the gap between two words.
+pub const TYPING_SETTLE: float = 1.5;
 
 /// Write the scene if it has changed and the edits have settled by `now`, a
 /// wall clock in seconds; answers whether it wrote. Not while a game plays,
@@ -36,7 +41,24 @@ pub fn step(state: &mut editor::State) {
     if scripted(state) {
         return;
     }
-    write_settled(state, engine::unix_time());
+    let now = engine::unix_time();
+    write_settled(state, now);
+    write_typed(state, now);
+}
+
+/// Write each code buffer whose typing has rested by `now`; answers how many
+/// it wrote.
+pub fn write_typed(state: &mut editor::State, now: float) -> int {
+    let rested: [str] = [];
+    for path in state.script_dirty.keys() {
+        if now - state.script_dirty.get(path).as_float() >= TYPING_SETTLE {
+            rested.push(path.as_str());
+        }
+    }
+    for path in rested {
+        shell::save_buffer(state, path);
+    }
+    rested.len()
 }
 
 fn scripted(state: editor::State) -> bool {
@@ -45,5 +67,6 @@ fn scripted(state: editor::State) -> bool {
 
 /// Whether an edit waits to be written, which asks for the frame that writes it.
 pub fn waiting(state: editor::State) -> bool {
-    !scripted(state) && history::dirty(state) && !state.playing && !state.isolated && !manager::showing(state) && !model::read_only(state)
+    let scene = history::dirty(state) && !state.playing && !state.isolated && !manager::showing(state) && !model::read_only(state);
+    !scripted(state) && (scene || state.script_dirty.len() > 0)
 }

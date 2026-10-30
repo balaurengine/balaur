@@ -13,6 +13,7 @@
 mod api;
 mod bridge;
 mod chord;
+mod clipboard;
 pub mod contrast;
 mod images;
 mod loading;
@@ -37,8 +38,9 @@ pub use touch::draw_touch_controls;
 pub use widget::input::{
     ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
     CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,
-    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT,
-    SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
+    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT,
+    PASTED_IMAGE_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer,
+    WidgetInputSnapshot, click, edit, submit,
 };
 pub use widget::inspector::reread;
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
@@ -205,6 +207,9 @@ pub struct UiState {
     pub clipboard: Option<String>,
     /// The text the last pass saw pasted, empty when it saw none.
     pub pasted: String,
+    /// The image the last pass saw pasted where no field took it, until a
+    /// script writes it out with `ui::save_pasted_image`.
+    pub pasted_image: Option<clipboard::Image>,
     /// Whether a widget held the keyboard when the last pass ended.
     pub wants_keyboard: bool,
     /// A finger down on a `scroll` with a deadzone, until it lifts.
@@ -422,6 +427,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     // An inspector's rows are nodes it fills, so they are filled before the
     // layer reads the tree.
     widget::inspector::refresh(eng);
+    clipboard::read_paste(ctx);
     widget::layer::draw(eng, ctx);
     // Over everything, for as long as it lasts.
     splash::draw(eng, ctx);
@@ -430,6 +436,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         if let Some(text) = state.clipboard.take() {
             ctx.copy_text(text);
         }
+        clipboard::write_copies(ctx);
         state.pasted = ctx.input(|i| {
             i.events
                 .iter()
@@ -442,6 +449,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         });
         state.wants_keyboard = ctx.egui_wants_keyboard_input();
     }
+    widget::input::hear_pasted_image(eng, ctx);
     routing::pass_drew(eng, ctx);
     bridge::leave_pass();
     state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));

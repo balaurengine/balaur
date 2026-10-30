@@ -708,7 +708,7 @@ pub fn format_active(state: &mut editor::State) {
         return;
     }
     state.script_buffers.set(abs, formatted);
-    state.script_dirty.set(abs, true);
+    state.script_dirty.set(abs, engine::unix_time());
     lint::touched(state);
     signals::bars(state);
     // The code sheet writes its text again only when told the buffer moved.
@@ -717,55 +717,59 @@ pub fn format_active(state: &mut editor::State) {
 }
 
 pub fn save_active(state: &mut editor::State) {
-    // A shader is not a script: it is written and the watcher relinks the
-    // materials naming it, with no unit to rebuild.
     if state.shader_rel != "" && state.doctab == "script" {
-        let abs = state.game_root + "/" + state.shader_rel;
-        let buffer = state.script_buffers.get(abs);
-        if !buffer.is_nil() {
-            fs::write(abs, buffer.as_str());
-            state.script_dirty.remove(abs);
-            signals::bars(state);
-            // The watcher covers the editor's own root, not the game's.
-            assets::invalidate();
-            log::info("saved " + state.shader_rel);
-        }
+        save_buffer(state, state.game_root + "/" + state.shader_rel);
         return;
     }
     let node = model::selected_node(state);
     let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == "script") && !model::script_rel(node).is_nil();
     if in_script {
-        let rel = model::script_rel(node).as_str();
-        let abs = state.game_root + "/" + rel;
-        let buffer = state.script_buffers.get(abs);
-        if !buffer.is_nil() {
-            fs::write(abs, buffer.as_str());
-            model::forget(state, rel);
-            state.script_dirty.remove(abs);
-            signals::bars(state);
-            // A recording cannot survive its own code changing: the frames
-            // after a reload came from a different game. The session ends
-            // here, and what it caught until now is kept.
-            session::end(state, "reload");
-            // The reload is also the compile: it builds the unit whether or
-            // not the script is live, and leaves the old one running on a
-            // failure, so a save that does not compile can say so.
-            let err = engine::reload_script(abs);
-            // A save is the one moment the whole project is known good or
-            // not; the idle sweep only catches up to it.
-            lint::run(state);
-            if err == "" {
-                log::info("saved " + rel);
-            } else {
-                say_failed(state, err);
-            }
-        }
+        save_buffer(state, state.game_root + "/" + model::script_rel(node).as_str());
         return;
     }
     // An external clip is its own file; an inline one rides along with the
     // scene. `anim::save` knows which it is looking at.
     anim::save(state);
     model::save(state);
+}
+
+/// Write one open buffer, a script's or a shader's, to its file: what ⌘S
+/// does for the code in the centre, and what the autosave does once typing
+/// stops.
+pub fn save_buffer(state: &mut editor::State, abs: str) {
+    let buffer = state.script_buffers.get(abs);
+    if buffer.is_nil() {
+        return;
+    }
+    let rel = abs.replace(state.game_root + "/", "");
+    fs::write(abs, buffer.as_str());
+    model::forget(state, rel);
+    state.script_dirty.remove(abs);
+    signals::bars(state);
+    // A shader is not a script: it is written and the watcher relinks the
+    // materials naming it, with no unit to rebuild.
+    if abs.ends_with(".wesl") {
+        // The watcher covers the editor's own root, not the game's.
+        assets::invalidate();
+        log::info("saved " + rel);
+        return;
+    }
+    // A recording cannot survive its own code changing: the frames after a
+    // reload came from a different game. The session ends here, and what it
+    // caught until now is kept.
+    session::end(state, "reload");
+    // The reload is also the compile: it builds the unit whether or not the
+    // script is live, and leaves the old one running on a failure, so a save
+    // that does not compile can say so.
+    let err = engine::reload_script(abs);
+    // A save is the one moment the whole project is known good or not; the
+    // idle sweep only catches up to it.
+    lint::run(state);
+    if err == "" {
+        log::info("saved " + rel);
+    } else {
+        say_failed(state, err);
+    }
 }
 
 /// Write a picture of the scene as a run of it draws it, at the project's

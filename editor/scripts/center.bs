@@ -686,7 +686,7 @@ pub fn code_typed(state: &mut editor::State, text: str) {
     }
     let path = state.game_root + "/" + file.rel;
     state.script_buffers.set(path, text);
-    state.script_dirty.set(path, true);
+    state.script_dirty.set(path, engine::unix_time());
     lint::touched(state);
     signals::bars(state);
     if !file.shading && read_hooks(state, file.rel, text) {

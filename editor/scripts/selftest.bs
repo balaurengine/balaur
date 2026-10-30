@@ -298,6 +298,16 @@ pub fn autosaving(state: &mut editor::State) {
     model::rename_selected(state, was);
     autosave::write_settled(state, engine::unix_time() + autosave::SETTLE + 0.1);
     check(!fs::read(state.scene_path).or("").contains("Autosaved"), "putting the name back writes it back");
+    // A script typed into is written once the typing rests, and compiled.
+    let path = state.game_root + "/scripts/autosaved_probe.bs";
+    let source = "pub fn probe() -> int {{\n    1\n}}\n";
+    state.script_buffers.set(path, source);
+    state.script_dirty.set(path, engine::unix_time());
+    check(autosave::write_typed(state, engine::unix_time()) == 0, "a buffer still being typed into waits");
+    check(autosave::write_typed(state, engine::unix_time() + autosave::TYPING_SETTLE + 0.1) == 1, "and is written once the typing rests");
+    check(fs::read(path).or("") == source && !state.script_dirty.has(path), "leaving nothing to save");
+    fs::remove(path);
+    state.script_buffers.remove(path);
 }
 
 pub fn rename(state: &mut editor::State) {

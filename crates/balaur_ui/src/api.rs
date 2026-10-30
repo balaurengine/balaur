@@ -472,6 +472,7 @@ fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("window_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
         ("pasted_text", &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
+        ("save_pasted_image", &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
         ("wants_keyboard", &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
         ("wants_pointer", &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
         ("takes_pointer_at", &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
@@ -508,6 +509,14 @@ fn install_clipboard(m: &mut dyn Bindings<Engine>) {
     });
     m.function("pasted_text", |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().pasted.clone())
+    });
+    m.function("save_pasted_image", |eng: &Engine, path: String| {
+        let Some(image) = eng.resource::<UiState>().borrow_mut().pasted_image.take() else {
+            return Ok(false);
+        };
+        let to = balaur_core::file_api::resolve(eng, &path)?;
+        balaur_core::files::backend(eng).write(&to, &crate::clipboard::png_of(&image)?)?;
+        Ok(true)
     });
     m.function("wants_keyboard", |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().wants_keyboard)

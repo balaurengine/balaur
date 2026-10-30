@@ -390,6 +390,18 @@ pub fn place_file(state: &mut editor::State, rel: str) -> bool {
     placed.is_valid()
 }
 
+/// An image pasted where no field took it: written into the project's images
+/// and placed as a dropped one is, at the pointer.
+pub fn paste_image(state: &mut editor::State) {
+    let rel = landing(state, "pasted.png", HOMES().image);
+    if !ui::save_pasted_image(state.game_root + "/" + rel) {
+        return;
+    }
+    model::forget(state, nil);
+    log::info("added " + rel);
+    place_file(state, rel);
+}
+
 /// No node: what a verb that placed none answers.
 fn nothing() -> Node {
     nil

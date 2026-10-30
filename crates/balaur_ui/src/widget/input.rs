@@ -242,6 +242,9 @@ pub const RESIZED_EVENT: &str = "resized";
 /// What the UI says from no node when text was pasted and no field took it,
 /// with the text: the platform clipboard is not readable on demand.
 pub const PASTED_EVENT: &str = "pasted";
+/// What the UI says from no node when an image was pasted and no field took
+/// it, with its `{ width, height }`: `ui::save_pasted_image` writes it out.
+pub const PASTED_IMAGE_EVENT: &str = "pasted_image";
 
 /// Which widgets the pointer was over at the end of the last pass.
 #[derive(Default)]
@@ -254,6 +257,40 @@ pub(crate) struct Shown(Vec<Entity>);
 
 /// What the pass saw over its whole length: the pointer's edits, and each
 /// popup, dialog and window that came up or went away.
+/// Say `pasted_image` for an image pasted where no field took it, and keep
+/// the image for `ui::save_pasted_image`. Every pass, as the pasted text is
+/// read: a pass that draws nothing still saw the paste.
+pub(crate) fn hear_pasted_image(eng: &Engine, ctx: &egui::Context) {
+    if ctx.egui_wants_keyboard_input() || !balaur_core::events::heard(eng, PASTED_IMAGE_EVENT) {
+        return;
+    }
+    let image = ctx.input(|i| {
+        i.events.iter().rev().find_map(|event| match event {
+            egui::Event::PasteImage(image) => Some(image.clone()),
+            _ => None,
+        })
+    });
+    let Some(image) = image else {
+        return;
+    };
+    let [width, height] = image.size;
+    eng.resource::<crate::UiState>().borrow_mut().pasted_image = Some(image);
+    balaur_core::events::emit(
+        eng,
+        PASTED_IMAGE_EVENT,
+        Value::Map(vec![
+            (
+                "width".into(),
+                Value::Int(i64::try_from(width).unwrap_or(i64::MAX)),
+            ),
+            (
+                "height".into(),
+                Value::Int(i64::try_from(height).unwrap_or(i64::MAX)),
+            ),
+        ]),
+    );
+}
+
 pub(crate) fn pass_edits(
     eng: &Engine,
     ctx: &egui::Context,

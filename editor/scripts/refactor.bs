@@ -114,7 +114,7 @@ pub fn apply(state: &mut editor::State) {
     for one in state.refactor.written {
         let abs = state.game_root + "/" + one.file;
         state.script_buffers.set(abs, one.source);
-        state.script_dirty.set(abs, true);
+        state.script_dirty.set(abs, engine::unix_time());
         lint::touched(state);
         signals::bars(state);
     }
