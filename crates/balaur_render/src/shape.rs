@@ -71,7 +71,6 @@ pub enum FlatKind {
     Ellipse,
     Star,
     Ngon,
-    Polyline,
 }
 
 /// How a polyline's segments meet: `balaur_core::stroke::Join`'s words.
@@ -152,7 +151,7 @@ pub struct Primitive3d {
     pub segmentation_id: i64,
 }
 
-/// A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.
+/// A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`; a stroked line is `line2d`.
 // The `shape2d` component; the node draws the [`Renderable2d`] each write
 // leaves beside it.
 #[derive(Component)]
@@ -164,7 +163,7 @@ pub struct Primitive2d {
     /// Tint, as channel floats or #rrggbb / #rrggbbaa
     #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
     pub color: [f32; 4],
-    /// An image, or a `texture` asset, the shape draws with: over a primitive's own UVs, and along a polyline repeating once per world unit of its length
+    /// An image, or a `texture` asset, the shape draws with over its own UVs
     #[property(asset = "texture")]
     pub texture: String,
     /// The material this draws with; empty draws with the built-in one
@@ -191,35 +190,54 @@ pub struct Primitive2d {
     /// How far the notches between a star's tips reach
     #[property(default = 0.2, min = 0.01, group = "shape")]
     pub inner_radius: f32,
-    /// Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps
+    /// Cuts around a circle, an ellipse or a rounded corner
     #[property(default = 32, min = 3, group = "shape")]
     pub segments: i64,
-    /// Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve
-    #[property(asset = "mesh", group = "line")]
+}
+
+/// A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.
+// The node draws the [`Renderable2d`] each write leaves beside it, as a
+// `shape2d` does.
+#[derive(Component)]
+#[component(name = "line2d")]
+pub struct Line2d {
+    /// Where the line's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve
+    #[property(asset = "mesh")]
     pub mesh: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
+    pub color: [f32; 4],
+    /// An image, or a `texture` asset, the line draws with, repeating once per world unit of its length
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
     /// Join the last point back to the first, making a polygon outline
-    #[property(group = "line")]
     pub closed: bool,
-    /// Line thickness in world units, when kind is polyline
-    #[property(default = 0.02, min = 0.001, group = "line")]
+    /// Line thickness in world units
+    #[property(default = 0.02, min = 0.001)]
     pub width: f32,
-    /// Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps
-    #[property(default = [1.0, 1.0], group = "line")]
+    /// Multipliers on `width` at the line's start and end, blended along it; anything but [1, 1] draws round joins and caps
+    #[property(default = [1.0, 1.0])]
     pub taper: [f32; 2],
-    /// How a polyline's segments meet
-    #[property(default = LineJoin::Round, group = "line")]
+    /// How the line's segments meet
+    #[property(default = LineJoin::Round)]
     pub join: LineJoin,
-    /// How an open polyline ends
-    #[property(default = LineCap::Round, group = "line")]
+    /// How an open line ends
+    #[property(default = LineCap::Round)]
     pub cap: LineCap,
     /// How far a miter join may reach, in half-widths, before its corner is cut to a bevel
-    #[property(default = 4.0, min = 1.0, group = "line")]
+    #[property(default = 4.0, min = 1.0)]
     pub miter_limit: f32,
-    /// The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient
-    #[property(color, group = "line")]
+    /// Cuts around a round join or cap
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient
+    #[property(color, group = "gradient")]
     pub gradient: [f32; 4],
-    /// How many colours a polyline's gradient steps through along its length
-    #[property(default = 32, min = 1, group = "line")]
+    /// How many colours the gradient steps through along the line
+    #[property(default = 32, min = 1, group = "gradient")]
     pub gradient_steps: i64,
 }
 
@@ -274,21 +292,45 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
     );
 }
 
-/// What a `shape2d` draws: its primitive, or a polyline with the mesh asset
-/// its points come from and how it is dressed.
-enum Figure2d {
-    Flat(Flat),
-    Polyline(Stroke, String, crate::LineStyle),
+/// What a write of `shape2d` leaves to be worked out again.
+fn shape2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    shape2d_laid_out(eng, entity)
 }
 
-impl Figure2d {
-    /// The shape `asked` describes. A polyline is the one 2D kind with no
-    /// dimensions of its own: its points come from a mesh asset, so it is
-    /// read here rather than by the mesher.
-    fn of(asked: &Primitive2d) -> Result<Self> {
-        if asked.kind != FlatKind::Polyline {
-            return Ok(Self::Flat(Flat::from_params(&to_table(asked))?));
-        }
+/// A `shape2d`'s shape, tint, texture and material, worked out again from
+/// what was written.
+fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let (flat, color, texture, material) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Primitive2d>(entity) else {
+            return Ok(());
+        };
+        (
+            Flat::from_params(&to_table(&*asked)),
+            asked.color,
+            asked.texture.clone(),
+            asked.material.clone(),
+        )
+    };
+    set_shape2d(eng, entity, Shape2d::Flat(flat?))?;
+    set_color(eng, entity, color)?;
+    crate::set_texture_2d(eng, entity, &texture)?;
+    crate::material::set_material_2d(eng, entity, &material)
+}
+
+/// What a write of `line2d` leaves to be worked out again.
+fn line2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    line2d_laid_out(eng, entity)
+}
+
+/// A `line2d`'s stroke, the points it follows, its tint, texture and
+/// material, worked out again from what was written.
+fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let (stroke, source, style, color, texture, material) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Line2d>(entity) else {
+            return Ok(());
+        };
         let stroke = Stroke {
             width: asked.width.max(0.001),
             closed: asked.closed,
@@ -300,39 +342,19 @@ impl Figure2d {
         };
         // A gradient with no alpha is no gradient: the schema's default.
         let style = crate::LineStyle {
-            gradient: Some(asked.gradient).filter(|color| color[3] > 0.0),
+            gradient: Some(asked.gradient).filter(|gradient| gradient[3] > 0.0),
             gradient_steps: u32::try_from(asked.gradient_steps.max(1)).unwrap_or(u32::MAX),
         };
-        Ok(Self::Polyline(stroke, asked.mesh.clone(), style))
-    }
-}
-
-/// What a write of `shape2d` leaves to be worked out again.
-fn shape2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    shape2d_laid_out(eng, entity)
-}
-
-/// A `shape2d`'s shape, tint, texture and material, worked out again from
-/// what was written.
-fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
-    let (drawn, color, texture, material) = {
-        let world = eng.world();
-        let Ok(asked) = world.get::<&Primitive2d>(entity) else {
-            return Ok(());
-        };
         (
-            Figure2d::of(&asked),
+            stroke,
+            asked.mesh.clone(),
+            style,
             asked.color,
             asked.texture.clone(),
             asked.material.clone(),
         )
     };
-    match drawn? {
-        Figure2d::Flat(flat) => set_shape2d(eng, entity, Shape2d::Flat(flat))?,
-        Figure2d::Polyline(stroke, source, style) => {
-            set_polyline(eng, entity, source, Shape2d::Polyline(stroke), style)?;
-        }
-    }
+    set_polyline(eng, entity, source, Shape2d::Polyline(stroke), style)?;
     set_color(eng, entity, color)?;
     crate::set_texture_2d(eng, entity, &texture)?;
     crate::material::set_material_2d(eng, entity, &material)
@@ -355,6 +377,23 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     );
 }
 
+/// The `line2d` component: a stroked line through an asset's points.
+pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
+        Line2d::NAME,
+        ComponentDef {
+            tags: &[words::ORTHOGRAPHIC, "render"],
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Line2d>(entity);
+                let _ = world.remove_one::<Renderable2d>(entity);
+                Ok(())
+            }),
+            ..ComponentDef::of::<Line2d>(Some(line2d_written))
+        },
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use balaur_core::primitive::words as primitive;
@@ -367,12 +406,7 @@ mod tests {
     #[test]
     fn a_shape_offers_the_words_core_reads() {
         assert_eq!(SolidKind::OPTIONS, primitive::SOLIDS);
-        let flats: Vec<&str> = primitive::FLATS
-            .iter()
-            .copied()
-            .chain(["polyline"])
-            .collect();
-        assert_eq!(FlatKind::OPTIONS, flats.as_slice());
+        assert_eq!(FlatKind::OPTIONS, primitive::FLATS);
         assert_eq!(LineJoin::OPTIONS, stroke::JOINS);
         assert_eq!(LineCap::OPTIONS, stroke::CAPS);
     }

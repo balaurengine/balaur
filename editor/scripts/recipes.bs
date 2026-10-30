@@ -62,7 +62,7 @@ fn take_off(node: any, component: str) {
 // is. A new type replaces what the node holds from each group it fills.
 fn groups() -> [[str]] {
     [
-        ["sprite", "shape2d", "polygon", "text2d", "tilemap"],
+        ["sprite", "shape2d", "line2d", "polygon", "text2d", "tilemap"],
         ["mesh", "shape3d", "text3d"],
         ["body2d", "softbody2d", "character2d"],
         ["body3d", "softbody3d", "character3d", "vehicle3d"],

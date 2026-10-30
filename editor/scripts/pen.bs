@@ -42,18 +42,14 @@ const MARK_PIXELS: float = 4.5;
 
 const LINE_WIDTH: float = 1.6;
 
-/// The `path2d` reference the selected node strokes, or "" when it strokes
-/// none. A polyline names it where a mesh-backed one names a mesh.
+/// The `path2d` reference the selected node's `line2d` strokes, or "" when
+/// it strokes none.
 pub fn reference(state: editor::State) -> str {
     let found = model::selected_node(state);
-    if !found.is_valid() || !found.has_component("shape2d") {
+    if !found.is_valid() || !found.has_component("line2d") {
         return "";
     }
-    let shape = found.authored("shape2d");
-    if shape.kind.as_str() == render::SHAPE_POLYLINE {
-        return shape.mesh.as_str();
-    }
-    ""
+    found.authored("line2d").mesh.as_str()
 }
 
 /// Whether the Pen has something to edit.
@@ -118,8 +114,8 @@ fn save(state: &mut editor::State) {
     // The stroke is drawn from the asset, so the node has to be told the file
     // under it moved; re-applying the component is what re-reads it.
     let stroked = model::selected_node(state);
-    if stroked.is_valid() && stroked.has_component("shape2d") {
-        stroked.set_component("shape2d", stroked.authored("shape2d"));
+    if stroked.is_valid() && stroked.has_component("line2d") {
+        stroked.set_component("line2d", stroked.authored("line2d"));
     }
 }
 
@@ -285,7 +281,7 @@ pub fn new_path(state: &mut editor::State) {
     history::record(state, "add path", nil);
     let made = model::spawn(state, state.scene_root.unwrap(), name, map()
         .with("transform", map().with("position", [0.0, 0.0, 0.0]))
-        .with("shape2d", map().with("kind", render::SHAPE_POLYLINE).with("mesh", relative_path).with("width", 0.06)));
+        .with("line2d", map().with("mesh", relative_path).with("width", 0.06)));
     model::reindex(state);
     selection::only(state, model::index_of_node(state, made).unwrap_or(0));
     state.tool = "pen";

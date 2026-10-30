@@ -46,12 +46,7 @@ fn every_shape_takes_a_texture_and_reads_it_back() {
         "kind = \"circle\"\ntexture = \"rock.png\"",
     );
     let line = node(&app);
-    add(
-        &app,
-        line,
-        "shape2d",
-        "kind = \"polyline\"\ntexture = \"rope.png\"",
-    );
+    add(&app, line, "line2d", "texture = \"rope.png\"");
     assert_eq!(
         app.engine
             .world()
@@ -77,7 +72,7 @@ fn every_shape_takes_a_texture_and_reads_it_back() {
         Some("rock.png")
     );
     assert_eq!(
-        read(&app, line, "shape2d")["texture"].as_str(),
+        read(&app, line, "line2d")["texture"].as_str(),
         Some("rope.png")
     );
 }
