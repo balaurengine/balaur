@@ -381,7 +381,9 @@ mod web;
 mod web_editor;
 #[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
 mod web_export;
-use traces::{log_timings, print_timings, record_to, replay_session, trace_digest_to};
+#[cfg(not(target_arch = "wasm32"))]
+use traces::replay_session;
+use traces::{log_timings, print_timings, record_to, trace_digest_to};
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
