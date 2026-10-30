@@ -55,6 +55,19 @@ pub fn set_property_at(
     key: &str,
     value: &toml::Value,
 ) -> Result<()> {
+    set_property_known(eng, entity, index, key, None, value)
+}
+
+/// [`set_property_at`] with the property's place in the schema when the
+/// caller found it before, so the write by index looks nothing up.
+fn set_property_known(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    key: &str,
+    position: Option<usize>,
+    value: &toml::Value,
+) -> Result<()> {
     // A text may name a file, which a node of another project's content names
     // from that project's root.
     let content = value
@@ -62,7 +75,7 @@ pub fn set_property_at(
         .then(|| crate::document_paths::written_on(eng, entity, value))
         .flatten();
     let value = content.as_ref().unwrap_or(value);
-    if !derived_write(eng, entity, index, key, value) {
+    if !derived_write(eng, entity, index, key, position, value) {
         let params = toml::Value::Table(toml::map::Map::from_iter([(
             key.to_string(),
             value.clone(),
@@ -86,6 +99,7 @@ fn derived_write(
     entity: Entity,
     index: usize,
     key: &str,
+    position: Option<usize>,
     value: &toml::Value,
 ) -> bool {
     let Some(registry) = eng.try_resource::<super::ComponentRegistry>() else {
@@ -95,7 +109,8 @@ fn derived_write(
     let Some((_, def)) = registry.at(index) else {
         return false;
     };
-    let (Some(write), Some(at)) = (&def.write, def.schema.position(key)) else {
+    let at = position.or_else(|| def.schema.position(key));
+    let (Some(write), Some(at)) = (&def.write, at) else {
         return false;
     };
     matches!(write(eng, entity, at, value), Ok(true))
@@ -107,6 +122,79 @@ fn derived_read(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option
     let registry = registry.borrow();
     let (_, def) = registry.at(index)?;
     def.read.as_ref()?(eng, entity, def.schema.position(key)?)
+}
+
+/// Where a property sits: its component's place in the registry and its own
+/// in the schema, found once by a caller that reads or writes it again and
+/// again, as a script's `node.c.p` does (PLAN-balaur-script §9 step 6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PropertyPlace {
+    pub component: usize,
+    pub position: usize,
+}
+
+/// Where `key` of component `name` sits, or `None` for either unknown.
+#[must_use]
+pub fn place_of(eng: &Engine, name: &str, key: &str) -> Option<PropertyPlace> {
+    let registry = eng.try_resource::<super::ComponentRegistry>()?;
+    let registry = registry.borrow();
+    let component = registry.index_of(name)?;
+    let (_, def) = registry.at(component)?;
+    let position = def.schema.position(key)?;
+    Some(PropertyPlace {
+        component,
+        position,
+    })
+}
+
+/// [`property`] at a place found before: the one field of a derived
+/// component, the whole table's key for any other.
+#[must_use]
+pub fn property_placed(eng: &Engine, entity: Entity, place: PropertyPlace) -> Option<toml::Value> {
+    let key = {
+        let registry = eng.try_resource::<super::ComponentRegistry>()?;
+        let registry = registry.borrow();
+        let (_, def) = registry.at(place.component)?;
+        if let Some(read) = &def.read {
+            return read(eng, entity, place.position);
+        }
+        def.schema.order().get(place.position)?.clone()
+    };
+    property_at(eng, entity, place.component, &key)
+}
+
+/// [`set_property`] at a place found before.
+///
+/// # Errors
+/// What [`super::patch`] errors on.
+pub fn set_property_placed(
+    eng: &Engine,
+    entity: Entity,
+    place: PropertyPlace,
+    value: &toml::Value,
+) -> Result<()> {
+    let key = {
+        let registry = eng
+            .try_resource::<super::ComponentRegistry>()
+            .ok_or_else(|| anyhow!("component registry missing"))?;
+        let registry = registry.borrow();
+        let (_, def) = registry
+            .at(place.component)
+            .ok_or_else(|| anyhow!("no component at {}", place.component))?;
+        def.schema
+            .order()
+            .get(place.position)
+            .ok_or_else(|| anyhow!("no property at {}", place.position))?
+            .clone()
+    };
+    set_property_known(
+        eng,
+        entity,
+        place.component,
+        &key,
+        Some(place.position),
+        value,
+    )
 }
 
 /// One property of a component, without building the rest where the component

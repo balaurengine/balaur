@@ -121,7 +121,10 @@ use authored::{asked_for_at, forget, forget_node, record_at, record_one};
 pub(crate) fn asked_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
     asked_for_at(eng, entity, index)
 }
-pub use property::{answers_alone, property, property_at, set_property, set_property_at};
+pub use property::{
+    PropertyPlace, answers_alone, place_of, property, property_at, property_placed, set_property,
+    set_property_at, set_property_placed,
+};
 use schema::hex_rgba;
 pub use schema::{
     PROPERTY_TYPES, UNITS, complete_property, inner_specs, validate_property, validate_value,
