@@ -13,8 +13,8 @@ mod tiled_map;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use balaur_asset::glb::{Beside, SideReader};
 use balaur_core::files;
-use balaur_core::glb::{Beside, SideReader};
 use balaur_core::task::Progress;
 
 /// What an import wrote: the project-relative paths, and the scene the editor
@@ -650,7 +650,7 @@ mod tests {
             "walk.aseprite",
             &bytes,
             &mut sink,
-            &balaur_core::glb::no_side_files,
+            &balaur_asset::glb::no_side_files,
             &[],
         )
         .unwrap();
@@ -706,7 +706,7 @@ mod tests {
         let mut plan = crate::plan_bytes(
             "walk.aseprite",
             &bytes,
-            &balaur_core::glb::no_side_files,
+            &balaur_asset::glb::no_side_files,
             &[],
         )
         .unwrap();
@@ -723,7 +723,7 @@ mod tests {
             // the name a progress report carries.
             let next = plan.peek().map(str::to_string);
             let progress = plan
-                .write_next(&mut sink, &balaur_core::glb::no_side_files)
+                .write_next(&mut sink, &balaur_asset::glb::no_side_files)
                 .unwrap();
             if let Some(path) = next {
                 slices += 1;

@@ -15,7 +15,7 @@ use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::MeshSkin;
+use balaur_geometry::mesh::MeshSkin;
 use glamx::Vec2;
 
 use crate::vocabulary::words;
@@ -144,7 +144,7 @@ pub(crate) fn resolve(
     if polygon.mesh.is_empty() {
         return Ok(polygon);
     }
-    let data = match balaur_core::mesh::resolved(eng, &polygon.mesh) {
+    let data = match balaur_geometry::mesh::resolved(eng, &polygon.mesh) {
         Ok(data) => data,
         Err(why) => {
             tracing::warn!("polygon mesh '{}': {why:#}", polygon.mesh);
@@ -195,7 +195,9 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     let mut tinted: Vec<(Entity, [f32; 4])> = Vec::new();
     {
         let world = eng.world();
-        for (entity, solved) in &mut world.query::<(Entity, &balaur_core::mesh::SolvedPolygon)>() {
+        for (entity, solved) in
+            &mut world.query::<(Entity, &balaur_geometry::mesh::SolvedPolygon)>()
+        {
             if solved.positions.is_empty() || solved.indices.is_empty() {
                 continue;
             }
@@ -224,7 +226,7 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     let gone: Vec<Entity> = world
         .query::<Entity>()
         .with::<&SolverDrawn2d>()
-        .without::<&balaur_core::mesh::SolvedPolygon>()
+        .without::<&balaur_geometry::mesh::SolvedPolygon>()
         .iter()
         .collect();
     for entity in gone {
@@ -233,7 +235,7 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     }
 }
 
-fn cells_of(solved: &balaur_core::mesh::SolvedPolygon) -> PolygonMesh {
+fn cells_of(solved: &balaur_geometry::mesh::SolvedPolygon) -> PolygonMesh {
     PolygonMesh {
         mesh: String::new(),
         texture: String::new(),

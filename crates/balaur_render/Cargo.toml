@@ -23,6 +23,8 @@ window = ["dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep
 aseprite = ["dep:aseprite-loader"]
 
 [dependencies]
+balaur_asset.workspace = true
+balaur_geometry.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 glamx.workspace = true

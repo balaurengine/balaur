@@ -2,9 +2,9 @@
 //! the volume the arithmetic says they should have, so a tree that keeps a
 //! face it should have dropped is caught by the number and not by eye.
 
-use balaur_core::csg::{Op, combine};
-use balaur_core::mesh::MeshData;
-use balaur_core::primitive::Solid;
+use balaur_geometry::csg::{Op, combine};
+use balaur_geometry::mesh::MeshData;
+use balaur_geometry::primitive::Solid;
 use glamx::{Quat, Vec3};
 use std::collections::BTreeMap;
 

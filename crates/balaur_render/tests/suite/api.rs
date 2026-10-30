@@ -307,7 +307,7 @@ fn a_line_is_a_shape2d_that_keeps_its_reference() {
 /// went in, so a save keeps the look.
 #[test]
 fn a_line_s_stroke_survives_the_round_trip() {
-    use balaur_core::stroke::{CAPS, JOINS};
+    use balaur_geometry::stroke::{CAPS, JOINS};
     let app = app();
     let pairs = JOINS
         .iter()

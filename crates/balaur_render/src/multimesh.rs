@@ -634,7 +634,7 @@ fn mesh_reference(eng: &Engine, asset: &MultiMeshAsset) -> Result<String> {
             let declared = table
                 .get("type")
                 .and_then(toml::Value::as_str)
-                .unwrap_or(balaur_core::mesh::MESH_ASSET_TYPE);
+                .unwrap_or(balaur_geometry::mesh::MESH_ASSET_TYPE);
             Ok(balaur_core::assets::define_inline(eng, declared, table.clone())?.to_string())
         }
     }

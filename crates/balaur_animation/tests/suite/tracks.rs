@@ -571,7 +571,7 @@ keys = [
         .get::<&scene::Transform>(entity)
         .unwrap()
         .rotation;
-    let angle = balaur_core::skeleton::angle_about_z(rotation);
+    let angle = balaur_geometry::skeleton::angle_about_z(rotation);
     assert!(
         (angle - std::f32::consts::FRAC_PI_4).abs() < 0.03,
         "half way to a quarter turn is an eighth, not {angle}"

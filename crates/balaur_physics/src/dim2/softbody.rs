@@ -7,7 +7,7 @@
 //! the node's drawn shape becomes the body it is simulated as.
 //!
 //! What the solver produces goes back on the node as a
-//! [`balaur_core::mesh::SolvedPolygon`], which is what the 2D renderer draws
+//! [`balaur_geometry::mesh::SolvedPolygon`], which is what the 2D renderer draws
 //! in place of the authored positions.
 
 use anyhow::{Result, anyhow};
@@ -380,8 +380,8 @@ fn mesh_in_world(
     pose: scalar::Pose2,
 ) -> Result<(Vec<Vector2>, Vec<[u32; 3]>)> {
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+    let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
     let points = mesh
         .positions
         .iter()
@@ -855,12 +855,12 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
     if let Some(triangles) = fresh {
         let _ = world.insert_one(entity, draw::SkinTriangles(triangles));
     }
-    if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedPolygon>(entity) {
+    if let Ok(mut solved) = world.get::<&mut balaur_geometry::mesh::SolvedPolygon>(entity) {
         solved.update(positions, indices);
         solved.color = color;
         return;
     }
-    let mut solved = balaur_core::mesh::SolvedPolygon::default();
+    let mut solved = balaur_geometry::mesh::SolvedPolygon::default();
     solved.update(positions, indices);
     solved.color = color;
     let _ = world.insert_one(entity, solved);
@@ -898,7 +898,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
     if let Some(drawn) = polygon_points(eng, entity) {
         let handed = eng
             .world()
-            .get::<&balaur_core::mesh::SolvedPolygon>(entity)
+            .get::<&balaur_geometry::mesh::SolvedPolygon>(entity)
             .map_or(drawn, |solved| solved.positions.len());
         if handed != drawn {
             out.push(Warning::on(
@@ -934,7 +934,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
 fn polygon_points(eng: &Engine, entity: Entity) -> Option<usize> {
     let polygon = balaur_core::components::get(eng, entity, c::POLYGON)?;
     let reference = polygon.get(k::MESH).and_then(toml::Value::as_str)?;
-    let mesh = balaur_core::mesh::resolved(eng, reference).ok()?;
+    let mesh = balaur_geometry::mesh::resolved(eng, reference).ok()?;
     Some(mesh.positions.len())
 }
 /// The soft body the component asks for, patched in place or built again.
@@ -982,7 +982,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
                 remove_softbody_2d(eng, entity);
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Softbody2d>(entity);
-                let _ = world.remove_one::<balaur_core::mesh::SolvedPolygon>(entity);
+                let _ = world.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
                 let _ = world.remove_one::<draw::SkinTriangles>(entity);
                 Ok(())
             }),

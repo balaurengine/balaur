@@ -418,6 +418,12 @@ def attribute(lines, i, limit=8) -> str:
     return text
 
 
+# The kernel and the crates split from it (docs/PLAN-core-split.md): their
+# registrations are an app's built-in steps, run before any plugin.
+BUILTIN_CRATES = {"balaur_core", "balaur_geometry", "balaur_asset", "balaur_net",
+                  "balaur_project", "balaur_debug"}
+
+
 def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
     """N10: the verb is bound to the parameter type."""
     m = re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+"
@@ -436,8 +442,9 @@ def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
     if want in param:
         return []
     # `Registry` lives in a crate that depends on core, so core's own
-    # registrations take the `App` they are building.
-    if verb == "register" and crate == "balaur_core" and "&mut App" in param:
+    # registrations, and the built-in steps of the crates split from it, take
+    # the `App` they are building.
+    if verb == "register" and crate in BUILTIN_CRATES and "&mut App" in param:
         return []
     # An inherent method on either is that type under another spelling.
     if verb == "register" and param.startswith("&mut self") and impl_name in ("App", "Registry"):

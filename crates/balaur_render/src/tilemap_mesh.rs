@@ -215,7 +215,7 @@ fn rebuild_chunks(
 /// that was rescaled or a tile that turned over rebuilds like an edit.
 #[cfg(feature = "window")]
 fn chunks_of(
-    grid: &balaur_core::tiles::TileGrid,
+    grid: &balaur_geometry::tiles::TileGrid,
     set: &TileSet,
     seconds: f32,
     frame: i64,
@@ -285,7 +285,7 @@ fn mix(hash: u64, value: u64) -> u64 {
 #[cfg(feature = "window")]
 fn build_chunk_node(
     tileset: &TileSet,
-    grid: &balaur_core::tiles::TileGrid,
+    grid: &balaur_geometry::tiles::TileGrid,
     sheet: glamx::Vec2,
     cells: &[Cell],
 ) -> kiss3d::scene::SceneNode2d {

@@ -8,7 +8,7 @@
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::components::as_f64;
+use balaur_core::components::as_f64;
 
 /// How a terrain's tiles are chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

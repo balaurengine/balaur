@@ -13,7 +13,7 @@ use toml::Value;
 fn extent(params: &Value, key: &str, fallback: f32) -> f32 {
     params
         .get(key)
-        .and_then(crate::components::as_f64)
+        .and_then(balaur_core::components::as_f64)
         .map_or(fallback, |v| v as f32)
         .max(MIN_EXTENT)
 }
@@ -23,7 +23,7 @@ fn extent(params: &Value, key: &str, fallback: f32) -> f32 {
 fn optional(params: &Value, key: &str, fallback: f32) -> f32 {
     params
         .get(key)
-        .and_then(crate::components::as_f64)
+        .and_then(balaur_core::components::as_f64)
         .map_or(fallback, |v| v as f32)
         .max(0.0)
 }
@@ -32,7 +32,7 @@ fn optional(params: &Value, key: &str, fallback: f32) -> f32 {
 fn count(params: &Value, key: &str, fallback: u32) -> u32 {
     params
         .get(key)
-        .and_then(crate::components::as_f64)
+        .and_then(balaur_core::components::as_f64)
         .map_or(fallback, |v| v as u32)
         .max(3)
 }
@@ -43,7 +43,7 @@ fn half(params: &Value, index: usize) -> f32 {
         .get(keys::SIZE)
         .and_then(Value::as_array)
         .and_then(|a| a.get(index))
-        .and_then(crate::components::as_f64)
+        .and_then(balaur_core::components::as_f64)
         .map_or(0.5, |v| v as f32 / 2.0)
         .max(MIN_EXTENT)
 }

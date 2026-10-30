@@ -5,9 +5,9 @@ use anyhow::Result;
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written, to_table};
 use balaur_core::hecs::Entity;
-use balaur_core::primitive::{Flat, Solid};
-use balaur_core::stroke::{Cap, Join, Stroke};
 use balaur_core::{Engine, entity_of};
+use balaur_geometry::primitive::{Flat, Solid};
+use balaur_geometry::stroke::{Cap, Join, Stroke};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
@@ -73,7 +73,7 @@ pub enum FlatKind {
     Ngon,
 }
 
-/// How a polyline's segments meet: `balaur_core::stroke::Join`'s words.
+/// How a polyline's segments meet: `balaur_geometry::stroke::Join`'s words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LineJoin {
     Round,
@@ -81,7 +81,7 @@ pub enum LineJoin {
     Bevel,
 }
 
-/// How an open polyline ends: `balaur_core::stroke::Cap`'s words.
+/// How an open polyline ends: `balaur_geometry::stroke::Cap`'s words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LineCap {
     Round,
@@ -396,8 +396,8 @@ pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
 
 #[cfg(test)]
 mod tests {
-    use balaur_core::primitive::words as primitive;
-    use balaur_core::stroke;
+    use balaur_geometry::primitive::words as primitive;
+    use balaur_geometry::stroke;
 
     use super::{FlatKind, LineCap, LineJoin, SolidKind};
 

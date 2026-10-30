@@ -9,14 +9,18 @@
 use balaur_animation::AnimationPlugin;
 use balaur_animation::clip;
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::Deform;
 use balaur_core::scene::Transform;
-use balaur_core::skeleton::{angle_about_z, quat_about_z};
 use balaur_core::{App, AppConfig, components, scene};
+use balaur_geometry::mesh::Deform;
+use balaur_geometry::skeleton::{angle_about_z, quat_about_z};
 use glamx::Vec3;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
+    let mut app = App::new(AppConfig {
+        builtins: balaur::builtins(),
+        ..AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))
+    })
+    .unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
@@ -144,7 +148,7 @@ fn rig(app: &App, rest: f32) -> (Entity, Entity) {
     ))
     .unwrap();
     components::add(&app.engine, hips, "bone2d", Some(&params)).unwrap();
-    balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
     (rig, hips)
 }
 
@@ -273,7 +277,7 @@ keys = [ { time = 0.0, value = [0.0, 0.0] }, { time = 1.0, value = [8.0, 0.0] } 
 #[test]
 fn a_position_key_is_scaled_by_how_much_longer_this_rigs_bone_rests() {
     use balaur_animation::retarget::{BoneMap, ProfileBone, Retarget, SkeletonProfile};
-    use balaur_core::skeleton::Bone;
+    use balaur_geometry::skeleton::Bone;
     let profile = SkeletonProfile {
         bones: vec![ProfileBone {
             name: "Hips".into(),

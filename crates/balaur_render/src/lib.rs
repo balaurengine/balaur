@@ -10,8 +10,8 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
-pub use balaur_core::primitive::{Flat, Solid};
 use balaur_core::{Engine, Stage};
+pub use balaur_geometry::primitive::{Flat, Solid};
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
@@ -341,7 +341,7 @@ pub struct Renderable3d {
     /// Geometry computed for this node, present exactly when `shape` is
     /// built. Shared rather than copied: a backend keeps a handle to it
     /// between rebuilds.
-    pub built: Option<std::sync::Arc<balaur_core::mesh::MeshData>>,
+    pub built: Option<std::sync::Arc<balaur_geometry::mesh::MeshData>>,
     /// Node path to the rig a skinned mesh deforms with, relative to the
     /// node; empty means the node itself. Ignored by a mesh with no skin.
     pub skeleton: String,
@@ -376,7 +376,7 @@ pub enum Shape2d {
     /// A chain of points drawn thick: open it is a line, closed it is a
     /// polygon outline. The points live in `Renderable2d::polyline`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
-    Polyline(balaur_core::stroke::Stroke),
+    Polyline(balaur_geometry::stroke::Stroke),
     /// A filled, textured polygon, deformed by a rig when its mesh carries
     /// skin weights. The geometry lives in `Renderable2d::polygon`.
     Polygon,
@@ -556,7 +556,7 @@ fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds3d> {
         return None;
     }
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, source).ok()?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, source).ok()?;
     let mut low = glamx::Vec3::splat(f32::INFINITY);
     let mut high = glamx::Vec3::splat(f32::NEG_INFINITY);
     for p in &definition.positions {

@@ -11,8 +11,8 @@
 
 use anyhow::{Result, anyhow};
 
-use crate::collections::DetHashMap;
 use crate::glb::{Beside, Model, SideReader, floats, percent_decoded, slug, uri_bytes};
+use balaur_core::collections::DetHashMap;
 
 /// What a primitive with no material of its own draws with. A `part` may name
 /// it, so it needs a name nothing else can take.
@@ -175,7 +175,7 @@ impl Images<'_> {
         self.by_index.insert(image.index(), name.clone());
         self.files.push((name.clone(), bytes));
         self.files.push((
-            crate::import::sidecar_of(&name),
+            balaur_core::import::sidecar_of(&name),
             Beside::Bytes(sampling_of(texture, is_colour(slot)).into_bytes()),
         ));
         Ok(name)

@@ -1,8 +1,8 @@
 //! Paths and what they become: sampling that follows the curve, an outline
 //! given thickness, a profile revolved, a cross-section swept along a rail.
 
-use balaur_core::mesh::MeshData;
-use balaur_core::path::{Path2d, Path3d, TOLERANCE, extrude, lathe, sweep};
+use balaur_geometry::mesh::MeshData;
+use balaur_geometry::path::{Path2d, Path3d, TOLERANCE, extrude, lathe, sweep};
 use glamx::{Vec2, Vec3};
 use std::collections::BTreeMap;
 

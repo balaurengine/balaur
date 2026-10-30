@@ -362,7 +362,7 @@ fn a_cloth_faces_up() {
 
     let solved = app.engine.world();
     let solved = solved
-        .get::<&balaur_core::mesh::SolvedMesh>(node)
+        .get::<&balaur_geometry::mesh::SolvedMesh>(node)
         .expect("a soft body hands its geometry to whatever draws it");
     assert!(!solved.indices.is_empty(), "the sheet has no triangles");
     let up = solved
@@ -482,7 +482,9 @@ fn a_rope_draws_as_triangles_over_its_own_vertices() {
         app.tick(1.0 / 60.0);
     }
     let world = app.engine.world();
-    let solved = world.get::<&balaur_core::mesh::SolvedMesh>(node).unwrap();
+    let solved = world
+        .get::<&balaur_geometry::mesh::SolvedMesh>(node)
+        .unwrap();
     assert!(!solved.indices.is_empty(), "the rope drew nothing");
     let vertices = solved.positions.len();
     assert!(
@@ -519,7 +521,7 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
     let solved = |app: &balaur_core::App| {
         app.engine
             .world()
-            .get::<&balaur_core::mesh::SolvedMesh>(node)
+            .get::<&balaur_geometry::mesh::SolvedMesh>(node)
             .is_ok()
     };
     assert!(solved(&app), "the body drew nothing to begin with");
@@ -653,7 +655,7 @@ impl Scenario {
 }
 
 /// What the 2D blob hands the renderer after `script` ran and `ticks` passed.
-fn solved_2d(script: &str, ticks: u32) -> balaur_core::mesh::SolvedPolygon {
+fn solved_2d(script: &str, ticks: u32) -> balaur_geometry::mesh::SolvedPolygon {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -661,7 +663,7 @@ fn solved_2d(script: &str, ticks: u32) -> balaur_core::mesh::SolvedPolygon {
     let world = app.engine.world();
     let node = balaur_core::ids::find(&world, app.engine.root(), "n_blob2d").expect("the 2D blob");
     let solved = world
-        .get::<&balaur_core::mesh::SolvedPolygon>(node)
+        .get::<&balaur_geometry::mesh::SolvedPolygon>(node)
         .expect("the body handed nothing to the renderer");
     (*solved).clone()
 }
@@ -840,7 +842,9 @@ impl Scenario {
             .sum();
         assert!(everything > kept, "the rope never came apart into pieces");
         let world = app.engine.world();
-        let solved = world.get::<&balaur_core::mesh::SolvedMesh>(node).unwrap();
+        let solved = world
+            .get::<&balaur_geometry::mesh::SolvedMesh>(node)
+            .unwrap();
         assert!(
             solved.positions.len() > kept,
             "only the piece the node kept is drawn: {} of {everything}",

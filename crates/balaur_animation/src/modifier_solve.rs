@@ -3,7 +3,7 @@
 
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Children, Parent, Transform};
-use balaur_core::skeleton::{Bone, affine_2d, affine_3d, quat_about_z, quat_from_euler};
+use balaur_geometry::skeleton::{Bone, affine_2d, affine_3d, quat_about_z, quat_from_euler};
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 
 /// The shortest bone [`two_bone_ik`] will solve. Below it the reach clamp
@@ -167,7 +167,7 @@ pub(crate) fn clamp_angle_2d(world: &World, bone: Entity, limit: f32) {
     let Ok(mut t) = world.get::<&mut Transform>(bone) else {
         return;
     };
-    let current = balaur_core::skeleton::angle_about_z(t.rotation);
+    let current = balaur_geometry::skeleton::angle_about_z(t.rotation);
     let delta = wrap_pi(current - rest);
     if delta.abs() > limit {
         t.rotation = quat_about_z(rest + limit.copysign(delta));

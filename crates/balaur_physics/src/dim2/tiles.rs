@@ -1,6 +1,6 @@
 //! `tile_collision`: the colliders a tile map's own cells make.
 //!
-//! The cells come from `balaur_core::tiles::TileGrid`, which the renderer's
+//! The cells come from `balaur_geometry::tiles::TileGrid`, which the renderer's
 //! `tilemap` writes and physics reads — neither crate sees the other. Full
 //! cells become one parry voxel collider per group, which classifies every
 //! cell from its neighbours, so a body sliding along a wall of tiles cannot
@@ -10,8 +10,8 @@ use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
-use balaur_core::tiles::{Collision, Group, TileGrid, TileSet};
 use balaur_core::{Engine, assets};
+use balaur_geometry::tiles::{Collision, Group, TileGrid, TileSet};
 use balaur_plugin::Registry;
 
 use crate::dim2::PhysicsState2d;
@@ -368,7 +368,7 @@ fn pieces(
         let one_way = all_one_way || tile.is_one_way();
         let turned = turned_axis(axis, set.tile_size, flags);
         for polygon in polygons {
-            let points: Vec<_> = balaur_core::tiles::polygon_in_world(
+            let points: Vec<_> = balaur_geometry::tiles::polygon_in_world(
                 polygon,
                 set.tile_size,
                 grid.tile_world,
@@ -441,7 +441,7 @@ fn turned_axis(axis: [f32; 2], tile_size: [f32; 2], flags: u8) -> [f32; 2] {
     }
     // A cell two units wide, so a unit axis of the tile lands as a unit vector.
     let probe = |x: f32, y: f32| {
-        balaur_core::tiles::polygon_in_world(&[[x, y]], tile_size, [2.0, 2.0], flags)[0]
+        balaur_geometry::tiles::polygon_in_world(&[[x, y]], tile_size, [2.0, 2.0], flags)[0]
     };
     let along_x = probe(tile_size[0], tile_size[1] / 2.0);
     let along_y = probe(tile_size[0] / 2.0, 0.0);

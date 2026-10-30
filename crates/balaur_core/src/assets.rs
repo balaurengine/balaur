@@ -378,6 +378,9 @@ pub fn record<T: 'static>(
 /// The type a font definition declares.
 pub const FONT_ASSET_TYPE: &str = "font";
 
+/// The `texture` asset type: an image a material or a sprite draws.
+pub const TEXTURE_ASSET_TYPE: &str = "texture";
+
 /// The type a text style definition declares.
 pub const TEXT_STYLE_ASSET_TYPE: &str = "text_style";
 
@@ -408,7 +411,7 @@ pub const SOURCE: &str = "source";
 #[must_use]
 pub fn file_definition(path: &str) -> Option<(&'static str, toml::Value)> {
     let type_name = match crate::import::kind_of(path)? {
-        crate::import::kinds::TEXTURE => crate::texture_asset::TEXTURE_ASSET_TYPE,
+        crate::import::kinds::TEXTURE => TEXTURE_ASSET_TYPE,
         crate::import::kinds::FONT => FONT_ASSET_TYPE,
         _ => return None,
     };

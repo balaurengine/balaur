@@ -26,8 +26,8 @@ pub(crate) fn mesh_of(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a {kind} collider2d needs a `mesh` asset"))?;
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+    let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
     let points = mesh
         .positions
         .iter()
@@ -289,7 +289,8 @@ pub(crate) fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<Colli
         .and_then(toml::Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a voxels collider2d needs a `voxels` asset"))?;
-    let grid = balaur_core::assets::load_typed::<balaur_core::voxels::VoxelsData>(eng, reference)?;
+    let grid =
+        balaur_core::assets::load_typed::<balaur_geometry::voxels::VoxelsData>(eng, reference)?;
     let cells: Vec<crate::rapier2d::math::IVector> = grid
         .cells
         .iter()
@@ -308,7 +309,7 @@ pub(crate) fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result
         .and_then(toml::Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a heightfield collider2d needs a `heightfield` asset"))?;
-    let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
+    let field = balaur_core::assets::load_typed::<balaur_geometry::heightfield::HeightfieldData>(
         eng, reference,
     )?;
     let mut ground = crate::rapier2d::parry::shape::HeightField::new(

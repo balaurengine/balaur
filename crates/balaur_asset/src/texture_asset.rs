@@ -12,14 +12,13 @@ use std::rc::Rc;
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::app::App;
-use crate::engine::Engine;
-use crate::import::{self, Resolved, kinds};
-
-pub const TEXTURE_ASSET_TYPE: &str = "texture";
+use balaur_core::app::App;
+use balaur_core::assets::TEXTURE_ASSET_TYPE;
+use balaur_core::engine::Engine;
+use balaur_core::import::{self, Resolved, kinds};
 
 /// The key naming the image a texture reads.
-pub use crate::assets::SOURCE;
+pub use balaur_core::assets::SOURCE;
 
 const TEXTURE_ASSET_DOC: &str = "An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.\n\n```toml\ntype = \"texture\"\nsource = \"art/hero.png\"\nfilter = \"nearest\"                # this use crisp, the sidecar's smooth\npixels_per_unit = 32\n```";
 
@@ -82,7 +81,7 @@ struct Sources {
 /// Whether a reference is an image path itself, which needs no asset load.
 fn is_plain_image(reference: &str) -> bool {
     !reference.contains('#')
-        && !reference.starts_with(crate::assets::ID_PREFIX)
+        && !reference.starts_with(balaur_core::assets::ID_PREFIX)
         && import::kind_of(reference) == Some(kinds::TEXTURE)
 }
 
@@ -99,7 +98,7 @@ pub fn source(eng: &Engine, reference: &str) -> Result<TextureSource> {
             settings: import::resolved(eng, reference),
         });
     }
-    let generation = crate::assets::generation(eng);
+    let generation = balaur_core::assets::generation(eng);
     if eng.try_resource::<Sources>().is_none() {
         eng.insert_resource(Sources::default());
     }
@@ -112,7 +111,7 @@ pub fn source(eng: &Engine, reference: &str) -> Result<TextureSource> {
             return Ok(found.clone());
         }
     }
-    let asset = crate::assets::load_typed::<TextureAsset>(eng, reference)?;
+    let asset = balaur_core::assets::load_typed::<TextureAsset>(eng, reference)?;
     let mut settings = import::resolved(eng, &asset.source).settings.clone();
     settings.extend(asset.settings.clone());
     let found = TextureSource {
@@ -158,13 +157,13 @@ mod tests {
 
     #[test]
     fn an_image_path_is_a_texture_of_itself() {
-        let (type_name, value) = crate::assets::file_definition("art/hero.png").unwrap();
+        let (type_name, value) = balaur_core::assets::file_definition("art/hero.png").unwrap();
         assert_eq!(type_name, super::TEXTURE_ASSET_TYPE);
         assert_eq!(parse(&value).unwrap().source, "art/hero.png");
-        assert!(crate::assets::file_definition("scenes/main.toml").is_none());
+        assert!(balaur_core::assets::file_definition("scenes/main.toml").is_none());
         assert_eq!(
-            crate::assets::file_definition("fonts/Inter.ttc").map(|(name, _)| name),
-            Some(crate::assets::FONT_ASSET_TYPE)
+            balaur_core::assets::file_definition("fonts/Inter.ttc").map(|(name, _)| name),
+            Some(balaur_core::assets::FONT_ASSET_TYPE)
         );
         assert!(is_plain_image("art/hero.png"));
         assert!(!is_plain_image("#crisp") && !is_plain_image("textures/hero.toml"));

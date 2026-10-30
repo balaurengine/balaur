@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use balaur_core::collections::DetHashMap;
-use balaur_core::primitive::Solid;
+use balaur_geometry::primitive::Solid;
 use balaur_script::{Bindings, BindingsExt as _, Value};
 
 use crate::Engine;
@@ -165,7 +165,7 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable3d, cache: &mut Meas
         if let Some(count) = cache.meshes.get(name.as_str()) {
             return *count;
         }
-        if let Ok(data) = balaur_core::mesh::resolved(eng, name) {
+        if let Ok(data) = balaur_geometry::mesh::resolved(eng, name) {
             let count = u32::try_from(data.triangle_count()).unwrap_or(u32::MAX);
             cache.meshes.insert(name.clone(), count);
             return count;
@@ -191,7 +191,7 @@ fn image_bytes(eng: &Engine, path: &str) -> u64 {
         return 0;
     };
     let base = u64::from(width) * u64::from(height) * 4;
-    let mips = balaur_core::texture_asset::source(eng, path).is_ok_and(|source| {
+    let mips = balaur_asset::texture_asset::source(eng, path).is_ok_and(|source| {
         balaur_core::import::texture::sampling(&source.settings.settings).mipmaps
     });
     if mips { base + base / 3 } else { base }

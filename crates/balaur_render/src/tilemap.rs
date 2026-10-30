@@ -11,7 +11,7 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 
-pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
+pub use balaur_geometry::tiles::{TILESET_ASSET_TYPE, TileSet};
 
 #[cfg(feature = "window")]
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
@@ -45,8 +45,10 @@ first_tile = 16
 /// The `tileset` asset type: files live in `tilesets/`.
 pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
     reg.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
-        Ok(std::rc::Rc::new(balaur_core::tiles::parse_tileset(value)?)
-            as std::rc::Rc<dyn std::any::Any>)
+        Ok(
+            std::rc::Rc::new(balaur_geometry::tiles::parse_tileset(value)?)
+                as std::rc::Rc<dyn std::any::Any>,
+        )
     });
 }
 
@@ -301,7 +303,7 @@ fn resolve_all(eng: &Engine, map: &mut TileLayout) {
         for column in 0..span(terrain.first().map_or(0, Vec::len)) {
             let (x, y) = (origin[0] + column, origin[1] + row);
             let (tile, flags) =
-                balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
+                balaur_geometry::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
                     .map_or((None, 0), |(tile, flags)| (Some(tile), flags));
             write_cell(map, x, y, tile);
             write_flags(map, x, y, flags);
@@ -340,7 +342,9 @@ fn resolve_around(eng: &Engine, map: &mut TileLayout, column: i32, row: i32) {
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 let (x, y) = (column + dx, row + dy);
-                match balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed) {
+                match balaur_geometry::tiles::resolve(
+                    &set.rules, &value_at, &inside, x, y, map.seed,
+                ) {
                     Some((tile, flags)) => resolved.push((x, y, Some(tile), flags)),
                     None if value_at(x, y).is_none() => resolved.push((x, y, None, 0)),
                     None => {}
@@ -404,8 +408,8 @@ fn terrain_value(rows: &[Vec<Option<u32>>]) -> toml::Value {
 
 /// The core grid a map describes: what physics collides with, and what the
 /// mesh is built from, so the two cannot disagree about a cell.
-pub(crate) fn grid_of(map: &TileLayout, set: &TileSet) -> balaur_core::tiles::TileGrid {
-    balaur_core::tiles::TileGrid {
+pub(crate) fn grid_of(map: &TileLayout, set: &TileSet) -> balaur_geometry::tiles::TileGrid {
+    balaur_geometry::tiles::TileGrid {
         tileset: map.tileset.clone(),
         rows: map.grid.clone(),
         origin: map.origin,
@@ -519,7 +523,7 @@ fn sync_grid(eng: &Engine, entity: Entity) {
     let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset).ok();
     let mut world = eng.world_mut();
     let Some(set) = set else {
-        let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
+        let _ = world.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
         return;
     };
     let grid = grid_of(
@@ -538,7 +542,7 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         },
         &set,
     );
-    if let Ok(mut current) = world.get::<&mut balaur_core::tiles::TileGrid>(entity) {
+    if let Ok(mut current) = world.get::<&mut balaur_geometry::tiles::TileGrid>(entity) {
         *current = grid;
         return;
     }
@@ -674,7 +678,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Tilemap>(entity);
                 let _ = world.remove_one::<TileLayout>(entity);
-                let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
+                let _ = world.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Tilemap>(Some(tilemap_written))
@@ -703,7 +707,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
             };
             // Read out of the map's own rows: a `TileGrid` to ask one cell
             // would copy every row of the map for every call.
-            let cell = balaur_core::tiles::cell_in(&map.grid, map.origin, x, y);
+            let cell = balaur_geometry::tiles::cell_in(&map.grid, map.origin, x, y);
             let tileset = map.tileset.clone();
             drop(map);
             drop(world);

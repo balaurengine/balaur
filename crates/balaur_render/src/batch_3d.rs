@@ -214,7 +214,9 @@ pub(crate) fn cut_groups(
         // an instance has none of them.
         if world.get::<&crate::MultiMesh>(entity).is_ok()
             || world.get::<&crate::MorphWeights>(entity).is_ok()
-            || world.get::<&balaur_core::mesh::SolvedMesh>(entity).is_ok()
+            || world
+                .get::<&balaur_geometry::mesh::SolvedMesh>(entity)
+                .is_ok()
         {
             continue;
         }

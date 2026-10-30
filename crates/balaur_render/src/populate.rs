@@ -9,10 +9,10 @@
 use std::f32::consts::{PI, TAU};
 
 use anyhow::{Result, anyhow, bail};
-use balaur_core::mesh::MeshData;
 use balaur_core::rng::Pcg32;
 use balaur_core::scene::GlobalTransform;
 use balaur_core::{Engine, entity_of};
+use balaur_geometry::mesh::MeshData;
 use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
 use glamx::{Mat4, Quat, Vec3};
 
@@ -311,7 +311,7 @@ fn triangles_of(eng: &Engine, surface: NodeId, into: Mat4) -> Result<Vec<[Vec3; 
         }
     };
     let mesh = match (source, found) {
-        (Some(source), _) => (*balaur_core::mesh::resolved(eng, &source)?).clone(),
+        (Some(source), _) => (*balaur_geometry::mesh::resolved(eng, &source)?).clone(),
         (None, Some(mesh)) => mesh,
         (None, None) => bail!("the surface carries no mesh, shape or polygon to populate"),
     };

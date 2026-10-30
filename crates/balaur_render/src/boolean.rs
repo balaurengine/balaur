@@ -3,18 +3,18 @@
 //!
 //! The operands stay in the tree, hidden and editable; moving one recomputes
 //! the result. Nothing here knows how to combine geometry -- that is
-//! `balaur_core::csg` in 3D and `geometry2d` in 2D -- so a script asking for
+//! `balaur_geometry::csg` in 3D and `geometry2d` in 2D -- so a script asking for
 //! the same operation gets the same answer.
 
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written};
-use balaur_core::csg::{self, Op};
-use balaur_core::geometry2d::{self, BooleanOptions, FillRule, Op2d, Shapes2d};
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::MeshData;
 use balaur_core::scene::{Appearance, Children, GlobalTransform};
 use balaur_core::{Engine, entity_of};
+use balaur_geometry::csg::{self, Op};
+use balaur_geometry::geometry2d::{self, BooleanOptions, FillRule, Op2d, Shapes2d};
+use balaur_geometry::mesh::MeshData;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
@@ -22,7 +22,7 @@ use glamx::{Mat4, Vec2, Vec3};
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
 use balaur_core::layers::Layer;
 
-/// How a `boolean3d` combines its children: `balaur_core::csg`'s words.
+/// How a `boolean3d` combines its children: `balaur_geometry::csg`'s words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum Operation3d {
     Union,
@@ -365,7 +365,7 @@ fn operand_mesh(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Optio
         Shape3d::Mesh => {
             let reference = reference?;
             let definition = balaur_core::assets::load_typed::<MeshData>(eng, &reference).ok()?;
-            balaur_core::mesh::load_from(eng, &definition).ok()?
+            balaur_geometry::mesh::load_from(eng, &definition).ok()?
         }
     };
     let world = eng.world();
@@ -403,7 +403,7 @@ fn operand_shapes(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Opt
         let r = world.get::<&Renderable2d>(entity).ok()?;
         let ring = match r.shape {
             Shape2d::Flat(flat) => flat.outline(),
-            Shape2d::Sprite { hx, hy } => balaur_core::primitive::Flat::rect(hx, hy).outline(),
+            Shape2d::Sprite { hx, hy } => balaur_geometry::primitive::Flat::rect(hx, hy).outline(),
             Shape2d::Polygon => r.polygon.as_ref()?.positions.clone(),
             Shape2d::Polyline { .. } => return None,
         };
@@ -632,7 +632,7 @@ fn fill_shapes(shapes: &Shapes2d, texture: String, size: (u32, u32)) -> PolygonM
             .iter()
             .map(|path| path.iter().map(|p| [p.x, p.y]).collect())
             .collect();
-        let (points, triangles) = balaur_core::triangulate::triangulate_shape(&contours);
+        let (points, triangles) = balaur_geometry::triangulate::triangulate_shape(&contours);
         let base = positions.len() as u32;
         positions.extend(points.iter().map(|p| Vec2::new(p[0], p[1])));
         indices.extend(triangles.iter().map(|t| t.map(|i| i + base)));
@@ -666,7 +666,7 @@ fn hide(eng: &Engine, operands: &[Entity]) {
 
 #[cfg(test)]
 mod tests {
-    use balaur_core::{csg, geometry2d};
+    use balaur_geometry::{csg, geometry2d};
 
     use super::{FillRule2d, Operation2d, Operation3d};
 

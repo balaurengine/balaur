@@ -4,7 +4,7 @@
 //! uses, swash yields each glyph's outline, the curves flatten, and the
 //! contours are triangulated together so a letter's counters stay holes.
 //! What comes out is a `mesh` like any other: a collider fits it, a ray
-//! picks it, and `balaur_core::path::extrude` gives it thickness.
+//! picks it, and `balaur_geometry::path::extrude` gives it thickness.
 //!
 //! Nothing here touches a GPU, so a headless build shapes the same word into
 //! the same triangles a windowed one draws.
@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
-use balaur_core::mesh::{MeshData, TextShape};
+use balaur_geometry::mesh::{MeshData, TextShape};
 use cosmic_text::fontdb;
 use swash::scale::ScaleContext;
 use swash::zeno::{Command, PathData};
@@ -205,7 +205,7 @@ impl GlyphMesher {
                 shape.text
             ));
         }
-        let (points, triangles) = balaur_core::triangulate::triangulate_shape(&contours);
+        let (points, triangles) = balaur_geometry::triangulate::triangulate_shape(&contours);
         if triangles.is_empty() {
             return Err(anyhow!("'{}' filled to nothing", shape.text));
         }
@@ -344,7 +344,7 @@ fn cubic(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2], t: f32) -> [f32; 2]
 /// measurement is, and the machine's own fonts never reach it.
 pub fn install(reg: &mut balaur_plugin::Registry<'_>) {
     let mesher = std::cell::RefCell::new(GlyphMesher::default());
-    reg.insert_resource(balaur_core::mesh::TextGeometry(Box::new(
+    reg.insert_resource(balaur_geometry::mesh::TextGeometry(Box::new(
         move |eng, shape| {
             let state = crate::shaper(eng);
             let mut state = state.borrow_mut();

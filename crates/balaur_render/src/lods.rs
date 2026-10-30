@@ -26,10 +26,10 @@ impl Lods {
     /// `faces` it was uploaded with; `None` for a mesh with none.
     pub(crate) fn of(
         eng: &balaur_core::Engine,
-        data: &balaur_core::mesh::MeshData,
+        data: &balaur_geometry::mesh::MeshData,
         faces: &[[u32; 3]],
     ) -> Option<Self> {
-        use balaur_core::import::model::{lod_distances, lod_levels};
+        use balaur_geometry::model::{lod_distances, lod_levels};
         let settings = balaur_core::import::resolved(eng, data.source.as_deref()?);
         let simpler = lod_levels(data, &settings.settings);
         (!simpler.is_empty()).then(|| Self {

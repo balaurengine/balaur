@@ -16,15 +16,15 @@ use crate::vocabulary::{self as v, keys as k, words as w};
 pub(crate) fn collider_mesh(
     eng: &Engine,
     params: &toml::Value,
-) -> Result<balaur_core::mesh::MeshData> {
+) -> Result<balaur_geometry::mesh::MeshData> {
     let reference = params
         .get(k::MESH)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a mesh-backed collider needs a `mesh` asset"))?;
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    balaur_core::mesh::load_from(eng, &definition)
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+    balaur_geometry::mesh::load_from(eng, &definition)
 }
 
 /// The collider kinds built from a `mesh` asset, so the model the renderer
@@ -194,7 +194,8 @@ pub(crate) fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<Colli
         .and_then(toml::Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a voxels collider needs a `voxels` asset"))?;
-    let grid = balaur_core::assets::load_typed::<balaur_core::voxels::VoxelsData>(eng, reference)?;
+    let grid =
+        balaur_core::assets::load_typed::<balaur_geometry::voxels::VoxelsData>(eng, reference)?;
     let cells: Vec<crate::rapier3d::math::IVector> = grid
         .cells
         .iter()
@@ -234,7 +235,7 @@ pub(crate) fn heightfield_collider(
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a heightfield collider needs a `heightfield` asset"))?;
-    let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
+    let field = balaur_core::assets::load_typed::<balaur_geometry::heightfield::HeightfieldData>(
         eng, reference,
     )?;
     // The asset checked its own shape, so Array2's assert cannot fire. The

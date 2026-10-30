@@ -9,7 +9,9 @@
 //! ```
 
 pub use balaur_animation::AnimationPlugin;
+pub use balaur_asset::*;
 pub use balaur_core::*;
+pub use balaur_geometry::*;
 pub use balaur_input::InputPlugin;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_platform::PlatformPlugin;
@@ -139,6 +141,53 @@ pub fn build_pack_using(
         let _ = engine;
         Ok(pack)
     })
+}
+
+/// Every built-in an engine registers before its plugins, the kernel's and
+/// the crates' around it, in the order an app has always made them: the order
+/// is the components' places in the registry, and with it the digest.
+#[must_use]
+pub fn builtins() -> Builtins {
+    use balaur_core::engine_api::{ApiPart, KERNEL_MODULES, KERNEL_OPS};
+    Builtins {
+        steps: vec![
+            balaur_asset::glb::register_model_reader,
+            balaur_geometry::mesh::register_mesh_asset,
+            balaur_asset::texture_asset::register_texture_asset,
+            balaur_geometry::path::register_path_assets,
+            balaur_geometry::heightfield::register_heightfield_asset,
+            balaur_geometry::voxels::register_voxels_asset,
+            balaur_core::transform::register_transform_component,
+            balaur_geometry::skeleton::register_bone2d_component,
+            balaur_geometry::skeleton::register_bone3d_component,
+            balaur_core::app::register_scene_content,
+            balaur_core::snapshot::build_core_sources,
+            balaur_core::netsession::build_session_source,
+            balaur_core::app::register_facts,
+            balaur_core::app::register_core_settings,
+        ],
+        api: vec![
+            ApiPart::Ops(KERNEL_OPS[0]),
+            ApiPart::Ops(balaur_core::desktop_api::OPS),
+            ApiPart::Ops(KERNEL_OPS[1]),
+            ApiPart::Ops(balaur_core::profile_api::OPS),
+            ApiPart::Ops(KERNEL_OPS[2]),
+            ApiPart::Ops(balaur_geometry::skeleton::OPS),
+            ApiPart::Ops(KERNEL_OPS[3]),
+            KERNEL_MODULES[0],
+            KERNEL_MODULES[1],
+            ApiPart::Module("debugger", balaur_core::debugger_api::install_debugger_api),
+            KERNEL_MODULES[2],
+            KERNEL_MODULES[3],
+            ApiPart::Module("rollback", balaur_core::rollback_api::install_rollback_api),
+            KERNEL_MODULES[4],
+            KERNEL_MODULES[5],
+            ApiPart::Module(
+                "geometry2d",
+                balaur_geometry::geometry2d::install_geometry2d_api,
+            ),
+        ],
+    }
 }
 
 /// A game's `.bs` scripts as one C file, for an export to a platform that
@@ -384,7 +433,10 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     {
         balaur_render::prelinked::install(table)?;
     }
-    let mut app = App::new(config)?;
+    let mut app = App::new(AppConfig {
+        builtins: builtins(),
+        ..config
+    })?;
     balaur_core::settings::define_group(
         &app.engine,
         "log",

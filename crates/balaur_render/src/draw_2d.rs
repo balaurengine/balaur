@@ -487,11 +487,11 @@ fn stroke(
         return None;
     };
     let chain: Vec<Vec2> = points.iter().map(|p| Vec2::new(p[0], p[1])).collect();
-    let style = balaur_core::stroke::Stroke {
+    let style = balaur_geometry::stroke::Stroke {
         width: width * per_pixel,
-        ..balaur_core::stroke::Stroke::default()
+        ..balaur_geometry::stroke::Stroke::default()
     };
-    let pieces = balaur_core::stroke::stroke(&chain, &style, 1);
+    let pieces = balaur_geometry::stroke::stroke(&chain, &style, 1);
     if pieces.is_empty() {
         return None;
     }

@@ -13,7 +13,11 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components, digest, snapshot};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
+    let mut app = App::new(AppConfig {
+        builtins: balaur::builtins(),
+        ..AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))
+    })
+    .unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
@@ -283,7 +287,7 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
     };
     let hip = bone("Hip", rig, "rest_position = [0.0, 0.0]");
     bone("Tail", hip, "rest_position = [1.0, 0.0]\nlength = 1.0");
-    balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
     // On the Hip rather than on the rig: the rig node carries no bone, so a
     // chain starting there spends its first segment on nothing.
     let params: toml::Value =

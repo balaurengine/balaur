@@ -518,7 +518,7 @@ mod tests {
             for emissive in [false, true] {
                 for unlit in [false, true] {
                     let linked = link(
-                        &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
+                        &[("package::imported", balaur_asset::glb::MATERIAL_SHADER)],
                         "package::imported",
                         &[
                             ("metallic_roughness_map", metallic_roughness),

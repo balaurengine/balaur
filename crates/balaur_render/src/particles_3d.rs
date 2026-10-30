@@ -160,8 +160,8 @@ impl Emitter3d {
 }
 
 /// A unit quad in the XY plane facing +z, as every particle draws.
-fn quad() -> balaur_core::mesh::MeshData {
-    balaur_core::mesh::MeshData {
+fn quad() -> balaur_geometry::mesh::MeshData {
+    balaur_geometry::mesh::MeshData {
         positions: vec![
             [-0.5, -0.5, 0.0],
             [0.5, -0.5, 0.0],
@@ -171,7 +171,7 @@ fn quad() -> balaur_core::mesh::MeshData {
         normals: Some(vec![[0.0, 0.0, 1.0]; 4]),
         uvs: Some(vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
         indices: vec![[0, 1, 2], [0, 2, 3]],
-        ..balaur_core::mesh::MeshData::default()
+        ..balaur_geometry::mesh::MeshData::default()
     }
 }
 

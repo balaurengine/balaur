@@ -27,7 +27,7 @@
 use crate::keys as k;
 use anyhow::{Result, anyhow, bail};
 use balaur_core::collections::DetHashMap;
-use balaur_core::skeleton::{Bone, quat_from_euler};
+use balaur_geometry::skeleton::{Bone, quat_from_euler};
 use glamx::{Quat, Vec3};
 use std::rc::Rc;
 

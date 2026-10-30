@@ -3,8 +3,8 @@
 //! joints, one skinned quad, one animation — so nothing binary ships with
 //! the tests.
 
-use balaur_core::glb;
-use balaur_core::mesh::{self, MeshData};
+use balaur_asset::glb;
+use balaur_geometry::mesh::MeshData;
 use glamx::{Mat4, Vec3};
 
 /// One accessor's worth of data and the JSON that describes it.
@@ -241,7 +241,7 @@ fn close(a: f32, b: f32) -> bool {
 
 #[test]
 fn a_glb_becomes_a_mesh_with_its_skin() {
-    let data: MeshData = mesh::parse(&column(), "column.glb").unwrap();
+    let data: MeshData = glb::parse_gltf(&column(), "column.glb", &glb::no_side_files).unwrap();
     assert_eq!(data.positions.len(), 4);
     assert_eq!(data.indices, vec![[0, 1, 3], [0, 3, 2]]);
     let skin = data.skin.expect("the file has a skin");
@@ -285,7 +285,7 @@ fn a_face_past_its_vertices_is_refused_naming_the_vertex() {
     );
     let err = format!(
         "{:#}",
-        mesh::parse(&glb(&json, &bin), "bad.glb").unwrap_err()
+        glb::parse_gltf(&glb(&json, &bin), "bad.glb", &glb::no_side_files).unwrap_err()
     );
     assert!(
         err.contains("names vertex 5 but its primitive has 3"),
@@ -297,7 +297,10 @@ fn a_face_past_its_vertices_is_refused_naming_the_vertex() {
 fn a_file_with_no_binary_chunk_is_refused() {
     let bytes = glb(r#"{"asset":{"version":"2.0"}}"#, &[]);
     // A zero-length BIN chunk is no chunk at all to the reader.
-    let err = format!("{:#}", mesh::parse(&bytes, "empty.glb").unwrap_err());
+    let err = format!(
+        "{:#}",
+        glb::parse_gltf(&bytes, "empty.glb", &glb::no_side_files).unwrap_err()
+    );
     assert!(
         err.contains("binary chunk") || err.contains("no triangles") || err.contains("reading"),
         "{err}"
@@ -383,13 +386,13 @@ fn a_gltf_reads_its_buffer_beside_itself_through_the_reader() {
             Err(anyhow::anyhow!("no such side file '{uri}'"))
         }
     };
-    let data = mesh::parse_with(json.as_bytes(), "column.gltf", &reader).unwrap();
+    let data = glb::parse_gltf(json.as_bytes(), "column.gltf", &reader).unwrap();
     assert_eq!(data.positions.len(), 4);
     assert!(data.skin.is_some());
     // Without a reader the same file says what it is missing.
     let err = format!(
         "{:#}",
-        mesh::parse(json.as_bytes(), "column.gltf").unwrap_err()
+        glb::parse_gltf(json.as_bytes(), "column.gltf", &glb::no_side_files).unwrap_err()
     );
     assert!(
         err.contains("column.bin") && err.contains("side file"),
@@ -400,7 +403,7 @@ fn a_gltf_reads_its_buffer_beside_itself_through_the_reader() {
 #[test]
 fn a_data_uri_buffer_needs_no_reader() {
     let (json, _) = column_parts(Buffer::DataUri, false);
-    let data = mesh::parse(json.as_bytes(), "column.gltf").unwrap();
+    let data = glb::parse_gltf(json.as_bytes(), "column.gltf", &glb::no_side_files).unwrap();
     assert_eq!(data.indices.len(), 2);
 }
 
@@ -801,9 +804,9 @@ fn a_model_with_two_materials_becomes_one_mesh_node_for_each() {
 #[test]
 fn a_part_takes_only_that_materials_triangles() {
     let json = two_materials();
-    let whole = mesh::parse(json.as_bytes(), "hall.gltf").unwrap();
+    let whole = glb::parse_gltf(json.as_bytes(), "hall.gltf", &glb::no_side_files).unwrap();
     assert_eq!(whole.indices.len(), 4, "both primitives, drawn together");
-    let stone = mesh::parse_part(
+    let stone = glb::parse_gltf_part(
         json.as_bytes(),
         "hall.gltf",
         &glb::no_side_files,
@@ -819,7 +822,7 @@ fn a_part_the_file_does_not_name_says_what_it_does_name() {
     let json = two_materials();
     let err = format!(
         "{:#}",
-        mesh::parse_part(
+        glb::parse_gltf_part(
             json.as_bytes(),
             "hall.gltf",
             &glb::no_side_files,

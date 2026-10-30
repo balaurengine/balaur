@@ -15,7 +15,7 @@ use crate::{Renderable3d, Shape3d};
 /// Hand a mesh's triangles to kiss3d as a static node. Normals and UVs are
 /// optional in the format; kiss3d computes normals from the faces when they
 /// are absent, which is the right answer for a bare OBJ.
-fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) -> SceneNode3d {
+fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_geometry::mesh::MeshData) -> SceneNode3d {
     let coords: Vec<Vec3> = data
         .positions
         .iter()
@@ -86,7 +86,7 @@ fn upload_mesh(
     solved: bool,
 ) -> Option<Built3d> {
     let reference = renderable.mesh.as_deref().filter(|r| !r.is_empty())?;
-    let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
+    let definition = match balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(
         &app.engine,
         reference,
     ) {
@@ -96,7 +96,7 @@ fn upload_mesh(
             return None;
         }
     };
-    let data = match balaur_core::mesh::load_from(&app.engine, &definition) {
+    let data = match balaur_geometry::mesh::load_from(&app.engine, &definition) {
         Ok(data) => data,
         Err(err) => {
             tracing::error!("mesh '{reference}': {err:#}");

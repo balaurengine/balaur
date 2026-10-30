@@ -32,17 +32,17 @@ pub(crate) fn texture_of(
     }
     // Through ProjectFiles, so an image in a packed game loads from the pack
     // rather than from a file that is not shipped.
-    let source = balaur_core::texture_asset::source(eng, path)?;
+    let source = balaur_asset::texture_asset::source(eng, path)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&source.path)?;
     // egui premultiplies what it is handed, so a bleed would change nothing.
     let settings = &source.settings;
-    let rgba = balaur_core::pixels::decode(
+    let rgba = balaur_asset::pixels::decode(
         &bytes,
         &settings.settings,
-        balaur_core::pixels::Alpha::Premultiplied,
+        balaur_asset::pixels::Alpha::Premultiplied,
     )?;
     let size = [rgba.width() as usize, rgba.height() as usize];
     let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
@@ -57,7 +57,7 @@ pub(crate) fn texture_of(
 /// The size a picture measures as: the pixels it was drawn at, which are the
 /// file's own unless a smaller copy shipped in its place.
 pub(crate) fn native_size(eng: &Engine, path: &str, texture: &egui::TextureHandle) -> egui::Vec2 {
-    let source = balaur_core::texture_asset::source(eng, path).map(|found| found.path);
+    let source = balaur_asset::texture_asset::source(eng, path).map(|found| found.path);
     balaur_core::import::drawn_size(eng, source.as_deref().unwrap_or(path))
         .map_or_else(|| texture.size_vec2(), |(w, h)| vec2(w as f32, h as f32))
 }

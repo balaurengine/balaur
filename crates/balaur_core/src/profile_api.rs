@@ -62,7 +62,7 @@ fn cost_rows(named: &str, rows: Vec<(String, u64, u64)>) -> Value {
 }
 
 /// The `engine` calls that count what scripts cost.
-pub(crate) const OPS: &[crate::engine_api::EngineOp] = &[
+pub const OPS: &[crate::engine_api::EngineOp] = &[
     crate::engine_api::EngineOp {
         module: "engine",
         name: "set_script_profiling",

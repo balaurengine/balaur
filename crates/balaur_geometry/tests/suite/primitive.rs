@@ -2,8 +2,8 @@
 //! without a GPU: that a solid is closed, that it faces outwards, that it
 //! fills the box it claims, and that it comes out the same every time.
 
-use balaur_core::mesh::MeshData;
-use balaur_core::primitive::{Flat, Solid};
+use balaur_geometry::mesh::MeshData;
+use balaur_geometry::primitive::{Flat, Solid};
 use glamx::{Vec2, Vec3};
 use std::collections::BTreeMap;
 

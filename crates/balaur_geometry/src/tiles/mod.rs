@@ -14,7 +14,7 @@ pub mod rules;
 
 pub use rules::{Mode, Outside, Quarter, Rule, Terrain, resolve, template};
 
-use crate::components::as_f64;
+use balaur_core::components::as_f64;
 
 pub const TILESET_ASSET_TYPE: &str = "tileset";
 

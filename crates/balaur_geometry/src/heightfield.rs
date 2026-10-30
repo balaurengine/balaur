@@ -9,7 +9,7 @@
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::App;
+use balaur_core::App;
 
 pub const HEIGHTFIELD_ASSET_TYPE: &str = "heightfield";
 
@@ -96,7 +96,7 @@ fn parse_definition(value: &toml::Value) -> Result<HeightfieldData> {
         .ok_or_else(|| anyhow!("a heightfield needs a `heights` list"))?
         .iter()
         .map(|h| {
-            crate::components::as_f64(h)
+            balaur_core::components::as_f64(h)
                 .map(|v| v as f32)
                 .ok_or_else(|| anyhow!("a heightfield's `heights` must all be numbers"))
         })

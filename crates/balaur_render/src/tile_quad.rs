@@ -1,7 +1,7 @@
 //! The quad a tile cell becomes: its four corners, and the four texture
 //! coordinates that carry its picture, turned by the cell's flags.
 
-use balaur_core::tiles::TileSet;
+use balaur_geometry::tiles::TileSet;
 
 /// The four corners of a quad around a centre, clockwise from the top left.
 pub(crate) fn corners_of(centre: glamx::Vec2, half: glamx::Vec2) -> [glamx::Vec2; 4] {
@@ -36,14 +36,14 @@ pub(crate) fn tile_uvs(
     flags: u8,
 ) -> [glamx::Vec2; 4] {
     let mut corners = rect_uvs(set.tile_rect(id), sheet, inset);
-    if flags & balaur_core::tiles::TRANSPOSE != 0 {
+    if flags & balaur_geometry::tiles::TRANSPOSE != 0 {
         corners.swap(1, 3);
     }
-    if flags & balaur_core::tiles::FLIP_X != 0 {
+    if flags & balaur_geometry::tiles::FLIP_X != 0 {
         corners.swap(0, 1);
         corners.swap(2, 3);
     }
-    if flags & balaur_core::tiles::FLIP_Y != 0 {
+    if flags & balaur_geometry::tiles::FLIP_Y != 0 {
         corners.swap(0, 3);
         corners.swap(1, 2);
     }

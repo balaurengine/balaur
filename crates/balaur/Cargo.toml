@@ -48,7 +48,7 @@ browser = ["dep:balaur_browser"]
 apple = ["dep:balaur_apple"]
 # SVG textures read in place. An export pack holds their rasters, so a game
 # template leaves it off.
-svg = ["balaur_core/svg"]
+svg = ["balaur_asset/svg"]
 # The 2D physics world: `physics2d.*`, its components and presets.
 physics2d = ["balaur_physics/physics2d"]
 # The 3D physics world: `physics3d.*`, its components and presets.
@@ -75,6 +75,8 @@ fallback-fonts = ["balaur_ui/fallback-fonts"]
 
 [dependencies]
 balaur_core.workspace = true
+balaur_geometry.workspace = true
+balaur_asset.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 balaur_script_bs = { workspace = true, optional = true }

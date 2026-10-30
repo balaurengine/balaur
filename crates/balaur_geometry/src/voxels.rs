@@ -10,7 +10,7 @@
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::App;
+use balaur_core::App;
 
 pub const VOXELS_ASSET_TYPE: &str = "voxels";
 
@@ -47,7 +47,11 @@ fn parse_definition(value: &toml::Value) -> Result<VoxelsData> {
         .get("size")
         .and_then(toml::Value::as_array)
         .map_or([1.0; 3], |a| {
-            let at = |i: usize| a.get(i).and_then(crate::components::as_f64).unwrap_or(1.0) as f32;
+            let at = |i: usize| {
+                a.get(i)
+                    .and_then(balaur_core::components::as_f64)
+                    .unwrap_or(1.0) as f32
+            };
             [at(0), at(1), at(2)]
         });
     if size.iter().any(|s| *s <= 0.0) {

@@ -31,8 +31,8 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
     match value {
         Some(Value::Str(reference)) => {
             let definition =
-                balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-            let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+                balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+            let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
             Ok((
                 mesh.positions.iter().map(|p| scalar::v3a(*p)).collect(),
                 mesh.indices.clone(),

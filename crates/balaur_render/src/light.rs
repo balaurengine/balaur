@@ -196,7 +196,7 @@ pub fn occluder_edges(eng: &Engine, root: Entity) -> Vec<[Vec2; 2]> {
 /// The edges of a map's occluding cells, in world space. Only the ones no
 /// other occluding cell is behind: a wall's outline, not its insides.
 fn tile_edges(eng: &Engine, world: &World, entity: Entity) -> Vec<[Vec2; 2]> {
-    let Ok(grid) = world.get::<&balaur_core::tiles::TileGrid>(entity) else {
+    let Ok(grid) = world.get::<&balaur_geometry::tiles::TileGrid>(entity) else {
         return Vec::new();
     };
     let Ok(set) = balaur_core::assets::load_typed::<crate::tilemap::TileSet>(eng, &grid.tileset)
@@ -316,8 +316,8 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
 /// load is warned about and occludes nothing: one bad asset must not take the
 /// scene down.
 fn mesh_outline(eng: &Engine, reference: &str) -> Vec<Vec2> {
-    let loaded = balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)
-        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition));
+    let loaded = balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)
+        .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition));
     match loaded {
         Ok(data) => data
             .positions
@@ -408,7 +408,7 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
                 height: 2.0f32
                     .mul_add(-num(k::RADIUS, 0.5), num(k::HEIGHT, 2.0))
                     .max(0.0),
-                segments: balaur_core::primitive::DEFAULT_SEGMENTS,
+                segments: balaur_geometry::primitive::DEFAULT_SEGMENTS,
             }
             .outline(),
         ),

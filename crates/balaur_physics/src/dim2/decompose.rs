@@ -31,7 +31,7 @@ const AREA_TOLERANCE: f32 = 1.0e-3;
 /// area, or a loop that crosses itself.
 pub(crate) fn decompose_polygon(polygon: &[Vector2], overlap: f32) -> Result<Vec<Vec<Vector2>>> {
     let ring: Vec<u32> = (0..polygon.len() as u32).collect();
-    let triangles = balaur_core::triangulate::triangulate(polygon, &ring)?;
+    let triangles = balaur_geometry::triangulate::triangulate(polygon, &ring)?;
     Ok(decompose(polygon, &triangles, overlap))
 }
 
@@ -518,12 +518,15 @@ mod tests {
     fn nothing_grows_outside_the_polygon() {
         let table = table();
         for piece in decompose_polygon(&table, 1.0).unwrap() {
-            let spilled: f32 =
-                balaur_core::geometry2d::overlay(&piece, &table, balaur_core::csg::Op::Difference)
-                    .iter()
-                    .flatten()
-                    .map(|path| area(path))
-                    .sum();
+            let spilled: f32 = balaur_geometry::geometry2d::overlay(
+                &piece,
+                &table,
+                balaur_geometry::csg::Op::Difference,
+            )
+            .iter()
+            .flatten()
+            .map(|path| area(path))
+            .sum();
             assert!(
                 spilled < 1.0e-3,
                 "{spilled} of a piece is outside the table"
@@ -555,7 +558,7 @@ mod tests {
     fn a_square_with_a_hole_keeps_the_hole() {
         let outline = vec![[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0]];
         let hole = vec![[1.0, 1.0], [1.0, 2.0], [2.0, 2.0], [2.0, 1.0]];
-        let (filled, triangles) = balaur_core::triangulate::triangulate_shape(&[outline, hole]);
+        let (filled, triangles) = balaur_geometry::triangulate::triangulate_shape(&[outline, hole]);
         let points: Vec<Vector2> = filled.iter().map(|&[x, y]| Vector2::new(x, y)).collect();
         let pieces = super::decompose(&points, &triangles, 0.0);
         all_convex(&pieces);
@@ -676,7 +679,7 @@ mod stress {
         let ring: Vec<u32> = (0..polygon.len() as u32).collect();
         let plain = cut_pieces(
             polygon,
-            &balaur_core::triangulate::triangulate(polygon, &ring).unwrap(),
+            &balaur_geometry::triangulate::triangulate(polygon, &ring).unwrap(),
         );
         let bent = grown.iter().filter(|piece| !convex(piece)).count();
 

@@ -9,7 +9,7 @@
 /// after another, padded to four floats because a storage buffer aligns that
 /// way. `None` for a mesh with no shapes.
 pub(crate) fn targets_of(
-    data: &balaur_core::mesh::MeshData,
+    data: &balaur_geometry::mesh::MeshData,
 ) -> Option<kiss3d::resource::MorphTargets> {
     if data.morphs.is_empty() || data.positions.is_empty() {
         return None;

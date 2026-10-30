@@ -7,7 +7,7 @@
 //! rows). Rapier
 //! builds the body once from that; after it, the solver owns the positions
 //! and the node's drawn vertices come back from it every step through
-//! [`balaur_core::mesh::SolvedMesh`].
+//! [`balaur_geometry::mesh::SolvedMesh`].
 //!
 //! A soft body is world-space like a rigid one: the generators are given the
 //! node's composed global pose, and the read-back divides it out again so a
@@ -496,8 +496,8 @@ fn mesh_in_world(
     pose: scalar::Pose,
 ) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+    let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
     let points = mesh
         .positions
         .iter()
@@ -897,12 +897,12 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
         (positions, indices, color)
     };
     let mut world = eng.world_mut();
-    if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
+    if let Ok(mut solved) = world.get::<&mut balaur_geometry::mesh::SolvedMesh>(entity) {
         solved.update(positions, indices);
         solved.color = color;
         return;
     }
-    let mut solved = balaur_core::mesh::SolvedMesh::default();
+    let mut solved = balaur_geometry::mesh::SolvedMesh::default();
     solved.update(positions, indices);
     solved.color = color;
     let _ = world.insert_one(entity, solved);
@@ -978,7 +978,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
                 remove_softbody(eng, entity);
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Softbody3d>(entity);
-                let _ = world.remove_one::<balaur_core::mesh::SolvedMesh>(entity);
+                let _ = world.remove_one::<balaur_geometry::mesh::SolvedMesh>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Softbody3d>(Some(after_write))

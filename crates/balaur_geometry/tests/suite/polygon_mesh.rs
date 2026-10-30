@@ -2,13 +2,13 @@
 //! outline that fills itself, hand-drawn polygons over interior points,
 //! and bone weights folded to what a skin reads.
 
-use balaur_core::mesh::MeshData;
-use balaur_core::triangulate::triangulate;
-use balaur_core::{App, AppConfig, assets};
+use balaur_core::{App, assets};
+use balaur_geometry::mesh::MeshData;
+use balaur_geometry::triangulate::triangulate;
 use glamx::Vec2;
 
 fn app() -> App {
-    App::new(AppConfig::bare(".")).unwrap()
+    crate::app_at(".")
 }
 
 /// Parse an inline `mesh` definition through the registered asset type,
@@ -155,7 +155,7 @@ fn a_self_crossing_loop_is_refused_where_it_crosses() {
 #[test]
 fn a_shape_fill_returns_the_vertex_a_crossing_needed() {
     let crossing = vec![vec![[0.0, 0.0], [3.0, 0.0], [0.0, 1.0], [1.0, 2.0]]];
-    let (points, triangles) = balaur_core::triangulate::triangulate_shape(&crossing);
+    let (points, triangles) = balaur_geometry::triangulate::triangulate_shape(&crossing);
     assert_eq!(triangles.len(), 2);
     assert_eq!(points.len(), 5, "the four written, and the crossing");
 }
@@ -164,7 +164,7 @@ fn a_shape_fill_returns_the_vertex_a_crossing_needed() {
 fn an_outline_with_a_hole_leaves_the_hole_empty() {
     let ring = vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]];
     let hole = vec![[1.0, 1.0], [1.0, 3.0], [3.0, 3.0], [3.0, 1.0]];
-    let (_, triangles) = balaur_core::triangulate::triangulate_shape(&[ring, hole]);
+    let (_, triangles) = balaur_geometry::triangulate::triangulate_shape(&[ring, hole]);
     assert!(
         triangles.len() >= 8,
         "a square ring is eight triangles or more, got {}",

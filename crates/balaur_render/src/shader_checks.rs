@@ -206,7 +206,7 @@ fn the_prepass_validates_in_every_variant() {
 fn the_imported_gltf_material_validates() {
     for unlit in [false, true] {
         let linked = link(
-            &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
+            &[("package::imported", balaur_asset::glb::MATERIAL_SHADER)],
             "package::imported",
             &[
                 ("metallic_roughness_map", true),

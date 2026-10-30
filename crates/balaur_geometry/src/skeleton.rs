@@ -15,15 +15,15 @@
 //! on another.
 
 use anyhow::{Result, anyhow};
+use balaur_core::hecs::{Entity, World};
 use balaur_script::Value;
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
-use hecs::{Entity, World};
 
-use crate::App;
-use crate::components::ComponentDef;
-use crate::components::derived::{Component, Written};
-use crate::engine::Engine;
-use crate::scene::{Children, GlobalTransform, Parent, Transform};
+use balaur_core::App;
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Written};
+use balaur_core::engine::Engine;
+use balaur_core::scene::{Children, GlobalTransform, Parent, Transform};
 
 /// A bone's rest pose and gizmo hints, in the node's local space.
 ///
@@ -471,7 +471,7 @@ pub struct Bone3d {
     reason = "an after-write hook may refuse a write; this one never does"
 )]
 fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    crate::transform::ensure(eng, entity);
+    balaur_core::transform::ensure(eng, entity);
     let mut world = eng.world_mut();
     let Ok(asked) = world.get::<&Bone2d>(entity).map(|held| *held) else {
         return Ok(());
@@ -496,7 +496,7 @@ fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
     reason = "an after-write hook may refuse a write; this one never does"
 )]
 fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    crate::transform::ensure(eng, entity);
+    balaur_core::transform::ensure(eng, entity);
     let mut world = eng.world_mut();
     let Ok(asked) = world.get::<&Bone3d>(entity).map(|held| *held) else {
         return Ok(());
@@ -520,10 +520,10 @@ pub fn register_bone2d_component(app: &mut App) {
         <Bone2d as Component>::NAME,
         ComponentDef {
             tags: &[
-                crate::components::tag::DIM_2D,
-                crate::components::tag::ANIMATION,
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::ANIMATION,
             ],
-            expects: &[crate::transform::COMPONENT],
+            expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Bone2d>(entity);
@@ -541,10 +541,10 @@ pub fn register_bone3d_component(app: &mut App) {
         <Bone3d as Component>::NAME,
         ComponentDef {
             tags: &[
-                crate::components::tag::DIM_3D,
-                crate::components::tag::ANIMATION,
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::ANIMATION,
             ],
-            expects: &[crate::transform::COMPONENT],
+            expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Bone3d>(entity);
@@ -558,7 +558,7 @@ pub fn register_bone3d_component(app: &mut App) {
 
 fn node_arg(args: &[Value]) -> Result<Entity> {
     match args.first() {
-        Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id)),
+        Some(Value::Node(id)) => balaur_core::entity_of(balaur_script::NodeId(*id)),
         other => Err(anyhow!("argument 0 should be a node, got {other:?}")),
     }
 }
@@ -585,24 +585,24 @@ pub(crate) fn bones_op(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::List(
         bones_under(&world, root)
             .into_iter()
-            .map(|bone| Value::Node(crate::node_id_of(bone).0))
+            .map(|bone| Value::Node(balaur_core::node_id_of(bone).0))
             .collect(),
     ))
 }
 
 /// The `skeleton` module's calls.
-pub const OPS: &[crate::engine_api::EngineOp] = &[
-    crate::engine_api::EngineOp {
+pub const OPS: &[balaur_core::engine_api::EngineOp] = &[
+    balaur_core::engine_api::EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: apply_rest_op,
     },
-    crate::engine_api::EngineOp {
+    balaur_core::engine_api::EngineOp {
         module: "skeleton",
         name: "overwrite_rest",
         call: overwrite_rest_op,
     },
-    crate::engine_api::EngineOp {
+    balaur_core::engine_api::EngineOp {
         module: "skeleton",
         name: "bones",
         call: bones_op,

@@ -19,7 +19,7 @@ use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::core::solver::Solver;
 use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 
-use crate::engine::Engine;
+use balaur_core::engine::Engine;
 
 /// A pixel index as the coordinate the boundary walk counts in, which reaches
 /// one past the mask on every side.

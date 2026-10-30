@@ -7,6 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+balaur_geometry.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 egui.workspace = true

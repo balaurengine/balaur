@@ -1,7 +1,8 @@
 //! Vertex colours and morph targets: what a glTF that carries them used to
 //! lose, and what an inline definition can say.
 
-use balaur_core::mesh::{self, MeshData};
+use balaur_asset::glb;
+use balaur_geometry::mesh::{self, MeshData};
 
 /// Four bytes each, little-endian, as a glTF buffer holds them.
 fn f32s(values: &[f32]) -> Vec<u8> {
@@ -129,7 +130,7 @@ fn painted_quad() -> Vec<u8> {
 }
 
 fn quad() -> MeshData {
-    mesh::parse(&painted_quad(), "quad.glb").expect("the fixture reads")
+    glb::parse_gltf(&painted_quad(), "quad.glb", &glb::no_side_files).expect("the fixture reads")
 }
 
 #[test]

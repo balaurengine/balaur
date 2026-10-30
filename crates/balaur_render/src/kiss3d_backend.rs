@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
 use balaur_core::{App, GlobalAppearance, GlobalTransform};
+use balaur_geometry::skeleton;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
@@ -989,32 +990,22 @@ fn pose_mesh(
             bone
         })
         .collect();
-    let palette = balaur_core::skeleton::joint_matrices_3d(
-        world,
-        entity,
-        rig,
-        &bones,
-        skin.inverse_bind.as_deref(),
-    );
+    let palette =
+        skeleton::joint_matrices_3d(world, entity, rig, &bones, skin.inverse_bind.as_deref());
     // The vertex shader blends the same matrices, so the CPU work below is
     // exactly what the GPU path saves.
     if let Some(handle) = handle {
         handle.set(palette);
         return;
     }
-    let positions = balaur_core::skeleton::skin_positions_3d(
-        &skin.positions,
-        &skin.joints,
-        &skin.weights,
-        &palette,
-    );
+    let positions =
+        skeleton::skin_positions_3d(&skin.positions, &skin.joints, &skin.weights, &palette);
     node.modify_vertices(&mut |coords: &mut Vec<Vec3>| {
         coords.clone_from(&positions);
     });
     match &skin.normals {
         Some(rest) => {
-            let normals =
-                balaur_core::skeleton::skin_normals_3d(rest, &skin.joints, &skin.weights, &palette);
+            let normals = skeleton::skin_normals_3d(rest, &skin.joints, &skin.weights, &palette);
             node.modify_normals(&mut |ns: &mut Vec<Vec3>| {
                 ns.clone_from(&normals);
             });
@@ -1062,7 +1053,7 @@ pub(crate) fn build_polyline_node(
     app: &App,
     scene: &mut SceneNode2d,
     renderable: &Renderable2d,
-    stroke: &balaur_core::stroke::Stroke,
+    stroke: &balaur_geometry::stroke::Stroke,
 ) -> Option<(SceneNode2d, Vec<(SceneNode2d, f32)>)> {
     let points = polyline_points(app, renderable.polyline.as_deref(), false);
     if points.len() < 2 {
@@ -1074,7 +1065,7 @@ pub(crate) fn build_polyline_node(
     let bands = gradient.map_or(1, |s| s.gradient_steps);
     let mut group = scene.add_group();
     let mut pieces = Vec::new();
-    for piece in balaur_core::stroke::stroke(&points, stroke, bands) {
+    for piece in balaur_geometry::stroke::stroke(&points, stroke, bands) {
         let mesh =
             kiss3d::resource::GpuMesh2d::new(piece.coords, piece.faces, Some(piece.uvs), false);
         let mut node = group.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(mesh)), Vec2::ONE);
@@ -1123,15 +1114,16 @@ pub(crate) fn polygon_palette(
             bone
         })
         .collect();
-    balaur_core::skeleton::joint_matrices_2d(world, entity, rig, &bones)
+    skeleton::joint_matrices_2d(world, entity, rig, &bones)
 }
 
 /// A `path2d` asset sampled into points, or `None` when the reference names
 /// no path -- which is a mesh reference and not a mistake.
 fn sampled_path(app: &App, reference: &str) -> Option<Vec<Vec2>> {
-    let path = balaur_core::assets::load_typed::<balaur_core::path::Path2d>(&app.engine, reference)
-        .ok()?;
-    match path.sample(balaur_core::path::TOLERANCE) {
+    let path =
+        balaur_core::assets::load_typed::<balaur_geometry::path::Path2d>(&app.engine, reference)
+            .ok()?;
+    match path.sample(balaur_geometry::path::TOLERANCE) {
         Ok(points) => Some(points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect()),
         Err(err) => {
             tracing::error!("path '{reference}': {err:#}");
@@ -1144,8 +1136,8 @@ fn sampled_path(app: &App, reference: &str) -> Option<Vec<Vec2>> {
 /// which is logged rather than fatal.
 fn mesh_points(app: &App, reference: &str) -> Option<Vec<Vec2>> {
     let loaded =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
-            .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(&app.engine, reference)
+            .and_then(|definition| balaur_geometry::mesh::load_from(&app.engine, &definition));
     match loaded {
         Ok(data) => Some(
             data.positions

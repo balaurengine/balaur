@@ -6,11 +6,11 @@
 //! windowed backend converts [`MeshData`] into its own buffers at upload.
 //!
 //! Parsers take bytes rather than a path: a shipped game's models live inside
-//! its pack (`crate::project::ProjectFiles`), not beside it on disk.
+//! its pack (`balaur_core::project::ProjectFiles`), not beside it on disk.
 
-use crate::App;
-use crate::collections::DetHashMap;
 use anyhow::{Result, anyhow, bail};
+use balaur_core::App;
+use balaur_core::collections::DetHashMap;
 
 mod solved;
 pub use solved::{SolvedMesh, SolvedPolygon};
@@ -184,7 +184,7 @@ pub struct TextShape {
 pub struct TextGeometry(pub Box<TextMesher>);
 
 /// What [`TextGeometry`] holds: a request in, triangles out.
-pub type TextMesher = dyn Fn(&crate::Engine, &TextShape) -> Result<MeshData>;
+pub type TextMesher = dyn Fn(&balaur_core::Engine, &TextShape) -> Result<MeshData>;
 
 impl MeshData {
     #[must_use]
@@ -209,36 +209,31 @@ impl MeshData {
     }
 }
 
-/// Which parser a file name selects. Unknown extensions are an error rather
-/// than a guess: loading a `.blend` as OBJ produces nonsense, not a mesh.
-///
-/// # Errors
-/// If the extension names no parser, or the bytes do not parse.
-pub fn parse(bytes: &[u8], name: &str) -> Result<MeshData> {
-    parse_with(bytes, name, &crate::glb::no_side_files)
-}
+/// Reads a glTF model's triangles: all of them, or only those its `part`
+/// material draws. The side reader finds a file the model names beside itself.
+pub type ModelParser =
+    dyn Fn(&[u8], &str, &dyn Fn(&str) -> Result<Vec<u8>>, Option<&str>) -> Result<MeshData>;
 
-/// [`parse`], with a reader for the files a `.gltf` keeps beside itself.
-///
-/// # Errors
-/// As [`parse`], and if a side file the model names cannot be read.
-pub fn parse_with(bytes: &[u8], name: &str, side: crate::glb::SideReader<'_>) -> Result<MeshData> {
-    parse_part(bytes, name, side, None)
-}
+/// The glTF reader [`load_from`] reads a `.glb` or `.gltf` source with: the
+/// asset crate installs one, as the font plugin installs [`TextGeometry`].
+pub struct ModelReader(pub Box<ModelParser>);
 
-/// [`parse_with`], taking only the triangles a model's `part` material draws.
+/// A model file's triangles, by the parser its name selects. Unknown
+/// extensions are an error rather than a guess: loading a `.blend` as OBJ
+/// produces nonsense, not a mesh.
 ///
-/// A model with one material per surface — anything exported from a scene
-/// rather than sculpted as one object — becomes one mesh per material, so
+/// A model with one material per surface becomes one mesh per material, so
 /// each can carry its own. Only glTF names its materials; `part` on any other
 /// format is an error rather than silently the whole file.
 ///
 /// # Errors
-/// As [`parse_with`], and if the model names no such material.
+/// If the extension names no parser, no reader for it is installed, the
+/// model names no such material, or the bytes do not parse.
 pub fn parse_part(
+    eng: &balaur_core::Engine,
     bytes: &[u8],
     name: &str,
-    side: crate::glb::SideReader<'_>,
+    side: &dyn Fn(&str) -> Result<Vec<u8>>,
     part: Option<&str>,
 ) -> Result<MeshData> {
     let ext = std::path::Path::new(name)
@@ -251,7 +246,13 @@ pub fn parse_part(
             bail!("a mesh names a `part` of '{name}', and only glTF names its materials")
         }
         "obj" => parse_obj(bytes, name),
-        "glb" | "gltf" => crate::glb::parse_gltf_part(bytes, name, side, part),
+        "glb" | "gltf" => {
+            let reader = eng
+                .try_resource::<ModelReader>()
+                .ok_or_else(|| anyhow!("no glTF reader is installed to read '{name}'"))?;
+            let reader = reader.borrow();
+            (reader.0)(bytes, name, side, part)
+        }
         other => bail!("no mesh parser for '.{other}' ({name}); balaur reads .obj, .glb and .gltf"),
     }
 }
@@ -520,7 +521,7 @@ fn parse_text_shape(value: &toml::Value) -> MeshData {
     let number = |key: &str, fallback: f64| {
         value
             .get(key)
-            .and_then(crate::components::as_f64)
+            .and_then(balaur_core::components::as_f64)
             .unwrap_or(fallback)
     };
     MeshData {
@@ -559,7 +560,7 @@ fn parse_path_shape(value: &toml::Value, kind: &str) -> MeshData {
     let number = |key: &str, fallback: f64| {
         value
             .get(key)
-            .and_then(crate::components::as_f64)
+            .and_then(balaur_core::components::as_f64)
             .unwrap_or(fallback)
     };
     MeshData {
@@ -740,7 +741,7 @@ fn parse_skin(value: &toml::Value, vertices: usize) -> Result<Option<MeshSkin>> 
             );
         }
         for (vertex, weight) in weights.iter().enumerate() {
-            let weight = crate::components::as_f64(weight).ok_or_else(|| {
+            let weight = balaur_core::components::as_f64(weight).ok_or_else(|| {
                 anyhow!("a mesh's `skin.bones[{index}]` weight {vertex} is not a number")
             })? as f32;
             if weight < 0.0 || !weight.is_finite() {
@@ -853,7 +854,7 @@ fn quads(value: &toml::Value, key: &str) -> Result<Option<Vec<[f32; 4]>>> {
             .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` is not an rgb or rgba colour"))?;
         let mut color = [0.0, 0.0, 0.0, 1.0];
         for (slot, number) in color.iter_mut().zip(row) {
-            *slot = crate::components::as_f64(number)
+            *slot = balaur_core::components::as_f64(number)
                 .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` holds a non-number"))?
                 as f32;
         }
@@ -880,7 +881,7 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
                 .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` is not one of {shape}"))?;
             let mut out = [0.0f32; 3];
             for (slot, number) in out.iter_mut().zip(row) {
-                *slot = crate::components::as_f64(number)
+                *slot = balaur_core::components::as_f64(number)
                     .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` holds a non-number"))?
                     as f32;
             }
@@ -895,9 +896,9 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
 ///
 /// # Errors
 /// If the path is missing, or will not make the shape asked for.
-fn path_mesh(eng: &crate::Engine, shape: &PathShape) -> Result<MeshData> {
+fn path_mesh(eng: &balaur_core::Engine, shape: &PathShape) -> Result<MeshData> {
     let flat = |reference: &str| {
-        crate::assets::load_typed::<crate::path::Path2d>(eng, reference).map_err(|e| {
+        balaur_core::assets::load_typed::<crate::path::Path2d>(eng, reference).map_err(|e| {
             anyhow!(
                 "a {} mesh cannot read its path '{reference}': {e}",
                 shape.kind
@@ -913,7 +914,7 @@ fn path_mesh(eng: &crate::Engine, shape: &PathShape) -> Result<MeshData> {
         ),
         LATHE_KIND => crate::path::lathe(&flat(&shape.path)?.as_ref().clone(), shape.segments),
         SWEEP_KIND => {
-            let rail = crate::assets::load_typed::<crate::path::Path3d>(eng, &shape.path)
+            let rail = balaur_core::assets::load_typed::<crate::path::Path3d>(eng, &shape.path)
                 .map_err(|e| anyhow!("a sweep cannot read its rail '{}': {e}", shape.path))?;
             crate::path::sweep(
                 rail.as_ref(),
@@ -930,7 +931,7 @@ fn path_mesh(eng: &crate::Engine, shape: &PathShape) -> Result<MeshData> {
 #[derive(Default)]
 struct MeshCache {
     generation: u64,
-    by_reference: crate::collections::DetHashMap<String, std::rc::Rc<MeshData>>,
+    by_reference: balaur_core::collections::DetHashMap<String, std::rc::Rc<MeshData>>,
 }
 
 /// A mesh reference resolved to its geometry, kept until the asset reloads.
@@ -940,8 +941,8 @@ struct MeshCache {
 ///
 /// # Errors
 /// If the reference does not resolve, or the file it names does not parse.
-pub fn resolved(eng: &crate::Engine, reference: &str) -> Result<std::rc::Rc<MeshData>> {
-    let generation = crate::assets::generation(eng);
+pub fn resolved(eng: &balaur_core::Engine, reference: &str) -> Result<std::rc::Rc<MeshData>> {
+    let generation = balaur_core::assets::generation(eng);
     if eng.try_resource::<MeshCache>().is_none() {
         eng.insert_resource(MeshCache::default());
     }
@@ -957,7 +958,7 @@ pub fn resolved(eng: &crate::Engine, reference: &str) -> Result<std::rc::Rc<Mesh
         }
     }
     // Resolved outside the borrow: parsing reaches back into the asset cache.
-    let definition = crate::assets::load_typed::<MeshData>(eng, reference)?;
+    let definition = balaur_core::assets::load_typed::<MeshData>(eng, reference)?;
     let data = std::rc::Rc::new(load_from(eng, &definition)?);
     cache
         .borrow_mut()
@@ -972,7 +973,7 @@ pub fn resolved(eng: &crate::Engine, reference: &str) -> Result<std::rc::Rc<Mesh
 ///
 /// # Errors
 /// If the referenced file is missing, or does not parse.
-pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData> {
+pub fn load_from(eng: &balaur_core::Engine, definition: &MeshData) -> Result<MeshData> {
     if let Some(shape) = &definition.path {
         return path_mesh(eng, shape);
     }
@@ -986,7 +987,7 @@ pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData>
     let Some(source) = definition.source.as_deref() else {
         return Ok(definition.clone());
     };
-    let files = eng.resource::<crate::project::ProjectFiles>();
+    let files = eng.resource::<balaur_core::project::ProjectFiles>();
     let files = files.borrow();
     let bytes = files.read(source)?;
     // A `.gltf` names its buffers and images relative to itself.
@@ -1001,10 +1002,10 @@ pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData>
             format!("{directory}/{uri}")
         })
     };
-    let mut mesh = parse_part(&bytes, source, &side, definition.part.as_deref())?;
-    crate::import::model::place(
+    let mut mesh = parse_part(eng, &bytes, source, &side, definition.part.as_deref())?;
+    crate::model::place(
         &mut mesh,
-        &crate::import::resolved(eng, source).settings,
+        &balaur_core::import::resolved(eng, source).settings,
         source,
     );
     mesh.source = Some(source.to_string());
@@ -1121,7 +1122,11 @@ mod tests {
 
     #[test]
     fn an_unknown_extension_names_what_is_supported() {
-        let err = parse(b"", "model.fbx").unwrap_err().to_string();
+        let eng = balaur_core::Engine::new();
+        let none = |uri: &str| Err(anyhow!("no {uri}"));
+        let err = parse_part(&eng, b"", "model.fbx", &none, None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains(".fbx") && err.contains(".obj"), "{err}");
     }
     #[test]

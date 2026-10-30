@@ -20,15 +20,16 @@
 use anyhow::{Context, Result, anyhow, bail};
 use glamx::{Mat4, Quat, Vec3};
 
-use crate::collections::DetHashMap;
 use crate::glb_material::{
     DEFAULT_MATERIAL, Images, Surface, drawn_with, material_names, surfaces,
 };
 /// The stock surface an imported material draws with, and where it is
 /// written. Named here because this is the module `balaur import` calls.
 pub use crate::glb_material::{MATERIAL_SHADER, MATERIAL_SHADER_PATH};
-use crate::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
-use crate::skeleton::euler_from_quat;
+use balaur_core::App;
+use balaur_core::collections::DetHashMap;
+use balaur_geometry::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
+use balaur_geometry::skeleton::euler_from_quat;
 
 /// Reads a file the model names by relative URI — a `.bin` beside a
 /// `.gltf`, an image — or says why it cannot.
@@ -70,6 +71,15 @@ pub fn no_side_files(uri: &str) -> Result<Vec<u8>> {
     Err(anyhow!(
         "'{uri}' is a side file, and this reader has no directory to find it in"
     ))
+}
+
+/// Install this reader as the one a `mesh` asset's `.glb` or `.gltf` source
+/// is read with.
+pub fn register_model_reader(app: &mut App) {
+    app.engine
+        .insert_resource(balaur_geometry::mesh::ModelReader(Box::new(
+            |bytes, name, side, part| parse_gltf_part(bytes, name, side, part),
+        )));
 }
 
 /// A loaded file with the node facts every reader needs.
@@ -385,7 +395,7 @@ struct Streams {
     colors: Vec<[f32; 4]>,
     /// One entry per target, each gathered across every primitive so its
     /// deltas line up with the vertices they belong to.
-    morphs: Vec<crate::mesh::MorphTarget>,
+    morphs: Vec<balaur_geometry::mesh::MorphTarget>,
     had_normals: bool,
     had_uvs: bool,
     had_colors: bool,
@@ -505,7 +515,7 @@ impl Streams {
         let base = self.mesh.positions.len() - count;
         for (index, name) in names.iter().enumerate() {
             if self.morphs.len() <= index {
-                self.morphs.push(crate::mesh::MorphTarget {
+                self.morphs.push(balaur_geometry::mesh::MorphTarget {
                     name: name.clone(),
                     positions: vec![[0.0; 3]; base],
                     normals: None,
@@ -917,7 +927,7 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
         placed.insert("rotation_euler".into(), floats(euler.to_array()));
         placed.insert("scale".into(), floats(s));
         entry.insert(
-            crate::transform::COMPONENT.into(),
+            balaur_core::transform::COMPONENT.into(),
             toml::Value::Table(placed),
         );
         if let Some(light) = model

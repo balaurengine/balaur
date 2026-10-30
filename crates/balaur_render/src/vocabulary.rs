@@ -6,7 +6,7 @@
 /// the script constants beside them. Written once so a matcher, a schema's
 /// `options` list and the read-back cannot disagree.
 pub(crate) mod words {
-    use balaur_core::primitive::words as p;
+    use balaur_geometry::primitive::words as p;
 
     pub(crate) const SPHERE: &str = p::SPHERE;
     pub(crate) const BOX: &str = p::BOX;
@@ -219,7 +219,7 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
 /// Every property key the render components spell, so a schema line and the
 /// reader behind it name the same key.
 pub(crate) mod keys {
-    use balaur_core::primitive::keys as p;
+    use balaur_geometry::primitive::keys as p;
 
     pub(crate) const CAST_SHADOW: &str = "cast_shadow";
     pub(crate) const LIGHT_LAYERS: &str = "light_layers";

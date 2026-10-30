@@ -2,14 +2,18 @@
 //! called directly. Every language reaches these through the same
 //! declarations.
 
-use balaur_core::engine_api::{ApiPart, EngineOp, full_api};
+use balaur_core::engine_api::{ApiPart, EngineOp, kernel_api};
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
 
-/// Every call the engine's tables declare, in the order they register.
+/// Every call this crate's tables declare.
 fn ops() -> Vec<&'static EngineOp> {
-    full_api()
+    kernel_api()
         .into_iter()
+        .chain([
+            ApiPart::Ops(balaur_core::desktop_api::OPS),
+            ApiPart::Ops(balaur_core::profile_api::OPS),
+        ])
         .filter_map(|part| match part {
             ApiPart::Ops(ops) => Some(ops.iter()),
             ApiPart::Module(..) => None,

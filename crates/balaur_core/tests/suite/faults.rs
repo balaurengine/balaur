@@ -82,6 +82,8 @@ impl Transport for Pipe {
 /// shows up in the digest.
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
+    // The peer traffic a recording replays without a peer.
+    balaur_core::netsession::build_session_source(&mut app);
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();

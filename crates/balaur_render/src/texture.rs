@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 ///
 /// Not a decode: a scene full of sprites would pay for every one at load.
 pub(crate) fn image_size(bytes: &[u8], name: &str, settings: &toml::Table) -> Result<(u32, u32)> {
-    balaur_core::pixels::size(bytes, settings)
+    balaur_asset::pixels::size(bytes, settings)
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)
     }
     // A smaller copy shipped in the file's place still measures as the size
     // it was drawn at; only the upload needs the pixels actually there.
-    let source = balaur_core::texture_asset::source(eng, reference)?;
+    let source = balaur_asset::texture_asset::source(eng, reference)?;
     let size = match balaur_core::import::drawn_size(eng, &source.path) {
         Some(drawn) => drawn,
         None => shipped_size_of(eng, reference)?,
@@ -66,7 +66,7 @@ pub(crate) fn size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)
 /// nothing: its `pixels_per_unit` import setting, else the engine's 100.
 pub(crate) fn pixels_per_unit(eng: &crate::Engine, reference: &str) -> f32 {
     let fallback = crate::DEFAULT_PIXELS_PER_UNIT;
-    let Ok(source) = balaur_core::texture_asset::source(eng, reference) else {
+    let Ok(source) = balaur_asset::texture_asset::source(eng, reference) else {
         return fallback;
     };
     let key = balaur_core::import::keys::PIXELS_PER_UNIT;
@@ -83,7 +83,7 @@ pub(crate) fn shipped_size_of(eng: &crate::Engine, reference: &str) -> Result<(u
     if let Some(size) = cache.borrow().shipped.get(reference) {
         return Ok(*size);
     }
-    let source = balaur_core::texture_asset::source(eng, reference)?;
+    let source = balaur_asset::texture_asset::source(eng, reference)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
@@ -232,7 +232,7 @@ mod windowed {
         let files = eng.resource::<balaur_core::project::ProjectFiles>();
         // Resolved rather than read: this runs on every attach, and a sprite
         // is attached on every frame that draws it.
-        let source = match balaur_core::texture_asset::source(eng, reference) {
+        let source = match balaur_asset::texture_asset::source(eng, reference) {
             Ok(source) => source,
             Err(err) => {
                 tracing::error!("texture '{reference}': {err:#}");
@@ -260,11 +260,11 @@ mod windowed {
         // keeps the two warnings in `sampling` to one a texture.
         let asked = sampling(path, &settings.settings, premultiply);
         let alpha = if asked.premultiply {
-            balaur_core::pixels::Alpha::Premultiplied
+            balaur_asset::pixels::Alpha::Premultiplied
         } else {
-            balaur_core::pixels::Alpha::Straight
+            balaur_asset::pixels::Alpha::Straight
         };
-        match balaur_core::pixels::decode(&bytes, &settings.settings, alpha) {
+        match balaur_asset::pixels::decode(&bytes, &settings.settings, alpha) {
             Ok(pixels) => {
                 let image = image::DynamicImage::ImageRgba8(pixels);
                 Some(TextureManager::get_global_manager(|tm| {

@@ -21,13 +21,12 @@ pub mod bindings;
 pub mod changes;
 pub mod collections;
 pub mod components;
-pub mod csg;
 #[cfg(not(target_family = "wasm"))]
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
 pub mod dependencies;
-mod profile_api;
+pub mod profile_api;
 mod regex_api;
 // Opening a URL is a shell's job and a tab is one; revealing a folder is a
 // desktop's alone, so only that half is gated, inside.
@@ -42,11 +41,7 @@ pub mod events;
 pub mod facts;
 pub mod file_api;
 pub mod files;
-pub mod geometry2d;
-pub mod glb;
-mod glb_material;
 pub mod handler;
-pub mod heightfield;
 pub mod hooks;
 pub mod ids;
 pub mod ignore;
@@ -55,16 +50,12 @@ pub mod interpolate;
 pub mod layers;
 pub mod logbuf;
 pub mod math_api;
-pub mod mesh;
 pub mod netsession;
 pub mod node_api;
 pub mod node_meta;
 pub mod pack;
-pub mod path;
-pub mod pixels;
 pub mod plugins;
 pub mod presets;
-pub mod primitive;
 pub mod process;
 pub mod project;
 mod project_files;
@@ -81,31 +72,25 @@ pub mod scene_switch;
 pub mod scene_toml;
 pub mod settings;
 pub mod settings_api;
-pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
 pub mod states;
 pub mod strings;
-pub mod stroke;
 pub mod tags;
 pub mod task;
-pub mod texture_asset;
-pub mod tiles;
 pub mod time;
 pub mod timer;
 pub mod timers;
 pub mod timings;
 pub mod transform;
 pub mod transport;
-pub mod triangulate;
 pub mod variables;
-pub mod voxels;
 pub mod wake;
 pub mod warnings;
 
 pub use app::{
-    App, AppConfig, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory,
-    ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
+    App, AppConfig, Builtins, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs,
+    ScriptHostFactory, ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};

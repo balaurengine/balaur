@@ -11,6 +11,7 @@ graph TD
   balaur_android[balaur_android]
   balaur_animation[balaur_animation]
   balaur_apple[balaur_apple]
+  balaur_asset[balaur_asset]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
   balaur_browser[balaur_browser]
@@ -21,6 +22,7 @@ graph TD
   balaur_derive[balaur_derive]
   balaur_export[balaur_export]
   balaur_gamend[balaur_gamend]
+  balaur_geometry[balaur_geometry]
   balaur_http[balaur_http]
   balaur_import[balaur_import]
   balaur_input[balaur_input]
@@ -39,10 +41,12 @@ graph TD
   balaur_webtransport[balaur_webtransport]
   balaur --> balaur_animation
   balaur --> balaur_apple
+  balaur --> balaur_asset
   balaur --> balaur_audio
   balaur --> balaur_browser
   balaur --> balaur_core
   balaur --> balaur_gamend
+  balaur --> balaur_geometry
   balaur --> balaur_http
   balaur --> balaur_input
   balaur --> balaur_multiplayer
@@ -57,12 +61,15 @@ graph TD
   balaur --> balaur_webtransport
   balaur_android --> balaur
   balaur_animation --> balaur_core
+  balaur_animation --> balaur_geometry
   balaur_animation --> balaur_plugin
   balaur_animation --> balaur_script
   balaur_apple --> balaur_core
   balaur_apple --> balaur_platform
   balaur_apple --> balaur_plugin
   balaur_apple --> balaur_script
+  balaur_asset --> balaur_core
+  balaur_asset --> balaur_geometry
   balaur_audio --> balaur_core
   balaur_audio --> balaur_plugin
   balaur_audio --> balaur_script
@@ -90,10 +97,13 @@ graph TD
   balaur_gamend --> balaur_plugin
   balaur_gamend --> balaur_script
   balaur_gamend --> balaur_websocket
+  balaur_geometry --> balaur_core
+  balaur_geometry --> balaur_script
   balaur_http --> balaur_core
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
   balaur_import --> balaur
+  balaur_import --> balaur_asset
   balaur_import --> balaur_core
   balaur_import --> balaur_render
   balaur_import --> balaur_text
@@ -106,6 +116,7 @@ graph TD
   balaur_multiplayer --> balaur_websocket
   balaur_multiplayer --> balaur_webtransport
   balaur_physics --> balaur_core
+  balaur_physics --> balaur_geometry
   balaur_physics --> balaur_plugin
   balaur_physics --> balaur_script
   balaur_platform --> balaur_core
@@ -113,7 +124,9 @@ graph TD
   balaur_platform --> balaur_script
   balaur_plugin --> balaur_core
   balaur_plugin --> balaur_script
+  balaur_render --> balaur_asset
   balaur_render --> balaur_core
+  balaur_render --> balaur_geometry
   balaur_render --> balaur_input
   balaur_render --> balaur_plugin
   balaur_render --> balaur_script
@@ -125,7 +138,9 @@ graph TD
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core
+  balaur_text --> balaur_geometry
   balaur_text --> balaur_plugin
+  balaur_ui --> balaur_asset
   balaur_ui --> balaur_core
   balaur_ui --> balaur_input
   balaur_ui --> balaur_plugin

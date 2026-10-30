@@ -47,8 +47,8 @@ pub struct EngineOp {
 }
 
 /// The kernel's own calls, in four runs: the calls of the crates around the
-/// kernel go between them, in the order the API has always listed them
-/// ([`full_api`]).
+/// kernel go between them, in the order the API has always listed them (the
+/// `balaur` crate's `builtins`).
 pub const KERNEL_OPS: [&[EngineOp]; 4] = [
     &[
         EngineOp {
@@ -636,7 +636,7 @@ pub fn kernel_api() -> Vec<ApiPart> {
 }
 
 /// The kernel's modules filled by an installer of their own, after its calls.
-const KERNEL_MODULES: [ApiPart; 6] = [
+pub const KERNEL_MODULES: [ApiPart; 6] = [
     ApiPart::Module("node", crate::node_api::install_node_api),
     ApiPart::Module(
         "dependency",
@@ -647,29 +647,6 @@ const KERNEL_MODULES: [ApiPart; 6] = [
     ApiPart::Module("settings", crate::settings_api::install_settings_api),
     ApiPart::Module("events", crate::events::install_events_api),
 ];
-
-/// Every part this crate holds, in the order the API has always listed them.
-#[must_use]
-pub fn full_api() -> Vec<ApiPart> {
-    vec![
-        ApiPart::Ops(KERNEL_OPS[0]),
-        ApiPart::Ops(crate::desktop_api::OPS),
-        ApiPart::Ops(KERNEL_OPS[1]),
-        ApiPart::Ops(crate::profile_api::OPS),
-        ApiPart::Ops(KERNEL_OPS[2]),
-        ApiPart::Ops(crate::skeleton::OPS),
-        ApiPart::Ops(KERNEL_OPS[3]),
-        KERNEL_MODULES[0],
-        KERNEL_MODULES[1],
-        ApiPart::Module("debugger", crate::debugger_api::install_debugger_api),
-        KERNEL_MODULES[2],
-        KERNEL_MODULES[3],
-        ApiPart::Module("rollback", crate::rollback_api::install_rollback_api),
-        KERNEL_MODULES[4],
-        KERNEL_MODULES[5],
-        ApiPart::Module("geometry2d", crate::geometry2d::install_geometry2d_api),
-    ]
-}
 
 /// Register every part of the engine's script API into the host, in order.
 ///

@@ -379,7 +379,9 @@ fn a_restored_map_rebuilds_from_its_own_colliders() {
     };
     let dig = |app: &App, column: usize| {
         let world = app.engine.world();
-        let mut grid = world.get::<&mut balaur_core::tiles::TileGrid>(map).unwrap();
+        let mut grid = world
+            .get::<&mut balaur_geometry::tiles::TileGrid>(map)
+            .unwrap();
         grid.rows[0][column] = None;
         grid.version += 1;
     };

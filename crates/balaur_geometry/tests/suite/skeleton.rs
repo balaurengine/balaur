@@ -1,17 +1,17 @@
 //! Bones: rest poses, the rig walk, and the joint palette a skin deforms by.
 
+use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform, propagate_transforms};
-use balaur_core::skeleton::{
+use balaur_core::{App, Engine, components};
+use balaur_geometry::skeleton::{
     self, Bone, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest,
     quat_about_z, skin_positions,
 };
-use balaur_core::{App, AppConfig, Engine, components};
 use balaur_script::Value;
 use glamx::{Mat3, Vec2, Vec3};
-use hecs::Entity;
 
 fn app() -> App {
-    App::new(AppConfig::bare(".")).unwrap()
+    crate::app_at(".")
 }
 
 fn close(a: f32, b: f32) -> bool {
@@ -294,7 +294,7 @@ position = [0, 1, 0]
 "#,
     )
     .unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
+    let mut app = crate::app_at(dir.path().to_path_buf());
     app.load_project().unwrap();
     let hip = scene::find_node(&app.engine.world(), app.engine.root(), "Rig/Hip").unwrap();
     let got = components::get(&app.engine, hip, "bone2d").unwrap();

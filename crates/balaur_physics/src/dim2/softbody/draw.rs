@@ -90,7 +90,7 @@ fn filled(body: &SoftBody, rings: &[Vec<u32>]) -> Vec<[u32; 3]> {
     rings
         .iter()
         .filter(|ring| ring.len() >= 3)
-        .filter_map(|ring| balaur_core::triangulate::triangulate(&rest, ring).ok())
+        .filter_map(|ring| balaur_geometry::triangulate::triangulate(&rest, ring).ok())
         .flatten()
         .collect()
 }

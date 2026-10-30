@@ -219,28 +219,11 @@ pub fn register_core_settings(app: &mut App) {
     crate::settings::build_core_settings(&app.engine);
 }
 
-/// Every built-in this crate holds, in the order an app has always made them.
-// The crates the core split moves out take their steps and calls with them.
+/// The kernel's: what a test that loads one plugin into an app needs. A
+/// whole engine's list is the `balaur` crate's `builtins`.
 impl Default for Builtins {
     fn default() -> Self {
-        Self {
-            steps: vec![
-                crate::mesh::register_mesh_asset,
-                crate::texture_asset::register_texture_asset,
-                crate::path::register_path_assets,
-                crate::heightfield::register_heightfield_asset,
-                crate::voxels::register_voxels_asset,
-                crate::transform::register_transform_component,
-                crate::skeleton::register_bone2d_component,
-                crate::skeleton::register_bone3d_component,
-                register_scene_content,
-                crate::snapshot::build_core_sources,
-                crate::netsession::build_session_source,
-                register_facts,
-                register_core_settings,
-            ],
-            api: crate::engine_api::full_api(),
-        }
+        Self::kernel()
     }
 }
 

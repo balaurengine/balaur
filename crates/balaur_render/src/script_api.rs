@@ -783,14 +783,14 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         "trace_texture",
         |eng: &Engine, (path, opts): (String, Option<Value>)| {
             let opts = TraceOpts::of(opts.as_ref());
-            let source = balaur_core::texture_asset::source(eng, &path)?;
+            let source = balaur_asset::texture_asset::source(eng, &path)?;
             let bytes = eng
                 .resource::<balaur_core::project::ProjectFiles>()
                 .borrow()
                 .read(&source.path)?;
             // Only alpha is traced, so nothing is bled into the clear texels.
-            let alpha = balaur_core::pixels::Alpha::Premultiplied;
-            let image = balaur_core::pixels::decode(&bytes, &source.settings.settings, alpha)
+            let alpha = balaur_asset::pixels::Alpha::Premultiplied;
+            let image = balaur_asset::pixels::decode(&bytes, &source.settings.settings, alpha)
                 .with_context(|| format!("decoding the image {path}"))?;
             let (w, h) = (image.width() as usize, image.height() as usize);
             // The file may be a smaller copy of what was drawn; the outline is
@@ -801,7 +801,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             let cut = opts.threshold * 255.0;
             let mask: Vec<bool> = image.pixels().map(|p| f32::from(p.0[3]) >= cut).collect();
             let ppu = opts.pixels_per_unit;
-            let loops = balaur_core::geometry2d::trace(&mask, w, h);
+            let loops = balaur_geometry::geometry2d::trace(&mask, w, h);
             let keep = if opts.holes { loops.len() } else { 1 };
             // Pixel corners are y-down and measured from the top left; a
             // polygon's points are y-up and centred, the same frame
@@ -817,7 +817,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
                         // `local`'s y flip turns a traced outline clockwise; reversed, an
                         // outline winds counter-clockwise and a hole clockwise.
                         let simplified =
-                            balaur_core::geometry2d::simplify(&outline, opts.tolerance);
+                            balaur_geometry::geometry2d::simplify(&outline, opts.tolerance);
                         Value::List(simplified.into_iter().rev().map(local).collect())
                     })
                     .collect(),

@@ -153,7 +153,7 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
             .unwrap()
             .points
             .len(),
-        balaur_core::primitive::DEFAULT_SEGMENTS as usize
+        balaur_geometry::primitive::DEFAULT_SEGMENTS as usize
     );
 }
 

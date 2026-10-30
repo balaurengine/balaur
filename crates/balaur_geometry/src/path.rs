@@ -7,8 +7,8 @@
 
 pub mod shape;
 
-use crate::App;
 use anyhow::{Result, bail};
+use balaur_core::App;
 use glamx::{Vec2, Vec3};
 
 pub use shape::{extrude, lathe, sweep};
@@ -201,7 +201,7 @@ fn rows(value: &toml::Value, width: usize) -> Result<Vec<[f32; 3]>> {
             .ok_or_else(|| anyhow::anyhow!("a path's `points[{i}]` is not {width} numbers"))?;
         let mut point = [0.0f32; 3];
         for (slot, number) in point.iter_mut().zip(row) {
-            *slot = crate::components::as_f64(number)
+            *slot = balaur_core::components::as_f64(number)
                 .ok_or_else(|| anyhow::anyhow!("a path's `points[{i}]` holds a non-number"))?
                 as f32;
         }

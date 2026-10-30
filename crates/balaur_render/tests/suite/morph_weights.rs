@@ -25,7 +25,11 @@ positions = [[0, -0.1, 0], [0, 0, 0], [0, -0.1, 0]]
 
 fn app() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
+    let mut app = App::new(AppConfig {
+        builtins: balaur::builtins(),
+        ..AppConfig::bare(dir.path().to_path_buf())
+    })
+    .unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     let root = app.engine.root();
     project::instantiate_scene(&app.engine, SCENE, root, false).unwrap();

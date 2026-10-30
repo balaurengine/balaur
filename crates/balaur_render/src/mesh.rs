@@ -1,14 +1,14 @@
 //! The `mesh` render component: which geometry a node draws.
 //!
 //! The geometry, its parsers and the `mesh` asset type live in
-//! `balaur_core::mesh`: physics needs them too, and does not depend on this
+//! `balaur_geometry::mesh`: physics needs them too, and does not depend on this
 //! crate. What lives here is the component that points a node at one.
 
 use crate::vocabulary::{keys as k, words};
 use crate::{Bounds3d, Renderable3d, Shape3d};
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
+use balaur_geometry::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
 use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.
@@ -41,7 +41,7 @@ pub struct MorphWeights {
 /// one model should not stop another from loading.
 fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::Value) {
     let names: Vec<String> = balaur_core::assets::load_typed::<MeshData>(eng, source)
-        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+        .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition))
         .map(|mesh| mesh.morphs.into_iter().map(|target| target.name).collect())
         .unwrap_or_default();
     let mut world = eng.world_mut();
@@ -90,10 +90,10 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 MESH_ASSET_TYPE,
                 &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
                     &[
-                        (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+                        (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_geometry::mesh::MESH_ASSET_TYPE)),
                         (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint the texture and the material are multiplied by, as channel floats or #rrggbb / #rrggbbaa; an alpha below one draws it see-through" }"#),
-                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
+                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::assets::TEXTURE_ASSET_TYPE)),
                         (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
                         (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
                         (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
@@ -119,7 +119,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 // must not take the scene down, and a headless run should hear of it.
                 if !source.is_empty()
                     && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source)
-                        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+                        .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition))
                 {
                     tracing::warn!("mesh '{source}': {why:#}");
                 }

@@ -52,7 +52,8 @@ hb-subset = { package = "mkwebfont_hb-subset", version = "0.5", optional = true 
 [dev-dependencies]
 tempfile = "3"
 # An SVG rasterized in a test, which a game runtime never needs.
-balaur_core = { workspace = true, features = ["svg"] }
+balaur_core.workspace = true
+balaur_asset = { workspace = true, features = ["svg"] }
 # A test's own sine has to be the same sine on every operating system, which
 # the platform's `sin` is not (DETERMINISM.md).
 libm.workspace = true

@@ -16,7 +16,7 @@ use balaur_core::Engine;
 use balaur_core::components;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
-use balaur_core::skeleton::Bone;
+use balaur_geometry::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
 
 use crate::clip::{Clip, LoopMode, Property, Track};
@@ -664,14 +664,17 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 // Written into the offsets already there where there are any:
                 // a deform track runs every frame, and this is a vector as
                 // long as the mesh.
-                if let Ok(mut deform) = eng.world().get::<&mut balaur_core::mesh::Deform>(*entity) {
+                if let Ok(mut deform) = eng
+                    .world()
+                    .get::<&mut balaur_geometry::mesh::Deform>(*entity)
+                {
                     deform.offsets.clear();
                     deform.offsets.extend_from_slice(offsets);
                     continue;
                 }
                 let _ = eng.world_mut().insert_one(
                     *entity,
-                    balaur_core::mesh::Deform {
+                    balaur_geometry::mesh::Deform {
                         offsets: offsets.clone(),
                     },
                 );

@@ -4,7 +4,7 @@
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
-use balaur_core::mesh::{MeshData, TextShape};
+use balaur_geometry::mesh::{MeshData, TextShape};
 
 /// A project with the editor's own face under `fonts/`, so the test does not
 /// depend on what the machine running it happens to have installed.
@@ -71,7 +71,7 @@ fn word(app: &App, text: &str, size: f32) -> MeshData {
         text: Some(shape),
         ..MeshData::default()
     };
-    balaur_core::mesh::load_from(&app.engine, &definition).expect("the word has an outline")
+    balaur_geometry::mesh::load_from(&app.engine, &definition).expect("the word has an outline")
 }
 
 /// Twice the area the triangles cover: what tells a filled ring from a
@@ -174,7 +174,7 @@ fn a_word_nothing_can_draw_says_so() {
         }),
         ..MeshData::default()
     };
-    let refused = balaur_core::mesh::load_from(&app.engine, &definition);
+    let refused = balaur_geometry::mesh::load_from(&app.engine, &definition);
     assert!(refused.is_err(), "blank text is not geometry");
 }
 
@@ -205,7 +205,7 @@ mesh = { source = "#title" }
     .expect("the scene loads");
     let definition = balaur_core::assets::load_typed::<MeshData>(&app.engine, "#title")
         .expect("the scene declared a text mesh");
-    let mesh = balaur_core::mesh::load_from(&app.engine, &definition).expect("it shapes");
+    let mesh = balaur_geometry::mesh::load_from(&app.engine, &definition).expect("it shapes");
     assert!(!mesh.indices.is_empty(), "a named word has triangles");
     let (min, max) = mesh.bounds().expect("bounds");
     assert!(max[0] - min[0] > 0.4, "two letters are wider than that");
