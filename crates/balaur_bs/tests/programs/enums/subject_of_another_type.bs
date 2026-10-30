@@ -1,0 +1,4 @@
+enum Light { Red, Green }
+pub fn f() -> int { match 3 { Light::Red => 1, _ => 2 } }
+
+// error: 2:27: expected Light, got int

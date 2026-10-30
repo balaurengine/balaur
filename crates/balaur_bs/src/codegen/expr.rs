@@ -75,6 +75,13 @@ impl FnGen<'_> {
             }
             ExprKind::ArrayRepeat(v, n) => self.array_repeat(v, n)?,
             ExprKind::If(c, then, els) => self.if_expr(c, then, els.as_ref(), e.pos)?,
+            ExprKind::Block(b) => {
+                self.scopes.push(vec![]);
+                let t = self.block_body(b)?;
+                self.scopes.pop();
+                t
+            }
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Cast(a, to) => self.cast(a, to, e.pos)?,
             ExprKind::Await(_) => {
                 return err(

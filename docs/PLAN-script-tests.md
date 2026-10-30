@@ -1,4 +1,4 @@
-> **Status:** planned 2026-10-30. Steps 1, 3 to 7 built 2026-10-30: 60
+> **Status:** planned 2026-10-30. Steps 1, 3 to 7 and 10 built 2026-10-30: 60
 > programs on wasmi, wasmtime, native code and the browser's engine, a
 > mutation test on every push, `cargo fuzz` targets, and
 > `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
@@ -122,8 +122,15 @@ forge's build-size and quality pages.
 
 ## 10. Enums and `match`
 
-PLAN-balaur-script §1 lists enums and `match` as not planned; this moves
-them in. A design to settle there before code:
+Built 2026-10-30, as ARCHITECTURE.md *Enums* records: lowered to a struct
+and an `if` chain before code is made, so every engine and the C translator
+run them unchanged. 19 corpus programs (`programs/enums/`), an enum across a
+module (`modules.rs`) and an `await` inside an arm (`awaits.rs`). The
+mutation test found one gap on its first run: a `match` whose enum was
+deleted reached the code generator; it is an error now. Not built: an enum
+in a component's property, and a `match` value holding an `await`.
+
+The design it was built to:
 
 - an enum's variants carry no data, positional data or named fields
 - `match` is exhaustive, binds what a variant carries, and is an expression

@@ -151,6 +151,8 @@ impl Scan<'_, '_> {
                     self.block(b);
                 }
             }
+            ExprKind::Block(b) => self.block(b),
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Int(_)
             | ExprKind::Float(_)
             | ExprKind::Bool(_)

@@ -1,0 +1,47 @@
+// A `match` works its subject out once, and an arm can leave the loop or the
+// function it sits in.
+
+enum Event { Key(str), Click { x: int, y: int }, Many([str]), Tick }
+struct Counter { n: int }
+
+fn next(c: &mut Counter) -> Event {
+    c.n += 1;
+    if c.n == 1 { Event::Key("a") } else if c.n == 2 { Event::Click { x: 3, y: 4 } } else if c.n == 3 { Event::Many(["p", "q"]) } else { Event::Tick }
+}
+
+pub fn drained() -> str {
+    let c = Counter { n: 0 };
+    let out = "";
+    loop {
+        match next(c) {
+            Event::Key(k) => { out = out + "key " + k + ";"; }
+            Event::Click { x, y } => { out = out + "click {x},{y};"; }
+            Event::Many(items) => {
+                for i in items { out = out + i; }
+                out = out + ";";
+            }
+            Event::Tick => { break; }
+        }
+    }
+    "{out} {c.n}"
+}
+
+fn first_click(events: [Event]) -> int {
+    for e in events {
+        match e {
+            Event::Click { x, y: _ } => { return x; }
+            _ => { continue; }
+        }
+    }
+    -1
+}
+
+pub fn clicks() -> str {
+    let a = first_click([Event::Tick, Event::Key("k"), Event::Click { x: 7, y: 1 }]);
+    let b = first_click([Event::Tick]);
+    "{a} {b}"
+}
+
+// expect: drained() == "key a;click 3,4;pq; 4"
+// expect: clicks() == "7 -1"
+// live: 0

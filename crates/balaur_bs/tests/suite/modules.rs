@@ -148,3 +148,24 @@ fn a_root_function_a_module_calls_is_no_local_of_the_same_name() {
     let mut rt = Runtime::new(&c, HostFns::default(), Limits::default()).unwrap();
     assert_eq!(rt.call("run", &[]), Ok(Value::Int(42)));
 }
+
+#[test]
+fn an_enum_a_module_declares_is_made_and_matched_by_its_path() {
+    let shapes = "pub enum Shape { Circle(float), Square { side: float }, Empty }\n\
+                  pub fn unit() -> Shape { Shape::Square { side: 1.0 } }\n\
+                  pub fn area(s: Shape) -> float { match s { Shape::Circle(r) => r * r * 3.0, Shape::Square { side } => side * side, Shape::Empty => 0.0 } }";
+    let main = "use shapes;\n\
+                pub fn total() -> float {\n\
+                    let all = [shapes::Shape::Circle(1.0), shapes::unit(), shapes::Shape::Empty];\n\
+                    let t = 0.0;\n\
+                    for s in all { t += shapes::area(s); }\n\
+                    t\n\
+                }\n\
+                pub fn named() -> str { match shapes::unit() { shapes::Shape::Square { side } => \"square {side}\", _ => \"other\" } }";
+    let files = [("scripts/shapes.bs", shapes)];
+    let c = compile(main, &options(&files)).unwrap_or_else(|e| panic!("{e}"));
+    let mut rt = Runtime::new(&c, HostFns::default(), Limits::default()).unwrap();
+    assert_eq!(rt.call("total", &[]), Ok(Value::Float(4.0)));
+    assert_eq!(rt.call("named", &[]), Ok(Value::Str("square 1.0".into())));
+    assert_eq!(rt.live(), 0);
+}

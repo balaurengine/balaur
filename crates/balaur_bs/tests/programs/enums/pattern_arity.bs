@@ -1,0 +1,4 @@
+enum Pair { Two(int, int) }
+pub fn f(p: Pair) -> int { match p { Pair::Two(a) => a } }
+
+// error: 2:38: `Pair::Two` holds 2 values, bound 1

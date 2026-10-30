@@ -1,0 +1,4 @@
+enum Size { Box { w: int } }
+pub fn f() -> Size { Size::Box(1) }
+
+// error: 2:22: `Size::Box` has named fields: write `Size::Box { .. }`

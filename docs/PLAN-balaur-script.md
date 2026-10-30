@@ -42,7 +42,7 @@ impl Spinner {
 
 | Have | Not planned |
 | --- | --- |
-| `int` (i64), `float` (f64), `bool`, `str`, `Node`, `[T]`, structs | enums, `match`, generics, traits |
+| `int` (i64), `float` (f64), `bool`, `str`, `Node`, `[T]`, structs, enums with `match` (built 2026-10-30, ARCHITECTURE.md *Enums*) | generics, traits |
 | `T?` and `nil`; `is_some`, `is_none`, `unwrap`, `or`; `x == nil` | `T??`, `any?` |
 | `fn(int) -> int` values naming a function, called like one | closures, captures |
 | `use util;` links `util.bs`, `use a::b;` `a/b.bs`; its `pub` items as `util::name`; files may use each other and the one using them | a module per instance |

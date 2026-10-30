@@ -156,6 +156,8 @@ pub(super) fn named(
                     block(b, out);
                 }
             }
+            ExprKind::Block(b) => block(b, out),
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Int(_)
             | ExprKind::Float(_)
             | ExprKind::Bool(_)

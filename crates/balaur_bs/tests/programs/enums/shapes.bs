@@ -1,0 +1,34 @@
+// An enum's variants carry nothing, values by position, or named fields, and
+// a `match` binds what the arm's variant carries.
+
+enum Shape { Circle(float), Rect { w: float, h: float }, Empty }
+
+fn area(s: Shape) -> float {
+    match s {
+        Shape::Circle(r) => r * r * 3.0,
+        Shape::Rect { w, h } => w * h,
+        Shape::Empty => 0.0,
+    }
+}
+
+pub fn areas() -> float {
+    let shapes = [Shape::Circle(2.0), Shape::Rect { w: 2.0, h: 3.5 }, Shape::Empty];
+    let total = 0.0;
+    for s in shapes { total += area(s); }
+    total
+}
+
+pub fn named(k: int) -> str {
+    let s = if k == 0 { Shape::Empty } else if k == 1 { Shape::Circle(1.5) } else { Shape::Rect { w: 1.0, h: 2.0 } };
+    match s {
+        Shape::Circle(r) => "circle {r}",
+        Shape::Rect { w, h: tall } => "rect {w}x{tall}",
+        _ => "nothing",
+    }
+}
+
+// expect: areas() == 19.0
+// expect: named(0) == "nothing"
+// expect: named(1) == "circle 1.5"
+// expect: named(2) == "rect 1.0x2.0"
+// live: 0

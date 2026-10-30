@@ -1,0 +1,4 @@
+enum Light { Red, Green }
+pub fn f() -> Light { Light::Red(1) }
+
+// error: 2:23: `Light::Red` carries nothing: write `Light::Red`

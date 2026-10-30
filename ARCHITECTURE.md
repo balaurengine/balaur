@@ -137,6 +137,31 @@ one backend; the Rune backend before it was one crate and went as one.
   directly. A debugger's probes, a profiler, the browser and a native build
   compile the whole file with its modules in, an instance of its own.
 
+### Enums
+
+`enum Shape { Circle(float), Rect { w: float, h: float }, Empty }` and
+`match` are lowered before any code is made (`balaur_bs/src/enums.rs`), so
+neither the code generator, the C translator nor any engine knows them.
+
+- An enum is a value struct no script can see inside: `#tag`, the variant's
+  index, then every variant's fields as `Variant#field`. A field is stored
+  optional unless its type already holds nil, so a constructor names only
+  its own variant's fields; an `any` field of another variant is set to nil.
+  The parser writes the struct with the declaration, so linking, renaming
+  and a unit's declarations carry it as any struct.
+- `Shape::Circle(2.0)`, `Shape::Rect { w: 1.0, h: 2.0 }` and `Shape::Empty`
+  are that struct's literal, resolved after linking, so a module's enum is
+  `util::Shape::Circle`.
+- A `match` is `let match#n: Shape = subject;` and an `if .. else if ..
+  else` on the tag, the last arm the `else` once every variant is named. In
+  a statement's place, or as a block's value, the `let` and the `if` move
+  into the block around it, so the async lowering sees an ordinary `if` and
+  an `await` in an arm works.
+- Exhaustive: a variant left out, one named twice, or an arm after `_` or a
+  bare name is a compile error.
+- An enum is a value, so one cannot hold itself; a recursive shape goes
+  through a class or an array.
+
 ### Exported properties
 
 A `pub` field with a literal default (`pub speed: float = 2.0`) is what a

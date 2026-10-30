@@ -14,6 +14,7 @@ mod ast;
 #[cfg(feature = "c")]
 pub mod c;
 mod codegen;
+mod enums;
 pub mod fmt;
 mod maps;
 mod modules;
@@ -436,6 +437,7 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
     structs.append(&mut prog.structs);
     prog.structs = structs;
     prelude::add(&mut prog)?;
+    enums::lower(&mut prog)?;
     maps::lower(&mut prog)?;
     Ok((prog, uses))
 }

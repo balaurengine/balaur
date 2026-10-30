@@ -1,0 +1,4 @@
+enum Light { Red, Green }
+pub fn f(l: Light) -> int { match l { Light::Red => 1, Light::Red => 2, Light::Green => 3 } }
+
+// error: 2:56: `Light::Red` is matched twice

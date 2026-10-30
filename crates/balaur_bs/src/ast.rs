@@ -95,6 +95,52 @@ pub(crate) enum ExprKind {
     Await(Box<Expr>),
     /// The value a resumed `await` hands back, by await site; produced by the async lowering only.
     Resumed(Ty, u32),
+    /// `match subject { pattern => value, .. }`; `enums::lower` makes it a
+    /// `Block` before any code is made.
+    Match(Box<Expr>, Vec<Arm>),
+    /// A block as a value: a `match` arm's body, and what a `match` lowers to.
+    Block(Block),
+}
+
+/// One `pattern => value` of a `match`.
+#[derive(Clone, Debug)]
+pub(crate) struct Arm {
+    pub pattern: Pattern,
+    pub body: Expr,
+    pub pos: Pos,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum Pattern {
+    /// `_`: any value.
+    Any,
+    /// `other`: any value, bound to that name.
+    Bind(String),
+    /// `Shape::Circle(r)`, `Shape::Rect { w, h: height }` or `Shape::Empty`:
+    /// the variant's path, and what each of its fields is bound to, by field
+    /// (a position for a tuple variant); `_` binds nothing.
+    Variant {
+        path: String,
+        binds: Vec<(String, String)>,
+    },
+}
+
+/// `enum Shape { Circle(float), Rect { w: float, h: float }, Empty }`.
+#[derive(Clone, Debug)]
+pub(crate) struct EnumDecl {
+    pub name: String,
+    pub variants: Vec<Variant>,
+    pub pos: Pos,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Variant {
+    pub name: String,
+    /// Its fields, in order: `0`, `1`.. for a tuple variant.
+    pub fields: Vec<(String, Ty)>,
+    /// `Circle(float)` rather than `Rect { w: float }`.
+    pub tuple: bool,
+    pub pos: Pos,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -213,4 +259,7 @@ pub(crate) struct Program {
     pub class_origin: Vec<(String, String)>,
     /// Functions compiled in only once a call reaches them: the prelude's.
     pub lazy: Vec<FnDecl>,
+    /// Each `enum`, also in `structs` as the struct that holds it: what
+    /// `enums::lower` reads a variant's constructor and a `match` by.
+    pub enums: Vec<EnumDecl>,
 }

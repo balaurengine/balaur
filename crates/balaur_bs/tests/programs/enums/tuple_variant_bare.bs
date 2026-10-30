@@ -1,0 +1,4 @@
+enum Pair { Two(int, int) }
+pub fn f() -> Pair { Pair::Two }
+
+// error: 2:22: `Pair::Two` carries values: `Pair::Two(..)`

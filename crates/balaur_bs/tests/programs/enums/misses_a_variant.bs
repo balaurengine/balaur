@@ -1,0 +1,4 @@
+enum Shape { Circle(float), Rect { w: float, h: float }, Empty }
+pub fn f(s: Shape) -> int { match s { Shape::Circle(r) => 1, Shape::Empty => 2 } }
+
+// error: 2:29: this `match` misses `Shape::Rect`

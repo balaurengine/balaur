@@ -234,6 +234,8 @@ fn expr(e: &mut Expr, f: &mut dyn FnMut(&mut Ty)) {
                 expr(value, f);
             }
         }
+        ExprKind::Block(b) => block(b, f),
+        ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
         ExprKind::If(cond, then, otherwise) => {
             expr(cond, f);
             block(then, f);

@@ -308,3 +308,29 @@ fn an_await_in_a_block_s_tail_runs() {
     drive(&mut rt, &mut task, None);
     assert_eq!(*said.borrow(), ["two", "nested", "in a loop", "last"]);
 }
+
+#[test]
+fn an_arm_of_a_match_statement_awaits() {
+    let src = r#"
+        extern async fn wait(seconds: float);
+        enum Step { Wait(float), Say(str), Done }
+        pub async fn run() -> str {
+            let steps = [Step::Wait(1.0), Step::Say("a"), Step::Wait(0.5), Step::Say("b"), Step::Done];
+            let out = "";
+            for s in steps {
+                match s {
+                    Step::Wait(t) => { await wait(t); }
+                    Step::Say(word) => { out = out + word; }
+                    Step::Done => { break; }
+                }
+            }
+            out
+        }
+    "#;
+    let mut rt = run_with(src, host(Rc::default()), &Options::default());
+    let mut task = rt.start("run", &[]).unwrap();
+    let (v, t, _) = drive(&mut rt, &mut task, None);
+    assert_eq!(v, Value::Str("ab".into()));
+    assert!((t - 1.5).abs() < 0.05, "both waits ran: {t}");
+    assert_eq!(rt.live(), 0);
+}
