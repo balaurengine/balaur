@@ -470,3 +470,27 @@ fn the_listener_sets_how_fast_sound_travels_and_how_far_doppler_bends() {
     // 100 / (100 - 20) with sound at 100 units a second.
     assert!((slower - 1.25).abs() < 1e-5, "{slower}");
 }
+
+/// A listener holds what it was asked, a speed of sound below the floor
+/// included; the ears it places take the floor.
+#[test]
+fn a_listener_below_the_floor_reads_back_as_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let ears = node_at(&app, "Ears", Vec3::ZERO);
+    let params: toml::Value = toml::from_str("speed_of_sound = 0.0\nmax_doppler = 0.5").unwrap();
+    components::add(&app.engine, ears, "listener", Some(&params)).unwrap();
+    let table = components::get(&app.engine, ears, "listener").unwrap();
+    assert_eq!(
+        table.get("speed_of_sound").and_then(toml::Value::as_float),
+        Some(0.0)
+    );
+    assert_eq!(
+        table.get("max_doppler").and_then(toml::Value::as_float),
+        Some(0.5)
+    );
+    let state = app.engine.resource::<AudioState>();
+    let hearing = state.borrow().listener().hearing;
+    assert!((hearing.speed_of_sound - 0.001).abs() < 1e-9);
+    assert!((hearing.max_doppler - 1.0).abs() < 1e-9);
+}

@@ -82,6 +82,30 @@ pub(crate) fn bind(
         .filter(|(_, dir)| *dir == GET || *dir == SET)
         .and_then(|(path, dir)| Some((path.split_once('.')?, dir)));
     if let Some(((comp, prop), dir)) = property {
+        // Bound once to where the component sits, so a read or a write pays
+        // no name's lookup and no node operation (PLAN-balaur-script §9
+        // step 6); a derived component then reads or writes the one field.
+        if let Some(component) = balaur_core::components::index_of(&eng, comp) {
+            let prop = prop.to_string();
+            if dir == GET {
+                return Ok(Rc::new(move |args: &dyn CallArgs| {
+                    let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
+                    let found =
+                        balaur_core::components::property_at(&eng, entity, component, &prop);
+                    let value = found
+                        .as_ref()
+                        .map_or(Ok(Value::Nil), balaur_core::node_api::from_toml);
+                    answer(value, &ret)
+                }));
+            }
+            return Ok(Rc::new(move |args: &dyn CallArgs| {
+                let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
+                let value = convert::to_neutral(&args.value(1));
+                let written =
+                    balaur_core::node_api::set_property_at(&eng, entity, component, &prop, &value);
+                answer(written.map(|()| Value::Nil), &ret)
+            }));
+        }
         let (comp, prop) = (Value::text(comp), prop.to_string());
         if dir == GET {
             let op = node_op(GET_COMPONENT).map_err(|e| format!("{e:#}"))?;
@@ -128,6 +152,15 @@ pub(crate) fn bind(
         };
         answer(out, &ret)
     }))
+}
+
+/// The node a component property is read on or written to: the call's first
+/// argument.
+fn entity_at(args: &dyn CallArgs) -> anyhow::Result<balaur_core::hecs::Entity> {
+    let id = args
+        .node(0)
+        .ok_or_else(|| anyhow!("expected a node as the first argument"))?;
+    balaur_core::entity_of(balaur_script::NodeId(id.cast_unsigned()))
 }
 
 /// A factory running `.bs` scripts.

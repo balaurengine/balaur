@@ -19,27 +19,17 @@ use balaur_script::Value;
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 use hecs::{Entity, World};
 
-use self::keys as k;
 use crate::App;
-use crate::components::{ComponentDef, as_f64};
+use crate::components::ComponentDef;
+use crate::components::derived::{Component, Written};
 use crate::engine::Engine;
 use crate::scene::{Children, GlobalTransform, Parent, Transform};
 
-/// The bone components' keys, for their schemas and readers alike.
-pub(crate) mod keys {
-    pub(crate) const ANGLE: &str = "angle";
-    pub(crate) const LENGTH: &str = "length";
-    pub(crate) const REST_POSITION: &str = "rest_position";
-    pub(crate) const REST_ROTATION: &str = "rest_rotation";
-    pub(crate) const REST_SCALE: &str = "rest_scale";
-}
-
 /// A bone's rest pose and gizmo hints, in the node's local space.
 ///
-/// One struct for both dimensions: `bone2d` writes the z rotation and leaves
-/// the rest at identity. The rotation is kept as the euler radians that were
-/// authored, so `get` reads back the number that was written rather than one
-/// recovered from a quaternion.
+/// One struct for both dimensions, the cache `bone2d` and `bone3d` fill:
+/// `bone2d` writes the z rotation and leaves the rest at identity. The
+/// rotation is kept as euler radians, as the components spell it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bone {
     pub rest_position: Vec3,
@@ -50,9 +40,6 @@ pub struct Bone {
     pub length: f32,
     /// Gizmo direction of a tip bone, radians about z.
     pub angle: f32,
-    /// Written by `bone2d` rather than `bone3d`. One struct backs both keys,
-    /// and this is what keeps each key reporting only its own.
-    pub planar: bool,
 }
 
 impl Default for Bone {
@@ -63,7 +50,6 @@ impl Default for Bone {
             rest_scale: Vec3::ONE,
             length: 0.0,
             angle: 0.0,
-            planar: false,
         }
     }
 }
@@ -202,11 +188,24 @@ pub fn apply_rest(world: &mut World, root: Entity) {
 /// transform as its rest.
 pub fn overwrite_rest(world: &mut World, root: Entity) {
     for bone in bones_under(world, root) {
-        let current = world.get::<&Transform>(bone).map(|t| *t);
-        if let (Ok(current), Ok(mut b)) = (current, world.get::<&mut Bone>(bone)) {
+        let Ok(current) = world.get::<&Transform>(bone).map(|t| *t) else {
+            continue;
+        };
+        let euler = euler_from_quat(current.rotation);
+        if let Ok(mut b) = world.get::<&mut Bone>(bone) {
             b.rest_position = current.position;
-            b.rest_rotation = euler_from_quat(current.rotation);
+            b.rest_rotation = euler;
             b.rest_scale = current.scale;
+        }
+        // The components read back the rest they now hold.
+        if let Ok(mut asked) = world.get::<&mut Bone3d>(bone) {
+            asked.rest_position = current.position;
+            asked.rest_rotation = euler;
+            asked.rest_scale = current.scale;
+        }
+        if let Ok(mut asked) = world.get::<&mut Bone2d>(bone) {
+            asked.rest_position = [current.position.x, current.position.y];
+            asked.rest_rotation = euler.z;
         }
     }
 }
@@ -435,194 +434,126 @@ pub fn skin_positions(
         .collect()
 }
 
-fn bone2d_schema() -> String {
-    crate::components::ComponentDef::schema(&[
-        (
-            k::REST_POSITION,
-            r#"{ type = "vec2", default = [0.0, 0.0], description = "Local rest translation" }"#,
-        ),
-        (
-            k::REST_ROTATION,
-            r#"{ type = "float", default = 0.0, description = "Local rest rotation about z, in radians" }"#,
-        ),
-        (
-            k::LENGTH,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#,
-        ),
-        (
-            k::ANGLE,
-            r#"{ type = "float", default = 0.0, description = "Gizmo direction of a tip bone, in radians; ignored while a child bone exists" }"#,
-        ),
-    ])
+/// Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.
+#[derive(Clone, Copy, Debug, PartialEq, Component)]
+#[component(name = "bone2d")]
+pub struct Bone2d {
+    /// Local rest translation
+    pub rest_position: [f32; 2],
+    /// Local rest rotation about z, in radians
+    pub rest_rotation: f32,
+    /// Gizmo length of a tip bone; 0 draws to the first child bone
+    #[property(min = 0.0)]
+    pub length: f32,
+    /// Gizmo direction of a tip bone, in radians; ignored while a child bone exists
+    pub angle: f32,
 }
 
-/// The `bone2d` component: writes one [`Bone`] on the node.
+/// Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.
+#[derive(Clone, Copy, Debug, PartialEq, Component)]
+#[component(name = "bone3d")]
+pub struct Bone3d {
+    /// Local rest translation
+    pub rest_position: Vec3,
+    /// Local rest rotation, euler radians in the order rotation_euler uses
+    pub rest_rotation: Vec3,
+    /// Local rest scale
+    #[property(default = Vec3::ONE)]
+    pub rest_scale: Vec3,
+    /// Gizmo length of a tip bone; 0 draws to the first child bone
+    #[property(min = 0.0)]
+    pub length: f32,
+}
+
+/// The [`Bone`] a `bone2d` asks for, on a node posed by a transform.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    crate::transform::ensure(eng, entity);
+    let mut world = eng.world_mut();
+    let Ok(asked) = world.get::<&Bone2d>(entity).map(|held| *held) else {
+        return Ok(());
+    };
+    let [x, y] = asked.rest_position;
+    let _ = world.insert_one(
+        entity,
+        Bone {
+            rest_position: Vec3::new(x, y, 0.0),
+            rest_rotation: Vec3::new(0.0, 0.0, asked.rest_rotation),
+            rest_scale: Vec3::ONE,
+            length: asked.length.max(0.0),
+            angle: asked.angle,
+        },
+    );
+    Ok(())
+}
+
+/// The [`Bone`] a `bone3d` asks for, on a node posed by a transform.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    crate::transform::ensure(eng, entity);
+    let mut world = eng.world_mut();
+    let Ok(asked) = world.get::<&Bone3d>(entity).map(|held| *held) else {
+        return Ok(());
+    };
+    let _ = world.insert_one(
+        entity,
+        Bone {
+            rest_position: asked.rest_position,
+            rest_rotation: asked.rest_rotation,
+            rest_scale: asked.rest_scale,
+            length: asked.length.max(0.0),
+            angle: 0.0,
+        },
+    );
+    Ok(())
+}
+
+/// The `bone2d` component: the asked-for struct, and the [`Bone`] it fills.
 pub(crate) fn register_bone2d_component(app: &mut App) {
     app.register_component(
-        "bone2d",
+        <Bone2d as Component>::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.",
-            schema: ComponentDef::parse_schema("bone2d", &bone2d_schema()),
             tags: &[
                 crate::components::tag::DIM_2D,
                 crate::components::tag::ANIMATION,
             ],
             expects: &[crate::transform::COMPONENT],
-            read: None,
-            write: None,
-            apply: Box::new(apply_bone2d),
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Bone>(entity);
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Bone2d>(entity);
+                let _ = world.remove_one::<Bone>(entity);
                 Ok(())
             }),
-            get: Box::new(bone2d_of),
+            ..ComponentDef::of::<Bone2d>(Some(bone2d_written))
         },
     );
 }
 
-fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    crate::transform::ensure(eng, entity);
-    let number =
-        |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
-    let rest = |i: usize| {
-        params
-            .get(k::REST_POSITION)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(as_f64)
-            .unwrap_or(0.0) as f32
-    };
-    let bone = Bone {
-        rest_position: Vec3::new(rest(0), rest(1), 0.0),
-        rest_rotation: Vec3::new(0.0, 0.0, number(k::REST_ROTATION, 0.0)),
-        rest_scale: Vec3::ONE,
-        length: number(k::LENGTH, 0.0).max(0.0),
-        angle: number(k::ANGLE, 0.0),
-        planar: true,
-    };
-    eng.world_mut()
-        .insert_one(entity, bone)
-        .map_err(|_| anyhow!("node is dead"))
-}
-
-fn bone3d_schema() -> String {
-    crate::components::ComponentDef::schema(&[
-        (
-            k::REST_POSITION,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest translation" }"#,
-        ),
-        (
-            k::REST_ROTATION,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest rotation, euler radians in the order rotation_euler uses" }"#,
-        ),
-        (
-            k::REST_SCALE,
-            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Local rest scale" }"#,
-        ),
-        (
-            k::LENGTH,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#,
-        ),
-    ])
-}
-
-/// The `bone3d` component: writes one [`Bone`] on the node, every axis.
+/// The `bone3d` component: the asked-for struct, and the [`Bone`] it fills.
 pub(crate) fn register_bone3d_component(app: &mut App) {
     app.register_component(
-        "bone3d",
+        <Bone3d as Component>::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
-            schema: ComponentDef::parse_schema("bone3d", &bone3d_schema()),
             tags: &[
                 crate::components::tag::DIM_3D,
                 crate::components::tag::ANIMATION,
             ],
             expects: &[crate::transform::COMPONENT],
-            read: None,
-            write: None,
-            apply: Box::new(apply_bone3d),
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Bone>(entity);
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Bone3d>(entity);
+                let _ = world.remove_one::<Bone>(entity);
                 Ok(())
             }),
-            get: Box::new(bone3d_of),
+            ..ComponentDef::of::<Bone3d>(Some(bone3d_written))
         },
     );
-}
-
-fn vec3_param(params: &toml::Value, key: &str, default: Vec3) -> Vec3 {
-    let axis = |i: usize| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(as_f64)
-            .map(|v| v as f32)
-    };
-    Vec3::new(
-        axis(0).unwrap_or(default.x),
-        axis(1).unwrap_or(default.y),
-        axis(2).unwrap_or(default.z),
-    )
-}
-
-fn vec3_value(v: Vec3) -> toml::Value {
-    toml::Value::Array(
-        v.to_array()
-            .into_iter()
-            .map(|n| toml::Value::Float(f64::from(n)))
-            .collect(),
-    )
-}
-
-fn apply_bone3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    crate::transform::ensure(eng, entity);
-    let bone = Bone {
-        rest_position: vec3_param(params, k::REST_POSITION, Vec3::ZERO),
-        rest_rotation: vec3_param(params, k::REST_ROTATION, Vec3::ZERO),
-        rest_scale: vec3_param(params, k::REST_SCALE, Vec3::ONE),
-        length: crate::components::prop_f32(params, k::LENGTH).max(0.0),
-        angle: 0.0,
-        planar: false,
-    };
-    eng.world_mut()
-        .insert_one(entity, bone)
-        .map_err(|_| anyhow!("node is dead"))
-}
-
-fn bone3d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let bone = world.get::<&Bone>(entity).ok().filter(|b| !b.planar)?;
-    let mut out = toml::map::Map::new();
-    out.insert(k::REST_POSITION.into(), vec3_value(bone.rest_position));
-    out.insert(k::REST_ROTATION.into(), vec3_value(bone.rest_rotation));
-    out.insert(k::REST_SCALE.into(), vec3_value(bone.rest_scale));
-    out.insert(k::LENGTH.into(), toml::Value::Float(f64::from(bone.length)));
-    Some(toml::Value::Table(out))
-}
-
-fn bone2d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let bone = world.get::<&Bone>(entity).ok().filter(|b| b.planar)?;
-    let mut out = toml::map::Map::new();
-    out.insert(
-        k::REST_POSITION.into(),
-        toml::Value::Array(vec![
-            toml::Value::Float(f64::from(bone.rest_position.x)),
-            toml::Value::Float(f64::from(bone.rest_position.y)),
-        ]),
-    );
-    out.insert(
-        k::REST_ROTATION.into(),
-        toml::Value::Float(f64::from(bone.rest_rotation.z)),
-    );
-    out.insert(k::LENGTH.into(), toml::Value::Float(f64::from(bone.length)));
-    out.insert(k::ANGLE.into(), toml::Value::Float(f64::from(bone.angle)));
-    Some(toml::Value::Table(out))
 }
 
 fn node_arg(args: &[Value]) -> Result<Entity> {

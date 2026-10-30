@@ -1,8 +1,8 @@
 //! What a soft body is made of, read the same way in both dimensions.
 //!
-//! The words and the schema text are dimension-free and live in
-//! `crate::softbody`; what is here is the reading, which names rapier's
-//! `SoftBodyMaterial` and so is a different type per dimension.
+//! The words are dimension-free and live in `crate::vocabulary`; what is
+//! here is the reading, which names rapier's `SoftBodyMaterial` and so is a
+//! different type per dimension.
 
 macro_rules! material {
     (
@@ -144,13 +144,6 @@ pub(crate) fn particle_count(params: &toml::Value, least: f32) -> f64 {
     f64::from(asked.max(least)).floor()
 }
 
-/// What a body with nothing of its own to deform is drawn in.
-mod schema;
-pub(crate) use schema::{
-    collision_schema, filtering_schema, overrides_schema, particles_schema, primary_schema,
-    seams_schema, solver_schema, tearing_schema,
-};
-
 /// What a soft body is made of and what its surface is: both of its
 /// material rows, read once a build or a patch.
 pub(crate) struct Materials {
@@ -167,6 +160,7 @@ impl Materials {
     }
 }
 
+/// What a body with nothing of its own to deform is drawn in.
 pub(crate) const DEFAULT_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 
 /// A particle radius past this share of the body's width reads as hovering.
@@ -389,7 +383,7 @@ macro_rules! surface {
         }
 
         /// `contact_pairs`, and rapier's own pairs for a table that names
-        /// none: a script's `set_softbody` gets no schema defaults.
+        /// none.
         fn collision_types(params: &toml::Value) -> crate::$rapier::prelude::ActiveCollisionTypes {
             use crate::$rapier::prelude::ActiveCollisionTypes;
             if params.get(k::CONTACT_PAIRS).is_none() {

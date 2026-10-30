@@ -5,7 +5,7 @@
 //! only the direction a prismatic joint slides along.
 
 use crate::rapier2d::dynamics::InverseKinematicsOption;
-use crate::rapier2d::dynamics::{JointEnabled, Multibody, MultibodyDofCoupling, RevoluteJoint};
+use crate::rapier2d::dynamics::{JointEnabled, MultibodyDofCoupling, RevoluteJoint};
 use crate::rapier2d::prelude::{
     FixedJointBuilder, GenericJoint, GenericJointBuilder, ImpulseJoint, ImpulseJointHandle,
     JointAxesMask, JointAxis, MotorModel, MultibodyJointHandle, PinSlotJointBuilder,
@@ -14,6 +14,7 @@ use crate::rapier2d::prelude::{
 };
 use crate::scalar::{self, Real, Vector2};
 use anyhow::{Result, anyhow};
+use balaur_core::components::derived::{self, Component, Record, Written};
 use balaur_core::components::{ComponentDef, as_node};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
@@ -21,8 +22,9 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::PhysicsState2d;
+use crate::properties::{Axis2d, JointAxis2d, JointKind2d, Motor, MotorStrength};
 use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
-use crate::shared::joint::DEFAULT_DAMPING;
+use crate::shared::joint::{DEFAULT_DAMPING, DEFAULT_SOFTNESS_HZ};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -146,7 +148,139 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
     Ok(joint)
 }
 
+/// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, Component)]
+#[component(name = "joint2d")]
+pub struct Joint2d {
+    /// How the two bodies may move relative to each other
+    #[property(default = JointKind2d::Fixed)]
+    pub kind: JointKind2d,
+    /// The node at the joint's other end; this node is the first end
+    #[property(node)]
+    pub connected_body: String,
+    /// Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch
+    #[property(default = true)]
+    pub enabled: bool,
+    /// Let the two joined bodies collide with each other
+    pub collide_connected: bool,
+    /// One record per free axis to limit or drive. A rope's x takes no limits (max_length is its limit); a spring's x is its spring, whose motor stays off
+    pub axes: Vec<FreeAxis2d>,
+    /// Where the joint attaches on this node, in its own space
+    #[property(group = "anchors")]
+    pub anchor: [f32; 2],
+    /// Where it attaches on the other node, in that node's space
+    #[property(group = "anchors")]
+    pub connected_anchor: [f32; 2],
+    /// The joint frame's x axis: what a slider or a groove slides along, and a generic joint's x names
+    #[property(default = [1.0, 0.0], group = "anchors")]
+    pub axis: [f32; 2],
+    /// The same axis in the other node's space, for a slider, a groove or a generic joint; zero takes axis
+    #[property(group = "anchors")]
+    pub connected_axis: [f32; 2],
+    /// Turns this end's joint frame: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Radians in the file
+    #[property(group = "anchors", unit = "degrees")]
+    pub anchor_rotation: f32,
+    /// The same for the other end's frame
+    #[property(group = "anchors", unit = "degrees")]
+    pub connected_anchor_rotation: f32,
+    /// The rope's greatest length
+    #[property(group = "length", min = 0.0)]
+    pub max_length: f32,
+    /// The length a spring pulls back to
+    #[property(group = "length", min = 0.0)]
+    pub rest_length: f32,
+    /// The axes a generic joint may not slide along
+    #[property(flags, group = "locks")]
+    pub lock_translation: Vec<Axis2d>,
+    /// Stop a generic joint turning
+    #[property(group = "locks")]
+    pub lock_rotation: bool,
+    /// Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple both already
+    #[property(flags, group = "locks")]
+    pub coupled_translation: Vec<Axis2d>,
+    /// How stiffly the joint's locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back
+    #[property(default = DEFAULT_SOFTNESS_HZ, group = "softness", min = 0.0)]
+    pub softness_hz: f32,
+    /// The damping ratio of that spring; 1 settles without overshooting
+    #[property(default = 1.0, group = "softness", min = 0.0)]
+    pub softness_damping_ratio: f32,
+    /// The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation
+    #[property(group = "breaking", min = 0.0)]
+    pub break_force: f32,
+    /// The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation
+    #[property(group = "breaking", min = 0.0)]
+    pub break_torque: f32,
+    /// Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break
+    #[property(group = "articulation")]
+    pub articulation: bool,
+    /// On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off
+    #[property(default = true, group = "articulation")]
+    pub self_collision: bool,
+    /// On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik
+    #[property(group = "articulation")]
+    pub kinematic_link: bool,
+    /// On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none
+    #[property(group = "articulation", min = 0.0)]
+    pub passive_stiffness: f32,
+    /// On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one
+    #[property(group = "articulation")]
+    pub passive_rest: f32,
+    /// On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis
+    #[property(node, group = "articulation")]
+    pub gear_with: String,
+    /// How far this joint turns or slides per unit of the gear_with joint's
+    #[property(default = 1.0, group = "articulation")]
+    pub gear_ratio: f32,
+    /// Where this joint stands when the gear_with joint is at 0
+    #[property(group = "articulation")]
+    pub gear_offset: f32,
+}
+
+/// One free axis of a `joint2d` to limit or drive, as its `axes` list
+/// holds it.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FreeAxis2d {
+    /// The free axis this record limits and drives, in the joint's frame
+    #[property(default = JointAxis2d::Rotation)]
+    pub axis: JointAxis2d,
+    /// How far the axis may travel, low then high, in radians about a rotation axis; equal values mean no limit
+    pub limits: [f32; 2],
+    /// Drive the axis towards a speed, towards a position, or not at all
+    #[property(default = Motor::Off)]
+    pub motor: Motor,
+    /// The speed or the position the motor drives towards
+    pub motor_target: f32,
+    /// The speed a position motor wants at its target
+    pub motor_target_velocity: f32,
+    /// The most force or torque the motor may use; 0 means as much as it takes
+    #[property(min = 0.0)]
+    pub motor_max_force: f32,
+    /// Whether the motor's strength is an acceleration, ignoring mass, or a force; auto is force for a spring's x and acceleration elsewhere
+    #[property(default = MotorStrength::Auto)]
+    pub motor_model: MotorStrength,
+    /// Spring stiffness, for a position motor or a spring's x
+    #[property(min = 0.0)]
+    pub stiffness: f32,
+    /// How quickly the motion settles, for a motor or a spring's x
+    #[property(default = DEFAULT_DAMPING, min = 0.0)]
+    pub damping: f32,
+    /// On an articulation: damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one
+    #[property(default = -1.0, min = -1.0)]
+    pub link_damping: f32,
+    /// On an articulation: inertia added to this axis, as a motor's own rotor adds it
+    #[property(min = 0.0)]
+    pub armature: f32,
+    /// On an articulation: the most force or torque dry friction resists this axis with
+    #[property(min = 0.0)]
+    pub friction: f32,
+}
+
 crate::shared::joint::functions!(
+    joint = Joint2d,
     state = PhysicsState2d,
     world = PhysicsWorld2,
     reference = JointRef2d,
@@ -314,51 +448,6 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
     super::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
-pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    // Authored values first, so a joint waiting for its other end still
-    // reports what it is waiting to be; a script's limit or motor call
-    // rewrites them.
-    let params = state.joint_params.get(&entity)?;
-    let mut map = params.as_table().cloned()?;
-    let spring = v::text(params, k::KIND, w::FIXED) == w::SPRING;
-    map.insert(
-        k::AXES.into(),
-        crate::shared::joint::resolved_axes(params, |axis| spring && axis == w::X),
-    );
-    let Some(reference) = state.joints.get(&entity) else {
-        return Some(toml::Value::Table(map));
-    };
-    let data = match &reference.handle {
-        JointHandle2d::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
-        JointHandle2d::Multibody(handle) => {
-            let (multibody, link) = state.world.multibody_joints.get(*handle)?;
-            read_chain(&mut map, multibody, link);
-            let mut data = multibody.link(link)?.joint.data;
-            data.flip();
-            data
-        }
-    };
-    let f = |value: Real| toml::Value::Float(f64::from(value));
-    let vec2 = |v: Vector2| toml::Value::Array(vec![f(v.x), f(v.y)]);
-    map.insert(k::SOFTNESS_HZ.into(), f(data.softness.natural_frequency));
-    map.insert(
-        k::SOFTNESS_DAMPING_RATIO.into(),
-        f(data.softness.damping_ratio),
-    );
-    map.insert(k::ANCHOR.into(), vec2(data.local_anchor1()));
-    map.insert(k::CONNECTED_ANCHOR.into(), vec2(data.local_anchor2()));
-    map.insert(k::COLLIDE_CONNECTED.into(), data.contacts_enabled().into());
-    map.insert(
-        k::ARTICULATION.into(),
-        matches!(reference.handle, JointHandle2d::Multibody(_)).into(),
-    );
-    map.insert(k::BREAK_FORCE.into(), f(reference.break_force));
-    map.insert(k::BREAK_TORQUE.into(), f(reference.break_torque));
-    Some(toml::Value::Table(map))
-}
-
 pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
@@ -461,89 +550,36 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector2, opts: &v::Opts<'_>) -
     Ok(())
 }
 
+/// The joint the component asks for, made again.
+fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let asked = eng
+        .world()
+        .get::<&Joint2d>(entity)
+        .map(|held| derived::to_table(&*held));
+    let Ok(params) = asked else {
+        return Ok(());
+    };
+    apply_joint(eng, entity, &params)
+}
+
+/// `joint2d`: what was asked, held on the node; the joint and the table it was
+/// made from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
-    let kinds = v::options(w::JOINT_KINDS_2D);
-    let axes = v::options(w::LOCK_AXES_2D);
-    let default = w::FIXED;
-    let schema = crate::shared::joint::schema(
-        w::JOINT_AXES_2D,
-        w::ROTATION,
-        &crate::shared::joint::OwnRows {
-            primary: v::schema(&[
-                (
-                    k::KIND,
-                    &format!(
-                        r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#
-                    ),
-                ),
-                (
-                    k::CONNECTED_BODY,
-                    r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#,
-                ),
-            ]),
-            anchors: v::schema(&[
-                (
-                    k::ANCHOR,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_ANCHOR,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space", group = "anchors" }"#,
-                ),
-                (
-                    k::AXIS,
-                    r#"{ type = "vec2", default = [1.0, 0.0], description = "The joint frame's x axis: what a slider or a groove slides along, and a generic joint's x names", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_AXIS,
-                    r#"{ type = "vec2", default = [0.0, 0.0], description = "The same axis in the other node's space, for a slider, a groove or a generic joint; zero takes axis", group = "anchors" }"#,
-                ),
-                (
-                    k::ANCHOR_ROTATION,
-                    r#"{ type = "float", default = 0.0, unit = "degrees", description = "Turns this end's joint frame: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Radians in the file", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_ANCHOR_ROTATION,
-                    r#"{ type = "float", default = 0.0, unit = "degrees", description = "The same for the other end's frame", group = "anchors" }"#,
-                ),
-            ]),
-            locks: v::schema(&[
-                (
-                    k::LOCK_TRANSLATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not slide along", group = "locks" }}"#
-                    ),
-                ),
-                (
-                    k::LOCK_ROTATION,
-                    r#"{ type = "bool", default = false, description = "Stop a generic joint turning", group = "locks" }"#,
-                ),
-                (
-                    k::COUPLED_TRANSLATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple both already", group = "locks" }}"#
-                    ),
-                ),
-            ]),
-        },
-    );
     reg.register_component(
-        c::JOINT_2D,
+        Joint2d::NAME,
         ComponentDef {
             events: crate::vocabulary::hook::JOINT,
-            warnings: None,
-            doc: "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.",
-            schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),
-            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+            tags: &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
             expects: &[c::BODY_2D],
-            read: None,
-            write: None,
-            apply: Box::new(apply_joint),
             remove: Box::new(|eng, entity| {
+                let _ = eng.world_mut().remove_one::<Joint2d>(entity);
                 remove_joint(eng, entity);
                 Ok(())
             }),
-            get: Box::new(get_joint_params),
+            ..ComponentDef::of::<Joint2d>(Some(after_write))
         },
     );
 }

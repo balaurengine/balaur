@@ -4,6 +4,7 @@
 macro_rules! functions {
     (
         state = $State:ty,
+        character = $Character:ty,
         vector = $Vector:ty,
         pose = $Pose:ty,
         value = $vec:ident,
@@ -16,55 +17,35 @@ macro_rules! functions {
         /// `floor_max_angle` mid-game is obeyed on the next move rather than at the
         /// next scene load.
         pub(crate) fn controller_of(
-            params: &toml::Value,
+            character: &$Character,
             up: $Vector,
         ) -> KinematicCharacterController {
-            use crate::vocabulary::words as w;
+            use crate::properties::LengthMode;
             // Every length is world units, or every one a fraction of the
             // character's own size, as `lengths` says.
-            let relative = crate::vocabulary::text(params, k::LENGTHS, w::ABSOLUTE) == w::RELATIVE;
-            let length = |key: &str, default: f32| {
-                let value = scalar::real(crate::vocabulary::f(params, key, default));
+            let relative = character.lengths == LengthMode::Relative;
+            let length = |value: f32| {
+                let value = scalar::real(value);
                 if relative {
                     CharacterLength::Relative(value)
                 } else {
                     CharacterLength::Absolute(value)
                 }
             };
-            let autostep_height = crate::vocabulary::f(params, k::STEP_HEIGHT, 0.3);
             KinematicCharacterController {
                 up,
-                offset: length(k::SAFE_MARGIN, 0.01),
-                slide: crate::vocabulary::boolean(params, k::SLIDE, true),
-                autostep: (autostep_height > 0.0).then(|| CharacterAutostep {
-                    max_height: length(k::STEP_HEIGHT, 0.3),
-                    min_width: length(k::STEP_MIN_WIDTH, 0.2),
-                    include_dynamic_bodies: crate::vocabulary::boolean(
-                        params,
-                        k::STEP_ON_DYNAMIC,
-                        false,
-                    ),
+                offset: length(character.safe_margin),
+                slide: character.slide,
+                autostep: (character.step_height > 0.0).then(|| CharacterAutostep {
+                    max_height: length(character.step_height),
+                    min_width: length(character.step_min_width),
+                    include_dynamic_bodies: character.step_on_dynamic,
                 }),
-                max_slope_climb_angle: scalar::real(crate::vocabulary::f(
-                    params,
-                    k::FLOOR_MAX_ANGLE,
-                    std::f32::consts::FRAC_PI_4,
-                )),
-                min_slope_slide_angle: scalar::real(crate::vocabulary::f(
-                    params,
-                    k::MIN_SLIDE_ANGLE,
-                    std::f32::consts::FRAC_PI_6,
-                )),
-                snap_to_ground: {
-                    let distance = crate::vocabulary::f(params, k::FLOOR_SNAP_LENGTH, 0.2);
-                    (distance > 0.0)
-                        .then(|| length(k::FLOOR_SNAP_LENGTH, 0.2))
-                },
-                normal_nudge_factor: scalar::real(crate::vocabulary::f(
-                    params,
-                    k::NORMAL_NUDGE,
-                    0.0001,
-                )),
+                max_slope_climb_angle: scalar::real(character.floor_max_angle),
+                min_slope_slide_angle: scalar::real(character.min_slide_angle),
+                snap_to_ground: (character.floor_snap_length > 0.0)
+                    .then(|| length(character.floor_snap_length)),
+                normal_nudge_factor: scalar::real(character.normal_nudge),
             }
         }
 
@@ -110,8 +91,7 @@ macro_rules! functions {
 
         /// The mass a push is worked out with: `push_mass` when set, else the
         /// character's body, else its colliders.
-        fn push_mass(state: &$State, entity: Entity, params: &toml::Value) -> Real {
-            let asked = crate::vocabulary::f(params, k::PUSH_MASS, 0.0);
+        fn push_mass(state: &$State, entity: Entity, asked: f32) -> Real {
             if asked > 0.0 {
                 return scalar::real(asked);
             }
@@ -134,15 +114,17 @@ macro_rules! functions {
 
         /// The nodes whose colliders a move passes through: the character's own,
         /// and every node `ignore_nodes` names.
-        fn ignored_nodes(eng: &Engine, entity: Entity, params: &toml::Value) -> Vec<Entity> {
+        fn ignored_nodes(
+            eng: &Engine,
+            entity: Entity,
+            nodes: &[crate::properties::NodePath],
+        ) -> Vec<Entity> {
             let mut out = vec![entity];
-            if let Some(items) = params.get(k::IGNORE_NODES).and_then(toml::Value::as_array) {
-                out.extend(
-                    items.iter().filter_map(|item| {
-                        balaur_core::components::as_node(eng, entity, Some(item))
-                    }),
-                );
-            }
+            out.extend(
+                nodes
+                    .iter()
+                    .filter_map(|node| crate::properties::node_at(eng, entity, &node.0)),
+            );
             out
         }
 
@@ -173,9 +155,12 @@ macro_rules! functions {
         }
 
         /// The kinds of collider `ignore` names, as rapier's query flags.
-        fn ignore_flags(params: &toml::Value) -> QueryFilterFlags {
+        fn ignore_flags(ignore: &[crate::properties::SweepIgnore]) -> QueryFilterFlags {
             let table = crate::vocabulary::flags::query_ignores();
-            QueryFilterFlags::from_bits_truncate(crate::vocabulary::bits(params, k::IGNORE, &table))
+            QueryFilterFlags::from_bits_truncate(crate::vocabulary::named_bits(
+                ignore.iter().map(crate::properties::SweepIgnore::option),
+                &table,
+            ))
         }
 
         /// What the character bumped into on the way, as nodes rather than handles.

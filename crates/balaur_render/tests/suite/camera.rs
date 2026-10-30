@@ -364,10 +364,6 @@ fn patching_one_camera_property_leaves_the_rest_alone() {
 /// this -- it keeps what was asked for -- but a reader still does.
 #[test]
 fn every_component_reports_every_property_it_holds() {
-    // These report what is in effect rather than every property: a ball has no
-    // `tube_radius`, and a size or a tile a sheet derived is not the
-    // component's to state. Their omissions are the design.
-    const DERIVED: &[&str] = &["shape3d", "shape2d", "sprite", "tilemap"];
     let app = app();
     let root = app.engine.root();
     let mut offenders = Vec::new();
@@ -389,7 +385,7 @@ fn every_component_reports_every_property_it_holds() {
             .filter(|key| !got.contains_key(*key))
             .map(String::as_str)
             .collect();
-        if !missing.is_empty() && !DERIVED.contains(&name.as_str()) {
+        if !missing.is_empty() {
             offenders.push(format!("{name} does not report {missing:?}"));
         }
     }

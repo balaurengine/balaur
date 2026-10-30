@@ -435,9 +435,9 @@ pub(crate) fn feed_gi(chain: &mut PostChain, app: &balaur_core::App) {
                 (light.kind != crate::light::LightKind2d::Directional).then(|| {
                     post::GiEmitter2d::new(
                         glamx::Vec2::new(global.position.x, global.position.y),
-                        light.source_radius,
+                        light.source_radius.max(0.0),
                         kiss3d::color::Color::new(r, g, b, 1.0),
-                        light.intensity,
+                        light.intensity.max(0.0),
                     )
                 })
             })

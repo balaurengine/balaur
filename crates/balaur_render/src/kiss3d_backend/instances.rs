@@ -28,7 +28,7 @@ pub(super) fn draw(
             crate::instancing::draw_multimesh_3d(companion, &multimesh, global);
         }
     }
-    if let Ok(emitter) = world.get::<&crate::particles_3d::Particles3d>(entity) {
+    if let Ok(emitter) = world.get::<&crate::particles_3d::Emitter3d>(entity) {
         let live = slot
             .particles
             .get_or_insert_with(|| crate::particles_3d::Live3d::new(entity));

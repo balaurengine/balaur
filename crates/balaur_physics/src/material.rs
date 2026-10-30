@@ -98,12 +98,3 @@ pub(crate) fn names_a_file(params: &toml::Value, rows: &[&str]) -> bool {
         !reference.is_empty() && !reference.starts_with('#')
     })
 }
-
-/// The row a component names its material in, at the end of its ungrouped
-/// rows.
-pub(crate) fn row_spec() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults" }}"#,
-        k::PHYSICS_MATERIAL
-    )
-}

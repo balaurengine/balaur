@@ -12,39 +12,52 @@
 //! list with no GPU. The capture itself is the backend's, and
 //! `shaders/mesh.wesl` is where a surface reads one.
 
-use anyhow::anyhow;
 use balaur_core::GlobalTransform;
-use balaur_core::components::{ComponentDef, as_f64, prop_str};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Enum};
 use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::vocabulary::{keys as k, words};
+use crate::vocabulary::words;
+use balaur_core::layers::Layer;
 
-/// The `reflection_probe` component's authored state. The node's position
-/// places the box and its rotation turns it; `size` is in world units and
-/// does not follow the node's scale, the way a `light3d`'s radius does not.
+/// A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.
+// The node's position places the box and its rotation turns it; `size` is in
+// world units and does not follow the node's scale, the way a `light3d`'s
+// range does not.
+#[derive(Component)]
+#[component(name = "reflection_probe")]
 pub struct ReflectionProbe {
-    pub half_extents: Vec3,
-    /// How wide the soft edge at the box's face is, in world units: a surface
-    /// crossing it fades back to the sky rather than jumping.
-    pub falloff: f32,
+    /// The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned
+    #[property(default = Vec3::splat(10.0), min = 0.0)]
+    pub size: Vec3,
+    /// Brightness of what the probe reflects
+    #[property(default = 1.0, min = 0.0)]
     pub intensity: f32,
-    /// Turn about y, in degrees, matching `environment.sky_rotation_degrees`.
-    pub rotation: f32,
-    /// A baked equirectangular image, project-relative. Empty captures the
-    /// scene from the probe's own position instead.
+    /// How wide the soft edge at the box's face is; a surface crossing it fades back to the sky
+    #[property(default = 0.5, min = 0.0)]
+    pub falloff: f32,
+    /// Baked equirectangular image, project-relative. Empty captures the scene from the node's own position
     pub image: String,
-    pub update: ProbeUpdate,
-    /// Which nodes a capture draws, by their `render_layers`.
-    pub capture_layers: u32,
-    /// A capture's clip planes; zero takes the camera's.
+    /// Turn of the captured map about y, in degrees
+    pub image_rotation_degrees: f32,
+    /// When a probe with no `image` captures the scene: once when placed or moved, or every frame. One capture draws the scene six times, at `environment.probe_capture_size_pixels` square
+    #[property(default = ProbeUpdate::Once, group = "capture")]
+    pub update_mode: ProbeUpdate,
+    /// The layers a capture draws: the nodes whose `render_layers` share one. Leave moving nodes off it and let `ssr` reflect them; empty is every layer
+    #[property(flags, group = "capture")]
+    pub capture_layers: Vec<Layer>,
+    /// The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera's own planes
+    #[property(min = 0.0, group = "capture")]
     pub capture_near: f32,
+    /// The farthest distance a capture draws, in world units; zero takes the camera's
+    #[property(min = 0.0, group = "capture")]
     pub capture_far: f32,
 }
 
 /// When a probe with no baked image captures the scene.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum ProbeUpdate {
     /// When it is placed, and again whenever it moves.
     Once,
@@ -87,20 +100,20 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
         let visible = world
             .get::<&balaur_core::GlobalAppearance>(entity)
             .is_ok_and(|a| a.visible);
-        let clip_planes = (probe.capture_near > 0.0 && probe.capture_far > probe.capture_near)
-            .then_some((probe.capture_near, probe.capture_far));
+        let (near, far) = (probe.capture_near.max(0.0), probe.capture_far.max(0.0));
+        let clip_planes = (near > 0.0 && far > near).then_some((near, far));
         out.push(LitProbe {
             center: global.position,
             orientation: global.rotation,
             // A box with no thickness influences nothing, and dividing the
             // parallax ray by it would be a surface reflecting nothing.
-            half_extents: probe.half_extents.max(Vec3::splat(1e-3)),
+            half_extents: (probe.size / 2.0).max(Vec3::splat(1e-3)),
             falloff: probe.falloff.max(1e-4),
             intensity: probe.intensity.max(0.0),
-            rotation: probe.rotation.to_radians(),
+            rotation: probe.image_rotation_degrees.to_radians(),
             image: probe.image.clone(),
-            update: probe.update,
-            capture_layers: probe.capture_layers,
+            update: probe.update_mode,
+            capture_layers: Layer::bits(&probe.capture_layers, true),
             clip_planes,
             enabled: visible,
         });
@@ -108,132 +121,13 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
     out
 }
 
-fn probe_schema() -> String {
-    let modes = crate::vocabulary::options(words::UPDATE_MODES);
-    let once = words::ONCE;
-    let layer_options = balaur_core::layers::options();
-    format!(
-        r#"size = {{ type = "vec3", default = [10.0, 10.0, 10.0], min = 0.0, description = "The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned" }}
-intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of what the probe reflects" }}
-falloff = {{ type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }}
-image = {{ type = "string", default = "", description = "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position" }}
-image_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }}
-update_mode = {{ type = "enum", default = "{once}", options = [{modes}], description = "When a probe with no `image` captures the scene: once when placed or moved, or every frame. One capture draws the scene six times, at `environment.probe_capture_size_pixels` square", group = "capture" }}
-capture_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The layers a capture draws: the nodes whose `render_layers` share one. Leave moving nodes off it and let `ssr` reflect them; empty is every layer", group = "capture" }}
-capture_near = {{ type = "float", default = 0.0, min = 0.0, description = "The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera's own planes", group = "capture" }}
-capture_far = {{ type = "float", default = 0.0, min = 0.0, description = "The farthest distance a capture draws, in world units; zero takes the camera's", group = "capture" }}"#
-    )
-}
-
-/// The probe a full `reflection_probe` table describes.
-fn probe_from_params(params: &toml::Value) -> ReflectionProbe {
-    let num = |key: &str, default: f32| {
-        params
-            .get(key)
-            .and_then(as_f64)
-            .unwrap_or(f64::from(default)) as f32
-    };
-    let extent = |i: usize, default: f32| {
-        params
-            .get(k::SIZE)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(as_f64)
-            .unwrap_or(f64::from(default)) as f32
-            / 2.0
-    };
-    ReflectionProbe {
-        half_extents: Vec3::new(extent(0, 10.0), extent(1, 10.0), extent(2, 10.0)),
-        falloff: num(k::FALLOFF, 0.5),
-        intensity: num(k::INTENSITY, 1.0),
-        rotation: num(k::IMAGE_ROTATION_DEGREES, 0.0),
-        image: prop_str(params, k::IMAGE).to_string(),
-        update: if prop_str(params, k::UPDATE_MODE) == words::ALWAYS {
-            ProbeUpdate::Always
-        } else {
-            ProbeUpdate::Once
-        },
-        capture_layers: balaur_core::layers::bits(params.get(k::CAPTURE_LAYERS), true),
-        capture_near: num(k::CAPTURE_NEAR, 0.0).max(0.0),
-        capture_far: num(k::CAPTURE_FAR, 0.0).max(0.0),
-    }
-}
-
 /// The `reflection_probe` component.
 pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "reflection_probe",
+        ReflectionProbe::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
-            schema: ComponentDef::parse_schema("reflection_probe", &probe_schema()),
             tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let next = probe_from_params(params);
-                let mut world = eng.world_mut();
-                if let Ok(mut probe) = world.get::<&mut ReflectionProbe>(entity) {
-                    *probe = next;
-                    return Ok(());
-                }
-                world
-                    .insert_one(entity, next)
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<ReflectionProbe>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let probe = world.get::<&ReflectionProbe>(entity).ok()?;
-                let mut map = toml::map::Map::new();
-                map.insert(
-                    k::SIZE.into(),
-                    toml::Value::Array(
-                        probe
-                            .half_extents
-                            .to_array()
-                            .iter()
-                            .map(|v| toml::Value::Float(f64::from(*v * 2.0)))
-                            .collect(),
-                    ),
-                );
-                map.insert(
-                    k::FALLOFF.into(),
-                    toml::Value::Float(f64::from(probe.falloff)),
-                );
-                map.insert(
-                    k::INTENSITY.into(),
-                    toml::Value::Float(f64::from(probe.intensity)),
-                );
-                map.insert(
-                    k::IMAGE_ROTATION_DEGREES.into(),
-                    toml::Value::Float(f64::from(probe.rotation)),
-                );
-                map.insert(k::IMAGE.into(), toml::Value::String(probe.image.clone()));
-                let mode = match probe.update {
-                    ProbeUpdate::Once => words::ONCE,
-                    ProbeUpdate::Always => words::ALWAYS,
-                };
-                map.insert(k::UPDATE_MODE.into(), toml::Value::String(mode.into()));
-                map.insert(
-                    k::CAPTURE_LAYERS.into(),
-                    balaur_core::layers::names(probe.capture_layers),
-                );
-                map.insert(
-                    k::CAPTURE_NEAR.into(),
-                    toml::Value::Float(f64::from(probe.capture_near)),
-                );
-                map.insert(
-                    k::CAPTURE_FAR.into(),
-                    toml::Value::Float(f64::from(probe.capture_far)),
-                );
-                Some(toml::Value::Table(map))
-            }),
+            ..ComponentDef::of::<ReflectionProbe>(None)
         },
     );
 }

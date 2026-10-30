@@ -13,7 +13,7 @@ use crate::vocabulary::{keys as k, words as w};
 ///
 /// Its own enum rather than the shaper's: the buffer and its bindings are in
 /// every build, and the shaper comes with the windowed backend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, balaur_core::components::derived::Enum)]
 pub enum Align {
     Start,
     Center,
@@ -33,17 +33,6 @@ impl Align {
             w::RIGHT => Self::Right,
             w::JUSTIFY => Self::Justify,
             _ => Self::Start,
-        }
-    }
-
-    pub(crate) fn word(self) -> &'static str {
-        match self {
-            Self::Start => w::START,
-            Self::Center => w::CENTER,
-            Self::End => w::END,
-            Self::Left => w::LEFT,
-            Self::Right => w::RIGHT,
-            Self::Justify => w::JUSTIFY,
         }
     }
 }
@@ -80,7 +69,7 @@ impl Default for Shaping {
 }
 
 impl Shaping {
-    /// The settings a component's or a script's table names, over the defaults.
+    /// The settings a script's table names, over the defaults.
     pub(crate) fn from_params(params: &toml::Value) -> Self {
         let base = Self::default();
         let word = |key: &str, fallback: &str| {
@@ -114,45 +103,6 @@ impl Shaping {
                 .and_then(balaur_core::components::as_f64)
                 .map_or(base.tab_width, |v| v.clamp(1.0, 64.0) as u16),
         }
-    }
-
-    /// The settings back into the table a scene file would have written.
-    pub(crate) fn put_into(&self, out: &mut toml::map::Map<String, toml::Value>) {
-        let text = |v: &str| toml::Value::String(v.to_string());
-        let pairs = [
-            (k::FONT_STYLE, text(&self.font_style)),
-            (k::LINE_BREAK, text(&self.line_break)),
-            (k::TRUNCATE, toml::Value::Boolean(self.truncate)),
-            (k::TRUNCATE_AT, text(&self.truncate_at)),
-            (
-                k::MAX_LINES,
-                toml::Value::Integer(i64::from(self.max_lines)),
-            ),
-            (
-                k::MAX_HEIGHT,
-                toml::Value::Float(f64::from(self.max_height)),
-            ),
-            (
-                k::TAB_WIDTH,
-                toml::Value::Integer(i64::from(self.tab_width)),
-            ),
-        ];
-        for (key, value) in pairs {
-            out.insert(key.to_string(), value);
-        }
-    }
-
-    /// The schema lines `text2d` and `text3d` share for wrapping and cutting.
-    pub(crate) fn schema() -> Vec<(&'static str, String)> {
-        let options = crate::vocabulary::options;
-        vec![
-            (k::MAX_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines stop at; zero has no limit", group = "text" }"#.into()),
-            (k::MAX_LINES, r#"{ type = "int", default = 0, min = 0, description = "The most lines a block keeps; zero keeps every line", group = "text" }"#.into()),
-            (k::LINE_BREAK, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere", group = "text" }}"#, w::WORD_OR_GLYPH, options(w::LINE_BREAKS))),
-            (k::TRUNCATE, r#"{ type = "bool", default = false, description = "End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line", group = "text" }"#.into()),
-            (k::TRUNCATE_AT, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which part of a cut line the ellipsis stands in for", group = "text" }}"#, w::END, options(w::TRUNCATE_ATS))),
-            (k::TAB_WIDTH, r#"{ type = "int", default = 8, min = 1, max = 64, description = "Spaces between tab stops", group = "text" }"#.into()),
-        ]
     }
 }
 

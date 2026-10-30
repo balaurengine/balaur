@@ -257,7 +257,9 @@ def scan_context(files: list[Path]) -> Context:
         # and an asset type's name is user-facing the same way a key is.
         for pat in (r'register_component\(\s*"([a-z0-9_]+)"', r'script_module\(\s*"([a-z0-9_]+)"',
                     r'register_asset_type\(\s*"([a-z0-9_]+)"',
-                    r'host\.module\(\s*"([a-z0-9_]+)"'):
+                    r'host\.module\(\s*"([a-z0-9_]+)"',
+                    # A derived component names itself on its struct.
+                    r'#\[component\(\s*name\s*=\s*"([a-z0-9_]+)"'):
             glued.update(re.findall(pat, text, re.S))
         # A key named through a constant rather than at the call site. Only
         # the value is taken, and only where a plugin declares its vocabulary.

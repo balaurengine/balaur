@@ -2,7 +2,7 @@
 //! bones it drives. The same walk the solver makes, so a gizmo cannot
 //! disagree with what the rig will do.
 
-use crate::modifier::{Modifier2d, Modifier3d, chain_of, origin_2d, origin_3d, pose_2d, pose_3d};
+use crate::modifier::{Params2d, Params3d, chain_of, origin_2d, origin_3d, pose_2d, pose_3d};
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use balaur_core::scene;
@@ -12,12 +12,9 @@ use glamx::Vec2;
 #[must_use]
 pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
     let world = eng.world();
-    let (target, dim3) = match world.get::<&Modifier2d>(entity) {
+    let (target, dim3) = match world.get::<&Params2d>(entity) {
         Ok(m) => (m.0.target.clone(), false),
-        Err(_) => (
-            world.get::<&Modifier3d>(entity).ok()?.0.target.clone(),
-            true,
-        ),
+        Err(_) => (world.get::<&Params3d>(entity).ok()?.0.target.clone(), true),
     };
     let target = scene::find_node(&world, entity, &target)?;
     Some(if dim3 {
@@ -34,9 +31,9 @@ pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
 #[must_use]
 pub fn chain_of_node(eng: &Engine, entity: Entity) -> Vec<Entity> {
     let world = eng.world();
-    let (bone_path, chain) = match world.get::<&Modifier2d>(entity) {
+    let (bone_path, chain) = match world.get::<&Params2d>(entity) {
         Ok(m) => (m.0.bone.clone(), m.0.chain_count),
-        Err(_) => match world.get::<&Modifier3d>(entity) {
+        Err(_) => match world.get::<&Params3d>(entity) {
             Ok(m) => (m.0.bone.clone(), m.0.chain_count),
             Err(_) => return Vec::new(),
         },

@@ -10,7 +10,7 @@ mod layers;
 mod read;
 mod soft;
 
-pub(crate) use layers::{bits, flags, names};
+pub(crate) use layers::{bits, flags, named_bits};
 pub(crate) use read::{Opts, axis, boolean, color, f, flag, indices, map, text, vec2, vec3};
 
 /// The closed sets of words a scene file, a script table and the inspector all
@@ -23,11 +23,6 @@ pub(crate) mod words {
     pub(crate) const STATIC: &str = "static";
     pub(crate) const KINEMATIC: &str = "kinematic";
     pub(crate) const KINEMATIC_VELOCITY: &str = "kinematic_velocity";
-    /// A soft body's cluster proxy, which rapier makes itself: it is read back
-    /// but never accepted, so it stays out of `BODY_KINDS`.
-    pub(crate) const SOFT_FRAME: &str = "soft_frame";
-    /// The body kinds both dimensions accept (N14).
-    pub(crate) const BODY_KINDS: &[&str] = &[DYNAMIC, STATIC, KINEMATIC, KINEMATIC_VELOCITY];
 
     pub(crate) const AVERAGE: &str = "average";
     pub(crate) const MIN: &str = "min";
@@ -62,75 +57,18 @@ pub(crate) mod words {
     pub(crate) const CONVEX_MESH: &str = "convex_mesh";
     pub(crate) const CONVEX_POLYGON: &str = "convex_polygon";
     pub(crate) const VOXELIZED_POINTS: &str = "voxelized_points";
-    /// The 3D collider shapes, in the order the inspector offers them.
-    pub(crate) const SHAPES: &[&str] = &[
-        SPHERE,
-        BOX,
-        CAPSULE,
-        CYLINDER,
-        CONE,
-        TRIANGLE,
-        SEGMENT,
-        WORLD_BOUNDARY,
-        TRIANGLE_MESH,
-        CONVEX_HULL,
-        CONVEX_DECOMPOSITION,
-        POLYLINE,
-        HEIGHTFIELD,
-        VOXELS,
-        VOXELIZED_MESH,
-        FIT,
-        CONVEX_MESH,
-        VOXELIZED_POINTS,
-    ];
-    /// The 2D shapes: a circle and a rectangle, where 3D has a sphere and a box.
-    pub(crate) const SHAPES_2D: &[&str] = &[
-        CIRCLE,
-        RECTANGLE,
-        CAPSULE,
-        TRIANGLE,
-        SEGMENT,
-        WORLD_BOUNDARY,
-        TRIANGLE_MESH,
-        CONVEX_HULL,
-        CONVEX_DECOMPOSITION,
-        POLYLINE,
-        HEIGHTFIELD,
-        VOXELS,
-        VOXELIZED_MESH,
-        FIT,
-        CONVEX_POLYGON,
-        VOXELIZED_POINTS,
-    ];
 
     pub(crate) const SOLID: &str = "solid";
     pub(crate) const SURFACE: &str = "surface";
-    /// Whether voxelizing a mesh fills its inside or only its shell.
-    pub(crate) const FILL_MODES: &[&str] = &[SOLID, SURFACE];
 
     pub(crate) const AABB: &str = "aabb";
     pub(crate) const OBB: &str = "obb";
-    /// The shapes a mesh can be fitted to, when a collider's kind is `fit`.
-    pub(crate) const FIT_MODES: &[&str] = &[CONVEX_HULL, AABB, OBB, CONVEX_DECOMPOSITION];
-    /// The 2D fits: rapier2d's mesh converter has no decomposition.
-    pub(crate) const FIT_MODES_2D: &[&str] = &[CONVEX_HULL, AABB, OBB];
-
-    /// How a concave 2D polygon is cut into convex pieces: exactly, over a
-    /// triangulation, or approximately, over a voxel grid.
-    pub(crate) const DECOMPOSITION_METHODS: &[&str] = &[EXACT, VHACD, VOXELS];
-    /// How a 3D convex_decomposition is cut: into hulls, or into voxel parts.
-    pub(crate) const DECOMPOSITION_METHODS_3D: &[&str] = &[VHACD, VOXELS];
 
     pub(crate) const EITHER: &str = "either";
-    /// Whether a pair needs both colliders' layers to accept it, or either's.
-    pub(crate) const TEST_MODES: &[&str] = &[BOTH, EITHER];
 
     pub(crate) const CHAIN: &str = "chain";
     pub(crate) const OUTLINE: &str = "outline";
     pub(crate) const MESH: &str = "mesh";
-    /// Which edges a polyline collider takes from its mesh.
-    pub(crate) const EDGE_MODES: &[&str] = &[CHAIN, MESH];
-    pub(crate) const EDGE_MODES_2D: &[&str] = &[CHAIN, OUTLINE, MESH];
 
     pub(crate) const SIMPLIFIED: &str = "simplified";
     pub(crate) const PER_CONTACT: &str = "per_contact";
@@ -146,44 +84,26 @@ pub(crate) mod words {
     pub(crate) const SPRING: &str = "spring";
     pub(crate) const GROOVE: &str = "groove";
     pub(crate) const GENERIC: &str = "generic";
-    /// The 3D joints. `ball_socket` needs three angular axes, so 2D has none.
-    pub(crate) const JOINT_KINDS: &[&str] =
-        &[FIXED, HINGE, SLIDER, BALL_SOCKET, ROPE, SPRING, GENERIC];
-    /// The 2D joints. `groove` is Godot's, and 2D-only.
-    pub(crate) const JOINT_KINDS_2D: &[&str] =
-        &[FIXED, HINGE, SLIDER, ROPE, SPRING, GROOVE, GENERIC];
 
     pub(crate) const BOTH: &str = "both";
 
     pub(crate) const OFF: &str = "off";
     pub(crate) const VELOCITY: &str = "velocity";
     pub(crate) const POSITION: &str = "position";
-    /// What a joint's motor drives towards, if anything.
-    pub(crate) const MOTOR_MODES: &[&str] = &[OFF, VELOCITY, POSITION];
 
     /// What rapier picks when the author does not: a spring's own default, the
     /// generator's own choice.
     pub(crate) const AUTO: &str = "auto";
     pub(crate) const ACCELERATION: &str = "acceleration";
     pub(crate) const FORCE: &str = "force";
-    /// Whether a motor's strength ignores mass; `auto` is force for a spring's
-    /// spring and acceleration for every other motor, as rapier builds them.
-    pub(crate) const MOTOR_MODELS: &[&str] = &[AUTO, ACCELERATION, FORCE];
 
     pub(crate) const SENSORS: &str = "sensors";
     pub(crate) const SOLIDS: &str = "solids";
-    /// What a character's or a vehicle's sweep passes through.
-    pub(crate) const IGNORES: &[&str] = &[STATIC, KINEMATIC, DYNAMIC, SENSORS, SOLIDS];
     pub(crate) const PD: &str = "pd";
     pub(crate) const PID: &str = "pid";
-    /// Rapier's two controllers: proportional-derivative, and the same with an
-    /// integral that keeps pulling against a steady push.
-    pub(crate) const FOLLOW_KINDS: &[&str] = &[PD, PID];
 
     pub(crate) const ABSOLUTE: &str = "absolute";
     pub(crate) const RELATIVE: &str = "relative";
-    /// Whether a character's lengths are world units or a fraction of it.
-    pub(crate) const LENGTH_MODES: &[&str] = &[ABSOLUTE, RELATIVE];
 
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
@@ -191,23 +111,10 @@ pub(crate) mod words {
     pub(crate) const NEGATIVE_X: &str = "-x";
     pub(crate) const NEGATIVE_Y: &str = "-y";
     pub(crate) const NEGATIVE_Z: &str = "-z";
-    /// A chassis's own axes, either way along, as `up_axis` and `forward_axis`
-    /// name them.
-    pub(crate) const AXES: &[&str] = &[X, Y, Z, NEGATIVE_X, NEGATIVE_Y, NEGATIVE_Z];
-    /// The world axes a 3D body or generic joint may lock, and the 2D pair.
-    pub(crate) const LOCK_AXES: &[&str] = &[X, Y, Z];
-    pub(crate) const LOCK_AXES_2D: &[&str] = &[X, Y];
-    /// The axes a capsule may lie along, in 3D and in 2D.
-    pub(crate) const CAPSULE_AXES: &[&str] = &[X, Y, Z];
-    pub(crate) const CAPSULE_AXES_2D: &[&str] = &[X, Y];
     pub(crate) const ROTATION_X: &str = "rotation_x";
     pub(crate) const ROTATION_Y: &str = "rotation_y";
     pub(crate) const ROTATION_Z: &str = "rotation_z";
     pub(crate) const ROTATION: &str = "rotation";
-    /// Degrees of freedom: a joint's own in an `axes` record and a joint
-    /// call, the world's in `solve_ik`'s `constrain`.
-    pub(crate) const JOINT_AXES: &[&str] = &[X, Y, Z, ROTATION_X, ROTATION_Y, ROTATION_Z];
-    pub(crate) const JOINT_AXES_2D: &[&str] = &[X, Y, ROTATION];
 
     pub(crate) const COLLISION: &str = "collision";
     pub(crate) const CONTACT_FORCE: &str = "contact_force";
@@ -218,9 +125,6 @@ pub(crate) mod words {
     pub(crate) const KINEMATIC_KINEMATIC: &str = "kinematic_kinematic";
     pub(crate) const KINEMATIC_STATIC: &str = "kinematic_static";
     pub(crate) const STATIC_STATIC: &str = "static_static";
-    /// The pairs a collider is tested against unless it asks for more.
-    pub(crate) const DEFAULT_COLLISIONS: &[&str] =
-        &[DYNAMIC_DYNAMIC, DYNAMIC_KINEMATIC, DYNAMIC_STATIC];
 
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const DISABLED: &str = "disabled";
@@ -261,7 +165,6 @@ pub(crate) mod keys {
     pub(crate) const A: &str = "a";
     pub(crate) const AABB_COLOR: &str = "aabb_color";
     pub(crate) const ALLOWED_LINEAR_ERROR: &str = "allowed_linear_error";
-    pub(crate) const ALLOW_FAST_ROTATION: &str = "allow_fast_rotation";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const ANCHOR_ROTATION: &str = "anchor_rotation";
     pub(crate) const ANGLE: &str = "angle";
@@ -336,15 +239,11 @@ pub(crate) mod keys {
     pub(crate) const DROP_DUPLICATE_TRIANGLES: &str = "drop_duplicate_triangles";
     pub(crate) const DYNAMIC_COLOR: &str = "dynamic_color";
     pub(crate) const EDGES: &str = "edges";
-    /// Whether a character's lengths are world units or fractions of it.
-    pub(crate) const LENGTHS: &str = "lengths";
     pub(crate) const FILL_CAVITIES: &str = "fill_cavities";
     pub(crate) const FIX_SELF_INTERSECTIONS: &str = "fix_self_intersections";
     /// A contact force's or a broken joint's size, in an event payload.
     pub(crate) const FORCE: &str = "force";
     pub(crate) const DAMPING: &str = "damping";
-    pub(crate) const DAMPING_COMPRESSION: &str = "damping_compression";
-    pub(crate) const DAMPING_RELAXATION: &str = "damping_relaxation";
     pub(crate) const DENSITY: &str = "density";
     pub(crate) const DIRECTION: &str = "direction";
     pub(crate) const DISABLED_TINT: &str = "disabled_tint";
@@ -364,15 +263,11 @@ pub(crate) mod keys {
     pub(crate) const FINAL_BROAD_PHASE_MS: &str = "final_broad_phase_ms";
     pub(crate) const FIT: &str = "fit";
     pub(crate) const FIX_INTERNAL_EDGES: &str = "fix_internal_edges";
-    pub(crate) const FLOOR_MAX_ANGLE: &str = "floor_max_angle";
-    pub(crate) const FLOOR_SNAP_LENGTH: &str = "floor_snap_length";
-    pub(crate) const FORWARD_AXIS: &str = "forward_axis";
     pub(crate) const FORWARD_IMPULSE: &str = "forward_impulse";
     pub(crate) const FRICTION: &str = "friction";
     pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
     pub(crate) const FRICTION_IN_BIAS_PASS: &str = "friction_in_bias_pass";
     pub(crate) const FRICTION_MODEL: &str = "friction_model";
-    pub(crate) const FRICTION_SLIP: &str = "friction_slip";
     pub(crate) const GEAR_OFFSET: &str = "gear_offset";
     pub(crate) const GEAR_RATIO: &str = "gear_ratio";
     pub(crate) const GEAR_WITH: &str = "gear_with";
@@ -380,21 +275,16 @@ pub(crate) mod keys {
     pub(crate) const GRAVITY_3D: &str = "gravity_3d";
     pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
     pub(crate) const GROUND: &str = "ground";
-    pub(crate) const GYROSCOPIC_FORCES: &str = "gyroscopic_forces";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const HEIGHTFIELD: &str = "heightfield";
     pub(crate) const HIT_FROM_INSIDE: &str = "hit_from_inside";
     pub(crate) const HIT_SENSORS: &str = "hit_sensors";
     pub(crate) const HIT_SOLIDS: &str = "hit_solids";
     pub(crate) const HULL_DOWNSAMPLING: &str = "hull_downsampling";
-    pub(crate) const IGNORE: &str = "ignore";
-    pub(crate) const IGNORE_NODES: &str = "ignore_nodes";
     pub(crate) const IMPULSE: &str = "impulse";
     pub(crate) const INDICES: &str = "indices";
     pub(crate) const INERTIA: &str = "inertia";
     pub(crate) const INERTIA_ROTATION: &str = "inertia_rotation";
-    pub(crate) const INITIAL_ANGULAR_VELOCITY: &str = "initial_angular_velocity";
-    pub(crate) const INITIAL_LINEAR_VELOCITY: &str = "initial_linear_velocity";
     pub(crate) const INSIDE: &str = "inside";
     pub(crate) const INTERNAL_ITERATIONS: &str = "internal_iterations";
     pub(crate) const IN_CONTACT: &str = "in_contact";
@@ -429,7 +319,6 @@ pub(crate) mod keys {
     pub(crate) const METHOD: &str = "method";
     pub(crate) const MIN: &str = "min";
     pub(crate) const MIN_CCD_SECONDS: &str = "min_ccd_seconds";
-    pub(crate) const MIN_SLIDE_ANGLE: &str = "min_slide_angle";
     pub(crate) const MOTOR: &str = "motor";
     pub(crate) const MOTOR_IMPULSES: &str = "motor_impulses";
     pub(crate) const MOTOR_MAX_FORCE: &str = "motor_max_force";
@@ -441,7 +330,6 @@ pub(crate) mod keys {
     pub(crate) const NODES: &str = "nodes";
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const NORMAL_LENGTH: &str = "normal_length";
-    pub(crate) const NORMAL_NUDGE: &str = "normal_nudge";
     pub(crate) const NORMALS: &str = "normals";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ONE_WAY_ANGLE: &str = "one_way_angle";
@@ -472,12 +360,9 @@ pub(crate) mod keys {
     pub(crate) const PIECES: &str = "pieces";
     pub(crate) const PLANE_DOWNSAMPLING: &str = "plane_downsampling";
     pub(crate) const REVOLUTION_BIAS: &str = "revolution_bias";
-    pub(crate) const SLEEP_ANGULAR_THRESHOLD: &str = "sleep_angular_threshold";
     pub(crate) const SLEEP_READY_TINT: &str = "sleep_ready_tint";
-    pub(crate) const SLEEP_THRESHOLD: &str = "sleep_threshold";
     pub(crate) const SOLVER_TEST: &str = "solver_test";
     pub(crate) const STARTED: &str = "started";
-    pub(crate) const START_ASLEEP: &str = "start_asleep";
     pub(crate) const STATIC_COLOR: &str = "static_color";
     pub(crate) const SURFACE_VELOCITY: &str = "surface_velocity";
     pub(crate) const SUSPENSION: &str = "suspension";
@@ -490,8 +375,6 @@ pub(crate) mod keys {
     pub(crate) const POSITION: &str = "position";
     pub(crate) const PREDICATE: &str = "predicate";
     pub(crate) const PREDICTION_DISTANCE: &str = "prediction_distance";
-    pub(crate) const PUSH_BODIES: &str = "push_bodies";
-    pub(crate) const PUSH_MASS: &str = "push_mass";
     pub(crate) const RADIUS: &str = "radius";
     pub(crate) const RAY_ORIGIN: &str = "ray_origin";
     pub(crate) const REMAINING: &str = "remaining";
@@ -502,16 +385,13 @@ pub(crate) mod keys {
     pub(crate) const RESTITUTION_COMBINE: &str = "restitution_combine";
     pub(crate) const REST_LENGTH: &str = "rest_length";
     pub(crate) const ROTATION: &str = "rotation";
-    pub(crate) const SAFE_MARGIN: &str = "safe_margin";
     pub(crate) const SCALE: &str = "scale";
     pub(crate) const SELF_COLLISION: &str = "self_collision";
     pub(crate) const SENSOR: &str = "sensor";
     pub(crate) const SHAPE: &str = "shape";
-    pub(crate) const SIDE_FRICTION: &str = "side_friction";
     pub(crate) const SIDE_IMPULSE: &str = "side_impulse";
     pub(crate) const SIZE: &str = "size";
     pub(crate) const SLEEPING_TINT: &str = "sleeping_tint";
-    pub(crate) const SLIDE: &str = "slide";
     pub(crate) const SLIDING: &str = "sliding";
     pub(crate) const SOFT_BODIES: &str = "soft_bodies";
     pub(crate) const SOFT_BODY_COLOR: &str = "soft_body_color";
@@ -531,48 +411,28 @@ pub(crate) mod keys {
     pub(crate) const SOLVER_LAYER: &str = "solver_layer";
     pub(crate) const SOLVER_MASK: &str = "solver_mask";
     pub(crate) const SOLVER_MS: &str = "solver_ms";
-    pub(crate) const SPECULATIVE_DISTANCE: &str = "speculative_distance";
     pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
     pub(crate) const STANDALONE_COLOR: &str = "standalone_color";
     pub(crate) const STATIC_CONTACT_DAMPING: &str = "static_contact_damping";
     pub(crate) const STATIC_CONTACT_FREQUENCY_HZ: &str = "static_contact_frequency_hz";
     pub(crate) const STATUS: &str = "status";
     pub(crate) const STEERING: &str = "steering";
-    pub(crate) const STEP_HEIGHT: &str = "step_height";
-    pub(crate) const STEP_MIN_WIDTH: &str = "step_min_width";
     pub(crate) const STEP_MS: &str = "step_ms";
-    pub(crate) const STEP_ON_DYNAMIC: &str = "step_on_dynamic";
     pub(crate) const STIFFNESS: &str = "stiffness";
     pub(crate) const STOP_AT_PENETRATION: &str = "stop_at_penetration";
     pub(crate) const SUBDIVISIONS: &str = "subdivisions";
     pub(crate) const SUBSHAPE: &str = "subshape";
-    pub(crate) const SUSPENSION_DIRECTION: &str = "suspension_direction";
     pub(crate) const SUSPENSION_FORCE: &str = "suspension_force";
     pub(crate) const SUSPENSION_LENGTH: &str = "suspension_length";
-    pub(crate) const SUSPENSION_MAX_FORCE: &str = "suspension_max_force";
-    pub(crate) const SUSPENSION_STIFFNESS: &str = "suspension_stiffness";
-    pub(crate) const SUSPENSION_TRAVEL: &str = "suspension_travel";
     pub(crate) const THICKNESS: &str = "thickness";
     /// `[physics] threads`: how many the solver may take.
     pub(crate) const THREADS: &str = "threads";
-    pub(crate) const TIME_TO_SLEEP: &str = "time_to_sleep";
     pub(crate) const TOLERANCE: &str = "tolerance";
     pub(crate) const TORQUE: &str = "torque";
     pub(crate) const TOTAL_FORCE: &str = "total_force";
     pub(crate) const TWO_SIDED_EDGES: &str = "two_sided_edges";
     pub(crate) const UPDATE_MS: &str = "update_ms";
     pub(crate) const UP_AXIS: &str = "up_axis";
-    pub(crate) const TARGET_LINEAR_VELOCITY: &str = "target_linear_velocity";
-    pub(crate) const TARGET_ANGULAR_VELOCITY: &str = "target_angular_velocity";
-    pub(crate) const POSITION_GAIN: &str = "position_gain";
-    pub(crate) const VELOCITY_GAIN: &str = "velocity_gain";
-    pub(crate) const INTEGRAL_GAIN: &str = "integral_gain";
-    pub(crate) const ROTATION_GAIN: &str = "rotation_gain";
-    pub(crate) const SPIN_GAIN: &str = "spin_gain";
-    pub(crate) const ROTATION_INTEGRAL_GAIN: &str = "rotation_integral_gain";
-    pub(crate) const TRANSLATION_AXES: &str = "translation_axes";
-    pub(crate) const ROTATION_AXES: &str = "rotation_axes";
-    pub(crate) const UP_DIRECTION: &str = "up_direction";
     pub(crate) const USER_CHANGES_MS: &str = "user_changes_ms";
     pub(crate) const VELOCITIES: &str = "velocities";
     pub(crate) const VELOCITY: &str = "velocity";

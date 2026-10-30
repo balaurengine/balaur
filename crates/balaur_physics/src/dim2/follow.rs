@@ -1,19 +1,60 @@
 //! `follow2d`: the 2D twin of `follow3d`.
 
+use crate::properties::{Axis2d, FollowKind, Turn, node_at};
 use crate::rapier2d::control::{PdController, PidController};
 use crate::rapier2d::dynamics::{AxesMask, RigidBodyVelocity};
 use crate::scalar::{self, Real};
-use balaur_core::components::{ComponentDef, as_node, prop_f32, prop_str, prop_vec2};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage, entity_of, fixed_dt};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use super::PhysicsState2d;
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::vocabulary::component as c;
 
-/// The settings, held on the node.
-pub struct Follow2d(pub toml::Value);
+/// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
+#[derive(Clone, Component)]
+#[component(name = "follow2d")]
+pub struct Follow2d {
+    /// The node whose pose the body is pulled to; empty pulls nothing
+    #[property(node)]
+    pub target: String,
+    /// Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push
+    #[property(default = FollowKind::Pd)]
+    pub kind: FollowKind,
+    /// The axes the body is pulled along
+    #[property(flags, default = vec![Axis2d::X, Axis2d::Y])]
+    pub translation_axes: Vec<Axis2d>,
+    /// Whether the body is turned to the target's rotation too: the one turn a 2D body has, as a 2D joint names it
+    #[property(flags, default = vec![Turn::Rotation])]
+    pub rotation_axes: Vec<Turn>,
+    /// How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step
+    #[property(default = [60.0, 60.0], group = "gains")]
+    pub position_gain: [f32; 2],
+    /// How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it
+    #[property(default = [0.8, 0.8], group = "gains")]
+    pub velocity_gain: [f32; 2],
+    /// How hard a gap in rotation pulls
+    #[property(default = 60.0, group = "gains")]
+    pub rotation_gain: f32,
+    /// How much of a gap in spin a step corrects
+    #[property(default = 0.8, group = "gains")]
+    pub spin_gain: f32,
+    /// How hard the gap in position summed over time pulls, per axis, with `pid`
+    #[property(default = [1.0, 1.0], group = "gains")]
+    pub integral_gain: [f32; 2],
+    /// How hard the gap in rotation summed over time pulls, with `pid`
+    #[property(default = 1.0, group = "gains")]
+    pub rotation_integral_gain: f32,
+    /// The velocity the body is pulled to match, in world units per second
+    #[property(group = "velocity")]
+    pub target_linear_velocity: [f32; 2],
+    /// The spin the body is pulled to match, radians a second in the file
+    #[property(group = "velocity", unit = "degrees")]
+    pub target_angular_velocity: f32,
+}
 
 /// As [`crate::follow::FollowRef3d`], in the plane.
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
@@ -22,39 +63,34 @@ pub enum FollowRef2d {
     Pid(PidController),
 }
 
-fn controller_of(params: &toml::Value) -> FollowRef2d {
-    let gain = |key: &str| scalar::v2a(prop_vec2(params, key));
-    let named = |key: &str, word: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .is_some_and(|words| words.iter().any(|named| named.as_str() == Some(word)))
-    };
+fn controller_of(follow: &Follow2d) -> FollowRef2d {
+    let gain = scalar::v2a;
     let mut mask = AxesMask::empty();
-    if named(k::TRANSLATION_AXES, w::X) {
+    if follow.translation_axes.contains(&Axis2d::X) {
         mask |= AxesMask::LIN_X;
     }
-    if named(k::TRANSLATION_AXES, w::Y) {
+    if follow.translation_axes.contains(&Axis2d::Y) {
         mask |= AxesMask::LIN_Y;
     }
-    if named(k::ROTATION_AXES, w::ROTATION) {
+    if follow.rotation_axes.contains(&Turn::Rotation) {
         mask |= AxesMask::ANG_Z;
     }
     let pd = PdController {
-        lin_kp: gain(k::POSITION_GAIN),
-        lin_kd: gain(k::VELOCITY_GAIN),
-        ang_kp: scalar::real(prop_f32(params, k::ROTATION_GAIN)),
-        ang_kd: scalar::real(prop_f32(params, k::SPIN_GAIN)),
+        lin_kp: gain(follow.position_gain),
+        lin_kd: gain(follow.velocity_gain),
+        ang_kp: scalar::real(follow.rotation_gain),
+        ang_kd: scalar::real(follow.spin_gain),
         axes: mask,
     };
-    if prop_str(params, k::KIND) == w::PID {
-        let mut pid = PidController::new(0.0, 0.0, 0.0, mask);
-        pid.pd = pd;
-        pid.lin_ki = gain(k::INTEGRAL_GAIN);
-        pid.ang_ki = scalar::real(prop_f32(params, k::ROTATION_INTEGRAL_GAIN));
-        FollowRef2d::Pid(pid)
-    } else {
-        FollowRef2d::Pd(pd)
+    match follow.kind {
+        FollowKind::Pid => {
+            let mut pid = PidController::new(0.0, 0.0, 0.0, mask);
+            pid.pd = pd;
+            pid.lin_ki = gain(follow.integral_gain);
+            pid.ang_ki = scalar::real(follow.rotation_integral_gain);
+            FollowRef2d::Pid(pid)
+        }
+        FollowKind::Pd => FollowRef2d::Pd(pd),
     }
 }
 
@@ -81,29 +117,29 @@ fn follow_system(eng: &Engine, _dt: f32) {
     if eng.paused() {
         return;
     }
-    let followers: Vec<(Entity, toml::Value)> = {
+    let followers: Vec<(Entity, Follow2d)> = {
         let world = eng.world();
         let mut query = world.query::<(Entity, &Follow2d)>();
-        query.iter().map(|(e, f)| (e, f.0.clone())).collect()
+        query.iter().map(|(e, f)| (e, f.clone())).collect()
     };
     let dt: Real = fixed_dt();
-    for (entity, params) in followers {
-        let Some(target) = as_node(eng, entity, params.get(k::TARGET)) else {
+    for (entity, follow) in followers {
+        let Some(target) = node_at(eng, entity, &follow.target) else {
             continue;
         };
         let Ok(goal) = super::node_pose_2d(eng, target) else {
             continue;
         };
         let wanted = RigidBodyVelocity {
-            linvel: scalar::v2a(prop_vec2(&params, k::TARGET_LINEAR_VELOCITY)),
-            angvel: scalar::real(prop_f32(&params, k::TARGET_ANGULAR_VELOCITY)),
+            linvel: scalar::v2a(follow.target_linear_velocity),
+            angvel: scalar::real(follow.target_angular_velocity),
         };
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let Some(&handle) = state.bodies.get(&entity) else {
             continue;
         };
-        let fresh = controller_of(&params);
+        let fresh = controller_of(&follow);
         let mut controller = *state.follows.entry(entity).or_insert(fresh);
         controller.retune(fresh);
         let Some(body) = state.world.bodies.get(handle) else {
@@ -122,98 +158,24 @@ fn follow_system(eng: &Engine, _dt: f32) {
     }
 }
 
-fn schema() -> String {
-    let kinds = v::options(w::FOLLOW_KINDS);
-    let axes = v::options(w::LOCK_AXES_2D);
-    v::schema(&[
-        (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
-        ),
-        (
-            k::KIND,
-            &format!(
-                r#"{{ type = "enum", default = "{}", options = [{kinds}], description = "Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push" }}"#,
-                w::PD
-            ),
-        ),
-        (
-            k::TRANSLATION_AXES,
-            &format!(
-                r#"{{ type = "flags", default = ["{}", "{}"], options = [{axes}], description = "The axes the body is pulled along" }}"#,
-                w::X,
-                w::Y
-            ),
-        ),
-        (
-            k::ROTATION_AXES,
-            &format!(
-                r#"{{ type = "flags", default = ["{rotation}"], options = ["{rotation}"], description = "Whether the body is turned to the target's rotation too: the one turn a 2D body has, as a 2D joint names it" }}"#,
-                rotation = w::ROTATION
-            ),
-        ),
-        (
-            k::POSITION_GAIN,
-            r#"{ type = "vec2", default = [60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step", group = "gains" }"#,
-        ),
-        (
-            k::VELOCITY_GAIN,
-            r#"{ type = "vec2", default = [0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it", group = "gains" }"#,
-        ),
-        (
-            k::ROTATION_GAIN,
-            r#"{ type = "float", default = 60.0, description = "How hard a gap in rotation pulls", group = "gains" }"#,
-        ),
-        (
-            k::SPIN_GAIN,
-            r#"{ type = "float", default = 0.8, description = "How much of a gap in spin a step corrects", group = "gains" }"#,
-        ),
-        (
-            k::INTEGRAL_GAIN,
-            r#"{ type = "vec2", default = [1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`", group = "gains" }"#,
-        ),
-        (
-            k::ROTATION_INTEGRAL_GAIN,
-            r#"{ type = "float", default = 1.0, description = "How hard the gap in rotation summed over time pulls, with `pid`", group = "gains" }"#,
-        ),
-        (
-            k::TARGET_LINEAR_VELOCITY,
-            r#"{ type = "vec2", default = [0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second", group = "velocity" }"#,
-        ),
-        (
-            k::TARGET_ANGULAR_VELOCITY,
-            r#"{ type = "float", default = 0.0, unit = "degrees", description = "The spin the body is pulled to match, radians a second in the file", group = "velocity" }"#,
-        ),
-    ])
-}
-
+/// `follow2d`: what was asked, held on the node; the controller a step keeps
+/// is in [`PhysicsState2d::follows`].
 fn register_follow2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        c::FOLLOW_2D,
+        Follow2d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.",
-            schema: ComponentDef::parse_schema(c::FOLLOW_2D, &schema()),
-            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+            tags: &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
             expects: &[c::BODY_2D],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let _ = eng.world_mut().insert_one(entity, Follow2d(params.clone()));
-                Ok(())
-            }),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Follow2d>(entity);
                 let state = eng.resource::<PhysicsState2d>();
                 state.borrow_mut().follows.swap_remove(&entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let follow = world.get::<&Follow2d>(entity).ok()?;
-                Some(follow.0.clone())
-            }),
+            ..ComponentDef::of::<Follow2d>(None)
         },
     );
 }

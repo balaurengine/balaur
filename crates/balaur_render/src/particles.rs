@@ -8,15 +8,77 @@
 //! emitter tells a script, a one-shot burst's `finished`, is timed from its
 //! settings on the fixed step for the same reason, never from live particles.
 
-use crate::vocabulary::keys as k;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::{ComponentDef, prop_f32, prop_str};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
-/// What the `particles` component wrote on the node: emitter settings only.
-/// Live particles are backend state the simulation never sees.
+/// A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
+// The backend draws it from the [`Particles`] each write leaves beside it.
+#[derive(Component)]
+#[component(name = "particles2d")]
+pub struct Particles2d {
+    /// Whether new particles are born; live ones finish either way
+    #[property(default = true)]
+    pub emitting: bool,
+    /// Particles born per second
+    #[property(default = 20.0, min = 0.0)]
+    pub rate: f32,
+    /// Seconds a particle lives
+    #[property(default = 1.0, min = 0.05)]
+    pub lifetime: f32,
+    /// A particle's edge length in world units
+    #[property(default = 0.1, min = 0.0)]
+    pub size: f32,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// An image, or a `texture` asset, each particle draws with; empty draws a flat square
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty takes an inherited `material` component, else the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another
+    #[property(group = "emission")]
+    pub one_shot: bool,
+    /// How much of a one-shot burst is born at once; the rest is spread over the lifetime
+    #[property(min = 0.0, max = 1.0, group = "emission")]
+    pub explosiveness: f32,
+    /// Initial speed in world units per second
+    #[property(default = 2.0, min = 0.0, group = "motion")]
+    pub speed: f32,
+    /// Which way the particles leave; [0, 1] is straight up
+    #[property(default = [0.0, 1.0], group = "motion")]
+    pub direction: [f32; 2],
+    /// Half-angle of the emission cone in degrees
+    #[property(default = 30.0, min = 0.0, group = "motion")]
+    pub spread_degrees: f32,
+    /// Acceleration applied over a particle's life
+    #[property(default = [0.0, -3.0], group = "motion")]
+    pub gravity: [f32; 2],
+    /// The most a particle is turned at birth, either way, in degrees; each takes a turn at random up to this
+    #[property(min = 0.0, group = "motion")]
+    pub rotation_degrees: f32,
+    /// The fastest a particle spins, in degrees a second, counter-clockwise when positive; each takes a speed at random between zero and this
+    #[property(group = "motion")]
+    pub angular_speed_degrees: f32,
+    /// The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`
+    #[property(default = -1.0, group = "paint")]
+    pub size_end: f32,
+    /// The tint a particle fades to by the end of its life
+    #[property(color, default = [1.0, 1.0, 1.0, 0.0], group = "paint")]
+    pub color_end: [f32; 4],
+    /// A `sprite_sheet` whose frames each particle steps through over its life, first to last; its image is drawn when `texture` is empty
+    #[property(asset = "sprite_sheet", group = "paint")]
+    pub sheet: String,
+}
+
+/// A [`Particles2d`] as the backend draws it: emitter settings only, every
+/// number bounded. Live particles are backend state the simulation never
+/// sees.
 pub struct Particles {
     pub emitting: bool,
     /// Particles born per second.
@@ -60,8 +122,6 @@ pub struct Particles {
     pub material: String,
 }
 
-pub(crate) const PARTICLES_2D: &str = "particles2d";
-
 /// What a one-shot emitter announces once its burst has had time to die out.
 pub(crate) const FINISHED_EVENT: &str = "finished";
 
@@ -88,7 +148,7 @@ pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
             .collect();
         armed.extend(
             world
-                .query::<(Entity, &crate::particles_3d::Particles3d)>()
+                .query::<(Entity, &crate::particles_3d::Emitter3d)>()
                 .iter()
                 .map(|(entity, emitter)| (entity, emitter.emission())),
         );
@@ -199,13 +259,52 @@ impl Births {
     }
 }
 
-fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut emitter) = world.get::<&mut Particles>(entity) {
-        *emitter = next;
-        return Ok(());
+impl Particles {
+    /// `asked` with every number bounded and its direction an angle.
+    fn of(asked: &Particles2d) -> Self {
+        Self {
+            emitting: asked.emitting,
+            rate: asked.rate.max(0.0),
+            lifetime: asked.lifetime.max(0.05),
+            speed: asked.speed.max(0.0),
+            angle: direction_degrees(asked.direction),
+            spread: asked.spread_degrees.max(0.0),
+            size: asked.size.max(0.0),
+            gravity: asked.gravity,
+            color: asked.color,
+            color_end: asked.color_end,
+            size_end: asked.size_end,
+            texture: asked.texture.clone(),
+            one_shot: asked.one_shot,
+            explosiveness: asked.explosiveness.clamp(0.0, 1.0),
+            rotation: asked.rotation_degrees.max(0.0),
+            angular_speed: asked.angular_speed_degrees,
+            sheet: asked.sheet.clone(),
+            material: asked.material.clone(),
+        }
     }
-    world
+}
+
+/// The emission direction as an angle in degrees, 90 being up; a zero vector
+/// keeps the default.
+fn direction_degrees([x, y]: [f32; 2]) -> f32 {
+    if x == 0.0 && y == 0.0 {
+        90.0
+    } else {
+        balaur_core::libm::atan2f(y, x).to_degrees()
+    }
+}
+
+/// The emitter the backend draws, worked out again from what was written.
+fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let next = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Particles2d>(entity) else {
+            return Ok(());
+        };
+        Particles::of(&asked)
+    };
+    eng.world_mut()
         .insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
@@ -214,167 +313,22 @@ fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
 /// backend keeps the live particles and draws them as instances of one quad.
 pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        PARTICLES_2D,
+        Particles2d::NAME,
         ComponentDef {
             events: &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
-            warnings: None,
-            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
-            schema: ComponentDef::parse_schema(
-                PARTICLES_2D,
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::EMITTING, r#"{ type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }"#),
-                    (k::RATE, r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#),
-                    (k::LIFETIME, r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#),
-                    (k::SIZE, r#"{ type = "float", default = 0.1, min = 0.0, description = "A particle's edge length in world units" }"#),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, each particle draws with; empty draws a flat square" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::MATERIAL, &crate::material::material_line_2d()),
-                    (k::ONE_SHOT, r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another", group = "emission" }"#),
-                    (k::EXPLOSIVENESS, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime", group = "emission" }"#),
-                    (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second", group = "motion" }"#),
-                    (k::DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the particles leave; [0, 1] is straight up", group = "motion" }"#),
-                    (k::SPREAD_DEGREES, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees", group = "motion" }"#),
-                    (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life", group = "motion" }"#),
-                    (k::ROTATION_DEGREES, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned at birth, either way, in degrees; each takes a turn at random up to this", group = "motion" }"#),
-                    (k::ANGULAR_SPEED_DEGREES, r#"{ type = "float", default = 0.0, description = "The fastest a particle spins, in degrees a second, counter-clockwise when positive; each takes a speed at random between zero and this", group = "motion" }"#),
-                    (k::SIZE_END, r#"{ type = "float", default = -1.0, description = "The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`", group = "paint" }"#),
-                    (k::COLOR_END, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life", group = "paint" }"#),
-                    (k::SHEET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A `sprite_sheet` whose frames each particle steps through over its life, first to last; its image is drawn when `texture` is empty", group = "paint" }}"#, crate::sheet::SPRITE_SHEET_ASSET_TYPE)),
-                ]),
-            ),
-            tags: &[crate::vocabulary::words::ORTHOGRAPHIC, balaur_core::components::tag::RENDER],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                set_particles(eng, entity, particles_from_params(params))
-            }),
+            tags: &[
+                crate::vocabulary::words::ORTHOGRAPHIC,
+                balaur_core::components::tag::RENDER,
+            ],
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
+                let _ = world.remove_one::<Particles2d>(entity);
                 let _ = world.remove_one::<Particles>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let emitter = world.get::<&Particles>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert(k::EMITTING.into(), toml::Value::Boolean(emitter.emitting));
-                out.insert(k::COLOR.into(), crate::color_to_toml(emitter.color));
-                out.insert(k::COLOR_END.into(), crate::color_to_toml(emitter.color_end));
-                out.insert(
-                    k::SIZE_END.into(),
-                    toml::Value::Float(f64::from(emitter.size_end)),
-                );
-                out.insert(
-                    k::TEXTURE.into(),
-                    toml::Value::String(emitter.texture.clone()),
-                );
-                out.insert(k::ONE_SHOT.into(), toml::Value::Boolean(emitter.one_shot));
-                out.insert(k::SHEET.into(), toml::Value::String(emitter.sheet.clone()));
-                out.insert(
-                    k::MATERIAL.into(),
-                    toml::Value::String(emitter.material.clone()),
-                );
-                out.insert(
-                    k::EXPLOSIVENESS.into(),
-                    toml::Value::Float(f64::from(emitter.explosiveness)),
-                );
-                for (key, value) in [
-                    ("rate", emitter.rate),
-                    ("lifetime", emitter.lifetime),
-                    ("speed", emitter.speed),
-                    (k::SPREAD_DEGREES, emitter.spread),
-                    ("size", emitter.size),
-                    (k::ROTATION_DEGREES, emitter.rotation),
-                    (k::ANGULAR_SPEED_DEGREES, emitter.angular_speed),
-                ] {
-                    out.insert(key.into(), toml::Value::Float(f64::from(value)));
-                }
-                let (sin, cos) = balaur_core::libm::sincosf(emitter.angle.to_radians());
-                out.insert(
-                    k::DIRECTION.into(),
-                    toml::Value::Array(vec![
-                        toml::Value::Float(f64::from(cos)),
-                        toml::Value::Float(f64::from(sin)),
-                    ]),
-                );
-                out.insert(
-                    k::GRAVITY.into(),
-                    toml::Value::Array(vec![
-                        toml::Value::Float(f64::from(emitter.gravity[0])),
-                        toml::Value::Float(f64::from(emitter.gravity[1])),
-                    ]),
-                );
-                Some(toml::Value::Table(out))
-            }),
+            ..ComponentDef::of::<Particles2d>(Some(after_write))
         },
     );
-}
-
-/// An emitter as its params describe it, every number bounded.
-fn particles_from_params(params: &toml::Value) -> Particles {
-    let num = |key: &str, default: f64| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    let gravity = |i: usize, default: f64| {
-        params
-            .get(k::GRAVITY)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    Particles {
-        emitting: params.get(k::EMITTING).and_then(toml::Value::as_bool) != Some(false),
-        rate: num(k::RATE, 20.0).max(0.0),
-        lifetime: num(k::LIFETIME, 1.0).max(0.05),
-        speed: num(k::SPEED, 2.0).max(0.0),
-        angle: direction_degrees(params),
-        spread: num(k::SPREAD_DEGREES, 30.0).max(0.0),
-        size: num(k::SIZE, 0.1).max(0.0),
-        gravity: [gravity(0, 0.0), gravity(1, -3.0)],
-        color: crate::color_from_params(params),
-        color_end: color_end_from_params(params),
-        size_end: num(k::SIZE_END, -1.0),
-        texture: params
-            .get(k::TEXTURE)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        one_shot: params.get(k::ONE_SHOT).and_then(toml::Value::as_bool) == Some(true),
-        explosiveness: num(k::EXPLOSIVENESS, 0.0).clamp(0.0, 1.0),
-        rotation: prop_f32(params, k::ROTATION_DEGREES).max(0.0),
-        angular_speed: prop_f32(params, k::ANGULAR_SPEED_DEGREES),
-        sheet: prop_str(params, k::SHEET).to_string(),
-        material: prop_str(params, k::MATERIAL).to_string(),
-    }
-}
-
-/// The `color_end` property: the schema's transparent default when absent.
-/// The emission direction as an angle in degrees, 90 being up; a zero vector
-/// keeps the default.
-fn direction_degrees(params: &toml::Value) -> f32 {
-    let axis = |i: usize| {
-        params
-            .get(k::DIRECTION)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(0.0, |v| v as f32)
-    };
-    let (x, y) = (axis(0), axis(1));
-    if x == 0.0 && y == 0.0 {
-        90.0
-    } else {
-        balaur_core::libm::atan2f(y, x).to_degrees()
-    }
-}
-
-fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
-    crate::color_from_key(params, k::COLOR_END, [1.0, 1.0, 1.0, 0.0])
 }
 
 /// One emitter's backend state: its own random stream, never the engine's.

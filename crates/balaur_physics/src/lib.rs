@@ -46,6 +46,7 @@ pub mod follow;
 pub mod geometry;
 pub mod joint;
 mod material;
+pub mod properties;
 pub mod query;
 pub mod ragdoll;
 mod readers;
@@ -54,7 +55,8 @@ mod shapes;
 mod shared;
 mod snapshot;
 pub(crate) use snapshot::{
-    NodeKey, authored, filled, frame_value, key_of, keyed, resolve_key, resolved, world_bytes,
+    NodeKey, asked_rows, authored, filled, frame_value, key_of, keyed, resolve_key, resolved,
+    restore_asked, world_bytes,
 };
 mod soft_material;
 pub mod softbody;

@@ -436,3 +436,35 @@ fn listing_devices_names_each_one() {
         assert!(!name.is_empty(), "a listed device has a name");
     }
 }
+
+/// The component holds what it was asked, a `pan` past full included; the
+/// play is what takes the clamp.
+#[test]
+fn a_pan_past_full_reads_back_as_written_and_plays_at_full() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav_of(dir.path(), "tone.wav", tenths(1));
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\npan = 2.0\n");
+    let handle = handle_of(&app, entity).expect("autoplay started it");
+    let table = components::get(&app.engine, entity, "sound").unwrap();
+    assert_eq!(table.get("pan").and_then(toml::Value::as_float), Some(2.0));
+    assert_eq!(state(&app).borrow().pan_of(handle), Some(1.0));
+}
+
+/// An `attenuation` naming neither curve is refused where it was written,
+/// rather than played as `inverse`.
+#[test]
+fn an_attenuation_naming_no_curve_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\n");
+    let params: toml::Value = toml::from_str("attenuation = \"linear\"").unwrap();
+    let why = components::patch(&app.engine, entity, "sound", &params).unwrap_err();
+    assert!(format!("{why:#}").contains("inverse_square"), "{why:#}");
+    let table = components::get(&app.engine, entity, "sound").unwrap();
+    assert_eq!(
+        table.get("attenuation").and_then(toml::Value::as_str),
+        Some("inverse"),
+        "a refused write keeps what was held"
+    );
+}

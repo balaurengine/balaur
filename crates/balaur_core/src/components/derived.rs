@@ -177,11 +177,32 @@ fn numbers<const N: usize>(value: &toml::Value) -> Result<[f32; N]> {
     Ok(out)
 }
 
+/// An `f32` as the `f64` its shortest decimal spells: `0.15` reads back as
+/// 0.15, where widening it gives 0.15000000596046448, so a default and a
+/// value read back are what was written.
+fn widened(value: f32) -> f64 {
+    use std::io::Write as _;
+    let wide = f64::from(value);
+    if !wide.is_finite() || wide.fract() == 0.0 {
+        return wide;
+    }
+    let mut buffer = [0u8; 32];
+    let mut cursor = std::io::Cursor::new(&mut buffer[..]);
+    if write!(cursor, "{value}").is_err() {
+        return wide;
+    }
+    let written = usize::try_from(cursor.position()).unwrap_or(0);
+    std::str::from_utf8(&buffer[..written])
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(wide)
+}
+
 fn floats(values: &[f32]) -> toml::Value {
     toml::Value::Array(
         values
             .iter()
-            .map(|value| toml::Value::Float(f64::from(*value)))
+            .map(|value| toml::Value::Float(widened(*value)))
             .collect(),
     )
 }
@@ -192,7 +213,7 @@ impl Property for f32 {
     }
 
     fn to_value(&self) -> toml::Value {
-        toml::Value::Float(f64::from(*self))
+        toml::Value::Float(widened(*self))
     }
 
     fn from_value(value: &toml::Value) -> Result<Self> {
@@ -226,8 +247,16 @@ macro_rules! whole_number {
             }
 
             fn from_value(value: &toml::Value) -> Result<Self> {
+                // `32.0` is a whole number too, as an inspector's number field
+                // or a hand-written file may spell one.
                 let whole = value
                     .as_integer()
+                    .or_else(|| {
+                        value
+                            .as_float()
+                            .filter(|number| number.fract() == 0.0 && number.abs() < 9.0e15)
+                            .map(|number| number as i64)
+                    })
                     .ok_or_else(|| wrong(value, "a whole number"))?;
                 <$kind>::try_from(whole)
                     .map_err(|_| anyhow!("is {whole}, which does not fit {}", stringify!($kind)))
@@ -399,8 +428,9 @@ impl ComponentDef {
     /// and the reads and writes of one property all from `C`.
     ///
     /// `after_write` runs once a write has landed, whole or one property,
-    /// for what the component
-    /// does beyond holding its values. Everything the struct does not say --
+    /// for what the component does beyond holding its values; a refusal from
+    /// it puts back what the node held before, the component's absence
+    /// included. Everything the struct does not say --
     /// `tags`, `events`, `expects`, `warnings` -- is the caller's, written
     /// over this with `..`.
     #[must_use]
@@ -414,29 +444,45 @@ impl ComponentDef {
             warnings: None,
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
-                let written = {
+                // What the node held, to put back if the hook refuses: the
+                // values before, or no component at all.
+                let before = {
                     let mut world = eng.world_mut();
-                    let next = match world.get::<&mut C>(entity) {
-                        Ok(mut held) => {
-                            *held = next;
-                            None
-                        }
-                        Err(_) => Some(next),
+                    let replaced = match world.get::<&mut C>(entity) {
+                        Ok(mut held) => Ok(std::mem::replace(&mut *held, next)),
+                        Err(_) => Err(next),
                     };
-                    match next {
-                        Some(next) => {
+                    match replaced {
+                        Ok(before) => Some(before),
+                        Err(next) => {
                             world
                                 .insert_one(entity, next)
                                 .map_err(|_| anyhow!("node is dead"))?;
-                            Written::Added
+                            None
                         }
-                        None => Written::Changed,
                     }
                 };
-                match after_write {
-                    Some(after) => after(eng, entity, written),
-                    None => Ok(()),
-                }
+                let Some(after) = after_write else {
+                    return Ok(());
+                };
+                let written = if before.is_some() {
+                    Written::Changed
+                } else {
+                    Written::Added
+                };
+                after(eng, entity, written).inspect_err(|_| {
+                    let mut world = eng.world_mut();
+                    match before {
+                        Some(before) => {
+                            if let Ok(mut held) = world.get::<&mut C>(entity) {
+                                *held = before;
+                            }
+                        }
+                        None => {
+                            let _ = world.remove_one::<C>(entity);
+                        }
+                    }
+                })
             }),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<C>(entity);
@@ -453,16 +499,24 @@ impl ComponentDef {
                 held.read(index)
             })),
             write: Some(Box::new(move |eng, entity, index, value| {
-                {
+                let before = {
                     let world = eng.world_mut();
                     let Ok(mut held) = world.get::<&mut C>(entity) else {
                         return Ok(false);
                     };
+                    let before = held.read(index);
                     held.write(index, value)?;
-                }
-                if let Some(after) = after_write {
-                    after(eng, entity, Written::Changed)?;
-                }
+                    before
+                };
+                let Some(after) = after_write else {
+                    return Ok(true);
+                };
+                after(eng, entity, Written::Changed).inspect_err(|_| {
+                    let world = eng.world_mut();
+                    if let (Ok(mut held), Some(before)) = (world.get::<&mut C>(entity), &before) {
+                        let _ = held.write(index, before);
+                    }
+                })?;
                 Ok(true)
             })),
         }

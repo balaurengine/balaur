@@ -18,9 +18,6 @@ pub(crate) mod words {
     pub(crate) const PYRAMID: &str = p::PYRAMID;
     pub(crate) const PRISM: &str = p::PRISM;
     pub(crate) const TUBE: &str = p::TUBE;
-    /// The 3D primitives, in the order the inspector offers them. The mesher
-    /// owns the list, so a kind it can build is a kind a scene can name.
-    pub(crate) const SHAPES: &[&str] = p::SOLIDS;
 
     pub(crate) const CIRCLE: &str = p::CIRCLE;
     pub(crate) const RECTANGLE: &str = p::RECTANGLE;
@@ -28,14 +25,6 @@ pub(crate) mod words {
     pub(crate) const STAR: &str = p::STAR;
     pub(crate) const NGON: &str = p::NGON;
     pub(crate) const POLYLINE: &str = "polyline";
-    /// The 2D primitives, and the chain of points that is not one of them.
-    ///
-    /// Taken from the mesher's own list rather than respelled, so a kind core
-    /// learns to build is a kind a scene may name; `polyline` is appended
-    /// because it follows a `mesh` or `path2d` asset instead of params.
-    pub(crate) fn shapes_2d() -> Vec<&'static str> {
-        p::FLATS.iter().copied().chain([POLYLINE]).collect()
-    }
 
     /// Two more an occluder may read off a collider's params. `balaur_render`
     /// does not depend on `balaur_physics`, so the words are spelled here too.
@@ -95,12 +84,6 @@ pub(crate) mod words {
     /// Where the `loupe` pass draws its inset.
     pub(crate) const LOUPE_CORNERS: &[&str] = &[TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT];
 
-    pub(crate) const LOW: &str = "low";
-    pub(crate) const MEDIUM: &str = "medium";
-    pub(crate) const HIGH: &str = "high";
-    /// How smoothly glass blurs what it refracts.
-    pub(crate) const BLUR_QUALITIES: &[&str] = &[LOW, MEDIUM, HIGH];
-
     pub(crate) const AOV_DEPTH: &str = "depth";
     pub(crate) const AOV_NORMALS: &str = "normals";
     pub(crate) const AOV_CAMERA_NORMALS: &str = "camera_normals";
@@ -108,11 +91,6 @@ pub(crate) mod words {
     /// What `render.snap_aov` renders the scene as.
     pub(crate) const AOVS: &[&str] =
         &[AOV_DEPTH, AOV_NORMALS, AOV_CAMERA_NORMALS, AOV_SEGMENTATION];
-
-    pub(crate) const ONCE: &str = "once";
-    pub(crate) const ALWAYS: &str = "always";
-    /// When a reflection probe captures the scene.
-    pub(crate) const UPDATE_MODES: &[&str] = &[ONCE, ALWAYS];
 
     /// What a multimesh's `populate` lays its instances out as: scattered
     /// over a surface node, or in a row, a ring or a grid.
@@ -124,17 +102,11 @@ pub(crate) mod words {
     pub(crate) const POINT: &str = "point";
     pub(crate) const DIRECTIONAL: &str = "directional";
     pub(crate) const SPOT: &str = "spot";
-    /// The 2D lights.
-    pub(crate) const LIGHT_KINDS: &[&str] = &[POINT, DIRECTIONAL, SPOT];
-    /// The 3D lights, which add the cone the 2D ones have no room for.
-    pub(crate) const LIGHT_KINDS_3D: &[&str] = &[DIRECTIONAL, POINT, SPOT];
 
     pub(crate) const LINEAR: &str = "linear";
     pub(crate) const EXPONENTIAL: &str = "exponential";
     pub(crate) const EXPONENTIAL_SQUARED: &str = "exponential_squared";
     pub(crate) const NONE: &str = "none";
-    /// How fog thickens with distance, plus the word for no fog at all.
-    pub(crate) const FOG_KINDS: &[&str] = &[NONE, LINEAR, EXPONENTIAL, EXPONENTIAL_SQUARED];
 
     pub(crate) const OPAQUE: &str = "opaque";
     pub(crate) const MASK: &str = "mask";
@@ -158,10 +130,6 @@ pub(crate) mod words {
         SCREEN,
     ];
 
-    pub(crate) const WORLD: &str = "world";
-    /// Whether a wireframe's or a vertex's size is in world units or pixels.
-    pub(crate) const SIZINGS: &[&str] = &[WORLD, SCREEN];
-
     pub(crate) const OCCLUSION: &str = "occlusion";
     pub(crate) const RELIEF: &str = "relief";
     /// How a height map is searched for the point a ray meets.
@@ -183,39 +151,19 @@ pub(crate) mod words {
     pub(crate) const AGX: &str = "agx";
     pub(crate) const NEUTRAL: &str = "neutral";
     pub(crate) const TONY_MCMAPFACE: &str = "tony_mcmapface";
-    /// The curves an `environment` maps its HDR film through.
-    pub(crate) const TONEMAPS: &[&str] = &[NONE, ACES, REINHARD, AGX, NEUTRAL, TONY_MCMAPFACE];
 
     pub(crate) const START: &str = "start";
     pub(crate) const CENTER: &str = "center";
     pub(crate) const END: &str = "end";
     pub(crate) const JUSTIFY: &str = "justify";
-    /// Where a block of text sits across its origin: start and end follow the
-    /// text's direction, left and right do not.
-    pub(crate) const TEXT_ALIGNS: &[&str] = &[START, CENTER, END, LEFT, RIGHT, JUSTIFY];
 
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
-    pub(crate) const OBLIQUE: &str = "oblique";
-    /// Upright, an italic face, or the upright face slanted.
-    pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 
     pub(crate) const WORD_OR_GLYPH: &str = "word_or_glyph";
-    pub(crate) const WORD: &str = "word";
-    pub(crate) const GLYPH: &str = "glyph";
-    /// Where a wrapped line may break.
-    pub(crate) const LINE_BREAKS: &[&str] = &[WORD_OR_GLYPH, WORD, GLYPH];
-    /// Which part of a cut line the ellipsis stands in for.
-    pub(crate) const TRUNCATE_ATS: &[&str] = &[END, START, MIDDLE];
-
-    pub(crate) const PERSPECTIVE_PROJECTION: &str = "perspective";
-    pub(crate) const ORTHOGRAPHIC_PROJECTION: &str = "orthographic";
-    /// How a `camera3d` projects: kiss3d's two.
-    pub(crate) const PROJECTIONS: &[&str] = &[PERSPECTIVE_PROJECTION, ORTHOGRAPHIC_PROJECTION];
 
     pub(crate) const LEFT: &str = "left";
     pub(crate) const RIGHT: &str = "right";
-    pub(crate) const MIDDLE: &str = "middle";
 }
 
 /// The words as script constants, so a script writes `render.SHAPE_SPHERE`
@@ -275,44 +223,18 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
 pub(crate) mod keys {
     use balaur_core::primitive::keys as p;
 
-    /// A primitive's keys are the mesher's, so a schema line here and the
-    /// reader there cannot drift apart.
-    pub(crate) const AMBIENT_COLOR: &str = "ambient_color";
     pub(crate) const CAST_SHADOW: &str = "cast_shadow";
-    pub(crate) const CORNER_RADIUS: &str = p::CORNER_RADIUS;
-    pub(crate) const FOG_MODE: &str = "fog_mode";
-    pub(crate) const IMAGE_ROTATION_DEGREES: &str = "image_rotation_degrees";
-    pub(crate) const INNER_ANGLE_DEGREES: &str = "inner_angle_degrees";
-    pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
     pub(crate) const LIGHT_LAYERS: &str = "light_layers";
     pub(crate) const RENDER_LAYERS: &str = "render_layers";
-    pub(crate) const FOV_DEGREES: &str = "fov_degrees";
-    pub(crate) const NEAR: &str = "near";
-    pub(crate) const FAR: &str = "far";
-    pub(crate) const PROJECTION: &str = "projection";
-    pub(crate) const UP: &str = "up";
-    pub(crate) const EYE_SEPARATION: &str = "eye_separation";
-    pub(crate) const OPERATION: &str = "operation";
-    pub(crate) const OUTER_ANGLE_DEGREES: &str = "outer_angle_degrees";
     /// A screenshot's file and what stopped it, in a `screenshot_failed` payload.
     pub(crate) const PATH: &str = "path";
     pub(crate) const ERROR: &str = "error";
-    pub(crate) const POINTS: &str = p::POINTS;
-    pub(crate) const RANGE: &str = "range";
-    pub(crate) const RINGS: &str = p::RINGS;
-    pub(crate) const SEGMENTS: &str = p::SEGMENTS;
-    pub(crate) const SHADOW_ENABLED: &str = "shadow_enabled";
-    pub(crate) const SIDES: &str = p::SIDES;
-    pub(crate) const SKY_ENABLED: &str = "sky_enabled";
-    pub(crate) const SKY_ROTATION_DEGREES: &str = "sky_rotation_degrees";
     pub(crate) const TEXT_ALIGN: &str = "text_align";
-    pub(crate) const TUBE_RADIUS: &str = p::TUBE_RADIUS;
 
     pub(crate) const A: &str = "a";
     /// What a mask drops a pixel below: a text node's key, and the `[surface]` one.
     pub(crate) const ALPHA_CUTOFF: &str = "alpha_cutoff";
     pub(crate) const B: &str = "b";
-    pub(crate) const BILLBOARD: &str = "billboard";
     pub(crate) const ABERRATION_AMOUNT: &str = "aberration_amount";
     pub(crate) const BLOOM_INTENSITY: &str = "bloom_intensity";
     pub(crate) const BLOOM_THRESHOLD: &str = "bloom_threshold";
@@ -362,64 +284,23 @@ pub(crate) mod keys {
     pub(crate) const LOUPE_CORNER: &str = "loupe_corner";
     pub(crate) const LOUPE_SIZE: &str = "loupe_size";
     pub(crate) const LOUPE_BORDER_COLOR: &str = "loupe_border_color";
-    /// `environment`'s grading, eye adaptation and glass.
-    pub(crate) const WHITE_BALANCE: &str = "white_balance";
-    pub(crate) const HUE_DEGREES: &str = "hue_degrees";
-    pub(crate) const AUTO_EXPOSURE_ENABLED: &str = "auto_exposure_enabled";
-    pub(crate) const AUTO_EXPOSURE_SPEED: &str = "auto_exposure_speed";
-    pub(crate) const AUTO_EXPOSURE_MIN: &str = "auto_exposure_min";
-    pub(crate) const AUTO_EXPOSURE_MAX: &str = "auto_exposure_max";
-    pub(crate) const AUTO_EXPOSURE_KEY: &str = "auto_exposure_key";
-    pub(crate) const TRANSMISSION_ENABLED: &str = "transmission_enabled";
-    pub(crate) const TRANSMISSION_BLUR_QUALITY: &str = "transmission_blur_quality";
     pub(crate) const TRANSMISSION_STEPS: &str = "transmission_steps";
-    pub(crate) const UPDATE_MODE: &str = "update_mode";
-    pub(crate) const HIDPI: &str = "hidpi";
-    pub(crate) const ROTATION_DEGREES: &str = "rotation_degrees";
-    pub(crate) const ANGULAR_SPEED_DEGREES: &str = "angular_speed_degrees";
-    /// `boolean2d`'s tuning, which `geometry2d`'s script calls spell too.
-    pub(crate) const FILL_RULE: &str = balaur_core::geometry2d::words::FILL_RULE;
-    pub(crate) const MIN_AREA: &str = balaur_core::geometry2d::words::MIN_AREA;
-    pub(crate) const KEEP_COLLINEAR: &str = balaur_core::geometry2d::words::KEEP_COLLINEAR;
-    pub(crate) const CLEAN_RESULT: &str = balaur_core::geometry2d::words::CLEAN_RESULT;
     pub(crate) const C: &str = "c";
-    pub(crate) const CELLS: &str = "cells";
-    pub(crate) const ORIGIN: &str = "origin";
-    pub(crate) const FLAGS: &str = "flags";
-    pub(crate) const TERRAIN: &str = "terrain";
     pub(crate) const SEED: &str = "seed";
-    pub(crate) const CAP: &str = "cap";
-    pub(crate) const CLOSED: &str = "closed";
     pub(crate) const COLOR: &str = "color";
-    pub(crate) const COLOR_END: &str = "color_end";
-    pub(crate) const CENTERED: &str = "centered";
-    pub(crate) const CURRENT: &str = "current";
     pub(crate) const DEPTH_TEST: &str = "depth_test";
-    pub(crate) const DIRECTION: &str = "direction";
     pub(crate) const DOUBLE_SIDED: &str = "double_sided";
-    pub(crate) const EMITTING: &str = "emitting";
-    pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
-    pub(crate) const FALLOFF: &str = "falloff";
-    pub(crate) const FLIP_X: &str = "flip_x";
-    pub(crate) const FLIP_Y: &str = "flip_y";
     pub(crate) const FONT: &str = "font";
     pub(crate) const TEXT_STYLE: &str = "text_style";
     pub(crate) const FONT_SIZE: &str = "font_size";
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
-    pub(crate) const FRAME: &str = "frame";
-    pub(crate) const GRADIENT: &str = "gradient";
-    pub(crate) const GRADIENT_STEPS: &str = "gradient_steps";
-    pub(crate) const GRAVITY: &str = "gravity";
     pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const SPECULAR_STRENGTH: &str = "specular_strength";
     pub(crate) const SHININESS: &str = "shininess";
     pub(crate) const NORMAL_STRENGTH: &str = "normal_strength";
-    pub(crate) const IMAGE: &str = "image";
-    pub(crate) const INTENSITY: &str = "intensity";
     /// A `draw_text` option; `text2d` spells it `font_style`.
     pub(crate) const MIRROR: &str = "mirror";
-    pub(crate) const JOIN: &str = "join";
     pub(crate) const KIND: &str = p::KIND;
     pub(crate) const LINE_BREAK: &str = "line_break";
     pub(crate) const TRUNCATE: &str = "truncate";
@@ -427,54 +308,24 @@ pub(crate) mod keys {
     pub(crate) const MAX_LINES: &str = "max_lines";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const TAB_WIDTH: &str = "tab_width";
-    pub(crate) const LIFETIME: &str = "lifetime";
-    pub(crate) const LOOK_AT: &str = "look_at";
     pub(crate) const MATERIAL: &str = "material";
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MESH: &str = "mesh";
-    pub(crate) const MITER_LIMIT: &str = "miter_limit";
-    pub(crate) const OFFSET: &str = "offset";
-    pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const PLATE: &str = "plate";
     pub(crate) const POST: &str = "post";
-    /// A camera's row naming the effects its frame resolves through.
-    pub(crate) const EFFECTS: &str = "effects";
     /// The asset type a camera's `effects` row names.
     pub(crate) const CAMERA_EFFECTS: &str = "camera_effects";
     pub(crate) const RADIUS: &str = p::RADIUS;
-    pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const Z_INDEX: &str = "z_index";
     pub(crate) const SHADOW_RESOLUTION: &str = "shadow_resolution";
-    pub(crate) const SHADOW_SOFTNESS: &str = "shadow_softness";
-    pub(crate) const SKY: &str = "sky";
-    pub(crate) const SKY_INTENSITY: &str = "sky_intensity";
-    pub(crate) const FOG_COLOR: &str = "fog_color";
-    pub(crate) const FOG_DENSITY: &str = "fog_density";
-    pub(crate) const FOG_START: &str = "fog_start";
-    pub(crate) const FOG_END: &str = "fog_end";
-    pub(crate) const FOG_HEIGHT_FALLOFF: &str = "fog_height_falloff";
-    pub(crate) const EXPOSURE: &str = "exposure";
-    pub(crate) const TONEMAP: &str = "tonemap";
-    pub(crate) const SATURATION: &str = "saturation";
-    pub(crate) const CONTRAST: &str = "contrast";
-    pub(crate) const GAMMA: &str = "gamma";
-    pub(crate) const SHADOW_DISTANCE: &str = "shadow_distance";
-    pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SIZE: &str = "size";
-    pub(crate) const SIZE_END: &str = "size_end";
     pub(crate) const SKELETON: &str = "skeleton";
     pub(crate) const SOURCE: &str = "source";
-    pub(crate) const SPEED: &str = "speed";
-    pub(crate) const SPREAD_DEGREES: &str = "spread_degrees";
-    pub(crate) const TEXT: &str = "text";
-    pub(crate) const TEXT_KEY: &str = "text_key";
-    pub(crate) const TAPER: &str = "taper";
     pub(crate) const TEXTURE: &str = "texture";
-    pub(crate) const TILESET: &str = "tileset";
     /// A `multimesh` asset's keys, and one instance's: the transform
     /// component's three, a colour and four floats of custom data.
     pub(crate) const INSTANCES: &str = "instances";
@@ -491,43 +342,22 @@ pub(crate) mod keys {
     pub(crate) const TILT: &str = "tilt";
     pub(crate) const RANDOM_SCALE: &str = "random_scale";
     pub(crate) const SURFACE: &str = "surface";
-    /// A `draw_text` option; `text2d` spells it `font_weight`.
-    pub(crate) const WIDTH: &str = "width";
     /// What every drawn node shows beside its surface, and the node's own
     /// flags: the renderable keys of both dimensions.
     pub(crate) const WIREFRAME_WIDTH: &str = "wireframe_width";
-    pub(crate) const WIREFRAME_SIZING: &str = "wireframe_sizing";
     pub(crate) const WIREFRAME_COLOR: &str = "wireframe_color";
     pub(crate) const DOT_SIZE: &str = "dot_size";
-    pub(crate) const DOT_SIZING: &str = "dot_sizing";
     pub(crate) const DOT_COLOR: &str = "dot_color";
-    pub(crate) const DRAW_SURFACE: &str = "draw_surface";
-    /// The component a node shows its geometry with, and its key.
-    pub(crate) const DEBUG_DRAW: &str = "debug_draw";
     pub(crate) const SEGMENTATION_ID: &str = "segmentation_id";
     pub(crate) const RECEIVE_SHADOWS: &str = "receive_shadows";
-    pub(crate) const NINE_SLICE_MARGINS_PIXELS: &str = "nine_slice_margins_pixels";
     /// An instance's 3x3, columns first, shear and all.
     pub(crate) const BASIS: &str = "basis";
-    /// `environment`'s shadow budget, sky light and renderer-wide limits.
-    pub(crate) const SHADOW_CASCADES: &str = "shadow_cascades";
-    pub(crate) const SHADOW_FIRST_CASCADE_DISTANCE: &str = "shadow_first_cascade_distance";
-    pub(crate) const SHADOW_BIAS: &str = "shadow_bias";
-    pub(crate) const SHADOW_CONSTANT_BIAS: &str = "shadow_constant_bias";
-    pub(crate) const SHADOW_SLOPE_BIAS: &str = "shadow_slope_bias";
     pub(crate) const SHADOW_VIEWS: &str = "shadow_views";
-    pub(crate) const SKY_LIGHT: &str = "sky_light";
-    pub(crate) const SKY_LIGHT_INTENSITY: &str = "sky_light_intensity";
     pub(crate) const PROBE_CAPTURE_SIZE_PIXELS: &str = "probe_capture_size_pixels";
     pub(crate) const CLUSTER_GRID: &str = "cluster_grid";
     pub(crate) const CLUSTER_MAX_LIGHTS: &str = "cluster_max_lights";
     /// The cameras' steps, height, bloom chain and zoom limits.
     pub(crate) const BLOOM_MIPS: &str = "bloom_mips";
-    pub(crate) const ORTHOGRAPHIC_HEIGHT: &str = "orthographic_height";
-    pub(crate) const SOURCE_RADIUS: &str = "source_radius";
-    pub(crate) const CAPTURE_LAYERS: &str = "capture_layers";
-    pub(crate) const CAPTURE_NEAR: &str = "capture_near";
-    pub(crate) const CAPTURE_FAR: &str = "capture_far";
     /// A material's `[surface]` table.
     pub(crate) const ALPHA: &str = "alpha";
     pub(crate) const TRANSMISSION: &str = "transmission";

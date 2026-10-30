@@ -7,7 +7,8 @@
 //! the same operation gets the same answer.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::csg::{self, Op};
 use balaur_core::geometry2d::{self, BooleanOptions, FillRule, Op2d, Shapes2d};
 use balaur_core::hecs::Entity;
@@ -18,8 +19,99 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
-use crate::vocabulary::{keys as k, options};
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
+use balaur_core::layers::Layer;
+
+/// How a `boolean3d` combines its children: `balaur_core::csg`'s words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum Operation3d {
+    Union,
+    Difference,
+    Intersection,
+}
+
+/// How a `boolean2d` combines its children: `geometry2d`'s words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum Operation2d {
+    Union,
+    Difference,
+    Intersection,
+    SymmetricDifference,
+    ReverseDifference,
+}
+
+/// Which parts of crossing or nested outlines a `boolean2d` counts as
+/// inside: `geometry2d`'s words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum FillRule2d {
+    EvenOdd,
+    NonZero,
+    Positive,
+    Negative,
+}
+
+/// Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.
+#[derive(Component)]
+#[component(name = "boolean3d")]
+pub struct Boolean3d {
+    /// How the children are combined, in the order they are declared
+    #[property(default = Operation3d::Union)]
+    pub operation: Operation3d,
+    /// Tint of the result, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
+    pub color: [f32; 4],
+    /// Image file, project-relative, or a `texture` asset the result is drawn with, over the UVs the children carry through the cut; empty draws the colour alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material the result draws with; empty takes an inherited `material` component, else the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Whether the result casts a shadow from the lights that cast
+    #[property(default = true, group = "shadows")]
+    pub cast_shadow: bool,
+    /// The layers the result is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub render_layers: Vec<Layer>,
+    /// The light layers the result is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
+    /// Whether shadows land on it; off lights it as if nothing stood between it and every light
+    #[property(default = true, group = "shadows")]
+    pub receive_shadows: bool,
+    /// The id `render.snap_aov("segmentation")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up
+    #[property(min = 0, group = "layers")]
+    pub segmentation_id: i64,
+}
+
+/// Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.
+#[derive(Component)]
+#[component(name = "boolean2d")]
+pub struct Boolean2d {
+    /// How the children are combined, in the order they are declared
+    #[property(default = Operation2d::Union)]
+    pub operation: Operation2d,
+    /// Which parts of crossing or nested outlines count as inside: an odd number of them, any winding, or only counter-clockwise or clockwise winding
+    #[property(default = FillRule2d::EvenOdd)]
+    pub fill_rule: FillRule2d,
+    /// Tint of the result, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// Image file, project-relative, or a `texture` asset the result is drawn with, centred on the node at 100 texture pixels per unit, as a `polygon`'s default UVs are; empty draws the colour alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material the result draws with; empty takes an inherited `material` component, else the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Clear the result of the near-duplicate points rounding leaves
+    #[property(default = true, group = "mesh cleanup")]
+    pub clean_result: bool,
+    /// Keep a point that sits on the straight line between its neighbours, in the children and in the result
+    #[property(group = "mesh cleanup")]
+    pub keep_collinear: bool,
+    /// A result outline or hole enclosing less than this area, in square units of the node's own space, is dropped
+    #[property(min = 0.0, group = "mesh cleanup")]
+    pub min_area: f32,
+}
 
 /// What a boolean's result is drawn with, as authored.
 #[derive(Clone, PartialEq)]
@@ -29,23 +121,20 @@ struct Look {
     material: String,
 }
 
-/// The `boolean3d` component: which operation, how the result draws, and
-/// what the operands looked like when it last ran.
-pub(crate) struct Boolean3d {
+/// A [`Boolean3d`] as the combining reads it: which operation, how the
+/// result draws, and what the operands looked like when it last ran.
+pub(crate) struct Combined3d {
     pub(crate) op: Op,
     look: Look,
-    shadows: bool,
-    layers: u32,
-    render_layers: u32,
-    overlay: crate::overlay::Overlay3d,
+    lighting: crate::Lighting3d,
     /// A digest of the children's geometry and poses. Recomputing a boolean
     /// is not cheap, so it happens when this changes and not every tick.
     signature: u64,
 }
 
-/// The `boolean2d` component, the same in the plane, with the outlines it
-/// settled on so a boolean nested in it hands over its holes too.
-pub(crate) struct Boolean2d {
+/// The same for a [`Boolean2d`], with the outlines it settled on so a
+/// boolean nested in it hands over its holes too.
+pub(crate) struct Combined2d {
     pub(crate) op: Op2d,
     options: BooleanOptions,
     look: Look,
@@ -53,259 +142,164 @@ pub(crate) struct Boolean2d {
     signature: u64,
 }
 
-/// The keys both booleans draw their result with; `mapped` says how the
-/// texture lands on it.
-fn look_schema(color: &str, mapped: &str) -> String {
-    let texture = balaur_core::texture_asset::TEXTURE_ASSET_TYPE;
-    let material = crate::material::MATERIAL_ASSET_TYPE;
-    format!(
-        r#"color = {{ type = "color", default = {color}, description = "Tint of the result, as channel floats or #rrggbb / #rrggbbaa" }}
-texture = {{ type = "asset", asset = "{texture}", default = "", description = "Image file, project-relative, or a `texture` asset the result is drawn with, {mapped}; empty draws the colour alone" }}
-material = {{ type = "asset", asset = "{material}", default = "", description = "The material the result draws with; empty takes an inherited `material` component, else the built-in one" }}"#
-    )
-}
-
-fn look_from_params(params: &toml::Value) -> Look {
-    Look {
-        color: crate::color_from_key(params, k::COLOR, [1.0; 4]),
-        texture: prop_str(params, k::TEXTURE).to_string(),
-        material: prop_str(params, k::MATERIAL).to_string(),
+impl Combined3d {
+    /// `asked`, not yet combined.
+    fn of(asked: &Boolean3d) -> Result<Self> {
+        let word = asked.operation.option();
+        Ok(Self {
+            op: Op::from_word(word)
+                .ok_or_else(|| anyhow!("unknown boolean3d operation '{word}'"))?,
+            look: Look {
+                color: asked.color,
+                texture: asked.texture.clone(),
+                material: asked.material.clone(),
+            },
+            lighting: crate::Lighting3d::of(
+                asked.cast_shadow,
+                &asked.light_layers,
+                &asked.render_layers,
+                asked.receive_shadows,
+                asked.segmentation_id,
+            ),
+            signature: 0,
+        })
     }
 }
 
-fn look_to_map(look: &Look, map: &mut toml::map::Map<String, toml::Value>) {
-    map.insert(k::COLOR.into(), crate::color_to_toml(look.color));
-    map.insert(k::TEXTURE.into(), toml::Value::String(look.texture.clone()));
-    map.insert(
-        k::MATERIAL.into(),
-        toml::Value::String(look.material.clone()),
-    );
-}
-
-fn boolean3d_schema() -> String {
-    format!(
-        r#"operation = {{ type = "enum", default = "{union}", options = [{ops}], description = "How the children are combined, in the order they are declared" }}
-{look}
-cast_shadow = {{ type = "bool", default = true, description = "Whether the result casts a shadow from the lights that cast", group = "shadows" }}
-render_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The layers the result is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer", group = "layers" }}
-light_layers = {{ type = "flags", default = [], options = [{layer_options}], description = "The light layers the result is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer", group = "layers" }}
-{overlay}"#,
-        overlay = crate::overlay::toml_lines(&crate::overlay::schema_3d()),
-        layer_options = balaur_core::layers::options(),
-        union = csg::words::UNION,
-        ops = options(csg::words::OPS),
-        look = look_schema(
-            "[0.8, 0.8, 0.8, 1.0]",
-            "over the UVs the children carry through the cut"
-        ),
-    )
-}
-
-fn boolean2d_schema() -> String {
-    use geometry2d::words as g;
-    format!(
-        r#"operation = {{ type = "enum", default = "{union}", options = [{ops}], description = "How the children are combined, in the order they are declared" }}
-fill_rule = {{ type = "enum", default = "{even_odd}", options = [{rules}], description = "Which parts of crossing or nested outlines count as inside: an odd number of them, any winding, or only counter-clockwise or clockwise winding" }}
-{look}
-clean_result = {{ type = "bool", default = true, description = "Clear the result of the near-duplicate points rounding leaves", group = "mesh cleanup" }}
-keep_collinear = {{ type = "bool", default = false, description = "Keep a point that sits on the straight line between its neighbours, in the children and in the result", group = "mesh cleanup" }}
-min_area = {{ type = "float", default = 0.0, min = 0.0, description = "A result outline or hole enclosing less than this area, in square units of the node's own space, is dropped", group = "mesh cleanup" }}"#,
-        union = g::UNION,
-        ops = options(g::OPS),
-        even_odd = g::EVEN_ODD,
-        rules = options(g::FILL_RULES),
-        look = look_schema(
-            "[1.0, 1.0, 1.0, 1.0]",
-            "centred on the node at 100 texture pixels per unit, as a `polygon`'s default UVs are"
-        ),
-    )
-}
-
-/// A layer set as a scene writes it, empty for every layer.
-fn mask(params: &toml::Value, key: &str) -> u32 {
-    balaur_core::layers::bits(params.get(key), true)
-}
-
-fn boolean3d_from_params(params: &toml::Value) -> Result<Boolean3d> {
-    let word = prop_str(params, k::OPERATION);
-    Ok(Boolean3d {
-        op: Op::from_word(word).ok_or_else(|| anyhow!("unknown boolean3d operation '{word}'"))?,
-        look: look_from_params(params),
-        shadows: prop_bool(params, k::CAST_SHADOW),
-        layers: mask(params, k::LIGHT_LAYERS),
-        render_layers: mask(params, k::RENDER_LAYERS),
-        overlay: crate::overlay::overlay_3d(params),
-        signature: 0,
-    })
+impl Combined2d {
+    /// `asked`, not yet combined.
+    fn of(asked: &Boolean2d) -> Result<Self> {
+        let word = asked.operation.option();
+        let rule = asked.fill_rule.option();
+        Ok(Self {
+            op: Op2d::from_word(word)
+                .ok_or_else(|| anyhow!("unknown boolean2d operation '{word}'"))?,
+            options: BooleanOptions {
+                fill_rule: FillRule::from_word(rule)
+                    .ok_or_else(|| anyhow!("unknown boolean2d fill_rule '{rule}'"))?,
+                min_area: asked.min_area.max(0.0),
+                keep_collinear: asked.keep_collinear,
+                clean_result: asked.clean_result,
+            },
+            look: Look {
+                color: asked.color,
+                texture: asked.texture.clone(),
+                material: asked.material.clone(),
+            },
+            shapes: Vec::new(),
+            signature: 0,
+        })
+    }
 }
 
 /// What the result's renderable is drawn with, onto one that already exists.
-fn dress_3d(eng: &Engine, entity: Entity, boolean: &Boolean3d) -> Result<()> {
+fn dress_3d(eng: &Engine, entity: Entity, boolean: &Combined3d) -> Result<()> {
     {
         let world = eng.world_mut();
         let Ok(mut r) = world.get::<&mut Renderable3d>(entity) else {
             return Ok(());
         };
         r.color = boolean.look.color;
-        r.shadows = boolean.shadows;
-        r.layers = boolean.layers;
-        r.render_layers = boolean.render_layers;
-        r.overlay = boolean.overlay;
         if r.texture != boolean.look.texture {
             r.texture.clone_from(&boolean.look.texture);
             r.version += 1;
         }
     }
+    crate::set_lighting(eng, entity, &boolean.lighting);
     crate::material::set_material_3d(eng, entity, &boolean.look.material)
 }
 
-/// The `boolean3d` component: writes [`Boolean3d`], and a `Renderable3d` whose
-/// shape is built rather than authored.
-pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
-    let def = ComponentDef {
-        events: &[],
-        warnings: None,
-        doc: "Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.",
-        schema: ComponentDef::parse_schema("boolean3d", &boolean3d_schema()),
-        tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
-        expects: &[],
-        read: None,
-        write: None,
-        apply: Box::new(|eng, entity, params| {
-            let mut next = boolean3d_from_params(params)?;
-            dress_3d(eng, entity, &next)?;
-            let mut world = eng.world_mut();
-            if let Ok(mut existing) = world.get::<&mut Boolean3d>(entity) {
-                // A changed operation is a changed answer, whatever the operands.
-                if existing.op == next.op {
-                    next.signature = existing.signature;
-                }
-                *existing = next;
-                return Ok(());
-            }
-            world
-                .insert_one(entity, next)
-                .map_err(|_| anyhow!("node is dead"))
-        }),
-        remove: Box::new(|eng, entity| {
-            let mut world = eng.world_mut();
-            let _ = world.remove_one::<Boolean3d>(entity);
-            let _ = world.remove_one::<Renderable3d>(entity);
-            Ok(())
-        }),
-        get: Box::new(|eng, entity| {
-            let world = eng.world();
-            let boolean = world.get::<&Boolean3d>(entity).ok()?;
-            let mut map = toml::map::Map::new();
-            map.insert(
-                k::OPERATION.into(),
-                toml::Value::String(boolean.op.word().into()),
-            );
-            look_to_map(&boolean.look, &mut map);
-            map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(boolean.shadows));
-            map.insert(
-                k::LIGHT_LAYERS.into(),
-                balaur_core::layers::names(boolean.layers),
-            );
-            map.insert(
-                k::RENDER_LAYERS.into(),
-                balaur_core::layers::names(boolean.render_layers),
-            );
-            crate::overlay::overlay_3d_to_map(boolean.overlay, &mut map);
-            Some(toml::Value::Table(map))
-        }),
+/// A written `boolean3d` dresses its result again; a changed operation is a
+/// changed answer, whatever the operands, so it combines them again too.
+fn boolean3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let mut next = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Boolean3d>(entity) else {
+            return Ok(());
+        };
+        Combined3d::of(&asked)?
     };
-    reg.register_component("boolean3d", def);
+    dress_3d(eng, entity, &next)?;
+    let mut world = eng.world_mut();
+    if let Ok(existing) = world.get::<&Combined3d>(entity)
+        && existing.op == next.op
+    {
+        next.signature = existing.signature;
+    }
+    world
+        .insert_one(entity, next)
+        .map_err(|_| anyhow!("node is dead"))
 }
 
-fn boolean2d_from_params(params: &toml::Value) -> Result<Boolean2d> {
-    let word = prop_str(params, k::OPERATION);
-    let rule = prop_str(params, k::FILL_RULE);
-    Ok(Boolean2d {
-        op: Op2d::from_word(word).ok_or_else(|| anyhow!("unknown boolean2d operation '{word}'"))?,
-        options: BooleanOptions {
-            fill_rule: FillRule::from_word(rule)
-                .ok_or_else(|| anyhow!("unknown boolean2d fill_rule '{rule}'"))?,
-            min_area: prop_f32(params, k::MIN_AREA).max(0.0),
-            keep_collinear: prop_bool(params, k::KEEP_COLLINEAR),
-            clean_result: prop_bool(params, k::CLEAN_RESULT),
+/// The `boolean3d` component: writes [`Combined3d`], and a `Renderable3d`
+/// whose shape is built rather than authored.
+pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
+        Boolean3d::NAME,
+        ComponentDef {
+            tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Boolean3d>(entity);
+                let _ = world.remove_one::<Combined3d>(entity);
+                let _ = world.remove_one::<Renderable3d>(entity);
+                Ok(())
+            }),
+            ..ComponentDef::of::<Boolean3d>(Some(boolean3d_written))
         },
-        look: look_from_params(params),
-        shapes: Vec::new(),
-        signature: 0,
-    })
+    );
+}
+
+/// A written `boolean2d` dresses its result again. The texture sizes the
+/// UVs, so only a new tint or material leaves the result standing.
+fn boolean2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let mut next = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Boolean2d>(entity) else {
+            return Ok(());
+        };
+        Combined2d::of(&asked)?
+    };
+    {
+        let mut world = eng.world_mut();
+        if let Ok(mut existing) = world.get::<&mut Combined2d>(entity)
+            && existing.op == next.op
+            && existing.options == next.options
+            && existing.look.texture == next.look.texture
+        {
+            next.signature = existing.signature;
+            next.shapes = std::mem::take(&mut existing.shapes);
+        }
+        world
+            .insert_one(entity, next)
+            .map_err(|_| anyhow!("node is dead"))?;
+    }
+    dress_2d(eng, entity)
 }
 
 /// The `boolean2d` component: the same over filled outlines.
 pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
-    let def = ComponentDef {
-        events: &[],
-        warnings: None,
-        doc: "Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.",
-        schema: ComponentDef::parse_schema("boolean2d", &boolean2d_schema()),
-        tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
-        expects: &[],
-        read: None,
-        write: None,
-        apply: Box::new(|eng, entity, params| {
-            let mut next = boolean2d_from_params(params)?;
-            let mut world = eng.world_mut();
-            if let Ok(mut existing) = world.get::<&mut Boolean2d>(entity) {
-                // The texture sizes the UVs, so only a new tint or material
-                // leaves the result standing.
-                let same = existing.op == next.op
-                    && existing.options == next.options
-                    && existing.look.texture == next.look.texture;
-                if same {
-                    next.signature = existing.signature;
-                    next.shapes = std::mem::take(&mut existing.shapes);
-                }
-                *existing = next;
-            } else {
-                world
-                    .insert_one(entity, next)
-                    .map_err(|_| anyhow!("node is dead"))?;
-            }
-            drop(world);
-            dress_2d(eng, entity)
-        }),
-        remove: Box::new(|eng, entity| {
-            let mut world = eng.world_mut();
-            let _ = world.remove_one::<Boolean2d>(entity);
-            let _ = world.remove_one::<Renderable2d>(entity);
-            Ok(())
-        }),
-        get: Box::new(|eng, entity| {
-            let world = eng.world();
-            let boolean = world.get::<&Boolean2d>(entity).ok()?;
-            let mut map = toml::map::Map::new();
-            let text = |w: &str| toml::Value::String(w.into());
-            map.insert(k::OPERATION.into(), text(boolean.op.word()));
-            map.insert(k::FILL_RULE.into(), text(boolean.options.fill_rule.word()));
-            map.insert(
-                k::MIN_AREA.into(),
-                toml::Value::Float(f64::from(boolean.options.min_area)),
-            );
-            map.insert(
-                k::KEEP_COLLINEAR.into(),
-                toml::Value::Boolean(boolean.options.keep_collinear),
-            );
-            map.insert(
-                k::CLEAN_RESULT.into(),
-                toml::Value::Boolean(boolean.options.clean_result),
-            );
-            look_to_map(&boolean.look, &mut map);
-            Some(toml::Value::Table(map))
-        }),
-    };
-    reg.register_component("boolean2d", def);
+    reg.register_component(
+        Boolean2d::NAME,
+        ComponentDef {
+            tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Boolean2d>(entity);
+                let _ = world.remove_one::<Combined2d>(entity);
+                let _ = world.remove_one::<Renderable2d>(entity);
+                Ok(())
+            }),
+            ..ComponentDef::of::<Boolean2d>(Some(boolean2d_written))
+        },
+    );
 }
 
 /// The 2D result's tint and material, onto its renderable if it has one yet.
 fn dress_2d(eng: &Engine, entity: Entity) -> Result<()> {
     let look = {
         let world = eng.world();
-        let Ok(boolean) = world.get::<&Boolean2d>(entity) else {
+        let Ok(boolean) = world.get::<&Combined2d>(entity) else {
             return Ok(());
         };
         boolean.look.clone()
@@ -403,7 +397,7 @@ fn matrix(at: &GlobalTransform) -> Mat4 {
 /// for a shape, or a nested boolean's result, holes and all.
 fn operand_shapes(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Option<Shapes2d> {
     let world = eng.world();
-    let shapes: Shapes2d = if let Ok(nested) = world.get::<&Boolean2d>(entity) {
+    let shapes: Shapes2d = if let Ok(nested) = world.get::<&Combined2d>(entity) {
         nested.shapes.clone()
     } else {
         let r = world.get::<&Renderable2d>(entity).ok()?;
@@ -485,13 +479,13 @@ fn stale(eng: &Engine, flat: bool) -> Vec<(Entity, Vec<Entity>, u64)> {
         let world = eng.world();
         if flat {
             world
-                .query::<(Entity, &Boolean2d)>()
+                .query::<(Entity, &Combined2d)>()
                 .iter()
                 .map(|(e, _)| e)
                 .collect()
         } else {
             world
-                .query::<(Entity, &Boolean3d)>()
+                .query::<(Entity, &Combined3d)>()
                 .iter()
                 .map(|(e, _)| e)
                 .collect()
@@ -508,9 +502,9 @@ fn stale(eng: &Engine, flat: bool) -> Vec<(Entity, Vec<Entity>, u64)> {
             let signature = signature_of(eng, &operands, flat);
             let world = eng.world();
             let seen = if flat {
-                world.get::<&Boolean2d>(entity).ok().map(|b| b.signature)
+                world.get::<&Combined2d>(entity).ok().map(|b| b.signature)
             } else {
-                world.get::<&Boolean3d>(entity).ok().map(|b| b.signature)
+                world.get::<&Combined3d>(entity).ok().map(|b| b.signature)
             };
             (seen != Some(signature)).then_some((entity, operands, signature))
         })
@@ -527,7 +521,7 @@ fn pose_of(eng: &Engine, entity: Entity) -> GlobalTransform {
 
 fn resolve_3d(eng: &Engine) {
     for (entity, operands, signature) in stale(eng, false) {
-        let Some(op) = eng.world().get::<&Boolean3d>(entity).ok().map(|b| b.op) else {
+        let Some(op) = eng.world().get::<&Combined3d>(entity).ok().map(|b| b.op) else {
             continue;
         };
         let parent = pose_of(eng, entity);
@@ -547,7 +541,7 @@ fn resolve_3d(eng: &Engine) {
             }
         });
         let mut world = eng.world_mut();
-        let Ok(mut boolean) = world.get::<&mut Boolean3d>(entity) else {
+        let Ok(mut boolean) = world.get::<&mut Combined3d>(entity) else {
             continue;
         };
         boolean.signature = signature;
@@ -560,10 +554,10 @@ fn resolve_3d(eng: &Engine) {
             skeleton: String::new(),
             texture: boolean.look.texture.clone(),
             material: boolean.look.material.clone(),
-            shadows: boolean.shadows,
-            layers: boolean.layers,
-            render_layers: boolean.render_layers,
-            overlay: boolean.overlay,
+            shadows: boolean.lighting.shadows,
+            layers: boolean.lighting.layers,
+            render_layers: boolean.lighting.render_layers,
+            overlay: boolean.lighting.overlay,
             version: 0,
         };
         drop(boolean);
@@ -585,7 +579,7 @@ fn resolve_2d(eng: &Engine) {
     for (entity, operands, signature) in stale(eng, true) {
         let Some((op, options, texture)) = eng
             .world()
-            .get::<&Boolean2d>(entity)
+            .get::<&Combined2d>(entity)
             .ok()
             .map(|b| (b.op, b.options, b.look.texture.clone()))
         else {
@@ -606,7 +600,7 @@ fn resolve_2d(eng: &Engine) {
         let created = eng.world().get::<&Renderable2d>(entity).is_err();
         {
             let world = eng.world_mut();
-            if let Ok(mut boolean) = world.get::<&mut Boolean2d>(entity) {
+            if let Ok(mut boolean) = world.get::<&mut Combined2d>(entity) {
                 boolean.signature = signature;
                 boolean.shapes = shapes;
             }
@@ -667,5 +661,21 @@ fn hide(eng: &Engine, operands: &[Entity]) {
         if let Ok(mut appearance) = world.get::<&mut Appearance>(*entity) {
             appearance.visible = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::{csg, geometry2d};
+
+    use super::{FillRule2d, Operation2d, Operation3d};
+
+    /// The operations and fill rules a boolean offers are the ones core
+    /// combines by.
+    #[test]
+    fn a_boolean_offers_the_words_core_reads() {
+        assert_eq!(Operation3d::OPTIONS, csg::words::OPS);
+        assert_eq!(Operation2d::OPTIONS, geometry2d::words::OPS);
+        assert_eq!(FillRule2d::OPTIONS, geometry2d::words::FILL_RULES);
     }
 }

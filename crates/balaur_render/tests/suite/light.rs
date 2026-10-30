@@ -7,7 +7,7 @@
 use balaur_core::glamx::{Quat, Vec2, Vec3};
 use balaur_core::{App, AppConfig, Transform, components, scene};
 use balaur_render::light::{LightKind2d, LitLight2d, lights, occluder_edges, outline, shadow_quad};
-use balaur_render::{CameraConfig2d, Occluder2d, RenderPlugin};
+use balaur_render::{CameraConfig2d, Outline2d, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -119,7 +119,7 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
-    let points = world.get::<&Occluder2d>(wall).unwrap().points.clone();
+    let points = world.get::<&Outline2d>(wall).unwrap().points.clone();
     assert_eq!(points.len(), 4, "a rect traces four corners: {points:?}");
     assert!(points.contains(&Vec2::new(2.0, 0.5)), "{points:?}");
     assert!(points.contains(&Vec2::new(-2.0, -0.5)), "{points:?}");
@@ -136,7 +136,7 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
     assert!(
         app.engine
             .world()
-            .get::<&Occluder2d>(wall)
+            .get::<&Outline2d>(wall)
             .unwrap()
             .points
             .is_empty(),
@@ -149,7 +149,7 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
     assert_eq!(
         app.engine
             .world()
-            .get::<&Occluder2d>(wall)
+            .get::<&Outline2d>(wall)
             .unwrap()
             .points
             .len(),
@@ -170,7 +170,7 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
-    let points = world.get::<&Occluder2d>(crate_node).unwrap().points.clone();
+    let points = world.get::<&Outline2d>(crate_node).unwrap().points.clone();
     assert_eq!(points.len(), 4, "{points:?}");
     assert!(points.contains(&Vec2::new(1.0, 1.0)), "{points:?}");
 }

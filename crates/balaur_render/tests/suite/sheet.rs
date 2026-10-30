@@ -126,9 +126,10 @@ fn a_sprite_reports_its_sheet_and_not_the_region_it_derived() {
         Some(""),
         "the texture was the sheet's, not the author's"
     );
-    assert!(
-        saved.get("region_size").is_none(),
-        "a derived region is not authored"
+    assert_eq!(
+        saved["region_size"],
+        toml::Value::try_from([0.0, 0.0]).unwrap(),
+        "a derived region is not authored: it reads back as the author left it"
     );
     // Keying the frame through `patch`, as a clip does, moves the region.
     let key: toml::Value = toml::from_str("frame = 1").unwrap();

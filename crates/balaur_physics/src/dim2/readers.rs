@@ -6,7 +6,7 @@ use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
-use crate::dim2::collider::{apply_collider, first_collider};
+use crate::dim2::collider::{first_collider, set_collider};
 use crate::rapier2d::prelude::{Aabb, Collider};
 use crate::scalar::{self, Real};
 use crate::vocabulary::{component as c, keys as k, map};
@@ -42,7 +42,7 @@ pub(crate) fn install_collider2d_api(m: &mut dyn Bindings<Engine>) {
         "set_collider",
         |eng: &Engine, (node, params): (NodeId, Value)| {
             let params = balaur_core::node_api::to_toml(&params)?;
-            apply_collider(eng, balaur_core::entity_of(node)?, &params)
+            set_collider(eng, balaur_core::entity_of(node)?, &params)
         },
     );
     m.function("aabb", |eng: &Engine, node: NodeId| {

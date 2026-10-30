@@ -13,7 +13,7 @@
 //! call still hands out the same handles: a game runs identically with and
 //! without a sound card. Anything that feeds a decision (`is_playing`, the
 //! `sound` component's "already started" check, `playback_time`) is therefore
-//! tracked as intent on [`Sound`] and [`AudioState`], never read off a sink.
+//! tracked as intent on [`Voice`] and [`AudioState`], never read off a sink.
 //!
 //! The device is opened by the first call that needs one, not at load: the
 //! open asks the OS for its default output config, and on macOS that reads
@@ -39,88 +39,27 @@ pub mod vocabulary;
 use crate::vocabulary::keys as k;
 use backend::From;
 use bus::Buses;
+pub use component::Sound;
 use output::OutputSettings;
 use playback::{Clip, Program, Timeline};
-use spatial::{Attenuation, Emitter, Listener, ListenerPose, Placement};
+use spatial::{Emitter, Listener, ListenerPose, Placement};
 
 /// The floor `pitch_scale` is clamped to, matching the schema's `min`: rodio takes
 /// a playback speed, and zero would park the sink forever.
 const MIN_PITCH: f32 = 0.01;
 
-/// One node's `sound` component, the shape `Playback` established in
-/// `balaur_animation`: the sink is shared machinery, the intent lives here.
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "each is a scene key of its own"
-)]
-#[derive(Clone)]
-pub struct Sound {
-    /// Audio file, project-relative. Empty plays nothing.
-    pub file: String,
-    pub autoplay: bool,
-    pub volume: f32,
-    pub pitch: f32,
-    /// The scene key is `loop`, which Rust reserves.
-    pub looped: bool,
-    /// The bus this plays through; empty is `master`.
-    pub bus: String,
-    pub paused: bool,
-    /// Whether this sound is heard from where its node is, rather than flat.
-    pub positional: bool,
-    /// Full volume within this distance of the listener.
-    pub min_distance: f32,
-    /// Silent beyond it.
-    pub max_distance: f32,
-    /// How much the closing speed bends the pitch: 0 is off, 1 physical.
-    pub doppler: f32,
-    pub attenuation: Attenuation,
-    pub start_time: f32,
-    /// 0 plays to the end.
-    pub end_time: f32,
-    pub delay: f32,
-    /// Below 0 takes the file's own `loop_offset`.
-    pub loop_offset: f32,
-    pub stems: Vec<String>,
-    pub queue: Vec<String>,
-    pub fade_in_time: f32,
-    pub fade_out_time: f32,
-    pub crossfade_time: f32,
-    /// Balance when it is not positional: -1 left, 1 right.
-    pub pan: f32,
+/// What the system keeps for a node's `sound` beyond what the node asks,
+/// the shape `Playback` established in `balaur_animation`: the sink is shared
+/// machinery, and this is the node's hold on it.
+#[derive(Clone, Debug, Default)]
+pub struct Voice {
     /// The playback this node started, `None` until autoplay or `audio.play`
     /// starts one and again after `audio.stop`. A finished sink does not clear
     /// it: intent must read the same headless as with a device.
     pub handle: Option<u64>,
-}
-
-impl Default for Sound {
-    fn default() -> Self {
-        Self {
-            file: String::new(),
-            autoplay: false,
-            volume: 1.0,
-            pitch: 1.0,
-            looped: false,
-            bus: String::new(),
-            paused: false,
-            positional: false,
-            min_distance: DEFAULT_MIN_DISTANCE,
-            max_distance: DEFAULT_MAX_DISTANCE,
-            doppler: 0.0,
-            attenuation: Attenuation::Inverse,
-            start_time: 0.0,
-            end_time: 0.0,
-            delay: 0.0,
-            loop_offset: -1.0,
-            stems: Vec::new(),
-            queue: Vec::new(),
-            fade_in_time: 0.0,
-            fade_out_time: 0.0,
-            crossfade_time: 0.0,
-            pan: 0.0,
-            handle: None,
-        }
-    }
+    /// The `file` the node named at its last write, so the next one can tell
+    /// a new file, which drops the playback, from a tweak, which lands on it.
+    pub file: String,
 }
 
 /// The radius a positional sound is at full volume inside, and the one it is
@@ -128,6 +67,16 @@ impl Default for Sound {
 /// sound's carry, so both are per-sound.
 const DEFAULT_MIN_DISTANCE: f32 = 1.0;
 const DEFAULT_MAX_DISTANCE: f32 = 50.0;
+
+/// A time property as a play reads it: below zero, or not a finite number,
+/// is none.
+fn seconds(asked: f32) -> f32 {
+    if asked.is_finite() {
+        asked.max(0.0)
+    } else {
+        0.0
+    }
+}
 
 pub struct AudioState {
     device: Option<backend::Device>,
@@ -151,9 +100,9 @@ pub struct AudioState {
     routing: DetHashMap<u64, Routed>,
     /// Stopped handles still falling to silence over their `fade_out_time`.
     releasing: DetHashMap<u64, Release>,
-    /// Every node's `sound` component, keyed the way `AnimationState` keys
-    /// its players.
-    pub nodes: DetHashMap<Entity, Sound>,
+    /// Every `sound` node's voice, keyed the way `AnimationState` keys its
+    /// players.
+    pub nodes: DetHashMap<Entity, Voice>,
     /// Where each positional handle plays from. A handle absent here is
     /// flat: no attenuation, no pan, no doppler.
     spatial: DetHashMap<u64, Emitter>,
@@ -348,8 +297,8 @@ impl AudioState {
         }
         self.routing.clear();
         self.spatial.clear();
-        for sound in self.nodes.values_mut() {
-            sound.handle = None;
+        for voice in self.nodes.values_mut() {
+            voice.handle = None;
         }
     }
 
@@ -712,11 +661,12 @@ impl AudioState {
         if self.is_paused(handle) != sound.paused {
             self.set_paused(handle, sound.paused);
         }
-        if self.pan_of(handle) != Some(sound.pan) {
-            self.set_pan(handle, sound.pan);
+        let pan = sound.pan.clamp(-1.0, 1.0);
+        if self.pan_of(handle) != Some(pan) {
+            self.set_pan(handle, pan);
         }
         if let Some(routed) = self.routing.get_mut(&handle) {
-            routed.fade_out_time = sound.fade_out_time;
+            routed.fade_out_time = seconds(sound.fade_out_time);
         }
         if let Some(emitter) = self.spatial.get_mut(&handle) {
             let shaped = Emitter::new(
@@ -836,11 +786,10 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
 pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result<u64> {
     ensure_loaded(eng);
     let sound = eng
-        .resource::<AudioState>()
-        .borrow()
-        .nodes
-        .get(&entity)
-        .cloned()
+        .world()
+        .get::<&Sound>(entity)
+        .ok()
+        .map(|held| (*held).clone())
         .ok_or_else(|| anyhow!("this node has no `sound` component to play"))?;
     if sound.file.trim().is_empty() {
         bail!("the node's `sound` component names no `file`");
@@ -875,29 +824,35 @@ pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result
         emitter,
         file: FileSettings::of(eng, &sound.file),
         paused: sound.paused,
-        start_time: sound.start_time,
-        end_time: sound.end_time,
-        delay: sound.delay,
-        fade_in_time: if crossfade {
+        start_time: seconds(sound.start_time),
+        end_time: seconds(sound.end_time),
+        delay: seconds(sound.delay),
+        fade_in_time: seconds(if crossfade {
             sound.crossfade_time
         } else {
             sound.fade_in_time
-        },
-        fade_out_time: sound.fade_out_time,
+        }),
+        fade_out_time: seconds(sound.fade_out_time),
         loop_offset: (sound.loop_offset >= 0.0).then_some(sound.loop_offset),
-        pan: sound.pan,
+        pan: sound.pan.clamp(-1.0, 1.0),
         stems,
         queue,
     };
-    let state = eng.resource::<AudioState>();
-    let mut state = state.borrow_mut();
-    if let Some(current) = sound.handle {
-        state.stop(current);
-    }
-    let handle = state.play_with(bytes, playback);
-    if let Some(node) = state.nodes.get_mut(&entity) {
-        node.handle = Some(handle);
-    }
+    let handle = {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        let voice = state.nodes.entry(entity).or_default();
+        let current = voice.handle.take();
+        if let Some(current) = current {
+            state.stop(current);
+        }
+        let handle = state.play_with(bytes, playback);
+        if let Some(voice) = state.nodes.get_mut(&entity) {
+            voice.handle = Some(handle);
+        }
+        handle
+    };
+    publish_playback_times(eng);
     Ok(handle)
 }
 
@@ -907,24 +862,30 @@ pub fn stop_on(eng: &Engine, entity: Entity) {
     let Some(state) = eng.try_resource::<AudioState>() else {
         return;
     };
-    let mut state = state.borrow_mut();
-    let stopped = state
-        .nodes
-        .get_mut(&entity)
-        .and_then(|sound| sound.handle.take());
-    if let Some(handle) = stopped {
-        state.release(handle);
+    {
+        let mut state = state.borrow_mut();
+        let stopped = state
+            .nodes
+            .get_mut(&entity)
+            .and_then(|voice| voice.handle.take());
+        if let Some(handle) = stopped {
+            state.release(handle);
+        }
     }
+    publish_playback_times(eng);
 }
 
 /// Jump `entity`'s sound to `seconds` into the file it is playing. A node
 /// with nothing playing is left alone.
 pub fn seek_on(eng: &Engine, entity: Entity, seconds: f64) {
-    let state = eng.resource::<AudioState>();
-    let mut state = state.borrow_mut();
-    if let Some(handle) = state.nodes.get(&entity).and_then(|sound| sound.handle) {
-        state.seek(handle, seconds);
+    {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        if let Some(handle) = state.nodes.get(&entity).and_then(|voice| voice.handle) {
+            state.seek(handle, seconds);
+        }
     }
+    publish_playback_times(eng);
 }
 
 /// Move `entity`'s sound on to the next file in its queue. Past the last one
@@ -936,12 +897,13 @@ pub fn skip_on(eng: &Engine, entity: Entity) {
         state
             .nodes
             .get(&entity)
-            .and_then(|sound| sound.handle)
+            .and_then(|voice| voice.handle)
             .filter(|handle| state.skip(*handle))
     };
     if let Some(handle) = ended {
         announce_finished(eng, &[handle]);
     }
+    publish_playback_times(eng);
 }
 
 pub struct AudioPlugin {
@@ -994,13 +956,13 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         releasing,
         ..
     } = &mut *state;
-    // A `Sound` lives here, not on the entity, so this is where a freed
-    // node's playback stops.
-    nodes.retain(|&entity, sound| {
+    // A voice lives here, not on the entity, so this is where a freed node's
+    // playback stops.
+    nodes.retain(|&entity, voice| {
         if world.contains(entity) {
             return true;
         }
-        if let Some(handle) = sound.handle {
+        if let Some(handle) = voice.handle {
             spatial.shift_remove(&handle);
             routing.shift_remove(&handle);
             if let Some(sink) = playing.shift_remove(&handle) {
@@ -1030,7 +992,10 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
     releasing.retain(|_, release| release.sink.as_ref().is_none_or(|sink| !sink.finished()));
     drop(world);
     drop(state);
-    announce_finished(eng, &ended);
+    if !ended.is_empty() {
+        announce_finished(eng, &ended);
+        publish_playback_times(eng);
+    }
 }
 
 /// Count every timed sound on by a fixed step, end the ones that ran out, and
@@ -1084,6 +1049,27 @@ fn count_down_system(eng: &Engine, dt: f32) {
         ended
     };
     announce_finished(eng, &ended);
+    publish_playback_times(eng);
+}
+
+/// Every `sound` node's `playback_time`, from its voice's clock: engine
+/// output the component holds, so a read, a save and a snapshot all see it.
+/// Written wherever the clock moves -- the fixed step, a play, a stop, a seek
+/// and a skip -- and 0 on a node with nothing playing.
+pub(crate) fn publish_playback_times(eng: &Engine) {
+    let Some(state) = eng.try_resource::<AudioState>() else {
+        return;
+    };
+    let state = state.borrow();
+    let world = eng.world();
+    for (entity, voice) in &state.nodes {
+        if let Ok(mut sound) = world.get::<&mut Sound>(*entity) {
+            sound.playback_time = voice
+                .handle
+                .and_then(|handle| state.playback_time(handle))
+                .unwrap_or_default();
+        }
+    }
 }
 
 /// Tell the node whose `sound` held each handle that it played out.
@@ -1097,9 +1083,9 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
         state
             .nodes
             .iter_mut()
-            .filter_map(|(entity, sound)| {
-                let handle = sound.handle.filter(|h| ended.contains(h))?;
-                sound.handle = None;
+            .filter_map(|(entity, voice)| {
+                let handle = voice.handle.filter(|h| ended.contains(h))?;
+                voice.handle = None;
                 Some((*entity, handle))
             })
             .collect()

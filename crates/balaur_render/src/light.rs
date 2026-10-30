@@ -6,7 +6,8 @@
 //! (`light_map`) only rasterises what these hand it.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, as_f64, prop_bool, prop_f32, prop_str};
+use balaur_core::components::derived::{Component, Enum, Written};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
@@ -14,10 +15,10 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
 use crate::vocabulary::{keys as k, words};
-use crate::{Flat, Renderable2d, Shape2d, color_from_params, color_to_toml};
+use crate::{Flat, Renderable2d, Shape2d};
 
 /// Which way a `light2d` throws light.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LightKind2d {
     /// Radiates from the node, fading to nothing at `radius`.
     Point,
@@ -28,33 +29,70 @@ pub enum LightKind2d {
     Spot,
 }
 
-/// The `light2d` component's authored state. The node's global pose places
-/// and aims it; `radius` is in world units and does not follow the node's
-/// scale.
+/// A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the `environment`'s `ambient_color`.
+// The node's global pose places and aims it; `range` is in world units and
+// does not follow the node's scale. Every number is held to what a light can
+// be where it is read.
+#[derive(Component)]
+#[component(name = "light2d")]
 pub struct Light2d {
+    /// A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node's rotation aims, down at rest
+    #[property(default = LightKind2d::Point)]
     pub kind: LightKind2d,
+    /// Light colour, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub color: [f32; 4],
-    pub radius: f32,
+    /// Brightness multiplier; over 1 blows past white
+    #[property(default = 1.0, min = 0.0)]
     pub intensity: f32,
-    pub shadows: bool,
-    /// A spot light's half-angles: full brightness inside the first, none
-    /// past the second.
-    pub inner_angle_degrees: f32,
-    pub outer_angle_degrees: f32,
-    /// The disc a camera's `gi` pass emits this light from, in world units.
-    pub source_radius: f32,
-    /// How far above the plane a normal-mapped node sees it, in world units;
-    /// a directional light's rise over run.
+    /// How far a point light reaches, in world units
+    #[property(default = 6.0, min = 0.0)]
+    pub range: f32,
+    /// How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node whose material names a `normal` map reads it
+    #[property(default = 1.0, min = 0.0)]
     pub height: f32,
+    /// Half-angle of a spot light's full-brightness cone, in degrees
+    #[property(default = 20.0, min = 0.0, max = 179.0, group = "cone")]
+    pub inner_angle_degrees: f32,
+    /// Half-angle a spot light fades to nothing at, in degrees
+    #[property(default = 35.0, min = 0.0, max = 179.0, group = "cone")]
+    pub outer_angle_degrees: f32,
+    /// Whether `occluder2d` outlines cast shadows from this light
+    #[property(default = true, group = "shadows")]
+    pub shadow_enabled: bool,
+    /// The disc a camera's `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form
+    #[property(default = 0.25, min = 0.0, group = "shadows")]
+    pub source_radius: f32,
 }
 
-/// The `occluder2d` component: the outline this node blocks light with.
+impl Light2d {
+    /// A spot light's half-angles in degrees, full brightness inside the
+    /// first and none past the second.
+    #[must_use]
+    pub fn cone_degrees(&self) -> [f32; 2] {
+        [
+            self.inner_angle_degrees.clamp(0.0, 179.0),
+            self.outer_angle_degrees.clamp(0.0, 179.0),
+        ]
+    }
+}
+
+/// The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.
+#[derive(Component)]
+#[component(name = "occluder2d")]
 pub struct Occluder2d {
-    /// The `mesh` asset the outline came from; empty means it is derived
-    /// from the node's `collider2d` or 2D shape by `resolve_occluders_system`.
+    /// Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape
+    #[property(asset = "mesh")]
     pub mesh: String,
+    /// Whether the last point joins the first, making the outline a loop
+    #[property(default = true)]
     pub closed: bool,
-    /// The outline in the node's own space, in order.
+}
+
+/// The outline an [`Occluder2d`] blocks light with, in the node's own space
+/// and in order: its `mesh`'s points, or what `resolve_occluders_system`
+/// derived where it names none.
+pub struct Outline2d {
     pub points: Vec<Vec2>,
 }
 
@@ -93,17 +131,18 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight2d> {
             continue;
         };
         let [r, g, b, _] = light.color;
+        let [inner, outer] = light.cone_degrees();
         out.push(LitLight2d {
             position: Vec2::new(global.position.x, global.position.y),
             direction: aim(&global),
             color: [r, g, b],
-            radius: light.radius.max(0.0),
+            radius: light.range.max(0.0),
             intensity: light.intensity.max(0.0),
-            shadows: light.shadows,
+            shadows: light.shadow_enabled,
             kind: light.kind,
             cone: [
-                balaur_core::libm::cosf(light.inner_angle_degrees.to_radians()),
-                balaur_core::libm::cosf(light.outer_angle_degrees.to_radians()),
+                balaur_core::libm::cosf(inner.to_radians()),
+                balaur_core::libm::cosf(outer.to_radians()),
             ],
         });
     }
@@ -117,13 +156,14 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight2d> {
 /// the join is just one more of them. Empty on a node with no `occluder2d`,
 /// and on one whose outline has not resolved to anything.
 pub fn outline(world: &World, entity: Entity) -> Vec<Vec2> {
-    let (Ok(occluder), Ok(global)) = (
+    let (Ok(occluder), Ok(outline), Ok(global)) = (
         world.get::<&Occluder2d>(entity),
+        world.get::<&Outline2d>(entity),
         world.get::<&GlobalTransform>(entity),
     ) else {
         return Vec::new();
     };
-    if occluder.points.len() < 2 {
+    if outline.points.len() < 2 {
         return Vec::new();
     }
     let to_world = |p: Vec2| {
@@ -131,7 +171,7 @@ pub fn outline(world: &World, entity: Entity) -> Vec<Vec2> {
         let turned = global.rotation * scaled;
         Vec2::new(global.position.x + turned.x, global.position.y + turned.y)
     };
-    let mut points: Vec<Vec2> = occluder.points.iter().copied().map(to_world).collect();
+    let mut points: Vec<Vec2> = outline.points.iter().copied().map(to_world).collect();
     if occluder.closed && points.len() > 2 {
         points.push(points[0]);
     }
@@ -221,124 +261,36 @@ pub fn shadow_quad(edge: [Vec2; 2], light: &LitLight2d, far: f32) -> [Vec2; 4] {
     [edge[0], edge[1], away(edge[1]), away(edge[0])]
 }
 
-fn set_light(eng: &Engine, entity: Entity, next: Light2d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut light) = world.get::<&mut Light2d>(entity) {
-        *light = next;
-        return Ok(());
-    }
-    world
-        .insert_one(entity, next)
-        .map_err(|_| anyhow!("node is dead"))
-}
-
-fn light_schema() -> String {
-    let kinds = crate::vocabulary::options(words::LIGHT_KINDS);
-    let default = words::POINT;
-    format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node's rotation aims, down at rest" }}
-color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
-intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-range = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
-height = {{ type = "float", default = 1.0, min = 0.0, description = "How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node whose material names a `normal` map reads it" }}
-inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees", group = "cone" }}
-outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees", group = "cone" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light", group = "shadows" }}
-source_radius = {{ type = "float", default = 0.25, min = 0.0, description = "The disc a camera's `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form", group = "shadows" }}"#
-    )
-}
-
 /// The `light2d` component. The node's position places it and its rotation
 /// aims it; the light map pass in the backend draws it.
 pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "light2d",
+        Light2d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the `environment`'s `ambient_color`.",
-            schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let kind = match prop_str(params, k::KIND) {
-                    words::POINT => LightKind2d::Point,
-                    words::DIRECTIONAL => LightKind2d::Directional,
-                    words::SPOT => LightKind2d::Spot,
-                    other => return Err(anyhow!("unknown light2d kind '{other}'")),
-                };
-                set_light(
-                    eng,
-                    entity,
-                    Light2d {
-                        kind,
-                        color: color_from_params(params),
-                        radius: prop_f32(params, k::RANGE).max(0.0),
-                        intensity: prop_f32(params, k::INTENSITY).max(0.0),
-                        shadows: prop_bool(params, k::SHADOW_ENABLED),
-                        inner_angle_degrees: prop_f32(params, k::INNER_ANGLE_DEGREES).clamp(0.0, 179.0),
-                        outer_angle_degrees: prop_f32(params, k::OUTER_ANGLE_DEGREES).clamp(0.0, 179.0),
-                        source_radius: prop_f32(params, k::SOURCE_RADIUS).max(0.0),
-                        height: prop_f32(params, k::HEIGHT).max(0.0),
-                    },
-                )
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Light2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let light = world.get::<&Light2d>(entity).ok()?;
-                let kind = match light.kind {
-                    LightKind2d::Point => words::POINT,
-                    LightKind2d::Directional => words::DIRECTIONAL,
-                    LightKind2d::Spot => words::SPOT,
-                };
-                let mut map = toml::map::Map::new();
-                map.insert(k::KIND.into(), toml::Value::String(kind.into()));
-                map.insert(k::COLOR.into(), color_to_toml(light.color));
-                map.insert(k::RANGE.into(), toml::Value::Float(f64::from(light.radius)));
-                map.insert(
-                    k::INTENSITY.into(),
-                    toml::Value::Float(f64::from(light.intensity)),
-                );
-                map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
-                map.insert(
-                    k::INNER_ANGLE_DEGREES.into(),
-                    toml::Value::Float(f64::from(light.inner_angle_degrees)),
-                );
-                map.insert(
-                    k::OUTER_ANGLE_DEGREES.into(),
-                    toml::Value::Float(f64::from(light.outer_angle_degrees)),
-                );
-                map.insert(
-                    k::SOURCE_RADIUS.into(),
-                    toml::Value::Float(f64::from(light.source_radius)),
-                );
-                map.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(light.height)));
-                Some(toml::Value::Table(map))
-            }),
+            ..ComponentDef::of::<Light2d>(None)
         },
     );
 }
 
-fn occluder_schema() -> String {
-    balaur_core::components::ComponentDef::schema(&[
-        (
-            k::MESH,
-            &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape" }}"#,
-                balaur_core::mesh::MESH_ASSET_TYPE
-            ),
-        ),
-        (
-            k::CLOSED,
-            r#"{ type = "bool", default = true, description = "Whether the last point joins the first, making the outline a loop" }"#,
-        ),
-    ])
+/// An occluder's outline read again from its `mesh`; one with none is
+/// derived every tick by [`resolve_occluders_system`].
+fn occluder_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let mesh = {
+        let world = eng.world();
+        let Ok(occluder) = world.get::<&Occluder2d>(entity) else {
+            return Ok(());
+        };
+        occluder.mesh.clone()
+    };
+    let points = if mesh.is_empty() {
+        Vec::new()
+    } else {
+        mesh_outline(eng, &mesh)
+    };
+    eng.world_mut()
+        .insert_one(entity, Outline2d { points })
+        .map_err(|_| anyhow!("node is dead"))
 }
 
 /// The `occluder2d` component. An outline with no `mesh` is derived every
@@ -346,50 +298,16 @@ fn occluder_schema() -> String {
 /// occluder still fills it in.
 pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "occluder2d",
+        Occluder2d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
-            schema: ComponentDef::parse_schema("occluder2d", &occluder_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let mesh = prop_str(params, k::MESH).to_string();
-                let closed = prop_bool(params, k::CLOSED);
-                let points = if mesh.is_empty() {
-                    Vec::new()
-                } else {
-                    mesh_outline(eng, &mesh)
-                };
-                let next = Occluder2d {
-                    mesh,
-                    closed,
-                    points,
-                };
-                let mut world = eng.world_mut();
-                if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity) {
-                    *occluder = next;
-                    return Ok(());
-                }
-                world
-                    .insert_one(entity, next)
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Occluder2d>(entity);
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Occluder2d>(entity);
+                let _ = world.remove_one::<Outline2d>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let occluder = world.get::<&Occluder2d>(entity).ok()?;
-                let mut map = toml::map::Map::new();
-                map.insert("mesh".into(), toml::Value::String(occluder.mesh.clone()));
-                map.insert(k::CLOSED.into(), toml::Value::Boolean(occluder.closed));
-                Some(toml::Value::Table(map))
-            }),
+            ..ComponentDef::of::<Occluder2d>(Some(occluder_written))
         },
     );
 }
@@ -442,10 +360,10 @@ pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
         .collect();
     let world = eng.world_mut();
     for (entity, points) in resolved {
-        if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity)
-            && occluder.points != points
+        if let Ok(mut outline) = world.get::<&mut Outline2d>(entity)
+            && outline.points != points
         {
-            occluder.points = points;
+            outline.points = points;
         }
     }
 }

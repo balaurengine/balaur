@@ -1,7 +1,7 @@
 //! The `tileset` asset and the `tilemap` component, without a window.
 
 use balaur_core::{App, AppConfig, components, scene};
-use balaur_render::{TileSet, Tilemap};
+use balaur_render::{TileLayout, TileSet};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
@@ -46,8 +46,8 @@ fn a_tilemap_parses_cells_and_round_trips() {
     {
         let world = app.engine.world();
         let map = world
-            .get::<&Tilemap>(entity)
-            .expect("apply writes a Tilemap on the node");
+            .get::<&TileLayout>(entity)
+            .expect("apply writes a TileLayout on the node");
         assert_eq!(
             map.grid,
             vec![vec![None, Some(0)], vec![Some(1), Some(10)]],
@@ -100,10 +100,12 @@ fn a_tilemap_parses_cells_and_round_trips() {
         .expect("a saved tilemap reloads");
     {
         let world = app.engine.world();
-        let a = world.get::<&Tilemap>(entity).expect("original still there");
+        let a = world
+            .get::<&TileLayout>(entity)
+            .expect("original still there");
         let b = world
-            .get::<&Tilemap>(reloaded)
-            .expect("reload writes a Tilemap");
+            .get::<&TileLayout>(reloaded)
+            .expect("reload writes a TileLayout");
         assert_eq!(a.grid, b.grid);
     }
 
@@ -128,15 +130,15 @@ fn reapplying_the_same_tilemap_does_not_bump_the_version() {
     let before = app
         .engine
         .world()
-        .get::<&Tilemap>(entity)
-        .expect("apply writes a Tilemap")
+        .get::<&TileLayout>(entity)
+        .expect("apply writes a TileLayout")
         .version;
     components::add(&app.engine, entity, "tilemap", Some(&tilemap_table()))
         .expect("re-applying the same tilemap succeeds");
     assert_eq!(
         app.engine
             .world()
-            .get::<&Tilemap>(entity)
+            .get::<&TileLayout>(entity)
             .expect("still there")
             .version,
         before,
@@ -156,7 +158,7 @@ fn reapplying_the_same_tilemap_does_not_bump_the_version() {
     assert!(
         app.engine
             .world()
-            .get::<&Tilemap>(entity)
+            .get::<&TileLayout>(entity)
             .expect("still there")
             .version
             > before,
@@ -205,7 +207,7 @@ fn cells_as_rows_of_ids_reach_past_the_thirty_sixth_tile() {
     );
     components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
     let world = app.engine.world();
-    let map = world.get::<&Tilemap>(entity).unwrap();
+    let map = world.get::<&TileLayout>(entity).unwrap();
     assert_eq!(
         map.grid,
         vec![vec![Some(40), None], vec![Some(0), Some(99)]]
@@ -217,7 +219,12 @@ fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
     let app = app();
     let entity = node(&app);
     components::add(&app.engine, entity, "tilemap", Some(&tilemap_table())).unwrap();
-    let before = app.engine.world().get::<&Tilemap>(entity).unwrap().version;
+    let before = app
+        .engine
+        .world()
+        .get::<&TileLayout>(entity)
+        .unwrap()
+        .version;
     let mut table = tilemap_table();
     table.as_table_mut().unwrap().insert(
         "material".into(),
@@ -225,7 +232,7 @@ fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
     );
     components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
     let world = app.engine.world();
-    let map = world.get::<&Tilemap>(entity).unwrap();
+    let map = world.get::<&TileLayout>(entity).unwrap();
     assert_eq!(map.material, "materials/water.toml");
     assert_eq!(map.version, before + 1);
 }
@@ -255,7 +262,7 @@ fn a_map_may_keep_its_cells_in_a_file() {
     let world = app.engine.world();
     let node = balaur_core::scene::find_node(&world, app.engine.root(), "Map").unwrap();
     let map = world
-        .get::<&Tilemap>(node)
+        .get::<&TileLayout>(node)
         .expect("the map loaded its file");
     assert_eq!(map.grid.len(), 2, "one row per line");
     assert_eq!(

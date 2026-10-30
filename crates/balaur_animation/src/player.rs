@@ -442,11 +442,15 @@ pub fn resume(eng: &Engine, entity: Entity) {
 }
 
 /// Scale playback: 2.0 is twice as fast, a negative speed runs the clip
-/// backwards. Also what the component's `speed_scale` property writes.
+/// backwards. The component's `speed_scale` moves with it, so the node reads
+/// back the rate it plays at.
 pub fn set_speed_scale(eng: &Engine, entity: Entity, speed_scale: f32) {
     with_playback(eng, entity, |playback| {
         playback.speed_scale = speed_scale;
     });
+    if let Ok(mut held) = eng.world().get::<&mut crate::Animation>(entity) {
+        held.speed_scale = speed_scale;
+    }
 }
 
 /// Move the playhead to `time` seconds of playback, and pose the node there.

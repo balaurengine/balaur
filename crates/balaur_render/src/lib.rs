@@ -97,13 +97,15 @@ mod tilemap;
 mod tilemap_mesh;
 mod vocabulary;
 pub mod world_text;
+pub use boolean::{Boolean2d, Boolean3d, FillRule2d, Operation2d, Operation3d};
 pub use camera::{Camera2d, Camera3d};
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
-pub use lens::Lens3d;
-pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use lens::{Lens3d, Projection};
+pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d, Outline2d};
 pub use multimesh::{
     Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MULTIMESH_ASSET_TYPE, MeshSource,
-    MultiMesh, MultiMeshAsset, Placed, buffer_of, buffer_stride, instances_from_buffer,
+    MultiMesh, MultiMesh2d, MultiMesh3d, MultiMeshAsset, Placed, buffer_of, buffer_stride,
+    instances_from_buffer,
 };
 pub use pick::under_pointer as pick_under_pointer;
 pub use post::{
@@ -120,16 +122,20 @@ pub fn viewport_size(eng: &Engine) -> (u32, u32) {
     (vp.width, vp.height)
 }
 pub use light3d::{
-    AutoExposure, BlurQuality, Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap,
-    Transmission,
+    AutoExposure, BlurQuality, Environment, FogKind, Light3d, LightKind3d, LitEnvironment,
+    LitLight3d, Tonemap, Transmission,
 };
 pub use mesh::MorphWeights;
 pub use notifier::ScreenNotifier2d;
-pub use particles::Particles;
-pub use polygon::PolygonMesh;
+pub use particles::{Particles, Particles2d};
+pub use particles_3d::Particles3d;
+pub use polygon::{Polygon, PolygonMesh};
 pub use reflection::{LitProbe, ProbeUpdate, ReflectionProbe};
+pub use shape::{FlatKind, LineCap, LineJoin, Primitive2d, Primitive3d, SolidKind};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
-pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
+pub use sprite::Sprite;
+pub use text_component::{FontStyle, LineBreak, Text2d, Text3d, TruncateAt};
+pub use tilemap::{Rows, TILESET_ASSET_TYPE, TileLayout, TileSet, Tilemap};
 
 #[cfg(feature = "window")]
 mod app_icon;
@@ -422,10 +428,6 @@ pub struct SpriteSheet2d {
 
 /// What a `Shape2d::Sprite` draws.
 #[derive(Clone, PartialEq)]
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "each flag is its own authored sprite property, not a state machine"
-)]
 pub struct SpriteTexture {
     /// Project-relative (or absolute) path to the image.
     pub path: String,
@@ -440,27 +442,13 @@ pub struct SpriteTexture {
     /// One rectangle of the image, in texture pixels as `[x, y, w, h]`: an
     /// atlas cell. `None` draws the whole image, or the sheet's frame.
     pub region: Option<[u32; 4]>,
-    /// The `sprite_sheet` asset `frame` indexes, or empty. With one, `region`
-    /// is that frame's rectangle and is derived rather than authored.
-    pub sheet_asset: String,
-    /// Whether `path` came from the sheet rather than the component, so
-    /// `get` reports the texture as the author left it: unset.
-    pub sheet_texture: bool,
-    /// Where the quad sits against its node, in texture pixels with y down,
-    /// as authored; `shift` is the same in node units.
-    pub offset: [f32; 2],
     /// Whether the quad is centred on its node. Off, its top-left corner is,
     /// which is where a sprite cut to sit on a point wants its origin.
     pub centered: bool,
-    /// `offset` and `centered` in the node's own units, y up, worked out
-    /// where the pixels per unit are known: how far the quad's centre sits
-    /// from the node before the node's rotation and scale.
+    /// The sprite's `offset` and `centered` in the node's own units, y up,
+    /// worked out where the pixels per unit are known: how far the quad's
+    /// centre sits from the node before the node's rotation and scale.
     pub shift: [f32; 2],
-    /// `pixels_per_unit` as authored, where 0 follows the texture's own;
-    /// the renderable carries the value it resolved to.
-    pub own_pixels_per_unit: f32,
-    /// `nine_slice_margins_pixels` as authored: left, right, top, bottom.
-    pub nine_slice_margins: [f32; 4],
     /// The margins the quad is cut by, in texture pixels: the authored ones,
     /// or a sheet slice's centre. `None` draws one plain quad.
     pub nine: Option<[f32; 4]>,
@@ -507,12 +495,7 @@ pub struct Renderable2d {
     pub texture: String,
     /// The `material` asset this draws with; empty means the built-in one.
     pub material: String,
-    /// Whether the author stated the size, rather than a sprite deriving it
-    /// from its image: a derived one re-derives when the sheet or
-    /// `pixels_per_unit` moves, and an authored one is left alone.
-    pub sized: bool,
-    /// The scale a sprite's size was derived at. Kept so `get` reports it and
-    /// a patch of anything else does not re-derive the quad at the default.
+    /// The scale a sprite's size was derived at.
     pub pixels_per_unit: f32,
     pub version: u64,
 }
@@ -530,7 +513,6 @@ impl Renderable2d {
             polygon: None,
             texture: String::new(),
             material: String::new(),
-            sized: false,
             pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
             version: 0,
         }
@@ -640,22 +622,67 @@ pub(crate) fn set_mesh(
         .map_err(|_| anyhow!("node is dead"))
 }
 
-/// The `cast_shadow`, `light_layers`, `render_layers` and overlay keys a 3D
-/// renderable component offers, applied to whatever renderable the node just
-/// gained. A node with none of them casts, and every light and camera finds it.
+/// What a 3D renderable component's `cast_shadow`, `light_layers`,
+/// `render_layers`, `receive_shadows` and `segmentation_id` rows hold, as the
+/// renderable carries them.
+pub(crate) struct Lighting3d {
+    pub(crate) shadows: bool,
+    pub(crate) layers: u32,
+    pub(crate) render_layers: u32,
+    pub(crate) overlay: overlay::Overlay3d,
+}
+
+impl Lighting3d {
+    /// The rows as a component holds them.
+    pub(crate) fn of(
+        cast_shadow: bool,
+        light_layers: &[balaur_core::layers::Layer],
+        render_layers: &[balaur_core::layers::Layer],
+        receive_shadows: bool,
+        segmentation_id: i64,
+    ) -> Self {
+        Self {
+            shadows: cast_shadow,
+            layers: balaur_core::layers::Layer::bits(light_layers, true),
+            render_layers: balaur_core::layers::Layer::bits(render_layers, true),
+            overlay: overlay::Overlay3d {
+                segmentation_id: u32::try_from(segmentation_id.max(0)).unwrap_or(u32::MAX),
+                receive_shadows,
+            },
+        }
+    }
+}
+
+/// Put `lighting` on whatever 3D renderable the node just gained. A node
+/// with none of the rows casts, and every light and camera finds it.
+pub(crate) fn set_lighting(eng: &Engine, entity: Entity, lighting: &Lighting3d) {
+    let world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+        r.shadows = lighting.shadows;
+        r.layers = lighting.layers;
+        r.render_layers = lighting.render_layers;
+        r.overlay = lighting.overlay;
+    }
+}
+
+/// [`set_lighting`] from a table, for the one 3D renderable still read from
+/// one: `mesh`, which takes keys of its own beside its schema's.
 pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
         .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
     let mask = |key: &str| balaur_core::layers::bits(params.get(key), true);
-    let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
-        r.shadows = shadows;
-        r.layers = mask(crate::vocabulary::keys::LIGHT_LAYERS);
-        r.render_layers = mask(crate::vocabulary::keys::RENDER_LAYERS);
-        r.overlay = overlay::overlay_3d(params);
-    }
+    set_lighting(
+        eng,
+        entity,
+        &Lighting3d {
+            shadows,
+            layers: mask(crate::vocabulary::keys::LIGHT_LAYERS),
+            render_layers: mask(crate::vocabulary::keys::RENDER_LAYERS),
+            overlay: overlay::overlay_3d(params),
+        },
+    );
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
@@ -821,9 +848,6 @@ pub(crate) fn set_sprite(
         hx: hx.max(f32::EPSILON),
         hy: hy.max(f32::EPSILON),
     };
-    // A size the caller stated is the author's; one read off the image is
-    // this call's, and `read_sprite` must not report it back as authored.
-    let sized = half_extents.is_some();
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
         // The frame alone changes UVs, which the backend re-applies every
@@ -834,7 +858,6 @@ pub(crate) fn set_sprite(
                 .is_none_or(|s| s.path != texture.path || s.sheet != texture.sheet);
         r.shape = shape;
         r.sprite = Some(texture);
-        r.sized = sized;
         r.pixels_per_unit = ppu;
         if rebuild {
             r.version += 1;
@@ -846,7 +869,6 @@ pub(crate) fn set_sprite(
             entity,
             Renderable2d {
                 sprite: Some(texture),
-                sized,
                 pixels_per_unit: ppu,
                 ..Renderable2d::fresh(shape)
             },
@@ -869,20 +891,6 @@ pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
             .unwrap_or(default) as f32
     };
     [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)]
-}
-
-/// A colour property read by name, with its own default per channel: what
-/// `color_from_params` does for the one property called `color`.
-pub(crate) fn color_from_key(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
-    let c = |i: usize| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback[i], |v| v as f32)
-    };
-    [c(0), c(1), c(2), c(3)]
 }
 
 /// The `color` property, for a component's `get`.
