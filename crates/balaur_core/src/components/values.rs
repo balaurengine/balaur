@@ -126,7 +126,7 @@ fn expand_color_value(prop: &str, spec: &toml::Value, value: &mut toml::Value) {
 }
 
 /// What a `list` or a `map` value holds, for a pass that rewrites entries.
-fn held_mut(value: &mut toml::Value) -> Vec<&mut toml::Value> {
+pub(super) fn held_mut(value: &mut toml::Value) -> Vec<&mut toml::Value> {
     match value {
         toml::Value::Array(items) => items.iter_mut().collect(),
         toml::Value::Table(table) => table.iter_mut().map(|(_, inner)| inner).collect(),

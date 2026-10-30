@@ -83,10 +83,10 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
-            schema: balaur_core::components::ComponentDef::parse_schema(
+            tags: &[words::PERSPECTIVE, "render"],
+            ..balaur_core::components::ComponentDef::by_hand(
+                balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
                     &[
@@ -102,11 +102,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     &crate::overlay::schema_3d(),
                 )),
             ),
-            tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
+                Box::new(|eng, entity, params| {
                 let text = |key: &str| {
                     params
                         .get(key)
@@ -129,12 +125,12 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 crate::lighting_from_params(eng, entity, params);
                 crate::material::set_material_3d(eng, entity, &text(k::MATERIAL))
             }),
-            remove: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let world = eng.world();
                 // A `multimesh3d` draws its asset's mesh through the same
                 // renderable, and is not a `mesh` the author added.
@@ -180,6 +176,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 }
                 Some(toml::Value::Table(map))
             }),
+            )
         },
     );
     // One weight per shape the mesh can blend towards, named by the asset.

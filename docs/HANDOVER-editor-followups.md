@@ -59,12 +59,12 @@ is rewritten in the same commit).
 
 ## Left to do, in order
 
-1. **Finish the derive.**
-   - `Authored`: a save would read the typed value, but an asset field holds
-     the reference an inline definition was resolved to, so saving from the
-     struct loses the definition. An asset property type that keeps either
-     a reference or a definition comes first. Also the `read: None, write:
-     None` lines left on plugin and test definitions where they can go.
+1. **Finish the derive**: done 2026-10-31. `Authored` is gone: a save
+   reads the struct (`components::written_of`), an inline asset written back
+   as its definition from the asset cache (`assets::inline_body`), a colour
+   as `#rrggbb` where its channels are bytes, a default left out; a kept
+   change reads what a write replaces before it lands. A hand-written
+   definition is `ComponentDef::by_hand(schema, apply, remove, get)`.
 2. **Per-kind rows still applying on a condition** (PLAN-component-order
    §4): no property should.
    - `widget`: 31 kinds in one component; one component per kind

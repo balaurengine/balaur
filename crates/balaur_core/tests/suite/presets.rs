@@ -25,61 +25,48 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "lonely",
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "lonely",
-                r#"on = { type = "bool", default = true }"#,
-            ),
             tags: &["test"],
             expects: &["partner"],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, _| {
-                let _ = eng.world_mut().insert_one(entity, Lonely);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Lonely>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                eng.world()
-                    .get::<&Lonely>(entity)
-                    .ok()
-                    .map(|_| empty_table())
-            }),
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema("lonely", r#"on = { type = "bool", default = true }"#),
+                Box::new(|eng, entity, _| {
+                    let _ = eng.world_mut().insert_one(entity, Lonely);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    let _ = eng.world_mut().remove_one::<Lonely>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    eng.world()
+                        .get::<&Lonely>(entity)
+                        .ok()
+                        .map(|_| empty_table())
+                }),
+            )
         },
     );
     app.register_component(
         "partner",
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "partner",
-                r#"on = { type = "bool", default = true }"#,
-            ),
             tags: &["test"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, _| {
-                let _ = eng.world_mut().insert_one(entity, Partner);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Partner>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                eng.world()
-                    .get::<&Partner>(entity)
-                    .ok()
-                    .map(|_| empty_table())
-            }),
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema("partner", r#"on = { type = "bool", default = true }"#),
+                Box::new(|eng, entity, _| {
+                    let _ = eng.world_mut().insert_one(entity, Partner);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    let _ = eng.world_mut().remove_one::<Partner>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    eng.world()
+                        .get::<&Partner>(entity)
+                        .ok()
+                        .map(|_| empty_table())
+                }),
+            )
         },
     );
 }

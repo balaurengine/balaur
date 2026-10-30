@@ -24,17 +24,14 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     let registry = registry.borrow();
     let d = registry.def(name).unwrap_or_else(|| panic!("no `{name}`"));
     components::ComponentDef {
-        events: &[],
-        warnings: None,
-        doc: "",
-        schema: d.schema.clone(),
         tags: d.tags,
         expects: d.expects,
-        read: None,
-        write: None,
-        apply: Box::new(|_, _, _| Ok(())),
-        remove: Box::new(|_, _| Ok(())),
-        get: Box::new(|_, _| None),
+        ..components::ComponentDef::by_hand(
+            d.schema.clone(),
+            Box::new(|_, _, _| Ok(())),
+            Box::new(|_, _| Ok(())),
+            Box::new(|_, _| None),
+        )
     }
 }
 

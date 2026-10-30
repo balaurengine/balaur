@@ -100,11 +100,11 @@ use crate::engine::Engine;
 
 mod accepts;
 mod attached;
-mod authored;
 pub mod derived;
 mod property;
 mod schema;
 mod values;
+mod written;
 
 use values::{defaults_of, expand_colors, fill_records, overlay, resolved};
 pub use values::{merge_defaults, properties, rgba};
@@ -113,14 +113,6 @@ pub use accepts::{AcceptsFn, refuse_unknown_keys};
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
-pub use authored::Authored;
-use authored::{asked_for_at, forget, forget_node, record_at, record_one};
-
-/// What was asked of component `index` of `entity` until now, if anything:
-/// what a change replaced.
-pub(crate) fn asked_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
-    asked_for_at(eng, entity, index)
-}
 pub use property::{
     PropertyPlace, answers_alone, place_of, property, property_at, property_placed, set_property,
     set_property_at, set_property_placed,
@@ -130,6 +122,8 @@ pub use schema::{
     PROPERTY_TYPES, UNITS, complete_property, inner_specs, validate_property, validate_value,
     zero_of,
 };
+pub(crate) use written::{same, written_at};
+pub use written::{written, written_of};
 
 /// Read a numeric TOML value as f64, integers included: schemas say
 /// "float" but scene authors naturally write `14`, which TOML parses as an
@@ -320,6 +314,30 @@ pub struct ComponentDef {
     pub write: Option<WriteFn>,
     /// What is off about the component on a node, for the editor to show.
     pub warnings: WarningsFn,
+}
+
+impl ComponentDef {
+    /// A component whose struct is not derived: its schema and the three
+    /// hooks that hold, take off and read back its values, and nothing
+    /// declared beside them. `doc`, `tags`, `expects`, `events` and
+    /// `warnings` are the caller's, written over this with `..`; it reads
+    /// and writes a property through its whole table.
+    #[must_use]
+    pub fn by_hand(schema: Rc<Schema>, apply: ApplyFn, remove: RemoveFn, get: GetFn) -> Self {
+        Self {
+            schema,
+            doc: "",
+            tags: &[],
+            expects: &[],
+            events: &[],
+            apply,
+            remove,
+            get,
+            read: None,
+            write: None,
+            warnings: None,
+        }
+    }
 }
 
 /// A component's property specs, and the order its schema writes them in.
@@ -604,8 +622,6 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     let Resolved { index, schema, .. } = resolve(eng, name)?;
     let full = properties(eng, &schema, params)?;
     apply_at(eng, entity, index, name, &full, None)?;
-    // Describing the component whole replaces what was asked of it before.
-    record_at(eng, entity, index, params, true);
     Ok(())
 }
 
@@ -647,7 +663,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         && attached_of(eng, entity).has(index)
         && property::holds_already(eng, entity, index, asked)
     {
-        unchanged(eng, entity, index, name, params);
+        unchanged(eng, entity, name);
         return Ok(());
     }
     let current = get_at(eng, entity, index);
@@ -656,7 +672,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
             .iter()
             .all(|(key, value)| held.get(key) == Some(value))
     {
-        unchanged(eng, entity, index, name, params);
+        unchanged(eng, entity, name);
         return Ok(());
     }
     // The component's own table is the base, taken rather than copied: what
@@ -673,11 +689,6 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     // A `get` reporting every property the schema declares, which is its
     // contract, leaves the two fills below nothing to find and a table to clone.
     if !defaults.keys().all(|key| out.contains_key(key)) {
-        if let Some(toml::Value::Table(asked)) = asked_for_at(eng, entity, index) {
-            for (key, value) in asked {
-                out.entry(key).or_insert(value);
-            }
-        }
         for (key, value) in defaults.iter() {
             if !out.contains_key(key) {
                 out.insert(key.clone(), value.clone());
@@ -698,15 +709,13 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         full
     };
     apply_at(eng, entity, index, name, &full, Some(params))?;
-    record_at(eng, entity, index, Some(params), false);
     Ok(())
 }
 
 /// What a [`patch`] that changed nothing still owes: the refusal it answers
-/// cleared, and the request filed for a save.
-fn unchanged(eng: &Engine, entity: Entity, index: usize, name: &str, params: &toml::Value) {
+/// cleared.
+fn unchanged(eng: &Engine, entity: Entity, name: &str) {
     crate::warnings::accepted(eng, entity, name);
-    record_at(eng, entity, index, Some(params), false);
 }
 
 /// Whether a name is a registered component, as opposed to some other scene
@@ -772,6 +781,10 @@ fn apply_at(
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
     let had = attached_of(eng, entity).has(index);
+    // What the component held before this write, for a kept change.
+    let was = (had && crate::changes::keeps(eng, entity))
+        .then(|| written_at(eng, entity, index))
+        .flatten();
     {
         let registry = registry.borrow();
         let (_, def) = registry
@@ -786,7 +799,7 @@ fn apply_at(
     crate::warnings::accepted(eng, entity, name);
     mark(eng, entity, index, true);
     if had {
-        crate::changes::component(eng, entity, index, asked);
+        crate::changes::component(eng, entity, index, asked, was);
     } else {
         crate::changes::attached(eng, entity, index);
     }
@@ -802,10 +815,13 @@ fn get_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
 }
 
 pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
+    // What the component held, for a kept change: gone once the hook ran.
+    let was = index_of(eng, name)
+        .filter(|_| crate::changes::keeps(eng, entity))
+        .and_then(|index| written_at(eng, entity, index));
     let index = remove_hook(eng, entity, name)?;
     mark(eng, entity, index, false);
-    crate::changes::removed(eng, entity, index);
-    forget(eng, entity, name);
+    crate::changes::removed(eng, entity, index, was);
     crate::warnings::accepted(eng, entity, name);
     Ok(())
 }
@@ -843,7 +859,6 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     if let Ok(mut held) = eng.world().get::<&mut Attached>(entity) {
         *held = Attached::default();
     }
-    forget_node(eng, entity, owed.present | bits);
     if bits == 0 {
         return;
     }
@@ -898,20 +913,6 @@ pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
     attached_of(eng, entity).has(index)
 }
 
-/// File what the component holds now as what was asked of it, over what
-/// was: for a write that moved it without asking, as a reparent keeping the
-/// world pose does. Nothing is filed for a node without it.
-pub fn refile(eng: &Engine, entity: Entity, name: &str) {
-    let Some(index) = index_of(eng, name) else {
-        return;
-    };
-    if !attached_of(eng, entity).has(index) {
-        return;
-    }
-    let held = get_at(eng, entity, index);
-    record_at(eng, entity, index, held.as_ref(), false);
-}
-
 /// [`patch`] with the definition already resolved.
 ///
 /// # Errors
@@ -961,31 +962,6 @@ pub fn events_on(eng: &Engine, entity: Entity) -> Vec<&'static str> {
         .enumerate()
         .filter(|(i, _)| bits.has(*i))
         .flat_map(|(_, (_, def))| def.events.iter().map(|(name, _)| *name))
-        .collect()
-}
-
-/// What was asked of each component the node carries, by name in
-/// registration order: the table a scene file holds for it, which a save
-/// writes back. A component put on without a table is asked for nothing.
-pub fn asked_of(eng: &Engine, entity: Entity) -> Vec<(String, toml::Value)> {
-    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
-        return Vec::new();
-    };
-    let registry = registry.borrow();
-    let bits = attached_of(eng, entity);
-    let authored = eng.try_resource::<Authored>();
-    let authored = authored.as_ref().map(|held| held.borrow());
-    registry
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| bits.has(*index))
-        .map(|(index, (name, _))| {
-            let asked = authored
-                .as_ref()
-                .and_then(|held| held.0.get(&(entity, index)).cloned())
-                .unwrap_or_else(|| toml::Value::Table(toml::map::Map::new()));
-            (name.to_string(), asked)
-        })
         .collect()
 }
 

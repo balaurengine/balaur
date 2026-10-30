@@ -8,33 +8,26 @@ fn app_with_marker() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     app.register_component(
         "marker",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "marker",
                 r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }"#,
             ),
-            tags: &[],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Marker>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
             }),
-        },
+        ),
     );
     app
 }
@@ -513,7 +506,6 @@ fn app_with_picky() -> App {
     app.register_component(
         "picky",
         ComponentDef {
-            events: &[],
             warnings: Some(Box::new(|eng: &Engine, entity| {
                 let size = eng
                     .world()
@@ -530,37 +522,34 @@ fn app_with_picky() -> App {
                     Vec::new()
                 }
             })),
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "picky",
-                r#"label = { type = "string", default = "none" }
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema(
+                    "picky",
+                    r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }"#,
-            ),
-            tags: &[],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, entity, params| {
-                if params
-                    .get("size")
-                    .and_then(toml::Value::as_float)
-                    .unwrap_or(0.0)
-                    < 0.0
-                {
-                    anyhow::bail!("a size below zero has nothing to draw");
-                }
-                eng.world_mut()
-                    .insert_one(entity, Marker(params.clone()))
-                    .map_err(|_| anyhow::anyhow!("dead node"))?;
-                Ok(())
-            }),
-            remove: Box::new(|eng: &Engine, entity| {
-                let _ = eng.world_mut().remove_one::<Marker>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng: &Engine, entity| {
-                eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
-            }),
+                ),
+                Box::new(|eng: &Engine, entity, params| {
+                    if params
+                        .get("size")
+                        .and_then(toml::Value::as_float)
+                        .unwrap_or(0.0)
+                        < 0.0
+                    {
+                        anyhow::bail!("a size below zero has nothing to draw");
+                    }
+                    eng.world_mut()
+                        .insert_one(entity, Marker(params.clone()))
+                        .map_err(|_| anyhow::anyhow!("dead node"))?;
+                    Ok(())
+                }),
+                Box::new(|eng: &Engine, entity| {
+                    let _ = eng.world_mut().remove_one::<Marker>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng: &Engine, entity| {
+                    eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
+                }),
+            )
         },
     );
     app

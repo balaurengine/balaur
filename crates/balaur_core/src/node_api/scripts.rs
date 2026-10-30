@@ -193,10 +193,8 @@ pub(super) fn authored(eng: &Engine, args: &[Value]) -> Result<Value> {
     if !crate::components::has(eng, e, name) {
         return Ok(Value::Nil);
     }
-    let index = crate::components::index_of(eng, name)
-        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    let mut asked = crate::components::asked_at(eng, e, index)
+    let mut written = crate::components::written(eng, e, name)
         .unwrap_or_else(|| toml::Value::Table(toml::Table::new()));
-    crate::document_paths::read_off(eng, e, &mut asked);
-    from_toml(&asked)
+    crate::document_paths::read_off(eng, e, &mut written);
+    from_toml(&written)
 }

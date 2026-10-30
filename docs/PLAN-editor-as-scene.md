@@ -909,8 +909,10 @@ Designed 2026-10-28. `scene.to_toml(root, opts)` is the scene under `root`
 as a scene file's text, `root` its root: what `scene.instantiate` builds
 again.
 
-- **A node as it was asked for.** Each component is what the scene and every
-  write since asked of it (`Authored`), not its live state read back. The
+- **A node as it holds itself.** Each component is its struct read back and
+  spelled as an author writes it, less every property at its default
+  (`components::written_of`, since 2026-10-31; before, a separate `Authored`
+  record kept what each write asked). The
   node keys (`visible`, `tint`, `z_index`, `z_as_relative`, `process`,
   `interpolate`, `tags`) are read off the node and written where they are
   not the default. A key nothing handles is kept from the file as it was.

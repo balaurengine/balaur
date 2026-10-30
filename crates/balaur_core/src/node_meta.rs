@@ -25,15 +25,11 @@ pub fn register_meta_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
-            schema: ComponentDef::parse_schema(COMPONENT, ""),
             tags: &["interaction"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, entity: Entity, params: &toml::Value| {
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema(COMPONENT, ""),
+                Box::new(|eng: &Engine, entity: Entity, params: &toml::Value| {
                 let table = params.as_table().cloned().unwrap_or_default();
                 let mut world = eng.world_mut();
                 if let Ok(mut meta) = world.get::<&mut Meta>(entity) {
@@ -45,15 +41,16 @@ pub fn register_meta_component(app: &mut App) {
                     .map_err(|_| anyhow!("node is dead"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity: Entity| {
+                Box::new(|eng: &Engine, entity: Entity| {
                 let _ = eng.world_mut().remove_one::<Meta>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity: Entity| {
+                Box::new(|eng: &Engine, entity: Entity| {
                 let world = eng.world();
                 let meta = world.get::<&Meta>(entity).ok()?;
                 Some(toml::Value::Table(meta.0.clone()))
             }),
+            )
         },
     );
     app.accept_keys(COMPONENT, |_, _| true);

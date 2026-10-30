@@ -21535,7 +21535,7 @@
         "add_child": "Create a named child node under this one and return it.",
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
         "attach_script": "Attach the script at a path, with an optional table overriding what the script exports.",
-        "authored": "What the scene and every write since asked of the component, as the table a save writes: not its live state, which `get_component` reads. Nil when the node does not carry it.",
+        "authored": "The component as a save writes it: every property it holds, an inline asset as its definition, a colour as `#rrggbb` where it is one, and no read-only property. Nil when the node does not carry it.",
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
         "call_async": "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`.",
         "children": "The node's direct children, an empty list when it has none.",

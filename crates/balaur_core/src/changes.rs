@@ -126,11 +126,18 @@ fn component_name(eng: &Engine, index: usize) -> Value {
     Value::Str(name.unwrap_or_default())
 }
 
-/// What was asked of component `index` before this write, as a script value.
-fn asked_before(eng: &Engine, node: Entity, index: usize) -> Value {
-    crate::components::asked_at(eng, node, index)
-        .and_then(|asked| crate::node_api::from_toml(&asked).ok())
+/// What component `index` held before a write, as a script value.
+fn was_value(was: Option<toml::Value>) -> Value {
+    was.and_then(|held| crate::node_api::from_toml(&held).ok())
         .unwrap_or(Value::Nil)
+}
+
+/// Whether a change to `node` is kept, so a write reads what it replaces
+/// first; nothing else pays for that read.
+pub(crate) fn keeps(eng: &Engine, node: Entity) -> bool {
+    eng.try_resource::<Changes>()
+        .and_then(|changes| changes.borrow().keeping)
+        .is_some_and(|root| crate::scene::is_within(&eng.world(), node, root))
 }
 
 /// A place among siblings as a script integer.
@@ -159,9 +166,14 @@ fn place_of(eng: &Engine, node: Entity, leaving: &[Entity]) -> i64 {
 }
 
 /// Component `index` of `node` was written: the keys of `asked`, or all of
-/// it. Called before what was asked is filed, so a kept change carries what
-/// it replaced.
-pub(crate) fn component(eng: &Engine, node: Entity, index: usize, asked: Option<&toml::Value>) {
+/// it, over `was`, what it held before.
+pub(crate) fn component(
+    eng: &Engine,
+    node: Entity,
+    index: usize,
+    asked: Option<&toml::Value>,
+    was: Option<toml::Value>,
+) {
     let keys: Keys = asked
         .and_then(toml::Value::as_table)
         .map(|table| table.keys().map(SmolStr::new).collect());
@@ -169,20 +181,26 @@ pub(crate) fn component(eng: &Engine, node: Entity, index: usize, asked: Option<
         vec![
             ("component".into(), component_name(eng, index)),
             ("properties".into(), properties(keys.as_deref())),
-            ("was".into(), asked_before(eng, node, index)),
+            ("was".into(), was_value(was)),
         ]
     });
     push(eng, || Change::Component { node, index, keys });
 }
 
-/// One property of component `index` of `node` was written; called before
-/// it is filed.
-pub(crate) fn property(eng: &Engine, node: Entity, index: usize, key: &str) {
+/// One property of component `index` of `node` was written over `was`, what
+/// the component held before.
+pub(crate) fn property(
+    eng: &Engine,
+    node: Entity,
+    index: usize,
+    key: &str,
+    was: Option<toml::Value>,
+) {
     keep(eng, node, "component", || {
         vec![
             ("component".into(), component_name(eng, index)),
             ("properties".into(), Value::List(vec![Value::text(key)])),
-            ("was".into(), asked_before(eng, node, index)),
+            ("was".into(), was_value(was)),
         ]
     });
     push(eng, || Change::Component {
@@ -200,13 +218,12 @@ pub(crate) fn attached(eng: &Engine, node: Entity, index: usize) {
     push(eng, || Change::Attached { node, index });
 }
 
-/// Component `index` is coming off `node`; called while what was asked of it
-/// is still filed.
-pub(crate) fn removed(eng: &Engine, node: Entity, index: usize) {
+/// Component `index` came off `node`, holding `was`.
+pub(crate) fn removed(eng: &Engine, node: Entity, index: usize, was: Option<toml::Value>) {
     keep(eng, node, "removed", || {
         vec![
             ("component".into(), component_name(eng, index)),
-            ("was".into(), asked_before(eng, node, index)),
+            ("was".into(), was_value(was)),
         ]
     });
     push(eng, || Change::Removed { node, index });

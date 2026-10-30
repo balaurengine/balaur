@@ -198,32 +198,22 @@ fn app_with_marker() -> App {
     let mut app = app();
     app.register_component(
         "marker",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "marker",
-                r#"size = { type = "float", default = 1.0 }"#,
-            ),
-            tags: &[],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, entity, params| {
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema("marker", r#"size = { type = "float", default = 1.0 }"#),
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Marker>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
             }),
-        },
+        ),
     );
     app
 }

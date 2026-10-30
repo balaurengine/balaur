@@ -23,13 +23,11 @@ const KEPT_OUT: &[&str] = &[
 
 #[test]
 fn the_kernel_depends_on_none_of_the_crates_around_it() {
-    let manifest: toml::Table = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/Cargo.toml"
-    ))
-    .unwrap()
-    .parse()
-    .unwrap();
+    let manifest: toml::Table =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+            .unwrap()
+            .parse()
+            .unwrap();
     let mut named = Vec::new();
     collect(&manifest, &mut named);
     let found: Vec<&String> = named

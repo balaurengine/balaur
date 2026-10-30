@@ -464,10 +464,10 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MATERIAL_COMPONENT,
         ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
-            schema: ComponentDef::parse_schema(
+            tags: &[balaur_core::components::tag::RENDER],
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema(
                 MATERIAL_COMPONENT,
                 &ComponentDef::schema(&[(
                     crate::vocabulary::keys::SOURCE,
@@ -476,11 +476,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                     ),
                 )]),
             ),
-            tags: &[balaur_core::components::tag::RENDER],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
+                Box::new(|eng, entity, params| {
                 let reference = params
                     .get(crate::vocabulary::keys::SOURCE)
                     .and_then(toml::Value::as_str)
@@ -494,7 +490,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                     .insert_one(entity, NodeMaterial)
                     .map_err(|_| anyhow!("node is dead"))
             }),
-            remove: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<NodeMaterial>(entity);
                 if let Ok(mut appearance) = world.get::<&mut Appearance>(entity) {
@@ -502,9 +498,9 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                 }
                 Ok(())
             }),
-            // Present when put on, or when a script named a material for the
-            // node: either way the node carries one.
-            get: Box::new(|eng, entity| {
+                // Present when put on, or when a script named a material for the
+// node: either way the node carries one.
+Box::new(|eng, entity| {
                 let world = eng.world();
                 let material = world.get::<&Appearance>(entity).ok()?.material;
                 if material.is_none() && world.get::<&NodeMaterial>(entity).is_err() {
@@ -517,6 +513,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                 );
                 Some(toml::Value::Table(map))
             }),
+            )
         },
     );
 }

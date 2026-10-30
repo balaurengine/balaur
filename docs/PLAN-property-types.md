@@ -152,8 +152,10 @@ every component, for a save, and `PropertyReaders`/`PropertyWriters` give
   alphabetical sorts (gone 2026-10-28: a schema keeps the order it is
   written in), `PropertyReaders` and `PropertyWriters` (gone 2026-10-30),
   and
-  `Authored`: a save reads the typed value, which keeps an asset as the file
-  named it.
+  `Authored` (gone 2026-10-31): a save reads each component's struct back
+  through `get` and spells it as an author writes it
+  (`components::written_of`): an inline asset as its definition, a colour as
+  `#rrggbb` where it is one, no property at its default.
 
 Built 2026-10-30: `balaur_derive` (`Component`, `Record`, `Enum`) and
 `balaur_core::components::derived` (`Property`, `Fields`, `Component`,

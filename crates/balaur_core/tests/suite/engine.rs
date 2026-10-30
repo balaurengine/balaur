@@ -134,36 +134,29 @@ fn app_with_mark() -> App {
     app.engine.insert_resource(Removed::default());
     app.register_component(
         "mark",
-        balaur_core::components::ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: balaur_core::components::ComponentDef::parse_schema(
+        balaur_core::components::ComponentDef::by_hand(
+            balaur_core::components::ComponentDef::parse_schema(
                 "mark",
                 r#"on = { type = "bool", default = true }"#,
             ),
-            tags: &[],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, entity, _| {
+            Box::new(|eng: &Engine, entity, _| {
                 eng.world_mut()
                     .insert_one(entity, Mark)
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.resource::<Removed>().borrow_mut().0.push(entity);
                 let _ = eng.world_mut().remove_one::<Mark>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world()
                     .get::<&Mark>(entity)
                     .ok()
                     .map(|_| toml::Value::Table(toml::map::Map::new()))
             }),
-        },
+        ),
     );
     app
 }

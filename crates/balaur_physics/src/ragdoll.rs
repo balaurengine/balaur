@@ -358,7 +358,6 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     if let Some(parent) = parent {
         let before = scene::child_count(&eng.world(), parent);
         scene::reparent(&mut eng.world_mut(), container, parent)?;
-        balaur_core::components::refile(eng, container, balaur_core::transform::COMPONENT);
         scene::announce_added_since(eng, parent, before);
     }
     let ragdoll = Ragdoll {

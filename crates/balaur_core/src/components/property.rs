@@ -9,7 +9,7 @@
 use anyhow::{Result, anyhow};
 use hecs::Entity;
 
-use super::{get_at, index_of, patch_at, record_one};
+use super::{get_at, index_of, patch_at, written_at};
 use crate::engine::Engine;
 
 /// Whether the component at `index` answered `key` on its own.
@@ -75,6 +75,10 @@ fn set_property_known(
         .then(|| crate::document_paths::written_on(eng, entity, value))
         .flatten();
     let value = content.as_ref().unwrap_or(value);
+    // What the component held before the write, for a kept change.
+    let was = crate::changes::keeps(eng, entity)
+        .then(|| written_at(eng, entity, index))
+        .flatten();
     if !derived_write(eng, entity, index, key, position, value) {
         let params = toml::Value::Table(toml::map::Map::from_iter([(
             key.to_string(),
@@ -82,11 +86,7 @@ fn set_property_known(
         )]));
         return patch_at(eng, entity, index, &params);
     }
-    // The write by index changed the component but not the record a save
-    // reads, which the change is logged against first: it carries what it
-    // replaced.
-    crate::changes::property(eng, entity, index, key);
-    record_one(eng, entity, index, key, value);
+    crate::changes::property(eng, entity, index, key, was);
     Ok(())
 }
 

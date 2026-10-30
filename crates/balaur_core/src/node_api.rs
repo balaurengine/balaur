@@ -335,7 +335,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
         ("free", &[], "()", "Destroy the node and its subtree now, scripts detached first: what a tool editing a scene does, where no script of the subtree is running. A game frees with `queue_free`."),
-        ("authored", &[], "(component: string)", "What the scene and every write since asked of the component, as the table a save writes: not its live state, which `get_component` reads. Nil when the node does not carry it."),
+        ("authored", &[], "(component: string)", "The component as a save writes it: every property it holds, an inline asset as its definition, a colour as `#rrggbb` where it is one, and no read-only property. Nil when the node does not carry it."),
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
         ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides."),
         ("visible_in_tree", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
@@ -792,11 +792,9 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
     let stood = crate::changes::Stood::of(&eng.world(), e);
     let placed = crate::components::has(eng, e, crate::transform::COMPONENT);
     scene::reparent(&mut eng.world_mut(), e, parent)?;
-    // Keeping the world pose wrote the local one behind the component's back,
-    // and gave a node that had none a transform to hold it in.
-    if placed {
-        crate::components::refile(eng, e, crate::transform::COMPONENT);
-    } else if let Some(held) = crate::components::get(eng, e, crate::transform::COMPONENT) {
+    // Keeping the world pose gave a node that had none a transform to hold
+    // it in, which the registry has to hear of.
+    if !placed && let Some(held) = crate::components::get(eng, e, crate::transform::COMPONENT) {
         crate::components::add(eng, e, crate::transform::COMPONENT, Some(&held))?;
     }
     if stood.as_ref().map(|stood| stood.parent) != Some(parent) {

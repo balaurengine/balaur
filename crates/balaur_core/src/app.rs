@@ -256,7 +256,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
     eng.insert_resource(crate::warnings::Refusals::default());
-    eng.insert_resource(crate::components::Authored::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());

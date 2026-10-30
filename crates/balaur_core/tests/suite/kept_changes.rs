@@ -194,21 +194,22 @@ fn nothing_outside_the_subtree_and_nothing_once_stopped_is_kept() {
 }
 
 #[test]
-fn authored_reads_what_was_asked_not_the_live_state() {
+fn authored_reads_what_the_component_holds_as_a_save_writes_it() {
     let (app, world) = scene();
     let lamp = child(&app.engine, &world, "Lamp");
-    let asked = call(
+    let written = call(
         &app.engine,
         "authored",
         &[lamp.clone(), Value::Str("transform".into())],
     );
-    let Value::Map(pairs) = &asked else {
-        panic!("{asked:?}");
+    let Value::Map(pairs) = &written else {
+        panic!("{written:?}");
     };
+    let keys: Vec<&str> = pairs.iter().map(|(key, _)| key.as_str()).collect();
     assert_eq!(
-        pairs.len(),
-        1,
-        "only the position the scene named: {asked:?}"
+        keys,
+        ["position", "rotation_euler", "scale", "skew"],
+        "every property the component holds: {written:?}"
     );
     let post = child(&app.engine, &world, "Post");
     assert_eq!(

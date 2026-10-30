@@ -48,16 +48,9 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     // string reaches `apply`, not what a real plugin would build from it.
     app.register_component(
         "instrument",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
-            tags: &[],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng: &Engine, _, value: &toml::Value| {
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
+            Box::new(|eng: &Engine, _, value: &toml::Value| {
                 let reference = value
                     .get("song")
                     .and_then(toml::Value::as_str)
@@ -66,9 +59,9 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
                 eng.resource::<Heard>().borrow_mut().0.push(reference);
                 Ok(())
             }),
-            remove: Box::new(|_, _| Ok(())),
-            get: Box::new(|_, _| None),
-        },
+            Box::new(|_, _| Ok(())),
+            Box::new(|_, _| None),
+        ),
     );
     app
 }

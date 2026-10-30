@@ -108,15 +108,11 @@ pub fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
-            schema: ComponentDef::parse_schema("states", &schema()),
             tags: &["interaction"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema("states", &schema()),
+                Box::new(|eng, entity, params| {
                 let mut named = Vec::new();
                 if let Some(table) = params.as_table() {
                     for (key, body) in table {
@@ -157,11 +153,11 @@ pub fn register_states_component(app: &mut App) {
                 }
                 go(eng, entity, &current)
             }),
-            remove: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<States>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let world = eng.world();
                 let states = world.get::<&States>(entity).ok()?;
                 let mut map = toml::map::Map::new();
@@ -178,6 +174,7 @@ pub fn register_states_component(app: &mut App) {
                 }
                 Some(toml::Value::Table(map))
             }),
+            )
         },
     );
     // Every key beside the two declared ones names a state; `apply` refuses

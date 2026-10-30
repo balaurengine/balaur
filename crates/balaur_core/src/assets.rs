@@ -540,6 +540,23 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
     reload(eng, reference)
 }
 
+/// The definition an inline reference (`#!<digest>`) names, as it was
+/// written on the property: what a save writes back in its place. `None` for
+/// any other reference, and for an entry inside an inline definition, which
+/// has no table of its own to write.
+pub fn inline_body(eng: &Engine, reference: &str) -> Option<toml::Value> {
+    let cache = state(eng).ok()?;
+    let cache = cache.borrow();
+    let key = cache.resolve(reference).ok()?;
+    if !matches!(key, AssetRef::Inline(_)) {
+        return None;
+    }
+    cache
+        .definitions
+        .get(&key)
+        .map(|definition| definition.body.clone())
+}
+
 /// Record a definition table written inline on a component property.
 ///
 /// Keyed by a digest of the content, so applying the same component twice
