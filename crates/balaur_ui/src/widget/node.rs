@@ -22,9 +22,11 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
     )
 }
 
-/// `Default` is every field zeroed, which no scene means: a widget is read
-/// from a table its schema's defaults were merged into.
-#[derive(Clone, Default)]
+/// What the widget layer reads of a `widget` component, built from its
+/// [`WidgetProperties`](crate::widget::properties::WidgetProperties) each
+/// time they are written. `Default` is every field zeroed, which no scene
+/// means.
+#[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
@@ -284,10 +286,10 @@ pub struct Widget {
     /// Which edges this root keeps clear of the display's insets, left, top,
     /// right then bottom, the order an `inset` is spelled in.
     pub safe_area: [bool; 4],
-    /// The widget as it was authored, kept only when it carries a class
-    /// table, so a rotation can resolve it again. `None` is the common case
-    /// and costs nothing.
-    pub(crate) authored: Option<std::sync::Arc<toml::Value>>,
+    /// The class tables it was written with, each over the properties while
+    /// the screen answers to its word, so a rotation can resolve it again.
+    /// `None` is the common case and costs nothing.
+    pub(crate) classes: Option<crate::widget::schema::ClassTables>,
     /// What taffy reads besides the sizes above.
     pub(crate) layout: Layout,
     /// What the egui widget behind each kind takes. Shared: almost every
@@ -303,7 +305,7 @@ pub struct Widget {
 
 /// The taffy fields a widget states beyond its size, padding and gap.
 /// Words stay words here; [`crate::widget::taffy`] reads them into taffy's.
-#[derive(Clone, Default, PartialEq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
 pub(crate) struct Layout {
     pub(crate) absolute: bool,
     /// Zero is no limit.
@@ -344,7 +346,7 @@ pub(crate) struct Layout {
 
 /// A float that hashes and compares by its bits, so a layout's fields can
 /// stamp the taffy style they build.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct Bits(u32);
 
 impl Bits {
@@ -359,7 +361,7 @@ impl Bits {
 
 /// What an `inspector` shows: a node, one of its components, the width of
 /// its label column, and how it spells a file.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Inspecting {
     /// The node, by path from the root, and which of its components.
     pub(crate) target: SmolStr,
@@ -372,7 +374,7 @@ pub(crate) struct Inspecting {
 
 /// The options the egui widget behind each kind takes: one struct for every
 /// kind, since a widget changes kind with one property.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"

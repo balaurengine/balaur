@@ -15,6 +15,7 @@ use crate::vocabulary::keys as k;
 use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
 use crate::widget::node::Widget;
+use crate::widget::properties::{Numeral, WidgetProperties};
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -722,9 +723,47 @@ fn settle_edits(
         // is stale until the next pass re-reads it.
         crate::widget::arena::widget_changed(entity);
         settle_one(entity, &mut widget, edit, emitted, &mut signals);
+        if let Ok(mut asked) = world.get::<&mut WidgetProperties>(entity) {
+            written_back(&mut asked, &widget, edit);
+        }
     }
     (signals, submitted)
 }
+
+/// What an edit wrote onto the widget, written onto its properties as well,
+/// so `get` and a one-property read report where the reader left it.
+fn written_back(asked: &mut WidgetProperties, widget: &Widget, edit: &Edit) {
+    match edit {
+        Edit::Width(_) => asked.width = widget.width,
+        Edit::Height(_) => asked.height = widget.height,
+        Edit::Active(_) => asked.current_page = widget.active.clone(),
+        Edit::Moved(_) => {
+            asked.x = widget.x;
+            asked.y = widget.y;
+        }
+        Edit::Text(_) | Edit::Submit(_) | Edit::Choice(_) => asked.text = widget.text.clone(),
+        Edit::Value(_) => asked.value = widget.value,
+        Edit::Open(_) => asked.open = widget.open,
+        Edit::Color(_) => asked.picked_color = widget.color,
+        Edit::Picked(..) => {
+            asked.text = widget.text.clone();
+            asked.selection.clone_from(&widget.selection);
+        }
+        Edit::Widths(_) => {
+            asked.widths = widget.widths.iter().copied().map(Numeral::of).collect();
+        }
+        Edit::Sorted(..) => {
+            asked.sort = widget.sort.clone();
+            asked.reverse = widget.reverse;
+        }
+        Edit::Scrolled(_) => asked.scroll_offset = widget.egui.scroll_offset,
+        _ => {}
+    }
+}
+
+/// A widget as the click pass writes it: the widget the layer reads, and the
+/// properties `get` reports, where the node has them.
+type Settled<'a> = (Entity, &'a mut Widget, Option<&'a mut WidgetProperties>);
 
 /// Write this frame's `clicked` and `submitted` onto every widget, and collect
 /// the handlers.
@@ -744,7 +783,7 @@ fn settle_clicks(
     // below holds one widget at a time and a group's siblings are others.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
     let world = eng.world();
-    for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
+    for (entity, widget, mut asked) in &mut world.query::<Settled<'_>>() {
         let struck = hit.contains(&entity);
         // Only on the change: this runs over every widget every frame, and a
         // write that put the same `false` back would rebuild the whole arena.
@@ -756,6 +795,12 @@ fn settle_clicks(
         if widget.submitted != said {
             widget.submitted = said;
             crate::widget::arena::widget_changed(entity);
+        }
+        // The properties report what the event pump wrote, as `get` did when
+        // it read the widget itself.
+        if let Some(asked) = asked.as_deref_mut() {
+            asked.clicked = struck;
+            asked.submitted = said;
         }
         if !struck {
             continue;
@@ -770,6 +815,9 @@ fn settle_clicks(
             // ticked, because something in the group has to be. On its own, a
             // click flips.
             widget.checked = if grouped { true } else { !was };
+            if let Some(asked) = asked {
+                asked.checked = widget.checked;
+            }
             if widget.checked != was {
                 crate::widget::arena::widget_changed(entity);
                 emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
@@ -790,7 +838,7 @@ fn settle_clicks(
         }
     }
     for (struck, group) in &ticked {
-        for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
+        for (entity, widget, asked) in &mut world.query::<Settled<'_>>() {
             if entity == *struck || !flips(widget) || widget.radio_group != *group {
                 continue;
             }
@@ -798,6 +846,9 @@ fn settle_clicks(
                 continue;
             }
             widget.checked = false;
+            if let Some(asked) = asked {
+                asked.checked = false;
+            }
             crate::widget::arena::widget_changed(entity);
             emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
             if !widget.on_change.is_empty() {

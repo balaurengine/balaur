@@ -6,8 +6,7 @@ use balaur_text::text_style::TextStyle;
 use egui::Color32;
 use smol_str::SmolStr;
 
-use crate::vocabulary::keys as k;
-use crate::widget::options::Read;
+use crate::widget::properties::WidgetProperties;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TextLook {
@@ -45,32 +44,27 @@ fn color_of(quad: [f32; 4]) -> Color32 {
     Color32::from_rgba_unmultiplied(byte(quad[0]), byte(quad[1]), byte(quad[2]), byte(quad[3]))
 }
 
-fn quad_of(color: Color32) -> [f32; 4] {
-    color.to_srgba_unmultiplied().map(|v| f32::from(v) / 255.0)
-}
-
 impl TextLook {
-    /// What a widget's params say, over the defaults. The style it names is
-    /// read in by [`Self::dress_with`], which needs the asset layer.
-    pub(crate) fn read(params: &toml::Value) -> Self {
-        let r = Read(params);
+    /// What a widget's properties say, over the defaults. The style it names
+    /// is read in by [`Self::dress_with`], which needs the asset layer.
+    pub(crate) fn of(asked: &WidgetProperties) -> Self {
         let base = Self::default();
-        let tab = r.num(k::TAB_WIDTH);
+        let tab = asked.tab_width;
         Self {
             options: balaur_text::Options {
-                line_break: balaur_text::LineBreak::of(&r.str(k::LINE_BREAK)),
-                truncate_at: balaur_text::TruncateAt::of(&r.str(k::TRUNCATE_AT)),
-                max_lines: r.num(k::MAX_LINES).max(0.0) as u32,
+                line_break: balaur_text::LineBreak::of(&asked.line_break.0),
+                truncate_at: balaur_text::TruncateAt::of(&asked.truncate_at.0),
+                max_lines: u32::try_from(asked.max_lines.max(0)).unwrap_or(u32::MAX),
                 max_height: None,
-                tab_width: if tab >= 1.0 {
-                    tab.min(64.0) as u16
+                tab_width: if tab >= 1 {
+                    tab.min(64) as u16
                 } else {
                     base.options.tab_width
                 },
                 ..base.options
             },
-            text_style: r.str(k::TEXT_STYLE),
-            background: color_of(r.quad(k::TEXT_BACKGROUND)),
+            text_style: asked.text_style.clone(),
+            background: color_of(asked.text_background),
             ..base
         }
     }
@@ -81,26 +75,6 @@ impl TextLook {
         self.line_height = style.line_height;
         self.letter_spacing = style.letter_spacing;
         self.effects = style.effects;
-    }
-
-    /// The look back into the table a scene file would have written.
-    pub(crate) fn put(&self, map: &mut toml::map::Map<String, toml::Value>) {
-        use toml::Value as V;
-        let o = &self.options;
-        let pairs = [
-            (k::TEXT_STYLE, V::String(self.text_style.to_string())),
-            (
-                k::TEXT_BACKGROUND,
-                crate::widget::options::four(quad_of(self.background)),
-            ),
-            (k::LINE_BREAK, V::String(o.line_break.word().into())),
-            (k::TRUNCATE_AT, V::String(o.truncate_at.word().into())),
-            (k::MAX_LINES, V::Integer(i64::from(o.max_lines))),
-            (k::TAB_WIDTH, V::Integer(i64::from(o.tab_width))),
-        ];
-        for (key, value) in pairs {
-            map.insert(key.to_string(), value);
-        }
     }
 
     /// The same look on the text of a kind egui draws: what `RichText` can

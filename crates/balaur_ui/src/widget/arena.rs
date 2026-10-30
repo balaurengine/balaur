@@ -73,8 +73,8 @@ fn fits(widget: &Widget, width: f32, height: f32) -> bool {
 
 /// One widget as this pass sees it: what the scene authored, with any class
 /// table the screen answers to folded over it.
-fn for_classes(eng: &Engine, widget: &Widget, classes: &[&str]) -> Widget {
-    crate::widget::schema::for_classes(eng, widget, classes)
+fn for_classes(eng: &Engine, entity: Entity, widget: &Widget, classes: &[&str]) -> Widget {
+    crate::widget::schema::for_classes(eng, entity, widget, classes)
         .unwrap_or_else(|| Widget::clone(widget))
 }
 
@@ -271,7 +271,7 @@ fn patch(
         // Gone from the world, or its component removed: either way the shape
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
-        let widget = for_classes(eng, &widget, classes);
+        let widget = for_classes(eng, entity, &widget, classes);
         arena[index].authored_visible = widget.visible;
         arena[index].widget = widget;
         touched.push(index);
@@ -313,7 +313,7 @@ fn forest(
         let mut next_owner = owner;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
-            let widget = for_classes(eng, &widget, classes);
+            let widget = for_classes(eng, entity, &widget, classes);
             let name = world
                 .get::<&balaur_core::scene::Name>(entity)
                 .map_or_else(|_| SmolStr::default(), |n| SmolStr::new(&n.0));

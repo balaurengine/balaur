@@ -1,10 +1,10 @@
 //! The keys a `widget` answers without building its whole table.
 //!
 //! A pooled control asks for one property a frame, and the registry falls back
-//! to building all forty keys for any the reader does not cover. That fallback
-//! is invisible: it answers correctly and costs a table. So the guard is that
-//! every key the reader claims agrees with the whole table, and that the keys
-//! the editor reads every frame are claimed at all.
+//! to building the whole table for any key the component's read by index does
+//! not cover. That fallback is invisible: it answers correctly and costs a
+//! table. So the guard is that every key read alone agrees with the whole
+//! table, and that the keys the editor reads every frame are read alone.
 
 use balaur_core::components;
 
@@ -71,19 +71,28 @@ fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
     }
 }
 
-/// The control: a key the reader does not claim reads back through the table,
-/// so the assertion above is about the reader and not about `get`.
+/// The control: a key that is no property, a screen class's table, reads
+/// back through the table, so the assertion above is about the reader and not
+/// about `get`.
 #[test]
 fn a_key_the_reader_does_not_claim_still_answers_from_the_table() {
     let (_dir, app) = app();
-    let entity = add_widget(&app, &toml::toml! { kind = "text_field" text = "" }.into());
+    let entity = add_widget(
+        &app,
+        &toml::toml! {
+            kind = "text_field" text = ""
+            [narrow]
+            visible = false
+        }
+        .into(),
+    );
     let index = components::index_of(&app.engine, "widget").expect("widget is registered");
     assert!(
-        !components::answers_alone(&app.engine, entity, index, "on_submit"),
-        "this key was claimed since; pick another the reader leaves to the table"
+        !components::answers_alone(&app.engine, entity, index, "narrow"),
+        "a class table is not a property, so no reader of one can claim it"
     );
     assert!(
-        components::property_at(&app.engine, entity, index, "on_submit").is_some(),
+        components::property_at(&app.engine, entity, index, "narrow").is_some(),
         "a key the reader skips still has to answer"
     );
 }

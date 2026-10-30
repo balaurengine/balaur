@@ -28,8 +28,12 @@ is rewritten in the same commit).
   audio with a fixed schema. Hand-written on purpose: `meta` and `states`
   (every key is the author's), `mesh` (any `morph_*` key) and `material`
   (core's `Appearance` holds it, which scripts and snapshots write directly).
-- Not yet: `widget` (`balaur_ui/src/widget/schema.rs`), which goes with its
-  per-kind split below, and which is why `PropertyReaders` still exists.
+- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 208
+  fields, beside the `Widget` cache; a one-property write updates the one
+  `Widget` field it feeds (`cache_fields!`), 18 properties rebuild whole.
+  `input.rs` writes both copies when a click, drag or keystroke changes a
+  widget: it should write through `set_property_at` so the struct is the
+  one source. Core's `PropertyReaders`/`PropertyWriters` are gone.
 - A component whose cache must go with it overrides `remove` (bones,
   bindings, the animation and audio ones). If that pattern keeps repeating,
   a `removed` hook on `ComponentDef::of` would say it once.
@@ -45,15 +49,11 @@ is rewritten in the same commit).
 ## Left to do, in order
 
 1. **Finish the derive.**
-   - `widget` (`balaur_ui/src/widget/schema.rs`, ~200 rows) onto the derive,
-     schema unchanged, a one-property write updating only what it feeds in
-     the `Widget` cache; then `PropertyReaders`/`PropertyWriters` and
-     `answers_property`/`writes_property` go (widget is the last user). An
-     agent was on this when this was written: check `git status` for
-     `crates/balaur_ui` and `crates/balaur_core/src/components/property.rs`.
-   - `Authored` (a save reads the typed value; check what an inline asset
-     definition saves as), and the `read: None, write: None` lines left on
-     plugin and test definitions where they can go.
+   - `Authored`: a save would read the typed value, but an asset field holds
+     the reference an inline definition was resolved to, so saving from the
+     struct loses the definition. An asset property type that keeps either
+     a reference or a definition comes first. Also the `read: None, write:
+     None` lines left on plugin and test definitions where they can go.
 2. **Property by index end to end** (§9 step 6): the compiler could hand the
    host the property's index rather than its name; and verify a component or
    property the schema lacks does not compile.

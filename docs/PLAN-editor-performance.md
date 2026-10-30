@@ -276,7 +276,8 @@ into script values.
 
 `node.get_component(component, key)` now answers one property, and the `widget`
 component answers the common keys straight off the struct through
-`components::answers_property`. `pool.bs` asks for the one property it wants,
+`components::answers_property` (since 2026-10-30 every property, through the
+derive's read by index). `pool.bs` asks for the one property it wants,
 and asks for nothing at all where a control carries nothing.
 
 Measured on `examples/hello`, offscreen, 600 frames, three pairs run back to
@@ -372,7 +373,8 @@ the interned name, resolved when the field was installed. `components` grew
 addressed by that index. A property's set of owning components is a `u128`
 mask rather than a `HashSet<String>`, and the defaults a read falls back on
 are a table indexed the same way. `PropertyReaders` is a `Vec` indexed by
-component rather than a map keyed by name.
+component rather than a map keyed by name (gone 2026-10-30: a definition's
+own `read` and `write`).
 
 What that removes from one `node.transform.position`: two `String`
 allocations, three hashes of the component name, and the trip through the

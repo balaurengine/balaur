@@ -121,11 +121,7 @@ use authored::{asked_for_at, forget, forget_node, record_at, record_one};
 pub(crate) fn asked_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
     asked_for_at(eng, entity, index)
 }
-pub(crate) use property::resolve_property_hooks;
-pub use property::{
-    PropertyReaders, PropertyWriteFn, PropertyWriters, answers_alone, answers_property, property,
-    property_at, set_property, set_property_at, writes_property,
-};
+pub use property::{answers_alone, property, property_at, set_property, set_property_at};
 use schema::hex_rgba;
 pub use schema::{
     PROPERTY_TYPES, UNITS, complete_property, inner_specs, validate_property, validate_value,
@@ -269,10 +265,6 @@ pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 /// What a component says is off about it on this node, beyond whether its
 /// last write was accepted (see [`crate::warnings`]).
 pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings::Warning>>>;
-/// Read one of a component's properties, for a component that can answer
-/// without building its whole table. `None` means "ask the whole table",
-/// which is also the answer for a property the component does not hold.
-pub type PropertyFn = Box<dyn Fn(&Engine, Entity, &str) -> Option<toml::Value>>;
 /// Read one property by its index in the schema, without the rest.
 pub type ReadFn = Box<dyn Fn(&Engine, Entity, usize) -> Option<toml::Value>>;
 /// Write one property by its index in the schema. `false` is a node without
