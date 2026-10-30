@@ -91,6 +91,10 @@ pub(crate) trait Wasm {
     fn resume(&mut self) -> Result<Outcome, String> {
         Err("this engine cannot carry on a parked call".into())
     }
+    /// Whether a native build runs it.
+    fn native(&self) -> bool {
+        false
+    }
 }
 
 /// How a resumable call came back.
@@ -181,6 +185,12 @@ pub(crate) struct Setup<'a> {
     /// A unit's file key and the units of the modules it uses.
     pub key: &'a str,
     pub linked: &'a [(String, std::sync::Arc<crate::Compiled>)],
+    /// Whether a loaded native build may run it ([`super::Limits::skip_native`]).
+    #[cfg_attr(
+        not(native),
+        allow(dead_code, reason = "only a build that loads native code reads it")
+    )]
+    pub native: bool,
 }
 
 /// Where each unit of a linked script puts its static data, its own first,
@@ -209,8 +219,18 @@ pub(crate) fn unit_layout(
     )
 )]
 pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
-    // A unit links with the units it uses, which wasmtime and wasmi do.
+    // A unit links with the units it uses: natively when a loaded build has
+    // every one, else on wasmtime or wasmi.
     if setup.meta.unit.is_some() {
+        #[cfg(native)]
+        if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
+            if super::native_engine::has_units(&setup) {
+                return super::native_engine::instantiate_linked(setup);
+            }
+            if kind == EngineKind::Native {
+                return Err("no loaded native build has every unit of this script".into());
+            }
+        }
         return match kind {
             #[cfg(jit)]
             EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(&setup),
@@ -228,7 +248,7 @@ pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn 
     }
     // A native build beats every engine, when one has this module.
     #[cfg(native)]
-    if matches!(kind, EngineKind::Auto | EngineKind::Native) {
+    if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
         if let Some(module) = super::native_engine::find(setup.wasm) {
             return super::native_engine::instantiate(module, setup);
         }

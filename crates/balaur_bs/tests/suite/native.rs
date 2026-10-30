@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 static BUILT: AtomicUsize = AtomicUsize::new(0);
 
 /// `modules` as one native library, loaded.
-fn build(modules: &[&Compiled]) {
+pub(super) fn build(modules: &[&Compiled]) {
     let wasm: Vec<&[u8]> = modules.iter().map(|c| c.wasm.as_slice()).collect();
     let c = balaur_bs::c::translate(&wasm).unwrap_or_else(|e| panic!("{e}"));
     let dir = std::env::temp_dir().join(format!(

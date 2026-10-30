@@ -134,8 +134,10 @@ one backend; the Rune backend before it was one crate and went as one.
   is made in one instance, one memory, each on its first call
   (`docs/PLAN-bs-linking.md`). A script holds another node's script as its
   class, `let tree: scene_tree::SceneTree? = node.script;`, and calls it
-  directly. A debugger's probes, a profiler, the browser and a native build
-  compile the whole file with its modules in, an instance of its own.
+  directly. A native build holds those units, translated to C, and links
+  them the same way (`balaur_bs::c`, `runtime/native_engine.rs`). A
+  debugger's probes, a profiler and the browser compile the whole file with
+  its modules in, an instance of its own.
 
 ### Enums
 

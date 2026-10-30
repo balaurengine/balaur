@@ -275,6 +275,14 @@ runs no JIT, and on the others C runs at 1.1 to 1.3 times Rust to wasmtime's 1.5
   as one `game.zip` (`docker/export.sh`), which Forge takes for desktop
   targets, and `docker/sign.sh` signs every `.exe` and `.dll` or Mach-O in it
   before zipping it again.
+- The build holds each file's unit (`host.unit_of`) and the unit a
+  project's instance starts from, and the runtime links them as wasmtime
+  and wasmi do (`native_engine::instantiate_linked`): one instance, a `fn`
+  table built at run time whose slots carry their unit and a signature
+  tag, each unit made when it links. A unit the build lacks keeps a
+  project off native code: a file of the project changed since the build
+  moves the instance onto its engine, and a file from outside it (a game's
+  script the editor reads) runs alone. Runtime ABI 3.
 - Left: run the Linux and Windows builds in CI, and an APK on a device.
 
 Ten thousand spinners a frame: 0.36–1.0 ms batched on wasmtime against 9–35
@@ -452,7 +460,8 @@ the table:
    nil there and every panel stops filling; the profiler's rebuild also
    took 64 s rather than 4, each panel compiling the editor whole. The
    panels keep `node.call` to the Editor until those builds link a project
-   as units too.
+   as units too. A native build does since 2026-10-30 (§7a); the profiler,
+   the debugger and the browser are left.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
      plugin's payload. The 405 engine functions that take or give an `any`
@@ -475,7 +484,12 @@ the table:
    compile.
 7. **The editor runs native.** CI builds the editor's scripts through §7a's
    C into the editor. A project's scripts stay on the JIT while edited and go
-   native at export. A browser keeps its own engine.
+   native at export. A browser keeps its own engine. Done 2026-10-30:
+   `scripts/package.sh` puts the library beside each editor download's
+   binary (in `Balaur.app`'s `Frameworks`), and `scripts/editor_native.sh`
+   runs fifteen of the editor's states on it in the test workflow. Built as
+   whole files the editor's 175 scripts were 738 MB of C that clang did not
+   finish; as units they are 37 MB, about 2.5 minutes a slice.
 8. **Budgets.** `tests/suite/budgets.rs` holds, per operation, the fuel
    wasmi charges and the host calls made, and CI gates on it (QUALITY.md
    §Performance).

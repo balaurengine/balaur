@@ -6,12 +6,13 @@
 # when MACOS_CERTIFICATE_BASE64 is set, notarizes when APPLE_ID is too, and
 # with neither builds the same shape unsigned, as a fork's pull request does.
 #
-# Usage: macos_bundle.sh <dist-dir> <universal-binary>
+# Usage: macos_bundle.sh <dist-dir> <universal-binary> [native-scripts]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 dist=${1:?usage: macos_bundle.sh <dist-dir> <binary>}
 bin=${2:?usage: macos_bundle.sh <dist-dir> <binary>}
+scripts=${3:-}
 [ "$(uname -s)" = Darwin ] || { printf '::error::macos_bundle.sh needs macOS\n'; exit 1; }
 
 app="$dist/Balaur.app"
@@ -27,6 +28,11 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtimes" "$app/Contents/Resources/include"
 cp "$bin" "$app/Contents/MacOS/balaur"
 chmod +x "$app/Contents/MacOS/balaur"
+# The editor's scripts as native code, where the engine opens them.
+if [ -n "$scripts" ]; then
+  mkdir -p "$app/Contents/Frameworks"
+  cp "$scripts" "$app/Contents/Frameworks/"
+fi
 # Data lives in Resources, not beside the executable: codesign seals
 # Contents/MacOS as code. balaur_export::data_roots looks in both.
 cp -R editor "$app/Contents/Resources/editor"
@@ -113,6 +119,12 @@ if [ -n "$identity" ]; then
   codesign --force --sign "$identity" --options runtime --timestamp \
     ${from[@]+"${from[@]}"} \
     "$app/Contents/Resources/runtimes/balaur-runtime-macos-universal"
+  # Nested code before the bundle that seals it.
+  for lib in "$app"/Contents/Frameworks/*; do
+    [ -e "$lib" ] || continue
+    codesign --force --sign "$identity" --options runtime --timestamp \
+      ${from[@]+"${from[@]}"} "$lib"
+  done
   codesign --force --sign "$identity" --options runtime --timestamp \
     ${from[@]+"${from[@]}"} "$app"
   codesign --verify --strict --deep --verbose=2 "$app"

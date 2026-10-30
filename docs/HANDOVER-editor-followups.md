@@ -90,16 +90,18 @@ is rewritten in the same commit).
      map()…)`): a struct literal, or one property write each, which costs
      one field since the widget derive.
    - Typed calls between scripts: blocked. A whole-file build (profiler,
-     debugger, browser, native export) makes each file its own instance, so
+     debugger, browser) makes each file its own instance, so
      `let editor: editor::Editor? = node.script;` is nil there; tried on the
      39 panels and reverted (the profiler rebuild also went from 4 s to 64 s).
      Needs those builds to link a project as units first
-     (`balaur_script_bs/src/host/units.rs`, `as_units`). `dock.bs` calling
+     (`balaur_script_bs/src/host/units.rs`, `as_units`); a native build does
+     since 2026-10-30. `dock.bs` calling
      the shown panel's `refresh` by name is the one dynamic dispatch left.
-5. **The editor runs native** (§9 step 7): CI builds the editor's scripts
-   through §7a's C into the editor.
-6. **Budgets** (§9 step 8): `crates/balaur_bs/tests/suite/budgets.rs` exists;
-   check CI gates on it.
+5. **The editor runs native** (§9 step 7): done. A native build holds
+   units and links them; the editor downloads carry the library, and
+   `scripts/editor_native.sh` runs the editor's states on it in CI.
+6. **Budgets** (§9 step 8): done. `tests/suite/budgets.rs` is a plain test
+   in the suite `cargo nextest run --workspace` runs on every platform.
 7. **Physics builders typed**: collider, joint, softbody and tile builders
    still read `derived::to_table` of the struct, because script calls feed
    them tables too.

@@ -132,7 +132,8 @@ fn an_exported_spinner_runs_as_native_code() {
         .status()
         .expect("a C compiler");
     assert!(built.success());
-    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 5);
+    // Each script's unit, and the one the project's instance starts from.
+    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 6);
 
     let mut app = booted(dir.path());
     let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();

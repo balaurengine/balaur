@@ -49,12 +49,15 @@ const PROJECT_KEY: &str = "#project";
 struct Home {
     rt: RefCell<Runtime>,
     reentry: Reentry,
+    /// A loaded native build runs it: only a unit the build has joins it.
+    native: bool,
 }
 
 impl Home {
     fn new(rt: Runtime) -> Rc<Home> {
         Rc::new(Home {
             reentry: rt.reentry(),
+            native: rt.runs_natively(),
             rt: RefCell::new(rt),
         })
     }
@@ -195,6 +198,10 @@ struct Inner {
     read: RefCell<HashMap<String, String>>,
     /// The engine's API, by hash: a unit kept on disk was built against one.
     api_hash: Cell<Option<String>>,
+    /// A file built as a unit has no module in the loaded native build (it
+    /// changed since the build was made), so the project's instance runs on
+    /// its engine.
+    skip_native: Cell<bool>,
 }
 
 /// The `.bs` backend. Cheap to clone; clones share the one host.
@@ -205,6 +212,12 @@ pub struct BsHost {
 
 pub(crate) fn key_of(path: &str) -> String {
     path.trim_start_matches("./").replace('\\', "/")
+}
+
+/// A file from outside the project the host runs, as the editor reads a
+/// game's scripts: its key is an absolute path.
+fn outside(key: &str) -> bool {
+    balaur_core::files::rooted(std::path::Path::new(key))
 }
 
 impl BsHost {
@@ -278,6 +291,7 @@ impl BsHost {
                 sources: RefCell::default(),
                 read: RefCell::default(),
                 api_hash: Cell::new(None),
+                skip_native: Cell::new(false),
             }),
         }
     }
@@ -567,30 +581,24 @@ impl BsHost {
         balaur_bs::runtime::cache_compiled_in(
             &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
         );
-        // A unit joins the project's instance.
-        if compiled.meta.unit.is_some() {
-            let home = self.project()?;
+        // A unit joins the project's instance, when that can run it.
+        let (compiled, ty) = if compiled.meta.unit.is_some() {
             let unit = self.unit(key)?;
-            let index = home
-                .either(
-                    |rt| rt.link(key, &unit, &compiled.linked),
-                    |re| re.link(key, &unit, &compiled.linked),
-                )
-                .map_err(|e| anyhow!("{key}: {e}"))?;
-            return Ok(Rc::new(File {
-                home,
-                unit: index,
-                native: false,
-                compiled,
-                ty,
-            }));
-        }
+            if self.joins_project(key, &unit, &compiled.linked) {
+                return self.join_project(key, &unit, compiled, ty);
+            }
+            // The whole file alone, on its engine.
+            self.compile_with(key, &self.source(key)?, self.inner.profiling.get())?
+        } else {
+            (compiled, ty)
+        };
         // The native build first, so this script's own module can be in it.
         #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
         let built = crate::native::load_beside_executable();
         let native = crate::native::has_native(&compiled.wasm);
+        // A build never holds a file from outside the project.
         #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
-        if built && !compiled.meta.debug && !native {
+        if built && !compiled.meta.debug && !native && !outside(key) {
             tracing::warn!(
                 "{key}: the native build has no module {}; it runs interpreted",
                 balaur_bs::module_hash(&compiled.wasm)
@@ -602,6 +610,30 @@ impl BsHost {
             home: Home::new(rt),
             unit: 0,
             native,
+            compiled,
+            ty,
+        }))
+    }
+
+    // The unit at `key` linked into the project's instance.
+    fn join_project(
+        &self,
+        key: &str,
+        unit: &Arc<Compiled>,
+        compiled: Compiled,
+        ty: String,
+    ) -> Result<Rc<File>> {
+        let home = self.project()?;
+        let index = home
+            .either(
+                |rt| rt.link(key, unit, &compiled.linked),
+                |re| re.link(key, unit, &compiled.linked),
+            )
+            .map_err(|e| anyhow!("{key}: {e}"))?;
+        Ok(Rc::new(File {
+            native: home.native,
+            home,
+            unit: index,
             compiled,
             ty,
         }))
@@ -707,12 +739,18 @@ impl BsHost {
         Ok(home)
     }
 
+    /// The unit a project's instance starts from: an empty file.
+    pub(crate) fn project_unit(&self) -> Result<Compiled> {
+        balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
+            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))
+    }
+
     // A project instance with no file in it yet.
     fn project_runtime(&self) -> Result<Runtime> {
-        let root = balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
-            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))?;
+        let root = self.project_unit()?;
         let limits = Limits {
             memory_bytes: Some(PROJECT_MEMORY_CAP),
+            skip_native: self.inner.skip_native.get(),
             ..Limits::default()
         };
         Runtime::new(&root, self.host_fns(None), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))

@@ -9,14 +9,14 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 
-const ABI: u32 = 2;
+const ABI: u32 = 3;
 const HOST_TRAP: i32 = 6;
 
 /// `bs_host` in the C prelude: the build links against nothing, so its
 /// memory and its stack's extent come from here.
 #[repr(C)]
 struct HostVtable {
-    import: unsafe extern "C" fn(*mut c_void, u32, *const u64, *mut u64) -> i32,
+    import: unsafe extern "C" fn(*mut c_void, u32, u32, *const u64, *mut u64) -> i32,
     resize: unsafe extern "C" fn(*mut c_void, u64, u64) -> *mut c_void,
     stack_bottom: unsafe extern "C" fn() -> usize,
 }
@@ -76,6 +76,29 @@ struct Inst {
     _opaque: [u8; 0],
 }
 
+/// `bs_unit` in the C prelude: a unit's memory, table and link bases, and
+/// the place it has in its script's [`Ctx::units`].
+#[repr(C)]
+struct CUnit {
+    base: [u32; 3],
+    number: u32,
+}
+
+/// `bs_slot`: a `fn` table slot.
+#[repr(C)]
+struct Slot {
+    func: *const c_void,
+    unit: *mut CUnit,
+    tag: u64,
+}
+
+/// `bs_ref`: an export as a link slot takes it.
+#[repr(C)]
+struct Ref {
+    func: *const c_void,
+    tag: u64,
+}
+
 /// `bs_module` in the C prelude.
 #[repr(C)]
 pub(crate) struct Module {
@@ -90,10 +113,15 @@ pub(crate) struct Module {
     import_params: *const *const c_char,
     import_results: *const *const c_char,
     instantiate: unsafe extern "C" fn(*const HostVtable, *mut c_void, u64) -> *mut Inst,
-    call: unsafe extern "C" fn(*mut Inst, u32, *const u64, *mut u64) -> i32,
+    call: unsafe extern "C" fn(*mut Inst, *mut CUnit, u32, *const u64, *mut u64) -> i32,
     destroy: unsafe extern "C" fn(*mut Inst),
     memory: unsafe extern "C" fn(*mut Inst, *mut u64) -> *mut u8,
     globals: unsafe extern "C" fn(*mut Inst) -> *mut u64,
+    unit: u32,
+    refs: *const Ref,
+    make: Option<unsafe extern "C" fn(*mut Inst, *mut CUnit) -> i32>,
+    link_instance: unsafe extern "C" fn(*const HostVtable, *mut c_void, u64, u64) -> *mut Inst,
+    table: unsafe extern "C" fn(*mut Inst, u32, *mut u64) -> *mut Slot,
 }
 
 #[repr(C)]
@@ -149,11 +177,6 @@ pub(crate) fn load(path: &Path) -> Result<usize, String> {
 }
 
 /// The native build of `wasm`, when a loaded one has it.
-/// Whether any native build is loaded.
-pub(crate) fn any() -> bool {
-    LOADED.lock().is_ok_and(|l| !l.0.is_empty())
-}
-
 pub(crate) fn find(wasm: &[u8]) -> Option<&'static Module> {
     let hash = crate::module_hash(wasm);
     let loaded = LOADED.lock().ok()?;
@@ -218,59 +241,96 @@ struct Tables {
 /// and where a failed host function leaves its message.
 struct Ctx {
     host: Shared,
+    /// A whole module's, or the script's own unit's: the instance's memory,
+    /// globals, table and end are the same in every module of a build.
     module: &'static Module,
     inst: *mut Inst,
     tables: Rc<Tables>,
     error: Option<String>,
+    /// A script built as units: each unit, its own first; empty for a whole module.
+    units: Vec<Unit>,
+    by_key: HashMap<String, usize>,
+    /// Link slots whose unit is not linked yet: the slot, the file, the export.
+    waiting: Vec<(u64, String, String)>,
+}
+
+/// One unit of a script run as native code.
+struct Unit {
+    module: &'static Module,
+    tables: Rc<Tables>,
+    /// Its bases, which its table slots point at for as long as the instance lives.
+    c: *mut CUnit,
+    /// What the host numbers its engine calls by.
+    numbered: usize,
+}
+
+impl Drop for Unit {
+    fn drop(&mut self) {
+        // SAFETY: `c` came from `Box::into_raw` in `make_unit`, and the
+        // instance whose slots point at it is destroyed before its `Ctx`.
+        drop(unsafe { Box::from_raw(self.c) });
+    }
 }
 
 struct Native {
     ctx: *mut Ctx,
 }
 
+impl Tables {
+    /// A module's exports and imports, read from its descriptor.
+    fn of(module: &'static Module) -> Self {
+        let funcs = names(module.func_names, module.nfuncs)
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| {
+                // SAFETY: `func_results` has `nfuncs` entries.
+                let results = kinds(unsafe { *module.func_results.add(i) });
+                (name, (i as u32, results))
+            })
+            .collect();
+        let globals = names(module.global_names, module.nglobals)
+            .into_iter()
+            .enumerate()
+            // SAFETY: `global_index` has `nglobals` entries.
+            .map(|(i, name)| (name, unsafe { *module.global_index.add(i) }))
+            .collect();
+        let imports = (0..module.nimports as usize)
+            .map(|i| {
+                // SAFETY: both lists have `nimports` entries.
+                unsafe {
+                    (
+                        kinds(*module.import_params.add(i)),
+                        kinds(*module.import_results.add(i)),
+                    )
+                }
+            })
+            .collect();
+        Tables {
+            funcs,
+            globals,
+            imports,
+        }
+    }
+}
+
+fn context(host: Shared, module: &'static Module) -> *mut Ctx {
+    Box::into_raw(Box::new(Ctx {
+        host,
+        module,
+        inst: std::ptr::null_mut(),
+        tables: Rc::new(Tables::of(module)),
+        error: None,
+        units: vec![],
+        by_key: HashMap::new(),
+        waiting: vec![],
+    }))
+}
+
 pub(crate) fn instantiate(
     module: &'static Module,
     setup: Setup<'_>,
 ) -> Result<Box<dyn Wasm>, String> {
-    let n = |c: u32| c as usize;
-    let fnames = names(module.func_names, module.nfuncs);
-    let funcs = fnames
-        .into_iter()
-        .enumerate()
-        .map(|(i, name)| {
-            // SAFETY: `func_results` has `nfuncs` entries.
-            let results = kinds(unsafe { *module.func_results.add(i) });
-            (name, (i as u32, results))
-        })
-        .collect();
-    let globals = names(module.global_names, module.nglobals)
-        .into_iter()
-        .enumerate()
-        // SAFETY: `global_index` has `nglobals` entries.
-        .map(|(i, name)| (name, unsafe { *module.global_index.add(i) }))
-        .collect();
-    let imports = (0..n(module.nimports))
-        .map(|i| {
-            // SAFETY: both lists have `nimports` entries.
-            unsafe {
-                (
-                    kinds(*module.import_params.add(i)),
-                    kinds(*module.import_results.add(i)),
-                )
-            }
-        })
-        .collect();
-    let ctx = Box::into_raw(Box::new(Ctx {
-        host: setup.host,
-        module,
-        inst: std::ptr::null_mut(),
-        tables: Rc::new(Tables {
-            funcs,
-            globals,
-            imports,
-        }),
-        error: None,
-    }));
+    let ctx = context(setup.host, module);
     let max = setup.memory_bytes.map_or(u64::MAX, |b| b as u64);
     // SAFETY: `ctx` outlives the instance, which `Native::drop` frees first.
     let inst = unsafe { (module.instantiate)(&raw const HOST, ctx.cast(), max) };
@@ -282,6 +342,194 @@ pub(crate) fn instantiate(
     // SAFETY: `ctx` is live and nothing else is touching it yet.
     unsafe { (*ctx).inst = inst };
     Ok(Box::new(Native { ctx }))
+}
+
+/// Whether a loaded build has the script's own unit and every unit it uses.
+pub(crate) fn has_units(setup: &Setup<'_>) -> bool {
+    find(setup.wasm).is_some() && setup.linked.iter().all(|(_, c)| find(&c.wasm).is_some())
+}
+
+/// A script built as units, run as native code: one instance its units
+/// share, each unit made now, its own first.
+pub(crate) fn instantiate_linked(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
+    let root = find(setup.wasm).ok_or("no loaded native build has this unit")?;
+    let unit = setup.meta.unit.as_ref().ok_or("not a unit")?;
+    let (bases, heap) = super::engine::unit_layout(setup.meta, setup.linked);
+    let host = setup.host.clone();
+    let ctx = context(setup.host, root);
+    let max = setup.memory_bytes.map_or(u64::MAX, |b| b as u64);
+    // SAFETY: `ctx` outlives the instance, which `Native::drop` frees first.
+    let inst = unsafe { (root.link_instance)(&raw const HOST, ctx.cast(), u64::from(heap), max) };
+    if inst.is_null() {
+        // SAFETY: `ctx` came from `Box::into_raw` above and nothing else holds it.
+        drop(unsafe { Box::from_raw(ctx) });
+        return Err("the native script could not get its memory".into());
+    }
+    // SAFETY: `ctx` is live and nothing else is touching it yet.
+    unsafe { (*ctx).inst = inst };
+    let native = Native { ctx };
+    make_unit(ctx, setup.key, root, unit, bases[0], 0)?;
+    for ((key, compiled), base) in setup.linked.iter().zip(&bases[1..]) {
+        let module = find(&compiled.wasm).ok_or_else(|| format!("{key}: no native build"))?;
+        let unit = compiled
+            .meta
+            .unit
+            .as_ref()
+            .ok_or_else(|| format!("{key}: not a unit"))?;
+        let numbered = host.borrow_mut().bind_unit(compiled.clone())?;
+        make_unit(ctx, key, module, unit, *base, numbered)?;
+    }
+    Ok(Box::new(native))
+}
+
+/// `unit` as unit `key` of the script, added unless it is one: its index. Its
+/// static data takes a block of the heap, since the space before the heap was
+/// laid out for the units known when the instance was made.
+fn link_unit(
+    ctx: *mut Ctx,
+    key: &str,
+    compiled: &std::sync::Arc<crate::Compiled>,
+) -> Result<usize, String> {
+    // SAFETY: the `Ctx` is live; each read ends with its statement.
+    let (linked, known, host) = unsafe {
+        (
+            !(*ctx).units.is_empty(),
+            (*ctx).by_key.get(key).copied(),
+            (*ctx).host.clone(),
+        )
+    };
+    if !linked {
+        return Err(format!("{key}: this script is not built as units"));
+    }
+    if let Some(index) = known {
+        return Ok(index);
+    }
+    let module =
+        find(&compiled.wasm).ok_or_else(|| format!("{key}: no native build of this unit"))?;
+    let unit = compiled
+        .meta
+        .unit
+        .as_ref()
+        .ok_or_else(|| format!("{key}: not a unit"))?;
+    let base = if unit.data_len == 0 {
+        0
+    } else {
+        let mut v = view(ctx);
+        let size = Raw::I32((unit.data_len + 15) as i32);
+        let block = v.call_in(0, crate::words::ALLOC, &[size], 1)?;
+        let block = block.first().map_or(0, |b| b.i32() as u32);
+        // Held as long as the instance, so no object a leak count watches.
+        if let Some(live) = v.global(crate::words::LIVE) {
+            v.set_global(crate::words::LIVE, live - 1);
+        }
+        block.next_multiple_of(16)
+    };
+    let numbered = host.borrow_mut().bind_unit(compiled.clone())?;
+    make_unit(ctx, key, module, unit, base, numbered)
+}
+
+/// Unit `key` made at `memory_base`: its table slots and link slots added to
+/// the table, its static data and own `fn` values placed, each link slot
+/// filled where its unit is linked, and the slots that waited for this one.
+fn make_unit(
+    ctx: *mut Ctx,
+    key: &str,
+    module: &'static Module,
+    unit: &crate::Unit,
+    memory_base: u32,
+    numbered: usize,
+) -> Result<usize, String> {
+    let e = |what: &str| format!("{key}: {what}");
+    let make = module
+        .make
+        .ok_or_else(|| e("not a unit of a native build"))?;
+    // SAFETY: the `Ctx` is live; nothing else touches it while this runs.
+    let (root, inst, index) = unsafe { ((*ctx).module, (*ctx).inst, (*ctx).units.len()) };
+    let grow = unit.refs + unit.links.len() as u32;
+    let mut len = 0u64;
+    // SAFETY: a live instance; the table grows by `grow` empty slots.
+    if unsafe { (root.table)(inst, grow, &raw mut len) }.is_null() {
+        return Err(e("the table could not grow"));
+    }
+    let table_base = u32::try_from(len).map_err(|_| e("the table is too long"))? - grow;
+    let c = Box::into_raw(Box::new(CUnit {
+        base: [memory_base, table_base, table_base + unit.refs],
+        number: index as u32,
+    }));
+    // SAFETY: a live instance, and `c` lives as long as it (`Unit::drop`).
+    let code = unsafe { make(inst, c) };
+    let held = Unit {
+        module,
+        tables: Rc::new(Tables::of(module)),
+        c,
+        numbered,
+    };
+    if code != 0 {
+        return Err(e(&message(code, None)));
+    }
+    // SAFETY: as above.
+    unsafe {
+        (*ctx).units.push(held);
+        (*ctx).by_key.insert(key.to_string(), index);
+    }
+    let link_base = u64::from(table_base + unit.refs);
+    for (k, link) in unit.links.iter().enumerate() {
+        let slot = link_base + k as u64;
+        // SAFETY: as above.
+        let target = unsafe { (*ctx).by_key.get(&link.file).copied() };
+        match target {
+            Some(target) => fill(ctx, slot, target, &link.export)?,
+            // SAFETY: as above.
+            None => unsafe {
+                (*ctx)
+                    .waiting
+                    .push((slot, link.file.clone(), link.export.clone()));
+            },
+        }
+    }
+    // SAFETY: as above.
+    let waited: Vec<(u64, String, String)> = unsafe {
+        let (now, later) = std::mem::take(&mut (*ctx).waiting)
+            .into_iter()
+            .partition(|(_, file, _)| file == key);
+        (*ctx).waiting = later;
+        now
+    };
+    for (slot, _, export) in waited {
+        fill(ctx, slot, index, &export)?;
+    }
+    Ok(index)
+}
+
+/// Table slot `slot`: unit `target`'s export `export`, run as that unit.
+fn fill(ctx: *mut Ctx, slot: u64, target: usize, export: &str) -> Result<(), String> {
+    // SAFETY: the `Ctx` is live; nothing else touches it while this runs.
+    let (root, inst, module, tables, c) = unsafe {
+        let units = &(*ctx).units;
+        let u = &units[target];
+        ((*ctx).module, (*ctx).inst, u.module, u.tables.clone(), u.c)
+    };
+    let (at, _) = tables
+        .funcs
+        .get(export)
+        .ok_or_else(|| format!("no `{}` to link", export.trim_start_matches('~')))?;
+    // SAFETY: `refs` has one entry per export, and `at` is one.
+    let r = unsafe { &*module.refs.add(*at as usize) };
+    let mut len = 0u64;
+    // SAFETY: a live instance; growing by 0 only reads the table.
+    let table = unsafe { (root.table)(inst, 0, &raw mut len) };
+    if slot >= len {
+        return Err("a link slot past the table's end".into());
+    }
+    // SAFETY: `slot` is inside the table.
+    unsafe {
+        *table.add(slot as usize) = Slot {
+            func: r.func,
+            unit: c,
+            tag: r.tag,
+        };
+    }
+    Ok(())
 }
 
 impl Drop for Native {
@@ -323,9 +571,39 @@ impl View {
 
     fn global_slot(&self, name: &str) -> Option<*mut u64> {
         let (module, inst, tables) = self.parts();
-        let index = *tables.globals.get(name)?;
-        // SAFETY: the index is one of the module's globals.
-        Some(unsafe { (module.globals)(inst).add(index as usize) })
+        // A script built as units shares its globals by name.
+        let index = if self.linked() {
+            crate::words::UNIT_GLOBALS.iter().position(|g| *g == name)?
+        } else {
+            *tables.globals.get(name)? as usize
+        };
+        // SAFETY: the index is one of the instance's globals.
+        Some(unsafe { (module.globals)(inst).add(index) })
+    }
+
+    fn linked(&self) -> bool {
+        // SAFETY: the `Ctx` is live; the read ends with the statement.
+        unsafe { !(*self.0).units.is_empty() }
+    }
+
+    /// Unit `unit`'s module, its bases and its exports; a whole module's
+    /// own for unit 0.
+    fn unit(&self, unit: usize) -> Result<(&'static Module, *mut CUnit, Rc<Tables>), String> {
+        // SAFETY: the `Ctx` is live; each read ends with its statement.
+        unsafe {
+            let units = &(*self.0).units;
+            if let Some(u) = units.get(unit) {
+                return Ok((u.module, u.c, u.tables.clone()));
+            }
+            if unit == 0 && (*self.0).units.is_empty() {
+                return Ok((
+                    (*self.0).module,
+                    std::ptr::null_mut(),
+                    (*self.0).tables.clone(),
+                ));
+            }
+        }
+        Err("this script is not built as units".into())
     }
 }
 
@@ -355,15 +633,29 @@ impl ImportCtx for View {
         }
     }
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let (module, inst, tables) = self.parts();
+        self.call_in(0, name, args, results)
+    }
+    fn has_func(&mut self, name: &str) -> bool {
+        self.has_func_in(0, name)
+    }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        let (module, c, tables) = self.unit(unit)?;
+        let inst = self.parts().1;
         let (index, kinds) = tables
             .funcs
             .get(name)
             .ok_or_else(|| format!("no export `{name}`"))?;
         let a: Vec<u64> = args.iter().map(|r| bits(*r)).collect();
         let mut r = vec![0u64; kinds.len().max(results)];
-        // SAFETY: the instance is live and `r` has room for every result.
-        let code = unsafe { (module.call)(inst, *index, a.as_ptr(), r.as_mut_ptr()) };
+        // SAFETY: the instance is live, `c` is its unit or null for a whole
+        // module, and `r` has room for every result.
+        let code = unsafe { (module.call)(inst, c, *index, a.as_ptr(), r.as_mut_ptr()) };
         if code != 0 {
             // SAFETY: the call has returned, so nothing else holds the `Ctx`.
             let host = unsafe { (*self.0).error.take() };
@@ -371,8 +663,12 @@ impl ImportCtx for View {
         }
         Ok(kinds.iter().zip(r).map(|(k, b)| raw(*k, b)).collect())
     }
-    fn has_func(&mut self, name: &str) -> bool {
-        self.parts().2.funcs.contains_key(name)
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        self.unit(unit)
+            .is_ok_and(|(_, _, tables)| tables.funcs.contains_key(name))
+    }
+    fn link(&mut self, key: &str, unit: std::sync::Arc<crate::Compiled>) -> Result<usize, String> {
+        link_unit(self.0, key, &unit)
     }
 }
 
@@ -392,6 +688,7 @@ fn message(code: i32, host: Option<String>) -> String {
 
 unsafe extern "C" fn import(
     ctx: *mut c_void,
+    unit: u32,
     index: u32,
     args: *const u64,
     results: *mut u64,
@@ -399,7 +696,13 @@ unsafe extern "C" fn import(
     let ctx = ctx.cast::<Ctx>();
     // SAFETY: `ctx` is the `Ctx` this instance was made with; the reference
     // ends with the statement.
-    let (host, tables) = unsafe { ((*ctx).host.clone(), (*ctx).tables.clone()) };
+    let (host, tables, numbered) = unsafe {
+        let units = &(*ctx).units;
+        match units.get(unit as usize) {
+            Some(u) => ((*ctx).host.clone(), u.tables.clone(), u.numbered),
+            None => ((*ctx).host.clone(), (*ctx).tables.clone(), 0),
+        }
+    };
     let Some((params, rets)) = tables.imports.get(index as usize) else {
         return HOST_TRAP;
     };
@@ -409,7 +712,7 @@ unsafe extern "C" fn import(
         // SAFETY: the module passes one argument per parameter.
         .map(|(i, k)| raw(*k, unsafe { *args.add(i) }))
         .collect();
-    match dispatch(&host, &mut view(ctx), 0, index as usize, &a) {
+    match dispatch(&host, &mut view(ctx), numbered, index as usize, &a) {
         Ok(out) => {
             for (i, r) in out.iter().take(rets.len()).enumerate() {
                 // SAFETY: the module has room for one result per result type.
@@ -432,6 +735,21 @@ impl Wasm for Native {
     fn has_func(&mut self, name: &str) -> bool {
         view(self.ctx).has_func(name)
     }
+    fn call_in(
+        &mut self,
+        unit: usize,
+        name: &str,
+        args: &[Raw],
+        results: usize,
+    ) -> Result<Vec<Raw>, String> {
+        view(self.ctx).call_in(unit, name, args, results)
+    }
+    fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
+        view(self.ctx).has_func_in(unit, name)
+    }
+    fn link(&mut self, key: &str, unit: std::sync::Arc<crate::Compiled>) -> Result<usize, String> {
+        link_unit(self.ctx, key, &unit)
+    }
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
         view(self.ctx).read(at, len)
     }
@@ -449,4 +767,7 @@ impl Wasm for Native {
     }
     // Native code counts no fuel; a module built to meter itself still does.
     fn set_fuel(&mut self, _fuel: u64) {}
+    fn native(&self) -> bool {
+        true
+    }
 }

@@ -753,9 +753,10 @@ mod tests {
         if let Some(target) = host {
             let lib =
                 native_scripts_beside(&out.path().join(target).join("game"), std::env::consts::OS);
+            // Each script's unit, and the one the project's instance starts from.
             assert_eq!(
                 balaur::script_bs::load_native(&lib).unwrap(),
-                request.scripts.modules
+                request.scripts.modules + 1
             );
         }
     }

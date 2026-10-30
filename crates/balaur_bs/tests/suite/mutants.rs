@@ -148,6 +148,7 @@ fn exercise(src: &str) -> Result<(), String> {
         fuel: Some(1_000_000),
         memory_bytes: Some(64 << 20),
         engine: EngineKind::Wasmi,
+        skip_native: false,
     };
     let Ok(mut rt) = Runtime::new(&c, HostFns::default(), limits) else {
         return Ok(());

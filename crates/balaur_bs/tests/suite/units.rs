@@ -78,10 +78,35 @@ fn whole(path: &str, files: &[(&str, &str)]) -> Compiled {
 }
 
 fn engines() -> Vec<EngineKind> {
-    vec![EngineKind::Wasmi, EngineKind::Auto]
+    vec![
+        EngineKind::Wasmi,
+        EngineKind::Auto,
+        #[cfg(all(feature = "c", feature = "native"))]
+        EngineKind::Native,
+    ]
+}
+
+/// On the native engine, `units` built into a library and loaded first, as
+/// an export builds a project's; on any other, nothing.
+fn native<'a>(engine: EngineKind, units: impl IntoIterator<Item = &'a Compiled>) {
+    #[cfg(all(feature = "c", feature = "native"))]
+    if engine == EngineKind::Native {
+        let units: Vec<&Compiled> = units.into_iter().collect();
+        super::native::build(&units);
+        return;
+    }
+    let _ = (engine, units.into_iter());
+}
+
+/// A linked script and every unit it uses.
+fn with_uses(c: &Compiled) -> Vec<&Compiled> {
+    std::iter::once(c)
+        .chain(c.linked.iter().map(|(_, u)| u.as_ref()))
+        .collect()
 }
 
 fn runtime(c: &Compiled, engine: EngineKind) -> Runtime {
+    native(engine, with_uses(c));
     let limits = Limits {
         engine,
         ..Limits::default()
@@ -249,6 +274,7 @@ fn an_async_function_of_another_unit_is_awaited() {
     let files = [("scripts/run.bs", WAITER), ("scripts/waits.bs", WAITS)];
     let units = linked("scripts/run.bs", &files);
     for engine in engines() {
+        native(engine, with_uses(&units));
         let host = HostFns::default().on_async("wait", |args| {
             let Value::Float(s) = args[0] else { panic!() };
             (s, Value::Void)
@@ -425,6 +451,7 @@ fn units_of(files: &[(&str, &str)]) -> HashMap<String, Arc<Compiled>> {
 fn a_script_calls_another_script_of_its_instance_as_its_class() {
     let units = units_of(&PROJECT);
     for engine in engines() {
+        native(engine, units.values().map(AsRef::as_ref));
         let found: Rc<std::cell::RefCell<Vec<(i64, i32)>>> = Rc::default();
         let scripts = found.clone();
         let host = HostFns::default().scripts(move |node, file, class| {

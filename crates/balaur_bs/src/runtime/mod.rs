@@ -59,14 +59,6 @@ pub fn load_native(path: &std::path::Path) -> Result<usize, String> {
     native_engine::load(path)
 }
 
-/// Whether any native build is loaded: its modules are whole files, so a
-/// host builds its scripts whole to run them from it.
-#[cfg(native)]
-#[must_use]
-pub fn native_loaded() -> bool {
-    native_engine::any()
-}
-
 /// Whether a loaded native build has `wasm`.
 #[cfg(native)]
 #[must_use]
@@ -105,6 +97,10 @@ pub struct Limits {
     pub fuel: Option<u64>,
     pub memory_bytes: Option<usize>,
     pub engine: EngineKind,
+    /// Run on the engine this would have had without a native build, though
+    /// a loaded one has the module: what a project needs once a file of it
+    /// changed since the build was made.
+    pub skip_native: bool,
 }
 
 /// A class object held by the host: its pointer, counted once for the host,
@@ -180,6 +176,7 @@ impl Runtime {
             memory_bytes: limits.memory_bytes,
             key: &compiled.key,
             linked: &compiled.linked,
+            native: !limits.skip_native,
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;
@@ -208,6 +205,11 @@ impl Runtime {
 
     pub fn meta(&self) -> &Meta {
         &self.meta
+    }
+
+    /// Whether a loaded native build runs it, rather than an engine.
+    pub fn runs_natively(&self) -> bool {
+        self.wasm.native()
     }
 
     /// `unit` and the units of the modules it uses, `uses`, as units of this

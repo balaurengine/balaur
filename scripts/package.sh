@@ -132,6 +132,17 @@ cp crates/balaur_plugin/include/balaur_extension.h "$bundle/include/"
 cp "$bin" "$dist/balaur-runtime-$target$exe"
 cp "$bin" "$bundle/runtimes/balaur-runtime-$target$exe"
 
+step "the editor's scripts as native code"
+# Built as a game's are (docs/PLAN-balaur-script.md §7a); opened beside the binary.
+native="$dist/.editor-native"
+rm -rf "$native"
+"$bundle/balaur$exe" export editor --target "$target" --runtime "$bundle/balaur$exe" \
+  -o "$native/editor$exe" >/dev/null
+rm -f "$native/editor$exe"
+lib=$(find "$native" -maxdepth 1 -name '*BalaurScripts*' | head -1)
+[ -n "$lib" ] || { printf '::error::the editor export built no native scripts\n'; exit 1; }
+cp "$lib" "$bundle/"
+
 step "smoke: export a game with the template and run it"
 # The template is found next to the *executable*, not the working directory,
 # so this runs the staged binary in place and stays with absolute paths.
@@ -190,8 +201,9 @@ rm -rf "$bundle"
 # The Mac download people click is Balaur.app, zipped, because a bundle is what
 # a notarization ticket staples to. The tarball stays for CI and self-update.
 if [ "$target" = macos-universal ]; then
-  ./scripts/macos_bundle.sh "$dist" "$bin"
+  ./scripts/macos_bundle.sh "$dist" "$bin" "$lib"
 fi
+rm -rf "$native"
 
 step "done"
 ls -l "$dist"

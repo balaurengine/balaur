@@ -50,7 +50,8 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
+            libxkbcommon-dev libwayland-dev \
+            lld
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -92,6 +93,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: ./scripts/check_scripts.sh
+      # The editor's scripts built to C as an export builds a game's, beside
+      # the binary, and the editor's own states run on them: every script as
+      # native code, every state clean. lld links it; clang is the image's.
+      - name: The editor as native code
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/editor_native.sh
       # The same corpus on the browser's own WebAssembly engine, beside wasmi,
       # in Node. The runner's version is the `wasm-bindgen` in Cargo.lock.
       - uses: taiki-e/install-action@v2
