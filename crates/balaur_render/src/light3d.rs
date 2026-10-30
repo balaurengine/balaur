@@ -12,8 +12,8 @@ use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::layer::Layer;
 use crate::vocabulary::{keys as k, words};
+use balaur_core::layers::Layer;
 
 /// Which way a `light3d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -115,7 +115,7 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
             inner: light.inner_angle_degrees.clamp(0.0, 179.0),
             outer: light.outer_angle_degrees.clamp(0.0, 179.0),
             shadows: light.shadow_enabled,
-            layers: Layer::mask(&light.light_layers),
+            layers: Layer::bits(&light.light_layers, true),
             source_radius: light.source_radius.max(0.0),
             kind: light.kind,
             enabled: visible,

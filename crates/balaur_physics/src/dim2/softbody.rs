@@ -21,7 +21,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::dim2::PhysicsState2d;
 use crate::properties::{
     ColliderEvent, CollisionBinding, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices,
-    Layer, Orientation, ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
+    Orientation, ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier2d::prelude::{
     SoftBodyBuilder as SoftBodyBuilder2, SoftBodyHandle as SoftBodyHandle2,
@@ -30,6 +30,7 @@ use crate::rapier2d::prelude::{
 use crate::scalar::{self, Vector2};
 use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 mod draw;
 
@@ -825,17 +826,7 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let Ok(params) = asked else {
         return Ok(());
     };
-    let built = apply_softbody_2d(eng, entity, &params);
-    if built.is_err() {
-        let held = eng
-            .resource::<PhysicsState2d>()
-            .borrow()
-            .soft_params
-            .get(&entity)
-            .cloned();
-        crate::properties::keep_built::<Softbody2d>(eng, entity, held);
-    }
-    built
+    apply_softbody_2d(eng, entity, &params)
 }
 
 /// `softbody2d`: what was asked, held on the node; the body and the table it

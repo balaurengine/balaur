@@ -157,8 +157,13 @@ every component, for a save, and `PropertyReaders`/`PropertyWriters` give
 Built 2026-10-30: `balaur_derive` (`Component`, `Record`, `Enum`) and
 `balaur_core::components::derived` (`Property`, `Fields`, `Component`,
 `ComponentDef::of`). A definition carries `read` and `write` by index,
-which `property` and `set_property` take before a whole table. `transform`
-is the first component on it.
+which `property` and `set_property` take before a whole table, and a
+refusal from a component's after-write hook puts back what the node held.
+Every component of core, physics, render, input, animation and audio with a
+fixed schema is on it, each schema proven unchanged; what a system works
+out stays a cache beside the struct. `meta` and `states` (every key the
+author's), `mesh` (any `morph_*` key) and `material` (core's `Appearance`)
+stay hand-written; `widget` moves with its split into a component per kind.
 
 A component's order is what a user changes most first, then its groups.
 PLAN-component-order lists all 55 components, 1,429 properties, in that

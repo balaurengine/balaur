@@ -21,9 +21,9 @@ use balaur_core::scene::GlobalTransform;
 use balaur_plugin::Registry;
 use glamx::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
-use crate::layer::Layer;
 use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Renderable3d};
+use balaur_core::layers::Layer;
 
 /// The asset type's name, and what a definition's `type` says.
 pub const MULTIMESH_ASSET_TYPE: &str = "multimesh";
@@ -678,9 +678,9 @@ fn adopt(eng: &Engine, entity: Entity, source: &str, flat: bool) -> Option<Strin
     mesh
 }
 
-/// The write refused, a node it would have given `multimesh3d` is left without it.
-fn multimesh3d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<MultiMesh3d>(eng, entity, written, multimesh3d_laid_out(eng, entity))
+/// What a write of `multimesh3d` leaves to be worked out again.
+fn multimesh3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    multimesh3d_laid_out(eng, entity)
 }
 
 /// A `multimesh3d`'s copy of its asset, its mesh, tint, lighting and
@@ -711,9 +711,9 @@ fn multimesh3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     crate::material::set_material_3d(eng, entity, &asked.material)
 }
 
-/// The write refused, a node it would have given `multimesh2d` is left without it.
-fn multimesh2d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<MultiMesh2d>(eng, entity, written, multimesh2d_laid_out(eng, entity))
+/// What a write of `multimesh2d` leaves to be worked out again.
+fn multimesh2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    multimesh2d_laid_out(eng, entity)
 }
 
 /// A `multimesh2d`'s copy of its asset, its polygon, tint and material,

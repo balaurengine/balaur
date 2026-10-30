@@ -559,17 +559,7 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let Ok(params) = asked else {
         return Ok(());
     };
-    let built = apply_joint(eng, entity, &params);
-    if built.is_err() {
-        let held = eng
-            .resource::<PhysicsState2d>()
-            .borrow()
-            .joint_params
-            .get(&entity)
-            .cloned();
-        crate::properties::keep_built::<Joint2d>(eng, entity, held);
-    }
-    built
+    apply_joint(eng, entity, &params)
 }
 
 /// `joint2d`: what was asked, held on the node; the joint and the table it was

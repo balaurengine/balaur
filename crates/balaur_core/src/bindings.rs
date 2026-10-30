@@ -10,6 +10,7 @@ use balaur_script::Value;
 
 use crate::App;
 use crate::components::ComponentDef;
+use crate::components::derived::{self, Component, Property, Record, Written};
 use crate::hecs::Entity;
 use crate::variables::{Variables, as_num};
 use crate::{Engine, hooks};
@@ -336,84 +337,101 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
     })
 }
 
-/// The `bindings` component, written as an array of tables on a node.
-pub(crate) fn register_bindings_component(app: &mut App) {
-    app.register_component(
-        "bindings",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
-            // Written `[[nodes.bindings.rows]]` in a scene: a table with one
-            // property, like every other component.
-            schema: ComponentDef::parse_schema(
-                "bindings",
-                r#"rows = { type = "list", of = { type = "record", fields = { event = { type = "string", default = "" }, when = { type = "string", default = "" }, action = { type = "string", default = "call" }, target = { type = "string", default = "" }, value = { type = "string", default = "" } } }, default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
-            ),
-            tags: &["interaction"],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let rows = match params.get("rows") {
-                    Some(toml::Value::Array(rows)) => rows
-                        .iter()
-                        .map(parse_binding)
-                        .collect::<Result<Vec<_>>>()?,
-                    None => Vec::new(),
-                    Some(_) => bail!("`bindings.rows` is a list of rows"),
-                };
-                let mut world = eng.world_mut();
-                if let Ok(mut held) = world.get::<&mut Bindings>(entity) {
-                    held.rows = rows;
-                    return Ok(());
-                }
-                world
-                    .insert_one(entity, Bindings { rows })
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Bindings>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let held = world.get::<&Bindings>(entity).ok()?;
-                // Under `rows`, the one property the schema declares.
-                let mut map = toml::map::Map::new();
-                map.insert(
-                    "rows".into(),
-                    toml::Value::Array(held.rows.iter().map(row_to_toml).collect()),
-                );
-                Some(toml::Value::Table(map))
-            }),
-        },
-    );
+// Written `[[nodes.bindings.rows]]` in a scene: a table with one property,
+// like every other component. The rows as parsed, conditions read, are the
+// `Bindings` beside it.
+/// Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.
+#[derive(Clone, Debug, PartialEq, Component)]
+#[component(name = "bindings")]
+pub struct BindingRows {
+    /// The binding rows, each `{ event, when, action, target, value }`
+    pub rows: Vec<BindingRow>,
 }
 
-fn row_to_toml(row: &Binding) -> toml::Value {
-    let mut map = toml::map::Map::new();
-    map.insert("event".into(), toml::Value::String(row.event.clone()));
-    if !row.when_source.is_empty() {
-        map.insert("when".into(), toml::Value::String(row.when_source.clone()));
+/// One row as a scene writes it.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct BindingRow {
+    // The fields carry no doc comment: a row's spec names none, and a doc
+    // comment is a description.
+    pub event: String,
+    pub when: String,
+    #[property(default = "call")]
+    pub action: String,
+    pub target: String,
+    pub value: RowValue,
+}
+
+/// What an action writes or passes: a flag, a number or text, as a row
+/// spells it. The schema calls it text, which is what a row is typed in as.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RowValue(pub toml::Value);
+
+impl Default for RowValue {
+    fn default() -> Self {
+        Self(toml::Value::String(String::new()))
     }
-    map.insert(
-        "action".into(),
-        toml::Value::String(row.action.word().to_string()),
-    );
-    if !row.target.is_empty() {
-        map.insert("target".into(), toml::Value::String(row.target.clone()));
+}
+
+impl Property for RowValue {
+    fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
+        spec.entry("type")
+            .or_insert_with(|| toml::Value::String("string".into()));
     }
-    let value = match &row.value {
-        Value::Bool(b) => Some(toml::Value::Boolean(*b)),
-        Value::Num(n) => Some(toml::Value::Float(*n)),
-        Value::Str(s) => Some(toml::Value::String(s.clone())),
-        _ => None,
+
+    fn to_value(&self) -> toml::Value {
+        self.0.clone()
+    }
+
+    fn from_value(value: &toml::Value) -> Result<Self> {
+        match value {
+            toml::Value::Boolean(_)
+            | toml::Value::Integer(_)
+            | toml::Value::Float(_)
+            | toml::Value::String(_) => Ok(Self(value.clone())),
+            other => Err(anyhow!(
+                "is {}, where a flag, a number or text was expected",
+                other.type_str()
+            )),
+        }
+    }
+}
+
+/// The rows parsed again: an event nothing emits, an action nothing knows or
+/// a condition that does not read refuses the write.
+fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let table = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&BindingRows>(entity) else {
+            return Ok(());
+        };
+        derived::to_table(&*asked)
     };
-    if let Some(value) = value {
-        map.insert("value".into(), value);
-    }
-    toml::Value::Table(map)
+    let rows = match table.get("rows") {
+        Some(toml::Value::Array(rows)) => {
+            rows.iter().map(parse_binding).collect::<Result<Vec<_>>>()?
+        }
+        _ => Vec::new(),
+    };
+    eng.world_mut()
+        .insert_one(entity, Bindings { rows })
+        .map_err(|_| anyhow!("node is dead"))
+}
+
+/// The `bindings` component: the rows as written, and [`Bindings`] parsed.
+pub(crate) fn register_bindings_component(app: &mut App) {
+    app.register_component(
+        <BindingRows as Component>::NAME,
+        ComponentDef {
+            tags: &["interaction"],
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<BindingRows>(entity);
+                let _ = world.remove_one::<Bindings>(entity);
+                Ok(())
+            }),
+            ..ComponentDef::of::<BindingRows>(Some(after_write))
+        },
+    );
 }
 
 /// Run every binding on `entity` that answers `event`.
@@ -688,7 +706,7 @@ value = 3.0
         )
         .unwrap();
         let binding = parse_binding(&row).unwrap();
-        let written = row_to_toml(&binding);
+        let written = Property::to_value(&BindingRow::from_value(&row).unwrap());
         let again = parse_binding(&written).unwrap();
         assert_eq!(again.event, binding.event);
         assert_eq!(again.action, binding.action);

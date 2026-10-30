@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use balaur_core::components::derived::Enum;
 
 use crate::camera::Camera3d;
-use crate::layer::Layer;
+use balaur_core::layers::Layer;
 
 /// How a `camera3d` projects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -67,7 +67,7 @@ pub(crate) fn lens_of(camera: &Camera3d) -> Result<Lens3d> {
         orthographic: camera.projection == Projection::Orthographic,
         orthographic_height: camera.orthographic_height.max(0.0),
         up: camera.up.normalize(),
-        render_layers: Layer::mask(&camera.render_layers),
+        render_layers: Layer::bits(&camera.render_layers, true),
         eye_separation: camera.eye_separation.max(0.0),
     })
 }

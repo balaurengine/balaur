@@ -9,10 +9,10 @@ use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::layer::Layer;
 use crate::lens::{Lens3d, Projection, lens_of};
 use crate::post::{drive_post, effects_of};
 use crate::{CameraConfig2d, CameraConfig3d};
+use balaur_core::layers::Layer;
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera2d` schema states, which `render.set_camera_2d` also takes.
@@ -241,7 +241,7 @@ fn current_cameras(world: &hecs::World, root: Entity) -> Vec<Entity> {
 /// A camera's lens, worked out again on every write: a lens kiss3d could not
 /// draw refuses the write, and one that refuses being added takes the camera
 /// back off, so the node is left as it was.
-fn camera3d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
+fn camera3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
     let lens = {
         let world = eng.world();
         let Ok(camera) = world.get::<&Camera3d>(entity) else {
@@ -249,12 +249,11 @@ fn camera3d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()
         };
         lens_of(&camera)
     };
-    let outcome = lens.and_then(|lens| {
+    lens.and_then(|lens| {
         eng.world_mut()
             .insert_one(entity, lens)
             .map_err(|_| anyhow!("node is dead"))
-    });
-    crate::undo_refused_add::<Camera3d>(eng, entity, written, outcome)
+    })
 }
 
 /// The `camera3d` and `camera2d` components. Two rather than one with a

@@ -11,11 +11,11 @@ use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::layer::Layer;
 use crate::vocabulary::words;
 use crate::{
     Renderable2d, Renderable3d, Shape2d, Shape3d, set_color, set_polyline, set_shape, set_shape2d,
 };
+use balaur_core::layers::Layer;
 
 pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
@@ -223,9 +223,9 @@ pub struct Primitive2d {
     pub gradient_steps: i64,
 }
 
-/// The write refused, a node it would have given `shape3d` is left without it.
-fn shape3d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<Primitive3d>(eng, entity, written, shape3d_laid_out(eng, entity))
+/// What a write of `shape3d` leaves to be worked out again.
+fn shape3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    shape3d_laid_out(eng, entity)
 }
 
 /// A `shape3d`'s primitive, tint, texture, lighting and material, worked
@@ -307,9 +307,9 @@ impl Figure2d {
     }
 }
 
-/// The write refused, a node it would have given `shape2d` is left without it.
-fn shape2d_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<Primitive2d>(eng, entity, written, shape2d_laid_out(eng, entity))
+/// What a write of `shape2d` leaves to be worked out again.
+fn shape2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    shape2d_laid_out(eng, entity)
 }
 
 /// A `shape2d`'s shape, tint, texture and material, worked out again from

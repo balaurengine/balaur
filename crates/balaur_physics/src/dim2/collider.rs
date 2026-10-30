@@ -21,9 +21,10 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::properties::{
     Axis2d, ColliderEvent, ColliderKind2d, ContactPair, Decomposition2d, Edges2d, Fill, Fit2d,
-    Layer, LayerTest,
+    LayerTest,
 };
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 /// The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 #[allow(
@@ -600,17 +601,7 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let Ok(params) = asked else {
         return Ok(());
     };
-    let built = apply_collider(eng, entity, &params);
-    if built.is_err() {
-        let held = eng
-            .resource::<PhysicsState2d>()
-            .borrow()
-            .collider_params
-            .get(&entity)
-            .cloned();
-        crate::properties::keep_built::<Collider2d>(eng, entity, held);
-    }
-    built
+    apply_collider(eng, entity, &params)
 }
 
 /// `collider2d`: as `collider3d`, the collider itself in

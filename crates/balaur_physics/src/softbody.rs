@@ -22,12 +22,13 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::PhysicsState3d;
 use crate::properties::{
     ColliderEvent, CollisionBinding, ContactPair, EdgeSpring, EdgeTearResistance, Fill, Indices,
-    Layer, Orientation, ParticlePair, SoftKind3d, SoftRegion, SoftSolver, TensionOnly,
+    Orientation, ParticlePair, SoftKind3d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier3d::prelude::{SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
 use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 pub(crate) mod runtime;
 mod wire;
@@ -831,17 +832,7 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let Ok(params) = asked else {
         return Ok(());
     };
-    let built = apply_softbody(eng, entity, &params);
-    if built.is_err() {
-        let held = eng
-            .resource::<PhysicsState3d>()
-            .borrow()
-            .soft_params
-            .get(&entity)
-            .cloned();
-        crate::properties::keep_built::<Softbody3d>(eng, entity, held);
-    }
-    built
+    apply_softbody(eng, entity, &params)
 }
 
 /// `softbody3d`: what was asked, held on the node; the body and the table it

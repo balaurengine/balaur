@@ -12,9 +12,9 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
-use crate::layer::Layer;
 use crate::vocabulary::words;
 use crate::world_text::{Align, Layers3d, Shaping, SpaceOptions, TextRenderable, TextStyle};
+use balaur_core::layers::Layer;
 
 /// Upright, italic, or the upright face slanted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]

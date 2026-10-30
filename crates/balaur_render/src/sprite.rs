@@ -57,13 +57,13 @@ pub struct Sprite {
     pub nine_slice_margins_pixels: [f32; 4],
 }
 
-/// The write refused, a node it would have given `sprite` is left without it.
+/// What a write of `sprite` leaves to be worked out again.
 fn sprite_written(
     eng: &balaur_core::Engine,
     entity: Entity,
-    written: Written,
+    _written: Written,
 ) -> anyhow::Result<()> {
-    crate::undo_refused_add::<Sprite>(eng, entity, written, sprite_laid_out(eng, entity))
+    sprite_laid_out(eng, entity)
 }
 
 /// The quad a sprite draws, worked out again from what was written: its

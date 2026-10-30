@@ -98,9 +98,9 @@ pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
     );
 }
 
-/// The write refused, a node it would have given `polygon` is left without it.
-fn polygon_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<Polygon>(eng, entity, written, polygon_laid_out(eng, entity))
+/// What a write of `polygon` leaves to be worked out again.
+fn polygon_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    polygon_laid_out(eng, entity)
 }
 
 /// The polygon's geometry, tint and material, resolved again from what was

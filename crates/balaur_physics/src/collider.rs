@@ -18,10 +18,11 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose};
 
 use crate::properties::{
-    Axis3d, ColliderEvent, ColliderKind3d, ContactPair, Decomposition3d, Edges, Fill, Fit3d, Layer,
+    Axis3d, ColliderEvent, ColliderKind3d, ContactPair, Decomposition3d, Edges, Fill, Fit3d,
     LayerTest,
 };
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 use crate::{PhysicsState3d, node_pose};
 
@@ -685,17 +686,7 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let Ok(params) = asked else {
         return Ok(());
     };
-    let built = apply_collider(eng, entity, &params);
-    if built.is_err() {
-        let held = eng
-            .resource::<PhysicsState3d>()
-            .borrow()
-            .collider_params
-            .get(&entity)
-            .cloned();
-        crate::properties::keep_built::<Collider3d>(eng, entity, held);
-    }
-    built
+    apply_collider(eng, entity, &params)
 }
 
 /// `collider3d`: the asked-for struct on the node, the collider itself in

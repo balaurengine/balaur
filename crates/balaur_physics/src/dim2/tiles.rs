@@ -17,10 +17,11 @@ use balaur_plugin::Registry;
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::{add_collider_at, with_material};
 use crate::dim2::events::Surface;
-use crate::properties::{ColliderEvent, ContactPair, Fit3d, Layer, LayerTest};
+use crate::properties::{ColliderEvent, ContactPair, Fit3d, LayerTest};
 use crate::rapier2d::prelude::{ColliderBuilder as ColliderBuilder2, SharedShape};
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
 use crate::vocabulary::{self as v, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 /// What each node's colliders were built from, so a map rebuilds only when
 /// its cells or its tileset moved.

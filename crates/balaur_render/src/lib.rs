@@ -26,7 +26,6 @@ pub mod debug_draw;
 mod debug_view;
 mod draw_2d;
 mod instancing;
-pub mod layer;
 mod lens;
 pub mod light;
 pub mod light3d;
@@ -637,15 +636,15 @@ impl Lighting3d {
     /// The rows as a component holds them.
     pub(crate) fn of(
         cast_shadow: bool,
-        light_layers: &[layer::Layer],
-        render_layers: &[layer::Layer],
+        light_layers: &[balaur_core::layers::Layer],
+        render_layers: &[balaur_core::layers::Layer],
         receive_shadows: bool,
         segmentation_id: i64,
     ) -> Self {
         Self {
             shadows: cast_shadow,
-            layers: layer::Layer::mask(light_layers),
-            render_layers: layer::Layer::mask(render_layers),
+            layers: balaur_core::layers::Layer::bits(light_layers, true),
+            render_layers: balaur_core::layers::Layer::bits(render_layers, true),
             overlay: overlay::Overlay3d {
                 segmentation_id: u32::try_from(segmentation_id.max(0)).unwrap_or(u32::MAX),
                 receive_shadows,
@@ -664,21 +663,6 @@ pub(crate) fn set_lighting(eng: &Engine, entity: Entity, lighting: &Lighting3d) 
         r.render_layers = lighting.render_layers;
         r.overlay = lighting.overlay;
     }
-}
-
-/// What a written component's hook answered, with a refusal of the write
-/// that added `C` taking `C` back off: the node is left as it was, as a
-/// refused add always left it. A refused change keeps what it was asked for.
-pub(crate) fn undo_refused_add<C: balaur_core::components::derived::Component>(
-    eng: &Engine,
-    entity: Entity,
-    written: balaur_core::components::derived::Written,
-    outcome: Result<()>,
-) -> Result<()> {
-    if outcome.is_err() && written == balaur_core::components::derived::Written::Added {
-        let _ = eng.world_mut().remove_one::<C>(entity);
-    }
-    outcome
 }
 
 /// [`set_lighting`] from a table, for the one 3D renderable still read from

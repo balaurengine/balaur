@@ -641,9 +641,9 @@ fn write_back(eng: &Engine, entity: Entity) {
     }
 }
 
-/// The write refused, a node it would have given `tilemap` is left without it.
-fn tilemap_written(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    crate::undo_refused_add::<Tilemap>(eng, entity, written, tilemap_laid_out(eng, entity))
+/// What a write of `tilemap` leaves to be worked out again.
+fn tilemap_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    tilemap_laid_out(eng, entity)
 }
 
 /// The map laid out again from what was written, and what that resolved

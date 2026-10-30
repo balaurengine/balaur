@@ -23,9 +23,10 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::properties::{ChassisAxis, Layer, SweepIgnore};
+use crate::properties::{ChassisAxis, SweepIgnore};
 use crate::vocabulary::{component as c, keys as k};
 use balaur_core::fixed_dt;
+use balaur_core::layers::Layer;
 
 /// Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 #[derive(Clone, Component)]

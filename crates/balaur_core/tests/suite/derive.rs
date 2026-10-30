@@ -1,7 +1,8 @@
 //! A derived component: the struct is the schema (PLAN-property-types §5).
 
+use anyhow::Result;
 use balaur_core::app::{App, AppConfig};
-use balaur_core::components::derived::{Component, Enum, Fields, Record};
+use balaur_core::components::derived::{Component, Enum, Fields, Record, Written};
 use balaur_core::components::{self, ComponentDef};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -158,5 +159,66 @@ fn one_property_is_written_by_its_place_and_a_wrong_shape_is_refused() {
         walker.gait,
         Gait::Run,
         "a refused write keeps what was held"
+    );
+}
+
+/// A level from 0 to 1, refused past 1 by its hook.
+#[derive(Debug, Component)]
+#[component(name = "dial")]
+struct Dial {
+    #[property(default = 0.15)]
+    level: f32,
+    #[property(default = 2)]
+    notches: i64,
+}
+
+fn refuse_past_one(eng: &balaur_core::Engine, entity: hecs::Entity, _: Written) -> Result<()> {
+    let level = eng
+        .world()
+        .get::<&Dial>(entity)
+        .map_or(0.0, |dial| dial.level);
+    anyhow::ensure!(level <= 1.0, "a dial goes to 1, not {level}");
+    Ok(())
+}
+
+fn app_with_dial() -> (App, hecs::Entity) {
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
+    app.register_component(Dial::NAME, ComponentDef::of::<Dial>(Some(refuse_past_one)));
+    let root = app.engine.root();
+    let e = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "D", root);
+    (app, e)
+}
+
+#[test]
+fn a_float_reads_back_as_written_and_a_whole_one_fills_an_int() {
+    let (app, e) = app_with_dial();
+    let asked: toml::Value = toml::from_str("notches = 7.0").unwrap();
+    components::add(&app.engine, e, "dial", Some(&asked)).unwrap();
+    let table = components::get(&app.engine, e, "dial").unwrap();
+    assert_eq!(table["level"].as_float(), Some(0.15), "not 0.15000000596");
+    assert_eq!(table["notches"].as_integer(), Some(7));
+    let refused =
+        components::set_property(&app.engine, e, "dial", "notches", &toml::Value::Float(2.5));
+    assert!(refused.is_err(), "half a notch is not a whole number");
+}
+
+#[test]
+fn a_refused_write_puts_back_what_the_node_held() {
+    let (app, e) = app_with_dial();
+    let too_far: toml::Value = toml::from_str("level = 3.0").unwrap();
+    assert!(components::add(&app.engine, e, "dial", Some(&too_far)).is_err());
+    assert!(
+        components::get(&app.engine, e, "dial").is_none(),
+        "a refused add leaves no component"
+    );
+    components::add(&app.engine, e, "dial", None).unwrap();
+    assert!(
+        components::set_property(&app.engine, e, "dial", "level", &toml::Value::Float(3.0))
+            .is_err()
+    );
+    assert_eq!(
+        components::property(&app.engine, e, "dial", "level").and_then(|v| v.as_float()),
+        Some(0.15),
+        "a refused change keeps what was held"
     );
 }

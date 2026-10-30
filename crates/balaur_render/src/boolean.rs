@@ -19,8 +19,8 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
-use crate::layer::Layer;
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
+use balaur_core::layers::Layer;
 
 /// How a `boolean3d` combines its children: `balaur_core::csg`'s words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]

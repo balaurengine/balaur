@@ -270,21 +270,6 @@ pub(crate) fn asked_of<C: Component>(eng: &Engine, params: &toml::Value) -> Resu
     derived::from_table(&full)
 }
 
-/// After a refused write, put back on the node what its system last built
-/// from, or nothing when it built nothing: a refusal leaves the component as
-/// it was, which is what the warning it raises compares the asked table to.
-pub(crate) fn keep_built<C: Component>(eng: &Engine, entity: Entity, built: Option<toml::Value>) {
-    let mut world = eng.world_mut();
-    match built.map(|params| derived::from_table::<C>(&params)) {
-        Some(Ok(held)) => {
-            let _ = world.insert_one(entity, held);
-        }
-        _ => {
-            let _ = world.remove_one::<C>(entity);
-        }
-    }
-}
-
 /// How a 2D soft body's particles are laid out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum SoftKind2d {
@@ -355,54 +340,6 @@ pub enum ChassisAxis {
     NegativeY,
     #[option(name = "-z")]
     NegativeZ,
-}
-
-/// The 32 layer numbers, as a layer property's options.
-const LAYERS: [&str; 32] = [
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17",
-    "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32",
-];
-
-/// One of the 32 layers a collider is on or filters by, as
-/// `balaur_core::layers` numbers them: 1 is the lowest bit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Layer(pub u8);
-
-impl Layer {
-    /// The bits `layers` set. Empty is every layer where `empty_is_all`, as
-    /// a filter means it, and layer 1 otherwise.
-    #[must_use]
-    pub fn bits(layers: &[Self], empty_is_all: bool) -> u32 {
-        let bits = layers
-            .iter()
-            .fold(0u32, |bits, layer| bits | 1 << (layer.0 - 1));
-        if bits != 0 {
-            bits
-        } else if empty_is_all {
-            u32::MAX
-        } else {
-            1
-        }
-    }
-}
-
-impl Property for Layer {
-    fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        derived::describe_enum(spec, &LAYERS);
-    }
-
-    fn to_value(&self) -> toml::Value {
-        toml::Value::String(self.0.to_string())
-    }
-
-    fn from_value(value: &toml::Value) -> Result<Self> {
-        value
-            .as_str()
-            .and_then(|text| LAYERS.iter().position(|name| *name == text))
-            .and_then(|at| u8::try_from(at + 1).ok())
-            .map(Self)
-            .ok_or_else(|| derived::not_an_option(value, &LAYERS))
-    }
 }
 
 /// A path to a node, held in a list: what a `node` property is on its own.

@@ -234,17 +234,8 @@ fn every_enum_option_a_schema_offers_round_trips() {
 
     for (name, def) in &*registry {
         let schema = def.schema.as_table().unwrap();
-        let exempt: &[&str] = CONDITIONAL
-            .iter()
-            .find(|(component, _)| component == name)
-            .map_or(&[], |(_, props)| *props);
         for (prop, spec) in schema {
             if spec.get("type").and_then(toml::Value::as_str) != Some("enum") {
-                continue;
-            }
-            // One variant's enum reads back only on that variant; the
-            // component's own suite round-trips it there.
-            if exempt.contains(&prop.as_str()) {
                 continue;
             }
             let options = spec.get("options").and_then(toml::Value::as_array).unwrap();
@@ -316,52 +307,6 @@ fn an_inline_asset_is_the_type_its_table_declares() {
     );
 }
 
-/// Properties a component declares but does not always emit, because they
-/// belong to one variant of it and the schema has no way to say so.
-///
-/// Every entry is checked both ways: an exempt property must still be
-/// declared, and must still be genuinely absent. An entry that stops being
-/// true fails rather than quietly covering for a real gap.
-const CONDITIONAL: &[(&str, &[&str])] = &[
-    // A shape reports the geometry of the `kind` it is: a box has a
-    // `size`, a sphere a `radius`, and neither carries the other's.
-    (
-        "shape2d",
-        &[
-            "cap",
-            "closed",
-            "gradient",
-            "gradient_steps",
-            "height",
-            "inner_radius",
-            "join",
-            "mesh",
-            "miter_limit",
-            "points",
-            "radius",
-            "sides",
-            "taper",
-            "width",
-        ],
-    ),
-    (
-        "shape3d",
-        &[
-            "height",
-            "inner_radius",
-            "radius",
-            "rings",
-            "sides",
-            "tube_radius",
-        ],
-    ),
-    // A sprite cut from a sheet reports the sheet; one drawing a whole image
-    // has no cut to report.
-    ("sprite", &["region_origin", "region_size", "sheet", "size"]),
-    // A map reports what was painted only once something has been.
-    ("tilemap", &["flags", "seed", "terrain"]),
-];
-
 /// The other half of [`every_component_emits_only_keys_its_schema_declares`]:
 /// a property the schema promises the editor has to come back out of `get`,
 /// or the inspector shows a control that reads as absent.
@@ -386,26 +331,10 @@ fn every_component_emits_every_key_its_schema_declares() {
             .unwrap_or_else(|| panic!("`{name}` applied but reads back as absent"));
         let emitted = emitted.as_table().unwrap();
         let declared = def.schema.as_table().unwrap();
-        let exempt: &[&str] = CONDITIONAL
-            .iter()
-            .find(|(component, _)| component == name)
-            .map_or(&[], |(_, props)| *props);
-
         for key in declared.keys() {
             assert!(
-                exempt.contains(&key.as_str()) || emitted.contains_key(key),
-                "`{name}.{key}` is declared but `get` never emits it: either emit \
-                 it or record it in CONDITIONAL with the variant it belongs to"
-            );
-        }
-        for prop in exempt {
-            assert!(
-                declared.contains_key(*prop),
-                "`{name}.{prop}` is in CONDITIONAL but no schema declares it any more"
-            );
-            assert!(
-                !emitted.contains_key(*prop),
-                "`{name}.{prop}` is in CONDITIONAL but `get` now always emits it; drop the entry"
+                emitted.contains_key(key),
+                "`{name}.{key}` is declared but `get` never emits it"
             );
         }
     }

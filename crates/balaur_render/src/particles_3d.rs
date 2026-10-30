@@ -10,8 +10,8 @@ use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
-use crate::layer::Layer;
 use crate::particles::Emission;
+use balaur_core::layers::Layer;
 
 /// A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.
 #[derive(Component)]

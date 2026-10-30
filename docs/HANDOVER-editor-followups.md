@@ -16,30 +16,32 @@ is rewritten in the same commit).
 | Editor: names are words | the editor's abbreviations spelled out (gizmos, viewport, tools, shell, Inspector, self-tests) |
 | Sound: a bus applies the filters, reverb, distortion and gain control | 14 effect rows off `sound`, onto `[audio.buses]` |
 | Editor: one struct for the stage's two sheet handles | `center::SheetHandle`; the typed-link blocker written into PLAN-balaur-script §9 step 4 |
+| Animation / Sound / Physics / Input / Render: … are derived | every component of those crates on the derive, schemas proven unchanged; what a system works out is a cache beside the struct |
+| Components: bones and bindings are derived, and a refused write puts back what was held | `bone2d`/`bone3d` fill `Bone`, `bindings` rows fill `Bindings`; core's `Layer`; an f32 reads back as its shortest decimal, `7.0` fills an int, a refusal restores the struct or takes an added one off |
 
-## In flight when this was written (uncommitted in the worktree)
+## Where the derive stands
 
-- **Derive, crate by crate** (PLAN-property-types §5). The brief the agents
-  followed is reproduced under "Moving a component onto the derive" below.
-  `balaur_physics`, `balaur_input` + `balaur_render`, `balaur_animation` +
-  `balaur_audio` were being converted. Check `git status`, then each crate's
-  `cargo clippy -p X --all-targets -- -D warnings` and `cargo test -p X`,
-  and commit a crate per commit.
-- **Script property access bound by index** (§9 step 6), in
-  `crates/balaur_script_bs/src/lib.rs`: `node.c.p` binds once to the
-  component's index and goes to `components::property_at` /
-  `node_api::set_property_at`, skipping the node op and both names' lookups.
-  Builds, its own tests pass; needs `cargo test -p balaur --test suite` (the
-  bs host tests) and `scripts/edit_cost.sh` before and after.
+- Derived: every component of core, physics, render, input, animation and
+  audio with a fixed schema. Hand-written on purpose: `meta` and `states`
+  (every key is the author's), `mesh` (any `morph_*` key) and `material`
+  (core's `Appearance` holds it, which scripts and snapshots write directly).
+- Not yet: `widget` (`balaur_ui/src/widget/schema.rs`), which goes with its
+  per-kind split below, and which is why `PropertyReaders` still exists.
+- A component whose cache must go with it overrides `remove` (bones,
+  bindings, the animation and audio ones). If that pattern keeps repeating,
+  a `removed` hook on `ComponentDef::of` would say it once.
+- Physics' collider, joint, softbody and tile builders still read a table
+  (`derived::to_table` of the struct) because script calls (`set_collider`,
+  shape queries, motor calls) feed them tables too. Typing them is open.
+- `refresh_multimeshes_system` re-applies through `get` + `patch` of the same
+  table, which `patch` reads as unchanged, so a reload never re-copies the
+  instances. It was so before the derive.
+- Script `node.c.p` binds to the component's index at load
+  (`balaur_script_bs/src/lib.rs`, §9 step 6).
 
 ## Left to do, in order
 
 1. **Finish the derive.**
-   - `balaur_core`: `bone2d` and `bone3d` (`skeleton.rs`; each its own
-     derived struct, both filling the shared `Bone` as the cache) and
-     `bindings` (rows a `Record`; the parsed `when` is the cache).
-   - `meta` and `states` stay hand-written: every key is the author's
-     (`accept_keys` any). Say so in PLAN-property-types §5.
    - `widget` (`balaur_ui/src/widget/schema.rs`, ~200 rows): goes with the
      per-kind split (step 3). Until then it keeps `answers_property`.
    - Then delete: `PropertyReaders`/`PropertyWriters` and
@@ -87,7 +89,13 @@ is rewritten in the same commit).
 7. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.
-8. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
+8. **House lints** (`python3 scripts/house_lints.py`): 12 errors, files
+   over 1,200 lines (`components.rs`, `node_api.rs`, `engine_api.rs`,
+   `project.rs`, `host.rs`, `balaur_cli/src/main.rs`, `runtime/mod.rs`,
+   `widget/schema.rs`) and four `register_*`/`install_*` functions taking
+   the wrong registry type (`post.rs`, `font.rs`, `text_style.rs`,
+   `balaur_ui/src/api.rs`).
+9. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
    --workspace --all-targets -- -D warnings`, the wasm clippy
    (`scripts/precommit.sh`), `cargo test --workspace --no-fail-fast`,
    `python3 scripts/gen_docs.py` then `python3 scripts/api_lints.py

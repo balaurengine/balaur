@@ -19,8 +19,8 @@ use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::layer::Layer;
 use crate::vocabulary::words;
+use balaur_core::layers::Layer;
 
 /// A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.
 // The node's position places the box and its rotation turns it; `size` is in
@@ -113,7 +113,7 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
             rotation: probe.image_rotation_degrees.to_radians(),
             image: probe.image.clone(),
             update: probe.update_mode,
-            capture_layers: Layer::mask(&probe.capture_layers),
+            capture_layers: Layer::bits(&probe.capture_layers, true),
             clip_planes,
             enabled: visible,
         });
