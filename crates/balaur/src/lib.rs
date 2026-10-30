@@ -13,6 +13,7 @@ pub use balaur_asset::*;
 pub use balaur_core::*;
 pub use balaur_geometry::*;
 pub use balaur_input::InputPlugin;
+pub use balaur_net::*;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_platform::PlatformPlugin;
 pub use balaur_render::RenderPlugin;
@@ -162,7 +163,7 @@ pub fn builtins() -> Builtins {
             balaur_geometry::skeleton::register_bone3d_component,
             balaur_core::app::register_scene_content,
             balaur_core::snapshot::build_core_sources,
-            balaur_core::netsession::build_session_source,
+            balaur_net::netsession::build_session_source,
             balaur_core::app::register_facts,
             balaur_core::app::register_core_settings,
         ],
@@ -179,7 +180,7 @@ pub fn builtins() -> Builtins {
             ApiPart::Module("debugger", balaur_core::debugger_api::install_debugger_api),
             KERNEL_MODULES[2],
             KERNEL_MODULES[3],
-            ApiPart::Module("rollback", balaur_core::rollback_api::install_rollback_api),
+            ApiPart::Module("rollback", balaur_net::rollback_api::install_rollback_api),
             KERNEL_MODULES[4],
             KERNEL_MODULES[5],
             ApiPart::Module(

@@ -1,0 +1,21 @@
+[package]
+name = "balaur_net"
+description = "Balaur networking: rollback sessions between peers over any transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+toml.workspace = true
+
+[lints]
+workspace = true

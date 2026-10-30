@@ -1,5 +1,5 @@
 //! Websockets as a Balaur plugin: `websocket.*` for scripts, and a
-//! `balaur_core::transport::Transport` for sessions.
+//! `balaur_net::transport::Transport` for sessions.
 //!
 //! Connections run on background threads; events cross back over a channel
 //! and enter the simulation once per tick, at [`Stage::First`], recorded in

@@ -809,24 +809,3 @@ short_below_pixels = { type = "float", default = 480.0, min = 1.0, max = 8192.0,
         ),
     );
 }
-
-/// The faults the `multiplayer` settings ask for, or `None` when they are off.
-#[must_use]
-pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
-    if !get(eng, "multiplayer/simulate_faults")?.as_bool()? {
-        return None;
-    }
-    // `as_f64`, not `as_float`: a tick count is an integer in the file and in
-    // anything a hand edit writes.
-    let number = |path: &str| get(eng, path).and_then(|v| crate::components::as_f64(&v));
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "a tick count from a bounded setting"
-    )]
-    Some(crate::transport::Faults {
-        delay: number("multiplayer/delay_ticks").unwrap_or(0.0) as u32,
-        jitter: number("multiplayer/jitter_ticks").unwrap_or(0.0) as u32,
-        loss: number("multiplayer/loss").unwrap_or(0.0) as f32,
-    })
-}

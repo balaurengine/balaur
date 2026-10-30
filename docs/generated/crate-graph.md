@@ -27,6 +27,7 @@ graph TD
   balaur_import[balaur_import]
   balaur_input[balaur_input]
   balaur_multiplayer[balaur_multiplayer]
+  balaur_net[balaur_net]
   balaur_physics[balaur_physics]
   balaur_platform[balaur_platform]
   balaur_plugin[balaur_plugin]
@@ -50,6 +51,7 @@ graph TD
   balaur --> balaur_http
   balaur --> balaur_input
   balaur --> balaur_multiplayer
+  balaur --> balaur_net
   balaur --> balaur_physics
   balaur --> balaur_platform
   balaur --> balaur_plugin
@@ -111,10 +113,13 @@ graph TD
   balaur_input --> balaur_plugin
   balaur_input --> balaur_script
   balaur_multiplayer --> balaur_core
+  balaur_multiplayer --> balaur_net
   balaur_multiplayer --> balaur_plugin
   balaur_multiplayer --> balaur_script
   balaur_multiplayer --> balaur_websocket
   balaur_multiplayer --> balaur_webtransport
+  balaur_net --> balaur_core
+  balaur_net --> balaur_script
   balaur_physics --> balaur_core
   balaur_physics --> balaur_geometry
   balaur_physics --> balaur_plugin
@@ -147,7 +152,9 @@ graph TD
   balaur_ui --> balaur_script
   balaur_ui --> balaur_text
   balaur_websocket --> balaur_core
+  balaur_websocket --> balaur_net
   balaur_websocket --> balaur_plugin
   balaur_websocket --> balaur_script
   balaur_webtransport --> balaur_core
+  balaur_webtransport --> balaur_net
 ```

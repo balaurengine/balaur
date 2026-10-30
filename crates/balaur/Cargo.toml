@@ -74,6 +74,7 @@ bs-backend = ["dep:balaur_script_bs"]
 fallback-fonts = ["balaur_ui/fallback-fonts"]
 
 [dependencies]
+balaur_net.workspace = true
 balaur_core.workspace = true
 balaur_geometry.workspace = true
 balaur_asset.workspace = true

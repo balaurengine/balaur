@@ -14,9 +14,9 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use balaur_core::components::StableId;
-use balaur_core::netsession::NetSession;
-use balaur_core::transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 use balaur_core::{App, AppConfig, Stage, Transform, rollback};
+use balaur_net::netsession::NetSession;
+use balaur_net::transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 use balaur_script::Value;
 
 const HOST: u32 = 1;
@@ -83,7 +83,7 @@ impl Transport for Pipe {
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     // The peer traffic a recording replays without a peer.
-    balaur_core::netsession::build_session_source(&mut app);
+    balaur_net::netsession::build_session_source(&mut app);
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();
@@ -314,6 +314,6 @@ fn a_session_measures_its_link() {
     let published = pair
         .guest_app
         .engine
-        .resource::<balaur_core::netsession::SessionStats>();
+        .resource::<balaur_net::netsession::SessionStats>();
     assert_eq!(published.borrow().0.len(), 1);
 }

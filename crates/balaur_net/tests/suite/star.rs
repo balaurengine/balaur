@@ -4,8 +4,8 @@
 //! the session rather than a socket.
 
 use balaur_core::components::StableId;
-use balaur_core::netsession::NetSession;
 use balaur_core::{App, AppConfig, Stage, Transform, rollback};
+use balaur_net::netsession::NetSession;
 use balaur_script::Value;
 
 use crate::faults::pipe;
@@ -14,6 +14,8 @@ use crate::faults::pipe;
 /// or for the wrong player, shows in the digest.
 fn app(players: &'static [u32]) -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
+    // A bare app has no session resources: the net crate brings them.
+    balaur_net::netsession::build_session_source(&mut app);
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();

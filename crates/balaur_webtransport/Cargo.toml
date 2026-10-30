@@ -9,6 +9,7 @@ authors.workspace = true
 # The link type, its Transport impl and Accept are the same everywhere; only
 # the QUIC stack below is native.
 [dependencies]
+balaur_net.workspace = true
 balaur_core.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

@@ -7,8 +7,8 @@ use std::sync::mpsc::{Receiver, channel};
 use anyhow::{Result, bail};
 use balaur_core::Engine;
 use balaur_core::replay;
-use balaur_core::transport::LinkState;
 use balaur_core::wake::Commands;
+use balaur_net::transport::LinkState;
 
 use crate::{SocketCommand, SocketEvent, SocketOptions, backend};
 

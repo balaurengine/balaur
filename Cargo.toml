@@ -47,6 +47,7 @@ balaur_cfg = { path = "crates/balaur_cfg", version = "0.2.0" }
 balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
 balaur_geometry = { path = "crates/balaur_geometry", version = "0.2.0" }
 balaur_asset = { path = "crates/balaur_asset", version = "0.2.0" }
+balaur_net = { path = "crates/balaur_net", version = "0.2.0" }
 balaur_derive = { path = "crates/balaur_derive", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }

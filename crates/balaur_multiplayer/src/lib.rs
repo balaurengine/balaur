@@ -16,9 +16,9 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use balaur_core::netsession::{LinkStats, NetSession};
 use balaur_core::rollback::{Input, PlayerId};
 use balaur_core::{Engine, Stage};
+use balaur_net::netsession::{LinkStats, NetSession};
 use balaur_script::Value;
 
 mod api;

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use balaur_core::transport::{LinkState, Received, Transport};
 use balaur_core::{App, AppConfig};
+use balaur_net::transport::{LinkState, Received, Transport};
 use balaur_websocket::SocketOptions;
 use balaur_websocket::listener::WebsocketListener;
 use balaur_websocket::transport::WebsocketTransport;

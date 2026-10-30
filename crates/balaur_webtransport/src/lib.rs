@@ -28,7 +28,7 @@ use anyhow::Context;
 use anyhow::{Result, bail};
 use balaur_core::Engine;
 use balaur_core::replay;
-use balaur_core::transport::{Delivery, LinkState, Received, Transport};
+use balaur_net::transport::{Delivery, LinkState, Received, Transport};
 
 #[cfg(target_family = "wasm")]
 mod browser;

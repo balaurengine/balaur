@@ -8,8 +8,8 @@
 
 use std::net::TcpListener;
 
-use balaur_core::transport::{Delivery, LinkState, Received, Transport};
 use balaur_core::{App, AppConfig};
+use balaur_net::transport::{Delivery, LinkState, Received, Transport};
 use balaur_websocket::SocketOptions;
 use balaur_websocket::transport::WebsocketTransport;
 

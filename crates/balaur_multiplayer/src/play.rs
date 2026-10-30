@@ -6,10 +6,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::app::App;
-use balaur_core::netsession::NetSession;
 use balaur_core::rollback::{Input, PlayerId};
 use balaur_core::time::Instant;
-use balaur_core::transport::LinkState;
+use balaur_net::netsession::NetSession;
+use balaur_net::transport::LinkState;
 use balaur_script::Value;
 
 use crate::lobby::Starting;

@@ -6,7 +6,7 @@
 
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::engine::Engine;
+use balaur_core::engine::Engine;
 
 pub fn install_rollback_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
@@ -30,9 +30,9 @@ pub fn install_rollback_api(m: &mut dyn Bindings<Engine>) {
         let Ok(player) = u32::try_from(player) else {
             return Ok(Value::Nil);
         };
-        Ok(crate::rollback::input(eng, player).unwrap_or(Value::Nil))
+        Ok(balaur_core::rollback::input(eng, player).unwrap_or(Value::Nil))
     });
     m.function("is_resimulating", |eng: &Engine, (): ()| {
-        Ok(Value::Bool(crate::rollback::is_resimulating(eng)))
+        Ok(Value::Bool(balaur_core::rollback::is_resimulating(eng)))
     });
 }

@@ -6,7 +6,7 @@ use balaur_core::Engine;
 use balaur_core::rollback::PlayerId;
 use balaur_core::snapshot::Checkpoint;
 use balaur_core::time::Instant;
-use balaur_core::transport::{LinkState, Transport};
+use balaur_net::transport::{LinkState, Transport};
 use balaur_script::Value;
 
 use crate::links::{self, Listener};

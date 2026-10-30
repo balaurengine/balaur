@@ -5,8 +5,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
-use balaur_core::transport::LinkState;
 use balaur_core::{App, AppConfig};
+use balaur_net::transport::LinkState;
 use balaur_websocket::SocketOptions;
 use balaur_websocket::connection::{Arrival, Connection};
 use balaur_websocket::listener::WebsocketListener;

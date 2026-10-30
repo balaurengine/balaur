@@ -177,7 +177,7 @@ pub struct Faulty<T> {
     /// Payloads waiting for the poll they come out on.
     held: Vec<(u64, Received)>,
     polls: u64,
-    rng: crate::rng::Pcg32,
+    rng: balaur_core::rng::Pcg32,
 }
 
 impl<T: Transport> Faulty<T> {
@@ -189,7 +189,7 @@ impl<T: Transport> Faulty<T> {
             faults,
             held: Vec::new(),
             polls: 0,
-            rng: crate::rng::Pcg32::new(seed),
+            rng: balaur_core::rng::Pcg32::new(seed),
         }
     }
 
@@ -250,4 +250,27 @@ impl<T: Transport> Transport for Faulty<T> {
     fn close(&mut self) {
         self.inner.close();
     }
+}
+
+/// The faults the `multiplayer` settings ask for, or `None` when they are off.
+#[must_use]
+pub fn faults(eng: &balaur_core::Engine) -> Option<Faults> {
+    if !balaur_core::settings::get(eng, "multiplayer/simulate_faults")?.as_bool()? {
+        return None;
+    }
+    // `as_f64`, not `as_float`: a tick count is an integer in the file and in
+    // anything a hand edit writes.
+    let number = |path: &str| {
+        balaur_core::settings::get(eng, path).and_then(|v| balaur_core::components::as_f64(&v))
+    };
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "a tick count from a bounded setting"
+    )]
+    Some(Faults {
+        delay: number("multiplayer/delay_ticks").unwrap_or(0.0) as u32,
+        jitter: number("multiplayer/jitter_ticks").unwrap_or(0.0) as u32,
+        loss: number("multiplayer/loss").unwrap_or(0.0) as f32,
+    })
 }

@@ -25,12 +25,12 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::app::App;
-use crate::digest::Digest;
-use crate::engine::Engine;
-use crate::replay::ExternalIo;
-use crate::rollback::{Input, PlayerId, Session};
 use crate::transport::{Delivery, LinkState, Received, Transport};
+use balaur_core::app::App;
+use balaur_core::digest::Digest;
+use balaur_core::engine::Engine;
+use balaur_core::replay::ExternalIo;
+use balaur_core::rollback::{Input, PlayerId, Session};
 
 /// How far behind the running tick the digest exchange sits.
 ///
@@ -152,7 +152,7 @@ struct Link {
     their_lead: i64,
     closed: bool,
     /// When anything last arrived; wall time, for noticing a silent peer.
-    heard: Option<crate::time::Instant>,
+    heard: Option<balaur_core::time::Instant>,
 }
 
 impl Link {
@@ -202,8 +202,10 @@ pub struct Arrival {
 #[derive(Default)]
 pub struct PeerTraffic(ExternalIo<Arrival>);
 
-/// Register the session's recording source. Called once by `App`.
+/// The session's resources and its recording source: an app's built-in step.
 pub fn build_session_source(app: &mut App) {
+    app.engine.insert_resource(PeerTraffic::default());
+    app.engine.insert_resource(SessionStats::default());
     app.add_replay_source(
         SOURCE,
         |eng| eng.resource::<PeerTraffic>().borrow().0.capture(),
@@ -231,7 +233,7 @@ pub struct NetSession {
     /// gaps in.
     sent: BTreeMap<PlayerId, u64>,
     /// Pings in flight, by id, with when they went out.
-    pinged: BTreeMap<u64, crate::time::Instant>,
+    pinged: BTreeMap<u64, balaur_core::time::Instant>,
     /// The newest tick this peer has published a digest for, so a tick that
     /// takes a while to confirm is still published once it does.
     published: u64,
@@ -290,7 +292,7 @@ impl NetSession {
         direct: Option<PlayerId>,
         speaks_for: Option<Vec<PlayerId>>,
     ) {
-        let peer: Box<dyn Transport> = match crate::settings::faults(eng) {
+        let peer: Box<dyn Transport> = match crate::transport::faults(eng) {
             // Seeded by position, so two links misbehave differently and the
             // same run twice misbehaves the same way.
             Some(faults) => Box::new(crate::transport::Faulty::new(
@@ -542,7 +544,7 @@ impl NetSession {
                 }
                 for received in peer.receive() {
                     link.stats.bytes_in += received.bytes.len() as u64;
-                    link.heard = Some(crate::time::Instant::now());
+                    link.heard = Some(balaur_core::time::Instant::now());
                     let _ = report.send(Arrival {
                         link: index,
                         received,
@@ -624,7 +626,7 @@ impl NetSession {
     /// Ping every so often, and forget any that never came back.
     ///
     /// The clock is what a round trip is; nothing here reaches the
-    /// simulation, in the sense `crate::timings` sets out.
+    /// simulation, in the sense `balaur_core::timings` sets out.
     #[allow(
         clippy::disallowed_methods,
         reason = "an observer, never a simulation input"
@@ -633,7 +635,7 @@ impl NetSession {
         if !tick.is_multiple_of(PING_EVERY) {
             return;
         }
-        self.pinged.insert(tick, crate::time::Instant::now());
+        self.pinged.insert(tick, balaur_core::time::Instant::now());
         // A ping older than a few seconds is not coming back; keeping it
         // would leak and would never resolve.
         let oldest = tick.saturating_sub(PING_EVERY * 8);

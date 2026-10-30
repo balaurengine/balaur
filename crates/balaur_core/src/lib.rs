@@ -50,7 +50,6 @@ pub mod interpolate;
 pub mod layers;
 pub mod logbuf;
 pub mod math_api;
-pub mod netsession;
 pub mod node_api;
 pub mod node_meta;
 pub mod pack;
@@ -64,7 +63,6 @@ pub mod replay_api;
 pub mod resources;
 pub mod rng;
 pub mod rollback;
-pub mod rollback_api;
 pub mod save;
 pub mod scene;
 pub mod scene_api;
@@ -83,7 +81,6 @@ pub mod timer;
 pub mod timers;
 pub mod timings;
 pub mod transform;
-pub mod transport;
 pub mod variables;
 pub mod wake;
 pub mod warnings;
@@ -99,7 +96,6 @@ pub use digest::{Digest, DigestRegistry};
 pub use engine::{Command, Engine};
 pub use handler::Handler;
 pub use ids::IdAllocator;
-pub use netsession::{Desync, NetSession};
 pub use pack::Pack;
 pub use plugins::{PluginInfo, PluginRegistry};
 pub use project::{PluginChoice, PluginConfigs};
@@ -110,7 +106,6 @@ pub use scene::{
     Appearance, Children, GlobalAppearance, GlobalTransform, Name, NodeScript, Parent, Transform,
 };
 pub use snapshot::{Checkpoint, CheckpointRing, SnapshotRegistry};
-pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 /// Inserted by a windowed backend on the first key, button or touch: the
 /// moment a browser lets a page start audio, and the only fact about the

@@ -14,7 +14,7 @@
 
 use anyhow::{Result, bail};
 use balaur_core::Engine;
-use balaur_core::transport::{Delivery, LinkState, Received, Transport};
+use balaur_net::transport::{Delivery, LinkState, Received, Transport};
 
 use crate::SocketOptions;
 use crate::connection::{Arrival, Connection};

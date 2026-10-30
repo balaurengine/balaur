@@ -6,8 +6,8 @@
 //! delivery and gets its bytes back labelled with the promise they went out
 //! under, over a real encrypted connection with a real handshake.
 
-use balaur_core::transport::{Delivery, LinkState, Received, Transport};
 use balaur_core::{App, AppConfig};
+use balaur_net::transport::{Delivery, LinkState, Received, Transport};
 use balaur_webtransport::{Accept, WebTransportLink, WebTransportServer};
 
 fn app() -> App {
