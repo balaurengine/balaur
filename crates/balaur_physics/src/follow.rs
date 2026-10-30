@@ -4,20 +4,61 @@
 //! against another; this turns the gap between a body and a target node into
 //! a velocity change every fixed step, before the solver runs.
 
+use crate::properties::{Axis3d, FollowKind, node_at};
 use crate::rapier3d::control::{PdController, PidController};
 use crate::rapier3d::dynamics::{AxesMask, RigidBodyVelocity};
 use crate::scalar::{self, Real};
-use balaur_core::components::{ComponentDef, as_node, prop_str, prop_vec3};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalTransform, Stage, entity_of, fixed_dt};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::PhysicsState3d;
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::vocabulary::component as c;
 
-/// The settings, held on the node.
-pub struct Follow3d(pub toml::Value);
+/// Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.
+#[derive(Clone, Component)]
+#[component(name = "follow3d")]
+pub struct Follow3d {
+    /// The node whose pose the body is pulled to; empty pulls nothing
+    #[property(node)]
+    pub target: String,
+    /// Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push
+    #[property(default = FollowKind::Pd)]
+    pub kind: FollowKind,
+    /// The axes the body is pulled along
+    #[property(flags, default = vec![Axis3d::X, Axis3d::Y, Axis3d::Z])]
+    pub translation_axes: Vec<Axis3d>,
+    /// The axes the body is turned about
+    #[property(flags, default = vec![Axis3d::X, Axis3d::Y, Axis3d::Z])]
+    pub rotation_axes: Vec<Axis3d>,
+    /// How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step
+    #[property(default = [60.0, 60.0, 60.0], group = "gains")]
+    pub position_gain: [f32; 3],
+    /// How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it
+    #[property(default = [0.8, 0.8, 0.8], group = "gains")]
+    pub velocity_gain: [f32; 3],
+    /// How hard a gap in rotation pulls, per axis
+    #[property(default = [60.0, 60.0, 60.0], group = "gains")]
+    pub rotation_gain: [f32; 3],
+    /// How much of a gap in spin a step corrects, per axis
+    #[property(default = [0.8, 0.8, 0.8], group = "gains")]
+    pub spin_gain: [f32; 3],
+    /// How hard the gap in position summed over time pulls, per axis, with `pid`
+    #[property(default = [1.0, 1.0, 1.0], group = "gains")]
+    pub integral_gain: [f32; 3],
+    /// How hard the gap in rotation summed over time pulls, per axis, with `pid`
+    #[property(default = [1.0, 1.0, 1.0], group = "gains")]
+    pub rotation_integral_gain: [f32; 3],
+    /// The velocity the body is pulled to match, in world units per second
+    #[property(group = "velocity")]
+    pub target_linear_velocity: [f32; 3],
+    /// The spin the body is pulled to match about each axis, radians a second in the file
+    #[property(group = "velocity", unit = "degrees")]
+    pub target_angular_velocity: [f32; 3],
+}
 
 /// One body's controller, kept across steps: a PID's integrals change every
 /// step, so the snapshot carries it.
@@ -28,49 +69,42 @@ pub enum FollowRef3d {
 }
 
 /// The axes a flags property names, as rapier's mask.
-fn axes(params: &toml::Value, key: &str, [x, y, z]: [AxesMask; 3]) -> AxesMask {
-    let named = |word: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .is_some_and(|words| words.iter().any(|named| named.as_str() == Some(word)))
-    };
+fn axes(named: &[Axis3d], [x, y, z]: [AxesMask; 3]) -> AxesMask {
     let mut mask = AxesMask::empty();
-    for (word, bit) in [(w::X, x), (w::Y, y), (w::Z, z)] {
-        if named(word) {
+    for (axis, bit) in [(Axis3d::X, x), (Axis3d::Y, y), (Axis3d::Z, z)] {
+        if named.contains(&axis) {
             mask |= bit;
         }
     }
     mask
 }
 
-/// The controller the params describe, with a PID's integrals at zero.
-fn controller_of(params: &toml::Value) -> FollowRef3d {
-    let gain = |key: &str| scalar::v3a(prop_vec3(params, key));
+/// The controller the component describes, with a PID's integrals at zero.
+fn controller_of(follow: &Follow3d) -> FollowRef3d {
+    let gain = scalar::v3a;
     let mask = axes(
-        params,
-        k::TRANSLATION_AXES,
+        &follow.translation_axes,
         [AxesMask::LIN_X, AxesMask::LIN_Y, AxesMask::LIN_Z],
     ) | axes(
-        params,
-        k::ROTATION_AXES,
+        &follow.rotation_axes,
         [AxesMask::ANG_X, AxesMask::ANG_Y, AxesMask::ANG_Z],
     );
     let pd = PdController {
-        lin_kp: gain(k::POSITION_GAIN),
-        lin_kd: gain(k::VELOCITY_GAIN),
-        ang_kp: gain(k::ROTATION_GAIN),
-        ang_kd: gain(k::SPIN_GAIN),
+        lin_kp: gain(follow.position_gain),
+        lin_kd: gain(follow.velocity_gain),
+        ang_kp: gain(follow.rotation_gain),
+        ang_kd: gain(follow.spin_gain),
         axes: mask,
     };
-    if prop_str(params, k::KIND) == w::PID {
-        let mut pid = PidController::new(0.0, 0.0, 0.0, mask);
-        pid.pd = pd;
-        pid.lin_ki = gain(k::INTEGRAL_GAIN);
-        pid.ang_ki = gain(k::ROTATION_INTEGRAL_GAIN);
-        FollowRef3d::Pid(pid)
-    } else {
-        FollowRef3d::Pd(pd)
+    match follow.kind {
+        FollowKind::Pid => {
+            let mut pid = PidController::new(0.0, 0.0, 0.0, mask);
+            pid.pd = pd;
+            pid.lin_ki = gain(follow.integral_gain);
+            pid.ang_ki = gain(follow.rotation_integral_gain);
+            FollowRef3d::Pid(pid)
+        }
+        FollowKind::Pd => FollowRef3d::Pd(pd),
     }
 }
 
@@ -100,14 +134,14 @@ fn follow_system(eng: &Engine, _dt: f32) {
     if eng.paused() {
         return;
     }
-    let followers: Vec<(Entity, toml::Value)> = {
+    let followers: Vec<(Entity, Follow3d)> = {
         let world = eng.world();
         let mut query = world.query::<(Entity, &Follow3d)>();
-        query.iter().map(|(e, f)| (e, f.0.clone())).collect()
+        query.iter().map(|(e, f)| (e, f.clone())).collect()
     };
     let dt: Real = fixed_dt();
-    for (entity, params) in followers {
-        let Some(target) = as_node(eng, entity, params.get(k::TARGET)) else {
+    for (entity, follow) in followers {
+        let Some(target) = node_at(eng, entity, &follow.target) else {
             continue;
         };
         let Some(goal) = eng
@@ -119,15 +153,15 @@ fn follow_system(eng: &Engine, _dt: f32) {
             continue;
         };
         let wanted = RigidBodyVelocity {
-            linvel: scalar::v3a(prop_vec3(&params, k::TARGET_LINEAR_VELOCITY)),
-            angvel: scalar::v3a(prop_vec3(&params, k::TARGET_ANGULAR_VELOCITY)),
+            linvel: scalar::v3a(follow.target_linear_velocity),
+            angvel: scalar::v3a(follow.target_angular_velocity),
         };
         let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let Some(&handle) = state.bodies.get(&entity) else {
             continue;
         };
-        let fresh = controller_of(&params);
+        let fresh = controller_of(&follow);
         let mut controller = *state.follows.entry(entity).or_insert(fresh);
         controller.retune(fresh);
         let Some(body) = state.world.bodies.get(handle) else {
@@ -146,102 +180,24 @@ fn follow_system(eng: &Engine, _dt: f32) {
     }
 }
 
-/// `follow3d`'s schema, shared in shape with `follow2d`.
-fn schema() -> String {
-    let kinds = v::options(w::FOLLOW_KINDS);
-    let axes = v::options(w::LOCK_AXES);
-    v::schema(&[
-        (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The node whose pose the body is pulled to; empty pulls nothing" }"#,
-        ),
-        (
-            k::KIND,
-            &format!(
-                r#"{{ type = "enum", default = "{}", options = [{kinds}], description = "Rapier's proportional-derivative controller, or the same with an integral that keeps pulling against a steady push" }}"#,
-                w::PD
-            ),
-        ),
-        (
-            k::TRANSLATION_AXES,
-            &format!(
-                r#"{{ type = "flags", default = ["{}", "{}", "{}"], options = [{axes}], description = "The axes the body is pulled along" }}"#,
-                w::X,
-                w::Y,
-                w::Z
-            ),
-        ),
-        (
-            k::ROTATION_AXES,
-            &format!(
-                r#"{{ type = "flags", default = ["{}", "{}", "{}"], options = [{axes}], description = "The axes the body is turned about" }}"#,
-                w::X,
-                w::Y,
-                w::Z
-            ),
-        ),
-        (
-            k::POSITION_GAIN,
-            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step", group = "gains" }"#,
-        ),
-        (
-            k::VELOCITY_GAIN,
-            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it", group = "gains" }"#,
-        ),
-        (
-            k::ROTATION_GAIN,
-            r#"{ type = "vec3", default = [60.0, 60.0, 60.0], description = "How hard a gap in rotation pulls, per axis", group = "gains" }"#,
-        ),
-        (
-            k::SPIN_GAIN,
-            r#"{ type = "vec3", default = [0.8, 0.8, 0.8], description = "How much of a gap in spin a step corrects, per axis", group = "gains" }"#,
-        ),
-        (
-            k::INTEGRAL_GAIN,
-            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in position summed over time pulls, per axis, with `pid`", group = "gains" }"#,
-        ),
-        (
-            k::ROTATION_INTEGRAL_GAIN,
-            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "How hard the gap in rotation summed over time pulls, per axis, with `pid`", group = "gains" }"#,
-        ),
-        (
-            k::TARGET_LINEAR_VELOCITY,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The velocity the body is pulled to match, in world units per second", group = "velocity" }"#,
-        ),
-        (
-            k::TARGET_ANGULAR_VELOCITY,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The spin the body is pulled to match about each axis, radians a second in the file", group = "velocity" }"#,
-        ),
-    ])
-}
-
+/// `follow3d`: what was asked, held on the node; the controller a step keeps
+/// is in [`PhysicsState3d::follows`].
 fn register_follow_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        c::FOLLOW_3D,
+        Follow3d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.",
-            schema: ComponentDef::parse_schema(c::FOLLOW_3D, &schema()),
-            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+            tags: &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
             expects: &[c::BODY_3D],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let _ = eng.world_mut().insert_one(entity, Follow3d(params.clone()));
-                Ok(())
-            }),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Follow3d>(entity);
                 let state = eng.resource::<PhysicsState3d>();
                 state.borrow_mut().follows.swap_remove(&entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let follow = world.get::<&Follow3d>(entity).ok()?;
-                Some(follow.0.clone())
-            }),
+            ..ComponentDef::of::<Follow3d>(None)
         },
     );
 }

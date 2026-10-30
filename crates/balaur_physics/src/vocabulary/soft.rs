@@ -2,10 +2,7 @@
 //! vocabulary has room; `words` and `keys` re-export both halves.
 
 pub(crate) mod words {
-    use crate::vocabulary::words::{
-        AUTO, BOTH, BOX, CHAIN, CIRCLE, MESH, NONE, OFF, OUTLINE, POLYLINE, SOLID, SPHERE,
-        TRIANGLE_MESH,
-    };
+    use crate::vocabulary::words::{AUTO, BOTH, OFF};
 
     pub(crate) const ROPE_SOFT: &str = "rope";
     pub(crate) const CLOTH: &str = "cloth";
@@ -15,39 +12,9 @@ pub(crate) mod words {
     pub(crate) const SOFT_POLYGON: &str = "polygon";
     /// A soft body whose particles and elements the author lists.
     pub(crate) const CUSTOM: &str = "custom";
-    /// How a 3D soft body's particles and elements are laid out, in the order
-    /// the inspector offers them.
-    pub(crate) const SOFT_KINDS: &[&str] = &[
-        BOX,
-        SPHERE,
-        CLOTH,
-        CLOTH_TUBE,
-        ROPE_SOFT,
-        VOLUMETRIC,
-        TRIANGLE_MESH,
-        CUSTOM,
-    ];
-    /// The 2D layouts. A tetrahedrized volume is a triangulated area here, so
-    /// `volumetric` spells the same word in both dimensions.
-    pub(crate) const SOFT_KINDS_2D: &[&str] = &[
-        GRID,
-        CIRCLE,
-        SOFT_POLYGON,
-        OUTLINE,
-        ROPE_SOFT,
-        VOLUMETRIC,
-        TRIANGLE_MESH,
-        POLYLINE,
-        CUSTOM,
-    ];
-    /// Which segments a 2D soft polyline joins: its points in order, or the
-    /// edges of its mesh's triangles.
-    pub(crate) const POLYLINE_EDGES: &[&str] = &[CHAIN, MESH];
 
     pub(crate) const ALL: &str = "all";
     pub(crate) const LISTED: &str = "listed";
-    /// Which of a soft body's edges resist stretching only.
-    pub(crate) const TENSION_MODES: &[&str] = &[NONE, ALL, LISTED];
     /// What a soft-body edge holds: two neighbours, or two second neighbours.
     pub(crate) const STRUCTURAL: &str = "structural";
     pub(crate) const BENDING: &str = "bending";
@@ -61,8 +28,6 @@ pub(crate) mod words {
 
     pub(crate) const CONSTRAINTS: &str = "constraints";
     pub(crate) const FEM: &str = "fem";
-    /// Which of rapier's two solvers simulates the body's elasticity.
-    pub(crate) const SOFT_SOLVERS: &[&str] = &[CONSTRAINTS, FEM];
 
     pub(crate) const COMPRESSION_FLOW: &str = "compression";
     pub(crate) const TENSION: &str = "tension";
@@ -71,9 +36,6 @@ pub(crate) mod words {
     pub(crate) const PLASTIC_FLOWS: &[&str] = &[BOTH, COMPRESSION_FLOW, TENSION];
 
     pub(crate) const SHELL: &str = "shell";
-    /// How a soft body's closed surface meets what is inside it: `solid`
-    /// encloses matter, `shell` holds bodies in, `auto` is solid when closed.
-    pub(crate) const ORIENTATIONS: &[&str] = &[AUTO, SOLID, SHELL];
 
     pub(crate) const ON: &str = "on";
     /// How a `collision_mesh` follows the body: vertex by particle, by the
@@ -81,7 +43,6 @@ pub(crate) mod words {
     pub(crate) const BIND_PARTICLES: &str = "particles";
     pub(crate) const NEAREST: &str = "nearest";
     pub(crate) const BIND_CELLS: &str = "cells";
-    pub(crate) const COLLISION_BINDINGS: &[&str] = &[NEAREST, BIND_PARTICLES, BIND_CELLS];
     /// Whether a soft body is pulled back to its built shape; `auto` keeps the
     /// layout's own choice.
     pub(crate) const SHAPE_MATCHING_MODES: &[&str] = &[AUTO, ON, OFF];

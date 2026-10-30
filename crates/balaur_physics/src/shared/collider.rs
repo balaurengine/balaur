@@ -92,13 +92,6 @@ macro_rules! functions {
             }
         }
 
-        fn test_mode_name(mode: InteractionTestMode) -> &'static str {
-            match mode {
-                InteractionTestMode::Or => crate::vocabulary::words::EITHER,
-                InteractionTestMode::And => crate::vocabulary::words::BOTH,
-            }
-        }
-
         /// The 32 layers a `flags` pair names, tested as `test_key` says. An
         /// empty mask means every layer: the alternative is 32 strings in every
         /// scene file that wants the default.
@@ -177,82 +170,6 @@ macro_rules! functions {
                 return Err(anyhow!("this node's collider is gone: the node was freed"));
             }
             Ok(handle)
-        }
-
-        /// The non-shape half of a collider, read back off it. The inverse of
-        /// `with_material`, property for property, so the inspector round-trips.
-        /// `body_states_mass` says the body zeroed this collider's weight.
-        pub(crate) fn read_material(
-            collider: &Collider,
-            body_states_mass: bool,
-            map: &mut toml::map::Map<String, toml::Value>,
-        ) {
-            let f = |value: Real| toml::Value::Float(f64::from(value));
-            // Each of `mass` and `density` is derived from the other, so
-            // reporting both would pin one on the next patch or re-save.
-            let authored = |key: &str| map.get(key).and_then(balaur_core::components::as_f64);
-            let own_mass = authored(k::MASS).unwrap_or(0.0) > 0.0;
-            let zeroed = body_states_mass;
-            if own_mass {
-                let mass = if zeroed {
-                    authored(k::MASS).unwrap_or(0.0) as Real
-                } else {
-                    collider.mass()
-                };
-                map.insert(k::MASS.into(), f(mass));
-            } else {
-                let density = if zeroed {
-                    authored(k::DENSITY).unwrap_or(1.0) as Real
-                } else {
-                    collider.density()
-                };
-                map.insert(k::MASS.into(), f(0.0));
-                map.insert(k::DENSITY.into(), f(density));
-            }
-            map.insert(k::COLLISION_MARGIN.into(), f(collider.contact_skin()));
-            map.insert(
-                k::CONTACT_FORCE_THRESHOLD.into(),
-                f(collider.contact_force_event_threshold()),
-            );
-            map.insert(k::SENSOR.into(), collider.is_sensor().into());
-            map.insert(k::ENABLED.into(), collider.is_enabled().into());
-            let groups = collider.collision_groups();
-            map.insert(
-                k::COLLISION_LAYER.into(),
-                balaur_core::layers::names(groups.memberships.bits()),
-            );
-            map.insert(
-                k::COLLISION_MASK.into(),
-                balaur_core::layers::names(groups.filter.bits()),
-            );
-            let solver = collider.solver_groups();
-            map.insert(
-                k::SOLVER_LAYER.into(),
-                balaur_core::layers::names(solver.memberships.bits()),
-            );
-            map.insert(
-                k::SOLVER_MASK.into(),
-                balaur_core::layers::names(solver.filter.bits()),
-            );
-            map.insert(
-                k::COLLISION_TEST.into(),
-                test_mode_name(groups.test_mode).into(),
-            );
-            map.insert(
-                k::SOLVER_TEST.into(),
-                test_mode_name(solver.test_mode).into(),
-            );
-            map.insert(
-                k::EVENTS.into(),
-                v::names(collider.active_events().bits(), &v::flags::events()),
-            );
-            map.insert(
-                k::CONTACT_PAIRS.into(),
-                v::names(
-                    collider.active_collision_types().bits(),
-                    &v::flags::collision_types(),
-                ),
-            );
         }
     };
 }

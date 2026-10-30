@@ -75,17 +75,17 @@ pub(crate) fn bits<T: Copy + std::ops::BitOrAssign + Default>(
     out
 }
 
-/// The names a bit set holds, as a `flags` property's array.
-pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::Value {
-    let set: u32 = set.into();
-    toml::Value::Array(
-        table
-            .iter()
-            .filter(|(_, bit)| {
-                let bit: u32 = (*bit).into();
-                bit != 0 && set & bit == bit
-            })
-            .map(|(name, _)| toml::Value::String((*name).to_string()))
-            .collect(),
-    )
+/// The bits a set of words sets, given the table for that property: what a
+/// derived `flags` field's options name.
+pub(crate) fn named_bits<T: Copy + std::ops::BitOrAssign + Default>(
+    names: impl IntoIterator<Item = &'static str>,
+    table: &[(&str, T)],
+) -> T {
+    let mut out = T::default();
+    for name in names {
+        if let Some((_, bit)) = table.iter().find(|(word, _)| *word == name) {
+            out |= *bit;
+        }
+    }
+    out
 }

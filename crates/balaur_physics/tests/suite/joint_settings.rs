@@ -219,8 +219,9 @@ fn an_articulation_reads_back_what_its_chain_holds() {
     assert!((number("passive_rest") - 0.3).abs() < 1e-6);
 }
 
-/// The damping each axis of an articulated link takes when its record names
-/// none: rapier's own, which damps a turn and leaves a slide free.
+/// The damping an articulated link's first free axis runs with when its
+/// record names none: rapier's own, which damps a turn and leaves a slide
+/// free.
 fn link_damping_left_to_rapier(joint: &str) -> f64 {
     let mut app = app();
     let ball = hanging(
@@ -229,8 +230,14 @@ fn link_damping_left_to_rapier(joint: &str) -> f64 {
         &format!("articulation = true\n{joint}"),
     );
     tick(&mut app, 1);
-    let table = components::get(&app.engine, ball, "joint3d").unwrap();
-    table["axes"][0]["link_damping"].as_float().unwrap()
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let balaur_physics::joint::JointHandle3d::Multibody(handle) = state.joints[&ball].handle else {
+        panic!("the joint is not an articulation");
+    };
+    let (chain, link) = state.world.multibody_joints.get(handle).unwrap();
+    let first = chain.link(link).unwrap().assembly_id();
+    f64::from(chain.damping()[first])
 }
 
 #[test]

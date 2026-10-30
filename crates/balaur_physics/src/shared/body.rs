@@ -29,34 +29,26 @@ impl Authored {
 }
 
 macro_rules! functions {
-    (state = $State:ty, handle = $Handle:ty, builder = $Builder:ident, node_pose = $node_pose:ident, missing = $missing:literal) => {
-        /// The body types both dimensions accept, in Balaur's vocabulary (N14).
-        pub(crate) fn body_type(kind: &str) -> Result<RigidBodyType> {
-            use crate::vocabulary::words as w;
-            Ok(match kind {
-                w::DYNAMIC => RigidBodyType::Dynamic,
-                w::STATIC => RigidBodyType::Fixed,
-                w::KINEMATIC => RigidBodyType::KinematicPositionBased,
-                w::KINEMATIC_VELOCITY => RigidBodyType::KinematicVelocityBased,
-                other => return Err(anyhow!("unknown body kind '{other}'")),
-            })
-        }
-
-        pub(crate) fn kind_name(body: &RigidBody) -> &'static str {
-            use crate::vocabulary::words as w;
-            match body.body_type() {
-                RigidBodyType::Dynamic => w::DYNAMIC,
-                RigidBodyType::Fixed => w::STATIC,
-                RigidBodyType::KinematicPositionBased => w::KINEMATIC,
-                RigidBodyType::KinematicVelocityBased => w::KINEMATIC_VELOCITY,
-                RigidBodyType::SoftFrame => w::SOFT_FRAME,
+    (state = $State:ty, body = $Body:ty, handle = $Handle:ty, builder = $Builder:ident, node_pose = $node_pose:ident, missing = $missing:literal) => {
+        /// Rapier's body type for each kind both dimensions accept (N14).
+        pub(crate) fn body_type(kind: crate::properties::BodyKind) -> RigidBodyType {
+            use crate::properties::BodyKind;
+            match kind {
+                BodyKind::Dynamic => RigidBodyType::Dynamic,
+                BodyKind::Static => RigidBodyType::Fixed,
+                BodyKind::Kinematic => RigidBodyType::KinematicPositionBased,
+                BodyKind::KinematicVelocity => RigidBodyType::KinematicVelocityBased,
             }
         }
 
-        pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
+        pub(crate) fn add_body(
+            eng: &Engine,
+            entity: Entity,
+            kind: crate::properties::BodyKind,
+        ) -> Result<()> {
             let pose = $node_pose(eng, entity)?;
             // The node rides in `user_data`, so a collision can name the body too.
-            let builder = $Builder::new(body_type(kind)?)
+            let builder = $Builder::new(body_type(kind))
                 .pose(pose)
                 .user_data(u128::from(entity.to_bits().get()));
             let state = eng.resource::<$State>();
@@ -72,7 +64,7 @@ macro_rules! functions {
         }
 
         /// Create the body if the node has none, then write every property onto it.
-        pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+        pub(crate) fn apply_body(eng: &Engine, entity: Entity, asked: &$Body) -> Result<()> {
             // The step writes the body's pose back onto the node, so a body on
             // a node the scene left bare has to give it a transform first.
             balaur_core::transform::ensure(eng, entity);
@@ -82,29 +74,26 @@ macro_rules! functions {
                 exists
             };
             if !exists {
-                add_body(eng, entity, v::text(params, k::KIND, w::DYNAMIC))?;
+                add_body(eng, entity, asked.kind)?;
                 // A collider inserted while the node had no body is standalone
                 // geometry in rapier; re-inserting it attaches it to the new body.
-                if let Some(collider) = get_collider_params(eng, entity) {
+                if let Some(collider) = authored_collider(eng, entity) {
                     apply_collider(eng, entity, &collider)?;
                 }
             }
             // A static body never moves between steps, so only the two kinds
             // the step actually drives are worth drawing blended.
-            let moves = !matches!(
-                body_type(v::text(params, k::KIND, w::DYNAMIC))?,
-                RigidBodyType::Fixed
-            );
+            let moves = asked.kind != crate::properties::BodyKind::Static;
             if moves {
                 balaur_core::interpolate::enable(eng, entity);
             } else {
                 balaur_core::interpolate::disable(eng, entity);
             }
             let rebuild = with_body(eng, entity, |state, handle| {
-                let authored = authored(params);
+                let authored = authored(asked);
                 state.body_authored.insert(entity, authored);
                 let may_sleep = state.sleeping_allowed && authored.can_sleep;
-                write_body(&mut state.world.bodies[handle], params, may_sleep);
+                write_body(&mut state.world.bodies[handle], asked, may_sleep);
                 if !exists {
                     start_body(&mut state.world.bodies[handle], &authored, may_sleep);
                 }

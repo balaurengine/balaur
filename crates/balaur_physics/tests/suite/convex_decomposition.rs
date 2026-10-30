@@ -149,7 +149,7 @@ fn density_and_mass_still_say_what_it_weighs() {
 fn the_other_ways_to_cut_it_build() {
     for extra in [
         "method = \"vhacd\"",
-        "method = \"vhacd\"\nresolution = 32.0\nmax_convex_hulls = 8.0",
+        "method = \"vhacd\"\nresolution = 32\nmax_convex_hulls = 8",
         "edge_radius = 0.02",
     ] {
         let app = table_app(extra);

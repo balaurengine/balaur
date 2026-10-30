@@ -26,7 +26,8 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::collections::DetHashMap;
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{self, Component};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Parent, Transform};
 use balaur_core::skeleton::{self, Bone};
@@ -37,12 +38,12 @@ use glamx::{Quat, Vec3};
 
 use crate::vocabulary::{Opts, component as c, keys as k, words as w};
 
-/// The `ragdoll` component's own keys.
+/// The `ragdoll` component's weight, which a build's options and
+/// `set_ragdoll_influence` name too.
 pub(crate) const INFLUENCE: &str = "influence";
-pub(crate) const BODIES: &str = "bodies";
 
 /// The component a built ragdoll leaves on the rig root.
-const RAGDOLL: &str = "ragdoll";
+const RAGDOLL: &str = <Ragdoll as Component>::NAME;
 
 /// The suffix a container node takes, after the rig's own name.
 const CONTAINER_SUFFIX: &str = "_ragdoll";
@@ -360,14 +361,11 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         balaur_core::components::refile(eng, container, balaur_core::transform::COMPONENT);
         scene::announce_added_since(eng, parent, before);
     }
-    let bodies = relative_path(&eng.world(), rig, container);
-    let mut params = toml::map::Map::new();
-    params.insert(
-        INFLUENCE.into(),
-        toml::Value::Float(f64::from(recipe.blend)),
-    );
-    params.insert(BODIES.into(), toml::Value::String(bodies));
-    balaur_core::components::add(eng, rig, RAGDOLL, Some(&toml::Value::Table(params)))?;
+    let ragdoll = Ragdoll {
+        bodies: relative_path(&eng.world(), rig, container),
+        influence: recipe.blend,
+    };
+    balaur_core::components::add(eng, rig, RAGDOLL, Some(&derived::to_table(&ragdoll)))?;
     Ok(made.into_iter().map(|(_, node)| node).collect())
 }
 
@@ -583,61 +581,32 @@ fn relative_path(world: &balaur_core::hecs::World, from: Entity, to: Entity) -> 
         .join("/")
 }
 
-/// What a built ragdoll leaves on the rig root.
-#[derive(Clone, Debug)]
+/// Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
+#[derive(Clone, Debug, Component)]
+#[component(name = "ragdoll")]
 pub struct Ragdoll {
-    /// How much of the simulated pose the bones take, `0..1`.
-    pub blend: f32,
-    /// Node path to the container holding the bodies, relative to the rig.
+    /// The node holding the bodies, one per bone, named after it
+    #[property(node)]
     pub bodies: String,
+    /// How much of the simulated pose the bones take
+    #[property(default = 1.0, min = 0.0, max = 1.0)]
+    pub influence: f32,
 }
 
+impl Ragdoll {
+    /// How much of the simulated pose the bones take, held to `0..1`.
+    fn blend(&self) -> f32 {
+        self.influence.clamp(0.0, 1.0)
+    }
+}
+
+/// `ragdoll`: held on the rig root, and read by the blend each frame.
 pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
     reg.register_component(
         RAGDOLL,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
-            schema: ComponentDef::parse_schema(
-                RAGDOLL,
-                &ComponentDef::schema(&[
-                    (BODIES, r#"{ type = "node", default = "", description = "The node holding the bodies, one per bone, named after it" }"#),
-                    (INFLUENCE, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
-                ]),
-            ),
             tags: &[balaur_core::components::tag::PHYSICS],
-            expects: &[],
-            read: None,
-            write: None,
-            apply: Box::new(|eng, entity, params| {
-                let ragdoll = Ragdoll {
-                    blend: params
-                        .get(INFLUENCE)
-                        .and_then(as_f64)
-                        .map_or(1.0, |v| (v as f32).clamp(0.0, 1.0)),
-                    bodies: params
-                        .get(BODIES)
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                };
-                eng.world_mut()
-                    .insert_one(entity, ragdoll)
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Ragdoll>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let r = world.get::<&Ragdoll>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert(INFLUENCE.into(), toml::Value::Float(f64::from(r.blend)));
-                out.insert(BODIES.into(), toml::Value::String(r.bodies.clone()));
-                Some(toml::Value::Table(out))
-            }),
+            ..ComponentDef::of::<Ragdoll>(None)
         },
     );
 }
@@ -712,7 +681,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
     let rigs: Vec<(Entity, Ragdoll)> = world
         .query::<(Entity, &Ragdoll)>()
         .iter()
-        .filter(|(_, r)| r.blend > 0.0 && !r.bodies.is_empty())
+        .filter(|(_, r)| r.blend() > 0.0 && !r.bodies.is_empty())
         .map(|(e, r)| (e, r.clone()))
         .collect();
     for (rig, ragdoll) in rigs {
@@ -740,8 +709,8 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
             let local_rotation = inverse * wanted_rotation;
             if let Ok(mut t) = world.get::<&mut Transform>(bone) {
                 let incoming = (t.position.to_array(), t.rotation.to_array());
-                t.position = t.position.lerp(local_position, ragdoll.blend);
-                t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend);
+                t.position = t.position.lerp(local_position, ragdoll.blend());
+                t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend());
                 let written = (t.position.to_array(), t.rotation.to_array());
                 memory.0.insert(bone, Blended { incoming, written });
             }

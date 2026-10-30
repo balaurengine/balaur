@@ -3,6 +3,7 @@
 
 use balaur_core::Engine;
 use balaur_core::collections::DetHashMap;
+use balaur_core::components::derived::{self, Component};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use serde::Deserialize as _;
@@ -25,6 +26,7 @@ struct PhysicsFrame3d {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     body_authored: Vec<(NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(NodeKey, toml::Value)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
     soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
     soft_params: Vec<(NodeKey, toml::Value)>,
@@ -49,6 +51,7 @@ struct PhysicsFrameRef3d<'a> {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     body_authored: Vec<(NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(NodeKey, toml::Value)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
     soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
     soft_params: Vec<(NodeKey, toml::Value)>,
@@ -152,6 +155,46 @@ pub(crate) fn authored(
         .collect()
 }
 
+/// What each node's `C` asks for, as a frame keeps it: [`authored`] rows,
+/// in node order.
+pub(crate) fn asked_rows<C: Component>(
+    eng: &Engine,
+    world: &balaur_core::hecs::World,
+) -> Vec<(NodeKey, toml::Value)> {
+    let held: DetHashMap<Entity, toml::Value> = world
+        .query::<(Entity, &C)>()
+        .iter()
+        .map(|(entity, asked)| (entity, derived::to_table(asked)))
+        .collect();
+    let mut rows = authored(eng, world, &held, C::NAME);
+    rows.sort_by(|first, second| first.0.cmp(&second.0));
+    rows
+}
+
+/// Each node's `C` as a restored frame's `rows` hold it, and none on a node
+/// they leave out: what a node reports is what its restored body, collider,
+/// joint or soft body was built from.
+pub(crate) fn restore_asked<C: Component>(eng: &Engine, rows: &DetHashMap<Entity, toml::Value>) {
+    let mut world = eng.world_mut();
+    let stale: Vec<Entity> = world
+        .query::<(Entity, &C)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .filter(|entity| !rows.contains_key(entity))
+        .collect();
+    for entity in stale {
+        let _ = world.remove_one::<C>(entity);
+    }
+    for (entity, params) in rows {
+        match derived::from_table::<C>(params) {
+            Ok(asked) => {
+                let _ = world.insert_one(*entity, asked);
+            }
+            Err(why) => tracing::error!(component = C::NAME, "restoring a component: {why:#}"),
+        }
+    }
+}
+
 /// The rows a frame kept, with every key it left out at its default again.
 pub(crate) fn filled(
     eng: &Engine,
@@ -232,6 +275,7 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         bodies: keyed(&world, &state.bodies),
         colliders: keyed(&world, &state.colliders),
         body_authored: keyed(&world, &state.body_authored),
+        body_params: asked_rows::<crate::body::Body3d>(eng, &world),
         joints: keyed(&world, &state.joints),
         soft_bodies: keyed(&world, &state.soft_bodies),
         soft_params: authored(eng, &world, &state.soft_params, c::SOFTBODY_3D),
@@ -260,6 +304,7 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let bodies = resolved(eng, frame.bodies);
     let colliders = resolved(eng, frame.colliders);
     let body_authored = resolved(eng, frame.body_authored);
+    let body_params = resolved(eng, filled(eng, frame.body_params, c::BODY_3D));
     let joints = resolved(eng, frame.joints);
     let soft_bodies = resolved(eng, frame.soft_bodies);
     let soft_params = resolved(eng, filled(eng, frame.soft_params, c::SOFTBODY_3D));
@@ -269,6 +314,10 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let vehicles = vehicle::resolved_rows(eng, frame.vehicles);
     let follows = resolved(eng, frame.follows);
     let grounded = resolved(eng, frame.grounded);
+    restore_asked::<crate::body::Body3d>(eng, &body_params);
+    restore_asked::<crate::collider::Collider3d>(eng, &collider_params);
+    restore_asked::<joint::Joint3d>(eng, &joint_params);
+    restore_asked::<softbody::Softbody3d>(eng, &soft_params);
     let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;

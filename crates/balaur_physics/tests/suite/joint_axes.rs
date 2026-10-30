@@ -169,8 +169,8 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     );
 }
 
-/// The spring's own model unless its record names one, read back as the
-/// model rapier runs.
+/// The model rapier runs on a spring's x, and the one its record reads back
+/// as: what was asked, `auto` unless it names another.
 fn spring_model(record: &str) -> (MotorModel, String) {
     let app = app();
     let ball = hanging(
@@ -196,10 +196,7 @@ fn spring_model(record: &str) -> (MotorModel, String) {
 fn a_spring_runs_rapiers_force_model_unless_its_record_names_another() {
     let (ran, read) = spring_model("{ axis = \"x\", stiffness = 50.0 }");
     assert_eq!(ran, MotorModel::ForceBased);
-    assert_eq!(
-        read, "force",
-        "the spring reads back a model it does not run"
-    );
+    assert_eq!(read, "auto", "the record reads back what it asked for");
     let (ran, read) =
         spring_model("{ axis = \"x\", stiffness = 50.0, motor_model = \"acceleration\" }");
     assert_eq!(

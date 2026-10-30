@@ -204,11 +204,3 @@ pub(crate) fn register_soft_material_asset(reg: &mut Registry<'_>) {
 pub(crate) fn of(eng: &Engine, params: &toml::Value) -> Result<Rc<SoftMaterial>> {
     balaur_core::assets::record(eng, params.get(k::SOFT_MATERIAL), k::SOFT_MATERIAL)
 }
-
-/// The row a soft body names its material in, among its ungrouped rows.
-pub(crate) fn row_spec() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "What the body is made of: its cells, springs, volume, yield and tearing; empty takes a soft_material at its defaults" }}"#,
-        k::SOFT_MATERIAL
-    )
-}

@@ -406,6 +406,7 @@ struct PhysicsFrame2d {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     body_authored: Vec<(crate::NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(crate::NodeKey, toml::Value)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
     soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
     soft_params: Vec<(crate::NodeKey, toml::Value)>,
@@ -429,6 +430,7 @@ struct PhysicsFrameRef2d<'a> {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     body_authored: Vec<(crate::NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(crate::NodeKey, toml::Value)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
     soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
     soft_params: Vec<(crate::NodeKey, toml::Value)>,
@@ -454,6 +456,7 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         bodies: crate::keyed(&world, &state.bodies),
         colliders: crate::keyed(&world, &state.colliders),
         body_authored: crate::keyed(&world, &state.body_authored),
+        body_params: crate::asked_rows::<body::Body2d>(eng, &world),
         joints: crate::keyed(&world, &state.joints),
         soft_bodies: crate::keyed(&world, &state.soft_bodies),
         soft_params: crate::authored(eng, &world, &state.soft_params, c::SOFTBODY_2D),
@@ -483,6 +486,7 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let bodies = crate::resolved(eng, frame.bodies);
     let colliders = crate::resolved(eng, frame.colliders);
     let body_authored = crate::resolved(eng, frame.body_authored);
+    let body_params = crate::resolved(eng, crate::filled(eng, frame.body_params, c::BODY_2D));
     let joints = crate::resolved(eng, frame.joints);
     let soft_bodies = crate::resolved(eng, frame.soft_bodies);
     let soft_params = crate::resolved(eng, crate::filled(eng, frame.soft_params, c::SOFTBODY_2D));
@@ -499,6 +503,11 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, c::JOINT_2D));
     let grounded = crate::resolved(eng, frame.grounded);
     let follows = crate::resolved(eng, frame.follows);
+    crate::restore_asked::<body::Body2d>(eng, &body_params);
+    crate::restore_asked::<collider::Collider2d>(eng, &collider_params);
+    crate::restore_asked::<joint::Joint2d>(eng, &joint_params);
+    crate::restore_asked::<softbody::Softbody2d>(eng, &soft_params);
+    crate::restore_asked::<tiles::TileCollision>(eng, &tile_params);
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;
