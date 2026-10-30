@@ -310,10 +310,10 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        api::install_ui_api(reg)?;
+        api::install_ui_api(&mut *reg.script_module("ui")?);
         widget::input::register(reg);
         widget::schema::register_widget_component(reg);
-        widget::schema::register_widget_presets(reg)?;
+        widget::presets::register_widget_presets(reg)?;
         Ok(())
     }
 }

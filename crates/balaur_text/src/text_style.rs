@@ -12,6 +12,7 @@ use egui::{Color32, vec2};
 
 use crate::options::{Decoration, Underline};
 use crate::vocabulary::{keys as k, options, words as w};
+use balaur_plugin::Registry;
 
 pub use balaur_core::assets::TEXT_STYLE_ASSET_TYPE;
 
@@ -165,7 +166,7 @@ pub fn read(table: &toml::Value) -> TextStyle {
 }
 
 /// Register the `text_style` asset, whose definitions sit in `text_styles/`.
-pub fn register_text_style_asset(reg: &mut balaur_plugin::Registry<'_>) {
+pub fn register_text_style_asset(reg: &mut Registry<'_>) {
     reg.register_record_asset(TEXT_STYLE_ASSET_TYPE, "text_styles", DOC, schema(), parse);
 }
 
