@@ -154,6 +154,10 @@ three desktop platforms. Beyond `cargo test --workspace`:
   (12 a program by default) widen a run; `crates/balaur_bs/fuzz/` holds the
   same two checks as `cargo fuzz` targets, `compile` and `run`, for a nightly
   run without end.
+- **Random programs** — `tests/suite/random.rs` generates well-typed programs
+  and runs each on every engine and on a small interpreter kept for the
+  test, which must agree: the engines share one compiler, so only this
+  catches it writing the wrong code. 60 a push; `BS_RANDOM_PROGRAMS`.
 - `scripts/check_scripts.sh` — `balaur check --strict` over the editor, its
   library and templates, and every example: CI runs it on Linux after the
   tests.

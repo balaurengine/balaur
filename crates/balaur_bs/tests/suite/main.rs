@@ -21,6 +21,7 @@ mod nans;
 mod native;
 mod profile;
 mod programs;
+mod random;
 mod reentry;
 mod refs;
 mod reload;

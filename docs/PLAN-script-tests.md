@@ -1,4 +1,4 @@
-> **Status:** planned 2026-10-30. Steps 1, 3 to 7 and 10 built 2026-10-30: 60
+> **Status:** planned 2026-10-30. Steps 1, 3 to 8 and 10 built 2026-10-30: 60
 > programs on wasmi, wasmtime, native code and the browser's engine, a
 > mutation test on every push, `cargo fuzz` targets, and
 > `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
@@ -111,6 +111,16 @@ interpreter kept only for tests. The interpreter is the language's meaning
 in code; a disagreement is a bug in one of them, and the failing program is
 shrunk and saved into the corpus. Written after the language changes of
 PLAN-foundations step 7, so the interpreter follows one language, not two.
+
+Built 2026-10-30, before those changes, in `tests/suite/random.rs`: helper
+functions and `main` over ints, floats, bools, strings and int arrays, with
+`if`, `for`, `while`, calls, wrapping arithmetic, division that may trap,
+an int widened beside a float, and arrays shared by two names. Each function
+folds every variable it holds into its answer, so a wrong value anywhere
+shows. 60 programs a push on wasmi and wasmtime (`BS_RANDOM_PROGRAMS`,
+`BS_RANDOM_SEED`, `BS_RANDOM_SHOW`); 24,000 agreed on the first runs, and at
+least 70% must answer rather than trap. Not yet in it: structs, enums, maps,
+`any`, optionals and native code. Shrinking is by hand.
 
 ## 9. A language reference
 
