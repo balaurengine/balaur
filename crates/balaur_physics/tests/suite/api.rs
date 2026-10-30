@@ -421,14 +421,14 @@ fn a_switched_off_joint_is_kept_off_and_never_retried() {
     let _anchor = named_body(&app, "Anchor", "static");
     let hanging = named_body(&app, "Hanging", "dynamic");
     let chained = named_body(&app, "Chained", "dynamic");
-    for (node, extra) in [(hanging, ""), (chained, "\narticulation = true")] {
-        let table =
-            format!("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false{extra}");
+    components::add(&app.engine, chained, "articulation3d", None).unwrap();
+    for node in [hanging, chained] {
+        let table = "kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false";
         components::add(
             &app.engine,
             node,
             "joint3d",
-            Some(&toml::from_str(&table).unwrap()),
+            Some(&toml::from_str(table).unwrap()),
         )
         .unwrap();
     }

@@ -41,6 +41,23 @@ fn add(app: &App, e: Entity, component: &str, text: &str) -> anyhow::Result<()> 
     )
 }
 
+/// Add a `joint3d` from `text`, a scene node's rows: a table in it is a
+/// component beside the joint, added first as a scene adds it.
+fn add_joint(app: &App, e: Entity, text: &str) -> anyhow::Result<()> {
+    let mut rows: toml::Value = toml::from_str(text).unwrap();
+    let table = rows.as_table_mut().unwrap();
+    let beside: Vec<String> = table
+        .iter()
+        .filter(|(_, value)| value.is_table())
+        .map(|(name, _)| name.clone())
+        .collect();
+    for name in beside {
+        let held = table.remove(&name).unwrap();
+        components::add(&app.engine, e, &name, Some(&held))?;
+    }
+    components::add(&app.engine, e, "joint3d", Some(&rows))
+}
+
 fn tick(app: &mut App, steps: u32) {
     for _ in 0..steps {
         app.tick(1.0 / 60.0);
@@ -60,7 +77,7 @@ fn hanging(app: &App, at: [f32; 3], joint: &str) -> Entity {
         "connected_body = \"/Anchor\"\nanchor = [{}, {}, {}]\n{joint}",
         -at[0], -at[1], -at[2]
     );
-    add(app, ball, "joint3d", &table).unwrap();
+    add_joint(app, ball, &table).unwrap();
     ball
 }
 
@@ -119,12 +136,10 @@ fn a_soft_joint_gives_where_a_stiff_one_holds() {
 
 #[test]
 fn coupled_axes_limit_one_distance() {
-    let free = "kind = \"generic\"\nlock_rotation = [\"x\", \"y\", \"z\"]";
-    let rope = format!(
-        "{free}\ncoupled_translation = [\"x\", \"y\", \"z\"]\naxes = [{{ axis = \"x\", limits = [0.0, 1.0] }}]"
-    );
+    let free = "kind = \"generic\"\n[generic_joint3d]\nlock_rotation = [\"x\", \"y\", \"z\"]";
+    let rope = "kind = \"generic\"\naxes = [{ axis = \"x\", limits = [0.0, 1.0] }]\n[generic_joint3d]\nlock_rotation = [\"x\", \"y\", \"z\"]\ncoupled_translation = [\"x\", \"y\", \"z\"]";
     let mut app = app();
-    let ball = hanging(&app, [0.5, 0.0, 0.0], &rope);
+    let ball = hanging(&app, [0.5, 0.0, 0.0], rope);
     tick(&mut app, 120);
     // The ball's anchor is half a unit to its left, where the anchor body is.
     let anchor = pose(&app, ball).position - glamx::Vec3::new(0.5, 0.0, 0.0);
@@ -169,14 +184,15 @@ fn switching_a_joint_off_keeps_it_and_switching_it_back_on_holds_again() {
     );
 }
 
-/// A ball hung level on an articulated hinge about z, given `extra`, after
-/// half a second: as long as a free swing takes to reach the bottom.
-fn articulated(extra: &str) -> (App, Entity) {
+/// A ball hung level on an articulated hinge about z, given `joint` rows
+/// and `articulation` ones, after half a second: as long as a free swing takes
+/// to reach the bottom.
+fn articulated(joint: &str, articulation: &str) -> (App, Entity) {
     let mut app = app();
     let ball = hanging(
         &app,
         [1.0, 0.0, 0.0],
-        &format!("kind = \"hinge\"\narticulation = true\n{extra}"),
+        &format!("kind = \"hinge\"\n{joint}\n[articulation3d]\n{articulation}"),
     );
     tick(&mut app, 30);
     (app, ball)
@@ -184,10 +200,10 @@ fn articulated(extra: &str) -> (App, Entity) {
 
 #[test]
 fn a_kinematic_link_holds_its_pose_against_gravity() {
-    let (app, ball) = articulated("kinematic_link = true");
+    let (app, ball) = articulated("", "kinematic_link = true");
     let y = pose(&app, ball).position.y;
     assert!(y.abs() < 0.01, "the kinematic link fell to {y}");
-    let (app, ball) = articulated("");
+    let (app, ball) = articulated("", "");
     assert!(
         pose(&app, ball).position.y < -0.5,
         "the ordinary link never swung"
@@ -196,10 +212,10 @@ fn a_kinematic_link_holds_its_pose_against_gravity() {
 
 #[test]
 fn joint_friction_and_a_passive_spring_hold_a_link_up() {
-    let (app, ball) = articulated("axes = [{ axis = \"rotation_x\", friction = 1000.0 }]");
+    let (app, ball) = articulated("axes = [{ axis = \"rotation_x\", friction = 1000.0 }]", "");
     let y = pose(&app, ball).position.y;
     assert!(y > -0.05, "dry friction let the link fall to {y}");
-    let (app, ball) = articulated("passive_stiffness = 5000.0");
+    let (app, ball) = articulated("", "passive_stiffness = 5000.0");
     let y = pose(&app, ball).position.y;
     assert!(y > -0.1, "the passive spring let the link fall to {y}");
 }
@@ -207,10 +223,12 @@ fn joint_friction_and_a_passive_spring_hold_a_link_up() {
 #[test]
 fn an_articulation_reads_back_what_its_chain_holds() {
     let (app, ball) = articulated(
-        "axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]\npassive_stiffness = 2.0\npassive_rest = 0.3",
+        "axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]",
+        "passive_stiffness = 2.0\npassive_rest = 0.3",
     );
     let table = components::get(&app.engine, ball, "joint3d").unwrap();
-    let number = |key: &str| table.get(key).and_then(toml::Value::as_float).unwrap();
+    let chain = components::get(&app.engine, ball, "articulation3d").unwrap();
+    let number = |key: &str| chain.get(key).and_then(toml::Value::as_float).unwrap();
     let record = &table["axes"][0];
     let field = |key: &str| record.get(key).and_then(toml::Value::as_float).unwrap();
     assert!((field("link_damping") - 0.5).abs() < 1e-6);
@@ -224,11 +242,7 @@ fn an_articulation_reads_back_what_its_chain_holds() {
 /// free.
 fn link_damping_left_to_rapier(joint: &str) -> f64 {
     let mut app = app();
-    let ball = hanging(
-        &app,
-        [1.0, 0.0, 0.0],
-        &format!("articulation = true\n{joint}"),
-    );
+    let ball = hanging(&app, [1.0, 0.0, 0.0], &format!("{joint}\n[articulation3d]"));
     tick(&mut app, 1);
     let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
@@ -319,7 +333,8 @@ radius = 0.1
 kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 
 [[nodes]]
 id = "n_impulse"
@@ -401,7 +416,8 @@ radius = 0.1
 kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 
 [[nodes]]
 id = "n_lower"
@@ -420,7 +436,8 @@ radius = 0.1
 kind = "hinge"
 connected_body = "/World/Upper"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 gear_with = "/World/Upper"
 gear_ratio = -1.0
 gear_offset = 0.2

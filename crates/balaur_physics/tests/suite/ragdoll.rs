@@ -374,9 +374,9 @@ impl Scenario {
     assert_eq!(layers.len(), 1);
     assert_eq!(layers[0].as_str(), Some("2"));
     let joint = get("joint2d");
-    assert_eq!(
-        joint.get("articulation").and_then(toml::Value::as_bool),
-        Some(true)
+    assert!(
+        balaur_core::components::get(&app.engine, knee, "articulation2d").is_some(),
+        "the ragdoll's joints are not an articulation"
     );
     assert_eq!(
         joint

@@ -158,7 +158,11 @@ fn a_polyline_is_two_sided_until_it_is_asked_to_be_oriented() {
             "the winding decides which side is solid, so this one is opt-in"
         );
     }
-    let oriented = run(&mesh_scene_2d("polyline", "oriented = true"), "", 1);
+    let oriented = run(
+        &mesh_scene_2d("polyline", "\n[nodes.mesh_collider2d]\noriented = true"),
+        "",
+        1,
+    );
     let handle = only_collider_2d(&oriented);
     let state = oriented.engine.resource::<PhysicsState2d>();
     let state = state.borrow();

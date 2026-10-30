@@ -15,6 +15,7 @@ use crate::rapier2d::prelude::{
     InteractionTestMode, MassProperties, RigidBodyHandle,
 };
 use crate::scalar::{self, Pose2, Real, Rotation2};
+use crate::shared::beside::{self, Beside};
 
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
@@ -147,27 +148,6 @@ pub struct Collider2d {
     /// Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws
     #[property(asset = "mesh", group = "mesh")]
     pub mesh: String,
-    /// The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at
-    #[property(default = Fit2d::ConvexHull, group = "mesh")]
-    pub fit: Fit2d,
-    /// Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them
-    #[property(default = Edges2d::Chain, group = "mesh")]
-    pub edges: Edges2d,
-    /// Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid
-    #[property(group = "mesh")]
-    pub oriented: bool,
-    /// Keep the points that lie on a straight edge of a convex_polygon instead of dropping them
-    #[property(group = "mesh")]
-    pub keep_collinear: bool,
-    /// Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition
-    #[property(default = Fill::Solid, group = "mesh")]
-    pub fill: Fill,
-    /// When a solid fill floods an outline, leave the holes it walls off empty
-    #[property(group = "mesh")]
-    pub fill_cavities: bool,
-    /// When a solid fill floods an outline, handle the places it crosses itself
-    #[property(group = "mesh")]
-    pub fix_self_intersections: bool,
     /// A row of heights, when kind is heightfield: a side-scroller's ground, with the asset's holes cut out
     #[property(asset = "heightfield", group = "mesh")]
     pub heightfield: String,
@@ -180,6 +160,33 @@ pub struct Collider2d {
     /// How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points
     #[property(group = "mesh", min = 0.0)]
     pub voxel_size: f32,
+}
+
+/// How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, Component)]
+#[component(name = "mesh_collider2d")]
+pub struct MeshCollider2d {
+    /// The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at
+    #[property(default = Fit2d::ConvexHull)]
+    pub fit: Fit2d,
+    /// Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them
+    #[property(default = Edges2d::Chain)]
+    pub edges: Edges2d,
+    /// Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid
+    pub oriented: bool,
+    /// Keep the points that lie on a straight edge of a convex_polygon instead of dropping them
+    pub keep_collinear: bool,
+    /// Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition
+    #[property(default = Fill::Solid)]
+    pub fill: Fill,
+    /// When a solid fill floods an outline, leave the holes it walls off empty
+    pub fill_cavities: bool,
+    /// When a solid fill floods an outline, handle the places it crosses itself
+    pub fix_self_intersections: bool,
     /// Merge vertices at exactly the same place when building a triangle_mesh
     #[property(group = "mesh cleanup")]
     pub merge_vertices: bool,
@@ -198,40 +205,70 @@ pub struct Collider2d {
     /// Work out which triangles form each separate piece of the mesh
     #[property(group = "mesh cleanup")]
     pub connected_components: bool,
+}
+
+impl Beside for MeshCollider2d {
+    type Main = Collider2d;
+
+    fn reads(main: &Collider2d) -> bool {
+        matches!(
+            main.kind,
+            ColliderKind2d::TriangleMesh
+                | ColliderKind2d::Polyline
+                | ColliderKind2d::Fit
+                | ColliderKind2d::ConvexPolygon
+                | ColliderKind2d::VoxelizedMesh
+                | ColliderKind2d::ConvexDecomposition
+        )
+    }
+}
+
+/// How the node's `collider2d` cuts its mesh into convex pieces, for a convex_decomposition.
+#[derive(Clone, Component)]
+#[component(name = "convex_decomposition2d")]
+pub struct ConvexDecomposition2d {
     /// How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts
-    #[property(default = Decomposition2d::Exact, group = "decomposition")]
+    #[property(default = Decomposition2d::Exact)]
     pub method: Decomposition2d,
     /// How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it
-    #[property(default = 0.9, group = "decomposition", max = 1.0, min = 0.0)]
+    #[property(default = 0.9, max = 1.0, min = 0.0)]
     pub overlap: f32,
     /// How deep a dent a piece may keep before it is cut again
-    #[property(default = vhacd().concavity, group = "decomposition", min = 0.0)]
+    #[property(default = vhacd().concavity, min = 0.0)]
     pub max_concavity: f32,
     /// The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet
-    #[property(default = i64::from(vhacd().max_convex_hulls), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().max_convex_hulls), min = 1)]
     pub max_convex_hulls: i64,
     /// How fine the voxel grid a decomposition cuts is
-    #[property(default = i64::from(vhacd().resolution), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().resolution), min = 1)]
     pub resolution: i64,
     /// Estimate each piece's hull while cutting rather than building it exactly
-    #[property(default = vhacd().convex_hull_approximation, group = "decomposition")]
+    #[property(default = vhacd().convex_hull_approximation)]
     pub approximate_hulls: bool,
     /// How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point
-    #[property(default = i64::from(vhacd().convex_hull_downsampling), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().convex_hull_downsampling), min = 1)]
     pub hull_downsampling: i64,
     /// How coarsely the cutting planes are searched first; 1 tries every one
-    #[property(default = i64::from(vhacd().plane_downsampling), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().plane_downsampling), min = 1)]
     pub plane_downsampling: i64,
     /// How much a cut prefers a plane of symmetry
-    #[property(default = vhacd().alpha, group = "decomposition", max = 1.0, min = 0.0)]
+    #[property(default = vhacd().alpha, max = 1.0, min = 0.0)]
     pub symmetry_bias: f32,
     /// How much a cut prefers an axis of revolution
-    #[property(default = vhacd().beta, group = "decomposition", max = 1.0, min = 0.0)]
+    #[property(default = vhacd().beta, max = 1.0, min = 0.0)]
     pub revolution_bias: f32,
 }
 
+impl Beside for ConvexDecomposition2d {
+    type Main = Collider2d;
+
+    fn reads(main: &Collider2d) -> bool {
+        main.kind == ColliderKind2d::ConvexDecomposition
+    }
+}
+
 /// rapier2d's own decomposition tuning, which is not parry's 3D one: what a
-/// `collider2d`'s rows start at.
+/// `convex_decomposition2d`'s rows start at.
 fn vhacd() -> crate::rapier2d::parry::transformation::vhacd::VHACDParameters {
     crate::rapier2d::parry::transformation::vhacd::VHACDParameters::default()
 }
@@ -592,13 +629,20 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
     max
 }
 
+/// What the node's `collider2d` asks for, with the rows of the components
+/// beside it written in; `None` when it has none.
+fn asked(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+    let world = eng.world();
+    let held = world.get::<&Collider2d>(entity).ok()?;
+    let mut params = derived::to_table(&*held);
+    beside::write_in::<MeshCollider2d>(&world, entity, &held, &mut params);
+    beside::write_in::<ConvexDecomposition2d>(&world, entity, &held, &mut params);
+    Some(params)
+}
+
 /// The collider the component asks for, built again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let asked = eng
-        .world()
-        .get::<&Collider2d>(entity)
-        .map(|held| derived::to_table(&*held));
-    let Ok(params) = asked else {
+    let Some(params) = asked(eng, entity) else {
         return Ok(());
     };
     apply_collider(eng, entity, &params)
@@ -607,6 +651,13 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
 /// `collider2d`: as `collider3d`, the collider itself in
 /// [`crate::PhysicsState2d`].
 pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_2D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    beside::register::<MeshCollider2d>(reg, &[c::COLLIDER_2D], tags, after_write);
+    beside::register::<ConvexDecomposition2d>(reg, &[c::COLLIDER_2D], tags, after_write);
+    // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Collider2d::NAME,
         ComponentDef {
@@ -624,6 +675,14 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
         },
     );
 }
+
+/// The components whose rows a `collider2d`'s build reads: its own, then
+/// those beside it.
+pub(crate) const PARAMS: &[&str] = &[
+    c::COLLIDER_2D,
+    <MeshCollider2d as Component>::NAME,
+    <ConvexDecomposition2d as Component>::NAME,
+];
 
 /// Replace a node's collider from a `collider2d` table, read as a write of
 /// the component reads it.

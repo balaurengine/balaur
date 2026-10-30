@@ -28,12 +28,20 @@ fn node(app: &App, name: &str, at: [f32; 3]) -> Entity {
 }
 
 fn add(app: &App, e: Entity, component: &str, text: &str) -> anyhow::Result<()> {
-    components::add(
-        &app.engine,
-        e,
-        component,
-        Some(&toml::from_str(text).unwrap()),
-    )
+    let mut rows: toml::Value = toml::from_str(text).unwrap();
+    let table = rows.as_table_mut().unwrap();
+    // A table named for a dimension is a component beside this one, added
+    // first as a scene adds it.
+    let beside: Vec<String> = table
+        .iter()
+        .filter(|(name, value)| value.is_table() && (name.ends_with("2d") || name.ends_with("3d")))
+        .map(|(name, _)| name.clone())
+        .collect();
+    for name in beside {
+        let held = table.remove(&name).unwrap();
+        components::add(&app.engine, e, &name, Some(&held))?;
+    }
+    components::add(&app.engine, e, component, Some(&rows))
 }
 
 /// The 3D soft body a table builds, read with `f`.
@@ -59,7 +67,7 @@ fn joins(edge: [u32; 2], a: u32, b: u32) -> bool {
     edge == [a, b] || edge == [b, a]
 }
 
-const TETRA: &str = "kind = \"custom\"\npoints = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]";
+const TETRA: &str = "kind = \"custom\"\n[soft_custom3d]\npoints = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]";
 
 #[test]
 fn a_custom_body_is_built_from_the_points_and_elements_it_lists() {
@@ -88,7 +96,7 @@ fn a_custom_body_is_built_from_the_points_and_elements_it_lists() {
         "the listed edges and the wire were not taken"
     );
     let flat = built2(
-        "kind = \"custom\"\npoints = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]\ncell_indices = [[0, 1, 2]]",
+        "kind = \"custom\"\n[soft_custom2d]\npoints = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]\ncell_indices = [[0, 1, 2]]",
         |b| (b.num_particles(), b.cells().len()),
     );
     assert_eq!(flat, (3, 1));
@@ -110,19 +118,24 @@ fn a_custom_index_past_its_points_is_refused() {
         &app,
         e,
         "softbody3d",
-        "kind = \"custom\"\npoints = [[0.0, 0.0, 0.0]]",
+        "kind = \"custom\"\n[soft_custom3d]\npoints = [[0.0, 0.0, 0.0]]",
     )
     .expect_err("a custom body with nothing joining its points was taken");
     assert!(format!("{why:#}").contains("points"), "{why:#}");
 }
 
-const ROPE: &str = "kind = \"rope\"\nparticle_count = 4";
+/// A rope of four particles, with `rows` of its `softbody3d`.
+fn rope(rows: &str) -> String {
+    format!("kind = \"rope\"\n{rows}\n[soft_rope3d]\nparticle_count = 4")
+}
 
 #[test]
 fn a_seam_joins_particles_the_layout_left_apart() {
-    let plain = built3(ROPE, |b| b.edges().iter().any(|e| joins(e.vertices, 0, 3)));
+    let plain = built3(&rope(""), |b| {
+        b.edges().iter().any(|e| joins(e.vertices, 0, 3))
+    });
     assert!(!plain, "the rope already joined its two ends");
-    let sewn = built3(&format!("{ROPE}\nseams = [{{ a = 0, b = 3 }}]"), |b| {
+    let sewn = built3(&rope("seams = [{ a = 0, b = 3 }]"), |b| {
         b.edges().iter().any(|e| joins(e.vertices, 0, 3))
     });
     assert!(sewn, "the seam made no edge between the rope's ends");
@@ -139,17 +152,15 @@ fn listed_tension_only_edges_are_the_only_slack_ones() {
                 .collect::<Vec<_>>()
         })
     };
-    let listed = slack(&format!(
-        "{ROPE}\ntension_only = \"listed\"\ntension_only_edges = [{{ a = 1, b = 0 }}]"
+    let listed = slack(&rope(
+        "tension_only = \"listed\"\ntension_only_edges = [{ a = 1, b = 0 }]",
     ));
     assert!(listed.len() == 1 && joins(listed[0], 0, 1), "{listed:?}");
-    let all = built3(&format!("{ROPE}\ntension_only = \"all\""), |b| {
+    let all = built3(&rope("tension_only = \"all\""), |b| {
         b.edges().iter().all(|e| e.tension_only)
     });
     assert!(all, "tension_only = all left an edge resisting compression");
-    let none = slack(&format!(
-        "{ROPE}\ntension_only_edges = [{{ a = 0, b = 1 }}]"
-    ));
+    let none = slack(&rope("tension_only_edges = [{ a = 0, b = 1 }]"));
     assert!(
         none.is_empty(),
         "edges were listed without `listed`: {none:?}"
@@ -159,7 +170,7 @@ fn listed_tension_only_edges_are_the_only_slack_ones() {
 #[test]
 fn an_edge_spring_reaches_a_bending_edge() {
     let spring = built3(
-        &format!("{ROPE}\nedge_springs = [{{ a = 0, b = 2, hz = 7.0, damping = 0.5 }}]"),
+        &rope("edge_springs = [{ a = 0, b = 2, hz = 7.0, damping = 0.5 }]"),
         |b| {
             b.edges()
                 .iter()
@@ -178,7 +189,7 @@ fn an_edge_spring_reaches_a_bending_edge() {
 #[test]
 fn a_tube_narrows_to_its_end_radius_and_cloth_takes_its_woven_damping() {
     let ends = built3(
-        "kind = \"cloth_tube\"\nradius = 0.5\nend_radius = 0.25\ncells = [8.0, 4.0, 1.0]",
+        "kind = \"cloth_tube\"\n[soft_cloth_tube3d]\nradius = 0.5\nend_radius = 0.25\ncells = [8.0, 4.0, 1.0]",
         |b| {
             let radial = |p: balaur_physics::rapier3d::math::Vector| (p.x * p.x + p.z * p.z).sqrt();
             let rings: Vec<f32> = b.particle_positions().map(radial).collect();
@@ -191,7 +202,7 @@ fn a_tube_narrows_to_its_end_radius_and_cloth_takes_its_woven_damping() {
         "{ends:?}"
     );
     let damped = built3(
-        "kind = \"cloth\"\ncells = [3.0, 3.0, 1.0]\nsoft_material = { warp_damping = 0.3 }",
+        "kind = \"cloth\"\nsoft_material = { warp_damping = 0.3 }\n[soft_grid3d]\ncells = [3.0, 3.0, 1.0]",
         |b| {
             b.edges()
                 .iter()
@@ -205,7 +216,7 @@ fn a_tube_narrows_to_its_end_radius_and_cloth_takes_its_woven_damping() {
 #[test]
 fn a_2d_outline_is_rapiers_polygon_of_its_points() {
     let (particles, pieces) = built2(
-        "kind = \"outline\"\npoints = [[0.0, 0.0], [1.0, 0.0], [1.5, 1.0], [0.5, 1.5], [-0.5, 1.0]]",
+        "kind = \"outline\"\n[soft_outline2d]\npoints = [[0.0, 0.0], [1.0, 0.0], [1.5, 1.0], [0.5, 1.5], [-0.5, 1.0]]",
         |b| (b.num_particles(), b.volume_pieces().len()),
     );
     assert_eq!(
@@ -223,7 +234,7 @@ fn switching_a_soft_body_off_and_editing_its_surface_keep_it_built() {
         &app,
         e,
         "softbody3d",
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\n[soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
     )
     .unwrap();
     let handle = |app: &App| {
@@ -320,9 +331,11 @@ id = "n_flat"
 name = "Flat"
 parent = "n_world"
 
+[nodes."soft_grid2d"]
+cells = [1.0, 1.0]
+
 [nodes.softbody2d]
 kind = "grid"
-cells = [1.0, 1.0]
 
 [[nodes]]
 id = "n_soft"
@@ -358,7 +371,7 @@ script = {{ source = "scripts/scenario.bs" }}
 #[test]
 fn a_sensor_soft_body_passes_through_the_floor() {
     run_checked(
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]\nsensor = true",
+        "kind = \"box\"\nsensor = true\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn fixed_update(dt: float) {
@@ -379,17 +392,17 @@ impl Scenario {
 #[test]
 fn a_volumetric_crust_holds_fewer_particles_than_a_solid_fill() {
     run_checked(
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         let n = self.node;
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube").with("cell_size", 0.2));
+        n.set_component("soft_volumetric3d", map().with("cell_size", 0.2)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube"));
         let solid = n.softbody3d.softbody_particles();
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube").with("cell_size", 0.2).with("fill", physics3d::FILL_SURFACE));
+        n.set_component("soft_volumetric3d", map().with("cell_size", 0.2).with("fill", physics3d::FILL_SURFACE)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube"));
         let crust = n.softbody3d.softbody_particles();
         if crust >= solid { log::error("the crust held {crust} particles against the fill's {solid}"); }
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("cells", [1.0, 1.0, 1.0]).with("mesh", "#cube").with("skin", true));
+        n.set_component("soft_grid3d", map().with("cells", [1.0, 1.0, 1.0])); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("mesh", "#cube").with("skin", true));
         if n.softbody3d.softbody_particles() != 8 { log::error("the skin changed the box's particles"); }
         log::error("checked: fills");
     }
@@ -403,7 +416,7 @@ impl Scenario {
 #[test]
 fn a_script_reads_every_particle_edge_and_cell_row() {
     run_checked(
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]\nsoft_material = { tear_strain = 10.0 }",
+        "kind = \"box\"\nsoft_material = { tear_strain = 10.0 }\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -463,7 +476,7 @@ impl Scenario {
 #[test]
 fn a_cut_splits_the_body_and_its_pieces_stay_reachable() {
     run_checked(
-        "kind = \"rope\"\nparticle_count = 6\ngravity_scale = 0.0",
+        "kind = \"rope\"\ngravity_scale = 0.0\n[nodes.soft_rope3d]\nparticle_count = 6",
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -495,17 +508,17 @@ impl Scenario {
 #[test]
 fn a_2d_polyline_takes_its_meshs_triangle_edges_when_asked() {
     run_checked(
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         let flat = scene::get_node("World/Flat");
         flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_POLYLINE).with("mesh", "#square"));
         let chain = flat.softbody2d.softbody_edges().len();
-        flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_POLYLINE).with("mesh", "#square").with("edges", physics2d::EDGES_MESH));
+        flat.set_component("soft_polyline2d", map().with("edges", physics2d::EDGES_MESH)); flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_POLYLINE).with("mesh", "#square"));
         let mesh = flat.softbody2d.softbody_edges().len();
         if mesh <= chain { log::error("the mesh's edges gave {mesh} against the chain's {chain}"); }
-        flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square").with("cell_size", 0.2).with("min_angle", 0.3));
+        flat.set_component("soft_volumetric2d", map().with("cell_size", 0.2).with("min_angle", 0.3)); flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square"));
         if flat.softbody2d.softbody_particles() <= 4 { log::error("the fill added no particles"); }
         log::error("checked: polyline");
     }
@@ -523,7 +536,7 @@ fn an_inline_soft_material_reaches_the_solver() {
     use balaur_physics::rapier3d::prelude::{SoftBodyCellModel, SoftEdgePlasticFlow};
     let made = "soft_material = { edge_hz = 120.0, bend_damping = 0.4, cell_model = \"corotational\", young_modulus = 50000.0, poisson_ratio = 0.45, plastic_yield = 0.2, edge_plastic_flow = \"compression\", tear_strain = 0.6, volume_preservation = false, volume_factor = 1.5 }";
     built3(
-        &format!("kind = \"box\"\ncells = [1.0, 1.0, 1.0]\n{made}"),
+        &format!("kind = \"box\"\n{made}\n[soft_grid3d]\ncells = [1.0, 1.0, 1.0]"),
         |body| {
             let material = body.material();
             assert!((material.edge_softness.natural_frequency - 120.0).abs() < 1e-4);
@@ -557,7 +570,7 @@ fn a_new_soft_material_is_taken_in_place() {
         &app,
         e,
         "softbody3d",
-        "kind = \"box\"\ncells = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\n[soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
     )
     .unwrap();
     let handle = |app: &App| {

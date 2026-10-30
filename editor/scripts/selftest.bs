@@ -1354,7 +1354,7 @@ fn each_from_its_own_mesh(state: &mut editor::State, two_d: bool, collider: str)
     let pair = [meshed[0], meshed[1]];
     selection::set(state, pair);
     let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
-    physics::make_collider(state, two_d, map().with("kind", hull));
+    physics::make_collider(state, two_d, map().with("kind", hull), map());
     for index in pair {
         let wrote = util::map_or_empty(model::node(state, index).authored(collider)).get("mesh");
         let own = physics::drawn_mesh(model::node(state, index), two_d);
@@ -4102,9 +4102,10 @@ pub fn warning_marks(state: &mut editor::State) {
     let id = model::node(state, row).stable_id();
     check(lint::warned(state, id).len() > 0, "a body nothing collides with marks its row ({lint::warned(state, id)})");
     model::add_component(state, "softbody2d");
-    let before = util::map_or_empty(model::node(state, row).authored("softbody2d")).get("cells");
-    model::set_component_property(state, "softbody2d", "cells", [5000.0, 5000.0]);
-    let after = util::map_or_empty(model::node(state, row).authored("softbody2d")).get("cells");
+    model::add_component(state, "soft_grid2d");
+    let before = util::map_or_empty(model::node(state, row).authored("soft_grid2d")).get("cells");
+    model::set_component_property(state, "soft_grid2d", "cells", [5000.0, 5000.0]);
+    let after = util::map_or_empty(model::node(state, row).authored("soft_grid2d")).get("cells");
     check(after.equals(before), "a refused write leaves the document as it was ({after})");
     let named: [str] = [];
     for warning in scene::warnings(model::node(state, row)) {
