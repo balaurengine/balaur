@@ -332,10 +332,10 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // a child ui reports nothing to its parent on its own.
         let used = pad.around(inner_ui.min_rect());
         frame_ui.allocate_rect(used, egui::Sense::hover());
-        if style.fill.is_some() || style.stroke.is_some() {
+        if style.paints() {
             Brush::of(frame_ui).set(
                 plate,
-                crate::widget::theme::frame_shape(
+                crate::widget::frame::frame_shape(
                     used,
                     egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
                     style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -584,9 +584,9 @@ pub(crate) fn stated_of(widget: &Widget) -> egui::Vec2 {
 pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     let widget = at.arena[index].widget.clone();
     let style = at.style_of(&widget);
-    if style.fill.is_some() || style.stroke.is_some() {
+    if style.paints() {
         let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
-        Brush::of(ui).add(crate::widget::theme::frame_shape(
+        Brush::of(ui).add(crate::widget::frame::frame_shape(
             ui.max_rect(),
             radius,
             style.fill.unwrap_or(Color32::TRANSPARENT),

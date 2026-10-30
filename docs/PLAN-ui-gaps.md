@@ -1,7 +1,7 @@
-> **Status:** planned 2026-10-30. §1's engine built 2026-10-30
-> (`balaur_text/src/edit.rs`); wiring it into the text kinds waits on the
-> `widget` derive and per-kind split. The rest is step 12 of
-> PLAN-foundations, after the ECS work for the parts that read change ticks.
+> **Status:** planned 2026-10-30. Built 2026-10-30: §1's engine
+> (`balaur_text/src/edit.rs`), §4's arrows and §5. Wiring §1 into the text
+> kinds waits on the `widget` derive and per-kind split; §2 and §3 are step
+> 12 of PLAN-foundations, after the ECS work for the parts that read ticks.
 
 # Plan: the UI's gaps
 
@@ -99,6 +99,13 @@ today. Added:
 
 The focus ring is the theme's `focus` table.
 
+Built 2026-10-30, in `widget/focus.rs`: an arrow goes to the focus stop
+whose centre lies that way, scored by the gap ahead plus twice the gap
+across, by where each stop was drawn last frame (`toward`); Tab keeps
+walking the scene's order. From no focus an arrow starts at an end. Not
+built: a pad's d-pad (`ui.focus_next` and friends still serve it), a
+widget naming its neighbour, scrolling a focused widget into view.
+
 The rest of the 0.8 controller row (an on-screen keyboard, safe-area insets,
 button glyphs) stays on that row.
 
@@ -111,6 +118,14 @@ A theme role gains a gradient (linear or radial, its stops) and a shadow
 (PLAN-egui-as-painter). The theme reader knows the keys, so an app reaches
 them from its theme without a node styling itself, which is the rule the
 Polyglot app's `tools/style_lint.py` holds it to.
+
+Built 2026-10-30: `gradient = { from, to, angle }` and `shadow = { x, y,
+blur, spread, color }` on any kind, role or state table, colours by token
+or hex. `theme::frame_shape`, which every kind's box goes through, paints
+the shadow, then the gradient in place of `fill`, then the outline; the
+gradient is a fan over the rounded box coloured a vertex at a time
+(`paint::gradient`), the shadow egui's blurred rect. Linear only: radial
+and more than two stops are not built.
 
 ## 6. Order
 

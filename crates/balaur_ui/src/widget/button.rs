@@ -388,7 +388,7 @@ pub(crate) fn button(
         ),
         None => Brush::of(ui).set(
             plate,
-            crate::widget::theme::frame_shape(
+            crate::widget::frame::frame_shape(
                 response.rect,
                 radius,
                 style.fill.unwrap_or(Color32::TRANSPARENT),

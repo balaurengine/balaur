@@ -15,7 +15,8 @@ use crate::widget::arrange::{
     settle_rects, solved_of, tabs,
 };
 use crate::widget::focus::{
-    advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
+    advance, focus_before, focus_moved, focus_stops, keyboard_move, keyboard_side, reachable,
+    shortcuts,
 };
 use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::paint::{self, Brush};
@@ -105,12 +106,12 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
     // A field being typed into owns the keys, arrows included.
-    let asked = (keyboard && !ctx.egui_wants_keyboard_input())
-        .then(|| keyboard_move(ctx))
-        .flatten();
+    let keys = keyboard && !ctx.egui_wants_keyboard_input();
+    let asked = keys.then(|| keyboard_move(ctx)).flatten();
+    let side = keys.then(|| keyboard_side(ctx)).flatten();
     let shown = reachable(&placed, &roots, &|name| surface_of(name).enabled);
     let stops = focus_stops(&placed, &shown);
-    let accepted = advance(eng, &stops, asked);
+    let accepted = advance(eng, &stops, asked, side);
     let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
@@ -1024,7 +1025,7 @@ fn panel(
     } else {
         Brush::of(ui).set(
             plate,
-            crate::widget::theme::frame_shape(
+            crate::widget::frame::frame_shape(
                 background,
                 egui::CornerRadius::same(style.radius.unwrap_or(8.0) as u8),
                 style.fill.unwrap_or(Color32::from_black_alpha(96)),

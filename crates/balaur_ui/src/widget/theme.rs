@@ -41,12 +41,13 @@ use balaur_core::Engine;
 use smol_str::SmolStr;
 
 use crate::vocabulary::keys as k;
+use crate::vocabulary::looks as lk;
 use crate::vocabulary::states as st;
 use crate::vocabulary::tokens as t;
 use crate::vocabulary::weights;
 use crate::vocabulary::words as w;
 use crate::widget::node::{Widget, rgba_color};
-use crate::widget::paint::{self, Brush};
+use crate::widget::paint::Brush;
 use egui::Color32;
 
 /// Where the pointer is, as far as one widget is concerned.
@@ -174,12 +175,46 @@ pub struct Style {
     /// The band a widget's `border` keeps clear on each side, left, top,
     /// right and bottom, which its outline is painted in; never a theme's.
     pub border: Option<[f32; 4]>,
+    /// A fill that runs from one colour to another, drawn in place of `fill`.
+    pub gradient: Option<Gradient>,
+    /// A blurred copy of the box, under it.
+    pub shadow: Option<Shadow>,
+}
+
+/// `gradient = { from = "primary", to = "bg_panel", angle = 90 }`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gradient {
+    pub from: Color32,
+    pub to: Color32,
+    /// Degrees: 0 runs left to right, 90 top to bottom.
+    pub angle: f32,
+}
+
+/// `shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }`, in
+/// design pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shadow {
+    pub x: f32,
+    pub y: f32,
+    pub blur: f32,
+    pub spread: f32,
+    pub color: Color32,
 }
 
 impl Style {
     /// The outline width to draw, once a style has said whether it wants one.
     pub fn stroke_px(&self) -> f32 {
         self.stroke_width.unwrap_or(1.0)
+    }
+
+    /// Whether a box drawn in this style shows anything: a fill, an
+    /// outline, a gradient or a shadow.
+    #[must_use]
+    pub fn paints(&self) -> bool {
+        self.fill.is_some()
+            || self.stroke.is_some()
+            || self.gradient.is_some()
+            || self.shadow.is_some()
     }
 
     /// The paint half of a style, for a `hover` or `active` table. A state
@@ -244,6 +279,8 @@ impl Style {
             arrow: self.arrow.clone().or_else(|| base.arrow.clone()),
             body: self.body.clone().or_else(|| base.body.clone()),
             border: self.border.or(base.border),
+            gradient: self.gradient.or(base.gradient),
+            shadow: self.shadow.or(base.shadow),
         }
     }
 
@@ -619,7 +656,44 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .and_then(toml::Value::as_table)
             .map(|table| Rc::new(style_of(table, tokens, what))),
         border: None,
+        gradient: gradient_of(body, tokens, what),
+        shadow: shadow_of(body, tokens, what),
     }
+}
+
+/// A table's `gradient`: both colours, and an angle, 0 when left out.
+fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Gradient> {
+    let table = body.get(lk::GRADIENT)?.as_table()?;
+    let colour = |key: &str| table.get(key).and_then(|v| color(v, what, &tokens.colors));
+    Some(Gradient {
+        from: colour(lk::FROM)?,
+        to: colour(lk::TO)?,
+        angle: table
+            .get(lk::ANGLE)
+            .and_then(balaur_core::components::as_f64)
+            .map_or(0.0, |v| v as f32),
+    })
+}
+
+/// A table's `shadow`: its colour, and offsets, blur and spread, 0 when
+/// left out.
+fn shadow_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Shadow> {
+    let table = body.get(lk::SHADOW)?.as_table()?;
+    let number = |key: &str| {
+        table
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .map_or(0.0, |v| v as f32)
+    };
+    Some(Shadow {
+        x: number(lk::X),
+        y: number(lk::Y),
+        blur: number(lk::BLUR),
+        spread: number(lk::SPREAD),
+        color: table
+            .get(lk::COLOR)
+            .and_then(|v| color(v, what, &tokens.colors))?,
+    })
 }
 
 /// A `checked` table: paint over the entry, with its own pointer tables.
@@ -796,6 +870,10 @@ arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ g
 fill = "bg_panel"
 padding = 8.0
 
+[roles.card]                     # any table may carry a gradient and a shadow
+gradient = { from = "primary_fill", to = "bg_panel", angle = 90 }  # in place of fill; 0 runs left to right
+shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
+
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"
 text_color = "text_on_danger"
@@ -903,75 +981,6 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
         style.border = Some(border);
     }
     Rc::new(style)
-}
-
-/// A fill and its outline in dashes along the inside of its edge: six on,
-/// five off, as a guide over a picture is drawn.
-fn dashed_frame(
-    rect: egui::Rect,
-    radius: egui::CornerRadius,
-    fill: Color32,
-    stroke: egui::Stroke,
-) -> crate::widget::paint::Shape {
-    let edge = rect.shrink(stroke.width / 2.0);
-    let path = [
-        edge.left_top(),
-        edge.right_top(),
-        edge.right_bottom(),
-        edge.left_bottom(),
-        edge.left_top(),
-    ];
-    let mut shapes = vec![paint::filled(rect, radius, fill)];
-    shapes.extend(paint::dashed(&path, stroke, 6.0, 5.0));
-    paint::group(shapes)
-}
-
-/// A frame's fill and outline over `rect`. The outline is the style's stroke
-/// at `stroke_width`, unless the widget states a `border`: then it fills that
-/// band, side by side, which is the band the layout kept clear.
-pub(crate) fn frame_shape(
-    rect: egui::Rect,
-    radius: egui::CornerRadius,
-    fill: Color32,
-    style: &Style,
-) -> crate::widget::paint::Shape {
-    let Some(color) = style.stroke else {
-        return paint::filled(rect, radius, fill);
-    };
-    let [left, top, right, bottom] = match style.border {
-        Some(sides) => sides,
-        None => [style.stroke_px(); 4],
-    };
-    #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
-    if left == top && top == right && right == bottom && style.dashed == Some(true) {
-        return dashed_frame(rect, radius, fill, egui::Stroke::new(left, color));
-    }
-    #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
-    if left == top && top == right && right == bottom {
-        return paint::rect(
-            rect,
-            radius,
-            fill,
-            egui::Stroke::new(left, color),
-            egui::StrokeKind::Inside,
-        );
-    }
-    // Sides of different widths: egui strokes all four alike, so each band is
-    // its own strip, square at the corners.
-    let strips = [
-        egui::Rect::from_min_max(rect.min, egui::pos2(rect.min.x + left, rect.max.y)),
-        egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.min.y + top)),
-        egui::Rect::from_min_max(egui::pos2(rect.max.x - right, rect.min.y), rect.max),
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.max.y - bottom), rect.max),
-    ];
-    let mut shapes = vec![paint::filled(rect, radius, fill)];
-    shapes.extend(
-        strips
-            .into_iter()
-            .filter(egui::Rect::is_positive)
-            .map(|strip| paint::filled(strip, 0.0, color)),
-    );
-    paint::group(shapes)
 }
 
 /// The near-white a caption takes when neither the widget nor its theme says.
@@ -1128,45 +1137,5 @@ pub(crate) fn theme_of(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Pointer, WidgetState, parse, parse_color};
-
-    #[test]
-    fn a_disabled_or_focused_widget_takes_the_state_table_over_its_kind() {
-        let text = "type = \"widget_theme\"\n\n[button]\nfill = \"#ffffff\"\n\n[button.disabled]\nfill = \"#101010\"\n\n[button.focus]\nfill = \"#2020ff\"\n";
-        let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
-        let button = theme.resolved("button", "");
-        assert_eq!(button.fill, parse_color("#ffffff"));
-        assert_eq!(
-            button
-                .in_states(WidgetState {
-                    disabled: true,
-                    ..WidgetState::default()
-                })
-                .fill,
-            parse_color("#101010"),
-            "disabled wins"
-        );
-        assert_eq!(
-            button
-                .in_states(WidgetState {
-                    focused: true,
-                    ..WidgetState::default()
-                })
-                .fill,
-            parse_color("#2020ff"),
-            "focus with the pointer elsewhere"
-        );
-        assert_eq!(
-            button
-                .in_states(WidgetState {
-                    pointer: Pointer::Over,
-                    focused: true,
-                    ..WidgetState::default()
-                })
-                .fill,
-            parse_color("#ffffff"),
-            "the pointer over it and no hover table: the kind's own look"
-        );
-    }
-}
+#[path = "theme_tests.rs"]
+mod tests;

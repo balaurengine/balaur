@@ -665,6 +665,10 @@ arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ g
 fill = "bg_panel"
 padding = 8.0
 
+[roles.card]                     # any table may carry a gradient and a shadow
+gradient = { from = "primary_fill", to = "bg_panel", angle = 90 }  # in place of fill; 0 runs left to right
+shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
+
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"
 text_color = "text_on_danger"

@@ -70,10 +70,10 @@ pub(super) fn backdrop(ui: &egui::Ui, at: &Painting<'_>, style: &Style, rect: Re
         crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, rect);
         return;
     }
-    if style.fill.is_none() && style.stroke.is_none() {
+    if !style.paints() {
         return;
     }
-    Brush::of(ui).add(crate::widget::theme::frame_shape(
+    Brush::of(ui).add(crate::widget::frame::frame_shape(
         rect,
         egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
         style.fill.unwrap_or(Color32::TRANSPARENT),

@@ -102,7 +102,7 @@ pub(crate) fn window(
     let background = pad.around(inner.min_rect());
     Brush::of(ui).set(
         plate,
-        crate::widget::theme::frame_shape(
+        crate::widget::frame::frame_shape(
             background,
             egui::CornerRadius::same(style.radius.unwrap_or(8.0) as u8),
             style.fill.unwrap_or(Color32::from_black_alpha(160)),

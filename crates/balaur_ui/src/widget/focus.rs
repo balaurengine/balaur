@@ -1,5 +1,6 @@
 //! Keyboard focus across the widget layer: which widgets are stops, where
-//! Tab and the arrows send it, and what a pass reports when it moves.
+//! Tab sends it in order and an arrow across the screen, and what a pass
+//! reports when it moves.
 
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
@@ -35,21 +36,111 @@ fn takes_focus(widget: &Widget) -> bool {
 pub(super) fn keyboard_move(ctx: &egui::Context) -> Option<Move> {
     use egui::Key;
     ctx.input(|i| {
-        let shifted_tab = i.key_pressed(Key::Tab) && i.modifiers.shift;
-        if i.key_pressed(Key::ArrowUp) || i.key_pressed(Key::ArrowLeft) || shifted_tab {
-            return Some(Move::Previous);
-        }
-        if i.key_pressed(Key::ArrowDown)
-            || i.key_pressed(Key::ArrowRight)
-            || i.key_pressed(Key::Tab)
-        {
-            return Some(Move::Next);
+        if i.key_pressed(Key::Tab) {
+            return Some(if i.modifiers.shift {
+                Move::Previous
+            } else {
+                Move::Next
+            });
         }
         if i.key_pressed(Key::Enter) || i.key_pressed(Key::Space) {
             return Some(Move::Accept);
         }
         None
     })
+}
+
+/// An arrow's way across the screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Side {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+/// The arrow pressed this frame, if any.
+pub(super) fn keyboard_side(ctx: &egui::Context) -> Option<Side> {
+    use egui::Key;
+    ctx.input(|i| {
+        [
+            (Key::ArrowUp, Side::Up),
+            (Key::ArrowDown, Side::Down),
+            (Key::ArrowLeft, Side::Left),
+            (Key::ArrowRight, Side::Right),
+        ]
+        .into_iter()
+        .find(|(key, _)| i.key_pressed(*key))
+        .map(|(_, side)| side)
+    })
+}
+
+/// The stop nearest `from` on `side`: one whose centre lies that way, scored
+/// by the gap ahead plus twice the gap across, as a browser's spatial
+/// navigation scores it, so the one in line wins over a nearer one aside.
+/// A tie goes to the nearer centre, then to the earlier stop.
+pub(super) fn toward(
+    from: egui::Rect,
+    side: Side,
+    stops: &[(Entity, egui::Rect)],
+) -> Option<Entity> {
+    let gap = |a: egui::Rangef, b: egui::Rangef| (a.min - b.max).max(b.min - a.max).max(0.0);
+    let score = |to: egui::Rect| {
+        let (ahead, across, beyond) = match side {
+            Side::Up => (
+                from.min.y - to.max.y,
+                gap(from.x_range(), to.x_range()),
+                to.center().y < from.center().y,
+            ),
+            Side::Down => (
+                to.min.y - from.max.y,
+                gap(from.x_range(), to.x_range()),
+                to.center().y > from.center().y,
+            ),
+            Side::Left => (
+                from.min.x - to.max.x,
+                gap(from.y_range(), to.y_range()),
+                to.center().x < from.center().x,
+            ),
+            Side::Right => (
+                to.min.x - from.max.x,
+                gap(from.y_range(), to.y_range()),
+                to.center().x > from.center().x,
+            ),
+        };
+        beyond.then(|| {
+            (
+                ahead.max(0.0) + 2.0 * across,
+                from.center().distance(to.center()),
+            )
+        })
+    };
+    stops
+        .iter()
+        .filter(|(_, rect)| *rect != from)
+        .filter_map(|(entity, rect)| score(*rect).map(|s| (s, *entity)))
+        .min_by(|(a, _), (b, _)| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+        .map(|(_, entity)| entity)
+}
+
+/// Past the last stop on `side`, the first on the far side: a menu is a ring.
+/// `from` is moved beyond the opposite edge of every stop, in its own lane,
+/// and looked from again.
+pub(super) fn around(
+    from: egui::Rect,
+    side: Side,
+    stops: &[(Entity, egui::Rect)],
+) -> Option<Entity> {
+    let all = stops
+        .iter()
+        .fold(egui::Rect::NOTHING, |all, (_, rect)| all.union(*rect));
+    let shift = match side {
+        Side::Down => egui::vec2(0.0, all.min.y - from.max.y - 1.0),
+        Side::Up => egui::vec2(0.0, all.max.y - from.min.y + 1.0),
+        Side::Right => egui::vec2(all.min.x - from.max.x - 1.0, 0.0),
+        Side::Left => egui::vec2(all.max.x - from.min.x + 1.0, 0.0),
+    };
+    toward(from.translate(shift), side, stops)
 }
 
 /// Every widget the scene is showing, in the order the draw reaches them.
@@ -133,7 +224,12 @@ fn is_function_key(key: egui::Key) -> bool {
 ///
 /// Order is the order the widgets are drawn in, which is the order the scene
 /// declares them — so focus walks a menu the way the tree reads.
-pub(super) fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity> {
+pub(super) fn advance(
+    eng: &Engine,
+    stops: &[Entity],
+    asked: Option<Move>,
+    side: Option<Side>,
+) -> Option<Entity> {
     let focus = eng.try_resource::<UiFocus>()?;
     let mut focus = focus.borrow_mut();
     // A focused widget that was hidden, freed or made unfocusable is no
@@ -141,10 +237,31 @@ pub(super) fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Op
     if focus.focused.is_some_and(|e| !stops.contains(&e)) {
         focus.focused = None;
     }
-    let asked = focus.pending.take().or(asked)?;
+    let pending = focus.pending.take().or(asked);
     if stops.is_empty() {
         return None;
     }
+    let Some(asked) = pending else {
+        // An arrow goes across the screen from the stop it is on, by where
+        // each stop was drawn last, round to the far side past the last one;
+        // from nowhere it starts at an end.
+        let side = side?;
+        let next = match focus.focused.and_then(crate::widget::arrange::drawn_at) {
+            Some(from) => {
+                let drawn: Vec<(Entity, egui::Rect)> = stops
+                    .iter()
+                    .filter_map(|&e| crate::widget::arrange::drawn_at(e).map(|r| (e, r)))
+                    .collect();
+                toward(from, side, &drawn).or_else(|| around(from, side, &drawn))
+            }
+            None if matches!(side, Side::Up | Side::Left) => stops.last().copied(),
+            None => stops.first().copied(),
+        };
+        if next.is_some() {
+            focus.focused = next;
+        }
+        return None;
+    };
     let at = focus
         .focused
         .and_then(|e| stops.iter().position(|s| *s == e));
@@ -196,4 +313,66 @@ pub(super) fn focus_moved(
     (taking || focused != was_focused)
         .then_some(focused)
         .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Side, around, toward};
+    use balaur_core::hecs::Entity;
+
+    /// A three by three grid of 40 by 20 boxes, 10 apart; its entities are
+    /// 1 to 9, row by row.
+    fn grid() -> Vec<(Entity, egui::Rect)> {
+        (0..9_u32)
+            .map(|i| {
+                let (col, row) = (i % 3, i / 3);
+                let min = egui::pos2(col as f32 * 50.0, row as f32 * 30.0);
+                let entity = Entity::from_bits(u64::from(i + 1) | (1 << 32)).unwrap();
+                (
+                    entity,
+                    egui::Rect::from_min_size(min, egui::vec2(40.0, 20.0)),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_arrow_goes_to_the_stop_in_line_on_its_side() {
+        let stops = grid();
+        let centre = stops[4].1;
+        assert_eq!(toward(centre, Side::Up, &stops), Some(stops[1].0));
+        assert_eq!(toward(centre, Side::Down, &stops), Some(stops[7].0));
+        assert_eq!(toward(centre, Side::Left, &stops), Some(stops[3].0));
+        assert_eq!(toward(centre, Side::Right, &stops), Some(stops[5].0));
+    }
+
+    #[test]
+    fn past_the_edge_an_arrow_goes_nowhere() {
+        let stops = grid();
+        assert_eq!(toward(stops[0].1, Side::Up, &stops), None);
+        assert_eq!(toward(stops[0].1, Side::Left, &stops), None);
+        assert_eq!(toward(stops[8].1, Side::Right, &stops), None);
+    }
+
+    #[test]
+    fn past_the_last_stop_an_arrow_comes_round_in_its_lane() {
+        let stops = grid();
+        assert_eq!(around(stops[7].1, Side::Down, &stops), Some(stops[1].0));
+        assert_eq!(around(stops[1].1, Side::Up, &stops), Some(stops[7].0));
+        assert_eq!(around(stops[5].1, Side::Right, &stops), Some(stops[3].0));
+        assert_eq!(around(stops[3].1, Side::Left, &stops), Some(stops[5].0));
+    }
+
+    /// A wide button over two narrow ones goes down to the nearer one in
+    /// line, and a narrow one off to the side still goes up to it.
+    #[test]
+    fn a_stop_in_line_wins_over_a_nearer_one_aside() {
+        let e = |n: u64| Entity::from_bits(n | (1 << 32)).unwrap();
+        let wide = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 20.0));
+        let left = egui::Rect::from_min_size(egui::pos2(0.0, 40.0), egui::vec2(40.0, 20.0));
+        let aside = egui::Rect::from_min_size(egui::pos2(200.0, 25.0), egui::vec2(40.0, 20.0));
+        let stops = [(e(1), wide), (e(2), left), (e(3), aside)];
+        assert_eq!(toward(wide, Side::Down, &stops), Some(e(2)));
+        assert_eq!(toward(left, Side::Up, &stops), Some(e(1)));
+    }
 }

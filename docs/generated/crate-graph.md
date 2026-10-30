@@ -18,6 +18,7 @@ graph TD
   balaur_cfg[balaur_cfg]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
+  balaur_derive[balaur_derive]
   balaur_export[balaur_export]
   balaur_gamend[balaur_gamend]
   balaur_http[balaur_http]
@@ -80,6 +81,7 @@ graph TD
   balaur_cli --> balaur_port
   balaur_cli --> balaur_script
   balaur_cli --> balaur_text
+  balaur_core --> balaur_derive
   balaur_core --> balaur_script
   balaur_export --> balaur
   balaur_export --> balaur_plugin

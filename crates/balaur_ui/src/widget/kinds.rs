@@ -820,7 +820,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &
         nine_patch_plate(ui, eng, slot, path, style.slice, rect);
         return;
     }
-    if style.fill.is_none() && style.stroke.is_none() {
+    if !style.paints() {
         return;
     }
     let radius = if style.round == Some(true) {
@@ -830,7 +830,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &
     };
     Brush::of(ui).set(
         slot,
-        crate::widget::theme::frame_shape(
+        crate::widget::frame::frame_shape(
             rect,
             egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -938,8 +938,8 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ),
     );
     // The frame first, under everything the stack holds, as a container's is.
-    if style.fill.is_some() || style.stroke.is_some() {
-        Brush::of(ui).add(crate::widget::theme::frame_shape(
+    if style.paints() {
+        Brush::of(ui).add(crate::widget::frame::frame_shape(
             outer,
             egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),

@@ -1023,7 +1023,7 @@ The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's spac
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the node sits in its parent&#x27;s space</td></tr>
-<tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
+<tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, -0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Size relative to the parent&#x27;s</td></tr>
 <tr><td><code>skew</code></td><td>float</td><td><code>0.0</code></td><td>A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it</td></tr>
 </tbody>

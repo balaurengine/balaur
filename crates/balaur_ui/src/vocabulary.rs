@@ -867,3 +867,18 @@ pub(crate) fn schema(lines: &[(&str, &str)]) -> String {
 pub(crate) fn options(words: &[&str]) -> String {
     ComponentDef::options(words)
 }
+
+/// A theme table's gradient and shadow, and the keys of each.
+pub(crate) mod looks {
+    pub(crate) const GRADIENT: &str = "gradient";
+    pub(crate) const SHADOW: &str = "shadow";
+    pub(crate) const FROM: &str = "from";
+    pub(crate) const TO: &str = "to";
+    /// Degrees: 0 runs left to right, 90 top to bottom.
+    pub(crate) const ANGLE: &str = "angle";
+    pub(crate) const X: &str = "x";
+    pub(crate) const Y: &str = "y";
+    pub(crate) const BLUR: &str = "blur";
+    pub(crate) const SPREAD: &str = "spread";
+    pub(crate) const COLOR: &str = "color";
+}
