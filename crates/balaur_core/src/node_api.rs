@@ -894,6 +894,20 @@ pub fn set_property_at(
     crate::components::set_property_at(eng, entity, index, key, &to_toml(value)?)
 }
 
+/// [`set_property_at`] at a place found before, as a script's bound
+/// property writes it.
+///
+/// # Errors
+/// As [`set_property_at`].
+pub fn set_property_placed(
+    eng: &Engine,
+    entity: Entity,
+    place: crate::components::PropertyPlace,
+    value: &Value,
+) -> Result<()> {
+    crate::components::set_property_placed(eng, entity, place, &to_toml(value)?)
+}
+
 fn try_patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     node(args)?;
     Ok(Value::Bool(patch_component(eng, args).is_ok()))

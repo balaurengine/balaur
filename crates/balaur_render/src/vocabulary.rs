@@ -24,7 +24,6 @@ pub(crate) mod words {
     pub(crate) const ELLIPSE: &str = p::ELLIPSE;
     pub(crate) const STAR: &str = p::STAR;
     pub(crate) const NGON: &str = p::NGON;
-    pub(crate) const POLYLINE: &str = "polyline";
 
     /// Two more an occluder may read off a collider's params. `balaur_render`
     /// does not depend on `balaur_physics`, so the words are spelled here too.
@@ -185,7 +184,6 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("SHAPE_ELLIPSE", words::ELLIPSE),
     ("SHAPE_STAR", words::STAR),
     ("SHAPE_NGON", words::NGON),
-    ("SHAPE_POLYLINE", words::POLYLINE),
     ("LIGHT_POINT", words::POINT),
     ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
     ("LIGHT_SPOT", words::SPOT),

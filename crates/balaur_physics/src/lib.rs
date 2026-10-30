@@ -486,7 +486,8 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         )?,
     );
     // The three soft bodies worth one click. Everything else a `softbody3d`
-    // can be is the same component with another `kind`.
+    // can be is the same component with another `kind`, and that kind's
+    // shape beside it.
     reg.register_preset(
         "soft_body3d",
         balaur_core::presets::preset(
@@ -511,12 +512,17 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             // 13 particles along each side, so 0 and 12 are the two ends of
             // the sheet's first row.
-            &[(
-                c::SOFTBODY_3D,
-                Some(
-                    "kind = \"cloth\"\nsize = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]\nself_collision = true\npinned_particles = [0, 12]",
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftGrid3d as balaur_core::components::derived::Component>::NAME,
+                    Some("size = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]"),
                 ),
-            )],
+                (
+                    c::SOFTBODY_3D,
+                    Some("kind = \"cloth\"\nself_collision = true\npinned_particles = [0, 12]"),
+                ),
+            ],
         )?,
     );
     reg.register_preset(
@@ -527,10 +533,17 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::PHYSICS,
             ],
-            &[(
-                c::SOFTBODY_3D,
-                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
-            )],
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftRope3d as balaur_core::components::derived::Component>::NAME,
+                    Some("particle_count = 24"),
+                ),
+                (
+                    c::SOFTBODY_3D,
+                    Some("kind = \"rope\"\npinned_particles = [0]"),
+                ),
+            ],
         )?,
     );
     Ok(())

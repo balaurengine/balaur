@@ -274,16 +274,16 @@ fn every_2d_shape_kind_round_trips() {
     }
 }
 
-/// A polyline is a `Shape2d` like any other, with its points in the sibling
-/// field — the arrangement `sprite` uses, and the reason the enum stays `Copy`.
+/// A `line2d` draws a `Shape2d` like any other, with its points in the
+/// sibling field — the arrangement `sprite` uses, and the reason the enum
+/// stays `Copy`.
 #[test]
-fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
+fn a_line_is_a_shape2d_that_keeps_its_reference() {
     let app = app();
     let e = node(&app);
     let params: toml::Value =
-        toml::from_str("kind = \"polyline\"\nmesh = \"outline\"\nwidth = 0.5\nclosed = true")
-            .unwrap();
-    components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
+        toml::from_str("mesh = \"outline\"\nwidth = 0.5\nclosed = true").unwrap();
+    components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
 
     {
         let world = app.engine.world();
@@ -295,7 +295,7 @@ fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
         assert_eq!(r.polyline.as_deref(), Some("outline"));
     }
 
-    let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+    let back = components::get(&app.engine, e, "line2d").expect("nothing read back");
     assert_eq!(
         back.get("mesh").and_then(toml::Value::as_str),
         Some("outline"),
@@ -306,7 +306,7 @@ fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
 /// Every join and cap, and the miter limit and taper, come back out as they
 /// went in, so a save keeps the look.
 #[test]
-fn a_polyline_s_stroke_survives_the_round_trip() {
+fn a_line_s_stroke_survives_the_round_trip() {
     use balaur_core::stroke::{CAPS, JOINS};
     let app = app();
     let pairs = JOINS
@@ -315,11 +315,11 @@ fn a_polyline_s_stroke_survives_the_round_trip() {
     for (join, cap) in pairs {
         let e = node(&app);
         let params: toml::Value = toml::from_str(&format!(
-            "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]\nsegments = 12\ngradient = [1.0, 0.0, 0.0, 1.0]\ngradient_steps = 7"
+            "mesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]\nsegments = 12\ngradient = [1.0, 0.0, 0.0, 1.0]\ngradient_steps = 7"
         ))
         .unwrap();
-        components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
-        let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+        components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
+        let back = components::get(&app.engine, e, "line2d").expect("nothing read back");
         let text = |key: &str| {
             back.get(key)
                 .and_then(toml::Value::as_str)

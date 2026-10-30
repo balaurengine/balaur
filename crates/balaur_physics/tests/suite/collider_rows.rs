@@ -196,7 +196,7 @@ fn edge_radius_rounds_the_convex_kinds_and_convex_mesh_takes_the_mesh_as_given()
             ),
             (
                 "Pieces",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", edge_radius = 0.1, max_convex_hulls = 1 }",
+                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", edge_radius = 0.1 }\nconvex_decomposition3d = { max_convex_hulls = 1 }",
             ),
         ],
     );
@@ -245,11 +245,11 @@ fn the_vhacd_keys_and_method_shape_a_3d_decomposition() {
             ),
             (
                 "One",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", max_concavity = 1.0, max_convex_hulls = 1, resolution = 16, symmetry_bias = 0.1, revolution_bias = 0.1, plane_downsampling = 2, hull_downsampling = 2, approximate_hulls = false }",
+                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\" }\nconvex_decomposition3d = { max_concavity = 1.0, max_convex_hulls = 1, resolution = 16, symmetry_bias = 0.1, revolution_bias = 0.1, plane_downsampling = 2, hull_downsampling = 2, approximate_hulls = false }",
             ),
             (
                 "Voxels",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", method = \"voxels\", resolution = 8 }",
+                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\" }\nconvex_decomposition3d = { method = \"voxels\", resolution = 8 }",
             ),
         ],
     );
@@ -278,7 +278,7 @@ fn the_vhacd_keys_and_method_shape_a_3d_decomposition() {
         voxels,
         "method = voxels built something other than voxel parts"
     );
-    let back = b.get(b.node("World/One"), "collider3d");
+    let back = b.get(b.node("World/One"), "convex_decomposition3d");
     assert_eq!(float(&back, "max_convex_hulls"), 1.0);
     assert_eq!(
         back.get("approximate_hulls").and_then(toml::Value::as_bool),
@@ -339,7 +339,7 @@ fn fill_cavities_leaves_a_walled_off_hollow_empty() {
             ),
             (
                 "Hollow",
-                "collider3d = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25, fill_cavities = true }",
+                "collider3d = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25 }\nmesh_collider3d = { fill_cavities = true }",
             ),
         ],
     );
@@ -381,15 +381,15 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
             ),
             (
                 "Merged",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false, merge_vertices = true }",
+                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false }\nmesh_collider3d = { merge_vertices = true }",
             ),
             (
                 "Deduped",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false, drop_duplicate_triangles = true }",
+                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false }\nmesh_collider3d = { drop_duplicate_triangles = true }",
             ),
             (
                 "Topology",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", topology = true, connected_components = true, drop_bad_topology = true, drop_degenerate_triangles = true }",
+                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\" }\nmesh_collider3d = { topology = true, connected_components = true, drop_bad_topology = true, drop_degenerate_triangles = true }",
             ),
             (
                 "TwoSided",
@@ -430,7 +430,7 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
             balaur_physics::rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES_TWO_SIDED
         )
     );
-    let back = b.get(b.node("World/Merged"), "collider3d");
+    let back = b.get(b.node("World/Merged"), "mesh_collider3d");
     assert_eq!(
         back.get("merge_vertices").and_then(toml::Value::as_bool),
         Some(true)
@@ -452,7 +452,7 @@ fn a_polyline_takes_every_edge_of_its_mesh_when_asked() {
             ),
             (
                 "Edges",
-                "collider3d = { kind = \"polyline\", mesh = \"#quad\", edges = \"mesh\" }",
+                "collider3d = { kind = \"polyline\", mesh = \"#quad\" }\nmesh_collider3d = { edges = \"mesh\" }",
             ),
         ],
     );

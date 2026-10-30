@@ -257,7 +257,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     }
     if !physics::drawn_mesh(found, two_d).is_nil() {
         for shape in physics::collider_shapes(two_d) {
-            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.properties));
+            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.properties).with("beside", shape.beside));
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -271,7 +271,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
 }
 
 fn run_collide(state: &mut editor::State, data: any) {
-    physics::make_collider(state, data.two_d.as_bool(), data.props);
+    physics::make_collider(state, data.two_d.as_bool(), data.props, data.beside);
 }
 
 fn run_deform(state: &mut editor::State, data: any) {

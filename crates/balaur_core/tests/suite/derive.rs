@@ -222,3 +222,21 @@ fn a_refused_write_puts_back_what_the_node_held() {
         "a refused change keeps what was held"
     );
 }
+
+#[test]
+fn a_property_found_once_is_read_and_written_by_its_place() {
+    let (app, e) = app_with_dial();
+    components::add(&app.engine, e, "dial", None).unwrap();
+    let place = components::place_of(&app.engine, "dial", "notches").unwrap();
+    assert!(components::place_of(&app.engine, "dial", "notch").is_none());
+    components::set_property_placed(&app.engine, e, place, &toml::Value::Integer(9)).unwrap();
+    assert_eq!(
+        components::property_placed(&app.engine, e, place).and_then(|v| v.as_integer()),
+        Some(9)
+    );
+    assert_eq!(
+        components::property(&app.engine, e, "dial", "notches").and_then(|v| v.as_integer()),
+        Some(9),
+        "the name and the place reach the one field"
+    );
+}

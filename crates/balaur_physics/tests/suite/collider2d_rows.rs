@@ -60,9 +60,14 @@ fn the_2d_mesh_kinds_build_what_they_name() {
         ),
         (
             "Collinear",
-            r##"{ kind = "convex_polygon", mesh = "#square", keep_collinear = true }"##,
+            r##"{ kind = "convex_polygon", mesh = "#square" }
+mesh_collider2d = { keep_collinear = true }"##,
         ),
-        ("Fit", r##"{ kind = "fit", mesh = "#far", fit = "aabb" }"##),
+        (
+            "Fit",
+            r##"{ kind = "fit", mesh = "#far" }
+mesh_collider2d = { fit = "aabb" }"##,
+        ),
         (
             "Voxelized",
             r##"{ kind = "voxelized_mesh", mesh = "#square", voxel_size = 0.25 }"##,
@@ -77,7 +82,8 @@ fn the_2d_mesh_kinds_build_what_they_name() {
         ),
         (
             "Parts",
-            r##"{ kind = "convex_decomposition", mesh = "#square", method = "voxels", resolution = 8 }"##,
+            r##"{ kind = "convex_decomposition", mesh = "#square" }
+"convex_decomposition2d" = { method = "voxels", resolution = 8 }"##,
         ),
     ]);
     let corners = |path: &str| {
@@ -131,11 +137,13 @@ fn a_2d_polyline_takes_its_outline_or_every_edge_when_asked() {
         ("Chain", r##"{ kind = "polyline", mesh = "#far" }"##),
         (
             "Outline",
-            r##"{ kind = "polyline", mesh = "#far", edges = "outline" }"##,
+            r##"{ kind = "polyline", mesh = "#far" }
+mesh_collider2d = { edges = "outline" }"##,
         ),
         (
             "Edges",
-            r##"{ kind = "polyline", mesh = "#far", edges = "mesh" }"##,
+            r##"{ kind = "polyline", mesh = "#far" }
+mesh_collider2d = { edges = "mesh" }"##,
         ),
     ]);
     let segments = |path: &str| {

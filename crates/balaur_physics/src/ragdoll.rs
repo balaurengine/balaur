@@ -482,15 +482,21 @@ fn add_joint(
         toml::Value::Float(f64::from(z))
     };
     params.insert(k::CONNECTED_ANCHOR_ROTATION.into(), rest);
-    if recipe.articulation {
-        params.insert(k::ARTICULATION.into(), true.into());
-    }
     if recipe.collide_connected {
         params.insert(k::COLLIDE_CONNECTED.into(), true.into());
     }
     let records = axis_records(recipe, dim3);
     if !records.is_empty() {
         params.insert(k::AXES.into(), toml::Value::Array(records));
+    }
+    // Beside the joint before it, so the joint is made in its chain at once.
+    if recipe.articulation {
+        let articulation = if dim3 {
+            <crate::joint::Articulation3d as Component>::NAME
+        } else {
+            <crate::dim2::joint::Articulation2d as Component>::NAME
+        };
+        balaur_core::components::add(eng, node, articulation, None)?;
     }
     let joint = if dim3 { c::JOINT_3D } else { c::JOINT_2D };
     balaur_core::components::add(eng, node, joint, Some(&toml::Value::Table(params)))

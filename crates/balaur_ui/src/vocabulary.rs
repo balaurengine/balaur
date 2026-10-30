@@ -2,8 +2,6 @@
 //! written once so a schema, its reader, the matchers and the script
 //! constants cannot disagree about a word.
 
-use balaur_core::components::ComponentDef;
-
 /// The closed word sets: what a `kind`, `anchor`, `align_items` or `font_style` may be.
 pub(crate) mod words {
     pub(crate) const LABEL: &str = "label";
@@ -856,16 +854,6 @@ pub(crate) mod weights {
     /// From here a weight draws in the bold face, and counts as bold for
     /// WCAG's large-text rule.
     pub(crate) const BOLD_FROM: f32 = 600.0;
-}
-
-/// Schema text from `(key, spec)` lines; see [`ComponentDef::schema`].
-pub(crate) fn schema(lines: &[(&str, &str)]) -> String {
-    ComponentDef::schema(lines)
-}
-
-/// The words a property offers, as its `options` list.
-pub(crate) fn options(words: &[&str]) -> String {
-    ComponentDef::options(words)
 }
 
 /// A theme table's gradient and shadow, and the keys of each.

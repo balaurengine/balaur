@@ -274,8 +274,8 @@ fn every_enum_option_a_schema_offers_round_trips() {
     );
 }
 
-/// A `shape2d` polyline takes a `mesh` or a `path2d`, and the schema can only
-/// name one of them, so an inline table's own `type` is what decides.
+/// A `line2d` takes a `mesh` or a `path2d`, and the schema can only name one
+/// of them, so an inline table's own `type` is what decides.
 #[test]
 fn an_inline_asset_is_the_type_its_table_declares() {
     let (dir, app) = app_with_every_component();
@@ -288,13 +288,12 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Curve");
-                n.set_component("shape2d", map()
-                    .with("kind", "polyline")
+                n.set_component("line2d", map()
                     .with("width", 0.05)
                     .with("mesh", map().with("type", "path2d").with("points", [[0.0, 0.0], [1.0, 0.0]]).with("closed", false)));
                 // It resolved to an inline reference rather than failing, and the
                 // component reads back with one.
-                let mesh = n.get_component("shape2d", "mesh").as_str();
+                let mesh = n.get_component("line2d", "mesh").as_str();
                 if mesh.starts_with("#!") {
                     self.done = 1;
                 } else {

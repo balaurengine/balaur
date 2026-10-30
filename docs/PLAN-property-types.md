@@ -150,7 +150,8 @@ every component, for a save, and `PropertyReaders`/`PropertyWriters` give
   field: a shaped text, a built mesh.
 - **What goes**: each component's hand-written `apply` and `get`, the
   alphabetical sorts (gone 2026-10-28: a schema keeps the order it is
-  written in), `PropertyReaders` and `PropertyWriters`, and
+  written in), `PropertyReaders` and `PropertyWriters` (gone 2026-10-30),
+  and
   `Authored`: a save reads the typed value, which keeps an asset as the file
   named it.
 
@@ -163,7 +164,9 @@ Every component of core, physics, render, input, animation and audio with a
 fixed schema is on it, each schema proven unchanged; what a system works
 out stays a cache beside the struct. `meta` and `states` (every key the
 author's), `mesh` (any `morph_*` key) and `material` (core's `Appearance`)
-stay hand-written; `widget` moves with its split into a component per kind.
+stay hand-written. `widget` is `WidgetProperties` beside the `Widget` the UI
+reads, a one-property write updating the one field it feeds; its split into
+a component per kind is still to come.
 
 A component's order is what a user changes most first, then its groups.
 PLAN-component-order lists all 55 components, 1,429 properties, in that

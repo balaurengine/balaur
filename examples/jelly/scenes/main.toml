@@ -72,10 +72,12 @@ parent = "n_main"
 [nodes.transform]
 position = [-8.0, 1.5, 0.0]
 
-[nodes.softbody2d]
-kind = "grid"
+[nodes.soft_grid2d]
 size = [2.0, 1.5]
 cells = [10.0, 8.0]
+
+[nodes.softbody2d]
+kind = "grid"
 color = [0.88, 0.42, 0.28, 1.0]
 soft_material = { edge_hz = 12.0 }
 
@@ -89,10 +91,12 @@ parent = "n_main"
 [nodes.transform]
 position = [-4.0, 0.0, 0.0]
 
-[nodes.softbody2d]
-kind = "circle"
+[nodes.soft_circle2d]
 radius = 1.0
 particle_count = 32
+
+[nodes.softbody2d]
+kind = "circle"
 color = [0.29, 0.56, 0.82, 1.0]
 
 [[nodes]]
@@ -145,10 +149,12 @@ position = [4.0, 1.0, 0.0]
 mesh = "#arch"
 color = [0.62, 0.45, 0.78, 1.0]
 
+[nodes.soft_volumetric2d]
+cell_size = 0.15
+
 [nodes.softbody2d]
 kind = "volumetric"
 mesh = "#arch"
-cell_size = 0.15
 soft_material = { cell_model = "corotational", young_modulus = 60000.0 }
 
 # A rope pinned at both ends, and a ball dropped into it.
@@ -160,11 +166,13 @@ parent = "n_main"
 [nodes.transform]
 position = [8.0, -1.0, 0.0]
 
-[nodes.softbody2d]
-kind = "rope"
+[nodes.soft_rope2d]
 a = [-1.8, 0.0]
 b = [1.8, 0.0]
 particle_count = 24
+
+[nodes.softbody2d]
+kind = "rope"
 pinned_particles = [0, 23]
 color = [0.79, 0.63, 0.25, 1.0]
 

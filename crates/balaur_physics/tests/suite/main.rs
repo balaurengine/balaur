@@ -17,6 +17,7 @@ pub(crate) fn dev_config(dir: &std::path::Path) -> balaur::AppConfig {
 }
 
 mod api;
+mod beside;
 mod bodies;
 mod body_events;
 mod body_rows;

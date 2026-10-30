@@ -1,8 +1,10 @@
 //! `softbody3d`: a deformable body of particles linked by elastic
 //! constraints, solved beside the rigid bodies on the same fixed step.
 //!
-//! The component says how the particles are laid out (`kind` and the shape
-//! rows beside it) and what they are made of (the material rows). Rapier
+//! The component says how the particles are laid out (`kind`, and the
+//! component beside it that holds that kind's shape: `soft_grid3d`,
+//! `soft_rope3d` and the rest) and what they are made of (the material
+//! rows). Rapier
 //! builds the body once from that; after it, the solver owns the positions
 //! and the node's drawn vertices come back from it every step through
 //! [`balaur_core::mesh::SolvedMesh`].
@@ -26,6 +28,7 @@ use crate::properties::{
 };
 use crate::rapier3d::prelude::{SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
+use crate::shared::beside::{self, Beside};
 use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use balaur_core::layers::Layer;
@@ -62,78 +65,15 @@ pub struct Softbody3d {
     /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
     #[property(asset = "physics_material")]
     pub physics_material: String,
-    /// Whole size along each axis: a box's block, or a cloth's sheet along x and z
-    #[property(default = [1.0, 1.0, 1.0], group = "shape")]
-    pub size: [f32; 3],
-    /// How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along
-    #[property(default = [4.0, 4.0, 4.0], group = "shape")]
-    pub cells: [f32; 3],
-    /// Radius, for sphere and cloth_tube: a tube's at its start
-    #[property(default = 0.5, group = "shape", min = 0.001)]
-    pub radius: f32,
-    /// A cloth_tube's radius at its end; 0 takes radius
-    #[property(group = "shape", min = 0.0)]
-    pub end_radius: f32,
-    /// The segment a cloth_tube is wrapped around, relative to the node
-    #[property(default = [0.0, 1.0, 0.0], group = "shape")]
-    pub axis: [f32; 3],
-    /// How many times a sphere's icosahedron is refined; each level quadruples the triangles
-    #[property(default = 2, group = "shape", max = 6, min = 0)]
-    pub subdivisions: i64,
-    /// How many particles a rope is made of
-    #[property(default = cap::DEFAULT_PARTICLES as i64, group = "shape", min = 2)]
-    pub particle_count: i64,
-    /// Where a rope starts, relative to the node
-    #[property(name = "a", group = "shape")]
-    pub first: [f32; 3],
-    /// Where a rope ends, relative to the node
-    #[property(name = "b", default = [0.0, -1.0, 0.0], group = "shape")]
-    pub second: [f32; 3],
     /// Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when skin is on
     #[property(asset = "mesh", group = "shape")]
     pub mesh: String,
     /// Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it
     #[property(group = "shape")]
     pub skin: bool,
-    /// What a volumetric body's cells cover: the mesh's whole inside, which needs a closed mesh, or a crust along its surface alone, which does not
-    #[property(default = Fill::Solid, group = "shape")]
-    pub fill: Fill,
-    /// How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear
-    #[property(default = 0.25, group = "shape", min = 0.001)]
-    pub cell_size: f32,
-    /// How many times a solid fill's cells along the mesh's surface are halved, finer than cell_size
-    #[property(group = "shape", max = 4, min = 0)]
-    pub boundary_subdivisions: i64,
-    /// How many passes pull a solid fill's blocky boundary towards the mesh; 0 leaves it on the cell lattice
-    #[property(group = "shape", min = 0)]
-    pub smoothing: i64,
-    /// How close to the mesh smoothing may pull the boundary, as a fraction of the cell size
-    #[property(default = 0.15, group = "shape", min = 0.0)]
-    pub smoothing_guard: f32,
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
     pub seams: Vec<ParticlePair>,
-    /// A custom body's particles, relative to the node
-    #[property(group = "shape")]
-    pub points: Vec<[f32; 3]>,
-    /// A custom body's tetrahedra, four particle indices each, positively oriented
-    #[property(group = "shape")]
-    pub cell_indices: Vec<Vec<i64>>,
-    /// A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges
-    #[property(group = "shape")]
-    pub edge_indices: Vec<Vec<i64>>,
-    /// A custom body's bending edges, each a pair of particle indices
-    #[property(group = "shape")]
-    pub bend_edge_indices: Vec<Vec<i64>>,
-    /// A custom body's bending hinges between two triangles: the shared edge's two particles, then the two opposite ones
-    #[property(group = "shape")]
-    pub dihedral_indices: Vec<Vec<i64>>,
-    /// A custom body's outward triangles, three particle indices each: what holds its volume and what it collides through; empty takes the cells' boundary
-    #[property(group = "shape")]
-    pub surface_indices: Vec<Vec<i64>>,
-    /// A custom body's segments it collides through when it has no surface, as a rope does, each a pair of particle indices
-    #[property(group = "shape")]
-    pub wire_indices: Vec<Vec<i64>>,
     /// The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from
     #[property(group = "particles")]
     pub pinned_particles: Indices,
@@ -230,6 +170,177 @@ pub struct Softbody3d {
     /// Which body wins a contact: a higher one is never pushed by a lower one
     #[property(group = "solver", max = 127, min = -127)]
     pub dominance: i64,
+}
+
+/// The size and the cells of a `softbody3d` laid out as a box or a cloth: a block of particles, or a sheet of them.
+#[derive(Clone, Component)]
+#[component(name = "soft_grid3d")]
+pub struct SoftGrid3d {
+    /// Whole size along each axis: a box's block, or a cloth's sheet along x and z
+    #[property(default = [1.0, 1.0, 1.0])]
+    pub size: [f32; 3],
+    /// How many cells along each axis, for box; a cloth reads the first two
+    #[property(default = [4.0, 4.0, 4.0])]
+    pub cells: [f32; 3],
+}
+
+impl Beside for SoftGrid3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        matches!(main.kind, SoftKind3d::Box | SoftKind3d::Cloth)
+    }
+}
+
+/// The size of a `softbody3d` laid out as a sphere: a refined icosahedron of particles.
+#[derive(Clone, Component)]
+#[component(name = "soft_sphere3d")]
+pub struct SoftSphere3d {
+    /// Radius
+    #[property(default = 0.5, min = 0.001)]
+    pub radius: f32,
+    /// How many times a sphere's icosahedron is refined; each level quadruples the triangles
+    #[property(default = 2, max = 6, min = 0)]
+    pub subdivisions: i64,
+}
+
+impl Beside for SoftSphere3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        main.kind == SoftKind3d::Sphere
+    }
+}
+
+/// The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped around a segment.
+#[derive(Clone, Component)]
+#[component(name = "soft_cloth_tube3d")]
+pub struct SoftClothTube3d {
+    /// Radius at the tube's start
+    #[property(default = 0.5, min = 0.001)]
+    pub radius: f32,
+    /// A cloth_tube's radius at its end; 0 takes radius
+    #[property(min = 0.0)]
+    pub end_radius: f32,
+    /// The segment a cloth_tube is wrapped around, relative to the node
+    #[property(default = [0.0, 1.0, 0.0])]
+    pub axis: [f32; 3],
+    /// Particles around the tube, then cells along it; the third is not read
+    #[property(default = [4.0, 4.0, 4.0])]
+    pub cells: [f32; 3],
+}
+
+impl Beside for SoftClothTube3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        main.kind == SoftKind3d::ClothTube
+    }
+}
+
+/// Where a `softbody3d` laid out as a rope runs, and how many particles it is made of.
+#[derive(Clone, Component)]
+#[component(name = "soft_rope3d")]
+pub struct SoftRope3d {
+    /// How many particles a rope is made of
+    #[property(default = cap::DEFAULT_PARTICLES as i64, min = 2)]
+    pub particle_count: i64,
+    /// Where a rope starts, relative to the node
+    #[property(name = "a")]
+    pub first: [f32; 3],
+    /// Where a rope ends, relative to the node
+    #[property(name = "b", default = [0.0, -1.0, 0.0])]
+    pub second: [f32; 3],
+}
+
+impl Beside for SoftRope3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        main.kind == SoftKind3d::Rope
+    }
+}
+
+/// How a volumetric `softbody3d` fills its mesh with tetrahedra.
+#[derive(Clone, Component)]
+#[component(name = "soft_volumetric3d")]
+pub struct SoftVolumetric3d {
+    /// What a volumetric body's cells cover: the mesh's whole inside, which needs a closed mesh, or a crust along its surface alone, which does not
+    #[property(default = Fill::Solid)]
+    pub fill: Fill,
+    /// How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear
+    #[property(default = 0.25, min = 0.001)]
+    pub cell_size: f32,
+    /// How many times a solid fill's cells along the mesh's surface are halved, finer than cell_size
+    #[property(max = 4, min = 0)]
+    pub boundary_subdivisions: i64,
+    /// How many passes pull a solid fill's blocky boundary towards the mesh; 0 leaves it on the cell lattice
+    #[property(min = 0)]
+    pub smoothing: i64,
+    /// How close to the mesh smoothing may pull the boundary, as a fraction of the cell size
+    #[property(default = 0.15, min = 0.0)]
+    pub smoothing_guard: f32,
+}
+
+impl Beside for SoftVolumetric3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        main.kind == SoftKind3d::Volumetric
+    }
+}
+
+/// The particles and elements of a custom `softbody3d`, as the author lists them.
+#[derive(Clone, Component)]
+#[component(name = "soft_custom3d")]
+pub struct SoftCustom3d {
+    /// A custom body's particles, relative to the node
+    pub points: Vec<[f32; 3]>,
+    /// A custom body's tetrahedra, four particle indices each, positively oriented
+    pub cell_indices: Vec<Vec<i64>>,
+    /// A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges
+    pub edge_indices: Vec<Vec<i64>>,
+    /// A custom body's bending edges, each a pair of particle indices
+    pub bend_edge_indices: Vec<Vec<i64>>,
+    /// A custom body's bending hinges between two triangles: the shared edge's two particles, then the two opposite ones
+    pub dihedral_indices: Vec<Vec<i64>>,
+    /// A custom body's outward triangles, three particle indices each: what holds its volume and what it collides through; empty takes the cells' boundary
+    pub surface_indices: Vec<Vec<i64>>,
+    /// A custom body's segments it collides through when it has no surface, as a rope does, each a pair of particle indices
+    pub wire_indices: Vec<Vec<i64>>,
+}
+
+impl Beside for SoftCustom3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        main.kind == SoftKind3d::Custom
+    }
+}
+
+/// The components whose rows a `softbody3d`'s build reads: its own, then
+/// those beside it.
+pub(crate) const PARAMS: &[&str] = &[
+    c::SOFTBODY_3D,
+    <SoftGrid3d as Component>::NAME,
+    <SoftSphere3d as Component>::NAME,
+    <SoftClothTube3d as Component>::NAME,
+    <SoftRope3d as Component>::NAME,
+    <SoftVolumetric3d as Component>::NAME,
+    <SoftCustom3d as Component>::NAME,
+];
+
+/// `held`'s table with the rows of the components beside it on `entity`
+/// written in.
+fn params_of(world: &balaur_core::hecs::World, entity: Entity, held: &Softbody3d) -> toml::Value {
+    let mut params = derived::to_table(held);
+    beside::write_in::<SoftGrid3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftSphere3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftClothTube3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftRope3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftVolumetric3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftCustom3d>(world, entity, held, &mut params);
+    params
 }
 
 crate::shared::softbody::material!(
@@ -825,10 +936,12 @@ pub(crate) fn write_every_solved_mesh(eng: &Engine) {
 
 /// The soft body the component asks for, patched in place or built again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let asked = eng
-        .world()
-        .get::<&Softbody3d>(entity)
-        .map(|held| derived::to_table(&*held));
+    let asked = {
+        let world = eng.world();
+        world
+            .get::<&Softbody3d>(entity)
+            .map(|held| params_of(&world, entity, &held))
+    };
     let Ok(params) = asked else {
         return Ok(());
     };
@@ -838,6 +951,18 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
 /// `softbody3d`: what was asked, held on the node; the body and the table it
 /// was built from are in [`crate::PhysicsState3d`].
 pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_3D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    let main: &'static [&'static str] = &[c::SOFTBODY_3D];
+    beside::register::<SoftGrid3d>(reg, main, tags, after_write);
+    beside::register::<SoftSphere3d>(reg, main, tags, after_write);
+    beside::register::<SoftClothTube3d>(reg, main, tags, after_write);
+    beside::register::<SoftRope3d>(reg, main, tags, after_write);
+    beside::register::<SoftVolumetric3d>(reg, main, tags, after_write);
+    beside::register::<SoftCustom3d>(reg, main, tags, after_write);
+    // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Softbody3d::NAME,
         ComponentDef {
@@ -903,7 +1028,7 @@ runtime::runtime_api!(
 /// forces and edges are `install_runtime`.
 pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_softbody", &[c::SOFTBODY_3D], "", "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows."),
+        ("set_softbody", &[c::SOFTBODY_3D], "", "Build the node's soft body from a `softbody3d` table: `kind` and the rest of its own rows, with the shape its kind reads from the component beside it (`soft_grid3d`, `soft_rope3d` and the rest) as the node holds it."),
         ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
         ("softbody_center", &[c::SOFTBODY_3D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
@@ -916,7 +1041,7 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
             let entity = entity_of(node)?;
             let params = balaur_core::node_api::to_toml(&params)?;
             let asked: Softbody3d = crate::properties::asked_of(eng, &params)?;
-            let params = derived::to_table(&asked);
+            let params = params_of(&eng.world(), entity, &asked);
             let materials = cap::Materials::of(eng, &params)?;
             eng.world_mut()
                 .insert_one(entity, asked)

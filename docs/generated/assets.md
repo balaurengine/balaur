@@ -201,7 +201,7 @@ holes = [[1, 1]]
 
 ### `material`
 
-Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
+Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `line2d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
 
 A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws the built-in material, lit per pixel by every `light2d` when its `normal` slot names a normal map. Its `[surface]` is read in both dimensions: how a node blends, which sides draw and whether the scene hides it.
 
@@ -277,7 +277,7 @@ parallax_relief_steps = 8
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
+Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `line2d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
 
 Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
@@ -545,7 +545,7 @@ shadow_offset_y = 3.0
 
 ### `texture`
 
-Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.texture`, `shape3d.texture`, `sprite.texture`.
+Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `line2d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.texture`, `shape3d.texture`, `sprite.texture`.
 
 An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
 

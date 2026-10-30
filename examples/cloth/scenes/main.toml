@@ -71,11 +71,13 @@ parent = "n_world"
 [nodes.transform]
 position = [-1.5, 0.55, 0.0]
 
-[nodes.softbody3d]
-kind = "cloth"
+[nodes.soft_grid3d]
 size = [2.4, 0.0, 2.4]
 # 24 particles a side: the folds over the block are only as fine as the mesh.
 cells = [23.0, 23.0, 1.0]
+
+[nodes.softbody3d]
+kind = "cloth"
 mass = 1.0
 solver_substeps = 4
 self_collision = true
@@ -92,10 +94,12 @@ parent = "n_world"
 [nodes.transform]
 position = [1.5, 1.2, 0.0]
 
-[nodes.softbody3d]
-kind = "cloth"
+[nodes.soft_grid3d]
 size = [2.0, 0.0, 2.0]
 cells = [15.0, 15.0, 1.0]
+
+[nodes.softbody3d]
+kind = "cloth"
 pinned_particles = [
   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
   12, 13, 14, 15, 16, 31, 32, 47, 48, 63, 64, 79,

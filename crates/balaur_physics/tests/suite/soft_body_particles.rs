@@ -10,7 +10,7 @@ fn pinning_a_free_particle_holds_it_and_unpinning_lets_it_fall() {
 impl Scenario {
     fn init() {
         let n = self.node;
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8));
+        n.set_component("soft_rope3d", map().with("particle_count", 8)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE));
         n.softbody3d.pin_particle(0);
         self.first = n.softbody3d.softbody_position(0).y;
     }
@@ -42,7 +42,7 @@ fn a_held_particle_is_dragged_to_its_target() {
 impl Scenario {
     fn init() {
         let n = self.node;
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8).with("pinned_particles", [0]));
+        n.set_component("soft_rope3d", map().with("particle_count", 8)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]));
         n.softbody3d.set_particle_target(0, [2.0, 1.0, 0.0]);
     }
 
@@ -68,7 +68,7 @@ fn an_impulse_kicks_the_body_and_the_edges_report_their_stress() {
 impl Scenario {
     fn init() {
         let n = self.node;
-        n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8).with("pinned_particles", [0]));
+        n.set_component("soft_rope3d", map().with("particle_count", 8)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]));
         n.softbody3d.apply_softbody_impulse([0.0, 20.0, 0.0]);
         self.first = n.softbody3d.softbody_position(7).y;
     }
@@ -101,7 +101,7 @@ impl Scenario {
         let hook = self.node.add_child("Hook");
         hook.set_component("transform", map().with("position", [0.0, 0.0, 0.0]));
         hook.set_component("body3d", map().with("kind", physics3d::BODY_STATIC));
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 8));
+        self.node.set_component("soft_rope3d", map().with("particle_count", 8)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE));
         self.hook = hook;
         self.first = self.node.softbody3d.softbody_position(0).y;
     }
@@ -132,7 +132,7 @@ fn the_2d_body_takes_the_same_calls() {
 impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
-        blob.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_ROPE).with("particle_count", 6));
+        blob.set_component("soft_rope2d", map().with("particle_count", 6)); blob.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_ROPE));
         blob.softbody2d.pin_particle(0);
         blob.softbody2d.apply_softbody_radial_impulse([0.0, 0.0], 5.0, 0.0);
     }
@@ -159,8 +159,9 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
+        self.node.set_component("soft_rope3d", map().with("particle_count", 4));
         self.node.softbody3d.set_softbody(map()
-            .with("kind", physics3d::SOFT_ROPE).with("particle_count", 4)
+            .with("kind", physics3d::SOFT_ROPE)
             .with("masses", [1.0, 1.0, 1.0, 50.0])
             .with("tear_resistance", [map().with("a", 1).with("b", 2).with("resistance", 0.2)])
             .with("edge_springs", [map().with("a", 0).with("b", 1).with("frequency", 90.0).with("damping", 1.0)]));
@@ -175,7 +176,7 @@ impl Scenario {
     let short = run(r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("masses", [1.0, 2.0]));
+        self.node.set_component("soft_rope3d", map().with("particle_count", 4)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("masses", [1.0, 2.0]));
     }
 }
 "#);
@@ -183,7 +184,7 @@ impl Scenario {
     let stray = run(r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("tear_resistance", [map().with("a", 0).with("b", 3).with("resistance", 0.5)]));
+        self.node.set_component("soft_rope3d", map().with("particle_count", 4)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("tear_resistance", [map().with("a", 0).with("b", 3).with("resistance", 0.5)]));
     }
 }
 "#);

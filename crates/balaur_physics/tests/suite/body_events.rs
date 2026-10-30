@@ -215,9 +215,9 @@ impl Scenario {
     fn init() {
         // One end pinned and edges that break at a tenth of their rest length,
         // so the heavy free end tears it and falls onto the ground.
+        self.node.set_component("soft_rope3d", map().with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0]).with("particle_count", 12));
         self.node.softbody3d.set_softbody(map()
-            .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]).with("mass", 400.0)
             .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0))
             .with("events", ["collision"]));
     }
@@ -249,9 +249,9 @@ script = { source = "scripts/scenario.bs" }
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
+        self.node.set_component("soft_rope3d", map().with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0]).with("particle_count", 12));
         self.node.softbody3d.set_softbody(map()
-            .with("kind", physics3d::SOFT_ROPE).with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0])
-            .with("particle_count", 12).with("pinned_particles", [0]).with("mass", 400.0)
+            .with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]).with("mass", 400.0)
             .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0)));
     }
     pub fn on_tear(tear: any) {

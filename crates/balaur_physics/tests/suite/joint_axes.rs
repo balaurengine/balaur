@@ -40,6 +40,23 @@ fn add(app: &App, e: Entity, component: &str, text: &str) -> anyhow::Result<()> 
     )
 }
 
+/// Add a `joint3d` from `text`, a scene node's rows: a table in it is a
+/// component beside the joint, added first as a scene adds it.
+fn add_joint(app: &App, e: Entity, text: &str) -> anyhow::Result<()> {
+    let mut rows: toml::Value = toml::from_str(text).unwrap();
+    let table = rows.as_table_mut().unwrap();
+    let beside: Vec<String> = table
+        .iter()
+        .filter(|(_, value)| value.is_table())
+        .map(|(name, _)| name.clone())
+        .collect();
+    for name in beside {
+        let held = table.remove(&name).unwrap();
+        components::add(&app.engine, e, &name, Some(&held))?;
+    }
+    components::add(&app.engine, e, "joint3d", Some(&rows))
+}
+
 fn tick(app: &mut App, steps: u32) {
     for _ in 0..steps {
         app.tick(1.0 / 60.0);
@@ -62,7 +79,7 @@ fn hanging(app: &App, at: [f32; 3], joint: &str) -> anyhow::Result<Entity> {
         format!("anchor = [{}, {}, {}]\n", -at[0], -at[1], -at[2])
     };
     let table = format!("connected_body = \"/Anchor\"\n{anchor_at}{joint}");
-    add(app, ball, "joint3d", &table)?;
+    add_joint(app, ball, &table)?;
     Ok(ball)
 }
 
@@ -85,14 +102,18 @@ fn swing(joint: &str) -> f32 {
 
 #[test]
 fn a_generic_joint_limits_the_turn_its_record_names() {
-    let generic = "kind = \"generic\"\naxis = [0.0, 0.0, 1.0]\nlock_translation = [\"x\", \"y\", \"z\"]\nlock_rotation = [\"y\", \"z\"]";
-    let free = swing(generic);
+    let generic = |axes: &str| {
+        format!(
+            "kind = \"generic\"\naxis = [0.0, 0.0, 1.0]\n{axes}\n[generic_joint3d]\nlock_translation = [\"x\", \"y\", \"z\"]\nlock_rotation = [\"y\", \"z\"]"
+        )
+    };
+    let free = swing(&generic(""));
     assert!(
         free < -0.6,
         "the generic joint never swung: the ball is at {free}"
     );
-    let limited = swing(&format!(
-        "{generic}\naxes = [{{ axis = \"rotation_x\", limits = [-0.2, 0.2] }}]"
+    let limited = swing(&generic(
+        "axes = [{ axis = \"rotation_x\", limits = [-0.2, 0.2] }]",
     ));
     assert!(
         limited > -0.3,
@@ -150,7 +171,7 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     let why = hanging(
         &app,
         [1.0, 0.0, 0.0],
-        "kind = \"rope\"\nmax_length = 1.0\naxes = [{ axis = \"x\", limits = [0.0, 2.0] }]",
+        "kind = \"rope\"\naxes = [{ axis = \"x\", limits = [0.0, 2.0] }]\n[rope_joint3d]\nmax_length = 1.0",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("max_length"), "{why:#}");
@@ -158,7 +179,7 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     let ball = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"rope\"\nmax_length = 1.5\nanchor = [0.0, 0.0, 0.0]\naxes = [{ axis = \"x\", motor = \"velocity\", motor_target = 0.0 }]",
+        "kind = \"rope\"\nanchor = [0.0, 0.0, 0.0]\naxes = [{ axis = \"x\", motor = \"velocity\", motor_target = 0.0 }]\n[rope_joint3d]\nmax_length = 1.5",
     )
     .unwrap();
     tick(&mut app, 120);
@@ -176,7 +197,7 @@ fn spring_model(record: &str) -> (MotorModel, String) {
     let ball = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        &format!("kind = \"spring\"\nrest_length = 1.0\naxes = [{record}]"),
+        &format!("kind = \"spring\"\naxes = [{record}]\n[spring_joint3d]\nrest_length = 1.0"),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -213,7 +234,7 @@ fn a_motor_on_a_springs_own_axis_is_refused() {
     let why = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"spring\"\nrest_length = 1.0\naxes = [{ axis = \"x\", motor = \"velocity\" }]",
+        "kind = \"spring\"\naxes = [{ axis = \"x\", motor = \"velocity\" }]\n[spring_joint3d]\nrest_length = 1.0",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("rest_length"), "{why:#}");
@@ -278,7 +299,7 @@ fn an_articulation_refuses_a_break_threshold() {
     let why = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"fixed\"\narticulation = true\nbreak_force = 10.0",
+        "kind = \"fixed\"\nbreak_force = 10.0\n[articulation3d]",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("articulation"), "{why:#}");
@@ -386,7 +407,8 @@ SHAPE
 kind = "hinge"
 connected_body = "/World/Base"
 anchor = [-1.0, 0.0V]
-articulation = true
+
+[nodes.articulationDIM]
 
 [[nodes]]
 id = "n_lower"
@@ -405,7 +427,8 @@ SHAPE
 kind = "hinge"
 connected_body = "/World/Upper"
 anchor = [-1.0, 0.0V]
-articulation = true
+
+[nodes.articulationDIM]
 "#;
 
 fn arm_3d() -> String {

@@ -107,7 +107,8 @@ impl Scenario {
             self.node.collider3d.set_collider(map().with("kind", kind).with("mesh", "#wedge"));
         }
         for fit in ["aabb", "obb", "convex_hull"] {
-            self.node.collider3d.set_collider(map().with("kind", "fit").with("fit", fit).with("mesh", "#wedge"));
+            self.node.set_component("mesh_collider3d", map().with("fit", fit));
+            self.node.collider3d.set_collider(map().with("kind", "fit").with("mesh", "#wedge"));
         }
         self.node.collider3d.set_collider(map().with("kind", "voxelized_mesh").with("mesh", "#wedge").with("voxel_size", 0.25));
     }
@@ -215,13 +216,15 @@ name = "World"
 id = "n_aabb"
 name = "Aabb"
 parent = "n_world"
-collider3d = { kind = "fit", fit = "aabb", mesh = "#aside" }
+collider3d = { kind = "fit", mesh = "#aside" }
+mesh_collider3d = { fit = "aabb" }
 
 [[nodes]]
 id = "n_obb"
 name = "Obb"
 parent = "n_world"
-collider3d = { kind = "fit", fit = "obb", mesh = "#aside" }
+collider3d = { kind = "fit", mesh = "#aside" }
+mesh_collider3d = { fit = "obb" }
 "##,
     )
     .unwrap();

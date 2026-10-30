@@ -380,7 +380,9 @@ fn a_restored_soft_body_names_the_respawned_node() {
         .world_mut()
         .insert_one(doomed, StableId("n_blob".to_string()))
         .unwrap();
-    let cuboid = toml::from_str("kind = \"box\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    let cells = toml::from_str("cells = [2.0, 2.0, 2.0]").unwrap();
+    components::add(&app.engine, doomed, "soft_grid3d", Some(&cells)).unwrap();
+    let cuboid = toml::from_str("kind = \"box\"").unwrap();
     components::add(&app.engine, doomed, "softbody3d", Some(&cuboid)).unwrap();
     app.tick(1.0 / 60.0);
     let taken = snapshot::capture(&app.engine);
@@ -402,5 +404,18 @@ fn a_restored_soft_body_names_the_respawned_node() {
         state.world.soft_bodies.get(handle).unwrap().user_data,
         u128::from(back.to_bits().get()),
         "the restored soft body still names the freed node"
+    );
+    assert_eq!(
+        state.world.soft_bodies.get(handle).unwrap().num_particles(),
+        27,
+        "the restored body is not the 2x2x2 cells its grid asked for"
+    );
+    drop(state);
+    let grid = components::get(&app.engine, back, "soft_grid3d")
+        .expect("the respawned node lost the grid beside its soft body");
+    assert_eq!(
+        grid.get("cells"),
+        cells.get("cells"),
+        "the grid came back with other cells"
     );
 }

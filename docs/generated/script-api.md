@@ -43,7 +43,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 5 | 0 |
-| [`render`](#render) | 74 | 46 |
+| [`render`](#render) | 74 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
@@ -1317,7 +1317,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `trace_texture` | `(str, any) -> [[Vec2]]` |
 | `visible_instance_count` | `(Node) -> int` |
 
-**Constants** (46):
+**Constants** (45):
 
 | Name | Value |
 | --- | --- |
@@ -1346,7 +1346,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `POPULATE_ROW` | `"row"` |
 | `POPULATE_SURFACE` | `"surface"` |
 
-…and 22 more.
+…and 21 more.
 
 ## `replay`
 

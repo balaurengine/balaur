@@ -33,10 +33,12 @@ position = [-2.6, -0.6, 0.0]
 mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
+[nodes.convex_decomposition2d]
+overlap = 0.0
+
 [nodes.collider2d]
 kind = "convex_decomposition"
 mesh = "#table"
-overlap = 0.0
 
 [[nodes]]
 id = "n_grown"
@@ -50,10 +52,12 @@ position = [0.6, -0.6, 0.0]
 mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
+[nodes.convex_decomposition2d]
+overlap = 0.9
+
 [nodes.collider2d]
 kind = "convex_decomposition"
 mesh = "#table"
-overlap = 0.9
 
 # Each beam starts inside its table, across the seam between a leg and the
 # top: the deep overlap a level, an animation or a script can hand the solver.

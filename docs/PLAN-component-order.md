@@ -21,8 +21,8 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | `layout` | How a container lays out its children (padding, gap, flex/grid rows) | widget | widget's |
 | `shape` | A primitive's or collider's own dimensions, tessellation and offset; a soft body's layout | collider2d, collider3d, shape2d, shape3d, softbody2d, softbody3d, tile_collision | physics; collider rows that read an asset left for `mesh` |
 | `mesh` | A shape built from an asset (mesh, heightfield, voxels) and how the asset is read | collider2d, collider3d | new (split from `shape`) |
-| `mesh cleanup` | Tidying generated geometry before it is used | boolean2d, collider2d, collider3d | physics |
-| `decomposition` | Convex decomposition tuning | collider2d, collider3d | physics |
+| `mesh cleanup` | Tidying generated geometry before it is used | boolean2d, mesh_collider2d, mesh_collider3d | physics; the colliders' moved beside them |
+| `decomposition` | Convex decomposition tuning | none | physics; the rows are `convex_decomposition2d`/`3d` now |
 | `line` | A stroked polyline: its points source, width, joins, caps, gradient | shape2d | new |
 | `region` | Which part of the texture draws: atlas cell, nine-slice margins | sprite | new |
 | `cells` | A tilemap's painted data | tilemap | new |
@@ -44,7 +44,7 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | `motion` | A particle's speed, direction, spread, gravity, spin | particles2d, particles3d | new |
 | `mass` | Mass, density, centre of mass, inertia | body2d, body3d, collider2d, collider3d, tile_collision | physics |
 | `damping` | Drag on travel and spin | body2d, body3d | physics |
-| `locks` | Axes a body or joint may not move or turn along | body2d, body3d, joint2d, joint3d | physics; now joints too |
+| `locks` | Axes a body may not move or turn along | body2d, body3d | physics; a joint's are `generic_joint2d`/`3d` now |
 | `start` | Velocities a body is made with | body2d, body3d | physics |
 | `fast motion` | CCD, speculative contacts, fast spin | body2d, body3d | physics |
 | `sleep` | When a body stops being simulated | body2d, body3d | physics |
@@ -57,10 +57,10 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | `gains` | PD/PID gains | follow2d, follow3d | new |
 | `velocity` | Velocities a follower is pulled to match | follow2d, follow3d | new |
 | `anchors` | Where each end attaches and its frame | joint2d, joint3d | new |
-| `length` | Rope and spring lengths | joint2d, joint3d | new |
+| `length` | Rope and spring lengths | none | `rope_joint2d`/`3d` and `spring_joint2d`/`3d` now |
 | `softness` | How stiffly locked axes and limits hold | joint2d, joint3d | new |
 | `breaking` | Force and torque that snap a joint | joint2d, joint3d | new |
-| `articulation` | Reduced-coordinate chain rows | joint2d, joint3d | new |
+| `articulation` | Reduced-coordinate chain rows | none | `articulation2d`/`3d` now |
 | `suspension` | Wheel suspension | wheel3d | new |
 | `collision` | How a soft body meets the world | softbody2d, softbody3d | was softbody `surface` |
 | `particles` | Per-particle data of a soft body: pins, masses, drag, sleep | softbody2d, softbody3d | softbody's, narrowed |
@@ -138,10 +138,10 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 ## 4. Findings
 
 - **widget**: 31 kinds in one component. `value` (60 rows) and `events` (35) are per-kind grab bags: code-only (language, breakpoints, problems, warnings, current_line, gutter_width, on_gutter), table-only (titles, widths, sort, reverse, sortable, header), inspector-only (component, target, relative_to, label_width, which go with the `inspector` kind, PLAN-editor-as-scene §9.4), menu-only (placement*, popup_*, close_on, keep_open, showing, context). With no conditional rows, a label shows about 200 dead rows. The rare kinds (code, table, inspector, menu) are candidates for sub-components.
-- **shape2d**: 7 kinds. The 9 `line` rows describe a different thing, a stroked path (Godot's Line2D), and are a candidate `line2d` component. The `shape` rows are per-kind: points/inner_radius are star-only, sides ngon-only, corner_radius rectangle-only.
-- **collider2d/3d**: 16/18 kinds. a/b/c, normal, the `mesh` rows (12/10), 6 `mesh cleanup` rows and the `decomposition` rows (10/9) apply to a few kinds each, so about 30 rows are dead for a box. Grouping keeps them at the bottom, in reading order.
-- **softbody2d/3d**: 9/8 kinds. `shape` (17/24 rows) is per-kind: cells for grid, radius for circle, a/b for rope, *_indices for custom. softbody3d files shear/warp/weft springs under `shape` though they are stiffness. `color` (a render row) and `enabled` sit in the physics `surface` group.
-- **joint2d/3d**: max_length is rope-only, rest_length spring-only, lock_*/coupled_* generic-only, and the 8 articulation rows apply only with `articulation` on. The groups read fine.
+- **shape2d**: 7 kinds. The 9 `line` rows describe a different thing, a stroked path (Godot's Line2D), and are a candidate `line2d` component. The `shape` rows are per-kind: points/inner_radius are star-only, sides ngon-only, corner_radius rectangle-only. Resolved 2026-10-30: the stroked path is `line2d` (its `mesh`, tint, texture, material, the stroke rows and a `gradient` group), and `polyline` left `kind`. Open: the primitives' rows still apply by kind (`size`, `radius`, `height`, `corner_radius`, `sides`, `points`, `inner_radius`), as do `shape3d`'s and the colliders' primitive dimensions.
+- **collider2d/3d**: 16/18 kinds. a/b/c, normal, the `mesh` rows (12/10), 6 `mesh cleanup` rows and the `decomposition` rows (10/9) apply to a few kinds each, so about 30 rows are dead for a box. Grouping keeps them at the bottom, in reading order. Resolved 2026-10-30: `mesh_collider2d`/`mesh_collider3d` hold how a mesh becomes the shape (`fit`, `edges`, `oriented`, 2D `keep_collinear`, `fill`, `fill_cavities`, 2D `fix_self_intersections`, then `mesh cleanup`), read by triangle_mesh, polyline, fit, voxelized_mesh, convex_decomposition and 2D convex_polygon; `convex_decomposition2d`/`convex_decomposition3d` hold the `decomposition` rows, read by convex_decomposition and a 3D fit. The collider keeps the dimensions and the source assets.
+- **softbody2d/3d**: 9/8 kinds. `shape` (17/24 rows) is per-kind: cells for grid, radius for circle, a/b for rope, *_indices for custom. softbody3d files shear/warp/weft springs under `shape` though they are stiffness. `color` (a render row) and `enabled` sit in the physics `surface` group. Resolved 2026-10-30: one component per set of rows a kind reads, the kind's word after `soft_`: 2D `soft_grid2d` (size, cells), `soft_circle2d` (radius, particle_count), `soft_rope2d` (particle_count, a, b), `soft_outline2d` (points), `soft_polyline2d` (edges), `soft_volumetric2d` (cell_size, min_angle), `soft_custom2d` (points, the index lists); 3D `soft_grid3d` (box and cloth: size, cells), `soft_sphere3d`, `soft_cloth_tube3d`, `soft_rope3d`, `soft_volumetric3d`, `soft_custom3d`. `mesh`, `skin` and `seams` stay: most kinds read them. shear/warp/weft went with `soft_material` (2026-10-28).
+- **joint2d/3d**: max_length is rope-only, rest_length spring-only, lock_*/coupled_* generic-only, and the 8 articulation rows apply only with `articulation` on. The groups read fine. Resolved 2026-10-30: `rope_joint2d`/`3d` (max_length), `spring_joint2d`/`3d` (rest_length), `generic_joint2d`/`3d` (lock_*, coupled_*), `articulation2d`/`3d` (the seven articulation rows). The `articulation` switch is gone: the component on the node is the articulation. A ball socket couples no axes now; a generic joint with every translation locked is one that can.
 - **modifier2d/3d**: groups map 1:1 to kinds, which reads fine. modifier2d typed `gravity` and `offset` as vec3 on a 2D component. Resolved 2026-10-28: a `vec2` in 2D.
 - **follow2d vs follow3d**: `follow_rotation` (bool) vs `rotation_axes` (flags). The 2D twin's name drifted; body2d and joint2d express the same 2D reduction as a bool `lock_rotation`. Resolved 2026-10-28: follow2d takes `rotation_axes` too, its one option `rotation` as joint2d names it.
 - **debug draw twins drifted**: dot/wireframe colours default white on 2D and transparent ("take the node's own") on 3D; `world` sizing means world units on 2D and pixels at one unit on 3D. Resolved by the `debug_draw` component (2026-10-28): one default, the node's own colour, and `world` scaling with the view in both.

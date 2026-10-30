@@ -16,6 +16,7 @@ use crate::rapier3d::prelude::{
     RigidBodyHandle,
 };
 use crate::scalar::{self, Pose};
+use crate::shared::beside::{self, Beside};
 
 use crate::properties::{
     Axis3d, ColliderEvent, ColliderKind3d, ContactPair, Decomposition3d, Edges, Fill, Fit3d,
@@ -150,21 +151,6 @@ pub struct Collider3d {
     /// Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider
     #[property(asset = "mesh", group = "mesh")]
     pub mesh: String,
-    /// The shape fitted to the mesh, when kind is fit
-    #[property(default = Fit3d::ConvexHull, group = "mesh")]
-    pub fit: Fit3d,
-    /// Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles
-    #[property(default = Edges::Chain, group = "mesh")]
-    pub edges: Edges,
-    /// Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful
-    #[property(group = "mesh")]
-    pub oriented: bool,
-    /// Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid
-    #[property(default = Fill::Solid, group = "mesh")]
-    pub fill: Fill,
-    /// When a solid fill floods a mesh, leave the cavities a closed surface walls off empty
-    #[property(group = "mesh")]
-    pub fill_cavities: bool,
     /// Terrain grid, when kind is heightfield; the asset's holes are cut out of it
     #[property(asset = "heightfield", group = "mesh")]
     pub heightfield: String,
@@ -177,6 +163,29 @@ pub struct Collider3d {
     /// How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points
     #[property(group = "mesh", min = 0.0)]
     pub voxel_size: f32,
+}
+
+/// How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, Component)]
+#[component(name = "mesh_collider3d")]
+pub struct MeshCollider3d {
+    /// The shape fitted to the mesh, when kind is fit
+    #[property(default = Fit3d::ConvexHull)]
+    pub fit: Fit3d,
+    /// Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles
+    #[property(default = Edges::Chain)]
+    pub edges: Edges,
+    /// Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful
+    pub oriented: bool,
+    /// Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid
+    #[property(default = Fill::Solid)]
+    pub fill: Fill,
+    /// When a solid fill floods a mesh, leave the cavities a closed surface walls off empty
+    pub fill_cavities: bool,
     /// Merge vertices at exactly the same place when building a triangle_mesh
     #[property(group = "mesh cleanup")]
     pub merge_vertices: bool,
@@ -195,36 +204,68 @@ pub struct Collider3d {
     /// Work out which triangles form each separate piece of the mesh
     #[property(group = "mesh cleanup")]
     pub connected_components: bool,
+}
+
+impl Beside for MeshCollider3d {
+    type Main = Collider3d;
+
+    fn reads(main: &Collider3d) -> bool {
+        matches!(
+            main.kind,
+            ColliderKind3d::TriangleMesh
+                | ColliderKind3d::Polyline
+                | ColliderKind3d::Fit
+                | ColliderKind3d::VoxelizedMesh
+                | ColliderKind3d::ConvexDecomposition
+        )
+    }
+}
+
+/// How the node's `collider3d` cuts its mesh into convex pieces, for a convex_decomposition or a fit to one.
+#[derive(Clone, Component)]
+#[component(name = "convex_decomposition3d")]
+pub struct ConvexDecomposition3d {
     /// How a convex_decomposition is cut: into convex hulls, or into voxel parts
-    #[property(default = Decomposition3d::Vhacd, group = "decomposition")]
+    #[property(default = Decomposition3d::Vhacd)]
     pub method: Decomposition3d,
     /// How deep a dent a piece may keep before it is cut again
-    #[property(default = vhacd().concavity, group = "decomposition", min = 0.0)]
+    #[property(default = vhacd().concavity, min = 0.0)]
     pub max_concavity: f32,
     /// The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet
-    #[property(default = i64::from(vhacd().max_convex_hulls), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().max_convex_hulls), min = 1)]
     pub max_convex_hulls: i64,
     /// How fine the voxel grid a decomposition cuts is
-    #[property(default = i64::from(vhacd().resolution), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().resolution), min = 1)]
     pub resolution: i64,
     /// Estimate each piece's hull while cutting rather than building it exactly
-    #[property(default = vhacd().convex_hull_approximation, group = "decomposition")]
+    #[property(default = vhacd().convex_hull_approximation)]
     pub approximate_hulls: bool,
     /// How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point
-    #[property(default = i64::from(vhacd().convex_hull_downsampling), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().convex_hull_downsampling), min = 1)]
     pub hull_downsampling: i64,
     /// How coarsely the cutting planes are searched first; 1 tries every one
-    #[property(default = i64::from(vhacd().plane_downsampling), group = "decomposition", min = 1)]
+    #[property(default = i64::from(vhacd().plane_downsampling), min = 1)]
     pub plane_downsampling: i64,
     /// How much a cut prefers a plane of symmetry
-    #[property(default = vhacd().alpha, group = "decomposition", max = 1.0, min = 0.0)]
+    #[property(default = vhacd().alpha, max = 1.0, min = 0.0)]
     pub symmetry_bias: f32,
     /// How much a cut prefers an axis of revolution
-    #[property(default = vhacd().beta, group = "decomposition", max = 1.0, min = 0.0)]
+    #[property(default = vhacd().beta, max = 1.0, min = 0.0)]
     pub revolution_bias: f32,
 }
 
-/// parry's own decomposition tuning, which a `collider3d`'s rows start at.
+impl Beside for ConvexDecomposition3d {
+    type Main = Collider3d;
+
+    fn reads(main: &Collider3d) -> bool {
+        matches!(
+            main.kind,
+            ColliderKind3d::ConvexDecomposition | ColliderKind3d::Fit
+        )
+    }
+}
+
+/// parry's own decomposition tuning, which a `convex_decomposition3d`'s rows start at.
 fn vhacd() -> crate::rapier3d::parry::transformation::vhacd::VHACDParameters {
     crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default()
 }
@@ -677,13 +718,20 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
     ]))
 }
 
+/// What the node's `collider3d` asks for, with the rows of the components
+/// beside it written in; `None` when it has none.
+fn asked(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+    let world = eng.world();
+    let held = world.get::<&Collider3d>(entity).ok()?;
+    let mut params = derived::to_table(&*held);
+    beside::write_in::<MeshCollider3d>(&world, entity, &held, &mut params);
+    beside::write_in::<ConvexDecomposition3d>(&world, entity, &held, &mut params);
+    Some(params)
+}
+
 /// The collider the component asks for, built again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let asked = eng
-        .world()
-        .get::<&Collider3d>(entity)
-        .map(|held| derived::to_table(&*held));
-    let Ok(params) = asked else {
+    let Some(params) = asked(eng, entity) else {
         return Ok(());
     };
     apply_collider(eng, entity, &params)
@@ -692,6 +740,13 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
 /// `collider3d`: the asked-for struct on the node, the collider itself in
 /// [`crate::PhysicsState3d`].
 pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_3D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    beside::register::<MeshCollider3d>(reg, &[c::COLLIDER_3D], tags, after_write);
+    beside::register::<ConvexDecomposition3d>(reg, &[c::COLLIDER_3D], tags, after_write);
+    // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Collider3d::NAME,
         ComponentDef {
@@ -710,6 +765,14 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     );
 }
 
+/// The components whose rows a `collider3d`'s build reads: its own, then
+/// those beside it.
+pub(crate) const PARAMS: &[&str] = &[
+    c::COLLIDER_3D,
+    <MeshCollider3d as Component>::NAME,
+    <ConvexDecomposition3d as Component>::NAME,
+];
+
 /// Replace a node's collider from a `collider3d` table, read as a write of
 /// the component reads it.
 fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
@@ -724,7 +787,7 @@ fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
 /// asking where it is.
 pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component's own vocabulary."),
+        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them."),
     ]);
     m.function(
         "set_collider",

@@ -131,7 +131,7 @@ pub use particles::{Particles, Particles2d};
 pub use particles_3d::Particles3d;
 pub use polygon::{Polygon, PolygonMesh};
 pub use reflection::{LitProbe, ProbeUpdate, ReflectionProbe};
-pub use shape::{FlatKind, LineCap, LineJoin, Primitive2d, Primitive3d, SolidKind};
+pub use shape::{FlatKind, Line2d, LineCap, LineJoin, Primitive2d, Primitive3d, SolidKind};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use sprite::Sprite;
 pub use text_component::{FontStyle, LineBreak, Text2d, Text3d, TruncateAt};
@@ -1005,6 +1005,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
+        shape::register_line2d_component(reg);
         register_render_presets(reg)?;
         sprite::register_sprite_component(reg);
         polygon::register_polygon_component(reg);

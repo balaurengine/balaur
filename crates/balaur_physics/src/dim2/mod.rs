@@ -379,10 +379,17 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::PHYSICS,
             ],
-            &[(
-                c::SOFTBODY_2D,
-                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
-            )],
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftRope2d as balaur_core::components::derived::Component>::NAME,
+                    Some("particle_count = 24"),
+                ),
+                (
+                    c::SOFTBODY_2D,
+                    Some("kind = \"rope\"\npinned_particles = [0]"),
+                ),
+            ],
         )?,
     );
 
@@ -418,6 +425,7 @@ struct PhysicsFrame2d {
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
     grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
@@ -442,10 +450,28 @@ struct PhysicsFrameRef2d<'a> {
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
     grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
 }
+
+/// Every component beside a 2D physics one, as a frame carries it.
+const CARRIED: &[crate::shared::beside::Carried] = &[
+    crate::shared::beside::carried::<collider::MeshCollider2d>(),
+    crate::shared::beside::carried::<collider::ConvexDecomposition2d>(),
+    crate::shared::beside::carried::<softbody::SoftGrid2d>(),
+    crate::shared::beside::carried::<softbody::SoftCircle2d>(),
+    crate::shared::beside::carried::<softbody::SoftRope2d>(),
+    crate::shared::beside::carried::<softbody::SoftOutline2d>(),
+    crate::shared::beside::carried::<softbody::SoftPolyline2d>(),
+    crate::shared::beside::carried::<softbody::SoftVolumetric2d>(),
+    crate::shared::beside::carried::<softbody::SoftCustom2d>(),
+    crate::shared::beside::carried::<joint::RopeJoint2d>(),
+    crate::shared::beside::carried::<joint::SpringJoint2d>(),
+    crate::shared::beside::carried::<joint::GenericJoint2d>(),
+    crate::shared::beside::carried::<joint::Articulation2d>(),
+];
 
 fn save_physics2d(eng: &Engine) -> serde_json::Value {
     let state = eng.resource::<PhysicsState2d>();
@@ -459,15 +485,16 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         body_params: crate::asked_rows::<body::Body2d>(eng, &world),
         joints: crate::keyed(&world, &state.joints),
         soft_bodies: crate::keyed(&world, &state.soft_bodies),
-        soft_params: crate::authored(eng, &world, &state.soft_params, c::SOFTBODY_2D),
-        collider_params: crate::authored(eng, &world, &state.collider_params, c::COLLIDER_2D),
-        tile_params: crate::authored(eng, &world, &state.tile_params, c::TILE_COLLISION),
+        soft_params: crate::authored(eng, &world, &state.soft_params, softbody::PARAMS),
+        collider_params: crate::authored(eng, &world, &state.collider_params, collider::PARAMS),
+        tile_params: crate::authored(eng, &world, &state.tile_params, &[c::TILE_COLLISION]),
         tile_built: crate::keyed(&world, &state.tile_built),
         tile_colliders: crate::keyed(&world, &state.tile_colliders),
-        joint_params: crate::authored(eng, &world, &state.joint_params, c::JOINT_2D),
+        joint_params: crate::authored(eng, &world, &state.joint_params, joint::PARAMS),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         grounded: crate::keyed(&world, &state.grounded),
         follows: crate::keyed(&world, &state.follows),
+        beside: crate::shared::beside::save(eng, &world, CARRIED),
         shape_revision: state.shape_revision,
         paused: state.paused,
         sleeping_allowed: state.sleeping_allowed,
@@ -486,21 +513,21 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let bodies = crate::resolved(eng, frame.bodies);
     let colliders = crate::resolved(eng, frame.colliders);
     let body_authored = crate::resolved(eng, frame.body_authored);
-    let body_params = crate::resolved(eng, crate::filled(eng, frame.body_params, c::BODY_2D));
+    let body_params = crate::resolved(eng, crate::filled(eng, frame.body_params, &[c::BODY_2D]));
     let joints = crate::resolved(eng, frame.joints);
     let soft_bodies = crate::resolved(eng, frame.soft_bodies);
-    let soft_params = crate::resolved(eng, crate::filled(eng, frame.soft_params, c::SOFTBODY_2D));
+    let soft_params = crate::resolved(eng, crate::filled(eng, frame.soft_params, softbody::PARAMS));
     let collider_params = crate::resolved(
         eng,
-        crate::filled(eng, frame.collider_params, c::COLLIDER_2D),
+        crate::filled(eng, frame.collider_params, collider::PARAMS),
     );
     let tile_params = crate::resolved(
         eng,
-        crate::filled(eng, frame.tile_params, c::TILE_COLLISION),
+        crate::filled(eng, frame.tile_params, &[c::TILE_COLLISION]),
     );
     let tile_built = crate::resolved(eng, frame.tile_built);
     let tile_colliders = crate::resolved(eng, frame.tile_colliders);
-    let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, c::JOINT_2D));
+    let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, joint::PARAMS));
     let grounded = crate::resolved(eng, frame.grounded);
     let follows = crate::resolved(eng, frame.follows);
     crate::restore_asked::<body::Body2d>(eng, &body_params);
@@ -508,6 +535,7 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     crate::restore_asked::<joint::Joint2d>(eng, &joint_params);
     crate::restore_asked::<softbody::Softbody2d>(eng, &soft_params);
     crate::restore_asked::<tiles::TileCollision>(eng, &tile_params);
+    crate::shared::beside::restore(eng, CARRIED, frame.beside);
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;
