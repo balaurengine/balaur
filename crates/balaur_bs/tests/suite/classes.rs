@@ -296,6 +296,38 @@ impl Ball {
     assert_eq!(rt.live(), 0);
 }
 
+/// A misspelt component or property on a node says which half is wrong.
+#[test]
+fn a_property_the_component_lacks_does_not_compile() {
+    use balaur_bs::{HostApi, Ty};
+    let options = Options {
+        host: HostApi {
+            components: vec![(
+                "transform".into(),
+                vec![
+                    ("position".into(), Ty::Struct("Vec3".into())),
+                    ("skew".into(), Ty::Float),
+                ],
+            )],
+            ..HostApi::default()
+        },
+        ..Options::default()
+    };
+    let with = |line: &str| {
+        let src = format!(
+            "pub class Ball {{ node: Node }}\nimpl Ball {{\n    pub fn go() {{ {line} }}\n}}\n"
+        );
+        compile(&src, &options).map(|_| ()).unwrap_err().to_string()
+    };
+    let wrong = with("self.node.transform.positoin = vec3(0.0, 0.0, 0.0);");
+    assert!(
+        wrong.contains("`transform` has no property `positoin`; it has `position`, `skew`"),
+        "{wrong}"
+    );
+    let wrong = with("let x = self.node.transfrom.position;");
+    assert!(wrong.contains("no component `transfrom`"), "{wrong}");
+}
+
 // A spec is a struct: a literal names what differs from the declared
 // defaults, and an optional field it leaves out is nil.
 #[test]
