@@ -12,6 +12,7 @@ Tools and processes for ensuring the code quality remains high.
 | `test.yml` | runs the tests |
 | `build.yml` | builds and exports |
 | `channel.yml` | moves a channel's tag when a version is published |
+| `fuzz.yml` | runs the Balaur Script compiler's fuzz targets each night, on a schedule of its own |
 
 ## Before you push
 

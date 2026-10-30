@@ -1,0 +1,39 @@
+name: Fuzz
+
+# The compiler's cargo-fuzz targets (crates/balaur_bs/fuzz) for twenty minutes
+# each a night, seeded from the corpus. Never a push gate: a find becomes a
+# corpus program, as the mutation test's first one did.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    name: fuzz · ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [compile, run]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Nightly, for libFuzzer's instrumentation
+        run: rustup toolchain install nightly --profile minimal
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Seed from the corpus
+        run: |
+          mkdir -p crates/balaur_bs/fuzz/corpus/${{ matrix.target }}
+          find crates/balaur_bs/tests/programs -name '*.bs' \
+            -exec cp {} crates/balaur_bs/fuzz/corpus/${{ matrix.target }}/ \;
+      - name: Fuzz
+        working-directory: crates/balaur_bs
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=1200
+      - name: What it found
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: crates/balaur_bs/fuzz/artifacts

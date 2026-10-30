@@ -81,8 +81,9 @@ compared.
 - compile: never panics, and every module it writes validates
 - run: never brings the host down, under the fuel limit
 
-Locally `cargo fuzz run` (nightly, `cargo install cargo-fuzz`); a scheduled
-CI job for them is still to write, never the push gate.
+Locally `cargo fuzz run` (nightly, `cargo install cargo-fuzz`); in CI
+`fuzz.yml`, twenty minutes a target each night, seeded from the corpus,
+never the push gate.
 
 Built 2026-10-30 beside them: `tests/suite/mutants.rs`, the same checks over
 mutants of every corpus program from a seeded generator, 12 a program on
