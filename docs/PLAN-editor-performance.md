@@ -982,7 +982,27 @@ the properties the log names.
 
 Of the 23 M, the Inspector's rows are about 4 M; the rest is the UI pass
 laying the whole shell out again once one widget changed (`taffy`), which
-an incremental layout takes next. The order above moved for that
+an incremental layout takes next.
+
+Measured again 2026-10-30 on `editor-redesign` (steps 1 to 11) with
+`scripts/edit_cost.sh`: the `bench:` start state the editor now carries
+makes one edit a frame for 400 frames, less a warm run that edits nothing.
+
+| one edit a frame | instructions an edit |
+| --- | ---: |
+| the Inspector writes `text2d.text` | 5.5 M |
+| the Inspector writes `text2d.color` | 6.4 M |
+| the Inspector writes `transform.position` | 3.7 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 5.0 M |
+
+An edit re-reads two of the shell's 608 widgets and re-solves only those
+(`arena::begin` patches, it does not rebuild), and the editor's scripts are
+about 5 % of the frame, some 0.3 M: the budget holds for the editor's own
+work. The rest is the frame any visible change costs, the editor's or the
+game's: the egui pass over every widget, about 2 M, and the render, about
+2.4 M, of which a sixth is Metal buffers made afresh each frame in the
+kiss3d fork's egui renderer. Neither is incremental layout's: taffy is
+under 0.6 M of it. The order above moved for that
 measurement: of the 650 M, the panels and the Inspector were 580 M and
 the document's own copy 60 M, so the change log's panels (PLAN-editor-as-
 scene §9.2) and the Inspector's rows came before the document's removal.

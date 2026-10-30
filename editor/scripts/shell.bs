@@ -949,6 +949,7 @@ fn prefixed_states() -> [Prefixed] {
         Prefixed { prefix: "mode:", run: state_mode },
         Prefixed { prefix: "select:", run: state_select },
         Prefixed { prefix: "add:", run: state_add },
+        Prefixed { prefix: "bench:", run: state_bench },
         Prefixed { prefix: "zoom:", run: state_zoom },
     ]
 }
@@ -1189,6 +1190,12 @@ fn state_tiles(state: &mut editor::State, mode: str) {
 // Self-test state: select a node by name (e.g. select:Pig1).
 fn state_select(state: &mut editor::State, name: str) {
     select_named(state, name);
+}
+
+// `bench:text` makes one edit a frame to the selection; `bench.bs` names
+// the edits.
+fn state_bench(state: &mut editor::State, edit: str) {
+    state.bench = edit;
 }
 
 // `add:text2d` adds what the node picker's row of that name adds, under the

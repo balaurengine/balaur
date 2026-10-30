@@ -5,6 +5,7 @@
 use anim;
 use arrange;
 use autosave;
+use bench;
 use bonemap;
 use center;
 use chrome;
@@ -128,6 +129,8 @@ pub class State {
     stage_key: any,
     overlays_key: any,
     stepping: [str],
+    // The edit `--state bench:` makes every frame, or "".
+    bench: str,
     overlays_frame: int,
     stepped: int,
     layout_key: any,
@@ -383,6 +386,7 @@ pub fn fresh_state() -> State {
         // The self-tests under way, which step a frame each; see
         // `selftest::stepping`.
         stepping: [],
+        bench: "",
         overlays_frame: -1,
         // The frame the viewport's tools last looked at the pointer: several
         // pointer words in one frame are one look.
@@ -740,6 +744,7 @@ fn frame(state: &mut State, dt: float) {
     anim::update(state);
     textedit::step(state);
     autosave::step(state);
+    bench::step(state);
     // What moves without input asks for the next frame; under `[window]
     // low_processor` nothing else draws one. The splash and a queued import
     // count frames, so they ask too.
