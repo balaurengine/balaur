@@ -1009,6 +1009,17 @@ measurement: of the 650 M, the panels and the Inspector were 580 M and
 the document's own copy 60 M, so the change log's panels (PLAN-editor-as-
 scene §9.2) and the Inspector's rows came before the document's removal.
 
+Measured again 2026-10-30 on `editor-followups`, once `widget` was derived
+and a one-property write set the one `Widget` field it feeds, the same way,
+the two runs alternated:
+
+| one edit a frame | before | after |
+| --- | ---: | ---: |
+| the Inspector writes `text2d.text` | 5.8 M | 4.6 M |
+| the Inspector writes `text2d.color` | 7.1 M | 4.4 M |
+| the Inspector writes `transform.position` | 4.5 M | 2.8 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 5.6 M | 3.8 M |
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind

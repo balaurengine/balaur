@@ -21,6 +21,11 @@ is rewritten in the same commit).
 | Script: `node.c.p` binds to its component once | the property imports find the component's index at load (§9 step 6) |
 | House lints / Comment lints | no file past 1,200 lines (pure moves into submodules); long comments became the docs they were |
 | Components: a hook hears which property one write changed | `Written::Property(index)` |
+| Script: a misspelt component property says which half is wrong / binds to its property's place | `components::place_of`, `property_placed`, `set_property_placed` (§9 step 6 done) |
+| UI: `widget` is derived, and a one-property write sets one field | `WidgetProperties` beside the `Widget` cache; `PropertyReaders`/`Writers` gone |
+| Physics: a kind's own rows are a component beside it | 25 components (`mesh_collider2d`, `convex_decomposition3d`, `soft_grid2d`, `rope_joint2d`, `articulation3d`, …), absent meaning defaults; `src/shared/beside.rs` |
+| Render: a stroked line is `line2d`, not a kind of shape | the Pen draws a `line2d` |
+| Docs: the reference regenerated | `docs/generated/` current; API, house, comment and prose lints at 0 errors |
 
 ## Where the derive stands
 
@@ -43,8 +48,13 @@ is rewritten in the same commit).
 - `refresh_multimeshes_system` re-applies through `get` + `patch` of the same
   table, which `patch` reads as unchanged, so a reload never re-copies the
   instances. It was so before the derive.
-- Script `node.c.p` binds to the component's index at load
-  (`balaur_script_bs/src/lib.rs`, §9 step 6).
+- Script `node.c.p` binds to its property's place at load
+  (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
+  which half is wrong.
+- Beside components (physics) register before their main component, so a
+  scene builds the main one once. 83 components are registered of the 128
+  `Attached` allows; a widget split into a component per kind would add
+  about 30.
 
 ## Left to do, in order
 
@@ -54,32 +64,31 @@ is rewritten in the same commit).
      struct loses the definition. An asset property type that keeps either
      a reference or a definition comes first. Also the `read: None, write:
      None` lines left on plugin and test definitions where they can go.
-2. **Property by index end to end** (§9 step 6): the compiler could hand the
-   host the property's index rather than its name; and verify a component or
-   property the schema lacks does not compile.
-3. **Per-kind splits** (PLAN-component-order §4): no property shows on a
-   condition, so rows that apply beside one `kind` become a component beside
-   it. Each split rewrites every scene, example and template in the same
-   commit.
+2. **Per-kind rows still applying on a condition** (PLAN-component-order
+   §4): no property should.
    - `widget`: 31 kinds in one component; one component per kind
-     (PLAN-widgets). The biggest item, and the editor's frame cost: a write to
-     a widget property is a whole-table patch today.
-   - `shape2d`: the 9 polyline rows (`mesh`, `closed`, `width`, `taper`,
-     `join`, `cap`, `miter_limit`, `gradient`, `gradient_steps`) → `line2d`.
-     Then decide the primitives' few per-kind rows (`corner_radius`, `sides`,
-     `points`, `inner_radius`, `height`).
-   - `collider2d`/`collider3d` (64 rows on 2D): the mesh-processing,
-     mesh-cleanup and decomposition rows → components beside the collider,
-     absent meaning defaults; `softbody2d/3d` `shape` rows; `joint2d/3d`
-     rope/spring/generic and the 8 articulation rows. An agent was on these
-     when this was written: check `git status` for `crates/balaur_physics`,
-     scenes and editor scripts.
+     (PLAN-widgets). Its writes are cheap now, so this is the Inspector's
+     dead rows, not the frame.
+   - The primitives' dimensions: `shape2d`'s `size`, `radius`, `height`,
+     `corner_radius`, `sides`, `points`, `inner_radius`; `shape3d`'s; the
+     colliders'. Decide whether each primitive is its own component.
+   - Inside the new physics components: `fit`, `edges`, `keep_collinear`
+     read by one kind each; 2D `overlap` only with the `exact` method. On the
+     main ones: `break_*` not for an articulation, the axis records'
+     `link_damping`/`armature`/`friction` only for one, soft-body
+     `collision_binding*` beside a `collision_mesh`, `skin` and
+     `skin_collision` with cells, `tile_collision`'s `fit`.
    - `tilemap` cells/terrain/flags are string-encoded grids.
+3. **One source for a widget's values**: `input.rs` writes both
+   `WidgetProperties` and `Widget` when a click, drag or keystroke changes
+   one; it should write through `set_property_placed` so the struct is the
+   source and the cache follows.
 4. **A stricter language** (§9 step 5).
    - Engine records for the functions that take or give an `any` options
      table, then `map()` and `with` go: 1,428 `map()` and 4,056 `.with(` in
      `editor/`. Component patches are the easy part (112 `patch_component(…,
-     map()…)`): a struct literal, or a property write once widget is derived.
+     map()…)`): a struct literal, or one property write each, which costs
+     one field since the widget derive.
    - Typed calls between scripts: blocked. A whole-file build (profiler,
      debugger, browser, native export) makes each file its own instance, so
      `let editor: editor::Editor? = node.script;` is nil there; tried on the
@@ -91,24 +100,29 @@ is rewritten in the same commit).
    through §7a's C into the editor.
 6. **Budgets** (§9 step 8): `crates/balaur_bs/tests/suite/budgets.rs` exists;
    check CI gates on it.
-7. **Not without the user**: reusing Metal buffers in the kiss3d fork
+7. **Physics builders typed**: collider, joint, softbody and tile builders
+   still read `derived::to_table` of the struct, because script calls feed
+   them tables too.
+8. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.
-8. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
+9. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
    --workspace --all-targets -- -D warnings`, the wasm clippy
    (`scripts/precommit.sh`), `cargo test --workspace --no-fail-fast`,
    `python3 scripts/gen_docs.py` then `python3 scripts/api_lints.py
    --api-json docs/generated/api.json --fail-on-error`, `balaur check editor
    --strict`, `balaur fmt editor`, the full `scripts/e2e.sh`, and
    `python3 scripts/house_lints.py`, `comment_lints.py`, `prose_lints.py`
-   (all three at 0 errors after "House lints" and "Comment lints"). Build
-   with `CARGO_INCREMENTAL=0`: the incremental cache once filled the disk.
+   (all at 0 errors at "Docs: the reference regenerated"; the full e2e
+   passed there too). Build with `CARGO_INCREMENTAL=0`: the incremental
+   cache once filled the disk.
 
 ## Measured
 
-One edit, instructions retired (`scripts/edit_cost.sh`): text 5.5 M, colour
-6.4 M, position 3.7 M, engine text 5.0 M; it was 650 M. An edit patches 2 of
-608 widgets and the editor's scripts are about 0.3 M of it; the rest is the
+One edit, instructions retired (`scripts/edit_cost.sh`): text 4.6 M,
+colour 4.4 M, position 2.8 M, engine text 3.8 M once `widget` was derived
+(5.5, 6.4, 3.7 and 5.0 before; 650 M at the start, PLAN-editor-performance
+§10). An edit patches 2 of 608 widgets and the editor's scripts are about 0.3 M of it; the rest is the
 egui pass (about 2 M) and the render (about 2.4 M). Time is noise on this
 Mac under load; count instructions (`/usr/bin/time -l`).
 
