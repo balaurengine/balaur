@@ -7,6 +7,9 @@ authors.workspace = true
 description = "Balaur Script: a small statically typed scripting language compiled to WebAssembly; compiler, runtime and debugger."
 
 [dependencies]
+# xxh3 for a module's name and a cached module's checksum: many bytes a
+# step, where FNV took one, and the same answer on every platform.
+twox-hash = { version = "2", default-features = false, features = ["xxhash3_64", "xxhash3_128"] }
 libm.workspace = true
 rustc-hash.workspace = true
 wasm-encoder = "0.262"

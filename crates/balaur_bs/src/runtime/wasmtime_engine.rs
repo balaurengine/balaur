@@ -264,7 +264,7 @@ fn unit_module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module
     if let Some(m) = units.lock().map_err(|e| e.to_string())?.get(&key) {
         return Ok(m.clone());
     }
-    let m = module(eng, wasm, fuel)?;
+    let m = module_named(eng, wasm, &key.0, fuel)?;
     units
         .lock()
         .map_err(|e| e.to_string())?
@@ -273,12 +273,66 @@ fn unit_module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module
 }
 
 pub(crate) fn cache_in(dir: PathBuf) {
-    let _ = CACHE.set(dir);
+    if CACHE.set(dir.clone()).is_ok() {
+        // Off the frame, once a run: the cache otherwise only ever grows.
+        let _ = std::thread::Builder::new()
+            .name("bs-cache-prune".into())
+            .spawn(move || prune(&dir));
+    }
+}
+
+/// How long a cached module is kept since a run last loaded it.
+const KEPT_FOR: std::time::Duration = std::time::Duration::from_hours(14 * 24);
+
+/// Drop the modules no run has loaded for [`KEPT_FOR`]: a load refreshes a
+/// module's time, so what a project still uses stays.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a cache's housekeeping, never a simulation input"
+)]
+fn prune(dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let now = std::time::SystemTime::now();
+    for entry in entries.flatten() {
+        let stale = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .and_then(|at| now.duration_since(at).ok())
+            .is_some_and(|age| age > KEPT_FOR);
+        if stale {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// Note that a run loaded a cached module, so [`prune`] keeps it.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a cache's housekeeping, never a simulation input"
+)]
+fn touch(path: &std::path::Path) {
+    let _ = std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(std::time::SystemTime::now()));
 }
 
 /// `wasm` compiled, from the cache when it has it: compiling is most of
 /// what loading a script costs on wasmtime.
 fn module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module, String> {
+    module_named(eng, wasm, &crate::module_hash(wasm), fuel)
+}
+
+/// [`module`], for a caller that has the module's hash already.
+fn module_named(
+    eng: &Engine,
+    wasm: &[u8],
+    hash: &str,
+    fuel: bool,
+) -> Result<wasmtime::Module, String> {
     let compile = || {
         let build =
             || wasmtime::Module::new(eng, wasm).map_err(|e| format!("invalid module: {e:#}"));
@@ -290,28 +344,23 @@ fn module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module, Str
     let Some(dir) = CACHE.get() else {
         return compile();
     };
-    let name = format!(
-        "{}{}.cwasm",
-        crate::module_hash(wasm),
-        if fuel { "f" } else { "" }
-    );
+    let name = format!("{hash}{}.cwasm", if fuel { "f" } else { "" });
     let path = dir.join(name);
     if let Ok(file) = std::fs::read(&path)
         && let Some((sum, body)) = file.split_first_chunk::<8>()
-        && u64::from_le_bytes(*sum) == crate::fnv(body, 0x8422_2325_cbf2_9ce4)
+        && u64::from_le_bytes(*sum) == twox_hash::XxHash3_64::oneshot(body)
     {
         // SAFETY: `body` is what `serialize` wrote for these exact wasm bytes,
         // its checksum intact; wasmtime refuses one from another version or
         // configuration, and a refusal compiles afresh.
         if let Ok(m) = unsafe { wasmtime::Module::deserialize(eng, body) } {
+            touch(&path);
             return Ok(m);
         }
     }
     let m = compile()?;
     if let Ok(body) = m.serialize() {
-        let mut file = crate::fnv(&body, 0x8422_2325_cbf2_9ce4)
-            .to_le_bytes()
-            .to_vec();
+        let mut file = twox_hash::XxHash3_64::oneshot(&body).to_le_bytes().to_vec();
         file.extend(body);
         let partial = path.with_extension("partial");
         let _ = std::fs::create_dir_all(dir)

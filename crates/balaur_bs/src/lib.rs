@@ -32,11 +32,7 @@ use rustc_hash::FxHashMap;
 /// file name, and the native build of it an export made. Two FNV-1a passes.
 #[must_use]
 pub fn module_hash(wasm: &[u8]) -> String {
-    format!(
-        "{:016x}{:016x}",
-        fnv(wasm, 0xcbf2_9ce4_8422_2325),
-        fnv(wasm, 0x6c62_272e_07bb_0142)
-    )
+    format!("{:032x}", twox_hash::XxHash3_128::oneshot(wasm))
 }
 
 /// The class a script file declares, named after the file:

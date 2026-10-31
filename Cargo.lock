@@ -642,6 +642,7 @@ dependencies = [
  "rayon",
  "rustc-hash 2.1.3",
  "smallvec",
+ "twox-hash",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "wasm-encoder 0.262.0",
