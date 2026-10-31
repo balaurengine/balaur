@@ -130,8 +130,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         edits: turned.into_iter().collect(),
         rects: crate::widget::taffy::Rects::default(),
         fresh,
-        touched,
-        pushed: false,
+        touched: Written::new(touched),
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().chain(fired).collect(),
@@ -362,7 +361,7 @@ fn place_root(
         crate::widget::taffy::Room::fixed(align.anchor_size(pos, assigned))
     };
     let probe = root_ui(ctx);
-    let touched = painting.to_push();
+    let touched = painting.touched.first_push();
     let mut rects = crate::widget::taffy::solve(
         eng,
         painting.arena,
@@ -407,7 +406,7 @@ fn measured(
     );
     let space =
         crate::widget::taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, bounds));
-    let touched = painting.to_push();
+    let touched = painting.touched.first_push();
     let rects = crate::widget::taffy::solve(
         eng,
         painting.arena,
@@ -486,12 +485,8 @@ pub(crate) struct Painting<'a> {
     /// Whether the arena was rebuilt this pass. False means the tree taffy
     /// holds already describes it, so a solve restyles the root and no more.
     pub(crate) fresh: bool,
-    /// The slots re-read this pass. The first solve pushes them into taffy,
-    /// whose tree every solve shares, so once is enough; they stay here for
-    /// [`Self::deep`].
-    pub(crate) touched: Vec<usize>,
-    /// Whether a solve has pushed `touched` this pass.
-    pub(crate) pushed: bool,
+    /// The slots re-read this pass.
+    pub(crate) touched: Written,
     /// Whether the pointer is over the widget being drawn, and whether it is
     /// held there. Set by the draw and never by the measure: a size that
     /// followed the pointer would move whatever sits beside it.
@@ -505,6 +500,32 @@ pub(crate) struct Painting<'a> {
     pub(crate) under: Vec<Entity>,
     /// Every widget whose popup, dialog or window is up this pass.
     pub(crate) shown: Vec<Entity>,
+}
+
+/// The slots a pass re-read. The first solve pushes them into taffy, whose
+/// tree every solve shares, so once is enough; they stay for
+/// [`Painting::deep`].
+pub(crate) struct Written {
+    slots: Vec<usize>,
+    pushed: bool,
+}
+
+impl Written {
+    fn new(slots: Vec<usize>) -> Self {
+        Self {
+            slots,
+            pushed: false,
+        }
+    }
+
+    /// This pass's writes the first time a solve asks, nothing after.
+    fn first_push(&mut self) -> Vec<usize> {
+        if std::mem::replace(&mut self.pushed, true) {
+            Vec::new()
+        } else {
+            self.slots.clone()
+        }
+    }
 }
 
 impl Painting<'_> {
@@ -523,17 +544,7 @@ impl Painting<'_> {
     /// that places its own children solves them apart from the root, so it
     /// has to ask.
     pub(crate) fn deep(&self, root: usize) -> bool {
-        self.fresh || self.touched.contains(&root)
-    }
-
-    /// The slots for a solve to push into taffy: this pass's writes the first
-    /// time, nothing after.
-    fn to_push(&mut self) -> Vec<usize> {
-        if std::mem::replace(&mut self.pushed, true) {
-            Vec::new()
-        } else {
-            self.touched.clone()
-        }
+        self.fresh || self.touched.slots.contains(&root)
     }
 
     /// The style a widget is drawn with, in the theme in force here.
