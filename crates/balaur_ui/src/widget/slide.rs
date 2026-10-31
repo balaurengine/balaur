@@ -59,6 +59,9 @@ pub(crate) struct Slide<'a> {
     /// A rectangle this wide for each unit tall, rather than a disc.
     pub(crate) handle: Option<f32>,
     pub(crate) update_while_editing: bool,
+    pub(crate) eng: &'a balaur_core::Engine,
+    /// What the number beside the rail is shaped from while it is typed.
+    pub(crate) setter: crate::widget::typing::Typesetter<'a>,
 }
 
 impl Slide<'_> {
@@ -318,6 +321,8 @@ impl Slide<'_> {
             max_decimals: self.max_decimals,
             spelling: self.spelling,
             update_while_editing: self.update_while_editing,
+            eng: self.eng,
+            setter: self.setter,
         }
         .show(ui);
         if value != self.get() {

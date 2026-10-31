@@ -134,11 +134,14 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
         toml::Value::String("one\ntwo".into()),
         "the second line survives the pass"
     );
-    let shown = texts(&pass(&app, &ctx, vec![]));
-    assert!(
-        shown.iter().any(|(t, _)| t.contains("two")),
-        "both lines are drawn: {shown:?}"
-    );
+    let mut downs: Vec<f32> = glyphs(&pass(&app, &ctx, vec![]))
+        .iter()
+        .map(|(at, _)| at.center().y)
+        .collect();
+    downs.sort_by(f32::total_cmp);
+    let rows = 1 + downs.windows(2).filter(|w| w[1] - w[0] > 6.0).count();
+    assert_eq!(downs.len(), 6, "every letter of both lines is drawn");
+    assert_eq!(rows, 2, "one line under the other: {downs:?}");
 }
 
 #[test]

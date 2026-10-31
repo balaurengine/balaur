@@ -6,7 +6,9 @@
 > splits are done for primitives, colliders, joints and soft bodies, and
 > every physics builder reads typed components, and `widget` is split into
 > components beside it, with the stricter language open
-> (HANDOVER-editor-followups); the UI gaps' text fields are next
+> (HANDOVER-editor-followups); the UI gaps are built, text fields, one
+> layout owner, directional focus and accessibility, but for the screen
+> reader's platform adapter, which waits on a push to the kiss3d fork
 > (PLAN-ui-gaps).
 
 # Plan: foundations

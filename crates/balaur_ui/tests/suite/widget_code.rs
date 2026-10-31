@@ -92,19 +92,28 @@ impl Owner {
     );
 }
 
-fn cached_galley(app: &balaur_core::App) -> std::sync::Arc<egui::Galley> {
-    let state = app.engine.resource::<balaur_ui::UiState>();
-    let state = state.borrow();
-    let (_, galley) = state
-        .code_galleys
-        .values()
-        .next()
-        .expect("the code node cached its galley");
-    std::sync::Arc::clone(galley)
+/// The colour of every glyph the shaper painted, by vertex.
+fn glyph_colors(out: &egui::FullOutput) -> Vec<egui::Color32> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<egui::Color32>) {
+        match shape {
+            egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => {
+                into.extend(mesh.vertices.iter().map(|v| v.color));
+            }
+            egui::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut found);
+    }
+    found
 }
 
+/// The code is shaped as a label is, a glyph a letter, and only the gutter's
+/// numbers go through egui's own text; so it stays at another scale.
 #[test]
-fn a_code_galley_is_laid_out_again_once_the_scale_rebuilds_the_atlas() {
+fn a_code_editor_draws_its_lines_through_the_shaper() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0 text = "one\ntwo"
@@ -112,43 +121,48 @@ fn a_code_galley_is_laid_out_again_once_the_scale_rebuilds_the_atlas() {
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    pass(&app, &ctx, vec![]);
-    let before = cached_galley(&app);
+    let out = pass(&app, &ctx, vec![]);
+    assert_eq!(glyphs(&out).len(), 6, "a glyph a letter of both lines");
+    let drawn: Vec<String> = texts(&out).into_iter().map(|(text, _)| text).collect();
+    assert!(
+        drawn
+            .iter()
+            .all(|text| text.chars().all(|c| c.is_ascii_digit())),
+        "egui's text draws only the gutter: {drawn:?}"
+    );
     set_scale(&app, &ctx, 2.0);
     pass(&app, &ctx, vec![]);
-    let after = cached_galley(&app);
-    assert!(
-        !std::sync::Arc::ptr_eq(&before, &after),
-        "the galley from the old atlas is not kept"
-    );
-    assert!(
-        (after.pixels_per_point - 2.0).abs() < f32::EPSILON,
-        "the new one is laid out at the new scale, got {}",
-        after.pixels_per_point
+    assert_eq!(
+        glyphs(&pass(&app, &ctx, vec![])).len(),
+        6,
+        "and again at twice the scale"
     );
 }
 
+/// A keyword wears the theme's keyword colour, and the name after it the
+/// identifier's.
 #[test]
-fn a_code_galley_is_laid_out_again_when_a_light_theme_rebuilds_the_atlas() {
-    let (_dir, app) = app();
+fn a_code_editor_colours_a_line_by_its_words() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/game.toml"),
+        "type = \"widget_theme\"\n\n[colors]\nsyntax_keyword = \"#ff0000\"\nsyntax_identifier = \"#00ff00\"\n",
+    )
+    .unwrap();
     let params = toml::toml! {
-        kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0 text = "one\ntwo"
+        kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0
+        theme = "themes/game.toml" text = "fn go"
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    pass(&app, &ctx, vec![]);
-    let before = cached_galley(&app);
-    {
-        let config = app.engine.resource::<balaur_ui::UiConfig>();
-        let mut config = config.borrow_mut();
-        config.theme.dark = false;
-        config.changed = true;
-    }
-    pass(&app, &ctx, vec![]);
-    pass(&app, &ctx, vec![]);
-    assert!(
-        !std::sync::Arc::ptr_eq(&before, &cached_galley(&app)),
-        "the galley from the dark theme's atlas is not kept"
+    let colors = glyph_colors(&pass(&app, &ctx, vec![]));
+    let wearing = |want: egui::Color32| colors.iter().filter(|c| **c == want).count();
+    assert_eq!(
+        wearing(egui::Color32::from_rgb(0xff, 0, 0)),
+        8,
+        "`fn`, four corners a glyph"
     );
+    assert_eq!(wearing(egui::Color32::from_rgb(0, 0xff, 0)), 8, "`go`");
 }

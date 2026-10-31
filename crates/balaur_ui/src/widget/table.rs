@@ -83,10 +83,11 @@ pub(crate) fn table(
         .id_salt(id)
         .auto_shrink([false, false]);
     if want.x > 0.0 {
-        area = area.max_width(want.x);
+        area = area.max_width(want.x).min_scrolled_width(want.x);
     }
     if want.y > 0.0 {
-        area = area.max_height((want.y - row_h).max(row_h));
+        let rows = (want.y - row_h).max(row_h);
+        area = area.max_height(rows).min_scrolled_height(rows);
     }
     let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
     let shown = area.show_rows(ui, row_h, walk.len(), |ui, range| {

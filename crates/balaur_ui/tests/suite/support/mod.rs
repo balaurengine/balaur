@@ -323,3 +323,28 @@ pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
     ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew")
 }
+
+/// Every glyph the shaper painted in a pass, as its box and its place in the
+/// atlas: each quad of a mesh drawn from a texture other than egui's own.
+pub fn glyphs(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Rect)> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<(egui::Rect, egui::Rect)>) {
+        match shape {
+            egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => {
+                for quad in mesh.vertices.chunks(4) {
+                    let at =
+                        egui::Rect::from_points(&quad.iter().map(|v| v.pos).collect::<Vec<_>>());
+                    let uv =
+                        egui::Rect::from_points(&quad.iter().map(|v| v.uv).collect::<Vec<_>>());
+                    into.push((at, uv));
+                }
+            }
+            egui::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut found);
+    }
+    found
+}

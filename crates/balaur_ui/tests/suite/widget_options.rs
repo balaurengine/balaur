@@ -248,14 +248,20 @@ fn a_color_picker_drawn_inline_shows_its_picker_in_place() {
 
 #[test]
 fn a_text_field_draws_what_stands_either_side_of_its_text() {
+    let (_dir, _app, _, _, bare) = drawn(
+        &toml::toml! { kind = "text_field" text = "12" width = 160.0 x = 0.0 y = 0.0 }.into(),
+    );
     let (_dir, _app, _, _, out) = drawn(
         &toml::toml! { kind = "text_field" text = "12" prefix = "$" suffix = "kg" width = 160.0 x = 0.0 y = 0.0 }.into(),
     );
-    assert!(
-        has_text(&out, "$") && has_text(&out, "kg"),
-        "{:?}",
-        texts(&out)
-    );
+    let (bare, out) = (glyphs(&bare), glyphs(&out));
+    assert_eq!(bare.len(), 2, "control: the number is two glyphs");
+    assert_eq!(out.len(), 5, "the `$` before it and the `kg` after it");
+    let left =
+        |all: &[(egui::Rect, egui::Rect)]| all.iter().map(|g| g.0.min.x).fold(f32::MAX, f32::min);
+    let right =
+        |all: &[(egui::Rect, egui::Rect)]| all.iter().map(|g| g.0.max.x).fold(0.0, f32::max);
+    assert!(left(&out) < left(&bare) && right(&out) > right(&bare));
 }
 
 #[test]

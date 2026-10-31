@@ -108,6 +108,11 @@ pub(crate) fn measured_of(entity: Entity) -> egui::Vec2 {
     })
 }
 
+/// What a widget drew last frame, or `None` for one that did not draw.
+pub(crate) fn drawn_size(entity: Entity) -> Option<egui::Vec2> {
+    MEASURED.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
+}
+
 pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
@@ -204,7 +209,7 @@ pub(crate) struct Pad {
 }
 
 impl Pad {
-    const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
+    pub(crate) const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
         Self {
             left,
             top,
@@ -285,10 +290,14 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         hold_to(ui, inner);
         let dead = widget.deadzone;
         let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
+        // The box on both ends: egui's own least scrolled size is 64 points,
+        // which drew a shorter box past its row.
         let area = egui::ScrollArea::new([sideways, downwards])
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
-            .max_height(inner.y);
+            .max_height(inner.y)
+            .min_scrolled_width(inner.x)
+            .min_scrolled_height(inner.y);
         let mut area = crate::widget::scroll::dressed(ui, area, &widget, entity);
         // With a deadzone the finger scrolls nothing until it has travelled
         // that far, so a tap on a child lands; past it, this drags the

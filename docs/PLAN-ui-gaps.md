@@ -1,11 +1,9 @@
 > **Status:** planned 2026-10-30. Built 2026-10-30: §1's engine
 > (`balaur_text/src/edit.rs`), §4's arrows and §5, with §5's radial
-> gradients and stops past two on 2026-10-31. The `widget` split it waited
-> on is done (2026-10-31: `widget_field` holds the text kinds' rows), so
-> wiring §1 into the text kinds is next, and §4 is built whole
-> (2026-10-31); §3's tree, actions and colour check are built (2026-10-31),
-> its platform adapter waiting on a push to the kiss3d fork; §2 is step 12
-> of PLAN-foundations.
+> gradients and stops past two on 2026-10-31. Built 2026-10-31: §1's
+> wiring, so every text kind types through the shaper and `egui::TextEdit`
+> has no caller; §2; §4 whole; and §3's tree, actions and colour check, its
+> platform adapter waiting on a push to the kiss3d fork.
 
 # Plan: the UI's gaps
 
@@ -53,17 +51,35 @@ secret shown as a dot a grapheme. The caret moves in the order text is
 stored, drawn where its cluster is. 12 tests, Arabic, Hebrew among Latin,
 Hindi and Thai among them, round-tripping every caret stop through a click.
 
-What wiring adds: painting the shaped text, caret and selection in the
-widget layer; keys, mouse, touch and IME events from `balaur_input`; the
-clipboard; `placeholder`, `submitted` and focus as today; the platform
-keyboard on a phone. A bitmap-font field is measured in the default face.
+Wired 2026-10-31: `egui::TextEdit` has no caller left. `widget/typing.rs`
+is the field: `TextState::editable` lays its text out once for the glyphs
+and the cluster boxes, the widget layer paints them from the label atlas,
+and it takes the keys, the pointer, egui's paste and copy commands
+(`clipboard.rs` carries them to the desktop) and egui's IME events, which
+kiss3d feeds from winit. Left and Right walk the line as drawn
+(`Clusters::beside`); a word move follows the direction under the caret.
+`widget/field.rs` draws `text_field` and `text_area`: the prefix and the
+suffix shaped too, a single line scrolled across to its caret, a block
+clipped to its box and scrolled down to the caret and by the wheel. `code`
+lays its file out a line at a time and keeps the unchanged lines across an
+edit (`Clusters::append` reads them as one text), colours each line as
+spans (`paint_spans`) and keeps its gutter; a script's new `text` now
+refills it, so an accepted completion lands. A number being typed sits in
+the box its face rests in. A bitmap-font field draws in the default face,
+so its caret stands where its glyphs are. The phone keyboard follows
+egui's keyboard focus (`kiss3d_backend` calls kiss3d's
+`set_keyboard_visible`: Android's soft input, iOS's keyboard), and a field
+holds that focus, so it shows while a field has focus and hides when none
+does. What winit 0.30 cannot do there: neither platform sends an input
+method's composition, so a phone types key by key, and both ignore
+`set_ime_purpose`, so a `secret` field cannot ask for a password keyboard.
 
 Tests:
 
 - an Arabic, a Hindi and a Thai string give the same glyphs in a field as in
-  a label
-- the caret walks a mixed-direction line in visual order
-- a composition lands as one insert
+  a label (`widget_typing.rs`)
+- the caret walks a mixed-direction line in visual order (`edit_tests.rs`)
+- a composition lands as one insert (`widget_typing.rs`)
 
 ## 2. One layout owner
 
@@ -71,6 +87,23 @@ taffy places every widget, but egui sizes the kinds it draws itself
 (`ComboBox`, `TextEdit`), so a size can disagree with its row. Every kind is
 measured through the widget layer's measure pass and drawn into the rect it
 is given. Test: for each kind, the measured size and the painted size agree.
+
+Built 2026-10-31. A kind's box comes from one function its draw and the
+measure both call: `field::Face::natural` for `text_field` and `text_area`,
+`code::natural`, `numbers::number_size` and `slider_size`, and
+`widget/sizing.rs` for the checkbox, the switch, the dropdown, a menu of
+strings and the colour picker, the open one laid out in a sizing pass. A
+dropdown is as wide as its widest option, and a slider's number as wide as
+its wider end, so neither moves its row as it changes. What the old measure
+got wrong, found by the test: a number field measured as nothing, a
+checkbox's and a dropdown's caption measured by the shaper and drawn by
+egui, a fold's header a pixel off, an open fold sized by its children
+alone (a subtree's root shared its taffy node with the leaf its parent
+measures; now `(entity, is_root)` keys them apart), a window or panel
+narrower than its title, a scroll under 64 points drawn at egui's least
+scrolled size, a number field's arrows a pixel past its box.
+`widget_drawn_size` says what a widget drew; `widget_sizes.rs` checks 23
+leaf cases and 11 containers, each in a column with nothing sizing it.
 
 ## 3. Accessibility
 
