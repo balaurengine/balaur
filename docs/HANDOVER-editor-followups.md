@@ -110,8 +110,12 @@ is rewritten in the same commit).
 7. **Physics builders typed**: a collider's shape is built from its typed
    variant and the typed components beside it (`shape_builder`, both
    dimensions; a query parses its `shape` the same way), done 2026-10-31.
-   Open: the collider's other rows (material, layers, mass) and the joint,
-   softbody and tile builders still read the table.
+   Colliders, tile maps and joints build from their typed components, done
+   2026-10-31: a collider's ask is `Asked3d`/`Asked2d` and its other rows
+   go through `ColliderRows` and one `with_rows` per dimension; a joint's is
+   `JointAsk3d`/`JointAsk2d`, read through `JointAsk`; the physics state
+   keeps them typed and the snapshot converts at its edges. Open: the soft
+   bodies and the bodies' `body_params` still read the table.
 8. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.
