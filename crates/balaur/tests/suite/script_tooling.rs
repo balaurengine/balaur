@@ -201,24 +201,53 @@ fn renaming_to_something_that_is_not_an_identifier_is_refused() {
 /// complete as the reference rather than sampled.
 #[test]
 fn every_engine_function_hovers() {
-    let (_dir, app) = host();
-    let api = tools(&app).api();
-    let mut missing = Vec::new();
-    let mut checked = 0;
-    for f in &api.functions {
-        let Some((module, name)) = f.key.split_once("::") else {
-            continue;
-        };
-        let source = SCRIPT.replace(
-            "        let node = self.node;",
-            &format!("        {module}::{name};\n        let node = self.node;"),
-        );
-        let column = 8 + module.len() + 2 + 2;
-        match tools(&app).hover(PATH, &source, 6, column) {
-            Some(text) if text.contains(name) => checked += 1,
-            _ => missing.push(f.key.clone()),
-        }
-    }
+    let keys: Vec<String> = {
+        let (_dir, app) = host();
+        tools(&app)
+            .api()
+            .functions
+            .iter()
+            .map(|f| f.key.clone())
+            .collect()
+    };
+    // A share of the functions on every core, each thread with a host of its
+    // own: an engine stays on the thread that made it.
+    let workers = std::thread::available_parallelism().map_or(1, usize::from);
+    let share = keys.len().div_ceil(workers).max(1);
+    let (checked, missing): (usize, Vec<String>) = std::thread::scope(|scope| {
+        let started: Vec<_> = keys
+            .chunks(share)
+            .map(|part| {
+                scope.spawn(move || {
+                    let (_dir, app) = host();
+                    let mut checked = 0;
+                    let mut missing = Vec::new();
+                    for key in part {
+                        let Some((module, name)) = key.split_once("::") else {
+                            continue;
+                        };
+                        let source = SCRIPT.replace(
+                            "        let node = self.node;",
+                            &format!("        {module}::{name};\n        let node = self.node;"),
+                        );
+                        let column = 8 + module.len() + 2 + 2;
+                        match tools(&app).hover(PATH, &source, 6, column) {
+                            Some(text) if text.contains(name) => checked += 1,
+                            _ => missing.push(key.clone()),
+                        }
+                    }
+                    (checked, missing)
+                })
+            })
+            .collect();
+        started.into_iter().map(|one| one.join().unwrap()).fold(
+            (0, Vec::new()),
+            |(checked, mut missing), (more, gone)| {
+                missing.extend(gone);
+                (checked + more, missing)
+            },
+        )
+    });
     assert!(checked > 600, "only {checked} functions hovered");
     assert!(
         missing.is_empty(),
