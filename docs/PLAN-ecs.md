@@ -1,4 +1,4 @@
-> **Status:** planned 2026-10-30. Steps 1 and 2 built 2026-10-31: the door
+> **Status:** built 2026-10-31, every step. Steps 1 and 2: the door
 > (`Engine::spawn`, `spawn_node`, `insert`, `insert_one`, `remove_one`,
 > `remove`, `reparent`, `despawn`) and every crate moved onto it; the
 > `world-write` house lint fails a `world_mut()` outside the kernel's own
@@ -232,3 +232,11 @@ The scene tree runs on relationships, and the change log and the ticks are
 fed by one call per write. The render
 mirror syncs only what changed, and no Rust writes the world around the door.
 The costs in §3 are measured and written into ARCHITECTURE.
+
+Where it stands, 2026-10-31: every step is built, the tree runs on
+relationships, the door's lint is an error, and the costs are in
+ARCHITECTURE. The mirror walks only what changed in the tree's order and
+the nodes each pass draws; it still sets every drawn node's pose, colour
+and visibility each frame. Most nodes draw batched, where that is an array
+copy (the `kind/shape3d` case's mirror is 0.02 ms for 2,000 spheres), so a
+value check per node is left for when an unbatched scene measures hot.
