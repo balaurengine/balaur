@@ -106,7 +106,7 @@ const TABLES: &[TableCase] = &[
     ("FILL_MODES", FILL_MODES, "mesh_collider3d", "fill"),
     ("FILL_MODES", FILL_MODES, "mesh_collider2d", "fill"),
     ("FIT_MODES", FIT_MODES, "collider3d", "shape.fit.fit"),
-    ("FIT_MODES", FIT_MODES, "tile_collision", "fit"),
+    ("FIT_MODES", FIT_MODES, "tile_shapes", "fit"),
     ("FIT_MODES_2D", FIT_MODES_2D, "collider2d", "shape.fit.fit"),
     (
         "DECOMPOSITION_METHODS",
@@ -200,7 +200,7 @@ fn the_2d_fit_constants_spell_every_tile_fit() {
         .chain(TILE_FIT_MODES_2D)
         .map(|(_, v)| *v)
         .collect();
-    assert_eq!(declared, registered_options("tile_collision", "fit"));
+    assert_eq!(declared, registered_options("tile_shapes", "fit"));
 }
 
 #[test]

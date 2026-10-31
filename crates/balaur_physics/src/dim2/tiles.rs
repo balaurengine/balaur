@@ -8,7 +8,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Written};
+use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, assets};
 use balaur_geometry::tiles::{Collision, Group, TileGrid, TileSet};
@@ -20,6 +20,8 @@ use crate::dim2::events::Surface;
 use crate::properties::{ColliderEvent, ContactPair, Fit3d, LayerTest};
 use crate::rapier2d::prelude::{ColliderBuilder as ColliderBuilder2, SharedShape};
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
+use crate::shared::beside::{self, Beside};
+use crate::vocabulary::component as c;
 use balaur_core::layers::Layer;
 
 /// What each node's colliders were built from, so a map rebuilds only when
@@ -44,12 +46,6 @@ pub struct TileCollision {
     /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
     #[property(asset = "physics_material")]
     pub physics_material: String,
-    /// What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline
-    #[property(default = Fit3d::ConvexHull, group = "shape")]
-    pub fit: Fit3d,
-    /// Rounds each shaped tile's polygon by this radius; full cells have no border to round
-    #[property(group = "shape", min = 0.0)]
-    pub edge_radius: f32,
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -112,13 +108,69 @@ pub struct TileCollision {
     pub contact_force_threshold: f32,
 }
 
+/// How the node's `tile_collision` builds the tiles whose collision is polygons, the ones a tileset gives `collision = [[[x, y], ...]]`: what each polygon becomes and how far it is rounded. Whole cells read none of it.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "tile_shapes")]
+pub struct TileShapes {
+    /// What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline
+    #[property(default = Fit3d::ConvexHull)]
+    pub fit: Fit3d,
+    /// Rounds each shaped tile's polygon by this radius
+    #[property(min = 0.0)]
+    pub edge_radius: f32,
+}
+
+impl Beside for TileShapes {
+    type Main = TileCollision;
+
+    // Whether a map has shaped tiles is its tileset's, not the component's.
+    fn reads(_: &TileCollision) -> bool {
+        true
+    }
+}
+
+/// The components whose rows a map's colliders are built from: its own,
+/// then the one beside it.
+pub(crate) const PARAMS: &[&str] = &[c::TILE_COLLISION, <TileShapes as Component>::NAME];
+
+/// What a node's map colliders are built from: the `tile_collision`, and
+/// the `tile_shapes` beside it.
+#[derive(Clone)]
+pub(crate) struct TileAsked {
+    pub collision: TileCollision,
+    pub shapes: TileShapes,
+}
+
+impl TileAsked {
+    /// What `entity` asks for, `None` without a `tile_collision`.
+    fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let collision = (*world.get::<&TileCollision>(entity).ok()?).clone();
+        Some(Self {
+            shapes: beside::held(world, entity, &collision),
+            collision,
+        })
+    }
+
+    /// Both as one table, the way a snapshot keeps it.
+    pub(crate) fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.collision);
+        beside::table_in(&mut table, &self.shapes, true);
+        table
+    }
+
+    /// Both out of one table, as [`Self::to_table`] wrote it.
+    pub(crate) fn from_table(params: &toml::Value) -> Result<Self> {
+        let collision: TileCollision = derived::from_table(params)?;
+        Ok(Self {
+            shapes: beside::from_table(params, &collision)?,
+            collision,
+        })
+    }
+}
+
 /// The map's colliders, built again from what the component asks for.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let asked = eng
-        .world()
-        .get::<&TileCollision>(entity)
-        .map(|held| (*held).clone());
-    let Ok(asked) = asked else {
+    let Some(asked) = TileAsked::of(&eng.world(), entity) else {
         return Ok(());
     };
     let state = eng.resource::<PhysicsState2d>();
@@ -138,14 +190,17 @@ fn tile_collision_removed(eng: &Engine, entity: Entity) {
 /// `tile_collision`: what was asked, held on the node; the colliders its map
 /// makes and the table they were built from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_2D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    beside::register::<TileShapes>(reg, &[c::TILE_COLLISION], tags, after_write);
+    // After the component beside it, so a scene gives the node that first.
     reg.register_component(
         TileCollision::NAME,
         ComponentDef {
             events: crate::vocabulary::hook::COLLIDER,
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
+            tags,
             expects: &["tilemap"],
             ..ComponentDef::of::<TileCollision>(Some(after_write))
         },
@@ -244,12 +299,13 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
             },
         );
     }
-    if !asked.enabled {
+    if !asked.collision.enabled {
         return Ok(());
     }
     let set = assets::load_typed::<TileSet>(eng, &grid.tileset)?;
-    let material = crate::material::named(eng, &asked.physics_material)?;
+    let material = crate::material::named(eng, &asked.collision.physics_material)?;
     let pieces = pieces(&grid, &set, &asked, &material);
+    let asked = &asked.collision;
     // `mass` is the whole map's, shared out by area: one density over every
     // piece weighs the map `mass` however many colliders its cells make.
     let mass = scalar::real(asked.mass);
@@ -257,7 +313,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         .iter()
         .map(|piece| piece.builder.shape.mass_properties(1.0).mass())
         .sum();
-    let stated = Stated::of(&asked, mass, area);
+    let stated = Stated::of(asked, mass, area);
     let before = handles_of(eng, entity);
     for piece in pieces {
         let builder = if let Some(stated) = &stated {
@@ -333,9 +389,10 @@ struct Piece {
 fn pieces(
     grid: &TileGrid,
     set: &TileSet,
-    asked: &TileCollision,
+    both: &TileAsked,
     material: &crate::material::PhysicsMaterial,
 ) -> Vec<Piece> {
+    let (asked, shapes) = (&both.collision, &both.shapes);
     let all_one_way = asked.one_way;
     let axis = asked.one_way_axis;
     let mut out = Vec::new();
@@ -359,7 +416,7 @@ fn pieces(
             surface: surface(asked, one_way, axis),
         });
     }
-    let border = scalar::real(asked.edge_radius).max(0.0);
+    let border = scalar::real(shapes.edge_radius).max(0.0);
     for (centre, tile, flags) in grid.shaped_cells(set) {
         let Collision::Shape(polygons) = &tile.collision else {
             continue;
@@ -376,7 +433,7 @@ fn pieces(
             .iter()
             .map(|p| scalar::v2(p.x, p.y))
             .collect();
-            let Some(shape) = tile_shape(&points, asked.fit, border) else {
+            let Some(shape) = tile_shape(&points, shapes.fit, border) else {
                 tracing::warn!("tile_collision: a tile's polygon has no area to collide with");
                 continue;
             };

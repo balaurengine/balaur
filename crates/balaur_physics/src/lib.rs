@@ -896,7 +896,7 @@ pub const FIT_MODES_2D: &[(&str, &str)] = &[
 ];
 
 /// The fit a 2D tile's polygon takes beyond those, which with `FIT_MODES_2D`
-/// names every `tile_collision.fit`.
+/// names every `tile_shapes.fit`.
 pub const TILE_FIT_MODES_2D: &[(&str, &str)] =
     &[("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION)];
 

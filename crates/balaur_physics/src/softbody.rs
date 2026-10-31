@@ -69,12 +69,9 @@ pub struct Softbody3d {
     /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
     #[property(asset = "physics_material")]
     pub physics_material: String,
-    /// Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when skin is on
+    /// Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when its soft_skin3d asks for one
     #[property(asset = "mesh", group = "shape")]
     pub mesh: String,
-    /// Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it
-    #[property(group = "shape")]
-    pub skin: bool,
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
     pub seams: Vec<ParticlePair>,
@@ -105,9 +102,6 @@ pub struct Softbody3d {
     /// How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed
     #[property(default = Orientation::Auto, group = "collision")]
     pub orientation: Orientation,
-    /// Meet the world through the skin rather than the cells' boundary
-    #[property(group = "collision")]
-    pub skin_collision: bool,
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -182,6 +176,27 @@ impl Beside for SoftCollision3d {
 
     fn reads(_: &Softbody3d) -> bool {
         true
+    }
+}
+
+/// The `mesh` a `softbody3d` with cells carries as its skin: a box, a volumetric body or a custom one with cells, whose particles are not the mesh's own.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_skin3d")]
+pub struct SoftSkin3d {
+    /// Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives
+    pub skin: bool,
+    /// Meet the world through the skin rather than the cells' boundary
+    pub skin_collision: bool,
+}
+
+impl Beside for SoftSkin3d {
+    type Main = Softbody3d;
+
+    fn reads(main: &Softbody3d) -> bool {
+        matches!(
+            main.kind,
+            SoftKind3d::Box | SoftKind3d::Volumetric | SoftKind3d::Custom
+        )
     }
 }
 
@@ -342,6 +357,7 @@ pub(crate) const PARAMS: &[&str] = &[
     <SoftVolumetric3d as Component>::NAME,
     <SoftCustom3d as Component>::NAME,
     <SoftCollision3d as Component>::NAME,
+    <SoftSkin3d as Component>::NAME,
 ];
 
 /// What a node's soft body is built from: the component, and the
@@ -356,6 +372,7 @@ pub struct SoftAsked3d {
     pub volumetric: SoftVolumetric3d,
     pub custom: SoftCustom3d,
     pub collision: SoftCollision3d,
+    pub skin: SoftSkin3d,
 }
 
 impl SoftAsked3d {
@@ -375,6 +392,7 @@ impl SoftAsked3d {
             volumetric: beside::held(world, entity, &body),
             custom: beside::held(world, entity, &body),
             collision: beside::held(world, entity, &body),
+            skin: beside::held(world, entity, &body),
             body,
         }
     }
@@ -391,6 +409,7 @@ impl SoftAsked3d {
         beside::table_in(&mut table, &self.volumetric, SoftVolumetric3d::reads(body));
         beside::table_in(&mut table, &self.custom, SoftCustom3d::reads(body));
         beside::table_in(&mut table, &self.collision, SoftCollision3d::reads(body));
+        beside::table_in(&mut table, &self.skin, SoftSkin3d::reads(body));
         table
     }
 
@@ -405,6 +424,7 @@ impl SoftAsked3d {
             volumetric: beside::from_table(params, &body)?,
             custom: beside::from_table(params, &body)?,
             collision: beside::from_table(params, &body)?,
+            skin: beside::from_table(params, &body)?,
             body,
         })
     }
@@ -480,7 +500,7 @@ fn with_settings(
         .additional_pgs_iterations(cap::iterations(body.solver_iterations))
         .can_sleep(body.can_sleep)
         .solver(solver_of(body.solver))
-        .skin_collision(body.skin_collision)
+        .skin_collision(asked.skin.skin_collision)
         .surface_collider(surface_collider(body, &materials.surface));
     if body.mass > 0.0 {
         builder = builder.mass(scalar::real(body.mass));
@@ -685,7 +705,7 @@ fn build_layout(
         SoftKind3d::Custom => custom(&asked.custom, pose)?,
     };
     cap::refuse_past_cap(builder.positions.len() as f64, fewer(kind))?;
-    let builder = skinned(eng, &asked.body, pose, builder)?;
+    let builder = skinned(eng, asked, pose, builder)?;
     with_settings(builder, asked, materials)
 }
 
@@ -789,18 +809,19 @@ fn custom(listed: &SoftCustom3d, pose: scalar::Pose) -> Result<SoftBodyBuilder> 
     Ok(builder)
 }
 
-/// The `mesh` asset held by the cells as the body's skin, when `skin` asks
-/// for one, the body has cells, and its particles are not the mesh's own.
+/// The `mesh` asset held by the cells as the body's skin, when its kind
+/// reads a `soft_skin3d`, that asks for one, and the layout made cells.
 fn skinned(
     eng: &Engine,
-    body: &Softbody3d,
+    asked: &SoftAsked3d,
     pose: scalar::Pose,
     builder: SoftBodyBuilder,
 ) -> Result<SoftBodyBuilder> {
-    if !body.skin
+    let body = &asked.body;
+    if !SoftSkin3d::reads(body)
+        || !asked.skin.skin
         || body.mesh.is_empty()
         || builder.cells.is_empty()
-        || body.kind == SoftKind3d::TriangleMesh
     {
         return Ok(builder);
     }
@@ -1051,6 +1072,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
     beside::register::<SoftVolumetric3d>(reg, main, tags, after_write);
     beside::register::<SoftCustom3d>(reg, main, tags, after_write);
     beside::register::<SoftCollision3d>(reg, main, tags, after_write);
+    beside::register::<SoftSkin3d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Softbody3d::NAME,

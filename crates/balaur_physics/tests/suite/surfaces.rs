@@ -197,7 +197,9 @@ pixels_per_unit = 16.0
 #[test]
 fn a_tile_polygon_is_fitted_rounded_or_cut_as_asked() {
     let shape = |table: &str| {
-        let mut b = booted(&format!("{CORNER}\n[nodes.tile_collision]\n{table}\n"));
+        let mut b = booted(&format!(
+            "{CORNER}\n[nodes.tile_collision]\n\n[nodes.tile_shapes]\n{table}\n"
+        ));
         b.tick(1);
         let map = b.node("Map");
         let state = b.app.engine.resource::<balaur_physics::PhysicsState2d>();
