@@ -13,7 +13,8 @@
 > built 2026-10-31: `Engine::defer` and `defer_spawn_node`, `defer_spawn`,
 > `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`,
 > made at each stage's end and each fixed step's; `Command` is gone, and a
-> free is `defer_free`, still the frame's batch. Steps 9 to 11 of
+> free is `defer_free`, still the frame's batch. Step 6 built 2026-10-31:
+> `App::add_messages`, `Engine::send`, `MessageCursor` (`messages`). Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -83,6 +84,10 @@ something else in this engine.
   (PLAN-events).
 - **Messages.** A typed Rust event, written by one system and read by others
   with a cursor each, kept two frames, beside the string events scripts use.
+  Declared with `App::add_messages::<T>()`, sent with `Engine::send`, read
+  with a `MessageCursor<T>` the reader keeps, which also answers how many it
+  missed. Not in a snapshot: a restore drops every one kept, and the
+  numbering goes on, so no cursor is left ahead.
 - **Commands.** Spawn, insert, remove, despawn and a closure over `Engine`,
   queued and applied in order at the end of each stage, and after each fixed
   step; one a command queues runs in the same pass. A spawn reserves its
@@ -137,7 +142,7 @@ something else in this engine.
 4. **Lifecycle calls**, and `after_write`'s added and changed cases moved
    onto them. *Built*: `Written` is `Whole` or `Property`.
 5. **Commands.** *Built.*
-6. **Messages.**
+6. **Messages.** *Built.*
 7. **Observers**, inside `events::announce`.
 8. **Relationships**, then the scene tree on them. The digest walks children
    in the same order, so no recording moves; a test proves it.

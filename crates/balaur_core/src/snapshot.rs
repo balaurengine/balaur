@@ -68,7 +68,8 @@ pub fn capture(eng: &Engine) -> Checkpoint {
 /// A source missing from the snapshot is left alone, so a snapshot taken
 /// before a plugin was added still restores what it does cover. The change
 /// ticks are not in a snapshot: a reader that last ran before the restore
-/// hears every component as changed.
+/// hears every component as changed. Nor are typed messages: every one kept
+/// is dropped.
 pub fn restore(eng: &Engine, snapshot: &Checkpoint) {
     if let Some(sources) = eng.try_resource::<SnapshotRegistry>() {
         for (name, _, load) in &sources.borrow().0 {
@@ -79,6 +80,7 @@ pub fn restore(eng: &Engine, snapshot: &Checkpoint) {
     }
     eng.advance_change_tick();
     crate::components::ticks::restored(eng);
+    crate::messages::restored(eng);
     // Past the restore, so a write after it is newer than what a reader that
     // ran at it covered.
     eng.advance_change_tick();
