@@ -25,10 +25,14 @@ pub(super) fn fill_records(schema: &toml::Value, out: &mut toml::map::Map<String
 fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
     match spec.get("type").and_then(toml::Value::as_str) {
         Some("record") => {
-            let Some(fields) = spec.get("fields").and_then(toml::Value::as_table) else {
+            // A value that is no table is left for the component's own read
+            // to refuse, rather than filled into a record it never was.
+            let (Some(fields), Some(held)) = (
+                spec.get("fields").and_then(toml::Value::as_table),
+                value.as_table().cloned(),
+            ) else {
                 return;
             };
-            let held = value.as_table().cloned().unwrap_or_default();
             let mut whole = toml::map::Map::new();
             for (name, field) in fields {
                 let mut inner = held
@@ -41,6 +45,9 @@ fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
             *value = toml::Value::Table(whole);
         }
         Some("variant") => {
+            if !value.is_table() {
+                return;
+            }
             let Some((kind, record)) = schema::active_variant(spec, value) else {
                 return;
             };

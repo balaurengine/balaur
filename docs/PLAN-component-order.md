@@ -161,7 +161,7 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 - **Group-name style**: `auto_gain` (underscore) vs `fast motion` and `mesh cleanup` (spaces). Unified to spaces.
 - **physics `surface` vs material `[surface]`**: one word for friction and for rasterization. Resolved by the `physics_material` move (2026-10-28).
 - **tile_collision**: `fit` and `edge_radius` apply only to tiles whose tileset collision is polygons; whole cells read neither. Resolved 2026-10-31: both are `tile_shapes` beside it.
-- **tilemap** cells/terrain/flags are string-encoded grids painted by the tile editor, not values anyone types in an inspector row.
+- **tilemap** cells/terrain/flags are string-encoded grids painted by the tile editor, not values anyone types in an inspector row. Resolved 2026-10-31: `cells` is a variant, `inline` (its `rows`) or `file` (a `.cells` file's `path`), and `terrain` and `flags` are rows of whole numbers.
 
 ## 5. How the moves land
 

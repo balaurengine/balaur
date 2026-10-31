@@ -87,7 +87,10 @@ is rewritten in the same commit).
      with cells (grid or box, volumetric, custom), and `tile_collision`'s
      `fit` and `edge_radius`, read by polygon tiles alone, are
      `tile_shapes`, done 2026-10-31.
-   - `tilemap` cells/terrain/flags are string-encoded grids.
+   - `tilemap`: done 2026-10-31. `cells` is a variant, `inline` holding
+     `rows` or `file` holding the `.cells` file's `path`; `terrain` and
+     `flags` are rows of whole numbers. A record or variant value that is
+     no table is refused by the component's read, not filled empty.
 3. **One source for a widget's values**: done. `input.rs` writes
    `WidgetProperties` and `schema::follow` brings the `Widget` after it,
    field by field from the `cache_fields!` table.

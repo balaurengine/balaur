@@ -6921,7 +6921,7 @@
     "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
     "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.",
     "tile_shapes": "How the node's `tile_collision` builds the tiles whose collision is polygons, the ones a tileset gives `collision = [[[x, y], ...]]`: what each polygon becomes and how far it is rounded. Whole cells read none of it.",
-    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
+    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.",
     "timer": "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
     "touch_button": "An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.",
     "touch_stick": "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.",
@@ -17357,10 +17357,45 @@
     },
     "tilemap": {
       "cells": {
-        "default": "",
-        "description": "Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene",
+        "default": {
+          "kind": "inline",
+          "rows": []
+        },
+        "description": "The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene",
         "group": "cells",
-        "type": "string"
+        "type": "variant",
+        "variants": {
+          "file": {
+            "description": "In a `.cells` file of their own",
+            "fields": {
+              "path": {
+                "default": "",
+                "description": "The `.cells` file: one row a line, ids apart by spaces, -1 for an empty cell",
+                "type": "string"
+              }
+            },
+            "type": "record"
+          },
+          "inline": {
+            "description": "In the scene, as rows",
+            "fields": {
+              "rows": {
+                "default": [],
+                "description": "Rows of tile ids, the top row first; -1 is an empty cell",
+                "of": {
+                  "default": [],
+                  "of": {
+                    "default": 0,
+                    "type": "int"
+                  },
+                  "type": "list"
+                },
+                "type": "list"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "color": {
         "default": [
@@ -17373,10 +17408,18 @@
         "type": "color"
       },
       "flags": {
-        "default": "",
-        "description": "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal",
+        "default": [],
+        "description": "How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal",
         "group": "cells",
-        "type": "string"
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
       },
       "material": {
         "asset": "material",
@@ -17408,10 +17451,18 @@
         "type": "int"
       },
       "terrain": {
-        "default": "",
-        "description": "What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset's rules",
+        "default": [],
+        "description": "What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset's rules",
         "group": "cells",
-        "type": "string"
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
       },
       "tileset": {
         "asset": "tileset",

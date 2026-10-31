@@ -6,7 +6,7 @@ use crate::vocabulary::words;
 use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Property, Written};
+use balaur_core::components::derived::{Component, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
@@ -52,7 +52,7 @@ pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
     });
 }
 
-/// A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.
+/// A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.
 // The node draws the [`TileLayout`] each write lays out beside it; a script's
 // painting writes what it painted back here, so a save keeps it.
 #[derive(Clone, Component)]
@@ -67,15 +67,15 @@ pub struct Tilemap {
     /// The material the whole map draws with; empty draws with the built-in one
     #[property(asset = "material")]
     pub material: String,
-    /// Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene
+    /// The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene
     #[property(group = "cells")]
-    pub cells: Rows,
-    /// What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset's rules
+    pub cells: Cells,
+    /// What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset's rules
     #[property(group = "cells")]
-    pub terrain: Rows,
-    /// How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal
+    pub terrain: Vec<Vec<i64>>,
+    /// How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal
     #[property(group = "cells")]
-    pub flags: Rows,
+    pub flags: Vec<Vec<u8>>,
     /// Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time
     #[property(min = 0, group = "cells")]
     pub seed: i64,
@@ -87,32 +87,28 @@ pub struct Tilemap {
     pub pixels_per_unit: f32,
 }
 
-/// Rows of numbers a `tilemap` holds as it was given them: a list of rows,
-/// or for `cells` the name of a file holding them. A `string` row, so the
-/// inspector offers a file name; the rows themselves are read when the map
-/// is laid out.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Rows(pub toml::Value);
-
-impl Default for Rows {
-    fn default() -> Self {
-        Self(toml::Value::String(String::new()))
-    }
+/// Where a `tilemap`'s tile ids are kept.
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum Cells {
+    /// In the scene, as rows
+    #[option(default)]
+    Inline(InlineCells),
+    /// In a `.cells` file of their own
+    File(CellsFile),
 }
 
-impl Property for Rows {
-    fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        spec.entry("type")
-            .or_insert_with(|| toml::Value::String("string".into()));
-    }
+/// A map's tile ids, held in the scene.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct InlineCells {
+    /// Rows of tile ids, the top row first; -1 is an empty cell
+    pub rows: Vec<Vec<i64>>,
+}
 
-    fn to_value(&self) -> toml::Value {
-        self.0.clone()
-    }
-
-    fn from_value(value: &toml::Value) -> Result<Self> {
-        Ok(Self(value.clone()))
-    }
+/// A map's tile ids, kept in a file of their own.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CellsFile {
+    /// The `.cells` file: one row a line, ids apart by spaces, -1 for an empty cell
+    pub path: String,
 }
 
 /// A [`Tilemap`] laid out: the cells resolved from what was painted, as the
@@ -121,9 +117,9 @@ impl Property for Rows {
 pub struct TileLayout {
     /// Reference to the `tileset` asset.
     pub tileset: String,
-    /// The authored rows, kept verbatim so `get` returns what was written:
-    /// a string of characters or a list of rows of ids.
-    pub cells: toml::Value,
+    /// The cells as the component holds them, written back so `get` returns
+    /// them: a file's name until a paint or a terrain writes them as rows.
+    pub cells: Cells,
     /// The `material` asset the map draws with; empty is the built-in one.
     pub material: String,
     /// Tile indices, row 0 at the top so the text reads like the scene;
@@ -147,20 +143,19 @@ pub struct TileLayout {
     pub version: u64,
 }
 
-/// The cells themselves, or the file they are kept in.
-///
-/// A level too big to read in a scene keeps its rows in a `.cells` file of
-/// its own — one row per line, ids separated by spaces, `-1` for an empty
-/// cell — and the scene names the file.
-fn cells_of(eng: &Engine, cells: &toml::Value) -> Result<toml::Value> {
-    let named = |path: &&str| {
-        std::path::Path::new(path)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("cells"))
-    };
-    let Some(path) = cells.as_str().filter(named) else {
-        return Ok(cells.clone());
-    };
+/// The grid `cells` holds, read out of its file where it keeps one.
+fn cells_of(eng: &Engine, cells: &Cells) -> Result<Vec<Vec<Option<u32>>>> {
+    match cells {
+        Cells::Inline(inline) => Ok(grid_of_ids(&inline.rows)),
+        // A file not chosen yet: no cells to read.
+        Cells::File(file) if file.path.is_empty() => Ok(Vec::new()),
+        Cells::File(file) => Ok(grid_of_ids(&read_cells_file(eng, &file.path)?)),
+    }
+}
+
+/// A `.cells` file's rows: one row per line, ids separated by spaces, `-1`
+/// for an empty cell.
+fn read_cells_file(eng: &Engine, path: &str) -> Result<Vec<Vec<i64>>> {
     let text = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
@@ -168,87 +163,40 @@ fn cells_of(eng: &Engine, cells: &toml::Value) -> Result<toml::Value> {
         .map(String::from_utf8)
         .with_context(|| format!("a tilemap's cells file '{path}'"))?
         .with_context(|| format!("a tilemap's cells file '{path}' is not text"))?;
-    let rows: Vec<toml::Value> = text
-        .lines()
+    text.lines()
         .filter(|line| !line.trim().is_empty())
-        .map(|line| {
-            toml::Value::Array(
-                line.split_whitespace()
-                    .map(|cell| toml::Value::Integer(cell.parse().unwrap_or(-1)))
-                    .collect(),
-            )
-        })
-        .collect();
-    Ok(toml::Value::Array(rows))
-}
-
-/// `flags` as rows of numbers, or nothing when no cell is turned.
-fn parse_flags(value: Option<&toml::Value>) -> Result<Vec<Vec<u8>>> {
-    let Some(toml::Value::Array(rows)) = value else {
-        return Ok(Vec::new());
-    };
-    rows.iter()
         .enumerate()
         .map(|(row, line)| {
-            let line = line
-                .as_array()
-                .ok_or_else(|| anyhow!("flags row {row} should be a list of numbers"))?;
-            line.iter()
-                .map(|value| {
-                    let bits = value
-                        .as_integer()
-                        .ok_or_else(|| anyhow!("flags row {row}: a cell's turn is a number"))?;
-                    u8::try_from(bits).map_err(|_| anyhow!("flags row {row}: {bits} is not a turn"))
+            line.split_whitespace()
+                .map(|cell| {
+                    cell.parse().map_err(|_| {
+                        anyhow!(
+                            "a tilemap's cells file '{path}', row {row}: '{cell}' is not a tile id"
+                        )
+                    })
                 })
                 .collect()
         })
         .collect()
 }
 
-/// `cells` as a grid: rows of tile ids, where anything below zero is empty.
-fn parse_cells_value(cells: &toml::Value) -> Result<Vec<Vec<Option<u32>>>> {
-    match cells {
-        toml::Value::Array(rows) => rows
-            .iter()
-            .enumerate()
-            .map(|(row, line)| {
-                let ids = line
-                    .as_array()
-                    .ok_or_else(|| anyhow!("cells row {row} should be a list of tile ids"))?;
-                ids.iter()
-                    .enumerate()
-                    .map(|(column, id)| {
-                        let id = id.as_integer().ok_or_else(|| {
-                            anyhow!("cells row {row}, column {column}: a tile id is a whole number")
-                        })?;
-                        Ok(u32::try_from(id).ok())
-                    })
-                    .collect()
-            })
-            .collect(),
-        // The schema default: a map with no cells yet.
-        toml::Value::String(path) if path.is_empty() => Ok(Vec::new()),
-        toml::Value::String(path) => Err(anyhow!(
-            "cells is a list of rows of tile ids, or the name of a `.cells` file \
-             holding those rows; got the string {path:?}"
-        )),
-        other => Err(anyhow!("cells should be a list of rows, got {other}")),
-    }
+/// Rows of ids as a grid, where anything below zero is empty.
+fn grid_of_ids(rows: &[Vec<i64>]) -> Vec<Vec<Option<u32>>> {
+    rows.iter()
+        .map(|row| row.iter().map(|id| u32::try_from(*id).ok()).collect())
+        .collect()
 }
 
-/// The grid back as rows of ids, the form `set_cell` writes.
-fn cells_value(grid: &[Vec<Option<u32>>]) -> toml::Value {
-    toml::Value::Array(
-        grid.iter()
-            .map(|row| {
-                toml::Value::Array(
-                    row.iter()
-                        .map(|cell| toml::Value::Integer(cell.map_or(-1, i64::from)))
-                        .collect(),
-                )
-            })
-            .collect(),
-    )
+/// A grid back as rows of ids, -1 for an empty cell.
+fn ids_of(grid: &[Vec<Option<u32>>]) -> Vec<Vec<i64>> {
+    grid.iter()
+        .map(|row| row.iter().map(|cell| cell.map_or(-1, i64::from)).collect())
+        .collect()
+}
+
+/// The grid back as the cells a scene holds, the form `set_cell` writes.
+fn cells_value(grid: &[Vec<Option<u32>>]) -> Cells {
+    Cells::Inline(InlineCells { rows: ids_of(grid) })
 }
 
 /// Resolve every painted cell through the tileset's rules.
@@ -391,21 +339,6 @@ fn write_flags(map: &mut TileLayout, column: i32, row: i32, flags: u8) {
     }
 }
 
-/// What a script painted, as rows of values, for the document to keep.
-fn terrain_value(rows: &[Vec<Option<u32>>]) -> toml::Value {
-    toml::Value::Array(
-        rows.iter()
-            .map(|row| {
-                toml::Value::Array(
-                    row.iter()
-                        .map(|cell| toml::Value::Integer(cell.map_or(-1, i64::from)))
-                        .collect(),
-                )
-            })
-            .collect(),
-    )
-}
-
 /// The core grid a map describes: what physics collides with, and what the
 /// mesh is built from, so the two cannot disagree about a cell.
 pub(crate) fn grid_of(map: &TileLayout, set: &TileSet) -> balaur_geometry::tiles::TileGrid {
@@ -528,7 +461,7 @@ fn sync_grid(eng: &Engine, entity: Entity) {
     let grid = grid_of(
         &TileLayout {
             tileset,
-            cells: toml::Value::Boolean(false),
+            cells: Cells::default(),
             material: String::new(),
             grid: rows,
             origin,
@@ -586,7 +519,7 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: TileLayout) -> Result<()> {
 impl TileLayout {
     /// `asked` laid out, its cells resolved from what it painted.
     fn of(eng: &Engine, asked: Tilemap) -> Result<Self> {
-        let grid = parse_cells_value(&cells_of(eng, &asked.cells.0)?)?;
+        let grid = cells_of(eng, &asked.cells)?;
         // Checked here so a bad definition is reported where it was
         // written, but only warned: one bad asset must not kill the scene.
         if !asked.tileset.is_empty()
@@ -594,16 +527,14 @@ impl TileLayout {
         {
             tracing::warn!("tilemap tileset '{}': {why:#}", asked.tileset);
         }
-        let flags = parse_flags(Some(&asked.flags.0))?;
-        let terrain = parse_cells_value(&asked.terrain.0)?;
         let mut next = Self {
             tileset: asked.tileset,
-            cells: asked.cells.0,
+            cells: asked.cells,
             material: asked.material,
             grid,
             origin: asked.origin.map(|at| at as i32),
-            flags,
-            terrain,
+            flags: asked.flags,
+            terrain: grid_of_ids(&asked.terrain),
             seed: asked.seed.cast_unsigned(),
             pixels_per_unit: asked.pixels_per_unit.max(0.01),
             color: asked.color,
@@ -625,24 +556,13 @@ fn write_back(eng: &Engine, entity: Entity) {
     ) else {
         return;
     };
-    asked.cells = Rows(map.cells.clone());
+    asked.cells = map.cells.clone();
     asked.origin = map.origin.map(|at| at as f32);
     if !map.terrain.is_empty() {
-        asked.terrain = Rows(terrain_value(&map.terrain));
+        asked.terrain = ids_of(&map.terrain);
     }
     if !map.flags.is_empty() {
-        asked.flags = Rows(toml::Value::Array(
-            map.flags
-                .iter()
-                .map(|line| {
-                    toml::Value::Array(
-                        line.iter()
-                            .map(|bits| toml::Value::Integer(i64::from(*bits)))
-                            .collect(),
-                    )
-                })
-                .collect(),
-        ));
+        asked.flags.clone_from(&map.flags);
     }
 }
 
@@ -828,12 +748,12 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{TileLayout, grid_index, write_flags, write_terrain};
+    use super::{Cells, TileLayout, grid_index, write_flags, write_terrain};
 
     fn map() -> TileLayout {
         TileLayout {
             tileset: "set".into(),
-            cells: toml::Value::String(String::new()),
+            cells: Cells::default(),
             material: String::new(),
             grid: vec![vec![Some(0)]],
             origin: [0, 0],

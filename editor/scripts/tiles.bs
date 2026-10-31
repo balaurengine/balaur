@@ -320,17 +320,23 @@ pub fn component(state: editor::State, found: Node) -> any {
 /// The component a tilemap is.
 const COMPONENT: str = "tilemap";
 
-/// A tilemap whose cells are inline rows. One naming a `.cells` file is
-/// left alone: a paint would write rows into the scene over the file.
+/// A tilemap whose cells are inline rows. One keeping them in a `.cells`
+/// file is left alone: a paint would write rows into the scene over the file.
 pub fn editable(state: editor::State) -> bool {
     let edited_component = component(state, model::selected_node(state));
     !edited_component.is_nil() && !file_backed(edited_component)
 }
 
-/// Whether `cells` names a `.cells` file rather than holding rows. The
-/// schema default is the empty string, which is no file and no rows.
+/// Whether `cells` keeps the ids in a `.cells` file rather than holding
+/// rows. A map whose cells are at their default holds none, inline.
 fn file_backed(edited_component: any) -> bool {
-    edited_component.cells.kind() == "str" && edited_component.cells.as_str() != ""
+    let cells = edited_component.cells;
+    !cells.is_nil() && cells.kind.as_str() == "file"
+}
+
+/// Rows of tile ids as the `cells` property holds them in the scene.
+fn inline(rows: [[int]]) -> any {
+    map().with("kind", "inline").with("rows", rows)
 }
 
 /// The tile set behind the selected map: its texture, tile size and columns.
@@ -419,17 +425,16 @@ fn pixels_per_unit(state: editor::State) -> float {
     util::max(edited_component.pixels_per_unit.as_float(), 0.01)
 }
 
-/// The grid as rows of tile ids, whichever form the document wrote. Empty is
-/// -1, the same spelling `cells` takes as a list.
+/// The grid as rows of tile ids, as the inline `cells` hold them: -1 is an
+/// empty cell.
 pub fn grid(state: editor::State) -> [[int]] {
     let rows: [[int]] = [];
     let edited_component = component(state, model::selected_node(state));
-    // A string is the schema's empty default or a `.cells` file name, and
-    // neither holds rows to edit here.
-    if edited_component.is_nil() || edited_component.cells.kind() != "list" {
+    // A map whose cells are in a file holds no rows to edit here.
+    if edited_component.is_nil() || file_backed(edited_component) {
         return rows;
     }
-    for row in edited_component.cells {
+    for row in util::list_or_empty(util::map_or_empty(edited_component.cells).rows) {
         let ids: [int] = [];
         for id in util::list_or_empty(row) {
             ids.push(id.as_float() as int);
@@ -591,7 +596,7 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
     // step this undoes. Every row is as wide as the widest: a ragged grid
     // draws the same, but a diff of one reads badly; `grown` already is.
     history::record(state, label, key);
-    edited_component.set("cells", grown);
+    edited_component.set("cells", inline(grown));
     edited_component.set("origin", [low_x as float, low_y as float]);
     apply(state);
     true
@@ -646,8 +651,8 @@ pub fn add_layer(state: &mut editor::State) -> bool {
     if edited_component.is_nil() {
         return false;
     }
-    let none: [any] = [];
-    edited_component.set("cells", none);
+    let none: [[int]] = [];
+    edited_component.set("cells", inline(none));
     apply(state);
     true
 }

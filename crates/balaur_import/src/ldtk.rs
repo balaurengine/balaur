@@ -158,13 +158,13 @@ fn level_toml(
         drawn += 1;
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{name}\"\nname = \"{}\"\nparent = \"{ROOT_ID}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{set}.toml\"\npixels_per_unit = {grid}\ncells = [\n",
+            "[[nodes]]\nid = \"n_{name}\"\nname = \"{}\"\nparent = \"{ROOT_ID}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{set}.toml\"\npixels_per_unit = {grid}\ncells = {{ kind = \"inline\", rows = [\n",
             text_of(layer, "__identifier", "Layer")
         );
         for row in &cells {
             let _ = writeln!(out, "  [{}],", spell(row));
         }
-        out.push_str("]\n");
+        out.push_str("] }\n");
         if flags.iter().any(|row| row.iter().any(|bits| *bits != 0)) {
             out.push_str("flags = [\n");
             for row in &flags {

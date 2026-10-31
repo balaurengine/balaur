@@ -100,8 +100,13 @@ pub class EmptyNote {
 
 pub struct Tilemap {
     tileset: Tileset,
-    cells: [[int]],
+    cells: InlineCells,
     pixels_per_unit: float,
+}
+
+pub struct InlineCells {
+    kind: str,
+    rows: [[int]],
 }
 
 pub struct Tileset {
@@ -1433,7 +1438,7 @@ pub fn tiles_tool(state: &mut editor::State) {
     // is open, so the map draws rather than logging a missing texture.
     node.set_component("tilemap", Tilemap {
         tileset: Tileset { texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
-        cells: [[-1, -1], [-1, -1]],
+        cells: InlineCells { kind: "inline", rows: [[-1, -1], [-1, -1]] },
         pixels_per_unit: 16.0,
     });
     check(tiles::editable(state), "a node with a tilemap is paintable");
@@ -1454,7 +1459,7 @@ pub fn tiles_tool(state: &mut editor::State) {
     check(tiles::paint(state, 0, 0, 3), "painting writes a cell");
     check(tiles::cell(state, 0, 0) == 3, "the cell holds the tile ({tiles::cell(state, 0, 0)})");
     check(!tiles::paint(state, 0, 0, 3), "painting the same tile again changes nothing");
-    check(model::node(state, state.selected).authored("tilemap").get("cells").kind() == "list", "the map is written back as rows of ids");
+    check(util::map_or_empty(model::node(state, state.selected).authored("tilemap").get("cells")).get("rows").kind() == "list", "the map is written back as rows of ids");
     check(tiles::paint(state, 0, 0, -1), "erasing writes an empty cell");
     check(tiles::cell(state, 0, 0) == -1, "the cell is empty again");
     // Growing leaves the node where it is: a cell's place is its coordinate,

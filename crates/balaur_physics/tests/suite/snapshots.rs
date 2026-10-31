@@ -172,7 +172,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = [[1, 1]]
+cells = { kind = "inline", rows = [[1, 1]] }
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]

@@ -136,7 +136,9 @@ pub use shape::{FlatShape, Line2d, LineCap, LineJoin, Primitive2d, Primitive3d, 
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use sprite::Sprite;
 pub use text_component::{FontStyle, LineBreak, Text2d, Text3d, TruncateAt};
-pub use tilemap::{Rows, TILESET_ASSET_TYPE, TileLayout, TileSet, Tilemap};
+pub use tilemap::{
+    Cells, CellsFile, InlineCells, TILESET_ASSET_TYPE, TileLayout, TileSet, Tilemap,
+};
 
 #[cfg(feature = "window")]
 mod app_icon;

@@ -1122,7 +1122,7 @@ How the node's `tile_collision` builds the tiles whose collision is polygons, th
 
 `2d` · `render` · 9 properties · 5 methods
 
-A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.
+A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1130,9 +1130,9 @@ A grid of tiles from one `tileset` asset, centred on the node. `cells` holds row
 <tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint over every tile, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material the whole map draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene</td></tr>
-<tr><td><code>terrain</code></td><td>string</td><td>—</td><td>What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset&#x27;s rules</td></tr>
-<tr><td><code>flags</code></td><td>string</td><td>—</td><td>How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal</td></tr>
+<tr><td><code>cells</code></td><td>variant</td><td><code>{&quot;kind&quot;: &quot;inline&quot;, &quot;rows&quot;: []}</code></td><td>The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene <code>kind</code> is one of: <code>file</code> (path); <code>inline</code> (rows).</td></tr>
+<tr><td><code>terrain</code></td><td>list of list of int</td><td><code>[]</code></td><td>What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset&#x27;s rules</td></tr>
+<tr><td><code>flags</code></td><td>list of list of int</td><td><code>[]</code></td><td>How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal</td></tr>
 <tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time At least 0.</td></tr>
 <tr><td><code>origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Tile-texture pixels per world unit At least 0.01.</td></tr>

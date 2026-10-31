@@ -10,7 +10,9 @@
 > ships. What is left is the open questions in §8. The
 > tileset editor is a panel in the Tiles dock rather than a document tab, and
 > an asset file's definition is inlined into the mirror, so a tileset
-> kept in a file draws in the editor.
+> kept in a file draws in the editor. Since 2026-10-31 `cells` is a variant,
+> `{ kind = "inline", rows = [...] }` or `{ kind = "file", path = "x.cells" }`,
+> and `terrain` and `flags` are rows of whole numbers.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
 

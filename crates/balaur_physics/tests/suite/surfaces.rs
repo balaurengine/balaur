@@ -144,7 +144,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#slopes"
-cells = [[1, 1]]
+cells = { kind = "inline", rows = [[1, 1]] }
 flags = [[0, 2]]
 pixels_per_unit = 16.0
 
@@ -190,7 +190,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#corner"
-cells = [[1]]
+cells = { kind = "inline", rows = [[1]] }
 pixels_per_unit = 16.0
 "##;
 
@@ -243,7 +243,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+cells = { kind = "inline", rows = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]] }
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
