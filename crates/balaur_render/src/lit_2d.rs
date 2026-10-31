@@ -93,7 +93,12 @@ pub(crate) fn feed_lights(app: &balaur_core::App) {
     let world = app.engine.world();
     let root = app.engine.root();
     let mut lights: Vec<Light2d> = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(&world, root) {
+    let found: Vec<_> = world
+        .query::<(balaur_core::hecs::Entity, &crate::light::Light2d)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in balaur_core::scene::tree_rank(&world, root).sorted(found) {
         let (Ok(light), Ok(global)) = (
             world.get::<&crate::light::Light2d>(entity),
             world.get::<&balaur_core::GlobalTransform>(entity),

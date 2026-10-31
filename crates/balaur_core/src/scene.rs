@@ -12,6 +12,9 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
+mod rank;
+pub use rank::{TreeRank, tree_rank};
+
 pub struct Name(pub String);
 /// The node a node is under: the scene tree's relationship.
 pub struct Parent(pub Entity);

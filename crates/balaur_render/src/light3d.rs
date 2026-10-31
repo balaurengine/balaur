@@ -95,7 +95,12 @@ fn aim(global: &GlobalTransform) -> Vec3 {
 /// a caller counting lights sees the same list whatever is switched off.
 pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
     let mut out = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(world, root) {
+    let found: Vec<Entity> = world
+        .query::<(Entity, &Light3d)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in balaur_core::scene::tree_rank(world, root).sorted(found) {
         let (Ok(light), Ok(global)) = (
             world.get::<&Light3d>(entity),
             world.get::<&GlobalTransform>(entity),
@@ -455,15 +460,16 @@ pub fn environment_or_none(world: &World, root: Entity) -> LitEnvironment {
 /// so a level can carry two and switch. `None` when no node has one, which is
 /// what leaves the backend's own defaults alone.
 pub fn environment(world: &World, root: Entity) -> Option<LitEnvironment> {
-    let mut found = None;
-    for entity in balaur_core::scene::collect_subtree(world, root) {
-        if let Ok(env) = world.get::<&Environment>(entity)
-            && env.current
-        {
-            found = Some(entity);
-        }
-    }
-    let env = world.get::<&Environment>(found?).ok()?;
+    let current: Vec<Entity> = world
+        .query::<(Entity, &Environment)>()
+        .iter()
+        .filter(|(_, env)| env.current)
+        .map(|(entity, _)| entity)
+        .collect();
+    let found = *balaur_core::scene::tree_rank(world, root)
+        .sorted(current)
+        .last()?;
+    let env = world.get::<&Environment>(found).ok()?;
     Some(LitEnvironment::of(&env))
 }
 

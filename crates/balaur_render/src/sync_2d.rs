@@ -26,28 +26,17 @@ use crate::{Renderable2d, Shape2d, SpriteTexture};
 /// suffix can be re-ordered: what the old and new orders share up front keeps
 /// its places, and the rest is dropped last-first and rebuilt by appending.
 pub(crate) fn draw_order_2d(world: &balaur_core::hecs::World, root: Entity) -> Vec<Entity> {
-    let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
-    for entity in in_tree_order(world, root) {
-        if world.get::<&Renderable2d>(entity).is_ok() {
-            desired.push(layer_of(world, entity));
-        }
-    }
+    let drawn: Vec<Entity> = world
+        .query::<(Entity, &Renderable2d)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect();
+    let desired = balaur_core::scene::tree_rank(world, root)
+        .sorted(drawn)
+        .into_iter()
+        .map(|entity| layer_of(world, entity))
+        .collect();
     sorted(desired)
-}
-
-/// `root` and everything under it in tree order: a node before its children,
-/// and a child's subtree before the next child's, so at one `z_index` and z
-/// a later sibling draws over an earlier one, as in Godot.
-fn in_tree_order(world: &balaur_core::hecs::World, root: Entity) -> Vec<Entity> {
-    let mut out = Vec::new();
-    let mut stack = vec![root];
-    while let Some(entity) = stack.pop() {
-        out.push(entity);
-        if let Ok(children) = world.get::<&balaur_core::scene::Children>(entity) {
-            stack.extend(children.0.iter().rev().copied());
-        }
-    }
-    out
 }
 
 /// One 2D node's place in the order: its `z_index` first, then how far along
@@ -97,12 +86,15 @@ fn ordered_nodes(
     root: Entity,
     has_node: impl Fn(Entity) -> bool,
 ) -> Vec<(i32, Entity)> {
-    let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
-    for entity in in_tree_order(world, root) {
-        if has_node(entity) {
-            desired.push(layer_of(world, entity));
-        }
-    }
+    // In tree order, so at one `z_index` and z a later sibling draws over an
+    // earlier one, as in Godot; the order is kept until the tree changes.
+    let desired = balaur_core::scene::tree_rank(world, root)
+        .order()
+        .iter()
+        .copied()
+        .filter(|&entity| has_node(entity))
+        .map(|entity| layer_of(world, entity))
+        .collect();
     sorted_layers(desired)
 }
 

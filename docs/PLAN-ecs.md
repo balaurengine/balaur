@@ -29,7 +29,11 @@
 > built 2026-10-31: `system_param` (`Res`, `ResMut`, their `Option`s,
 > `Query`, `Commands`, `Local`, `Step`, `MessageReader`, `MessageWriter`,
 > `Changed`, `Added`), `App::add_typed`, `Registry::add_typed`,
-> `System::typed`; render's debug-line clear moved over. Steps 9 to 11 of
+> `System::typed`; render's debug-line clear moved over. Step 13 built
+> 2026-10-31: `Query::par_for_each` and `par_fold`; the render mirror,
+> measured first, went from 2.12 ms to 0.42 ms a frame (3D drop, 8,000
+> bodies) and 2.64 ms to 0.51 ms (2D pyramid, 10,000) by sorting the few
+> nodes each pass wants by `scene::tree_rank`, not by threads. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -169,6 +173,16 @@ something else in this engine.
 - **Parallel work inside a system.** Native only, over hecs's
   `iter_batched`: each entity's work alone, and any sum combined in batch
   order so the result is the same on every run. Serial on the web.
+  `Query::par_for_each(batch, f)` and `par_fold(batch, start, fold,
+  combine)` on rayon; a fold's batches are combined in batch order, so its
+  bits match run to run. The render mirror was the first candidate, and the
+  measurement said otherwise: in a 3D scene most of its 2.1 ms was the 2D
+  passes walking every node of the tree in order (draw order, layer order,
+  2D and 3D lights, the environment), each looking up components node by
+  node. `scene::tree_rank` keeps the tree's order until its shape moves, and
+  each pass now queries the few nodes holding its component and sorts them
+  by rank. What is left writes kiss3d's scene graph, which is `Rc` and
+  single-threaded, so it stays serial.
 
 ## 3. What every step keeps
 
@@ -205,7 +219,8 @@ something else in this engine.
 12. **Typed systems**, and the systems that read better with them moved over.
     *Built.*
 13. **Parallel work inside a system**, for what measures as hot: the render
-    mirror's sync is the first candidate.
+    mirror's sync is the first candidate. *Built*; the mirror's cost was the
+    tree walks, cut without threads.
 
 Each step brings its tests: behaviour a caller sees, a snapshot that
 round-trips, and a determinism trace.

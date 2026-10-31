@@ -123,7 +123,12 @@ fn aim(global: &GlobalTransform) -> Vec2 {
 /// Every `light2d` under `root`, in world space and in tree order.
 pub fn lights(world: &World, root: Entity) -> Vec<LitLight2d> {
     let mut out = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(world, root) {
+    let found: Vec<Entity> = world
+        .query::<(Entity, &Light2d)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in balaur_core::scene::tree_rank(world, root).sorted(found) {
         let (Ok(light), Ok(global)) = (
             world.get::<&Light2d>(entity),
             world.get::<&GlobalTransform>(entity),

@@ -202,6 +202,43 @@ impl<Q: hecs::Query> Query<'_, Q> {
         }
     }
 
+    /// Hand `each` every match, in batches of `batch` on the thread pool
+    /// natively and in order on the web. Each match is worked alone, so `each`
+    /// writes only what its own match holds.
+    pub fn par_for_each(&mut self, batch: u32, each: impl Fn(Q::Item<'_>) + Send + Sync)
+    where
+        for<'a> Q::Item<'a>: Send,
+    {
+        self.par_fold(batch, || (), |(), item| each(item), |(), ()| ());
+    }
+
+    /// Fold every match into one value: each batch of `batch` from `start()`
+    /// with `fold`, on the thread pool natively, then the batches' values
+    /// combined in batch order, so the answer is the same on every run and
+    /// every target whatever the threads did.
+    pub fn par_fold<R: Send>(
+        &mut self,
+        batch: u32,
+        start: impl Fn() -> R + Send + Sync,
+        fold: impl Fn(R, Q::Item<'_>) -> R + Send + Sync,
+        combine: impl Fn(R, R) -> R,
+    ) -> R
+    where
+        for<'a> Q::Item<'a>: Send,
+    {
+        let mut borrowed = self.world.query::<Q>();
+        let batches: Vec<hecs::Batch<'_, Q>> = borrowed.iter_batched(batch.max(1)).collect();
+        let each_batch = |batch: hecs::Batch<'_, Q>| batch.fold(start(), &fold);
+        #[cfg(not(target_family = "wasm"))]
+        let partials: Vec<R> = {
+            use rayon::prelude::*;
+            batches.into_par_iter().map(each_batch).collect()
+        };
+        #[cfg(target_family = "wasm")]
+        let partials: Vec<R> = batches.into_iter().map(each_batch).collect();
+        partials.into_iter().reduce(combine).unwrap_or_else(start)
+    }
+
     /// One entity's match: its `get` answers it, or why there is none.
     pub fn one(&self, entity: Entity) -> hecs::QueryOne<'_, Q> {
         self.world.query_one::<Q>(entity)

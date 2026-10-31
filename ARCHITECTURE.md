@@ -38,7 +38,19 @@ a `Builtins`; a bare app gets the kernel's own.
 ## Foundations
 
 - **ECS: hecs 0.11** — minimal, archetype-based, the most used maintained ECS
-  that is not `bevy_ecs`. Scheduling, hierarchy and resources are Balaur's own.
+  that is not `bevy_ecs`. Scheduling, hierarchy and resources are Balaur's own,
+  and so is what `bevy_ecs` adds over hecs (`docs/PLAN-ecs.md`): one door for
+  every structural write (`Engine::spawn`, `insert`, `remove_one`,
+  `despawn`, …; the `world-write` lint fails a `world_mut()` outside the
+  kernel); change ticks stamped by the registry's writes
+  (`components::ticks`, `scene.changed_since`); lifecycle calls and required
+  components declared on the derive (`#[component(on_add = f, requires =
+  [..])]`); commands made at each stage's end (`Engine::defer*`); typed
+  messages (`App::add_messages`, `MessageCursor`); observers inside
+  `events::announce`; relationships (`relationships`, the scene tree's
+  `Parent` and `Children`); schedules (`schedule::System`, `Set`); app modes
+  (`modes`); typed systems (`system_param`, `App::add_typed`); and batches on
+  the thread pool (`Query::par_for_each`).
 - **Math: glamx** (glam + `Pose3`/`Rot3`), shared with rapier 0.35 and kiss3d
   0.46, so there are no conversion layers. It re-exports glam whole. The
   workspace pins `libm` and `scalar-math` — the features parry's
@@ -72,13 +84,18 @@ a `Builtins`; a bare app gets the kernel's own.
 animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSync
 (transforms) → Render → Last (deferred destruction)`.
 
-- `queue_free` lands in `Last`, so iteration is never invalidated mid-frame.
+- `queue_free` lands in `Last`, so iteration is never invalidated mid-frame;
+  every other deferred write (`Engine::defer`) lands at the end of the stage
+  that asked, or of the fixed step. A mode set with `Engine::set_mode`
+  changes at the next frame's start, before `First`.
 - `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
   in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
   per plugin — per-plugin ones made the step count depend on wall-clock jitter.
   `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
-- Order inside a stage is registration order, and core registers the script
-  callback first, so `fixed_update` runs before that frame's physics step.
+- Order inside a stage is registration order unless a system says otherwise
+  (`schedule::System::before`, `after`, `in_set`; sorted once, cycles named),
+  and core registers the script callback first, so `fixed_update` runs before
+  that frame's physics step.
 - A debugger's freeze stops the whole stage. A game's own pause does not: the
   stage runs and each per-node subsystem asks `process::ticks`, because
   `process = "always"` has to let one subtree run while its sibling is held.

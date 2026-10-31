@@ -165,3 +165,44 @@ fn a_clash_names_the_system_and_the_parameter() {
     app.add_scheduled(Stage::Update, System::typed("clashing", both));
     app.tick(0.0);
 }
+
+/// A weight on a loose entity, for the batched calls.
+struct Weight(f32);
+
+#[derive(Default)]
+struct Total(f32);
+
+fn double_weights(mut weights: Query<'_, &mut Weight>) {
+    weights.par_for_each(64, |weight| weight.0 *= 2.0);
+}
+
+fn total_weights(mut weights: Query<'_, &Weight>, mut total: ResMut<'_, Total>) {
+    total.0 = weights.par_fold(64, || 0.0, |sum, weight| sum + weight.0, |a, b| a + b);
+}
+
+#[test]
+fn batches_work_every_match_and_fold_the_same_every_run() {
+    let run = || {
+        let mut app = app();
+        app.engine.insert_resource(Total::default());
+        for i in 0..5_000 {
+            app.engine.spawn((Weight(0.1 + (i % 7) as f32 * 0.37),));
+        }
+        app.add_typed(Stage::Update, double_weights);
+        app.add_typed(Stage::PostUpdate, total_weights);
+        app.tick(0.0);
+        app.engine.resource::<Total>().borrow().0
+    };
+    let first = run();
+    let serial: f32 = (0..5_000)
+        .map(|i| (0.1 + (i % 7) as f32 * 0.37) * 2.0)
+        .sum();
+    // Summed in batches, not one by one: the same to f32's precision.
+    assert!(
+        (first - serial).abs() < serial * 1e-4,
+        "{first} against {serial}"
+    );
+    for _ in 0..5 {
+        assert_eq!(run().to_bits(), first.to_bits(), "the same bits every run");
+    }
+}
