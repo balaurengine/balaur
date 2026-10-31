@@ -48,6 +48,8 @@ workspace = true
 # `wake::worker`: the poll an I/O thread sleeps in, and the waker its queue fires.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mio.workspace = true
+# The process's CPU time, for how many cores a frame kept busy (`timings`).
+libc = "0.2"
 # A typed system's batches on the thread pool (`Query::par_for_each`): native
 # only, since a web build runs them in order.
 rayon = "1"
@@ -67,3 +69,7 @@ js-sys = "0.3.106"
 # starts through `wasm-bindgen-rayon`, since `std::thread` cannot spawn there.
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 rayon = "1"
+
+# The process's CPU time on Windows (`timings::process_cpu`).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }

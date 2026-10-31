@@ -162,8 +162,8 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
         (
             "set_theme",
             &[],
-            "(theme: table)",
-            "Set the theme the UI falls back on where a node's `widget_theme` says nothing, from a theme document: source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources.",
+            "(theme: str | table)",
+            "Set the theme the UI falls back on where a node's `widget_theme` says nothing: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. The theme already in force again changes nothing.",
         ),
         (
             "complete_theme",
@@ -173,11 +173,19 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     // No reader by design (N8): the caller holds the document it passed.
-    m.function("set_theme", |eng: &Engine, doc: Value| {
-        let doc = balaur_core::node_api::to_toml(&doc)?;
+    m.function("set_theme", |eng: &Engine, theme: Value| {
+        // A path is the asset's cached document; a table is read as given.
+        let doc = match &theme {
+            Value::Str(reference) => balaur_core::assets::definition(eng, reference)?,
+            _ => balaur_core::node_api::to_toml(&theme)?,
+        };
         let config = eng.resource::<UiConfig>();
         let mut config = config.borrow_mut();
+        if config.theme_doc.as_ref() == Some(&doc) {
+            return Ok(());
+        }
         config.theme = theme::ThemeTokens::from_doc(&doc);
+        config.theme_doc = Some(doc);
         config.changed = true;
         Ok(())
     });

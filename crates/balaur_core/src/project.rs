@@ -603,8 +603,8 @@ pub fn instantiate_scene_file(
     base: Entity,
     attach_scripts: bool,
 ) -> Result<()> {
-    let (source, root) = scene_from_file(eng, path)?;
-    instantiate_from(eng, &source, base, attach_scripts, root.as_deref())
+    let (source, doc) = scene_doc(eng, path)?;
+    instantiate_doc(eng, &doc, &source, base, attach_scripts)
 }
 
 fn instantiate_from(
@@ -613,6 +613,22 @@ fn instantiate_from(
     base: Entity,
     attach_scripts: bool,
     foreign: Option<&std::path::Path>,
+) -> Result<()> {
+    instantiate_doc(
+        eng,
+        &parse_scene(eng, source, foreign)?,
+        source,
+        base,
+        attach_scripts,
+    )
+}
+
+fn instantiate_doc(
+    eng: &Engine,
+    doc: &SceneDoc,
+    source: &str,
+    base: Entity,
+    attach_scripts: bool,
 ) -> Result<()> {
     let mut build = Build {
         prefix: String::new(),
@@ -624,7 +640,7 @@ fn instantiate_from(
     // A document's paths are the game's spelling by now, whichever script
     // asked for the scene; each script it attaches runs as its own file's.
     let _game = crate::dependencies::as_game(eng);
-    build_scene(eng, source, base, &mut build, foreign)?;
+    build_doc(eng, doc, source, base, &mut build)?;
     children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)
 }
@@ -671,14 +687,10 @@ struct Build {
 /// Parse and build one scene document under `base`. `foreign` is the root the
 /// document came from when that is not the project's, and every path it names
 /// is made absolute against it before anything reads one.
-fn build_scene(
-    eng: &Engine,
-    source: &str,
-    base: Entity,
-    build: &mut Build,
-    foreign: Option<&std::path::Path>,
-) -> Result<()> {
-    let doc: SceneDoc = match foreign {
+/// A scene's text as a document, its paths made the project's where it
+/// came from another root.
+fn parse_scene(eng: &Engine, source: &str, foreign: Option<&std::path::Path>) -> Result<SceneDoc> {
+    Ok(match foreign {
         Some(root) => {
             let mut value: toml::Value = toml::from_str(source).context("parsing scene")?;
             // A scene is never written back through the engine, so an `id://`
@@ -687,13 +699,78 @@ fn build_scene(
             value.try_into().context("parsing scene")?
         }
         None => toml::from_str(source).context("parsing scene")?,
-    };
+    })
+}
+
+/// Every scene file read and parsed so far, kept while its file is
+/// unchanged: a screen of 54 cards built from one prefab reads and parses it
+/// once, not 54 times. Checked against the file's modified time on every
+/// use, so a save from anywhere -- the editor, a script, another program --
+/// is read again; a pack, which never changes, has none and is kept.
+#[derive(Default)]
+struct SceneFiles(DetHashMap<String, SceneFile>);
+
+struct SceneFile {
+    stamp: Option<f64>,
+    source: std::rc::Rc<str>,
+    doc: std::rc::Rc<SceneDoc>,
+}
+
+/// A scene file's text and document, parsed once while the file is unchanged.
+fn scene_doc(eng: &Engine, path: &str) -> Result<(std::rc::Rc<str>, std::rc::Rc<SceneDoc>)> {
+    let key = path_of(eng, path)?;
+    let stamp = stamp_of(eng, &key);
+    let files = eng.try_resource::<SceneFiles>().unwrap_or_else(|| {
+        eng.insert_resource(SceneFiles::default());
+        eng.resource::<SceneFiles>()
+    });
+    if let Some(file) = files.borrow().0.get(&key)
+        && file.stamp == stamp
+    {
+        return Ok((file.source.clone(), file.doc.clone()));
+    }
+    let (text, root) = scene_from_file(eng, path)?;
+    let doc = std::rc::Rc::new(parse_scene(eng, &text, root.as_deref())?);
+    let source: std::rc::Rc<str> = text.into();
+    files.borrow_mut().0.insert(
+        key,
+        SceneFile {
+            stamp,
+            source: source.clone(),
+            doc: doc.clone(),
+        },
+    );
+    Ok((source, doc))
+}
+
+/// When the file a scene path reads from last changed, under the first root
+/// that has it, as [`scene_from_file`] looks; `None` where none does.
+fn stamp_of(eng: &Engine, path: &str) -> Option<f64> {
+    let backend = crate::files::backend(eng);
+    let roots = crate::file_api::project_roots(eng);
+    if roots.is_empty() {
+        return backend.mtime(std::path::Path::new(path));
+    }
+    roots
+        .iter()
+        .find_map(|root| backend.mtime(&root.join(path)))
+}
+
+/// Build a parsed scene under `base`; `source` is its text, which names its
+/// `[[assets]]` scope.
+fn build_doc(
+    eng: &Engine,
+    doc: &SceneDoc,
+    source: &str,
+    base: Entity,
+    build: &mut Build,
+) -> Result<()> {
     // A scene's `[[assets]]` are in scope only while it is being built, so
     // `#id` never resolves against a sibling scene; a prefab's own blocks nest
     // inside that rather than accumulating.
     crate::variables::declare_from_toml(eng, &doc.variables)?;
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
-    let outcome = instantiate_nodes(eng, &doc, base, build);
+    let outcome = instantiate_nodes(eng, doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
     outcome
 }

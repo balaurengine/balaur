@@ -146,11 +146,18 @@ fn parse(hex: &str) -> Option<Lab> {
 }
 
 fn hex(lab: Lab) -> String {
+    let [r, g, b] = rgb8(lab);
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+/// The sRGB a colour prints as, eight bits a channel: what `hex` writes and
+/// what a contrast is read from.
+fn rgb8(lab: Lab) -> [u8; 3] {
     let l = lab.l + 0.396_337_777_4 * lab.a + 0.215_803_757_3 * lab.b;
     let m = lab.l - 0.105_561_345_8 * lab.a - 0.063_854_172_8 * lab.b;
     let s = lab.l - 0.089_484_177_5 * lab.a - 1.291_485_548_0 * lab.b;
     let (l, m, s) = (l * l * l, m * m * m, s * s * s);
-    let rgb = [
+    [
         4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s,
         -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
         -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
@@ -159,8 +166,13 @@ fn hex(lab: Lab) -> String {
         (to_gamma(c.clamp(0.0, 1.0)) * 255.0)
             .round()
             .clamp(0.0, 255.0) as u8
-    });
-    format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])
+    })
+}
+
+/// A printed colour as `ratio` takes it.
+fn printed(lab: Lab) -> egui::Color32 {
+    let [r, g, b] = rgb8(lab);
+    egui::Color32::from_rgb(r, g, b)
 }
 
 fn mix(a: Lab, b: Lab, t: f64) -> Lab {
@@ -189,13 +201,7 @@ fn polar(l: f64, c: f64, h_radians: f64) -> Lab {
 
 /// The contrast between two OKLab colours, through the sRGB they print as.
 fn contrast(a: Lab, b: Lab) -> f64 {
-    match (
-        crate::theme::parse_hex(&hex(a)),
-        crate::theme::parse_hex(&hex(b)),
-    ) {
-        (Some(a), Some(b)) => ratio(a, b),
-        _ => 1.0,
-    }
+    ratio(printed(a), printed(b))
 }
 
 /// The colours a theme works in once its sources are known.
@@ -264,12 +270,14 @@ impl Work {
     /// surface text lands on, a hovered control among them.
     fn legible(&self, x: Lab) -> Lab {
         let fg = self.at(t::FOREGROUND);
-        let grounds =
-            [t::BG_APP, t::BG_PANEL, t::BG_CONTROL, t::BG_CONTROL_HOVER].map(|g| self.at(g));
+        // Printed once: only the candidate moves.
+        let grounds = [t::BG_APP, t::BG_PANEL, t::BG_CONTROL, t::BG_CONTROL_HOVER]
+            .map(|g| printed(self.at(g)));
         let mut mix_by = 0.0;
         loop {
             let candidate = mix(x, fg, mix_by);
-            if mix_by >= 1.0 || grounds.iter().all(|g| contrast(candidate, *g) >= AA) {
+            let ink = printed(candidate);
+            if mix_by >= 1.0 || grounds.iter().all(|g| ratio(ink, *g) >= AA) {
                 return candidate;
             }
             mix_by += 0.02;

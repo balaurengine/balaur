@@ -352,7 +352,7 @@ impl AudioState {
     /// slider moved later has to be able to recompute one from the other.
     pub fn play_on_bus(
         &mut self,
-        bytes: Vec<u8>,
+        bytes: impl Into<playback::SoundBytes>,
         volume: f32,
         pitch: f32,
         looped: bool,
@@ -377,7 +377,7 @@ impl AudioState {
     /// A playback carrying an emitter is placed here rather than waiting for the
     /// next frame's pass: a sound the far side of the level must not be heard
     /// at full volume for the frame before it is placed.
-    pub fn play_with(&mut self, bytes: Vec<u8>, playback: Playback) -> u64 {
+    pub fn play_with(&mut self, bytes: impl Into<playback::SoundBytes>, playback: Playback) -> u64 {
         let handle = self.next_handle;
         self.next_handle += 1;
         let volume = playback.volume.max(0.0);
@@ -776,7 +776,7 @@ pub fn devices() -> Vec<String> {
 
 /// The bytes a sound path names, cached between plays so a footstep does not
 /// cost a read per step.
-fn read_sound(eng: &Engine, path: &str) -> Result<Vec<u8>> {
+fn read_sound(eng: &Engine, path: &str) -> Result<playback::SoundBytes> {
     cache::read(eng, path)
 }
 

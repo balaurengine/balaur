@@ -9,13 +9,15 @@ use anyhow::Result;
 use balaur_core::project::ProjectFiles;
 use balaur_core::{DetHashMap, Engine};
 
+use crate::playback::SoundBytes;
+
 /// How much audio the cache may hold, and the largest file it will take. A
 /// music track streams past it rather than evicting every effect.
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ENTRY: usize = 2 * 1024 * 1024;
 
 struct Entry {
-    bytes: Vec<u8>,
+    sound: SoundBytes,
     /// When the file on disk was last written, so an edit in the editor is
     /// picked up; `None` for bytes that came out of a pack and cannot change.
     stamp: Option<f64>,
@@ -30,29 +32,30 @@ pub struct SoundCache {
 }
 
 impl SoundCache {
-    fn get(&self, path: &str, stamp: Option<f64>) -> Option<Vec<u8>> {
+    fn get(&self, path: &str, stamp: Option<f64>) -> Option<SoundBytes> {
         let entry = self.entries.get(path)?;
-        (entry.stamp == stamp).then(|| entry.bytes.clone())
+        (entry.stamp == stamp).then(|| entry.sound.clone())
     }
 
-    fn put(&mut self, path: &str, stamp: Option<f64>, bytes: &[u8]) {
-        if bytes.len() > MAX_ENTRY {
+    fn put(&mut self, path: &str, stamp: Option<f64>, sound: &SoundBytes) {
+        let size = sound.bytes.len();
+        if size > MAX_ENTRY {
             return;
         }
         if let Some(old) = self.entries.shift_remove(path) {
-            self.held -= old.bytes.len();
+            self.held -= old.sound.bytes.len();
         }
-        while self.held + bytes.len() > MAX_BYTES {
+        while self.held + size > MAX_BYTES {
             let Some((_, evicted)) = self.entries.shift_remove_index(0) else {
                 break;
             };
-            self.held -= evicted.bytes.len();
+            self.held -= evicted.sound.bytes.len();
         }
-        self.held += bytes.len();
+        self.held += size;
         self.entries.insert(
             path.to_string(),
             Entry {
-                bytes: bytes.to_vec(),
+                sound: sound.clone(),
                 stamp,
             },
         );
@@ -70,16 +73,16 @@ impl SoundCache {
 ///
 /// # Errors
 /// If no permitted source has the file; the reader says where it looked.
-pub fn read(eng: &Engine, path: &str) -> Result<Vec<u8>> {
+pub fn read(eng: &Engine, path: &str) -> Result<SoundBytes> {
     let files = eng.resource::<ProjectFiles>();
     let stamp = modified(&files.borrow(), path);
     let cache = eng.resource::<SoundCache>();
-    if let Some(bytes) = cache.borrow().get(path, stamp) {
-        return Ok(bytes);
+    if let Some(sound) = cache.borrow().get(path, stamp) {
+        return Ok(sound);
     }
-    let bytes = files.borrow().read(path)?;
-    cache.borrow_mut().put(path, stamp, &bytes);
-    Ok(bytes)
+    let sound = SoundBytes::from(files.borrow().read(path)?);
+    cache.borrow_mut().put(path, stamp, &sound);
+    Ok(sound)
 }
 
 /// When the file behind a path was last written, through the project's own

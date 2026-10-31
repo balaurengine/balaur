@@ -27,12 +27,18 @@ pub struct Pair {
 
 /// An sRGB channel as linear light, 0 to 1.
 pub(crate) fn to_linear(channel: u8) -> f64 {
-    let c = f64::from(channel) / 255.0;
-    if c <= 0.04045 {
-        c / 12.92
-    } else {
-        libm::pow((c + 0.055) / 1.055, 2.4)
-    }
+    // A channel has 256 values: each worked out once, as the formula has it.
+    static LINEAR: std::sync::OnceLock<[f64; 256]> = std::sync::OnceLock::new();
+    LINEAR.get_or_init(|| {
+        std::array::from_fn(|n| {
+            let c = n as f64 / 255.0;
+            if c <= 0.04045 {
+                c / 12.92
+            } else {
+                libm::pow((c + 0.055) / 1.055, 2.4)
+            }
+        })
+    })[usize::from(channel)]
 }
 
 fn luminance(color: egui::Color32) -> f64 {

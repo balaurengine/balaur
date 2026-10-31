@@ -124,11 +124,11 @@ fn build_instance(
         chain.push(prefab.to_string());
         bail!("a prefab cannot contain itself: {}", chain.join(" -> "));
     }
-    let (source, root) = scene_from_file(eng, prefab)?;
+    let (source, doc) = scene_doc(eng, prefab)?;
     let inner = format!("{}{}/", build.prefix, id);
     let outer = std::mem::replace(&mut build.prefix, inner);
     build.open.push(prefab.to_string());
-    let outcome = build_scene(eng, &source, entity, build, root.as_deref());
+    let outcome = build_doc(eng, &doc, &source, entity, build);
     build.open.pop();
     build.prefix = outer;
     outcome

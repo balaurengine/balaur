@@ -114,7 +114,7 @@ pub mod ticks;
 mod values;
 mod written;
 
-use values::{defaults_of, expand_colors, fill_records, overlay, resolved};
+use values::{defaults_of, expand_colors, fill_records, overlay};
 pub use values::{merge_defaults, properties, rgba};
 
 pub use accepts::{AcceptsFn, refuse_unknown_keys};
@@ -491,37 +491,71 @@ impl ComponentDef {
 ///
 /// Built at registration and held beside the definition. Everything here is a
 /// question [`patch`] would otherwise ask the schema on every call: the
-/// defaults it starts from, and whether either of the two passes over a
-/// finished table has anything to do. A component with no colour and no asset
-/// property -- which is most of them -- skips both.
+/// defaults it starts from, and which properties each pass over a finished
+/// table has to visit. A component with no colour and no asset property --
+/// which is most of them -- visits none.
 pub struct Facts {
     /// Every declared property at its default, ready to clone.
     pub defaults: Rc<toml::map::Map<String, toml::Value>>,
-    /// Whether any property is `type = "color"`, so a `#rrggbb` string has to
-    /// be expanded before `apply` sees it.
-    pub has_color: bool,
-    /// Whether any property is `type = "asset"`, so an inline definition has
-    /// to be cached and rewritten to the reference naming it.
-    pub has_asset: bool,
-    /// Whether any property is `type = "record"`, so a value naming only some
-    /// of its fields has the rest filled in before `apply` sees it.
-    pub has_record: bool,
+    /// [`Facts::defaults`] with records filled and colours expanded, which is
+    /// what an added component starts from: only what a scene writes over it
+    /// needs either pass again.
+    pub filled: Rc<toml::map::Map<String, toml::Value>>,
+    /// Which properties hold a colour, an asset or a record.
+    pub passes: Rc<Passes>,
+}
+
+/// The properties each pass over a finished table visits, each one holding
+/// that type somewhere in its spec, a composite's contents included.
+#[derive(Default)]
+pub struct Passes {
+    /// `type = "color"`: a `#rrggbb` string is expanded before `apply` sees
+    /// it.
+    pub color: Box<[String]>,
+    /// `type = "asset"`: an inline definition is cached and rewritten to the
+    /// reference naming it.
+    pub asset: Box<[String]>,
+    /// `type = "record"`: a value naming only some of its fields has the rest
+    /// filled in.
+    pub record: Box<[String]>,
 }
 
 impl Facts {
     fn of(schema: &toml::Value) -> Self {
-        let mut found = [false; 3];
+        let passes = Passes::of(schema);
+        let defaults = defaults_of(schema);
+        let mut filled = defaults.clone();
+        fill_records(schema, &passes.record, &mut filled);
+        expand_colors(schema, &passes.color, &mut filled);
+        Self {
+            defaults: Rc::new(defaults),
+            filled: Rc::new(filled),
+            passes: Rc::new(passes),
+        }
+    }
+}
+
+impl Passes {
+    /// Each property of `schema` sorted into the passes it needs.
+    #[must_use]
+    pub fn of(schema: &toml::Value) -> Self {
+        let mut lists: [Vec<String>; 3] = Default::default();
         if let Some(table) = schema.as_table() {
-            for spec in table.values() {
+            for (prop, spec) in table {
+                let mut found = [false; 3];
                 scan_for_passes(spec, &mut found);
+                for (list, found) in lists.iter_mut().zip(found) {
+                    if found {
+                        list.push(prop.clone());
+                    }
+                }
             }
         }
-        let [has_color, has_asset, has_record] = found;
+        let [color, asset, record] = lists.map(Vec::into_boxed_slice);
         Self {
-            defaults: Rc::new(defaults_of(schema)),
-            has_color,
-            has_asset,
-            has_record,
+            color,
+            asset,
+            record,
         }
     }
 }
@@ -655,8 +689,14 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     // Resolving assets can read files and reach the asset cache, so the
     // schema is cloned and the registry borrow dropped first: a parser is free
     // to look things up.
-    let Resolved { index, schema, .. } = resolve(eng, name)?;
-    let full = properties(eng, &schema, params)?;
+    let Resolved {
+        index,
+        schema,
+        filled,
+        passes,
+        ..
+    } = resolve(eng, name)?;
+    let full = values::properties_known(eng, &schema, &filled, &passes, params)?;
     apply_at(eng, entity, index, name, &full, None)?;
     Ok(())
 }
@@ -688,9 +728,8 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         index,
         schema,
         defaults,
-        has_color,
-        has_asset,
-        has_record,
+        passes,
+        ..
     } = resolve(eng, name)?;
     // A write of what the component already holds changes nothing, and a
     // script setting a value every frame would otherwise rebuild it every frame.
@@ -732,18 +771,10 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         }
     }
     overlay(&schema, &mut out, Some(params))?;
-    if has_record {
-        fill_records(&schema, &mut out);
-    }
-    if has_color {
-        expand_colors(&schema, &mut out);
-    }
+    fill_records(&schema, &passes.record, &mut out);
+    expand_colors(&schema, &passes.color, &mut out);
+    values::resolve_assets(eng, &schema, &passes.asset, &mut out)?;
     let full = toml::Value::Table(out);
-    let full = if has_asset {
-        resolved(eng, &schema, full)?
-    } else {
-        full
-    };
     apply_at(eng, entity, index, name, &full, Some(params))?;
     Ok(())
 }
@@ -769,9 +800,10 @@ struct Resolved {
     schema: Rc<Schema>,
     /// [`Facts::defaults`], shared rather than rebuilt.
     defaults: Rc<toml::map::Map<String, toml::Value>>,
-    has_color: bool,
-    has_asset: bool,
-    has_record: bool,
+    /// [`Facts::filled`].
+    filled: Rc<toml::map::Map<String, toml::Value>>,
+    /// [`Facts::passes`].
+    passes: Rc<Passes>,
 }
 
 /// Resolve `name` once.
@@ -796,9 +828,8 @@ fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
         index,
         schema,
         defaults: facts.defaults.clone(),
-        has_color: facts.has_color,
-        has_asset: facts.has_asset,
-        has_record: facts.has_record,
+        filled: facts.filled.clone(),
+        passes: facts.passes.clone(),
     })
 }
 

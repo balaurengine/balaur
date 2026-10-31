@@ -163,6 +163,10 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
 /// owns these values.
 pub struct UiConfig {
     pub theme: ThemeTokens,
+    /// The document `ui.set_theme` built [`UiConfig::theme`] from, so the
+    /// same one again -- each screen of an app setting its theme -- skips
+    /// deriving the palette a second time.
+    pub theme_doc: Option<toml::Value>,
     /// Set by `ui.set_theme`, cleared once the theme reaches egui.
     pub changed: bool,
     pub scale: f32,
@@ -176,6 +180,7 @@ impl Default for UiConfig {
     fn default() -> Self {
         Self {
             theme: ThemeTokens::default(),
+            theme_doc: None,
             changed: false,
             scale: 1.0,
             asked: false,

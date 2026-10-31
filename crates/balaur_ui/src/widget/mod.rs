@@ -22,6 +22,7 @@ pub(crate) mod measure;
 pub(crate) mod node;
 pub(crate) mod numbers;
 pub(crate) mod paint;
+pub(crate) mod picture;
 pub(crate) mod pool;
 pub(crate) mod presets;
 pub(crate) mod properties;

@@ -22,6 +22,7 @@ pub(super) fn print_timings(log: &std::rc::Rc<std::cell::RefCell<balaur::timings
 pub(super) fn log_timings(
     app: &mut App,
 ) -> std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>> {
+    balaur::timings::count_cpu();
     let log = std::rc::Rc::new(std::cell::RefCell::new(
         balaur::timings::TimingLog::default(),
     ));

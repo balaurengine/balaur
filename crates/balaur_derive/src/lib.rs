@@ -367,7 +367,19 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
     })
 }
 
-fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
+/// The names in the order a table's keys sort in, each with its field index,
+/// so a table is read in one walk rather than a lookup per field.
+fn by_name(names: &[String]) -> Vec<Tokens> {
+    let mut sorted: Vec<(&String, usize)> = names.iter().zip(0usize..).collect();
+    sorted.sort();
+    sorted
+        .into_iter()
+        .map(|(name, index)| quote!((#name, #index)))
+        .collect()
+}
+
+/// The struct's named fields, or the error a derive on anything else is.
+fn named_fields(input: &DeriveInput) -> syn::Result<&syn::FieldsNamed> {
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new(
             input.ident.span(),
@@ -380,6 +392,11 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
             "only a struct with named fields derives this",
         ));
     };
+    Ok(fields)
+}
+
+fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
+    let fields = named_fields(input)?;
     let derived = quote!(::balaur_core::components::derived);
     let toml = quote!(#derived::toml);
     let ident = &input.ident;
@@ -399,6 +416,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
         writes.push(parts.write);
     }
     let count = names.len();
+    let by_name = by_name(&names);
 
     let fields_impl = quote! {
         impl #impl_generics ::core::default::Default for #ident #type_generics #where_clause {
@@ -409,6 +427,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
 
         impl #impl_generics #derived::Fields for #ident #type_generics #where_clause {
             const NAMES: &'static [&'static str] = &[#(#names),*];
+            const BY_NAME: &'static [(&'static str, usize)] = &[#(#by_name),*];
 
             fn specs() -> ::std::vec::Vec<#toml::Value> {
                 let start = <Self as ::core::default::Default>::default();

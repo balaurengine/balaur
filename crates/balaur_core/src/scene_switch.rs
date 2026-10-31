@@ -137,6 +137,10 @@ fn roots_alpha(eng: &Engine, alpha: f32) {
 }
 
 fn switch_now(eng: &Engine, scene: &str) -> Result<()> {
+    crate::timings::measure(eng, "scene/switch", || switch_to(eng, scene))
+}
+
+fn switch_to(eng: &Engine, scene: &str) -> Result<()> {
     let root = eng.root();
     let children: Vec<crate::hecs::Entity> = {
         let world = eng.world();

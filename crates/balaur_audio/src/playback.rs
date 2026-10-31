@@ -7,23 +7,46 @@
 //! numbers, never read off a sink, so a run with no sound card and a replay
 //! reach every boundary on the same tick as one with speakers.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::FileSettings;
+
+/// A sound file's encoded bytes, shared by every play of it, and how long it
+/// runs once a play has asked. Finding that builds a decoder, which for a
+/// Vorbis file is its whole codebook setup, so the cache's copy answers it
+/// once rather than every play.
+#[derive(Clone)]
+pub struct SoundBytes {
+    pub bytes: Arc<[u8]>,
+    pub(crate) length: Arc<OnceLock<Option<f64>>>,
+}
+
+impl From<Vec<u8>> for SoundBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            length: Arc::default(),
+        }
+    }
+}
 
 /// One file a play reads: its encoded bytes and its own import settings.
 #[derive(Clone)]
 pub struct Clip {
     pub bytes: Arc<[u8]>,
     pub file: FileSettings,
+    /// [`SoundBytes`]'s length, shared with every other play of the file.
+    pub(crate) length: Arc<OnceLock<Option<f64>>>,
 }
 
 impl Clip {
     #[must_use]
-    pub fn new(bytes: Vec<u8>, file: FileSettings) -> Self {
+    pub fn new(sound: impl Into<SoundBytes>, file: FileSettings) -> Self {
+        let sound = sound.into();
         Self {
-            bytes: bytes.into(),
+            bytes: sound.bytes,
             file,
+            length: sound.length,
         }
     }
 }

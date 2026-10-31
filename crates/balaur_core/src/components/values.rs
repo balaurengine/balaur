@@ -11,12 +11,16 @@ use super::*;
 /// Every declared field of a `record` value, so a scene naming one of two
 /// fields still hands `apply` both. A key no field answers to is dropped:
 /// the record's shape is the schema's.
-pub(super) fn fill_records(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Value>) {
-    let Some(table) = schema.as_table() else {
-        return;
-    };
-    for (prop, spec) in table {
-        if let Some(value) = out.get_mut(prop) {
+///
+/// `props` are the properties holding a record ([`super::Passes::record`]);
+/// no other one has anything to fill.
+pub(super) fn fill_records(
+    schema: &toml::Value,
+    props: &[String],
+    out: &mut toml::map::Map<String, toml::Value>,
+) {
+    for prop in props {
+        if let (Some(spec), Some(value)) = (schema.get(prop), out.get_mut(prop)) {
             fill_record_value(spec, value);
         }
     }
@@ -95,12 +99,15 @@ pub fn rgba(value: &toml::Value) -> Option<[f32; 4]> {
 /// colour property that exists or is added later. Before this, `color =
 /// "#ff0000"` on a node reached an `as_array()` that returned `None` and fell
 /// through to the default grey without a word.
-pub(super) fn expand_colors(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Value>) {
-    let Some(table) = schema.as_table() else {
-        return;
-    };
-    for (prop, spec) in table {
-        if let Some(value) = out.get_mut(prop) {
+///
+/// `props` are the properties holding a colour ([`super::Passes::color`]).
+pub(super) fn expand_colors(
+    schema: &toml::Value,
+    props: &[String],
+    out: &mut toml::map::Map<String, toml::Value>,
+) {
+    for prop in props {
+        if let (Some(spec), Some(value)) = (schema.get(prop), out.get_mut(prop)) {
             expand_color_value(prop, spec, value);
         }
     }
@@ -178,10 +185,11 @@ pub(super) fn fields_mut<'a>(
 }
 
 pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> Result<toml::Value> {
+    let passes = Passes::of(schema);
     let mut out = defaults_of(schema);
     overlay(schema, &mut out, params)?;
-    fill_records(schema, &mut out);
-    expand_colors(schema, &mut out);
+    fill_records(schema, &passes.record, &mut out);
+    expand_colors(schema, &passes.color, &mut out);
     Ok(toml::Value::Table(out))
 }
 
@@ -274,20 +282,43 @@ pub fn properties(
     schema: &toml::Value,
     params: Option<&toml::Value>,
 ) -> Result<toml::Value> {
-    resolved(eng, schema, merge_defaults(schema, params)?)
+    let passes = Passes::of(schema);
+    let mut out = defaults_of(schema);
+    overlay(schema, &mut out, params)?;
+    fill_records(schema, &passes.record, &mut out);
+    expand_colors(schema, &passes.color, &mut out);
+    resolve_assets(eng, schema, &passes.asset, &mut out)?;
+    Ok(toml::Value::Table(out))
 }
 
-/// Every asset-typed property of an already-merged table turned into a
-/// reference, which is the last thing that happens before `apply` sees it.
-pub(super) fn resolved(
+/// [`properties`], with what the registry's facts already know of the
+/// schema: its defaults with every record filled and colour expanded, so
+/// only the properties `params` writes take those passes again, and which
+/// properties hold an asset.
+pub(crate) fn properties_known(
     eng: &Engine,
     schema: &toml::Value,
-    mut full: toml::Value,
+    filled: &toml::map::Map<String, toml::Value>,
+    passes: &Passes,
+    params: Option<&toml::Value>,
 ) -> Result<toml::Value> {
-    if let Some(table) = full.as_table_mut() {
-        resolve_assets(eng, schema, table)?;
+    let mut out = filled.clone();
+    overlay(schema, &mut out, params)?;
+    if let Some(toml::Value::Table(written)) = params {
+        for prop in written.keys() {
+            let (Some(spec), Some(value)) = (schema.get(prop), out.get_mut(prop)) else {
+                continue;
+            };
+            if passes.record.contains(prop) {
+                fill_record_value(spec, value);
+            }
+            if passes.color.contains(prop) {
+                expand_color_value(prop, spec, value);
+            }
+        }
     }
-    Ok(full)
+    resolve_assets(eng, schema, &passes.asset, &mut out)?;
+    Ok(toml::Value::Table(out))
 }
 
 /// A string is a reference; a table is a definition.
@@ -296,16 +327,16 @@ pub(super) fn resolved(
 /// spellings with no code of its own. An inline table is recorded in the asset
 /// cache and replaced by the reference that now names it, which leaves the
 /// property table pure TOML and every `apply` hook reading one shape.
-fn resolve_assets(
+///
+/// `props` are the properties holding an asset ([`super::Passes::asset`]).
+pub(super) fn resolve_assets(
     eng: &Engine,
     schema: &toml::Value,
+    props: &[String],
     out: &mut toml::map::Map<String, toml::Value>,
 ) -> Result<()> {
-    let Some(table) = schema.as_table() else {
-        return Ok(());
-    };
-    for (prop, spec) in table {
-        if let Some(value) = out.get_mut(prop) {
+    for prop in props {
+        if let (Some(spec), Some(value)) = (schema.get(prop), out.get_mut(prop)) {
             resolve_asset_value(eng, prop, spec, value)?;
         }
     }

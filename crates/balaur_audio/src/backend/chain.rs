@@ -27,12 +27,15 @@ fn decoder(clip: &Clip) -> Result<rodio::Decoder<Cursor<Arc<[u8]>>>> {
         .build()?)
 }
 
-/// How long a clip plays at speed 1, when its container says.
+/// How long a clip plays at speed 1, when its container says: found once
+/// per file, however many plays ask.
 pub(crate) fn length_of(clip: &Clip) -> Option<f64> {
-    decoder(clip)
-        .ok()?
-        .total_duration()
-        .map(|length| length.as_secs_f64())
+    *clip.length.get_or_init(|| {
+        decoder(clip)
+            .ok()?
+            .total_duration()
+            .map(|length| length.as_secs_f64())
+    })
 }
 
 /// A span of seconds rodio can take: negative is none, too long is forever.

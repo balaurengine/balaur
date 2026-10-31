@@ -707,6 +707,7 @@ dependencies = [
  "hecs",
  "indexmap",
  "js-sys",
+ "libc",
  "libm",
  "mio",
  "rayon",
@@ -725,6 +726,7 @@ dependencies = [
  "tracing-subscriber",
  "web-sys",
  "web-time",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

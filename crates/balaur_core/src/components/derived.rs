@@ -45,6 +45,9 @@ pub trait Property: Sized {
 pub trait Fields: Default {
     /// Each property's name in field order: its index is its place here.
     const NAMES: &'static [&'static str];
+    /// [`Fields::NAMES`] sorted, each with its index: how a table's keys,
+    /// which come sorted, find their fields.
+    const BY_NAME: &'static [(&'static str, usize)];
     /// Each property's spec in field order, its `default` included.
     fn specs() -> Vec<toml::Value>;
     /// One property, by its index.
@@ -124,13 +127,14 @@ pub enum Written {
 
 /// Every property of `held`, as the table a file holds.
 pub fn to_table<F: Fields>(held: &F) -> toml::Value {
-    let mut out = toml::map::Map::new();
-    for (index, name) in F::NAMES.iter().enumerate() {
-        if let Some(value) = held.read(index) {
-            out.insert((*name).to_owned(), value);
-        }
-    }
-    toml::Value::Table(out)
+    // Collected in sorted order, which a map builds in one pass rather than
+    // an insert per property.
+    toml::Value::Table(
+        F::BY_NAME
+            .iter()
+            .filter_map(|&(name, index)| Some((name.to_owned(), held.read(index)?)))
+            .collect(),
+    )
 }
 
 /// A struct from a table: what the table names, the defaults for the rest.
@@ -142,9 +146,20 @@ pub fn from_table<F: Fields>(table: &toml::Value) -> Result<F> {
             table.type_str()
         ));
     };
-    for (index, name) in F::NAMES.iter().enumerate() {
-        if let Some(value) = table.get(*name) {
-            out.write(index, value)?;
+    // A table's keys come sorted, so each one is found by stepping on from
+    // the last: one walk over both. A key out of that order is searched for.
+    let mut next = 0;
+    for (key, value) in table {
+        let rest = &F::BY_NAME[next.min(F::BY_NAME.len())..];
+        let found = match rest.iter().position(|(name, _)| *name >= key.as_str()) {
+            Some(at) if rest[at].0 == key => Some(next + at),
+            _ => F::BY_NAME
+                .binary_search_by(|(name, _)| (*name).cmp(key.as_str()))
+                .ok(),
+        };
+        if let Some(at) = found {
+            out.write(F::BY_NAME[at].1, value)?;
+            next = at + 1;
         }
     }
     Ok(out)

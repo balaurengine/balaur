@@ -165,6 +165,88 @@ pub struct Timings {
     pub spans: Vec<(SmolStr, Duration)>,
     /// Spans of the frame in progress, moved into `spans` when it ends.
     pending: Vec<(SmolStr, Duration)>,
+    /// The CPU time every thread of the process spent since the last frame
+    /// ended; against [`Timings::interval`], how many cores the frame kept busy. Zero where
+    /// the platform does not say ([`process_cpu`]).
+    pub cpu: Duration,
+    /// Each span's CPU time, every thread's, while [`count_cpu`] is on: what a
+    /// span that fans out to the thread pool spent against its wall time.
+    pub span_cpu: Vec<(SmolStr, Duration)>,
+    pending_cpu: Vec<(SmolStr, Duration)>,
+    /// The process's CPU time when the last frame ended.
+    cpu_at: Option<Duration>,
+    /// Wall time since the frame before was published: the window
+    /// [`Timings::cpu`] was counted over.
+    pub interval: Duration,
+    /// When the last frame was published.
+    published_at: Option<Instant>,
+}
+
+/// Whether spans count their CPU time as well, which costs a system call
+/// each: on while a run's timings are being logged.
+static COUNT_CPU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Count every span's CPU time from now on, for [`TimingLog`]'s report.
+pub fn count_cpu() {
+    COUNT_CPU.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The CPU time every thread of the process has spent so far, as the
+/// operating system counts it; `None` where it does not.
+#[must_use]
+pub fn process_cpu() -> Option<Duration> {
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "linux",
+        target_os = "android"
+    ))]
+    {
+        let mut at = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        // SAFETY: a plain call writing the clock into a timespec we own.
+        let read = unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &raw mut at) };
+        (read == 0).then(|| {
+            Duration::new(
+                u64::try_from(at.tv_sec).unwrap_or(0),
+                u32::try_from(at.tv_nsec).unwrap_or(0),
+            )
+        })
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::FILETIME;
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+        let zero = FILETIME {
+            dwLowDateTime: 0,
+            dwHighDateTime: 0,
+        };
+        let (mut created, mut exited, mut kernel, mut user) = (zero, zero, zero, zero);
+        // SAFETY: the current process's pseudo-handle and four FILETIMEs we own.
+        let read = unsafe {
+            GetProcessTimes(
+                GetCurrentProcess(),
+                &raw mut created,
+                &raw mut exited,
+                &raw mut kernel,
+                &raw mut user,
+            )
+        };
+        let ticks = |t: FILETIME| (u64::from(t.dwHighDateTime) << 32) | u64::from(t.dwLowDateTime);
+        (read != 0).then(|| Duration::from_nanos((ticks(kernel) + ticks(user)) * 100))
+    }
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "linux",
+        target_os = "android",
+        windows
+    )))]
+    {
+        None
+    }
 }
 
 impl Timings {
@@ -198,9 +280,19 @@ pub fn note_wall(eng: &Engine, frame: Duration) {
 /// frame records it twice, which is what a system that runs per fixed step
 /// should look like.
 pub fn measure<T>(eng: &Engine, name: &str, body: impl FnOnce() -> T) -> T {
+    let counting = COUNT_CPU.load(std::sync::atomic::Ordering::Relaxed);
+    let cpu = counting.then(process_cpu).flatten();
     let started = Instant::now();
     let out = body();
     record(eng, name, started.elapsed());
+    if let (Some(before), Some(after)) = (cpu, counting.then(process_cpu).flatten())
+        && let Some(timings) = eng.try_resource::<Timings>()
+    {
+        timings
+            .borrow_mut()
+            .pending_cpu
+            .push((name.into(), after.saturating_sub(before)));
+    }
     out
 }
 
@@ -217,6 +309,18 @@ pub(crate) fn publish(eng: &Engine, frame: Duration, stages: [Duration; 8], fixe
     timings.stages = stages;
     timings.fixed_steps = fixed_steps;
     timings.spans = std::mem::take(&mut timings.pending);
+    timings.span_cpu = std::mem::take(&mut timings.pending_cpu);
+    let now = process_cpu();
+    timings.cpu = match (timings.cpu_at, now) {
+        (Some(before), Some(now)) => now.saturating_sub(before),
+        _ => Duration::ZERO,
+    };
+    timings.cpu_at = now;
+    let at = Instant::now();
+    timings.interval = timings
+        .published_at
+        .map_or(Duration::ZERO, |before| at.duration_since(before));
+    timings.published_at = Some(at);
 }
 
 /// The last frame, as a script sees it: seconds, because every other duration
@@ -277,6 +381,20 @@ pub struct TimingLog {
     stage_totals: [Duration; 8],
     stage_worst: [Duration; 8],
     spans: Vec<SpanTotal>,
+    /// Every frame, for the distribution and the spikes in it.
+    marks: Vec<Mark>,
+    /// CPU time and wall time of every span that counted its CPU, by name.
+    span_cpu: Vec<(String, Duration, Duration)>,
+}
+
+/// One frame as the spike report reads it: how long it took, how much CPU
+/// it kept busy, and what in it cost the most.
+struct Mark {
+    period: Duration,
+    /// [`Timings::cpu`] and the [`Timings::interval`] it was spent over.
+    cpu: Duration,
+    interval: Duration,
+    costliest: (SmolStr, Duration),
 }
 
 /// One span's totals over a run. `calls` is what tells a pass that runs twice
@@ -291,6 +409,33 @@ struct SpanTotal {
 impl TimingLog {
     /// Fold the last frame in. Called once per frame while `--timings` is on.
     pub fn observe(&mut self, timings: &Timings) {
+        // The loop notes the period of the frame it last drew after this
+        // table's stages ran, so it is the previous frame's: frame to frame
+        // where the loop measured one, the stages where nothing did.
+        if let Some(previous) = self.marks.last_mut() {
+            previous.period = previous.period.max(timings.wall);
+        }
+        self.marks.push(Mark {
+            period: timings.frame,
+            cpu: timings.cpu,
+            interval: timings.interval,
+            costliest: costliest(timings),
+        });
+        for (name, cpu) in &timings.span_cpu {
+            let wall = timings
+                .spans
+                .iter()
+                .filter(|(n, _)| n == name)
+                .map(|(_, d)| *d)
+                .sum();
+            match self.span_cpu.iter_mut().find(|s| s.0 == name.as_str()) {
+                Some(slot) => {
+                    slot.1 += *cpu;
+                    slot.2 += wall;
+                }
+                None => self.span_cpu.push((name.to_string(), *cpu, wall)),
+            }
+        }
         self.frames += 1;
         self.frame_total += timings.frame;
         self.frame_worst = self.frame_worst.max(timings.frame);
@@ -383,7 +528,98 @@ impl TimingLog {
                 100.0 * Timings::share(self.wall_total / frames),
             );
         }
+        out.push_str(&self.distribution());
         out
+    }
+
+    /// The frame times' spread, the frames that stood out of it and what each
+    /// spent its time on, and how many cores the run kept busy.
+    fn distribution(&self) -> String {
+        let mut periods: Vec<Duration> = self.marks.iter().map(|m| m.period).collect();
+        periods.sort_unstable();
+        let at = |share: f64| {
+            let last = periods.len().saturating_sub(1);
+            periods[((last as f64) * share).round() as usize]
+        };
+        let (median, mut out) = (at(0.5), String::new());
+        let _ = writeln!(
+            out,
+            "\nframes  p50 {}  p95 {}  p99 {}  worst {}",
+            millis(median),
+            millis(at(0.95)),
+            millis(at(0.99)),
+            millis(at(1.0)),
+        );
+        // Twice the median and a millisecond over it: a frame a player could
+        // feel, not one a fast frame's noise doubles.
+        let over = median * 2;
+        let mut spikes: Vec<(usize, &Mark)> = self
+            .marks
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.period > over && m.period > median + Duration::from_millis(1))
+            .collect();
+        let _ = writeln!(out, "spikes  {} over twice the median", spikes.len());
+        spikes.sort_by_key(|(_, m)| std::cmp::Reverse(m.period));
+        for (frame, mark) in spikes.iter().take(8) {
+            let _ = writeln!(
+                out,
+                "  frame {frame}: {}, most in {} ({})",
+                millis(mark.period),
+                mark.costliest.0,
+                millis(mark.costliest.1),
+            );
+        }
+        let (cpu, period): (Duration, Duration) = self
+            .marks
+            .iter()
+            .fold((Duration::ZERO, Duration::ZERO), |(c, p), m| {
+                (c + m.cpu, p + m.interval)
+            });
+        if cpu > Duration::ZERO && period > Duration::ZERO {
+            // Over a frame long enough for the clock to have moved: the
+            // operating system counts other threads' time in slices, and one
+            // landing in a 100 µs frame reads as a dozen cores.
+            let busiest = self
+                .marks
+                .iter()
+                .filter(|m| m.interval >= Duration::from_millis(4))
+                .map(|m| m.cpu.as_secs_f64() / m.interval.as_secs_f64())
+                .fold(0.0, f64::max);
+            let _ = writeln!(
+                out,
+                "cpu     {:.2} cores busy on average, {busiest:.2} in the busiest frame",
+                cpu.as_secs_f64() / period.as_secs_f64(),
+            );
+        }
+        // A span the run spent under 20 ms in is too short for the same
+        // reason: its few slices are noise, not its parallelism.
+        for (name, cpu, wall) in &self.span_cpu {
+            if *wall >= Duration::from_millis(20) {
+                let _ = writeln!(
+                    out,
+                    "  {name}: {:.2} cores busy while it ran",
+                    cpu.as_secs_f64() / wall.as_secs_f64()
+                );
+            }
+        }
+        out
+    }
+}
+
+/// What in a frame cost the most: its costliest span, which names the work,
+/// or its costliest stage where no span was filed.
+fn costliest(timings: &Timings) -> (SmolStr, Duration) {
+    let span = timings.spans.iter().max_by_key(|(_, d)| *d).cloned();
+    let stage = STAGE_NAMES
+        .iter()
+        .zip(timings.stages)
+        .max_by_key(|(_, d)| *d)
+        .map(|(n, d)| (SmolStr::new(n), d));
+    match (span, stage) {
+        (Some(span), _) => span,
+        (None, Some(stage)) => stage,
+        (None, None) => (SmolStr::default(), Duration::ZERO),
     }
 }
 

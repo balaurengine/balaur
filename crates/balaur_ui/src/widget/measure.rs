@@ -169,7 +169,7 @@ impl<'a> Measure<'a> {
                             let native =
                                 crate::images::native_size(self.eng, &widget.source, &texture);
                             let (_, drawn) = crate::images::region_uv(native, widget.egui.region);
-                            crate::widget::layer::image_size(
+                            crate::widget::picture::image_size(
                                 vec2(widget.width, widget.height),
                                 drawn,
                             )
