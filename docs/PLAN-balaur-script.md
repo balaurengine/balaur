@@ -85,7 +85,8 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
   every module. `Runtime::live` counts objects; every test ends at its
   baseline.
 - A cycle leaks. Without closures or reference structs, the only cycle is an
-  array holding itself.
+  array or an `any` holding itself; read by the host, the place it closes
+  reads as nil.
 
 ## 3. Host and state
 

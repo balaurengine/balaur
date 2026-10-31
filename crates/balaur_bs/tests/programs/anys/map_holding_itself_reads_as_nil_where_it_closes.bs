@@ -1,0 +1,12 @@
+// A map holding itself is a cycle the counts never free; read by the host,
+// the place it closes reads as nil rather than without end.
+
+pub fn cyclic() -> any {
+    let m: any = { "a": 1 };
+    let l: any = [m];
+    m.set("me", m);
+    m.set("list", l);
+    m
+}
+
+// expect: cyclic() == { "a": 1, "me": (), "list": [()] }
