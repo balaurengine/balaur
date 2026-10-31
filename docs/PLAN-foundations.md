@@ -1,10 +1,12 @@
-> **Status:** planned 2026-10-30, nothing built. Everything here lands on
-> `editor-followups`, after the work its handover lists
-> (`docs/HANDOVER-editor-followups.md`), which stays the source for those
-> steps. Work that does not touch the handover's crates starts on its own
-> branch (`script-tests` first) and merges into `editor-followups`; the rest
-> starts there once the handover's in-flight work is committed. One step at
-> a time, committed per step, never pushed (user, 2026-10-30).
+> **Status:** planned 2026-10-30; where each workstream stands, 2026-10-31:
+> the core split and the ECS are built (PLAN-core-split, PLAN-ecs); the
+> script tests are built but for the random programs' structs, enums, maps
+> and native code and forge's build-size page (PLAN-script-tests §2, §8,
+> §9); of the editor follow-ups, the derive is finished and the per-kind
+> splits are done for primitives, colliders, joints and soft bodies, with
+> the `widget` split, the typed physics builders and the stricter language
+> open (HANDOVER-editor-followups); the UI gaps wait on the `widget` split
+> (PLAN-ui-gaps).
 
 # Plan: foundations
 
