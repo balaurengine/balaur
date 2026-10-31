@@ -26,6 +26,8 @@ pub struct LineBox {
     /// The bytes of its paragraph it starts and ends at.
     pub bytes: (usize, usize),
     pub rtl: bool,
+    /// Which of [`Clusters::clusters`] sit on it, a run of them.
+    pub clusters: (usize, usize),
 }
 
 /// Where every cluster of a text sits: what a caret, a click and a selection
@@ -60,6 +62,7 @@ pub(crate) fn clusters(buffer: &Buffer, text: &str, line_height: f32) -> Cluster
     for run in buffer.layout_runs() {
         let base = starts.get(run.line_i).copied().unwrap_or(text.len());
         let line = out.lines.len();
+        let from = out.clusters.len();
         let mut first = usize::MAX;
         let mut last = 0;
         for glyph in run.glyphs {
@@ -96,6 +99,7 @@ pub(crate) fn clusters(buffer: &Buffer, text: &str, line_height: f32) -> Cluster
             height: run.line_height,
             bytes: (start, end),
             rtl: run.rtl,
+            clusters: (from, out.clusters.len()),
         });
     }
     if out.lines.is_empty() {
@@ -104,17 +108,40 @@ pub(crate) fn clusters(buffer: &Buffer, text: &str, line_height: f32) -> Cluster
             height: line_height,
             bytes: (0, 0),
             rtl: false,
+            clusters: (0, 0),
         });
     }
     out
 }
 
+/// A text laid out for editing: the glyphs a label would draw for it, and
+/// the boxes its caret, clicks and selection are measured against, both from
+/// one layout so they cannot disagree.
+pub struct Laid {
+    pub shaped: crate::Shaped,
+    pub clusters: Clusters,
+}
+
 impl Clusters {
+    /// The line `offset` falls on: the last one starting at or before it.
     fn line_of(&self, offset: usize) -> usize {
         self.lines
-            .iter()
-            .rposition(|l| l.bytes.0 <= offset)
-            .unwrap_or(0)
+            .partition_point(|l| l.bytes.0 <= offset)
+            .saturating_sub(1)
+    }
+
+    /// The clusters a caret before `offset` can touch: its line's and the
+    /// line's before it, where a cluster ending there may sit. A whole file
+    /// is laid out at once, so a caret never walks every cluster in it.
+    fn near(&self, offset: usize) -> &[Cluster] {
+        let line = self.line_of(offset);
+        let from = self.lines[line.saturating_sub(1)].clusters.0;
+        &self.clusters[from..self.lines[line].clusters.1]
+    }
+
+    fn on_line(&self, line: usize) -> &[Cluster] {
+        let (from, to) = self.lines[line].clusters;
+        &self.clusters[from..to]
     }
 
     /// Where a caret before byte `offset` stands: its x and its line. The
@@ -122,15 +149,15 @@ impl Clusters {
     /// the one ending there, which is where a right-to-left run puts it.
     #[must_use]
     pub fn caret(&self, offset: usize) -> (f32, usize) {
-        if let Some(c) = self.clusters.iter().find(|c| c.bytes.0 == offset) {
+        let near = self.near(offset);
+        if let Some(c) = near.iter().find(|c| c.bytes.0 == offset) {
             return (if c.rtl { c.x + c.width } else { c.x }, c.line);
         }
-        if let Some(c) = self.clusters.iter().rev().find(|c| c.bytes.1 == offset) {
+        if let Some(c) = near.iter().rev().find(|c| c.bytes.1 == offset) {
             return (if c.rtl { c.x } else { c.x + c.width }, c.line);
         }
         // Inside a ligature: the cluster's box shared out by its bytes.
-        if let Some(c) = self
-            .clusters
+        if let Some(c) = near
             .iter()
             .find(|c| c.bytes.0 < offset && offset < c.bytes.1)
         {
@@ -144,24 +171,12 @@ impl Clusters {
         }
         // An empty line, or the one after a line break.
         let line = self.line_of(offset);
+        let rtl = self.lines[line].rtl;
         let at = self
-            .clusters
+            .on_line(line)
             .iter()
-            .filter(|c| c.line == line)
-            .map(|c| {
-                if self.lines[line].rtl {
-                    c.x + c.width
-                } else {
-                    c.x
-                }
-            })
-            .reduce(|a, b| {
-                if self.lines[line].rtl {
-                    a.max(b)
-                } else {
-                    a.min(b)
-                }
-            });
+            .map(|c| if rtl { c.x + c.width } else { c.x })
+            .reduce(|a, b| if rtl { a.max(b) } else { a.min(b) });
         (at.unwrap_or(0.0), line)
     }
 
@@ -183,9 +198,8 @@ impl Clusters {
             .position(|l| point.y < l.top + l.height)
             .unwrap_or(self.lines.len() - 1);
         let nearest = self
-            .clusters
+            .on_line(line)
             .iter()
-            .filter(|c| c.line == line)
             .min_by(|a, b| distance(a, point.x).total_cmp(&distance(b, point.x)));
         let Some(c) = nearest else {
             return self.lines[line].bytes.0;
@@ -199,10 +213,9 @@ impl Clusters {
             reason = "a share of a cluster's few bytes"
         )]
         let target = c.bytes.0 as f32 + read * (c.bytes.1 - c.bytes.0) as f32;
-        self.stops
+        self.stops_in(c.bytes.0, c.bytes.1)
             .iter()
             .copied()
-            .filter(|s| (c.bytes.0..=c.bytes.1).contains(s))
             .min_by(|a, b| {
                 #[allow(clippy::cast_precision_loss, reason = "byte offsets in one text")]
                 let (da, db) = ((*a as f32 - target).abs(), (*b as f32 - target).abs());
@@ -211,10 +224,20 @@ impl Clusters {
             .unwrap_or(c.bytes.0)
     }
 
+    /// The caret stops from byte `from` to byte `to`, both ends included.
+    fn stops_in(&self, from: usize, to: usize) -> &[usize] {
+        let start = self.stops.partition_point(|s| *s < from);
+        let end = self.stops.partition_point(|s| *s <= to);
+        &self.stops[start..end.max(start)]
+    }
+
     /// The boxes a selection of `bytes` paints, a cluster at a time.
     #[must_use]
     pub fn selection(&self, bytes: Range<usize>) -> Vec<Rect> {
-        self.clusters
+        let first = self.line_of(bytes.start);
+        let last = self.line_of(bytes.end);
+        let (from, to) = (self.lines[first].clusters.0, self.lines[last].clusters.1);
+        self.clusters[from..to]
             .iter()
             .filter(|c| bytes.start <= c.bytes.0 && c.bytes.1 <= bytes.end)
             .map(|c| {
@@ -240,6 +263,70 @@ impl Clusters {
         let l = self.lines.get(next)?;
         Some(self.offset_at(pos2(x, l.top + l.height / 2.0)))
     }
+
+    /// The next caret stop to the right or left of `offset` as its line is
+    /// drawn, whatever direction the text runs in there; past the line's
+    /// end, the next line's start, and `None` past the text's.
+    #[must_use]
+    pub fn beside(&self, offset: usize, right: bool) -> Option<usize> {
+        let (x, line) = self.caret(offset);
+        let (from, to) = self.lines[line].bytes;
+        let ahead = |s: usize| {
+            let (sx, on) = self.caret(s);
+            let gap = if right { sx - x } else { x - sx };
+            (on == line && gap > 0.01).then_some(gap)
+        };
+        let next = self
+            .stops_in(from, to)
+            .iter()
+            .filter_map(|s| ahead(*s).map(|gap| (gap, *s)))
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, s)| s);
+        if next.is_some() {
+            return next;
+        }
+        // Off the end of the line: on to the next line's start, or back to
+        // the previous line's end, in the order the lines read.
+        let rtl = self.lines[line].rtl;
+        let onward = right != rtl;
+        if onward {
+            self.lines.get(line + 1).map(|l| l.bytes.0)
+        } else {
+            line.checked_sub(1).map(|l| self.lines[l].bytes.1)
+        }
+    }
+
+    /// Whether the text at `offset` runs right to left: the cluster starting
+    /// there, else the one ending there, else its line's direction.
+    #[must_use]
+    pub fn rtl_at(&self, offset: usize) -> bool {
+        let near = self.near(offset);
+        near.iter()
+            .find(|c| c.bytes.0 == offset)
+            .or_else(|| near.iter().rev().find(|c| c.bytes.1 == offset))
+            .map_or_else(|| self.lines[self.line_of(offset)].rtl, |c| c.rtl)
+    }
+
+    /// `line`'s boxes put after these, its bytes from `base` and its top at
+    /// `top`: a file laid out a line at a time, each line apart, read as one.
+    pub fn append(&mut self, line: &Self, base: usize, top: f32) {
+        let lines = self.lines.len();
+        let clusters = self.clusters.len();
+        self.clusters.extend(line.clusters.iter().map(|c| Cluster {
+            bytes: (c.bytes.0 + base, c.bytes.1 + base),
+            line: c.line + lines,
+            ..*c
+        }));
+        self.lines.extend(line.lines.iter().map(|l| LineBox {
+            top: l.top + top,
+            bytes: (l.bytes.0 + base, l.bytes.1 + base),
+            clusters: (l.clusters.0 + clusters, l.clusters.1 + clusters),
+            ..*l
+        }));
+        let from = usize::from(self.stops.last() == Some(&base));
+        self.stops
+            .extend(line.stops.iter().skip(from).map(|s| s + base));
+    }
 }
 
 fn distance(c: &Cluster, x: f32) -> f32 {
@@ -258,8 +345,16 @@ pub enum Motion {
     /// One grapheme back or on, in the order the text is stored.
     Back,
     Forward,
+    /// One caret stop left or right as the line is drawn: what the arrow
+    /// keys do, through text running either way.
+    Left,
+    Right,
     WordBack,
     WordForward,
+    /// A word left or right: back through text running left to right, on
+    /// through text running right to left.
+    WordLeft,
+    WordRight,
     LineStart,
     LineEnd,
     Up,
@@ -386,6 +481,21 @@ impl Editing {
             .unwrap_or(0)
     }
 
+    /// The word around `offset` selected, or the spaces or the mark there:
+    /// what a double click takes.
+    pub fn select_word(&mut self, offset: usize) {
+        let offset = self.boundary_at(offset);
+        let (start, end) = self
+            .text
+            .split_word_bound_indices()
+            .map(|(at, word)| (at, at + word.len()))
+            .find(|(start, end)| *start <= offset && offset < *end)
+            .unwrap_or((offset, offset));
+        self.anchor = start;
+        self.caret = end;
+        self.typing = false;
+    }
+
     pub fn select_all(&mut self) {
         self.anchor = 0;
         self.caret = self.text.len();
@@ -438,13 +548,33 @@ impl Editing {
     pub fn motion(&mut self, motion: Motion, extend: bool, layout: &Clusters) {
         let selection = self.selection();
         let at = self.caret;
+        let collapsed = !extend && !selection.is_empty();
         let to = match motion {
-            Motion::Back if !extend && !selection.is_empty() => selection.start,
-            Motion::Forward if !extend && !selection.is_empty() => selection.end,
+            Motion::Back if collapsed => selection.start,
+            Motion::Forward if collapsed => selection.end,
+            Motion::Left | Motion::Right if collapsed => {
+                let (start, end) = (layout.caret(selection.start), layout.caret(selection.end));
+                let start_first = (start.1, start.0) <= (end.1, end.0);
+                if start_first == (motion == Motion::Left) {
+                    selection.start
+                } else {
+                    selection.end
+                }
+            }
             Motion::Back => self.grapheme_back(at),
             Motion::Forward => self.grapheme_forward(at),
+            Motion::Left => layout.beside(at, false).unwrap_or(at),
+            Motion::Right => layout.beside(at, true).unwrap_or(at),
             Motion::WordBack => self.word_back(at),
             Motion::WordForward => self.word_forward(at),
+            Motion::WordLeft | Motion::WordRight => {
+                let onward = (motion == Motion::WordRight) ^ layout.rtl_at(at);
+                if onward {
+                    self.word_forward(at)
+                } else {
+                    self.word_back(at)
+                }
+            }
             Motion::LineStart => layout.line_bytes(at).0,
             Motion::LineEnd => layout.line_bytes(at).1,
             Motion::Up => layout.vertical(at, false).unwrap_or(0),
@@ -552,21 +682,44 @@ impl Editing {
         Some(taken)
     }
 
+    /// The byte of the text a byte of what [`Self::shown`] drew stands for:
+    /// where a click on the drawing puts the caret. A dot is its grapheme,
+    /// and a click inside a composition lands where the composition is.
+    #[must_use]
+    pub fn from_shown(&self, offset: usize, secret: bool) -> usize {
+        let mut offset = offset;
+        if let Some(preedit) = &self.composing {
+            let (_, _, selected) = self.uncomposed(secret);
+            offset = if offset <= selected.start {
+                offset
+            } else if offset < selected.start + preedit.len() {
+                selected.start
+            } else {
+                offset - preedit.len() + selected.len()
+            };
+        }
+        if !secret {
+            return self.boundary_at(offset);
+        }
+        let graphemes = offset / SECRET.len_utf8();
+        self.text
+            .grapheme_indices(true)
+            .map(|(at, _)| at)
+            .nth(graphemes)
+            .unwrap_or(self.text.len())
+    }
+
+    /// Whether an input method is composing.
+    #[must_use]
+    pub fn composing(&self) -> bool {
+        self.composing.is_some()
+    }
+
     /// The text as a field draws it. `secret` shows a dot for each grapheme,
     /// so neither the text nor its length by bytes is on screen.
     #[must_use]
     pub fn shown(&self, secret: bool) -> Shown {
-        let selection = self.selection();
-        let (mut text, mut caret, mut range) = if secret {
-            let dots = |end: usize| self.text[..end].graphemes(true).count() * SECRET.len_utf8();
-            (
-                SECRET.to_string().repeat(self.text.graphemes(true).count()),
-                dots(self.caret),
-                dots(selection.start)..dots(selection.end),
-            )
-        } else {
-            (self.text.clone(), self.caret, selection)
-        };
+        let (mut text, mut caret, mut range) = self.uncomposed(secret);
         let mut composing = None;
         if let Some(preedit) = &self.composing {
             let at = range.start;
@@ -581,6 +734,20 @@ impl Editing {
             selection: range,
             composing,
         }
+    }
+
+    /// The text drawn, its caret and its selection, before any composition.
+    fn uncomposed(&self, secret: bool) -> (String, usize, Range<usize>) {
+        let selection = self.selection();
+        if !secret {
+            return (self.text.clone(), self.caret, selection);
+        }
+        let dots = |end: usize| self.text[..end].graphemes(true).count() * SECRET.len_utf8();
+        (
+            SECRET.to_string().repeat(self.text.graphemes(true).count()),
+            dots(self.caret),
+            dots(selection.start)..dots(selection.end),
+        )
     }
 }
 

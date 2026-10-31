@@ -14,7 +14,7 @@ use crate::markup::{self, Align};
 use crate::options::{Options, TruncateAt, Underline};
 
 /// Line height as a multiple of the font size: what browsers call `normal`.
-const LINE_HEIGHT: f32 = 1.25;
+pub(crate) const LINE_HEIGHT: f32 = 1.25;
 
 /// Each face's import settings, by the id one font system gave it: ids are
 /// per system, so the drawing and the measuring system each keep their own.

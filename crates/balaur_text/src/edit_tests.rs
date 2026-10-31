@@ -210,3 +210,86 @@ fn an_empty_text_has_one_line_and_its_caret_at_the_start() {
     assert_eq!(clusters.caret(0), (0.0, 0));
     assert_eq!(clusters.offset_at(pos2(50.0, 5.0)), 0);
 }
+
+#[test]
+fn the_caret_walks_a_mixed_direction_line_in_visual_order() {
+    let mut state = TextState::new(&faces(), "en-US");
+    if !state.covers('ש') {
+        eprintln!("skipped: no Hebrew face on this machine");
+        return;
+    }
+    let text = "abc שלום def";
+    let clusters = layout(&mut state, text, None);
+    let mut e = Editing::new(text, false);
+    e.motion(Motion::TextStart, false, &clusters);
+    let mut xs = vec![clusters.caret(e.caret()).0];
+    for _ in 0..text.len() {
+        e.motion(Motion::Right, false, &clusters);
+        let x = clusters.caret(e.caret()).0;
+        if (x - xs[xs.len() - 1]).abs() < 0.01 {
+            break;
+        }
+        xs.push(x);
+    }
+    assert!(xs.windows(2).all(|w| w[0] < w[1]), "{xs:?}");
+    let right = clusters
+        .clusters
+        .iter()
+        .map(|c| c.x + c.width)
+        .fold(0.0, f32::max);
+    assert!(
+        (xs[xs.len() - 1] - right).abs() < 0.01,
+        "the walk ends at the line's right edge: {xs:?}"
+    );
+    assert!(xs.len() >= 11, "every stop drawn apart is visited: {xs:?}");
+    for _ in 0..xs.len() {
+        e.motion(Motion::Left, false, &clusters);
+    }
+    assert!(
+        clusters.caret(e.caret()).0 < 0.01,
+        "and walks back to the start"
+    );
+}
+
+#[test]
+fn a_text_laid_out_a_line_at_a_time_reads_as_one() {
+    let mut state = TextState::new(&faces(), "en-US");
+    let text = "one\n\ntwo three";
+    let whole = layout(&mut state, text, None);
+    let mut stacked = Clusters::default();
+    let mut base = 0;
+    let mut top = 0.0;
+    for line in text.split('\n') {
+        let part = layout(&mut state, line, None);
+        stacked.append(&part, base, top);
+        top += part.lines[0].height;
+        base += line.len() + 1;
+    }
+    assert_eq!(stacked.stops, whole.stops);
+    assert_eq!(stacked.lines.len(), whole.lines.len());
+    for at in boundaries(text) {
+        let (x, line) = whole.caret(at);
+        let (sx, sline) = stacked.caret(at);
+        assert_eq!(line, sline, "byte {at}");
+        assert!((x - sx).abs() < 0.01, "byte {at}: {x} against {sx}");
+    }
+}
+
+#[test]
+fn a_click_on_a_secret_or_a_composition_lands_in_the_text() {
+    let mut e = editing("e\u{301}xyz");
+    assert_eq!(e.from_shown("••".len(), true), "e\u{301}x".len());
+    e.place(1 + 2, false);
+    e.compose(Some("한"));
+    let shown = e.shown(false);
+    assert_eq!(shown.text, "e\u{301}한xyz");
+    assert_eq!(e.from_shown(shown.text.len(), false), e.text().len());
+    assert_eq!(e.from_shown(4, false), 3, "inside the composition, at it");
+}
+
+#[test]
+fn a_double_click_takes_the_word_under_it() {
+    let mut e = editing("hello wide world");
+    e.select_word(8);
+    assert_eq!(e.selected(), "wide");
+}

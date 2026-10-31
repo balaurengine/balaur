@@ -108,6 +108,13 @@ pub struct RequestRef<'a> {
 }
 
 impl RequestRef<'_> {
+    /// Everything about the request that changes its picture, hashed: what a
+    /// caller keeping layouts of its own files them under.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        key_of(self, 0, 1.0)
+    }
+
     /// The owned request, built only where one is kept: a cache miss.
     #[must_use]
     pub fn to_owned(&self) -> Request {
@@ -527,7 +534,7 @@ impl TextState {
         let factor = if request.line_height > 0.0 {
             request.line_height
         } else {
-            1.2
+            shape::LINE_HEIGHT
         };
         let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
         let plain = RequestRef {
@@ -536,6 +543,44 @@ impl TextState {
         };
         let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
         edit::clusters(&buffer, request.text, request.size * factor)
+    }
+
+    /// `request`'s text laid out for editing, markup off: the glyphs, drawn
+    /// into the atlas at `scale`, and the cluster boxes, from one layout.
+    /// Not cached: a field keeps what it laid out until its text moves.
+    ///
+    /// A bitmap font draws in the default face here, so its caret stands
+    /// where its glyphs are.
+    pub fn editable(&mut self, request: &RequestRef<'_>, scale: f32) -> edit::Laid {
+        let plain = RequestRef {
+            markup: false,
+            ..*request
+        };
+        let factor = if plain.line_height > 0.0 {
+            plain.line_height
+        } else {
+            shape::LINE_HEIGHT
+        };
+        let fonts = fonts_of(&mut self.host, &mut self.content, plain.project);
+        let parsed = spans_of(&plain);
+        let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
+        let shaped = place(&mut self.atlas, fonts, &buffer, &parsed, &plain, scale);
+        let clusters = edit::clusters(&buffer, plain.text, plain.size * factor);
+        edit::Laid { shaped, clusters }
+    }
+
+    /// Hand egui whatever the atlas gained since it was last handed over, so
+    /// the texture behind [`Self::texture`] holds every glyph laid out.
+    pub fn flush_egui(&mut self, ctx: &egui::Context) {
+        self.atlas.flush_egui(ctx);
+    }
+
+    /// What a laid-out block depends on beyond its request: the atlas its
+    /// glyphs sit in and the faces they came from. A block kept across a
+    /// change of either draws the wrong glyphs.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        (self.atlas.generation << 32) ^ self.fonts_generation
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
@@ -816,6 +861,37 @@ pub fn paint(
             let color = flat.or(line.color).unwrap_or(tint);
             mesh.add_rect_with_uv(line.rect.translate(at), line.uv, color);
         }
+    }
+    if !mesh.is_empty() {
+        painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
+/// Draw a shaped block with its top-left corner at `origin`, each glyph in
+/// the colour of the last of `spans` starting at or before it, by byte, or
+/// in `tint` before the first: what colours a line of code.
+pub fn paint_spans(
+    painter: &egui::Painter,
+    texture: Option<egui::TextureId>,
+    shaped: &Shaped,
+    origin: Pos2,
+    tint: Color32,
+    spans: &[(u32, Color32)],
+) {
+    let Some(texture) = texture else {
+        return;
+    };
+    let mut mesh = Mesh::with_texture(texture);
+    for quad in &shaped.quads {
+        let color = if quad.colored {
+            Color32::WHITE
+        } else {
+            match spans.partition_point(|(start, _)| *start <= quad.start) {
+                0 => tint,
+                after => spans[after - 1].1,
+            }
+        };
+        mesh.add_rect_with_uv(quad.rect.translate(origin.to_vec2()), quad.uv, color);
     }
     if !mesh.is_empty() {
         painter.add(egui::Shape::mesh(mesh));
