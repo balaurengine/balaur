@@ -83,6 +83,10 @@ pub struct AudioState {
     /// Whether the open has been tried. Nothing tries until a sound plays or
     /// `ready` is read, so a run that makes no sound never opens a device.
     opened: bool,
+    /// The open the first touch of audio started off the frame, answered
+    /// when a sound first needs the device: the platform's open is tens of
+    /// milliseconds, too long for the frame a first sound plays in.
+    opening: Option<std::sync::mpsc::Receiver<Result<backend::Device>>>,
     /// True while the device waits for `UserActivation`: a browser refuses
     /// to start audio before a gesture, so the open is deferred to one.
     awaiting_activation: bool,
@@ -309,7 +313,27 @@ impl AudioState {
             return;
         }
         self.opened = true;
-        self.device = open_device(&self.output, &self.routes);
+        self.device = match self.opening.take().and_then(|asked| asked.recv().ok()) {
+            Some(Ok(device)) => Some(device),
+            Some(Err(err)) => {
+                tracing::warn!("audio disabled: {err}");
+                None
+            }
+            None => open_device(&self.output, &self.routes),
+        };
+    }
+
+    /// Start opening the device where it cannot hold up a frame, so the
+    /// first sound finds it open. Not in a browser, which opens on its
+    /// gesture.
+    fn begin_open(&mut self) {
+        if self.opened || self.awaiting_activation || self.opening.is_some() {
+            return;
+        }
+        let (output, routes) = (self.output.clone(), self.routes.clone());
+        self.opening = Some(balaur_core::task::compute(move || {
+            backend::Device::open(&output, &routes)
+        }));
     }
 
     /// Start a sound from its bytes: the `audio.*` bindings read paths
@@ -769,6 +793,7 @@ pub(crate) fn ensure_loaded(eng: &Engine) {
     state.configured = true;
     state.output = output;
     state.routes = routes;
+    state.begin_open();
 }
 
 /// Start `entity`'s configured sound and hand back the handle. An explicit
@@ -1110,6 +1135,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.insert_resource(AudioState {
             device: None,
             opened: false,
+            opening: None,
             awaiting_activation: cfg!(target_family = "wasm"),
             configured: false,
             output: OutputSettings::default(),

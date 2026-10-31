@@ -252,7 +252,8 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_bus_volume_linear",
         |eng: &Engine, (name, volume): (String, f32)| {
-            bus::ensure_loaded(eng);
+            // A mix being set is audio to come: the device starts opening.
+            crate::ensure_loaded(eng);
             let buses = eng.resource::<bus::Buses>();
             buses.borrow_mut().set_volume(&name, volume);
             // Everything already sounding through that bus moves too, which
