@@ -17,6 +17,7 @@ pub class ThemewinState {
     own: any,
     dirty: bool,
     pairs: [any],
+    apart: [ui::ColorsApart],
     said: str,
     demo: int,
     test: Test,
@@ -106,6 +107,8 @@ pub fn state() -> ThemewinState {
         dirty: false,
         // Every role's ink on its fill, for the worn document.
         pairs: [],
+        // Every two colours that say something by hue, closest first.
+        apart: [],
         said: "",
         // Where `--state themeeditdemo` has got to; -1 when it is not running.
         demo: -1,
@@ -136,6 +139,7 @@ fn load_own(state: &mut editor::State) {
     state.themewin.own = own;
     state.themewin.dirty = false;
     state.themewin.pairs = ui::contrast_pairs(state.theme.doc, GROUND);
+    state.themewin.apart = ui::colors_apart(state.theme.doc);
 }
 
 /// Fill the sheet: what its script asks for when Theme is up.
@@ -186,7 +190,7 @@ fn page_title(state: editor::State, page: str) -> str {
     } else if page == "sizes" {
         state.theme.get("sizes").len()
     } else if page == "problems" {
-        problems(state).len()
+        problems(state).len() + alike(state).len()
     } else if page == "kinds" {
         kind_names(state.theme.get("doc")).len()
     } else {
@@ -290,6 +294,18 @@ fn problems(state: editor::State) -> [any] {
     let out: [any] = [];
     for pair in util::list_or_empty(state.themewin.pairs) {
         if pair.ratio.as_float() < pair.need.as_float() {
+            out.push(pair);
+        }
+    }
+    out
+}
+
+/// The colours a reader with some colour vision takes for one: under 10
+/// apart in CIELAB (`contrast.rs`'s `DISTINCT`).
+fn alike(state: editor::State) -> [ui::ColorsApart] {
+    let out: [ui::ColorsApart] = [];
+    for pair in state.themewin.apart {
+        if pair.distance < 10.0 {
             out.push(pair);
         }
     }
@@ -972,11 +988,35 @@ fn key_value_listed(key: any, items: [str]) -> bool {
 
 fn problem_specs(state: editor::State, out: [any]) {
     let found = problems(state);
-    if found.len() == 0 {
-        out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold."));
+    let same = alike(state);
+    if found.len() == 0 && same.len() == 0 {
+        out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold. Primary, success, warning and danger stand apart for every colour vision."));
         return;
     }
     let row_height = style::row_height(state);
+    for pair in same {
+        out.push({
+            "full": false,
+            "height": row_height,
+            "slot_role": "layout_actions",
+            "controls": [
+                {
+                    "kind": "label",
+                    "role": "text_caption",
+                    "grow": 1,
+                    "text": "{pair.vision}: {util::fixed(pair.distance, 1)} apart, needs 10",
+                },
+                {
+                    "kind": "button",
+                    "role": "chip",
+                    "text": "edit",
+                    "on": "handle",
+                    "data": { "fn": on_alike_edit_clicked },
+                },
+            ],
+            "label": "{pair.first} and {pair.second}",
+        });
+    }
     for pair in found {
         let parts = pair.role.as_str().split(".");
         let name = parts[0];
@@ -1003,6 +1043,12 @@ fn problem_specs(state: editor::State, out: [any]) {
             "label": pair.get("role").as_str(),
         });
     }
+}
+
+fn on_alike_edit_clicked(state: &mut editor::State, _data: any, _value: any) {
+    state.themewin.page = "colors";
+    state.themewin.path = [];
+    state.themewin.table = "";
 }
 
 fn on_problem_edit_clicked(state: &mut editor::State, data: any, _value: any) {
@@ -1056,6 +1102,7 @@ fn changed(state: &mut editor::State) {
     theme::wear(state, state.theme.get("name").as_str(), doc);
     let pairs = ui::contrast_pairs(doc, GROUND);
     state.themewin.pairs = pairs;
+    state.themewin.apart = ui::colors_apart(doc);
 }
 
 fn rebase(state: &mut editor::State, picked: any) {

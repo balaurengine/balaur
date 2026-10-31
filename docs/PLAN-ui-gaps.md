@@ -141,8 +141,10 @@ edit a reader's typing makes. Text already follows the platform's text size
 saying colours (`primary`, `success`, `warning`, `danger`) stand apart in
 CIELAB for typical, protan, deutan and tritan vision; Balaur's own halves
 keep every pair 10 apart (its light half's success is stated for that), and
-the imported palettes, which lean on hue, are reported, not changed. Not
-built: the platform adapter. The window comes from the kiss3d fork
+the imported palettes, which lean on hue, are reported, not changed: the
+theme window's Problems page lists a pair under 10 beside the contrast
+failures, with the vision that sees it closest. Not built: the platform
+adapter. The window comes from the kiss3d fork
 (`Ughuuu/kiss3d`), which owns winit's event loop, so `accesskit_winit`
 goes there, a push to that fork; until then nothing reaches VoiceOver.
 
