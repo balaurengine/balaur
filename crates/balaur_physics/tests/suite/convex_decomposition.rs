@@ -28,10 +28,17 @@ fn table_app(collider: &str, decomposition: &str) -> App {
         "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
+    // A row of the shape's own comes in its `shape`, which the default
+    // otherwise names.
+    let shape = if collider.starts_with("shape") {
+        String::new()
+    } else {
+        r##"shape = { kind = "convex_decomposition", mesh = "#table" }"##.to_owned()
+    };
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            r##"{TABLE}
+            r#"{TABLE}
 [[nodes]]
 id = "n_table"
 name = "Table"
@@ -40,13 +47,12 @@ name = "Table"
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
+{shape}
 {collider}
 
 [nodes."convex_decomposition2d"]
 {decomposition}
-"##
+"#
         ),
     )
     .unwrap();
@@ -157,7 +163,10 @@ fn the_other_ways_to_cut_it_build() {
             "",
             "method = \"vhacd\"\nresolution = 32\nmax_convex_hulls = 8",
         ),
-        ("edge_radius = 0.02", ""),
+        (
+            r##"shape = { kind = "convex_decomposition", mesh = "#table", edge_radius = 0.02 }"##,
+            "",
+        ),
     ] {
         let app = table_app(collider, decomposition);
         let state = app.engine.resource::<PhysicsState2d>();
@@ -250,8 +259,7 @@ parent = "n_world"
 overlap = {overlap}
 
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
+shape = {{ kind = "convex_decomposition", mesh = "#table" }}
 
 [[nodes]]
 id = "n_beam"
@@ -266,8 +274,7 @@ kind = "dynamic"
 gravity_scale = 0.0
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = {{ kind = "rectangle", size = [1.2, 0.04] }}
 "##
         ),
     )

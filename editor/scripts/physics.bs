@@ -94,7 +94,7 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
 /// it, by name, on the same nodes, in the same undo step.
 pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { "collider2d" } else { "collider3d" };
-    model::set_component_properties_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", properties));
+    model::set_component_properties_each(state, name, with_shape_of, map().with("two_d", two_d).with("props", properties));
     for row in selection::all(state) {
         let found = model::node(state, row);
         if !found.is_valid() || drawn_mesh(found, two_d).is_nil() {
@@ -108,6 +108,12 @@ pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, be
 
 fn with_mesh_of(node: Node, data: any) -> any {
     with_mesh(node, data.two_d.as_bool(), data.props)
+}
+
+// A collider's: the shape a kind and the node's own mesh make.
+fn with_shape_of(node: Node, data: any) -> any {
+    let shape = with_mesh_of(node, data);
+    if shape.is_nil() { nil } else { map().with("shape", shape) }
 }
 
 // The properties an action writes, on a node's own mesh; nil for a node in

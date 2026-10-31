@@ -27,8 +27,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 {wall}
 
 [[nodes]]
@@ -38,9 +37,7 @@ parent = "n_world"
 script = {{ source = "scripts/scenario.bs" }}
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = {{ kind = "capsule", radius = 0.4, height = 1.0 }}
 {collider}
 
 [nodes.character3d]
@@ -104,9 +101,7 @@ body3d = { kind = "kinematic" }
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -120,8 +115,7 @@ parent = "n_player"
 position = [0.6, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.15
+shape = { kind = "sphere", radius = 0.15 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
@@ -154,8 +148,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.0, 8.0]
+shape = { kind = "rectangle", size = [1.0, 8.0] }
 sensor = true
 
 [[nodes]]
@@ -165,8 +158,7 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 
 [nodes.character2d]
 floor_snap_length = 0.0
@@ -249,7 +241,7 @@ fn car(app: &App, ground: &str, vehicle: &str, wheel: &str) -> (Entity, Entity) 
         app,
         slab,
         "collider3d",
-        &format!("kind = \"box\"\nsize = [8.0, 1.0, 4.0]\n{ground}"),
+        &format!("shape = {{ kind = \"box\", size = [8.0, 1.0, 4.0] }}\n{ground}"),
     );
     // The ray is rest_length 0.3 and radius 0.4 long, so it reaches 0.1 into the slab.
     let chassis = node(app, "Car", root, [0.0, 0.6, 0.0]);
@@ -263,7 +255,7 @@ fn car(app: &App, ground: &str, vehicle: &str, wheel: &str) -> (Entity, Entity) 
         app,
         chassis,
         "collider3d",
-        "kind = \"sphere\"\nradius = 0.1",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
     );
     add(app, chassis, "vehicle3d", vehicle);
     let tyre = node(app, "Wheel", chassis, [0.0, 0.0, 0.0]);
@@ -454,8 +446,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 
 [[nodes]]
 id = "n_player"
@@ -477,7 +468,8 @@ impl Scenario {
 }
 ";
 
-const CAPSULE: &str = "\n[nodes.collider3d]\nkind = \"capsule\"\nradius = 0.4\nheight = 2.0\n";
+const CAPSULE: &str =
+    "\n[nodes.collider3d]\nshape = { kind = \"capsule\", radius = 0.4, height = 2.0 }\n";
 
 #[test]
 fn a_character_s_lengths_are_world_units_or_fractions_of_it() {
@@ -515,8 +507,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 
 [[nodes]]
 id = "n_player"
@@ -535,8 +526,7 @@ parent = "n_player"
 position = [0.8, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.3
+shape = {{ kind = "sphere", radius = 0.3 }}
 "#
     );
     let (_dir, app, errors) = boot(&text, WALK, 60);
@@ -608,8 +598,7 @@ parent = "n_world"
 position = [0.0, -1.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [40.0, 1.0, 40.0]
+shape = {{ kind = "box", size = [40.0, 1.0, 40.0] }}
 physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
@@ -622,8 +611,7 @@ body3d = {{ kind = "dynamic", mass = 20.0 }}
 position = [1.2, -0.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 1.0, 1.0]
+shape = {{ kind = "box", size = [1.0, 1.0, 1.0] }}
 physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
@@ -637,8 +625,7 @@ body3d = {{ kind = "kinematic" }}
 position = [0.0, -0.4, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.4
+shape = {{ kind = "sphere", radius = 0.4 }}
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -699,8 +686,7 @@ parent = "n_world"
 position = [0.0, -0.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [8.0, 1.0, 40.0]
+shape = { kind = "box", size = [8.0, 1.0, 40.0] }
 
 [[nodes]]
 id = "n_car"
@@ -714,8 +700,7 @@ vehicle3d = { forward_axis = "-z" }
 position = [0.0, 0.6, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [[nodes]]
 id = "n_wheel"

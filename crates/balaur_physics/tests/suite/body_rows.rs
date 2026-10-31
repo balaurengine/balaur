@@ -22,9 +22,9 @@ fn with_body(app: &App, name: &str, component: &str, params: &str) -> Entity {
     let params: toml::Value = toml::from_str(params).unwrap();
     components::add(&app.engine, e, component, Some(&params)).unwrap();
     let (collider, shape) = if component == "body3d" {
-        ("collider3d", "kind = \"sphere\"\nradius = 0.5")
+        ("collider3d", "shape = { kind = \"sphere\", radius = 0.5 }")
     } else {
-        ("collider2d", "kind = \"circle\"\nradius = 0.5")
+        ("collider2d", "shape = { kind = \"circle\", radius = 0.5 }")
     };
     let shape: toml::Value = toml::from_str(shape).unwrap();
     components::add(&app.engine, e, collider, Some(&shape)).unwrap();
@@ -227,7 +227,7 @@ id = "n_spinner"
 name = "Spinner"
 script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.0, 0.5, 0.0], inertia = [1.0, 2.0, 3.0], inertia_rotation = [0.0, 0.5, 0.0], lock_translation = ["x"], initial_angular_velocity = [0.0, 0.0, 1.0] }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 "#;
 
 #[test]
@@ -298,7 +298,7 @@ id = "n_crate"
 name = "Crate"
 script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
-collider3d = { kind = "box" }
+collider3d = { shape = { kind = "box" } }
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
@@ -332,7 +332,7 @@ id = "n_puck"
 name = "Puck"
 script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, mass = 2.0, center_of_mass = [0.5, 0.0], inertia = 3.0, lock_translation = ["y"], initial_angular_velocity = 1.0 }
-collider2d = { kind = "circle", radius = 0.5 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
 "#,
         r"pub class Scenario { node: Node }
 impl Scenario {

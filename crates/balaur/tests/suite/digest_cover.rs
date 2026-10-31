@@ -28,8 +28,7 @@ position = [0.0, 4.0, 0.0]
 [nodes.body3d]
 kind = "dynamic"
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 
 [[nodes]]
 id = "n_sprite"

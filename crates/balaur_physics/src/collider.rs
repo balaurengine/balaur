@@ -10,6 +10,7 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::collider_shape::ColliderShape3d;
 use crate::rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
     ColliderBuilder, ColliderHandle, Group, InteractionGroups, InteractionTestMode, MassProperties,
@@ -19,8 +20,7 @@ use crate::scalar::{self, Pose};
 use crate::shared::beside::{self, Beside};
 
 use crate::properties::{
-    Axis3d, ColliderEvent, ColliderKind3d, ContactPair, Decomposition3d, Edges, Fill, Fit3d,
-    LayerTest,
+    ColliderEvent, ContactPair, Decomposition3d, Edges, Fill, Fit3d, LayerTest,
 };
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use balaur_core::layers::Layer;
@@ -35,18 +35,8 @@ use crate::{PhysicsState3d, node_pose};
 #[derive(Clone, Component)]
 #[component(name = "collider3d")]
 pub struct Collider3d {
-    /// Collision shape
-    #[property(default = ColliderKind3d::Box)]
-    pub kind: ColliderKind3d,
-    /// Whole size along each axis, when kind is box
-    #[property(default = [1.0, 1.0, 1.0])]
-    pub size: [f32; 3],
-    /// Radius, for ball, capsule, cylinder and cone
-    #[property(default = 0.5, min = 0.01)]
-    pub radius: f32,
-    /// Length tip to tip, for capsule, cylinder and cone; a capsule with height 0 runs from a to b instead
-    #[property(default = 2.0, min = 0.0)]
-    pub height: f32,
+    /// The collision shape, and the dimensions or the source that kind reads
+    pub shape: ColliderShape3d,
     /// Detects overlaps without colliding: bodies pass through and are reported
     pub sensor: bool,
     /// Collide at all; a disabled collider keeps its shape and costs nothing
@@ -61,24 +51,6 @@ pub struct Collider3d {
     /// How the shape is turned relative to the node, x first; Euler radians in the file
     #[property(group = "shape", unit = "degrees")]
     pub offset_rotation: [f32; 3],
-    /// The axis a capsule lies along; cylinder and cone stand along y
-    #[property(default = Axis3d::Y, group = "shape")]
-    pub up_axis: Axis3d,
-    /// Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them
-    #[property(group = "shape", min = 0.0)]
-    pub edge_radius: f32,
-    /// First corner, when kind is triangle or segment, and a capsule's first end when its height is 0
-    #[property(name = "a", group = "shape")]
-    pub first: [f32; 3],
-    /// Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0
-    #[property(name = "b", default = [1.0, 0.0, 0.0], group = "shape")]
-    pub second: [f32; 3],
-    /// Third corner, when kind is triangle
-    #[property(name = "c", default = [0.0, 1.0, 0.0], group = "shape")]
-    pub third: [f32; 3],
-    /// Which way the infinite plane faces, when kind is world_boundary
-    #[property(default = [0.0, 1.0, 0.0], group = "shape")]
-    pub normal: [f32; 3],
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -121,12 +93,6 @@ pub struct Collider3d {
     /// A margin the solver treats as already touching; stops thin shapes tunnelling and jittering
     #[property(group = "contacts", min = 0.0)]
     pub collision_margin: f32,
-    /// Smooth the seams between a triangle_mesh's triangles, so a character does not catch on flat ground
-    #[property(default = true, group = "contacts")]
-    pub fix_internal_edges: bool,
-    /// fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped
-    #[property(group = "contacts")]
-    pub two_sided_edges: bool,
     /// Mass per volume, so the shape's size sets its mass; 0 makes a collider that adds no mass to its body
     #[property(default = 1.0, group = "mass", min = 0.0)]
     pub density: f32,
@@ -148,21 +114,6 @@ pub struct Collider3d {
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
-    /// Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider
-    #[property(asset = "mesh", group = "mesh")]
-    pub mesh: String,
-    /// Terrain grid, when kind is heightfield; the asset's holes are cut out of it
-    #[property(asset = "heightfield", group = "mesh")]
-    pub heightfield: String,
-    /// Cell size and height scale of a heightfield
-    #[property(default = [1.0, 1.0, 1.0], group = "mesh")]
-    pub scale: [f32; 3],
-    /// Filled cells, when kind is voxels; a script may dig into them while the game runs
-    #[property(asset = "voxels", group = "mesh")]
-    pub voxels: String,
-    /// How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points
-    #[property(group = "mesh", min = 0.0)]
-    pub voxel_size: f32,
 }
 
 /// How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.
@@ -211,12 +162,12 @@ impl Beside for MeshCollider3d {
 
     fn reads(main: &Collider3d) -> bool {
         matches!(
-            main.kind,
-            ColliderKind3d::TriangleMesh
-                | ColliderKind3d::Polyline
-                | ColliderKind3d::Fit
-                | ColliderKind3d::VoxelizedMesh
-                | ColliderKind3d::ConvexDecomposition
+            main.shape,
+            ColliderShape3d::TriangleMesh(_)
+                | ColliderShape3d::Polyline(_)
+                | ColliderShape3d::Fit(_)
+                | ColliderShape3d::VoxelizedMesh(_)
+                | ColliderShape3d::ConvexDecomposition(_)
         )
     }
 }
@@ -259,8 +210,8 @@ impl Beside for ConvexDecomposition3d {
 
     fn reads(main: &Collider3d) -> bool {
         matches!(
-            main.kind,
-            ColliderKind3d::ConvexDecomposition | ColliderKind3d::Fit
+            main.shape,
+            ColliderShape3d::ConvexDecomposition(_) | ColliderShape3d::Fit(_)
         )
     }
 }
@@ -523,7 +474,10 @@ pub(crate) fn reread_materials(eng: &Engine) {
 
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
-pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
+    // The builder reads the shape's rows beside the others; the table is kept
+    // as the component holds it, for a snapshot and a rebuild.
+    let params = &crate::shared::collider::flat_table(asked.clone());
     let builder = collider_builder(eng, params)?;
     let offset = Pose::from_parts(scalar::v3a(v::vec3(params, k::OFFSET, [0.0; 3])), {
         let r = v::vec3(params, k::OFFSET_ROTATION, [0.0; 3]);
@@ -541,7 +495,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
         state
             .borrow_mut()
             .collider_params
-            .insert(entity, params.clone());
+            .insert(entity, asked.clone());
     }
     if let Some(surface) = surface_of(params) {
         let state = eng.resource::<PhysicsState3d>();
@@ -787,7 +741,7 @@ fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
 /// asking where it is.
 pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them."),
+        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: its `shape` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them."),
     ]);
     m.function(
         "set_collider",

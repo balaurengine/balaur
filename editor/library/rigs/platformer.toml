@@ -21,9 +21,7 @@ color = "#e8c37a"
 [nodes.character2d]
 
 [nodes.collider2d]
-kind = "capsule"
-radius = 0.4
-height = 2.0
+shape = { kind = "capsule", radius = 0.4, height = 2.0 }
 
 [[nodes]]
 id = "rig_platformer_camera"

@@ -185,7 +185,7 @@ features = ["smcp", "liga=0"]
 
 ### `heightfield`
 
-Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
+Files: `heightfields/`. Used by: `collider2d.shape.heightfield.heightfield`, `collider3d.shape.heightfield.heightfield`.
 
 A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point. `holes` lists cells with no ground, each as the `[row, column]` of its first corner; a 2D collider reads the heights as one line, and a hole there removes the segment starting at that point.
 
@@ -277,7 +277,7 @@ parallax_relief_steps = 8
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `line2d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
+Files: `models/`. Used by: `collider2d.shape.convex_decomposition.mesh`, `collider2d.shape.convex_hull.mesh`, `collider2d.shape.convex_polygon.mesh`, `collider2d.shape.fit.mesh`, `collider2d.shape.polyline.mesh`, `collider2d.shape.triangle_mesh.mesh`, `collider2d.shape.voxelized_mesh.mesh`, `collider2d.shape.voxelized_points.mesh`, `collider3d.shape.convex_decomposition.mesh`, `collider3d.shape.convex_hull.mesh`, `collider3d.shape.convex_mesh.mesh`, `collider3d.shape.fit.mesh`, `collider3d.shape.polyline.mesh`, `collider3d.shape.triangle_mesh.mesh`, `collider3d.shape.voxelized_mesh.mesh`, `collider3d.shape.voxelized_points.mesh`, `line2d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
 
 Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
@@ -587,7 +587,7 @@ first_tile = 16
 
 ### `voxels`
 
-Files: `voxels/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
+Files: `voxels/`. Used by: `collider2d.shape.voxels.voxels`, `collider3d.shape.voxels.voxels`.
 
 A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 

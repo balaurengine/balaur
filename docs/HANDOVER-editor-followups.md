@@ -70,9 +70,9 @@ is rewritten in the same commit).
    - `widget`: 31 kinds in one component; one component per kind
      (PLAN-widgets). Its writes are cheap now, so this is the Inspector's
      dead rows, not the frame.
-   - The primitives' dimensions: `shape2d`'s `size`, `radius`, `height`,
-     `corner_radius`, `sides`, `points`, `inner_radius`; `shape3d`'s; the
-     colliders'. Decide whether each primitive is its own component.
+   - The primitives' dimensions: done 2026-10-31. A `variant` property
+     type holds a kind and that kind's rows; `shape2d`, `shape3d`,
+     `collider2d` and `collider3d` each hold one `shape`.
    - Inside the new physics components: `fit`, `edges`, `keep_collinear`
      read by one kind each; 2D `overlap` only with the `exact` method. On the
      main ones: `break_*` not for an articulation, the axis records'

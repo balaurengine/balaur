@@ -534,8 +534,7 @@ name = "Zone"
 parent = "n_scene"
 
 [nodes.collider3d]
-kind = "box"
-size = [4.0, 4.0, 4.0]
+shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
 events = ["collision"]
 
@@ -558,8 +557,7 @@ parent = "n_scene"
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 
 [[nodes]]
 id = "n_door"

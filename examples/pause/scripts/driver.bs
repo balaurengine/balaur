@@ -57,10 +57,7 @@ fn drop_box(parent: Node, n: int) {
         .with("rotation_euler", [0.0, 0.0, 0.25 * (n as float)]));
     // Light gravity, so the fall is long enough to pause in the middle of.
     box.set_component("body2d", map().with("kind", "dynamic").with("gravity_scale", 0.35));
-    box.set_component("collider2d", map()
-        .with("kind", "rectangle")
-        .with("size", [0.68, 0.68])
-        .with("physics_material", map().with("restitution", 0.3)));
+    box.set_component("collider2d", map().with("shape", map().with("kind", "rectangle").with("size", [0.68, 0.68])).with("physics_material", map().with("restitution", 0.3)));
     box.set_component("shape2d", map().with("shape", map().with("kind", "rectangle").with("size", [0.68, 0.68]).with("corner_radius", 0.08)).with("color", tint(n)));
 }
 

@@ -66,50 +66,6 @@ pub enum SweepIgnore {
     Solids,
 }
 
-/// The 2D collider shapes, in the order the inspector offers them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum ColliderKind2d {
-    Circle,
-    Rectangle,
-    Capsule,
-    Triangle,
-    Segment,
-    WorldBoundary,
-    TriangleMesh,
-    ConvexHull,
-    ConvexDecomposition,
-    Polyline,
-    Heightfield,
-    Voxels,
-    VoxelizedMesh,
-    Fit,
-    ConvexPolygon,
-    VoxelizedPoints,
-}
-
-/// The 3D collider shapes, in the order the inspector offers them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum ColliderKind3d {
-    Sphere,
-    Box,
-    Capsule,
-    Cylinder,
-    Cone,
-    Triangle,
-    Segment,
-    WorldBoundary,
-    TriangleMesh,
-    ConvexHull,
-    ConvexDecomposition,
-    Polyline,
-    Heightfield,
-    Voxels,
-    VoxelizedMesh,
-    Fit,
-    ConvexMesh,
-    VoxelizedPoints,
-}
-
 /// Whether a pair needs both colliders' layers to accept it, or either's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LayerTest {

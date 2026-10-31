@@ -38,8 +38,7 @@ name = "Terrain"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "voxels"
-voxels = "#pillar"
+shape = { kind = "voxels", voxels = "#pillar" }
 "##,
     )
     .unwrap();
@@ -104,13 +103,13 @@ fn the_mesh_backed_shapes_build() {
 impl Scenario {
     fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
-            self.node.collider3d.set_collider(map().with("kind", kind).with("mesh", "#wedge"));
+            self.node.collider3d.set_collider(map().with("shape", map().with("kind", kind).with("mesh", "#wedge")));
         }
         for fit in ["aabb", "obb", "convex_hull"] {
             self.node.set_component("mesh_collider3d", map().with("fit", fit));
-            self.node.collider3d.set_collider(map().with("kind", "fit").with("mesh", "#wedge"));
+            self.node.collider3d.set_collider(map().with("shape", map().with("kind", "fit").with("mesh", "#wedge")));
         }
-        self.node.collider3d.set_collider(map().with("kind", "voxelized_mesh").with("mesh", "#wedge").with("voxel_size", 0.25));
+        self.node.collider3d.set_collider(map().with("shape", map().with("kind", "voxelized_mesh").with("mesh", "#wedge").with("voxel_size", 0.25)));
     }
 }
 "##,
@@ -216,14 +215,14 @@ name = "World"
 id = "n_aabb"
 name = "Aabb"
 parent = "n_world"
-collider3d = { kind = "fit", mesh = "#aside" }
+collider3d = { shape = { kind = "fit", mesh = "#aside" } }
 mesh_collider3d = { fit = "aabb" }
 
 [[nodes]]
 id = "n_obb"
 name = "Obb"
 parent = "n_world"
-collider3d = { kind = "fit", mesh = "#aside" }
+collider3d = { shape = { kind = "fit", mesh = "#aside" } }
 mesh_collider3d = { fit = "obb" }
 "##,
     )
@@ -260,7 +259,7 @@ mesh_collider3d = { fit = "obb" }
 
     let back = balaur_core::components::get(&app.engine, aabb_node, "collider3d").unwrap();
     assert_eq!(
-        back.get("kind").and_then(toml::Value::as_str),
+        back["shape"].get("kind").and_then(toml::Value::as_str),
         Some("fit"),
         "a fitted box reads back as the fit that made it"
     );
@@ -301,14 +300,14 @@ id = "n_ball3"
 name = "Ball3"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 
 [[nodes]]
 id = "n_ball2"
 name = "Ball2"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.5 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
 "#,
     )
     .unwrap();

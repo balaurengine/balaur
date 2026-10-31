@@ -258,28 +258,19 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 
 ### `collider2d`
 
-`2d` · `physics` · 40 properties · 22 methods
+`2d` · `physics` · 24 properties · 22 methods
 
 The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Collision shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>, <code>convex_polygon</code>, <code>voxelized_points</code>.</td></tr>
-<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle or capsule At least 0.01.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length tip to tip, when kind is capsule; height 0 runs the capsule from a to b instead At least 0.0.</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;rectangle&quot;, &quot;size&quot;: [1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>capsule</code> (a, b, height, radius, up_axis); <code>circle</code> (radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_polygon</code> (edge_radius, mesh); <code>fit</code> (mesh); <code>heightfield</code> (heightfield, scale); <code>polyline</code> (mesh); <code>rectangle</code> (edge_radius, size); <code>segment</code> (a, b); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
 <tr><td><code>offset_rotation</code></td><td>float</td><td><code>0.0</code></td><td>How the shape is turned relative to the node; radians in the file</td></tr>
-<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>The axis a capsule lies along One of <code>x</code>, <code>y</code>.</td></tr>
-<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition&#x27;s pieces by this radius, so it slides over seams instead of catching on them At least 0.0.</td></tr>
-<tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment, and a capsule&#x27;s first end when its height is 0</td></tr>
-<tr><td><code>b</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment, and a capsule&#x27;s other end when its height is 0</td></tr>
-<tr><td><code>c</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Third corner, when kind is triangle</td></tr>
-<tr><td><code>normal</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the infinite line faces, when kind is world_boundary</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
@@ -292,19 +283,12 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>one_way_angle</code></td><td>float</td><td><code>0.1</code></td><td>How far a contact&#x27;s normal may lean from one_way_axis and still hold the body; radians in the file Range 0.0–180.0.</td></tr>
 <tr><td><code>surface_velocity</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How fast the surface slides along itself, in the collider&#x27;s own axes: a conveyor belt carries what rests on it</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
-<tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Take neighbouring triangles into account for a triangle_mesh&#x27;s contacts, so a body does not catch on the seam between two of them</td></tr>
-<tr><td><code>two_sided_edges</code></td><td>bool</td><td><code>false</code></td><td>fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass; 0 makes a collider that adds no mass to its body At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
 <tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>This collider&#x27;s resistance to spin; 0 with a center_of_mass takes the shape&#x27;s own about that centre At least 0.0.</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this collider reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws</td></tr>
-<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>A row of heights, when kind is heightfield: a side-scroller&#x27;s ground, with the asset&#x27;s holes cut out</td></tr>
-<tr><td><code>scale</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Width and height scale of a heightfield</td></tr>
-<tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
-<tr><td><code>voxel_size</code></td><td>float</td><td><code>0.0</code></td><td>How big one cell is: 0 keeps a voxels asset&#x27;s own cell size, and is 0.25 for voxelized_mesh and voxelized_points At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -338,7 +322,7 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 <tr><td><code>heightfield_hole(int)</code></td><td><code>bool</code></td><td>Whether a heightfield segment has no ground.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>[Node]</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>pose_in_body()</code></td><td><code>any</code></td><td>Where the collider sits in its body&#x27;s frame, as `#{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_collider(any)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider2d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_collider(any)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider2d` table: its `shape` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_heightfield_hole(int, bool)</code></td><td>—</td><td>Remove or restore one segment of a heightfield&#x27;s ground, numbered from the first height.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel(int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel_size(float, float)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics2d</code></td></tr>
@@ -1439,28 +1423,19 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 
 ### `collider3d`
 
-`3d` · `physics` · 41 properties · 23 methods
+`3d` · `physics` · 25 properties · 23 methods
 
 The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Collision shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>, <code>convex_mesh</code>, <code>voxelized_points</code>.</td></tr>
-<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for ball, capsule, cylinder and cone At least 0.01.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length tip to tip, for capsule, cylinder and cone; a capsule with height 0 runs from a to b instead At least 0.0.</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;box&quot;, &quot;size&quot;: [1.0, 1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>box</code> (edge_radius, size); <code>capsule</code> (a, b, height, radius, up_axis); <code>cone</code> (edge_radius, height, radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_mesh</code> (edge_radius, mesh); <code>cylinder</code> (edge_radius, height, radius); <code>fit</code> (mesh); <code>heightfield</code> (fix_internal_edges, heightfield, scale); <code>polyline</code> (mesh); <code>segment</code> (a, b); <code>sphere</code> (radius); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
 <tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, x first; Euler radians in the file</td></tr>
-<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>The axis a capsule lies along; cylinder and cone stand along y One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
-<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them At least 0.0.</td></tr>
-<tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment, and a capsule&#x27;s first end when its height is 0</td></tr>
-<tr><td><code>b</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment, and a capsule&#x27;s other end when its height is 0</td></tr>
-<tr><td><code>c</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Third corner, when kind is triangle</td></tr>
-<tr><td><code>normal</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Which way the infinite plane faces, when kind is world_boundary</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
@@ -1473,8 +1448,6 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>one_way_angle</code></td><td>float</td><td><code>0.1</code></td><td>How far a contact&#x27;s normal may lean from one_way_axis and still hold the body; radians in the file Range 0.0–180.0.</td></tr>
 <tr><td><code>surface_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How fast the surface slides along itself, in the collider&#x27;s own axes: a conveyor belt carries what rests on it</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
-<tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Smooth the seams between a triangle_mesh&#x27;s triangles, so a character does not catch on flat ground</td></tr>
-<tr><td><code>two_sided_edges</code></td><td>bool</td><td><code>false</code></td><td>fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass; 0 makes a collider that adds no mass to its body At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
@@ -1482,11 +1455,6 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this collider reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider</td></tr>
-<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>Terrain grid, when kind is heightfield; the asset&#x27;s holes are cut out of it</td></tr>
-<tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Cell size and height scale of a heightfield</td></tr>
-<tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
-<tr><td><code>voxel_size</code></td><td>float</td><td><code>0.0</code></td><td>How big one cell is: 0 keeps a voxels asset&#x27;s own cell size, and is 0.25 for voxelized_mesh and voxelized_points At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1521,7 +1489,7 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>[Node]</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>pose_in_body()</code></td><td><code>any</code></td><td>Where the collider sits in its body&#x27;s frame, as `#{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_collider(any)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_collider(any)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: its `shape` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_heightfield_hole(int, int, bool)</code></td><td>—</td><td>Remove or restore the ground of one heightfield cell, named by the row and column of its first corner.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel(int, int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel_size(float, float, float)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics3d</code></td></tr>

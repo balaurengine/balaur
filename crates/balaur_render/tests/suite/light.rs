@@ -114,7 +114,7 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
         &app,
         wall,
         "collider2d",
-        "kind = \"rectangle\"\nsize = [4.0, 1.0]",
+        "shape = { kind = \"rectangle\", size = [4.0, 1.0] }",
     );
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -142,7 +142,12 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
             .is_empty(),
         "control: nothing to trace yet"
     );
-    add(&app, wall, "collider2d", "kind = \"circle\"\nradius = 1.0");
+    add(
+        &app,
+        wall,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 1.0 }",
+    );
     app.tick(1.0 / 60.0);
     // A traced circle is cut as finely as a drawn one, because it is the
     // same outline: a shadow's edge follows the shape's, not a coarser copy.

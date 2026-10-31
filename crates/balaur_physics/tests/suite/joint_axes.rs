@@ -68,10 +68,20 @@ fn tick(app: &mut App, steps: u32) {
 fn hanging(app: &App, at: [f32; 3], joint: &str) -> anyhow::Result<Entity> {
     let anchor = node(app, "Anchor", [0.0; 3]);
     add(app, anchor, "body3d", "kind = \"static\"")?;
-    add(app, anchor, "collider3d", "kind = \"sphere\"\nradius = 0.2")?;
+    add(
+        app,
+        anchor,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.2 }",
+    )?;
     let ball = node(app, "Ball", at);
     add(app, ball, "body3d", "kind = \"dynamic\"\nmass = 2.0")?;
-    add(app, ball, "collider3d", "kind = \"sphere\"\nradius = 0.2")?;
+    add(
+        app,
+        ball,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.2 }",
+    )?;
     // Anchored at the anchor body's middle unless the table says otherwise.
     let anchor_at = if joint.contains("anchor =") {
         String::new()
@@ -321,8 +331,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -335,8 +344,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"

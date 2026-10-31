@@ -13,9 +13,7 @@ position = [0, 1, 0]
 floor_snap_length = 0.3
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.35
-height = 1.9
+shape = { kind = "capsule", radius = 0.35, height = 1.9 }
 
 [nodes.camera3d]
 current = true

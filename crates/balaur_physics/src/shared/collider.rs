@@ -174,3 +174,15 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
+
+/// A collider's table with its `shape` laid out beside its other rows: the
+/// kind and the dimensions or source that kind reads, as the builders read
+/// them.
+pub(crate) fn flat_table(mut params: toml::Value) -> toml::Value {
+    if let Some(table) = params.as_table_mut()
+        && let Some(toml::Value::Table(shape)) = table.remove("shape")
+    {
+        table.extend(shape);
+    }
+    params
+}

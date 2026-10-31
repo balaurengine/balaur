@@ -58,8 +58,8 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_BOX).with("size", [1.0, 1.0, 1.0]));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5)));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_BOX).with("size", [1.0, 1.0, 1.0])));
         "#,
     );
 }
@@ -69,7 +69,7 @@ fn linear_velocity_is_set_and_read_back() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5)));
         self.node.body3d.set_linear_velocity(1.0, 2.0, 3.0);
         let v = self.node.body3d.linear_velocity();
         if math::abs(v.x - 1.0) >= 0.0001 { log::error("x was not kept: {v.x}"); }
@@ -84,7 +84,7 @@ fn an_impulse_starts_a_body_moving() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5)));
         self.node.body3d.apply_impulse(10.0, 0.0, 0.0);
         let x = self.node.body3d.linear_velocity().x;
         if x <= 0.0 { log::error("the impulse did nothing: {x}"); }
@@ -123,7 +123,7 @@ fn the_2d_world_has_the_same_shape_of_api() {
     run_clean(
         r#"
         self.node.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
-        self.node.set_component("collider2d", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5));
+        self.node.set_component("collider2d", map().with("shape", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5)));
         self.node.body2d.set_linear_velocity(1.0, 2.0);
         let v = self.node.body2d.linear_velocity();
         if !(math::abs(v.x - 1.0) < 0.0001 && math::abs(v.y - 2.0) < 0.0001) { log::error("the velocity was not kept"); }
@@ -140,10 +140,10 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5)));
         if self.node.collider3d.overlaps().len() != 0 { log::error("3D overlaps should be empty"); }
         self.node.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
-        self.node.set_component("collider2d", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5).with("sensor", true));
+        self.node.set_component("collider2d", map().with("shape", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5)).with("sensor", true));
         if self.node.collider2d.overlaps().len() != 0 { log::error("2D overlaps should be empty"); }
         "#,
     );
@@ -245,7 +245,7 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", "dynamic"));
-        self.node.set_component("collider3d", map().with("kind", "box"));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", "box")));
         self.node.set_component("vehicle3d", map().with("forward_axis", physics3d::AXIS_X));
         self.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
         let along_x = self.node.vehicle3d.vehicle_speed();
@@ -261,7 +261,7 @@ fn a_collider_property_is_read_and_written_as_a_field() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", "dynamic"));
-        self.node.set_component("collider3d", map().with("kind", "box").with("density", 1.0));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", "box")).with("density", 1.0));
         self.node.collider3d.density = 15.0;
         let back = self.node.collider3d.density;
         if math::abs(back - 15.0) >= 0.0001 { log::error("density came back as {back}"); }
@@ -278,9 +278,9 @@ fn a_collider_property_is_read_and_written_as_a_field() {
 fn writing_one_property_field_leaves_the_others() {
     run_clean(
         r#"
-        self.node.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.75).with("density", 2.5));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.75)).with("density", 2.5));
         self.node.collider3d.density = 0.9;
-        let radius = self.node.collider3d.radius;
+        let radius = self.node.collider3d.shape.radius;
         if math::abs(radius - 0.75) >= 0.0001 { log::error("radius became {radius}"); }
         let density = self.node.collider3d.density;
         if math::abs(density - 0.9) >= 0.0001 { log::error("density became {density}"); }
@@ -309,7 +309,7 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
     run_clean(
         r#"
         self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC).with("gravity_scale", 0.0).with("mass", 1.0));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("collider3d", map().with("shape", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5)));
         self.node.body3d.apply_force(60.0, 0.0, 0.0);
         let vx = self.node.body3d.linear_velocity().x;
         if !(vx > 0.9 && vx < 1.1) { log::error("one step of 60 N on 1 kg is 1 m/s at 60 Hz, got {vx}"); }

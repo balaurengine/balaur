@@ -24,13 +24,13 @@ name = "World"
 id = "n_narrow"
 name = "Narrow"
 parent = "n_world"
-collider2d = { kind = "rectangle", size = [2.0, 0.2], one_way = true, one_way_axis = [0.3, 1.0] }
+collider2d = { shape = { kind = "rectangle", size = [2.0, 0.2] }, one_way = true, one_way_axis = [0.3, 1.0] }
 
 [[nodes]]
 id = "n_wide"
 name = "Wide"
 parent = "n_world"
-collider2d = { kind = "rectangle", size = [2.0, 0.2], one_way = true, one_way_axis = [0.3, 1.0], one_way_angle = 0.5 }
+collider2d = { shape = { kind = "rectangle", size = [2.0, 0.2] }, one_way = true, one_way_axis = [0.3, 1.0], one_way_angle = 0.5 }
 transform = { position = [10.0, 0.0, 0.0] }
 
 [[nodes]]
@@ -38,7 +38,7 @@ id = "n_through"
 name = "Through"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 transform = { position = [0.0, 1.0, 0.0] }
 
 [[nodes]]
@@ -46,7 +46,7 @@ id = "n_held"
 name = "Held"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 transform = { position = [10.0, 1.0, 0.0] }
 "#,
     );
@@ -74,14 +74,14 @@ name = "World"
 id = "n_belt"
 name = "Belt"
 parent = "n_world"
-collider3d = { kind = "box", size = [40.0, 1.0, 4.0], surface_velocity = [2.0, 0.0, 0.0] }
+collider3d = { shape = { kind = "box", size = [40.0, 1.0, 4.0] }, surface_velocity = [2.0, 0.0, 0.0] }
 
 [[nodes]]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "box" }
+collider3d = { shape = { kind = "box" } }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
     );
@@ -106,14 +106,14 @@ name = "World"
 id = "n_belt"
 name = "Belt"
 parent = "n_world"
-collider2d = { kind = "rectangle", size = [40.0, 1.0], surface_velocity = [-2.0, 0.0] }
+collider2d = { shape = { kind = "rectangle", size = [40.0, 1.0] }, surface_velocity = [-2.0, 0.0] }
 
 [[nodes]]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
 body2d = { kind = "dynamic", lock_rotation = true }
-collider2d = { kind = "rectangle" }
+collider2d = { shape = { kind = "rectangle" } }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
     );
@@ -252,7 +252,7 @@ id = "n_crate"
 name = "Crate"
 parent = "n_map"
 body2d = { kind = "dynamic", lock_rotation = true }
-collider2d = { kind = "rectangle", size = [0.5, 0.5] }
+collider2d = { shape = { kind = "rectangle", size = [0.5, 0.5] } }
 transform = { position = [2.0, 0.5, 0.0] }
 "##,
     );

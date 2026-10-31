@@ -358,7 +358,7 @@ impl Scenario {
     );
     let collider = get("collider2d");
     assert_eq!(
-        collider.get("kind").and_then(toml::Value::as_str),
+        collider["shape"].get("kind").and_then(toml::Value::as_str),
         Some("rectangle")
     );
     let bounce = {

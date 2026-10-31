@@ -20,7 +20,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 script = {{ source = "scripts/scenario.bs" }}
-collider3d = {{ kind = "box", size = [10.0, 1.0, 10.0], events = [{events}] }}
+collider3d = {{ shape = {{ kind = "box", size = [10.0, 1.0, 10.0] }}, events = [{events}] }}
 
 [[nodes]]
 id = "n_crate"
@@ -28,7 +28,7 @@ name = "Crate"
 parent = "n_world"
 script = {{ source = "scripts/scenario.bs" }}
 body3d = {{ kind = "dynamic" }}
-collider3d = {{ kind = "box", events = [{events}] }}
+collider3d = {{ shape = {{ kind = "box" }}, events = [{events}] }}
 transform = {{ position = [0.0, 1.5, 0.0] }}
 "#
         ),
@@ -116,14 +116,14 @@ id = "n_zone"
 name = "Zone"
 parent = "n_world"
 script = { source = "scripts/scenario.bs" }
-collider3d = { kind = "box", size = [4.0, 1.0, 4.0], sensor = true, events = ["collision"] }
+collider3d = { shape = { kind = "box", size = [4.0, 1.0, 4.0] }, sensor = true, events = ["collision"] }
 
 [[nodes]]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.25 }
+collider3d = { shape = { kind = "sphere", radius = 0.25 } }
 transform = { position = [0.0, 1.5, 0.0] }
 "#,
         r"pub class Scenario { node: Node, entered: [any], left: [any] }

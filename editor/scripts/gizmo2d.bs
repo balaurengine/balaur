@@ -118,7 +118,7 @@ fn shape_box(found: Node) -> LocalBox? {
     let shape = if found.has_component("shape2d") {
         found.get_component("shape2d", "shape")
     } else if found.has_component("collider2d") {
-        found.get_component("collider2d")
+        found.get_component("collider2d", "shape")
     } else {
         return nil;
     };

@@ -34,8 +34,7 @@ position = [3.5, 1.0, 0.0]
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [0.8, 0.8]
+shape = { kind = "rectangle", size = [0.8, 0.8] }
 
 [nodes.shape2d]
 shape = { kind = "rectangle", size = [0.8, 0.8] }

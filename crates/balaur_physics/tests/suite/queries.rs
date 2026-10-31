@@ -36,8 +36,7 @@ script = { source = "scripts/scenario.bs" }
 position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 
 [[nodes]]
 id = "n_far"
@@ -48,8 +47,7 @@ parent = "n_world"
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
     )
     .unwrap();

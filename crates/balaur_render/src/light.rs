@@ -377,7 +377,8 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
         let registry = eng.try_resource::<balaur_core::ComponentRegistry>()?;
         let registry = registry.borrow();
         let def = registry.def("collider2d")?;
-        (def.get)(eng, entity)?
+        // Its `shape`: the kind and the dimensions that kind reads.
+        (def.get)(eng, entity)?.get("shape")?.clone()
     };
     let num = |key: &str, default: f32| {
         params

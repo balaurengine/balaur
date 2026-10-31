@@ -260,9 +260,7 @@ fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
         return;
     }
     let own = util::map_or_empty(node.get(component));
-    for key in shape.keys() {
-        own.set(key, shape.get(key));
-    }
+    own.set("shape", shape);
     node.set(component, own);
 }
 

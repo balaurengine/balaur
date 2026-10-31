@@ -55,7 +55,7 @@ fn a_dynamic_body_nothing_collides_with_warns() {
     );
     assert!(says(&bare, "body2d", "nothing collides"), "{bare:?}");
     let held = warned(
-        "[[nodes]]\nid = \"n_ball\"\nname = \"Ball\"\nparent = \"n_root\"\nbody2d = { kind = \"dynamic\" }\n\n[[nodes]]\nid = \"n_shape\"\nname = \"Shape\"\nparent = \"n_ball\"\ncollider2d = { kind = \"circle\", radius = 0.5 }\n",
+        "[[nodes]]\nid = \"n_ball\"\nname = \"Ball\"\nparent = \"n_root\"\nbody2d = { kind = \"dynamic\" }\n\n[[nodes]]\nid = \"n_shape\"\nname = \"Shape\"\nparent = \"n_ball\"\ncollider2d = { shape = { kind = \"circle\", radius = 0.5 } }\n",
         "n_ball",
     );
     assert!(

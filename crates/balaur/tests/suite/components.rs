@@ -34,7 +34,7 @@ fn plugin_components_roundtrip_through_the_registry() {
                 // set_component adds with defaults when the node lacks the
                 // component, and merges when it has it; there is no add_component.
                 n.set_component("body3d");
-                n.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.7));
+                n.set_component("collider3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
                 n.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
                 n.set_component("widget", map().with("text", "hi"));
 
@@ -44,11 +44,11 @@ fn plugin_components_roundtrip_through_the_registry() {
                 self.check(n.get_component("body3d", "kind").as_str() == "static", "edited body kind");
 
                 let col = n.get_component("collider3d");
-                self.check(math::abs(col.get("radius").as_float() - 0.7) < 1e-5, "collider radius roundtrip");
+                self.check(math::abs(col.get("shape").get("radius").as_float() - 0.7) < 1e-5, "collider radius roundtrip");
 
                 let schema = scene::component_schema("collider3d");
-                self.check(schema.get("kind").get("type").as_str() == "enum", "kind is an enum");
-                self.check(schema.get("radius").get("default").as_float() == 0.5, "radius default");
+                self.check(schema.get("shape").get("type").as_str() == "variant", "shape is a variant");
+                self.check(schema.get("shape").get("variants").get("sphere").get("fields").get("radius").get("default").as_float() == 0.5, "radius default");
 
                 n.remove_component("body3d");
                 self.check(n.get_component("body3d").is_nil(), "body removed");
@@ -427,7 +427,7 @@ fn a_keyed_read_answers_one_property() {
             fn init() {
                 let n = scene::root().add_child("Keyed");
                 n.set_component("widget", map().with("text", "hi").with("kind", "button"));
-                n.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.7));
+                n.set_component("collider3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
 
                 self.check(n.get_component("widget", "text").as_str() == "hi", "widget text");
                 self.check(n.get_component("widget", "kind").as_str() == "button", "widget kind");
@@ -437,7 +437,7 @@ fn a_keyed_read_answers_one_property() {
                 self.check(n.get_component("widget", "value") == table.get("value"), "same as the table");
 
                 // No fast path: the table is read and indexed.
-                self.check(n.get_component("collider3d", "kind").as_str() == "sphere", "collider kind");
+                self.check(n.get_component("collider3d", "shape").get("kind").as_str() == "sphere", "collider kind");
 
                 self.check(n.get_component("widget", "no_such_property").is_nil(), "unknown property");
                 self.check(n.get_component("body3d", "kind").is_nil(), "component the node lacks");

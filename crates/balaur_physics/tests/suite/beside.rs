@@ -158,7 +158,13 @@ fn an_articulation_is_the_component_beside_the_joint() {
     add(&app, anchor, "body3d", "kind = \"static\"").unwrap();
     let ball = node(&app, "Ball", [1.0, 0.0, 0.0]);
     add(&app, ball, "body3d", "kind = \"dynamic\"").unwrap();
-    add(&app, ball, "collider3d", "kind = \"sphere\"\nradius = 0.1").unwrap();
+    add(
+        &app,
+        ball,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
+    )
+    .unwrap();
     add(
         &app,
         ball,
@@ -247,7 +253,7 @@ fn a_snapshot_carries_the_beside_components() {
     let e = node(&app, "Rope", [0.0; 3]);
     add(&app, e, "soft_rope3d", "particle_count = 8").unwrap();
     add(&app, e, "softbody3d", "kind = \"rope\"").unwrap();
-    add(&app, e, "collider3d", "kind = \"sphere\"").unwrap();
+    add(&app, e, "collider3d", "shape = { kind = \"sphere\" }").unwrap();
     app.tick(1.0 / 60.0);
     let taken = snapshot::capture(&app.engine);
     components::patch(

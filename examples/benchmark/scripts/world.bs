@@ -64,7 +64,7 @@ pub fn body(w: World, at: Vec3, shape: any) -> Node {
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
     node.set_component(kind, map().with("kind", "dynamic").with("can_sleep", false));
-    node.set_component(collider_key(w), shape);
+    node.set_component(collider_key(w), map().with("shape", shape));
     draw(w, node, shape);
     w.bodies.push(node);
     node
@@ -85,7 +85,7 @@ pub fn wall(w: World, at: Vec3, shape: any) -> Node {
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
     node.set_component(kind, map().with("kind", "static"));
-    node.set_component(collider_key(w), shape);
+    node.set_component(collider_key(w), map().with("shape", shape));
     node
 }
 

@@ -38,8 +38,7 @@ color = [0.20, 0.22, 0.26, 1.0]
 # Real ground, not just something drawn: the ball that tears through lands on
 # it rather than falling out of the scene.
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 0.2, 16.0]
+shape = { kind = "box", size = [16.0, 0.2, 16.0] }
 offset = [0.0, -0.1, 0.0]
 
 [[nodes]]
@@ -56,8 +55,7 @@ shape = { kind = "box", size = [1.0, 0.8, 1.0] }
 color = [0.34, 0.36, 0.40, 1.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 0.8, 1.0]
+shape = { kind = "box", size = [1.0, 0.8, 1.0] }
 physics_material = { friction = 0.9 }
 
 [[nodes]]
@@ -126,6 +124,5 @@ shape = { kind = "sphere", radius = 0.3 }
 color = [0.88, 0.45, 0.30, 1.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.3
+shape = { kind = "sphere", radius = 0.3 }
 density = 4.0

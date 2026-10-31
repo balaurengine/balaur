@@ -39,6 +39,7 @@ pub use ::rapier3d;
 pub mod body;
 pub mod character;
 pub mod collider;
+pub mod collider_shape;
 pub mod debug;
 pub mod dim2;
 pub mod events;

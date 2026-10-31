@@ -34,7 +34,7 @@ pub fn all() -> [load::Case] {
         // Neither: the node itself, and what a component with no drawing costs.
         load::case("node", COUNT, bare),
         kind("timer", COUNT, 2, "timer", map().with("wait_time", 1.0).with("running", true)),
-        kind("collider2d", COUNT, 2, "collider2d", map().with("kind", "circle").with("radius", 1.0)),
+        kind("collider2d", COUNT, 2, "collider2d", map().with("shape", map().with("kind", "circle").with("radius", 1.0))),
         kind("body2d", COUNT, 2, "body2d", map().with("kind", "dynamic")),
         load::case("widget", 2000, widget),
     ]

@@ -17,7 +17,8 @@ fn falling_body(app: &App, name: &str, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -56,7 +57,8 @@ fn a_paused_game_holds_a_2d_body_too() {
     let ball = scene::spawn_node(&mut app.engine.world_mut(), "Ball2d", root);
     let params: toml::Value = toml::from_str("kind = \"dynamic\"").unwrap();
     components::add(&app.engine, ball, "body2d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"circle\"\nradius = 0.5").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"circle\", radius = 0.5 }").unwrap();
     components::add(&app.engine, ball, "collider2d", Some(&collider)).unwrap();
 
     app.engine.set_paused(true);

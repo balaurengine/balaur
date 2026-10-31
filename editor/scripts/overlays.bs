@@ -128,7 +128,7 @@ pub fn colliders2d(state: editor::State) {
         if !found.is_valid() || !found.has_component("collider2d") {
             continue;
         }
-        let collider = found.authored("collider2d");
+        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider2d")).shape);
         let position = found.transform.global_position();
         let angle = found.transform.global_rotation_euler().z;
         let scale = found.transform.global_scale();
@@ -253,7 +253,7 @@ pub fn colliders(state: editor::State) {
         if !found.is_valid() || !found.has_component("collider3d") {
             continue;
         }
-        let collider = found.authored("collider3d");
+        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider3d")).shape);
         let position = found.transform.global_position();
         let half_x = 0.5;
         let half_y = 0.5;

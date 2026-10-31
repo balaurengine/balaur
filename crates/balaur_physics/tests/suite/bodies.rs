@@ -38,7 +38,8 @@ fn body_with(app: &App, name: &str, params: &str) -> Entity {
 fn with_body_params(app: &App, e: Entity, params: &str) -> Entity {
     let params: toml::Value = toml::from_str(params).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -271,7 +272,7 @@ fn can_sleep_false_keeps_a_body_awake() {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"box\"\nsize = [20.0, 1.0, 20.0]").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"box\", size = [20.0, 1.0, 20.0] }").unwrap()),
     )
     .unwrap();
     // Apart, because sleeping is decided per island: two bodies that touch
@@ -402,7 +403,8 @@ fn a_2d_body_mass_is_the_total_too() {
     let e = node(&app, "Crate");
     let body: toml::Value = toml::from_str("kind = \"dynamic\"\nmass = 3.0").unwrap();
     components::add(&app.engine, e, "body2d", Some(&body)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"rectangle\"\nsize = [2.0, 2.0]").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"rectangle\", size = [2.0, 2.0] }").unwrap();
     components::add(&app.engine, e, "collider2d", Some(&collider)).unwrap();
     app.tick(1.0 / 60.0);
     let state = app.engine.resource::<PhysicsState2d>();
@@ -435,7 +437,8 @@ fn a_body_with_a_centre_of_mass_and_no_inertia_still_turns() {
     let body: toml::Value =
         toml::from_str("kind = \"dynamic\"\nmass = 2.0\ncenter_of_mass = [0.0, 0.5, 0.0]").unwrap();
     components::add(&app.engine, e, "body3d", Some(&body)).unwrap();
-    let cube: toml::Value = toml::from_str("kind = \"box\"\nsize = [1.0, 1.0, 1.0]").unwrap();
+    let cube: toml::Value =
+        toml::from_str("shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&cube)).unwrap();
     // A unit cube of mass 2 turns about its centre with 2/6 on every axis; half
     // a unit up, the two axes across the offset gain 2 * 0.5^2.
@@ -462,7 +465,8 @@ fn a_2d_body_with_a_centre_of_mass_and_no_inertia_still_turns() {
     let body: toml::Value =
         toml::from_str("kind = \"dynamic\"\nmass = 2.0\ncenter_of_mass = [0.5, 0.0]").unwrap();
     components::add(&app.engine, e, "body2d", Some(&body)).unwrap();
-    let square: toml::Value = toml::from_str("kind = \"rectangle\"\nsize = [1.0, 1.0]").unwrap();
+    let square: toml::Value =
+        toml::from_str("shape = { kind = \"rectangle\", size = [1.0, 1.0] }").unwrap();
     components::add(&app.engine, e, "collider2d", Some(&square)).unwrap();
     let inertia = {
         let state = app.engine.resource::<PhysicsState2d>();

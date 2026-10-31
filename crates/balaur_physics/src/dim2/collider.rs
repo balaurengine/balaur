@@ -9,6 +9,7 @@ use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
+use super::collider_shape::ColliderShape2d;
 use crate::rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule,
     ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups,
@@ -21,8 +22,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::properties::{
-    Axis2d, ColliderEvent, ColliderKind2d, ContactPair, Decomposition2d, Edges2d, Fill, Fit2d,
-    LayerTest,
+    ColliderEvent, ContactPair, Decomposition2d, Edges2d, Fill, Fit2d, LayerTest,
 };
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use balaur_core::layers::Layer;
@@ -35,18 +35,8 @@ use balaur_core::layers::Layer;
 #[derive(Clone, Component)]
 #[component(name = "collider2d")]
 pub struct Collider2d {
-    /// Collision shape
-    #[property(default = ColliderKind2d::Rectangle)]
-    pub kind: ColliderKind2d,
-    /// Whole size along each axis, when kind is rectangle
-    #[property(default = [1.0, 1.0])]
-    pub size: [f32; 2],
-    /// Circle radius, when kind is circle or capsule
-    #[property(default = 0.5, min = 0.01)]
-    pub radius: f32,
-    /// Length tip to tip, when kind is capsule; height 0 runs the capsule from a to b instead
-    #[property(default = 2.0, min = 0.0)]
-    pub height: f32,
+    /// The collision shape, and the dimensions or the source that kind reads
+    pub shape: ColliderShape2d,
     /// Detects overlaps without colliding: bodies pass through and are reported
     pub sensor: bool,
     /// Collide at all; a disabled collider keeps its shape and costs nothing
@@ -61,24 +51,6 @@ pub struct Collider2d {
     /// How the shape is turned relative to the node; radians in the file
     #[property(group = "shape", unit = "degrees")]
     pub offset_rotation: f32,
-    /// The axis a capsule lies along
-    #[property(default = Axis2d::Y, group = "shape")]
-    pub up_axis: Axis2d,
-    /// Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition's pieces by this radius, so it slides over seams instead of catching on them
-    #[property(group = "shape", min = 0.0)]
-    pub edge_radius: f32,
-    /// First corner, when kind is triangle or segment, and a capsule's first end when its height is 0
-    #[property(name = "a", group = "shape")]
-    pub first: [f32; 2],
-    /// Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0
-    #[property(name = "b", default = [1.0, 0.0], group = "shape")]
-    pub second: [f32; 2],
-    /// Third corner, when kind is triangle
-    #[property(name = "c", default = [0.0, 1.0], group = "shape")]
-    pub third: [f32; 2],
-    /// Which way the infinite line faces, when kind is world_boundary
-    #[property(default = [0.0, 1.0], group = "shape")]
-    pub normal: [f32; 2],
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -121,12 +93,6 @@ pub struct Collider2d {
     /// A margin the solver treats as already touching; stops thin shapes tunnelling and jittering
     #[property(group = "contacts", min = 0.0)]
     pub collision_margin: f32,
-    /// Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them
-    #[property(default = true, group = "contacts")]
-    pub fix_internal_edges: bool,
-    /// fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped
-    #[property(group = "contacts")]
-    pub two_sided_edges: bool,
     /// Mass per volume, so the shape's size sets its mass; 0 makes a collider that adds no mass to its body
     #[property(default = 1.0, group = "mass", min = 0.0)]
     pub density: f32,
@@ -145,21 +111,6 @@ pub struct Collider2d {
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
-    /// Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws
-    #[property(asset = "mesh", group = "mesh")]
-    pub mesh: String,
-    /// A row of heights, when kind is heightfield: a side-scroller's ground, with the asset's holes cut out
-    #[property(asset = "heightfield", group = "mesh")]
-    pub heightfield: String,
-    /// Width and height scale of a heightfield
-    #[property(default = [1.0, 1.0], group = "mesh")]
-    pub scale: [f32; 2],
-    /// Filled cells, when kind is voxels; a script may dig into them while the game runs
-    #[property(asset = "voxels", group = "mesh")]
-    pub voxels: String,
-    /// How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points
-    #[property(group = "mesh", min = 0.0)]
-    pub voxel_size: f32,
 }
 
 /// How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.
@@ -212,13 +163,13 @@ impl Beside for MeshCollider2d {
 
     fn reads(main: &Collider2d) -> bool {
         matches!(
-            main.kind,
-            ColliderKind2d::TriangleMesh
-                | ColliderKind2d::Polyline
-                | ColliderKind2d::Fit
-                | ColliderKind2d::ConvexPolygon
-                | ColliderKind2d::VoxelizedMesh
-                | ColliderKind2d::ConvexDecomposition
+            main.shape,
+            ColliderShape2d::TriangleMesh(_)
+                | ColliderShape2d::Polyline(_)
+                | ColliderShape2d::Fit(_)
+                | ColliderShape2d::ConvexPolygon(_)
+                | ColliderShape2d::VoxelizedMesh(_)
+                | ColliderShape2d::ConvexDecomposition(_)
         )
     }
 }
@@ -263,7 +214,7 @@ impl Beside for ConvexDecomposition2d {
     type Main = Collider2d;
 
     fn reads(main: &Collider2d) -> bool {
-        main.kind == ColliderKind2d::ConvexDecomposition
+        matches!(main.shape, ColliderShape2d::ConvexDecomposition(_))
     }
 }
 
@@ -551,7 +502,10 @@ pub(crate) fn reread_materials(eng: &Engine) {
 
 /// Build and insert the collider described by `params`, replacing any
 /// existing one.
-pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
+    // The builder reads the shape's rows beside the others; the table is kept
+    // as the component holds it, for a snapshot and a rebuild.
+    let params = &crate::shared::collider::flat_table(asked.clone());
     let builder = collider_builder(eng, params)?;
     let offset = Pose2::from_parts(
         scalar::v2a(v::vec2(params, k::OFFSET, [0.0; 2])),
@@ -564,7 +518,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
         state
             .borrow_mut()
             .collider_params
-            .insert(entity, params.clone());
+            .insert(entity, asked.clone());
     }
     if let Some(surface) = surface_of(params, [0.0, 1.0]) {
         let state = eng.resource::<PhysicsState2d>();

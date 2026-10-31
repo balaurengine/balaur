@@ -29,11 +29,25 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
         .unwrap_or_else(|| panic!("`{component}` is registered"));
     let mut path = field.split('.');
     let first = schema.get(path.next().unwrap_or_default());
+    // Into a list's or a record's fields, or a variant's records.
     let spec = path.fold(first, |spec, name| {
-        spec.and_then(|s| s.get("of"))
-            .and_then(|of| of.get("fields"))
-            .and_then(|fields| fields.get(name))
+        let spec = spec?;
+        spec.get("variants")
+            .and_then(|variants| variants.get(name))
+            .or_else(|| spec.get("fields").and_then(|fields| fields.get(name)))
+            .or_else(|| {
+                spec.get("of")
+                    .and_then(|of| of.get("fields"))
+                    .and_then(|fields| fields.get(name))
+            })
     });
+    // A variant's options are its kinds.
+    if let Some(variants) = spec
+        .and_then(|f| f.get("variants"))
+        .and_then(toml::Value::as_table)
+    {
+        return variants.keys().cloned().collect();
+    }
     spec.and_then(|f| f.get("options"))
         .and_then(toml::Value::as_array)
         .unwrap_or_else(|| panic!("`{component}.{field}` declares options"))
@@ -58,8 +72,8 @@ fn every_constant_table_matches_the_registered_schema() {
     let tables: &[TableCase] = &[
         ("BODY_KINDS", BODY_KINDS, "body3d", "kind"),
         ("BODY_KINDS", BODY_KINDS, "body2d", "kind"),
-        ("SHAPE_KINDS", SHAPE_KINDS, "collider3d", "kind"),
-        ("SHAPE_KINDS_2D", SHAPE_KINDS_2D, "collider2d", "kind"),
+        ("SHAPE_KINDS", SHAPE_KINDS, "collider3d", "shape"),
+        ("SHAPE_KINDS_2D", SHAPE_KINDS_2D, "collider2d", "shape"),
         ("JOINT_KINDS", JOINT_KINDS, "joint3d", "kind"),
         ("JOINT_KINDS_2D", JOINT_KINDS_2D, "joint2d", "kind"),
         (
@@ -113,8 +127,8 @@ fn every_constant_table_matches_the_registered_schema() {
         ("TEST_MODES", TEST_MODES, "collider2d", "solver_test"),
         ("EDGE_MODES", EDGE_MODES, "mesh_collider3d", "edges"),
         ("EDGE_MODES_2D", EDGE_MODES_2D, "mesh_collider2d", "edges"),
-        ("AXES", AXES, "collider3d", "up_axis"),
-        ("AXES_2D", AXES_2D, "collider2d", "up_axis"),
+        ("AXES", AXES, "collider3d", "shape.capsule.up_axis"),
+        ("AXES_2D", AXES_2D, "collider2d", "shape.capsule.up_axis"),
         ("EVENTS", EVENTS, "collider3d", "events"),
         (
             "COLLISION_PAIRS",
@@ -137,10 +151,15 @@ fn every_constant_table_matches_the_registered_schema() {
         ),
     ];
     for (table_name, table, component, field) in tables {
-        let declared: Vec<&str> = table.iter().map(|(_, v)| *v).collect();
+        let mut declared: Vec<&str> = table.iter().map(|(_, v)| *v).collect();
+        let mut registered = registered_options(component, field);
+        // A variant's kinds are a table, which keeps no order of its own.
+        if field.starts_with("shape") && !field.contains('.') {
+            declared.sort_unstable();
+            registered.sort_unstable();
+        }
         assert_eq!(
-            declared,
-            registered_options(component, field),
+            declared, registered,
             "{table_name} and the `{component}.{field}` options disagree"
         );
     }

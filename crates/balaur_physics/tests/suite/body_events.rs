@@ -70,8 +70,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "box"
-size = [20.0, 1.0, 20.0]
+shape = { kind = "box", size = [20.0, 1.0, 20.0] }
 
 [[nodes]]
 id = "n_crate"
@@ -89,8 +88,7 @@ name = "Shape"
 parent = "n_crate"
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 1.0, 1.0]
+shape = { kind = "box", size = [1.0, 1.0, 1.0] }
 events = ["collision"]
 "#,
         r#"pub class Scenario { node: Node }
@@ -127,8 +125,7 @@ parent = "n_world"
 body2d = { kind = "static" }
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [20.0, 1.0]
+shape = { kind = "rectangle", size = [20.0, 1.0] }
 
 [[nodes]]
 id = "n_crate"
@@ -146,8 +143,7 @@ name = "Shape"
 parent = "n_crate"
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.0, 1.0]
+shape = { kind = "rectangle", size = [1.0, 1.0] }
 events = ["collision"]
 "#,
         r#"pub class Scenario { node: Node }
@@ -201,8 +197,7 @@ body3d = { kind = "static" }
 position = [0.0, -4.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [20.0, 1.0, 20.0]
+shape = { kind = "box", size = [20.0, 1.0, 20.0] }
 
 [[nodes]]
 id = "n_rope"

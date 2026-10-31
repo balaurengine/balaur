@@ -630,7 +630,7 @@ impl Scenario {
     fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", map().with("position", [0.0, -0.8, 0.0]));
-        floor.set_component("collider2d", map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", [10.0, 0.4]));
+        floor.set_component("collider2d", map().with("shape", map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", [10.0, 0.4])));
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_circle2d", map().with("radius", 0.5).with("particle_count", 24)); blob.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_CIRCLE));
         self.before = blob.softbody2d.softbody_area();
@@ -723,7 +723,7 @@ impl Scenario {
     fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", map().with("position", [0.0, -0.8, 0.0]));
-        floor.set_component("collider2d", map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", [10.0, 0.4]));
+        floor.set_component("collider2d", map().with("shape", map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", [10.0, 0.4])));
         self.node.get_node("Blob2d").softbody2d.set_softbody(map().with("kind", physics2d::SOFT_POLYGON).with("mesh", "#hub").with("particle_radius", 0.05));
     }
 }

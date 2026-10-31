@@ -241,7 +241,7 @@ id = "n_ball"
 name = "Ball"
 parent = "n_map"
 body2d = { kind = "dynamic", gravity_scale = 0.0 }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 
 [nodes.transform]
 position = [0.5, -4.0, 0.0]

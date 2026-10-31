@@ -314,8 +314,7 @@ parent = "n_world"
 position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [20.0, 1.0, 20.0]
+shape = {{ kind = "box", size = [20.0, 1.0, 20.0] }}
 
 [[nodes]]
 id = "n_post"

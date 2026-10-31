@@ -46,7 +46,7 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap()),
     )
     .unwrap();
     e
@@ -277,8 +277,7 @@ parent = "n_world"
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#;
 
 /// The whole point of the prune: a collider on a freed node used to keep

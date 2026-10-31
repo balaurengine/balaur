@@ -40,27 +40,27 @@ script = { source = "scripts/scenario.bs" }
 id = "n_a"
 name = "A"
 parent = "n_world"
-collider3d = { kind = "voxels", voxels = "#row" }
+collider3d = { shape = { kind = "voxels", voxels = "#row" } }
 
 [[nodes]]
 id = "n_b"
 name = "B"
 parent = "n_world"
-collider3d = { kind = "voxels", voxels = "#one" }
+collider3d = { shape = { kind = "voxels", voxels = "#one" } }
 transform = { position = [3.0, 0.0, 0.0] }
 
 [[nodes]]
 id = "n_alone"
 name = "Alone"
 parent = "n_world"
-collider3d = { kind = "voxels", voxels = "#row" }
+collider3d = { shape = { kind = "voxels", voxels = "#row" } }
 transform = { position = [0.0, 5.0, 0.0] }
 
 [[nodes]]
 id = "n_cropped"
 name = "Cropped"
 parent = "n_world"
-collider3d = { kind = "voxels", voxels = "#row" }
+collider3d = { shape = { kind = "voxels", voxels = "#row" } }
 transform = { position = [0.0, 10.0, 0.0] }
 "##;
 

@@ -69,10 +69,22 @@ fn tick(app: &mut App, steps: u32) {
 fn hanging(app: &App, at: [f32; 3], joint: &str) -> Entity {
     let anchor = node(app, "Anchor", [0.0; 3]);
     add(app, anchor, "body3d", "kind = \"static\"").unwrap();
-    add(app, anchor, "collider3d", "kind = \"sphere\"\nradius = 0.1").unwrap();
+    add(
+        app,
+        anchor,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
+    )
+    .unwrap();
     let ball = node(app, "Ball", at);
     add(app, ball, "body3d", "kind = \"dynamic\"\nmass = 2.0").unwrap();
-    add(app, ball, "collider3d", "kind = \"sphere\"\nradius = 0.1").unwrap();
+    add(
+        app,
+        ball,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
+    )
+    .unwrap();
     let table = format!(
         "connected_body = \"/Anchor\"\nanchor = [{}, {}, {}]\n{joint}",
         -at[0], -at[1], -at[2]
@@ -326,8 +338,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -346,8 +357,7 @@ body3d = { kind = "dynamic", mass = 1.0 }
 position = [0.0, 0.0, 3.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -409,8 +419,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -429,8 +438,7 @@ body3d = { kind = "dynamic", mass = 1.0 }
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -473,7 +481,13 @@ fn a_2d_joint_reads_its_softness_back_and_turns_its_frame() {
     add(&app, anchor, "body2d", "kind = \"static\"").unwrap();
     let ball = node(&app, "Ball", [1.0, 0.0, 0.0]);
     add(&app, ball, "body2d", "kind = \"dynamic\"").unwrap();
-    add(&app, ball, "collider2d", "kind = \"circle\"\nradius = 0.1").unwrap();
+    add(
+        &app,
+        ball,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 0.1 }",
+    )
+    .unwrap();
     add(
         &app,
         ball,

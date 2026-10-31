@@ -8,8 +8,7 @@ name = "Crate"
 body3d = { kind = "dynamic" }
 
 [nodes.collider3d]
-size = [0.7, 0.7, 0.7]
-kind = "box"
+shape = { kind = "box", size = [0.7, 0.7, 0.7] }
 
 # The tint is a property of the shape; an instance overrides it with
 # `[nodes.overrides.Lid.shape3d] color = [...]`, which patches that

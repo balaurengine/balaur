@@ -403,16 +403,18 @@ fn spawn_body(
     let mut shape = recipe.collider.clone();
     let radius = length * recipe.thickness;
     let float = |x: f32| toml::Value::Float(f64::from(x));
-    shape.insert(k::KIND.into(), toml::Value::String(recipe.shape.clone()));
+    // The collider's `shape`: its kind and the size that kind reads.
+    let mut form = toml::map::Map::new();
+    form.insert(k::KIND.into(), toml::Value::String(recipe.shape.clone()));
     match recipe.shape.as_str() {
         // Tip to tip, the capsule is as long as the bone.
         w::CAPSULE => {
-            shape.insert(k::RADIUS.into(), float(radius));
-            shape.insert(k::HEIGHT.into(), float(length));
+            form.insert(k::RADIUS.into(), float(radius));
+            form.insert(k::HEIGHT.into(), float(length));
         }
         // Centred on the bone's middle, so the ball spans the bone.
         w::SPHERE | w::CIRCLE => {
-            shape.insert(k::RADIUS.into(), float(length * 0.5));
+            form.insert(k::RADIUS.into(), float(length * 0.5));
         }
         // As long as the bone and as thick as the capsule would be.
         _ => {
@@ -421,9 +423,10 @@ fn spawn_body(
             if dim3 {
                 size.push(width);
             }
-            shape.insert(k::SIZE.into(), toml::Value::Array(size));
+            form.insert(k::SIZE.into(), toml::Value::Array(size));
         }
     }
+    shape.insert("shape".into(), toml::Value::Table(form));
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),

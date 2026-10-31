@@ -34,7 +34,7 @@ fn draw(config: PhysicsDebugConfig, settings: &[(&str, toml::Value)]) -> (Vec<[f
             &app.engine,
             e,
             "collider3d",
-            Some(&toml::from_str("kind = \"box\"").unwrap()),
+            Some(&toml::from_str("shape = { kind = \"box\" }").unwrap()),
         )
         .unwrap();
         nodes.push(e.to_bits().get());

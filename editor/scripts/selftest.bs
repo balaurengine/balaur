@@ -1314,8 +1314,8 @@ pub fn physics_panel(state: &mut editor::State) {
     } else {
         model::node(state, target).authored("mesh").get("source")
     };
-    model::set_component_properties(state, collider, map().with("kind", "convex_decomposition").with("mesh", source));
-    let written = util::map_or_empty(model::node(state, target).authored(collider));
+    model::set_component_properties(state, collider, map().with("shape", map().with("kind", "convex_decomposition").with("mesh", source)));
+    let written = util::map_or_empty(util::map_or_empty(model::node(state, target).authored(collider)).shape);
     check(written.get("kind").as_str() == "convex_decomposition", "the decomposition action wrote the collider's kind");
     // The tetrahedrization, and every property it declares drawable.
     model::set_component_properties(state, soft, map().with("kind", "volumetric").with("mesh", source));
@@ -1356,7 +1356,7 @@ fn each_from_its_own_mesh(state: &mut editor::State, two_d: bool, collider: str)
     let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
     physics::make_collider(state, two_d, map().with("kind", hull), map());
     for index in pair {
-        let wrote = util::map_or_empty(model::node(state, index).authored(collider)).get("mesh");
+        let wrote = util::map_or_empty(util::map_or_empty(model::node(state, index).authored(collider)).shape).get("mesh");
         let own = physics::drawn_mesh(model::node(state, index), two_d);
         check(wrote == own, "'{model::node(state, index).name()}' is built from its own mesh ({wrote})");
     }
@@ -4034,14 +4034,14 @@ pub fn change_types(state: &mut editor::State) {
         check(recipes::change_type(state, row, "rigid_body2d"), "a sprite becomes a rigid body");
         let node = model::node(state, row);
         check(node.has_component("sprite") && node.has_component("body2d"), "and keeps drawing its sprite");
-        let collider = util::map_or_empty(node.authored("collider2d"));
+        let collider = util::map_or_empty(util::map_or_empty(node.authored("collider2d")).shape);
         check(collider.get("kind").as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION && !collider.get("mesh").is_nil(), "its collider is cut from the sprite's outline ({collider.get("kind")})");
         check(model::node(state, row).has_component("collider2d"), "and the live node collides");
         let bad = warned(model::node(state, row));
         check(bad.len() == 0, "with nothing to warn about ({bad})");
         check(recipes::change_type(state, row, "static_body2d"), "a rigid body becomes a static one");
         let body = util::map_or_empty(model::node(state, row).authored("body2d"));
-        check(body.get("kind").as_str() == physics2d::BODY_STATIC && util::map_or_empty(model::node(state, row).authored("collider2d")).get("kind").as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION, "and keeps the collider it had");
+        check(body.get("kind").as_str() == physics2d::BODY_STATIC && util::map_or_empty(util::map_or_empty(model::node(state, row).authored("collider2d")).shape).get("kind").as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION, "and keeps the collider it had");
         undo_all(state);
         check(!model::node(state, row).has_component("body2d") && !model::node(state, row).has_component("collider2d"), "undo takes both changes back");
         // The picker's own path: a soft body over a node that draws a sprite

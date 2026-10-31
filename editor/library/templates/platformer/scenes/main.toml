@@ -30,8 +30,7 @@ shape = { kind = "rectangle", size = [24, 1.0] }
 color = "#3c4a3a"
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [24, 1.0]
+shape = { kind = "rectangle", size = [24, 1.0] }
 
 [[nodes]]
 id = "n_player"
@@ -49,6 +48,4 @@ color = "#e8c37a"
 [nodes.character2d]
 
 [nodes.collider2d]
-kind = "capsule"
-radius = 0.4
-height = 2.0
+shape = { kind = "capsule", radius = 0.4, height = 2.0 }

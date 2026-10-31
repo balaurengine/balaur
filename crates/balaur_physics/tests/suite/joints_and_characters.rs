@@ -55,8 +55,7 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "box"
-size = [4.0, 4.0, 4.0]
+shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
 events = ["collision"]
 
@@ -70,8 +69,7 @@ body3d = { kind = "dynamic" }
 position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, seen: int, left: int, ticks: int }
 impl Scenario {
@@ -104,8 +102,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -118,8 +115,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -159,8 +155,7 @@ body3d = { kind = "static" }
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "box"
-size = [8.0, 0.4, 8.0]
+shape = { kind = "box", size = [8.0, 0.4, 8.0] }
 events = ["contact_force"]
 
 [[nodes]]
@@ -173,8 +168,7 @@ body3d = { kind = "dynamic" }
 position = [0.0, 3.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, hits: int, ticks: int }
 impl Scenario {
@@ -210,8 +204,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -224,8 +217,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -271,8 +263,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -285,8 +276,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_link"
@@ -329,8 +319,7 @@ parent = "n_world"
 body2d = { kind = "static" }
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.2
+shape = { kind = "circle", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -343,8 +332,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.2
+shape = { kind = "circle", radius = 0.2 }
 
 [[nodes]]
 id = "n_link"
@@ -392,8 +380,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -407,8 +394,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
@@ -443,8 +429,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = { kind = "box", size = [1.0, 8.0, 16.0] }
 
 [[nodes]]
 id = "n_player"
@@ -453,9 +438,7 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -509,7 +492,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
             &app.engine,
             e,
             "collider3d",
-            Some(&toml::from_str("kind = \"sphere\"\nradius = 0.2").unwrap()),
+            Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.2 }").unwrap()),
         )
         .unwrap();
         e
@@ -582,8 +565,7 @@ parent = "n_world"
 position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 1.0, 16.0]
+shape = { kind = "box", size = [16.0, 1.0, 16.0] }
 
 [[nodes]]
 id = "n_player"
@@ -595,9 +577,7 @@ script = { source = "scripts/scenario.bs" }
 position = [0.0, 1.0, 0.0]
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 "#,
@@ -644,8 +624,7 @@ script = { source = "scripts/scenario.bs" }
 rotation_euler = [0.0, 0.0, 1.5707963]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [2.0, 0.1]
+shape = { kind = "rectangle", size = [2.0, 0.1] }
 
 [nodes.character2d]
 floor_snap_length = 0.0
@@ -687,8 +666,7 @@ parent = "n_world"
 position = [0.0, -10.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 1.0, 16.0]
+shape = { kind = "box", size = [16.0, 1.0, 16.0] }
 
 [[nodes]]
 id = "n_faller"
@@ -701,8 +679,7 @@ script = { source = "scripts/scenario.bs" }
 position = [0.0, -8.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int, seen: int }
 impl Scenario {

@@ -32,8 +32,7 @@ parent = "n_scene"
 position = [0.0, -2.6, 0.0]
 
 [nodes.collider2d]
-size = [12.0, 0.6]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [12.0, 0.6] }
 
 [nodes.shape2d]
 color = "#3c4753"
@@ -49,8 +48,7 @@ parent = "n_scene"
 position = [-4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }
 
 [nodes.shape2d]
 color = "#3c4753"
@@ -66,8 +64,7 @@ parent = "n_scene"
 position = [4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }
 
 [nodes.shape2d]
 color = "#3c4753"

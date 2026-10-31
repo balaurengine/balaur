@@ -274,7 +274,7 @@ fn shape_half_extents(found: Node) -> [float] {
     let shape = if found.has_component("shape3d") {
         found.get_component("shape3d", "shape")
     } else {
-        found.get_component("collider3d")
+        found.get_component("collider3d", "shape")
     };
     if !shape.is_nil() {
         if shape.kind() == "map" {

@@ -116,29 +116,44 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
             let schema = model::schema(state, component.as_str());
             let data = util::map_or_empty(found_node.get_component(component));
             for property in util::keys_sorted(schema) {
-                if schema.get(property).get("type").as_str() != "asset" {
-                    continue;
-                }
-                let held = data.get(property);
-                let value = held.as_str();
-                if held.kind() != "str" || value == "" {
-                    continue;
-                }
-                if asset_missing(state, value) {
-                    found.push(at(scene, 0, "warning", "{name}: {component}.{property} → {value} does not exist"));
-                    continue;
-                }
-                // A material parses headless and links only when something
-                // draws it, so a broken shader has to be asked about.
-                if schema.get(property).get("asset").as_str() == "material" && !value.starts_with("#") {
-                    for finding in util::list_or_empty(render::check_material(value)) {
-                        found.push(at(finding.get("file").as_str(), finding.get("line").as_int(), finding.get("severity").as_str(), "{name}: {finding.get("message")}"));
+                let spec = schema.get(property);
+                if spec.get("type").as_str() == "variant" {
+                    // A variant's assets are its kind's: a collider's mesh.
+                    let held = util::map_or_empty(data.get(property));
+                    let fields = util::map_or_empty(util::map_or_empty(spec.get("variants").get(held.get("kind").as_str())).get("fields"));
+                    for field in util::keys_sorted(fields) {
+                        check_asset(state, scene, "{name}: {component}.{property}.{field}", fields.get(field), held.get(field), found);
                     }
+                } else {
+                    check_asset(state, scene, "{name}: {component}.{property}", spec, data.get(property), found);
                 }
             }
         }
     }
     found
+}
+
+// One asset row: a file it names that is not there, and a material that does
+// not link.
+fn check_asset(state: editor::State, scene: str, label: str, spec: any, held: any, found: [Finding]) {
+    if spec.get("type").as_str() != "asset" {
+        return;
+    }
+    let value = held.as_str();
+    if held.kind() != "str" || value == "" {
+        return;
+    }
+    if asset_missing(state, value) {
+        found.push(at(scene, 0, "warning", "{label} → {value} does not exist"));
+        return;
+    }
+    // A material parses headless and links only when something draws it, so
+    // a broken shader has to be asked about.
+    if spec.get("asset").as_str() == "material" && !value.starts_with("#") {
+        for finding in util::list_or_empty(render::check_material(value)) {
+            found.push(at(finding.get("file").as_str(), finding.get("line").as_int(), finding.get("severity").as_str(), "{label}: {finding.get("message")}"));
+        }
+    }
 }
 
 /// One engine warning as a line: the component, the property when it names

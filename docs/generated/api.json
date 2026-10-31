@@ -7362,21 +7362,12 @@
       "ignore_nodes"
     ],
     "collider2d": [
-      "kind",
-      "size",
-      "radius",
-      "height",
+      "shape",
       "sensor",
       "enabled",
       "physics_material",
       "offset",
       "offset_rotation",
-      "up_axis",
-      "edge_radius",
-      "a",
-      "b",
-      "c",
-      "normal",
       "collision_layer",
       "collision_mask",
       "collision_test",
@@ -7389,36 +7380,20 @@
       "one_way_angle",
       "surface_velocity",
       "collision_margin",
-      "fix_internal_edges",
-      "two_sided_edges",
       "density",
       "mass",
       "center_of_mass",
       "inertia",
       "events",
-      "contact_force_threshold",
-      "mesh",
-      "heightfield",
-      "scale",
-      "voxels",
-      "voxel_size"
+      "contact_force_threshold"
     ],
     "collider3d": [
-      "kind",
-      "size",
-      "radius",
-      "height",
+      "shape",
       "sensor",
       "enabled",
       "physics_material",
       "offset",
       "offset_rotation",
-      "up_axis",
-      "edge_radius",
-      "a",
-      "b",
-      "c",
-      "normal",
       "collision_layer",
       "collision_mask",
       "collision_test",
@@ -7431,20 +7406,13 @@
       "one_way_angle",
       "surface_velocity",
       "collision_margin",
-      "fix_internal_edges",
-      "two_sided_edges",
       "density",
       "mass",
       "center_of_mass",
       "inertia",
       "inertia_rotation",
       "events",
-      "contact_force_threshold",
-      "mesh",
-      "heightfield",
-      "scale",
-      "voxels",
-      "voxel_size"
+      "contact_force_threshold"
     ],
     "convex_decomposition2d": [
       "method",
@@ -9859,33 +9827,6 @@
       }
     },
     "collider2d": {
-      "a": {
-        "default": [
-          0.0,
-          0.0
-        ],
-        "description": "First corner, when kind is triangle or segment, and a capsule's first end when its height is 0",
-        "group": "shape",
-        "type": "vec2"
-      },
-      "b": {
-        "default": [
-          1.0,
-          0.0
-        ],
-        "description": "Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0",
-        "group": "shape",
-        "type": "vec2"
-      },
-      "c": {
-        "default": [
-          0.0,
-          1.0
-        ],
-        "description": "Third corner, when kind is triangle",
-        "group": "shape",
-        "type": "vec2"
-      },
       "center_of_mass": {
         "default": [
           0.0,
@@ -10026,13 +9967,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "edge_radius": {
-        "default": 0.0,
-        "description": "Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition's pieces by this radius, so it slides over seams instead of catching on them",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
       "enabled": {
         "default": true,
         "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
@@ -10048,25 +9982,6 @@
         ],
         "type": "flags"
       },
-      "fix_internal_edges": {
-        "default": true,
-        "description": "Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "height": {
-        "default": 2.0,
-        "description": "Length tip to tip, when kind is capsule; height 0 runs the capsule from a to b instead",
-        "min": 0.0,
-        "type": "float"
-      },
-      "heightfield": {
-        "asset": "heightfield",
-        "default": "",
-        "description": "A row of heights, when kind is heightfield: a side-scroller's ground, with the asset's holes cut out",
-        "group": "mesh",
-        "type": "asset"
-      },
       "inertia": {
         "default": 0.0,
         "description": "This collider's resistance to spin; 0 with a center_of_mass takes the shape's own about that centre",
@@ -10074,51 +9989,12 @@
         "min": 0.0,
         "type": "float"
       },
-      "kind": {
-        "default": "rectangle",
-        "description": "Collision shape",
-        "options": [
-          "circle",
-          "rectangle",
-          "capsule",
-          "triangle",
-          "segment",
-          "world_boundary",
-          "triangle_mesh",
-          "convex_hull",
-          "convex_decomposition",
-          "polyline",
-          "heightfield",
-          "voxels",
-          "voxelized_mesh",
-          "fit",
-          "convex_polygon",
-          "voxelized_points"
-        ],
-        "type": "enum"
-      },
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
         "group": "mass",
         "min": 0.0,
         "type": "float"
-      },
-      "mesh": {
-        "asset": "mesh",
-        "default": "",
-        "description": "Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws",
-        "group": "mesh",
-        "type": "asset"
-      },
-      "normal": {
-        "default": [
-          0.0,
-          1.0
-        ],
-        "description": "Which way the infinite line faces, when kind is world_boundary",
-        "group": "shape",
-        "type": "vec2"
       },
       "offset": {
         "default": [
@@ -10166,33 +10042,345 @@
         "description": "What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults",
         "type": "asset"
       },
-      "radius": {
-        "default": 0.5,
-        "description": "Circle radius, when kind is circle or capsule",
-        "min": 0.01,
-        "type": "float"
-      },
-      "scale": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "Width and height scale of a heightfield",
-        "group": "mesh",
-        "type": "vec2"
-      },
       "sensor": {
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
       },
-      "size": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "Whole size along each axis, when kind is rectangle",
-        "type": "vec2"
+      "shape": {
+        "default": {
+          "edge_radius": 0.0,
+          "kind": "rectangle",
+          "size": [
+            1.0,
+            1.0
+          ]
+        },
+        "description": "The collision shape, and the dimensions or the source that kind reads",
+        "type": "variant",
+        "variants": {
+          "capsule": {
+            "description": "A rectangle with round ends",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0
+                ],
+                "description": "The first end, when height is 0",
+                "type": "vec2"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "description": "The other end, when height is 0",
+                "type": "vec2"
+              },
+              "height": {
+                "default": 2.0,
+                "description": "Length tip to tip; 0 runs the capsule from a to b instead",
+                "min": 0.0,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the round ends",
+                "min": 0.01,
+                "type": "float"
+              },
+              "up_axis": {
+                "default": "y",
+                "description": "The axis the capsule lies along",
+                "options": [
+                  "x",
+                  "y"
+                ],
+                "type": "enum"
+              }
+            },
+            "type": "record"
+          },
+          "circle": {
+            "description": "A disc",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "convex_decomposition": {
+            "description": "Convex pieces that together cover the mesh, which a `convex_decomposition2d` beside it tunes",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape, or each piece, by this radius",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "convex_hull": {
+            "description": "The convex hull of the mesh's points",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape, or each piece, by this radius",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "convex_polygon": {
+            "description": "The mesh's outline, taken as already convex",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape, or each piece, by this radius",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "fit": {
+            "description": "A simple shape fitted to the mesh, which a `mesh_collider2d` beside it picks",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "heightfield": {
+            "description": "A row of heights",
+            "fields": {
+              "heightfield": {
+                "asset": "heightfield",
+                "default": "",
+                "description": "A side-scroller's ground, with the asset's holes cut out",
+                "type": "asset"
+              },
+              "scale": {
+                "default": [
+                  1.0,
+                  1.0
+                ],
+                "description": "Width and height scale",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          },
+          "polyline": {
+            "description": "The mesh's points in order, or its triangles' edges, as a line",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "rectangle": {
+            "description": "A rectangle",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the rectangle by this radius, so it slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          },
+          "segment": {
+            "description": "A line between two points",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0
+                ],
+                "description": "One end",
+                "type": "vec2"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "description": "The other end",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          },
+          "triangle": {
+            "description": "One triangle",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0
+                ],
+                "description": "First corner",
+                "type": "vec2"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "description": "Second corner",
+                "type": "vec2"
+              },
+              "c": {
+                "default": [
+                  0.0,
+                  1.0
+                ],
+                "description": "Third corner",
+                "type": "vec2"
+              },
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the triangle by this radius",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "triangle_mesh": {
+            "description": "The mesh's triangles, as they are",
+            "fields": {
+              "fix_internal_edges": {
+                "default": true,
+                "description": "Take neighbouring triangles into account for contacts, so a body does not catch on the seam between two of them",
+                "type": "bool"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              },
+              "two_sided_edges": {
+                "default": false,
+                "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
+                "type": "bool"
+              }
+            },
+            "type": "record"
+          },
+          "voxelized_mesh": {
+            "description": "The mesh filled into cells",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              },
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 is 0.25",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "voxelized_points": {
+            "description": "A cell for each of the mesh's points",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "Points and triangles: the same asset a polygon draws",
+                "type": "asset"
+              },
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 is 0.25",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "voxels": {
+            "description": "A grid of filled cells",
+            "fields": {
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 keeps the asset's own cell size",
+                "min": 0.0,
+                "type": "float"
+              },
+              "voxels": {
+                "asset": "voxels",
+                "default": "",
+                "description": "Filled cells; a script may dig into them while the game runs",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "world_boundary": {
+            "description": "An infinite line",
+            "fields": {
+              "normal": {
+                "default": [
+                  0.0,
+                  1.0
+                ],
+                "description": "Which way the infinite line faces",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "solver_layer": {
         "default": [
@@ -10294,69 +10482,9 @@
         "description": "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it",
         "group": "contacts",
         "type": "vec2"
-      },
-      "two_sided_edges": {
-        "default": false,
-        "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "up_axis": {
-        "default": "y",
-        "description": "The axis a capsule lies along",
-        "group": "shape",
-        "options": [
-          "x",
-          "y"
-        ],
-        "type": "enum"
-      },
-      "voxel_size": {
-        "default": 0.0,
-        "description": "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points",
-        "group": "mesh",
-        "min": 0.0,
-        "type": "float"
-      },
-      "voxels": {
-        "asset": "voxels",
-        "default": "",
-        "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
-        "group": "mesh",
-        "type": "asset"
       }
     },
     "collider3d": {
-      "a": {
-        "default": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "First corner, when kind is triangle or segment, and a capsule's first end when its height is 0",
-        "group": "shape",
-        "type": "vec3"
-      },
-      "b": {
-        "default": [
-          1.0,
-          0.0,
-          0.0
-        ],
-        "description": "Second corner, when kind is triangle or segment, and a capsule's other end when its height is 0",
-        "group": "shape",
-        "type": "vec3"
-      },
-      "c": {
-        "default": [
-          0.0,
-          1.0,
-          0.0
-        ],
-        "description": "Third corner, when kind is triangle",
-        "group": "shape",
-        "type": "vec3"
-      },
       "center_of_mass": {
         "default": [
           0.0,
@@ -10498,13 +10626,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "edge_radius": {
-        "default": 0.0,
-        "description": "Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
       "enabled": {
         "default": true,
         "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
@@ -10519,25 +10640,6 @@
           "contact_force"
         ],
         "type": "flags"
-      },
-      "fix_internal_edges": {
-        "default": true,
-        "description": "Smooth the seams between a triangle_mesh's triangles, so a character does not catch on flat ground",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "height": {
-        "default": 2.0,
-        "description": "Length tip to tip, for capsule, cylinder and cone; a capsule with height 0 runs from a to b instead",
-        "min": 0.0,
-        "type": "float"
-      },
-      "heightfield": {
-        "asset": "heightfield",
-        "default": "",
-        "description": "Terrain grid, when kind is heightfield; the asset's holes are cut out of it",
-        "group": "mesh",
-        "type": "asset"
       },
       "inertia": {
         "default": [
@@ -10560,54 +10662,12 @@
         "type": "vec3",
         "unit": "degrees"
       },
-      "kind": {
-        "default": "box",
-        "description": "Collision shape",
-        "options": [
-          "sphere",
-          "box",
-          "capsule",
-          "cylinder",
-          "cone",
-          "triangle",
-          "segment",
-          "world_boundary",
-          "triangle_mesh",
-          "convex_hull",
-          "convex_decomposition",
-          "polyline",
-          "heightfield",
-          "voxels",
-          "voxelized_mesh",
-          "fit",
-          "convex_mesh",
-          "voxelized_points"
-        ],
-        "type": "enum"
-      },
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
         "group": "mass",
         "min": 0.0,
         "type": "float"
-      },
-      "mesh": {
-        "asset": "mesh",
-        "default": "",
-        "description": "Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider",
-        "group": "mesh",
-        "type": "asset"
-      },
-      "normal": {
-        "default": [
-          0.0,
-          1.0,
-          0.0
-        ],
-        "description": "Which way the infinite plane faces, when kind is world_boundary",
-        "group": "shape",
-        "type": "vec3"
       },
       "offset": {
         "default": [
@@ -10661,35 +10721,410 @@
         "description": "What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults",
         "type": "asset"
       },
-      "radius": {
-        "default": 0.5,
-        "description": "Radius, for ball, capsule, cylinder and cone",
-        "min": 0.01,
-        "type": "float"
-      },
-      "scale": {
-        "default": [
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "Cell size and height scale of a heightfield",
-        "group": "mesh",
-        "type": "vec3"
-      },
       "sensor": {
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
       },
-      "size": {
-        "default": [
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "Whole size along each axis, when kind is box",
-        "type": "vec3"
+      "shape": {
+        "default": {
+          "edge_radius": 0.0,
+          "kind": "box",
+          "size": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "description": "The collision shape, and the dimensions or the source that kind reads",
+        "type": "variant",
+        "variants": {
+          "box": {
+            "description": "A box",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the box by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "capsule": {
+            "description": "A cylinder with round ends",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "The first end, when height is 0",
+                "type": "vec3"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "The other end, when height is 0",
+                "type": "vec3"
+              },
+              "height": {
+                "default": 2.0,
+                "description": "Length tip to tip; 0 runs the capsule from a to b instead",
+                "min": 0.0,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              },
+              "up_axis": {
+                "default": "y",
+                "description": "The axis the capsule lies along",
+                "options": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "type": "enum"
+              }
+            },
+            "type": "record"
+          },
+          "cone": {
+            "description": "A cone standing along y",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "height": {
+                "default": 2.0,
+                "description": "Length tip to tip",
+                "min": 0.0,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the base",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "convex_decomposition": {
+            "description": "Convex pieces that together cover the mesh, which a `convex_decomposition3d` beside it tunes",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "convex_hull": {
+            "description": "The convex hull of the mesh's points",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "convex_mesh": {
+            "description": "The mesh, taken as already convex",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "cylinder": {
+            "description": "A cylinder standing along y",
+            "fields": {
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the shape by this radius; a rounded shape slides over seams instead of catching on them",
+                "min": 0.0,
+                "type": "float"
+              },
+              "height": {
+                "default": 2.0,
+                "description": "Length tip to tip",
+                "min": 0.0,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the base",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "fit": {
+            "description": "A simple shape fitted to the mesh, which a `mesh_collider3d` beside it picks",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "heightfield": {
+            "description": "A terrain grid",
+            "fields": {
+              "fix_internal_edges": {
+                "default": true,
+                "description": "Smooth the seams between the grid's triangles, so a character does not catch on flat ground",
+                "type": "bool"
+              },
+              "heightfield": {
+                "asset": "heightfield",
+                "default": "",
+                "description": "Terrain grid; the asset's holes are cut out of it",
+                "type": "asset"
+              },
+              "scale": {
+                "default": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "description": "Cell size and height scale",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "polyline": {
+            "description": "The mesh's points in order, or its triangles' edges, as a line",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "segment": {
+            "description": "A line between two points",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "One end",
+                "type": "vec3"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "The other end",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "sphere": {
+            "description": "A ball",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "triangle": {
+            "description": "One triangle",
+            "fields": {
+              "a": {
+                "default": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "First corner",
+                "type": "vec3"
+              },
+              "b": {
+                "default": [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                "description": "Second corner",
+                "type": "vec3"
+              },
+              "c": {
+                "default": [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                "description": "Third corner",
+                "type": "vec3"
+              },
+              "edge_radius": {
+                "default": 0.0,
+                "description": "Rounds the triangle by this radius",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "triangle_mesh": {
+            "description": "The mesh's triangles, as they are",
+            "fields": {
+              "fix_internal_edges": {
+                "default": true,
+                "description": "Smooth the seams between the mesh's triangles, so a character does not catch on flat ground",
+                "type": "bool"
+              },
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              },
+              "two_sided_edges": {
+                "default": false,
+                "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
+                "type": "bool"
+              }
+            },
+            "type": "record"
+          },
+          "voxelized_mesh": {
+            "description": "The mesh filled into cells",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              },
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 is 0.25",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "voxelized_points": {
+            "description": "A cell for each of the mesh's points",
+            "fields": {
+              "mesh": {
+                "asset": "mesh",
+                "default": "",
+                "description": "The geometry",
+                "type": "asset"
+              },
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 is 0.25",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "voxels": {
+            "description": "A grid of filled cells",
+            "fields": {
+              "voxel_size": {
+                "default": 0.0,
+                "description": "How big one cell is; 0 keeps the asset's own cell size",
+                "min": 0.0,
+                "type": "float"
+              },
+              "voxels": {
+                "asset": "voxels",
+                "default": "",
+                "description": "Filled cells; a script may dig into them while the game runs",
+                "type": "asset"
+              }
+            },
+            "type": "record"
+          },
+          "world_boundary": {
+            "description": "An infinite plane",
+            "fields": {
+              "normal": {
+                "default": [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                "description": "Which way the infinite plane faces",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "solver_layer": {
         "default": [
@@ -10792,37 +11227,6 @@
         "description": "How fast the surface slides along itself, in the collider's own axes: a conveyor belt carries what rests on it",
         "group": "contacts",
         "type": "vec3"
-      },
-      "two_sided_edges": {
-        "default": false,
-        "description": "fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "up_axis": {
-        "default": "y",
-        "description": "The axis a capsule lies along; cylinder and cone stand along y",
-        "group": "shape",
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
-        "type": "enum"
-      },
-      "voxel_size": {
-        "default": 0.0,
-        "description": "How big one cell is: 0 keeps a voxels asset's own cell size, and is 0.25 for voxelized_mesh and voxelized_points",
-        "group": "mesh",
-        "min": 0.0,
-        "type": "float"
-      },
-      "voxels": {
-        "asset": "voxels",
-        "default": "",
-        "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
-        "group": "mesh",
-        "type": "asset"
       }
     },
     "convex_decomposition2d": {
@@ -22920,7 +23324,7 @@
         "reset_softbody_forces": "Take back every force `add_softbody_force` and `add_particle_force` gave the body.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second.",
         "set_cell_tear_resistance": "The same for one cell's tear strain.",
-        "set_collider": "Replace the node's collider from a `collider2d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them.",
+        "set_collider": "Replace the node's collider from a `collider2d` table: its `shape` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them.",
         "set_constant_force": "Replace the constant force with this one; zero stops the push.",
         "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_edge_tear_resistance": "How many times the material's threshold one edge takes to tear; 1 is the material's.",
@@ -24196,7 +24600,7 @@
         "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
         "set_brake": "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0.",
         "set_cell_tear_resistance": "The same for one cell's tear strain.",
-        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them.",
+        "set_collider": "Replace the node's collider from a `collider3d` table: its `shape` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them.",
         "set_constant_force": "Replace the constant force with this one; zero stops the push.",
         "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_edge_tear_resistance": "How many times the material's threshold one edge takes to tear; 1 is the material's.",

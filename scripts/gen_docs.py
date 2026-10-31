@@ -449,12 +449,27 @@ def gen_components(components, tags, docs=None, methods=None, events=None, order
 
 
 def asset_users(components):
-    """`component.property` per asset type, read off the component schemas."""
+    """`component.property` per asset type, read off the component schemas,
+    an asset inside a record or a variant's kind named down to it."""
     users = {}
+
+    def walk(path, spec):
+        kind = spec.get("type")
+        if kind == "asset":
+            users.setdefault(spec.get("asset", ""), []).append(f"`{path}`")
+        elif kind == "record":
+            for name, field in spec.get("fields", {}).items():
+                walk(f"{path}.{name}", field)
+        elif kind == "variant":
+            for name, record in spec.get("variants", {}).items():
+                for field_name, field in record.get("fields", {}).items():
+                    walk(f"{path}.{name}.{field_name}", field)
+
     for component in sorted(components):
         for prop, spec in sorted(components[component].items()):
-            if spec.get("type") == "asset":
-                users.setdefault(spec.get("asset", ""), []).append(f"`{component}.{prop}`")
+            walk(f"{component}.{prop}", spec)
+    for found in users.values():
+        found.sort()
     return users
 
 
