@@ -37,33 +37,48 @@ pub(crate) fn shadow(
     .into()
 }
 
-/// `rect` with its corners rounded, filled from `from` to `to` along
-/// `angle` degrees: a fan from the centre to the rounded outline, each
-/// vertex coloured by how far along the angle it sits.
+/// `rect` with its corners rounded, filled with `gradient`: the rounded
+/// outline drawn in again at shrinking rings to the centre, each vertex
+/// coloured by where it sits along the gradient, so a radial one and one of
+/// more than two stops are smooth where a single fan would be flat.
 pub(crate) fn gradient(
     rect: Rect,
     radius: CornerRadius,
-    from: Color32,
-    to: Color32,
-    angle: f32,
+    gradient: &crate::widget::theme::Gradient,
 ) -> Shape {
+    use crate::widget::theme::GradientShape;
     // Points along each rounded corner's quarter circle.
     const STEPS: u16 = 8;
-    let turn = angle.to_radians();
-    let (sin, cos) = (libm::sinf(turn), libm::cosf(turn));
-    let reach = f32::midpoint(rect.width() * cos.abs(), rect.height() * sin.abs());
-    let colour = |at: Pos2| {
-        let d = at - rect.center();
-        let along = if reach > 0.0 {
-            (d.x * cos + d.y * sin) / reach
-        } else {
-            0.0
-        };
-        from.lerp_to_gamma(to, f32::midpoint(along, 1.0).clamp(0.0, 1.0))
+    // Rings from the outline in: two colours along a line need one, which
+    // the colours between its vertices already blend exactly.
+    let rings: u16 = match gradient.shape {
+        GradientShape::Linear { .. } if gradient.stops.len() <= 2 => 1,
+        _ => 12,
     };
-    let mut mesh = egui::Mesh::default();
+    let t_at: Box<dyn Fn(Pos2) -> f32> = match gradient.shape {
+        GradientShape::Linear { angle } => {
+            let turn = angle.to_radians();
+            let (sin, cos) = (libm::sinf(turn), libm::cosf(turn));
+            let reach = f32::midpoint(rect.width() * cos.abs(), rect.height() * sin.abs());
+            let centre = rect.center();
+            Box::new(move |at| {
+                let d = at - centre;
+                let along = if reach > 0.0 {
+                    (d.x * cos + d.y * sin) / reach
+                } else {
+                    0.0
+                };
+                f32::midpoint(along, 1.0)
+            })
+        }
+        GradientShape::Radial { center, radius } => {
+            let middle = rect.min + egui::vec2(center[0] * rect.width(), center[1] * rect.height());
+            let reach = (radius * rect.width().max(rect.height())).max(f32::EPSILON);
+            Box::new(move |at| (at - middle).length() / reach)
+        }
+    };
+    let colour = |at: Pos2| gradient.at(t_at(at));
     let centre = rect.center();
-    mesh.colored_vertex(centre, colour(centre));
     let most = rect.width().min(rect.height()) / 2.0;
     let corners = [
         (rect.right_top(), f32::from(radius.ne), -90.0_f32),
@@ -71,22 +86,55 @@ pub(crate) fn gradient(
         (rect.left_bottom(), f32::from(radius.sw), 90.0),
         (rect.left_top(), f32::from(radius.nw), 180.0),
     ];
-    for (corner, r, start) in corners {
-        let r = r.min(most);
-        let inward = egui::vec2(
-            if corner.x > centre.x { -r } else { r },
-            if corner.y > centre.y { -r } else { r },
-        );
-        let pivot = corner + inward;
-        for step in 0..=STEPS {
-            let a = (start + 90.0 * f32::from(step) / f32::from(STEPS)).to_radians();
-            let at = pivot + egui::vec2(libm::cosf(a), libm::sinf(a)) * r;
+    let arcs: Vec<Vec<Pos2>> = corners
+        .iter()
+        .map(|&(corner, r, start)| {
+            let r = r.min(most);
+            let inward = egui::vec2(
+                if corner.x > centre.x { -r } else { r },
+                if corner.y > centre.y { -r } else { r },
+            );
+            let pivot = corner + inward;
+            (0..=STEPS)
+                .map(|step| {
+                    let a = (start + 90.0 * f32::from(step) / f32::from(STEPS)).to_radians();
+                    pivot + egui::vec2(libm::cosf(a), libm::sinf(a)) * r
+                })
+                .collect()
+        })
+        .collect();
+    // Each straight side between two corners cut into pieces too, so a radial
+    // gradient has points around its whole circle and not only at the corners.
+    let mut outline = Vec::new();
+    for (i, arc) in arcs.iter().enumerate() {
+        outline.extend_from_slice(arc);
+        let (from, to) = (arc[arc.len() - 1], arcs[(i + 1) % arcs.len()][0]);
+        for piece in 1..STEPS {
+            outline.push(from.lerp(to, f32::from(piece) / f32::from(STEPS)));
+        }
+    }
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(centre, colour(centre));
+    let around = u32::try_from(outline.len()).unwrap_or(0);
+    // Ring `k` of `rings` is the outline drawn `k / rings` of the way out.
+    for ring in 1..=rings {
+        let share = f32::from(ring) / f32::from(rings);
+        for point in &outline {
+            let at = centre + (*point - centre) * share;
             mesh.colored_vertex(at, colour(at));
         }
     }
-    let ring = u32::try_from(mesh.vertices.len() - 1).unwrap_or(0);
-    for i in 1..=ring {
-        mesh.add_triangle(0, i, if i == ring { 1 } else { i + 1 });
+    let at = |ring: u32, i: u32| 1 + (ring - 1) * around + i % around;
+    for i in 0..around {
+        mesh.add_triangle(0, at(1, i), at(1, i + 1));
+    }
+    for ring in 2..=u32::from(rings) {
+        for i in 0..around {
+            let (inner, inner_next) = (at(ring - 1, i), at(ring - 1, i + 1));
+            let (outer, outer_next) = (at(ring, i), at(ring, i + 1));
+            mesh.add_triangle(inner, outer, outer_next);
+            mesh.add_triangle(inner, outer_next, inner_next);
+        }
     }
     egui::Shape::mesh(mesh)
 }
@@ -295,7 +343,7 @@ pub(crate) fn circle(center: Pos2, radius: f32, fill: Color32, stroke: Stroke) -
 #[cfg(test)]
 mod tests {
     use crate::widget::frame::frame_shape;
-    use crate::widget::theme::{Gradient, Shadow, Style};
+    use crate::widget::theme::{Gradient, GradientShape, Shadow, Style};
     use egui::Color32;
 
     /// The gradient runs along its angle: at 0 the left edge is `from` and
@@ -303,11 +351,10 @@ mod tests {
     #[test]
     fn a_gradient_frame_colours_its_edges_from_and_to_over_a_shadow() {
         let card = Style {
-            gradient: Some(Gradient {
-                from: Color32::BLACK,
-                to: Color32::WHITE,
-                angle: 0.0,
-            }),
+            gradient: Some(std::rc::Rc::new(Gradient {
+                shape: GradientShape::Linear { angle: 0.0 },
+                stops: vec![(0.0, Color32::BLACK), (1.0, Color32::WHITE)],
+            })),
             shadow: Some(Shadow {
                 x: 0.0,
                 y: 2.0,
@@ -342,6 +389,50 @@ mod tests {
             mesh.vertices
                 .iter()
                 .all(|v| rect.expand(0.01).contains(v.pos))
+        );
+    }
+
+    /// A radial gradient is its first stop at its centre and its last at its
+    /// reach, smooth between: the rings carry the middle stop.
+    #[test]
+    fn a_radial_gradient_runs_out_from_its_centre() {
+        let glow = Gradient {
+            shape: GradientShape::Radial {
+                center: [0.5, 0.5],
+                radius: 0.5,
+            },
+            stops: vec![
+                (0.0, Color32::WHITE),
+                (0.5, Color32::RED),
+                (1.0, Color32::BLACK),
+            ],
+        };
+        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 100.0));
+        let egui::Shape::Mesh(mesh) = super::gradient(rect, egui::CornerRadius::same(0), &glow)
+        else {
+            panic!("the gradient is a mesh");
+        };
+        let nearest = |x: f32, y: f32| {
+            mesh.vertices
+                .iter()
+                .min_by(|a, b| {
+                    let da = (a.pos - egui::pos2(x, y)).length();
+                    let db = (b.pos - egui::pos2(x, y)).length();
+                    da.total_cmp(&db)
+                })
+                .unwrap()
+                .color
+        };
+        assert_eq!(nearest(50.0, 50.0), Color32::WHITE);
+        assert_eq!(
+            nearest(100.0, 50.0),
+            Color32::BLACK,
+            "the reach is half the side"
+        );
+        assert_eq!(
+            nearest(75.0, 50.0),
+            Color32::RED,
+            "a ring stands at the middle stop"
         );
     }
 }

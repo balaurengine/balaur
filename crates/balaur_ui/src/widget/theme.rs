@@ -33,6 +33,7 @@
 //! it over its kind's, which is how one file dresses both the `ui::*` calls a
 //! script makes and the nodes a scene holds.
 
+pub(crate) use crate::widget::gradient::{Gradient, GradientShape};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -175,19 +176,10 @@ pub struct Style {
     /// The band a widget's `border` keeps clear on each side, left, top,
     /// right and bottom, which its outline is painted in; never a theme's.
     pub border: Option<[f32; 4]>,
-    /// A fill that runs from one colour to another, drawn in place of `fill`.
-    pub gradient: Option<Gradient>,
+    /// A fill that runs through its colours, drawn in place of `fill`.
+    pub gradient: Option<Rc<Gradient>>,
     /// A blurred copy of the box, under it.
     pub shadow: Option<Shadow>,
-}
-
-/// `gradient = { from = "primary", to = "bg_panel", angle = 90 }`.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Gradient {
-    pub from: Color32,
-    pub to: Color32,
-    /// Degrees: 0 runs left to right, 90 top to bottom.
-    pub angle: f32,
 }
 
 /// `shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }`, in
@@ -279,7 +271,7 @@ impl Style {
             arrow: self.arrow.clone().or_else(|| base.arrow.clone()),
             body: self.body.clone().or_else(|| base.body.clone()),
             border: self.border.or(base.border),
-            gradient: self.gradient.or(base.gradient),
+            gradient: self.gradient.clone().or_else(|| base.gradient.clone()),
             shadow: self.shadow.or(base.shadow),
         }
     }
@@ -661,18 +653,48 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
     }
 }
 
-/// A table's `gradient`: both colours, and an angle, 0 when left out.
-fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Gradient> {
+/// A table's `gradient`: its stops, two at least, and which way it runs.
+fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Rc<Gradient>> {
     let table = body.get(lk::GRADIENT)?.as_table()?;
-    let colour = |key: &str| table.get(key).and_then(|v| color(v, what, &tokens.colors));
-    Some(Gradient {
-        from: colour(lk::FROM)?,
-        to: colour(lk::TO)?,
-        angle: table
-            .get(lk::ANGLE)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(0.0, |v| v as f32),
-    })
+    let number = |value: &toml::Value| balaur_core::components::as_f64(value).map(|v| v as f32);
+    let colours: Vec<Color32> = table
+        .get(lk::STOPS)?
+        .as_array()?
+        .iter()
+        .filter_map(|v| color(v, what, &tokens.colors))
+        .collect();
+    if colours.len() < 2 {
+        return None;
+    }
+    let last = (colours.len() - 1) as f32;
+    let places: Vec<f32> = table
+        .get(lk::AT)
+        .and_then(toml::Value::as_array)
+        .filter(|at| at.len() == colours.len())
+        .map(|at| at.iter().filter_map(number).collect())
+        .filter(|at: &Vec<f32>| at.len() == colours.len())
+        .unwrap_or_else(|| (0..colours.len()).map(|i| i as f32 / last).collect());
+    let pair = |key: &str, default: [f32; 2]| {
+        table
+            .get(key)
+            .and_then(toml::Value::as_array)
+            .and_then(|xy| Some([number(xy.first()?)?, number(xy.get(1)?)?]))
+            .unwrap_or(default)
+    };
+    let shape = if table.get(lk::KIND).and_then(toml::Value::as_str) == Some(lk::RADIAL) {
+        GradientShape::Radial {
+            center: pair(lk::CENTER, [0.5, 0.5]),
+            radius: table.get(lk::RADIUS).and_then(number).unwrap_or(0.5),
+        }
+    } else {
+        GradientShape::Linear {
+            angle: table.get(lk::ANGLE).and_then(number).unwrap_or(0.0),
+        }
+    };
+    Some(Rc::new(Gradient {
+        shape,
+        stops: places.into_iter().zip(colours).collect(),
+    }))
 }
 
 /// A table's `shadow`: its colour, and offsets, blur and spread, 0 when
@@ -871,7 +893,8 @@ fill = "bg_panel"
 padding = 8.0
 
 [roles.card]                     # any table may carry a gradient and a shadow
-gradient = { from = "primary_fill", to = "bg_panel", angle = 90 }  # in place of fill; 0 runs left to right
+gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
+# kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
 shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
 
 [roles.danger]                   # what a widget with role = "danger" takes

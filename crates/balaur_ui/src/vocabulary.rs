@@ -860,10 +860,19 @@ pub(crate) mod weights {
 pub(crate) mod looks {
     pub(crate) const GRADIENT: &str = "gradient";
     pub(crate) const SHADOW: &str = "shadow";
-    pub(crate) const FROM: &str = "from";
-    pub(crate) const TO: &str = "to";
+    /// `linear`, the default, or `radial`.
+    pub(crate) const KIND: &str = "kind";
+    pub(crate) const RADIAL: &str = "radial";
+    /// The colours, first to last.
+    pub(crate) const STOPS: &str = "stops";
+    /// Where each stop sits, 0 to 1; evenly spaced when left out.
+    pub(crate) const AT: &str = "at";
     /// Degrees: 0 runs left to right, 90 top to bottom.
     pub(crate) const ANGLE: &str = "angle";
+    /// A radial gradient's middle, as a share of the box: `[0.5, 0.5]`.
+    pub(crate) const CENTER: &str = "center";
+    /// How far a radial gradient reaches, as a share of the box's longer side.
+    pub(crate) const RADIUS: &str = "radius";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
     pub(crate) const BLUR: &str = "blur";

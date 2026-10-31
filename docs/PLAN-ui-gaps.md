@@ -1,5 +1,6 @@
 > **Status:** planned 2026-10-30. Built 2026-10-30: §1's engine
-> (`balaur_text/src/edit.rs`), §4's arrows and §5. Wiring §1 into the text
+> (`balaur_text/src/edit.rs`), §4's arrows and §5, with §5's radial
+> gradients and stops past two on 2026-10-31. Wiring §1 into the text
 > kinds waits on the `widget` derive and per-kind split; §2 and §3 are step
 > 12 of PLAN-foundations, after the ECS work for the parts that read ticks.
 
@@ -119,13 +120,18 @@ A theme role gains a gradient (linear or radial, its stops) and a shadow
 them from its theme without a node styling itself, which is the rule the
 Polyglot app's `tools/style_lint.py` holds it to.
 
-Built 2026-10-30: `gradient = { from, to, angle }` and `shadow = { x, y,
-blur, spread, color }` on any kind, role or state table, colours by token
-or hex. `theme::frame_shape`, which every kind's box goes through, paints
-the shadow, then the gradient in place of `fill`, then the outline; the
-gradient is a fan over the rounded box coloured a vertex at a time
-(`paint::gradient`), the shadow egui's blurred rect. Linear only: radial
-and more than two stops are not built.
+Built 2026-10-30: `gradient` and `shadow = { x, y, blur, spread, color }`
+on any kind, role or state table, colours by token or hex.
+`theme::frame_shape`, which every kind's box goes through, paints the
+shadow, then the gradient in place of `fill`, then the outline; the shadow
+is egui's blurred rect. Radial and any number of stops built 2026-10-31:
+`gradient = { kind = "linear" | "radial", stops = [..], at = [..], angle,
+center, radius }`, `at` placing the stops (evenly spaced when left out), a
+radial one out from `center` (a share of the box) to `radius` (a share of
+its longer side). `paint::gradient` draws the rounded outline in again at
+rings to the centre, its straight sides cut into pieces, each vertex
+coloured by `Gradient::at`, so a radial gradient and a middle stop are
+smooth; two stops along a line keep the single fan, which blends exactly.
 
 ## 6. Order
 

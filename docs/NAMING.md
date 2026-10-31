@@ -230,6 +230,7 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Slider | `slider` | every surveyed toolkit |
 | On and off | `switch` | every surveyed toolkit but Godot |
 | Checkbox | `checkbox` | HTML, ARIA, Godot, Flutter, egui |
+| A theme table's fill through colours, and its shadow | `gradient` (`kind`: `linear`, `radial`; `stops`, `at`, `angle`, `center`, `radius`), `shadow` (`x`, `y`, `blur`, `spread`, `color`) | CSS's `linear-gradient`, `radial-gradient`, `box-shadow` |
 | One line of text | `text_field` | Flutter, SwiftUI, Unity |
 | Many lines of text | `text_area` | HTML, shadcn |
 | A number | `number_field` | Unity |

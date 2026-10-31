@@ -50,9 +50,9 @@ pub(crate) fn frame_shape(
             s.color,
         ));
     }
-    match style.gradient {
+    match &style.gradient {
         Some(g) => {
-            layers.push(paint::gradient(rect, radius, g.from, g.to, g.angle));
+            layers.push(paint::gradient(rect, radius, g));
             layers.push(outlined(rect, radius, Color32::TRANSPARENT, style));
         }
         None => layers.push(outlined(rect, radius, fill, style)),

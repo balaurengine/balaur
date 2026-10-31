@@ -9,6 +9,7 @@ pub(crate) mod code;
 pub(crate) mod drag;
 pub(crate) mod focus;
 pub(crate) mod frame;
+pub(crate) mod gradient;
 pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod inspector;

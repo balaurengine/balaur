@@ -666,7 +666,8 @@ fill = "bg_panel"
 padding = 8.0
 
 [roles.card]                     # any table may carry a gradient and a shadow
-gradient = { from = "primary_fill", to = "bg_panel", angle = 90 }  # in place of fill; 0 runs left to right
+gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
+# kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
 shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
 
 [roles.danger]                   # what a widget with role = "danger" takes
