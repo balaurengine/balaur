@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-811 packages listed here, some under licences that are not MIT.
+814 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,7 +22,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 417 |
+| `MIT OR Apache-2.0` | 418 |
 | `MIT` | 146 |
 | `Apache-2.0 OR MIT` | 46 |
 | `Apache-2.0 WITH LLVM-exception` | 27 |
@@ -42,6 +42,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | `BSD-2-Clause OR Apache-2.0 OR MIT` | 2 |
 | `BSD-3-Clause OR Apache-2.0` | 2 |
 | `BSD-3-Clause OR MIT OR Apache-2.0` | 2 |
+| `BSL-1.0` | 2 |
 | `MIT OR Apache-2.0 OR LGPL-2.1-or-later` | 2 |
 | `MIT OR Zlib OR Apache-2.0` | 2 |
 | `(Apache-2.0 OR MIT) AND BSD-3-Clause` | 1 |
@@ -90,6 +91,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [aotuv_lancer_vorbis_sys](https://github.com/ComunidadAylas/vorbis-rs) | 0.1.6 | `BSD-3-Clause` |
 | [approx](https://github.com/brendanzab/approx) | 0.5.1 | `Apache-2.0` |
 | [arbitrary](https://github.com/rust-fuzz/arbitrary/) | 1.5.0 | `MIT OR Apache-2.0` |
+| [arboard](https://github.com/1Password/arboard) | 3.7.0 | `MIT OR Apache-2.0` |
 | [arg_enum_proc_macro](https://github.com/lu-zero/arg_enum_proc_macro) | 0.3.4 | `MIT` |
 | [arrayref](https://github.com/droundy/arrayref) | 0.3.9 | `BSD-2-Clause` |
 | [arrayvec](https://github.com/bluss/arrayvec) | 0.7.8 | `MIT OR Apache-2.0` |
@@ -146,6 +148,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [clap_builder](https://github.com/clap-rs/clap) | 4.6.7 | `MIT OR Apache-2.0` |
 | [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | `MIT OR Apache-2.0` |
 | [clap_lex](https://github.com/clap-rs/clap) | 1.1.1 | `MIT OR Apache-2.0` |
+| [clipboard-win](https://github.com/DoumanAsh/clipboard-win) | 5.4.3 | `BSL-1.0` |
 | [cobs](https://github.com/jamesmunns/cobs.rs) | 0.3.0 | `MIT OR Apache-2.0` |
 | [codespan-reporting](https://github.com/brendanzab/codespan) | 0.13.1 | `Apache-2.0` |
 | [color_quant](https://github.com/image-rs/color_quant.git) | 1.1.0 | `MIT` |
@@ -229,6 +232,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [equator-macro](https://github.com/sarah-ek/equator/) | 0.4.2 | `MIT` |
 | [equivalent](https://github.com/indexmap-rs/equivalent) | 1.0.3 | `Apache-2.0 OR MIT` |
 | [errno](https://github.com/lambda-fairy/rust-errno) | 0.3.14 | `MIT OR Apache-2.0` |
+| [error-code](https://github.com/DoumanAsh/error-code) | 3.4.0 | `BSL-1.0` |
 | [euclid](https://github.com/servo/euclid) | 0.22.14 | `MIT OR Apache-2.0` |
 | [exr](https://github.com/johannesvollmer/exrs) | 1.74.2 | `BSD-3-Clause` |
 | [extended](https://github.com/depp/extended-rs) | 0.1.0 | `MIT` |
@@ -882,7 +886,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
 ### LICENSE-APACHE — 175 packages
 
@@ -1345,12 +1349,12 @@ Apache License
    limitations under the License.
 ```
 
-### LICENSE — 38 packages
+### LICENSE — 39 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-ab_glyph 0.2.32, ab_glyph_rasterizer 0.1.10, alsa 0.11.0, android-activity 0.6.1, fdeflate 0.3.7, half 2.7.1, image 0.25.10, image-webp 0.2.4, linebender_resource_handle 0.1.1, miniz_oxide 0.8.9, miniz_oxide 0.9.1, naga 30.0.1, naga-types 30.0.1, num-conv 0.2.2, owned_ttf_parser 0.25.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, portable-atomic 1.15.0, portable-atomic-util 0.2.8, range-alloc 0.1.5, raw-window-handle 0.6.2, resvg 0.49.0, rodio 0.23.0, simdutf8 0.1.5, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, usvg 0.49.0, wgpu 30.0.1, wgpu-core 30.0.1, wgpu-core-deps-apple 30.0.1, wgpu-core-deps-emscripten 30.0.1, wgpu-core-deps-wasm 30.0.1, wgpu-core-deps-windows-linux-android 30.0.1, wgpu-hal 30.0.1, wgpu-naga-bridge 30.0.1, wgpu-types 30.0.1
+ab_glyph 0.2.32, ab_glyph_rasterizer 0.1.10, alsa 0.11.0, android-activity 0.6.1, arboard 3.7.0, fdeflate 0.3.7, half 2.7.1, image 0.25.10, image-webp 0.2.4, linebender_resource_handle 0.1.1, miniz_oxide 0.8.9, miniz_oxide 0.9.1, naga 30.0.1, naga-types 30.0.1, num-conv 0.2.2, owned_ttf_parser 0.25.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, portable-atomic 1.15.0, portable-atomic-util 0.2.8, range-alloc 0.1.5, raw-window-handle 0.6.2, resvg 0.49.0, rodio 0.23.0, simdutf8 0.1.5, time 0.3.55, time-core 0.1.9, time-macros 0.2.32, usvg 0.49.0, wgpu 30.0.1, wgpu-core 30.0.1, wgpu-core-deps-apple 30.0.1, wgpu-core-deps-emscripten 30.0.1, wgpu-core-deps-wasm 30.0.1, wgpu-core-deps-windows-linux-android 30.0.1, wgpu-hal 30.0.1, wgpu-naga-bridge 30.0.1, wgpu-types 30.0.1
 
 </details>
 
@@ -7512,6 +7516,41 @@ SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
+error-code 3.4.0, ryu 1.0.23
+
+</details>
+
+```
+Boost Software License - Version 1.0 - August 17th, 2003
+
+Permission is hereby granted, free of charge, to any person or organization
+obtaining a copy of the software and accompanying documentation covered by
+this license (the "Software") to use, reproduce, display, distribute,
+execute, and transmit the Software, and to prepare derivative works of the
+Software, and to permit third-parties to whom the Software is furnished to
+do so, all subject to the following:
+
+The copyright notices in the Software and this entire statement, including
+the above license grant, this restriction and the following disclaimer,
+must be included in all copies of the Software, in whole or in part, and
+all derivative works of the Software, unless such copies or derivative
+works are solely in the form of machine-executable object code generated by
+a source language processor.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+### LICENSE — 2 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
 foldhash 0.1.5, foldhash 0.2.0
 
 </details>
@@ -9615,6 +9654,39 @@ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### LICENSE-MIT.txt — 1 package
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+arboard 3.7.0
+
+</details>
+
+```
+MIT License
+
+Copyright (c) 2022 The Arboard contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ### LICENSE — 1 package
@@ -22086,41 +22158,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### LICENSE-BOOST — 1 package
-
-<details>
-<summary>Which packages carry this exact file</summary>
-
-ryu 1.0.23
-
-</details>
-
-```
-Boost Software License - Version 1.0 - August 17th, 2003
-
-Permission is hereby granted, free of charge, to any person or organization
-obtaining a copy of the software and accompanying documentation covered by
-this license (the "Software") to use, reproduce, display, distribute,
-execute, and transmit the Software, and to prepare derivative works of the
-Software, and to permit third-parties to whom the Software is furnished to
-do so, all subject to the following:
-
-The copyright notices in the Software and this entire statement, including
-the above license grant, this restriction and the following disclaimer,
-must be included in all copies of the Software, in whole or in part, and
-all derivative works of the Software, unless such copies or derivative
-works are solely in the form of machine-executable object code generated by
-a source language processor.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
-SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
-FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
 ```
 
 ### LICENSE-MIT.md — 1 package
