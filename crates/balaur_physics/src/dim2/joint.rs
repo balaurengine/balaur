@@ -388,7 +388,7 @@ impl JointAsk2d {
         table
     }
 
-    /// The ask out of one table, as [`crate::shared::joint::JointAsk::to_table`]
+    /// The ask out of one table, as [`Self::to_table`]
     /// wrote it.
     pub fn from_table(params: &toml::Value) -> Result<Self> {
         Ok(Self {

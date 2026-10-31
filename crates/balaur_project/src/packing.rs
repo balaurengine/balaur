@@ -44,7 +44,7 @@ pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) 
     build_with(project_root, compiler, false)
 }
 
-/// [`build`](build), with a say over what a script entry holds.
+/// [`build`], with a say over what a script entry holds.
 ///
 /// With `keep_sources`, every script is still compiled — an export is a
 /// check — but the pack stores its source text, and the runtime compiles
@@ -256,8 +256,8 @@ pub fn report(pack: &Pack) -> PackReport {
     report_with(pack, &[])
 }
 
-/// [`report`](report), told the `keep` globs an export protects
-/// files with, so the report names what [`strip`](strip) would drop.
+/// [`report`], told the `keep` globs an export protects
+/// files with, so the report names what [`strip`] would drop.
 #[must_use]
 pub fn report_with(pack: &Pack, keep: &[String]) -> PackReport {
     // Every entry is a length-prefixed key and value, every section opens
@@ -374,7 +374,7 @@ pub fn unreferenced(pack: &Pack, keep: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Drop every asset [`unreferenced`](unreferenced) names, answering
+/// Drop every asset [`unreferenced`] names, answering
 /// the keys removed.
 pub fn strip(pack: &mut Pack, keep: &[String]) -> Vec<String> {
     let removed = unreferenced(pack, keep);
@@ -499,7 +499,7 @@ pub struct PackReport {
     pub extensions: Vec<ExtensionReport>,
     /// The heaviest assets, ten of them at most.
     pub largest: Vec<EntryReport>,
-    /// What [`Pack::strip`] would drop, sorted.
+    /// What [`strip`] would drop, sorted.
     pub unreferenced: Vec<String>,
     /// What those files weigh together.
     pub unreferenced_bytes: usize,

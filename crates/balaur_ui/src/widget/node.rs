@@ -23,9 +23,8 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
 }
 
 /// What the widget layer reads of a `widget` component, built from its
-/// [`WidgetProperties`](crate::widget::properties::WidgetProperties) each
-/// time they are written. `Default` is every field zeroed, which no scene
-/// means.
+/// `WidgetProperties` each time they are written. `Default` is every field
+/// zeroed, which no scene means.
 #[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,

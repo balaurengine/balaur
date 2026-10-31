@@ -20,7 +20,7 @@ pub(crate) fn written_at(eng: &Engine, entity: Entity, index: usize) -> Option<t
     Some(held)
 }
 
-/// [`written_at`] by name, for a script reading a component as a save would
+/// `written_at` by name, for a script reading a component as a save would
 /// write it. `None` when the node does not carry it.
 #[must_use]
 pub fn written(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
@@ -32,7 +32,7 @@ pub fn written(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> 
 }
 
 /// Each component the node carries, by name in registration order, as a
-/// scene file writes it: [`written_at`] less every property at its default,
+/// scene file writes it: `written_at` less every property at its default,
 /// which a scene leaves out. A component at its defaults is an empty table.
 pub fn written_of(eng: &Engine, entity: Entity) -> Vec<(String, toml::Value)> {
     let Some(registry) = eng.try_resource::<ComponentRegistry>() else {

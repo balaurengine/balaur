@@ -87,7 +87,7 @@ pub struct Body3d {
     /// Seconds of stillness before the body sleeps
     #[property(default = 0.5, min = 0.0, group = "sleep")]
     pub time_to_sleep: f32,
-    /// The speed of the body's farthest point below which it counts as still, in length units per second scaled by [physics] length_unit
+    /// The speed of the body's farthest point below which it counts as still, in length units per second scaled by `[physics] length_unit`
     #[property(default = 0.05, min = 0.0, group = "sleep")]
     pub sleep_threshold: f32,
     /// The spin below which a body with no collider counts as still; radians per second in the file

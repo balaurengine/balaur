@@ -9689,7 +9689,7 @@
       },
       "sleep_threshold": {
         "default": 0.05,
-        "description": "The speed of the body's farthest point below which it counts as still, in length units per second scaled by [physics] length_unit",
+        "description": "The speed of the body's farthest point below which it counts as still, in length units per second scaled by `[physics] length_unit`",
         "group": "sleep",
         "min": 0.0,
         "type": "float"
@@ -9888,7 +9888,7 @@
       },
       "sleep_threshold": {
         "default": 0.05,
-        "description": "The speed of the body's farthest point below which it counts as still, in length units per second scaled by [physics] length_unit",
+        "description": "The speed of the body's farthest point below which it counts as still, in length units per second scaled by `[physics] length_unit`",
         "group": "sleep",
         "min": 0.0,
         "type": "float"

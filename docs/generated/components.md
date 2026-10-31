@@ -93,7 +93,7 @@ A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `stati
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>start_asleep</code></td><td>bool</td><td><code>false</code></td><td>Make the body asleep, with no velocity, until something wakes it; read once, when the body is made</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
-<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by [physics] length_unit At least 0.0.</td></tr>
+<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by `[physics] length_unit` At least 0.0.</td></tr>
 <tr><td><code>sleep_angular_threshold</code></td><td>float</td><td><code>0.5</code></td><td>The spin below which a body with no collider counts as still; radians per second in the file At least 0.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group Range -128–127.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them At least 0.</td></tr>
@@ -1276,7 +1276,7 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>start_asleep</code></td><td>bool</td><td><code>false</code></td><td>Make the body asleep, with no velocity, until something wakes it; read once, when the body is made</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
-<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by [physics] length_unit At least 0.0.</td></tr>
+<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by `[physics] length_unit` At least 0.0.</td></tr>
 <tr><td><code>sleep_angular_threshold</code></td><td>float</td><td><code>0.5</code></td><td>The spin below which a body with no collider counts as still; radians per second in the file At least 0.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group Range -128–127.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them At least 0.</td></tr>

@@ -66,7 +66,7 @@ pub(crate) fn mint_under(world: &World, parent: Entity) -> String {
     format!("{}:{n}", allocator.authority)
 }
 
-/// Whether an id is one [`mint_under`] made rather than a scene file's: a
+/// Whether an id is one `mint_under` made rather than a scene file's: a
 /// file's is a name's slug and never holds the `:` between authority and
 /// counter.
 #[must_use]
