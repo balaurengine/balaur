@@ -2,7 +2,7 @@
 //! is a counted cell holding its kind, then the value or the arrays it points
 //! at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
 //! `remove` change a map or a list in place, so every holder of it sees the
-//! change; `with` and `sorted` make new ones.
+//! change; `sorted` makes a new one.
 
 const BOOL: int = 1;
 const INT: int = 2;
@@ -139,30 +139,6 @@ pub fn text(value: any) -> str {
     } else {
         quoted(value)
     }
-}
-
-// A new map: this one's entries copied, with `key` set. Nil counts as empty.
-pub fn with(map: any, key: str, item: any) -> any {
-    let keys: [str] = [];
-    let vals: [any] = [];
-    if __tag(map) == MAP {
-        let old_keys = __keys(map);
-        let old_vals = __vals(map);
-        let index = 0;
-        while index < old_keys.len() {
-            keys.push(old_keys[index]);
-            vals.push(copy(old_vals[index]));
-            index += 1;
-        }
-    }
-    let index = index_of(keys, key);
-    if index < 0 {
-        keys.push(key);
-        vals.push(copy(item));
-    } else {
-        vals[index] = copy(item);
-    }
-    __map(keys, vals)
 }
 
 pub fn set(map: any, key: str, item: any) -> bool {

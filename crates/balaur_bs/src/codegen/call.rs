@@ -96,12 +96,11 @@ impl FnGen<'_> {
             self.e(I::I32Const(0));
             return Ok(Ty::Any);
         }
-        // An empty map: a cell whose key and value arrays are not made yet.
         if name == "map" {
-            self.args(&[], args, pos, name)?;
-            self.e(I::I64Const(0));
-            self.cell(crate::anys::MAP);
-            return Ok(Ty::Any);
+            return err(
+                pos,
+                "there is no `map()`: an `any` map is a literal where an `any` goes, `let m: any = {};`",
+            );
         }
         if let Some(fields) = match name {
             "vec2" => Some(2),
@@ -508,6 +507,12 @@ impl FnGen<'_> {
     // `a.get("k")` is the host's `get(a, "k")`; `a["k"]` and `a[0]` are the
     // same calls.
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
+        if name == "with" {
+            return err(
+                pos,
+                "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or `set` the key on the map",
+            );
+        }
         if !self.g.sigs.contains_key(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
         }

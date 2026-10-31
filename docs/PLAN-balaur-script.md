@@ -7,7 +7,9 @@
 > 1.5 times Rust; an iOS export compiles it to native code, at 1.1 to 1.3. hello's `scripts/spinner.bs` turns its spinner to the bit
 > its Rune original did, from source, from an export pack and as native code.
 > §9, everything a script does at native cost and not only its arithmetic,
-> planned 2026-10-27; step 1 is built.
+> planned 2026-10-27; steps 1 to 4 and 6 to 8 are built, and step 5 but for
+> typed calls between scripts and the editor's pool specs as records
+> (2026-10-31).
 
 # Plan: Balaur Script, a scripting language compiled to WebAssembly
 
@@ -114,7 +116,7 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
   release, reload and the debugger read it like a string. Ints, floats,
   bools, strings, nodes and `[any]` box into one where one is wanted; a
   script reads it with `kind`, `as_int`, `get`, `at`, `a["k"]`, `a[0]` and
-  the rest, and builds one with `map().with("k", v)` until §9 step 5. `get` and `at` share
+  the rest, and builds one as a literal where an `any` goes, `{ "k": v }`. `get` and `at` share
   the child cell rather than copying it. `m.set("k", v)` and `l.push(v)`
   change a map or a list in place, so every holder of it sees the change;
   on nil or another kind they return false and change nothing.
@@ -464,12 +466,28 @@ the table:
    the debugger and the browser are left.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
-     plugin's payload. The 405 engine functions that take or give an `any`
-     get records, but where the data is open: a reply's body, a gamend
-     record, JSON.
+     plugin's payload. The engine functions that take or give an options
+     table get records, but where the data is open: a reply's body, a
+     gamend record, JSON. Built 2026-10-31: a binding's `Value` parameter
+     is the record its docs name, and a record's nil field is one it leaves
+     out, at the engine and in an `any`. 108 records, from 47; 73 functions
+     take one and 68 give one. The functions naming `any` went from 305 to
+     251: what is left is open data (a reply, a gamend payload, JSON, TOML,
+     a definition, a setting's spec, a tween's value), a node-or-handle
+     argument, a polygon or a mesh, and the `apple` and `platform` stores,
+     whose optional node shifts their arguments.
    - `map()` and `with` go. A spec is a struct, and a struct literal leaves
      out the fields that have defaults (built 2026-10-28: a declared
-     default, or nil for an optional field).
+     default, or nil for an optional field or an `any`). Built 2026-10-31:
+     the compiler refuses both by name; an `any` map is a literal where an
+     `any` goes, `{ "k": v }`, typed by the other branch of an `if` or the
+     other elements of a list where nothing else types it. The editor's
+     1,466 `map()` and 4,086 `.with(`, the examples', the gamend addon's and
+     the Rust tests' are literals or records. An 8-key literal costs 2,420
+     fuel on wasmi; one `with` on a map of 8 cost 6,507. Left: the pool's
+     specs are still any literals, read into `ui::Control` and `ui::Row`
+     where `fill_strip` and `fill_rows` take them, and the widget patches
+     are any literals, not one property write each.
    - `{ str: T }` and `{ int: T }` are maps as `[T]` is a list: built in, typed,
      a hash table in the module, the property schema's `map`
      (PLAN-property-types §1). An `any` map is a `{ str: any }`. Built
@@ -477,7 +495,10 @@ the table:
      for it, a class compiled in as the program's own (`crate::maps`); a
      read costs under half an `any` map's, with no call out.
    - A script calls another by its type, never by a method's name in a
-     string.
+     string. Not built: a debugger's probes, a profiler's counters and a
+     browser's metering compile a file whole, and the compiler builds no
+     unit with them (`Options::unit`), so those builds cannot link a
+     project as units yet (`host/units.rs`, `as_units`).
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not
@@ -496,6 +517,13 @@ the table:
 
 Targets once step 5 is in: `any.get` about 50 instructions, a string search
 tens, an engine call about 50, a property write about 150.
+
+Measured 2026-10-31, after step 5's records and literals: wasmi fuel per
+operation (`tests/suite/budgets.rs`) did not move, `any.get` on a map of 8 at
+1,234 and `s.contains(t)` at 2,413; neither target is met, since step 5 changed
+how maps are built, not how they are read. One edit in the editor
+(`scripts/edit_cost.sh`, M instructions) went from 5.1 to 4.9 (text), 5.3 to
+5.1 (colour), 3.4 to 3.0 (position) and 5.0 to 4.3 (engine text).
 
 ## Open questions
 

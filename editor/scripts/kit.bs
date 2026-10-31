@@ -393,7 +393,10 @@ fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
     let text = shown(value);
     let control: any = if edit {
         let field: any = { "kind": "text_field", "role": "input_form", "grow": 1, "text": text };
-        pool::on_submit(field, typed, { "text": text, "out": out, "keys": keys, "value": value })
+        // The whole value and where it is written, not `out`: its specs hold
+        // this control, and a map holding itself crosses to no engine.
+        let whole: any = { "value": out.value, "write": out.write };
+        pool::on_submit(field, typed, { "text": text, "out": whole, "keys": keys, "value": value })
     } else {
         { "kind": "label", "role": "text_caption", "grow": 1, "truncate": true, "text": text }
     };

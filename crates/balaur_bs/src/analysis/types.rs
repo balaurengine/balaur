@@ -11,7 +11,7 @@ pub(crate) const PRELUDE: [(&str, &[&str]); 3] = [
     ("Color", &["r", "g", "b", "a"]),
 ];
 
-pub(crate) const NATIVES: [(&str, &str); 11] = [
+pub(crate) const NATIVES: [(&str, &str); 10] = [
     ("sqrt", "fn sqrt(x: float) -> float"),
     ("abs", "fn abs(x: float) -> float"),
     ("floor", "fn floor(x: float) -> float"),
@@ -25,7 +25,6 @@ pub(crate) const NATIVES: [(&str, &str); 11] = [
         "fn color(r: float, g: float, b: float, a: float) -> Color",
     ),
     ("nil", "fn nil() -> any"),
-    ("map", "fn map() -> any"),
 ];
 
 const ARRAY: [(&str, &str); 5] = [
@@ -139,7 +138,7 @@ impl Scope<'_> {
             "vec2" => Ty::Struct("Vec2".into()),
             "vec3" => Ty::Struct("Vec3".into()),
             "color" => Ty::Struct("Color".into()),
-            "nil" | "map" => Ty::Any,
+            "nil" => Ty::Any,
             _ if NATIVES.iter().any(|(n, _)| *n == name) => Ty::Float,
             _ => return None,
         })

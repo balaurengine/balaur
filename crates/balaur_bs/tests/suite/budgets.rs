@@ -45,10 +45,6 @@ const CASES: &[(&str, u64)] = &[
     (r#"scores.set("e", step);"#, 1600),
     (r#"if scores.has("h") { total += scores.len(); }"#, 1950),
     ("total += scores.keys().len();", 2200),
-    (
-        r#"let wider = scores.with("e", step); total += wider.len();"#,
-        8200,
-    ),
     (r#"total += typed["e"].or(0);"#, 700),
     (r#"typed["e"] = step;"#, 760),
     (r#"if typed.has("h") { total += typed.len(); }"#, 680),

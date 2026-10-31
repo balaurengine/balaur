@@ -22,7 +22,6 @@ Called by name, with no module before them.
 | `ceil` | `fn ceil(x: float) -> float` |
 | `color` | `fn color(r: float, g: float, b: float, a: float) -> Color` |
 | `floor` | `fn floor(x: float) -> float` |
-| `map` | `fn map() -> any` |
 | `max` | `fn max(a: float, b: float) -> float` |
 | `min` | `fn min(a: float, b: float) -> float` |
 | `nil` | `fn nil() -> any` |

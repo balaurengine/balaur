@@ -99,7 +99,7 @@ impl FnGen<'_> {
     }
 
     // The list, keys or values array a cell points at `off`, made empty first
-    // if it points at none (a `map()` has neither), and shared with the caller.
+    // if it points at none, and shared with the caller.
     fn cell_array(&mut self, args: &[Expr], pos: Pos, name: &str, off: u64) -> R<Ty> {
         let held = self.borrowing(&[Ty::Any], args, pos, name)?;
         let (cell, array) = (self.local(ValType::I32), self.local(ValType::I32));
