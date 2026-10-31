@@ -90,6 +90,33 @@ a `Builtins`; a bare app gets the kernel's own.
   23,608,909 bytes, 6.39 to 6.41 MB under brotli: 22 KB on the wire. One regression was found and fixed on the way: a
   frame's frees built a replay label for every freed node instead of the
   first few the tick's log keeps, 10 ms on 50,000 frees.
+
+  Against hecs 0.11.2 and bevy_ecs 0.20.1 on the same operations (Apple M1,
+  release, fat LTO, the median of 11 to 201 runs, 2026-10-31):
+
+  | | hecs | balaur | bevy_ecs |
+  | --- | ---: | ---: | ---: |
+  | Spawn 100k entities, one at a time | 2.18 ms | 1.58 ms | 3.39 ms |
+  | Spawn 100k scene nodes (name, transform, parent, id) | — | 26.5 ms | — |
+  | Iterate 100k, `pos += vel` | 96 µs | 75 µs | 123 µs |
+  | The same, `par_for_each` in batches of 4,096 | — | 27 µs | — |
+  | Get 10k random entities | 117 µs | 121 µs | 60 µs |
+  | 10k tracked writes | 103 µs untracked | 1.17 ms | 75 µs |
+  | Despawn 100k entities | 1.27 ms | 1.35 ms | 2.53 ms |
+  | Free 100k scene nodes in one batch | — | 16.5 ms | — |
+  | 50 empty systems × 10k frames | 0.52 ms | 1.23 ms | 6.22 ms |
+  | The same, typed systems reading a resource | — | 2.18 ms | — |
+  | 1% of 100k written, then the written found | — | 207 µs | 107 µs |
+
+  The door, a query and a get are hecs's own, so they run at its speed (the
+  differences in those rows are where each world sits in memory). A
+  balaur system costs 2.5 ns a run, a typed one 4.4 ns, where bevy's
+  schedule costs 12. A tracked write is the one place balaur pays: a
+  property written through the registry, as a script, a scene or the editor
+  writes it, is 117 ns with its change stamp and its log entry, where bevy
+  stamps a column in 7.5. A Rust system writing through a query's `&mut`
+  pays nothing and is not seen by change detection, where bevy stamps every
+  `&mut` it hands out (PLAN-ecs §2, *Change detection*).
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
   `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
   component, `[nodes.transform]` in a file, and a node without one sits at its
