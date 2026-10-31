@@ -275,11 +275,11 @@ fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
     let below = [0.0, -1.0, 0.0];
     for substeps in [4, 8] {
         assert!(
-            !holds(below, "break_force = 15.0", substeps),
+            !holds(below, "[breakable_joint3d]\nbreak_force = 15.0", substeps),
             "a 15 N joint held 19.6 N at {substeps} substeps"
         );
         assert!(
-            holds(below, "break_force = 25.0", substeps),
+            holds(below, "[breakable_joint3d]\nbreak_force = 25.0", substeps),
             "a 25 N joint snapped under 19.6 N at {substeps} substeps"
         );
     }
@@ -290,15 +290,15 @@ fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
 fn break_torque_is_measured_apart_from_the_pull() {
     let level = [1.0, 0.0, 0.0];
     assert!(
-        !holds(level, "break_torque = 15.0", 4),
+        !holds(level, "[breakable_joint3d]\nbreak_torque = 15.0", 4),
         "a 15 N m joint held"
     );
     assert!(
-        holds(level, "break_torque = 25.0", 4),
+        holds(level, "[breakable_joint3d]\nbreak_torque = 25.0", 4),
         "a 25 N m joint snapped"
     );
     assert!(
-        holds(level, "break_force = 25.0", 4),
+        holds(level, "[breakable_joint3d]\nbreak_force = 25.0", 4),
         "the torque was counted against break_force"
     );
 }
@@ -309,7 +309,7 @@ fn an_articulation_refuses_a_break_threshold() {
     let why = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"fixed\"\nbreak_force = 10.0\n[articulation3d]",
+        "kind = \"fixed\"\n[breakable_joint3d]\nbreak_force = 10.0\n[articulation3d]",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("articulation"), "{why:#}");

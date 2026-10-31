@@ -368,6 +368,7 @@ const CARRIED: &[crate::shared::beside::Carried] = &[
     crate::shared::beside::carried::<joint::SpringJoint3d>(),
     crate::shared::beside::carried::<joint::GenericJoint3d>(),
     crate::shared::beside::carried::<joint::Articulation3d>(),
+    crate::shared::beside::carried::<joint::BreakableJoint3d>(),
 ];
 
 pub(crate) fn build_physics_snapshot(reg: &mut Registry<'_>) {

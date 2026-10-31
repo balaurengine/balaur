@@ -224,7 +224,10 @@ fn a_kinematic_link_holds_its_pose_against_gravity() {
 
 #[test]
 fn joint_friction_and_a_passive_spring_hold_a_link_up() {
-    let (app, ball) = articulated("axes = [{ axis = \"rotation_x\", friction = 1000.0 }]", "");
+    let (app, ball) = articulated(
+        "axes = [{ axis = \"rotation_x\" }]",
+        "link_axes = [{ axis = \"rotation_x\", friction = 1000.0 }]",
+    );
     let y = pose(&app, ball).position.y;
     assert!(y > -0.05, "dry friction let the link fall to {y}");
     let (app, ball) = articulated("", "passive_stiffness = 5000.0");
@@ -235,13 +238,12 @@ fn joint_friction_and_a_passive_spring_hold_a_link_up() {
 #[test]
 fn an_articulation_reads_back_what_its_chain_holds() {
     let (app, ball) = articulated(
-        "axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]",
-        "passive_stiffness = 2.0\npassive_rest = 0.3",
+        "axes = [{ axis = \"rotation_x\" }]",
+        "passive_stiffness = 2.0\npassive_rest = 0.3\nlink_axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]",
     );
-    let table = components::get(&app.engine, ball, "joint3d").unwrap();
     let chain = components::get(&app.engine, ball, "articulation3d").unwrap();
     let number = |key: &str| chain.get(key).and_then(toml::Value::as_float).unwrap();
-    let record = &table["axes"][0];
+    let record = &chain["link_axes"][0];
     let field = |key: &str| record.get(key).and_then(toml::Value::as_float).unwrap();
     assert!((field("link_damping") - 0.5).abs() < 1e-6);
     assert!((field("armature") - 0.25).abs() < 1e-6);
@@ -252,9 +254,13 @@ fn an_articulation_reads_back_what_its_chain_holds() {
 /// The damping an articulated link's first free axis runs with when its
 /// record names none: rapier's own, which damps a turn and leaves a slide
 /// free.
-fn link_damping_left_to_rapier(joint: &str) -> f64 {
+fn link_damping_left_to_rapier(joint: &str, links: &str) -> f64 {
     let mut app = app();
-    let ball = hanging(&app, [1.0, 0.0, 0.0], &format!("{joint}\n[articulation3d]"));
+    let ball = hanging(
+        &app,
+        [1.0, 0.0, 0.0],
+        &format!("{joint}\n[articulation3d]\n{links}"),
+    );
     tick(&mut app, 1);
     let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
@@ -268,15 +274,17 @@ fn link_damping_left_to_rapier(joint: &str) -> f64 {
 
 #[test]
 fn an_articulated_slide_is_undamped_and_a_turn_is_damped_unless_a_record_says() {
-    let slide = link_damping_left_to_rapier("kind = \"slider\"\naxes = [{ axis = \"x\" }]");
+    let slide = link_damping_left_to_rapier("kind = \"slider\"\naxes = [{ axis = \"x\" }]", "");
     assert!(slide.abs() < 1e-6, "a linear axis took damping {slide}");
-    let turn = link_damping_left_to_rapier("kind = \"hinge\"\naxes = [{ axis = \"rotation_x\" }]");
+    let turn =
+        link_damping_left_to_rapier("kind = \"hinge\"\naxes = [{ axis = \"rotation_x\" }]", "");
     assert!(
         (turn - 0.1).abs() < 1e-6,
         "a rotation axis took damping {turn}"
     );
     let named = link_damping_left_to_rapier(
-        "kind = \"slider\"\naxes = [{ axis = \"x\", link_damping = 0.4 }]",
+        "kind = \"slider\"\naxes = [{ axis = \"x\" }]",
+        "link_axes = [{ axis = \"x\", link_damping = 0.4 }]",
     );
     assert!(
         (named - 0.4).abs() < 1e-6,

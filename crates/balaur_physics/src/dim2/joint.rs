@@ -190,12 +190,26 @@ pub struct Joint2d {
     /// The damping ratio of that spring; 1 settles without overshooting
     #[property(default = 1.0, group = "softness", min = 0.0)]
     pub softness_damping_ratio: f32,
-    /// The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation
-    #[property(group = "breaking", min = 0.0)]
+}
+
+/// What snaps the node's `joint2d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.
+#[derive(Clone, Component)]
+#[component(name = "breakable_joint2d")]
+pub struct BreakableJoint2d {
+    /// The force, in newtons, that snaps the joint; 0 never breaks it by force
+    #[property(min = 0.0)]
     pub break_force: f32,
-    /// The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation
-    #[property(group = "breaking", min = 0.0)]
+    /// The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque
+    #[property(min = 0.0)]
     pub break_torque: f32,
+}
+
+impl Beside for BreakableJoint2d {
+    type Main = Joint2d;
+
+    fn reads(_: &Joint2d) -> bool {
+        true
+    }
 }
 
 /// How long a `joint2d` of kind rope may stretch.
@@ -276,6 +290,25 @@ pub struct Articulation2d {
     pub gear_ratio: f32,
     /// Where this joint stands when the gear_with joint is at 0
     pub gear_offset: f32,
+    /// One record per free axis whose link moves differently from rapier's own: its damping, the inertia a rotor adds, and dry friction
+    pub link_axes: Vec<LinkAxis2d>,
+}
+
+/// How one free axis of an articulated link moves, as `link_axes` holds it.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct LinkAxis2d {
+    /// The free axis, in the joint's frame
+    #[property(default = JointAxis2d::Rotation)]
+    pub axis: JointAxis2d,
+    /// Damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one
+    #[property(default = -1.0, min = -1.0)]
+    pub link_damping: f32,
+    /// Inertia added to this axis, as a motor's own rotor adds it
+    #[property(min = 0.0)]
+    pub armature: f32,
+    /// The most force or torque dry friction resists this axis with
+    #[property(min = 0.0)]
+    pub friction: f32,
 }
 
 impl Beside for Articulation2d {
@@ -294,6 +327,7 @@ pub(crate) const PARAMS: &[&str] = &[
     <SpringJoint2d as Component>::NAME,
     <GenericJoint2d as Component>::NAME,
     <Articulation2d as Component>::NAME,
+    <BreakableJoint2d as Component>::NAME,
 ];
 
 /// `held`'s table with the rows of the components beside it on `entity`
@@ -304,6 +338,7 @@ fn params_of(world: &balaur_core::hecs::World, entity: Entity, held: &Joint2d) -
     beside::write_in::<SpringJoint2d>(world, entity, held, &mut params);
     beside::write_in::<GenericJoint2d>(world, entity, held, &mut params);
     beside::write_in::<Articulation2d>(world, entity, held, &mut params);
+    beside::write_in::<BreakableJoint2d>(world, entity, held, &mut params);
     let reduced = world.get::<&Articulation2d>(entity).is_ok();
     if let Some(table) = params.as_table_mut() {
         table.insert(k::ARTICULATION.into(), reduced.into());
@@ -339,15 +374,6 @@ pub struct FreeAxis2d {
     /// How quickly the motion settles, for a motor or a spring's x
     #[property(default = DEFAULT_DAMPING, min = 0.0)]
     pub damping: f32,
-    /// On an articulation: damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one
-    #[property(default = -1.0, min = -1.0)]
-    pub link_damping: f32,
-    /// On an articulation: inertia added to this axis, as a motor's own rotor adds it
-    #[property(min = 0.0)]
-    pub armature: f32,
-    /// On an articulation: the most force or torque dry friction resists this axis with
-    #[property(min = 0.0)]
-    pub friction: f32,
 }
 
 crate::shared::joint::functions!(
@@ -647,6 +673,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     beside::register::<SpringJoint2d>(reg, main, tags, after_write);
     beside::register::<GenericJoint2d>(reg, main, tags, after_write);
     beside::register::<Articulation2d>(reg, main, tags, after_write);
+    beside::register::<BreakableJoint2d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Joint2d::NAME,

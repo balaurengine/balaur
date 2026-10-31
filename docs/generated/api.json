@@ -6830,6 +6830,8 @@
     "bone3d": "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
     "boolean2d": "Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.",
     "boolean3d": "Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.",
+    "breakable_joint2d": "What snaps the node's `joint2d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.",
+    "breakable_joint3d": "What snaps the node's `joint3d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.",
     "camera2d": "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.",
     "camera3d": "The camera the scene is drawn from. `look_at` and `up` aim it, the lens rows say how it projects and what it draws, `effects` how the frame resolves, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
@@ -7209,7 +7211,8 @@
       "passive_rest",
       "gear_with",
       "gear_ratio",
-      "gear_offset"
+      "gear_offset",
+      "link_axes"
     ],
     "articulation3d": [
       "self_collision",
@@ -7218,7 +7221,8 @@
       "passive_rest",
       "gear_with",
       "gear_ratio",
-      "gear_offset"
+      "gear_offset",
+      "link_axes"
     ],
     "bindings": [
       "rows"
@@ -7307,6 +7311,14 @@
       "light_layers",
       "receive_shadows",
       "segmentation_id"
+    ],
+    "breakable_joint2d": [
+      "break_force",
+      "break_torque"
+    ],
+    "breakable_joint3d": [
+      "break_force",
+      "break_torque"
     ],
     "camera2d": [
       "current",
@@ -7527,9 +7539,7 @@
       "anchor_rotation",
       "connected_anchor_rotation",
       "softness_hz",
-      "softness_damping_ratio",
-      "break_force",
-      "break_torque"
+      "softness_damping_ratio"
     ],
     "joint3d": [
       "kind",
@@ -7544,9 +7554,7 @@
       "anchor_rotation",
       "connected_anchor_rotation",
       "softness_hz",
-      "softness_damping_ratio",
-      "break_force",
-      "break_torque"
+      "softness_damping_ratio"
     ],
     "light2d": [
       "kind",
@@ -8385,6 +8393,14 @@
       "3d",
       "render"
     ],
+    "breakable_joint2d": [
+      "2d",
+      "physics"
+    ],
+    "breakable_joint3d": [
+      "3d",
+      "physics"
+    ],
     "camera2d": [
       "2d",
       "render"
@@ -8711,6 +8727,50 @@
         "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
         "type": "bool"
       },
+      "link_axes": {
+        "default": [],
+        "description": "One record per free axis whose link moves differently from rapier's own: its damping, the inertia a rotor adds, and dry friction",
+        "of": {
+          "default": {
+            "armature": 0.0,
+            "axis": "rotation",
+            "friction": 0.0,
+            "link_damping": -1.0
+          },
+          "fields": {
+            "armature": {
+              "default": 0.0,
+              "description": "Inertia added to this axis, as a motor's own rotor adds it",
+              "min": 0.0,
+              "type": "float"
+            },
+            "axis": {
+              "default": "rotation",
+              "description": "The free axis, in the joint's frame",
+              "options": [
+                "x",
+                "y",
+                "rotation"
+              ],
+              "type": "enum"
+            },
+            "friction": {
+              "default": 0.0,
+              "description": "The most force or torque dry friction resists this axis with",
+              "min": 0.0,
+              "type": "float"
+            },
+            "link_damping": {
+              "default": -1.0,
+              "description": "Damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one",
+              "min": -1.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
+      },
       "passive_rest": {
         "default": 0.0,
         "description": "On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one",
@@ -8748,6 +8808,53 @@
         "default": false,
         "description": "On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik",
         "type": "bool"
+      },
+      "link_axes": {
+        "default": [],
+        "description": "One record per free axis whose link moves differently from rapier's own: its damping, the inertia a rotor adds, and dry friction",
+        "of": {
+          "default": {
+            "armature": 0.0,
+            "axis": "rotation_x",
+            "friction": 0.0,
+            "link_damping": -1.0
+          },
+          "fields": {
+            "armature": {
+              "default": 0.0,
+              "description": "Inertia added to this axis, as a motor's own rotor adds it",
+              "min": 0.0,
+              "type": "float"
+            },
+            "axis": {
+              "default": "rotation_x",
+              "description": "The free axis, in the joint's frame",
+              "options": [
+                "x",
+                "y",
+                "z",
+                "rotation_x",
+                "rotation_y",
+                "rotation_z"
+              ],
+              "type": "enum"
+            },
+            "friction": {
+              "default": 0.0,
+              "description": "The most force or torque dry friction resists this axis with",
+              "min": 0.0,
+              "type": "float"
+            },
+            "link_damping": {
+              "default": -1.0,
+              "description": "Damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one",
+              "min": -1.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
       },
       "passive_rest": {
         "default": 0.0,
@@ -9429,6 +9536,34 @@
         "default": "",
         "description": "Image file, project-relative, or a `texture` asset the result is drawn with, over the UVs the children carry through the cut; empty draws the colour alone",
         "type": "asset"
+      }
+    },
+    "breakable_joint2d": {
+      "break_force": {
+        "default": 0.0,
+        "description": "The force, in newtons, that snaps the joint; 0 never breaks it by force",
+        "min": 0.0,
+        "type": "float"
+      },
+      "break_torque": {
+        "default": 0.0,
+        "description": "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "breakable_joint3d": {
+      "break_force": {
+        "default": 0.0,
+        "description": "The force, in newtons, that snaps the joint; 0 never breaks it by force",
+        "min": 0.0,
+        "type": "float"
+      },
+      "break_torque": {
+        "default": 0.0,
+        "description": "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "camera2d": {
@@ -12091,15 +12226,12 @@
         "description": "One record per free axis to limit or drive. A rope's x takes no limits (max_length is its limit); a spring's x is its spring, whose motor stays off",
         "of": {
           "default": {
-            "armature": 0.0,
             "axis": "rotation",
             "damping": 1.0,
-            "friction": 0.0,
             "limits": [
               0.0,
               0.0
             ],
-            "link_damping": -1.0,
             "motor": "off",
             "motor_max_force": 0.0,
             "motor_model": "auto",
@@ -12108,12 +12240,6 @@
             "stiffness": 0.0
           },
           "fields": {
-            "armature": {
-              "default": 0.0,
-              "description": "On an articulation: inertia added to this axis, as a motor's own rotor adds it",
-              "min": 0.0,
-              "type": "float"
-            },
             "axis": {
               "default": "rotation",
               "description": "The free axis this record limits and drives, in the joint's frame",
@@ -12130,12 +12256,6 @@
               "min": 0.0,
               "type": "float"
             },
-            "friction": {
-              "default": 0.0,
-              "description": "On an articulation: the most force or torque dry friction resists this axis with",
-              "min": 0.0,
-              "type": "float"
-            },
             "limits": {
               "default": [
                 0.0,
@@ -12143,12 +12263,6 @@
               ],
               "description": "How far the axis may travel, low then high, in radians about a rotation axis; equal values mean no limit",
               "type": "vec2"
-            },
-            "link_damping": {
-              "default": -1.0,
-              "description": "On an articulation: damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one",
-              "min": -1.0,
-              "type": "float"
             },
             "motor": {
               "default": "off",
@@ -12205,20 +12319,6 @@
         "description": "The joint frame's x axis: what a slider or a groove slides along, and a generic joint's x names",
         "group": "anchors",
         "type": "vec2"
-      },
-      "break_force": {
-        "default": 0.0,
-        "description": "The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation",
-        "group": "breaking",
-        "min": 0.0,
-        "type": "float"
-      },
-      "break_torque": {
-        "default": 0.0,
-        "description": "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation",
-        "group": "breaking",
-        "min": 0.0,
-        "type": "float"
       },
       "collide_connected": {
         "default": false,
@@ -12316,15 +12416,12 @@
         "description": "One record per free axis to limit or drive. A rope's x takes no limits (max_length is its limit); a spring's x is its spring, whose motor stays off",
         "of": {
           "default": {
-            "armature": 0.0,
             "axis": "rotation_x",
             "damping": 1.0,
-            "friction": 0.0,
             "limits": [
               0.0,
               0.0
             ],
-            "link_damping": -1.0,
             "motor": "off",
             "motor_max_force": 0.0,
             "motor_model": "auto",
@@ -12333,12 +12430,6 @@
             "stiffness": 0.0
           },
           "fields": {
-            "armature": {
-              "default": 0.0,
-              "description": "On an articulation: inertia added to this axis, as a motor's own rotor adds it",
-              "min": 0.0,
-              "type": "float"
-            },
             "axis": {
               "default": "rotation_x",
               "description": "The free axis this record limits and drives, in the joint's frame",
@@ -12358,12 +12449,6 @@
               "min": 0.0,
               "type": "float"
             },
-            "friction": {
-              "default": 0.0,
-              "description": "On an articulation: the most force or torque dry friction resists this axis with",
-              "min": 0.0,
-              "type": "float"
-            },
             "limits": {
               "default": [
                 0.0,
@@ -12371,12 +12456,6 @@
               ],
               "description": "How far the axis may travel, low then high, in radians about a rotation axis; equal values mean no limit",
               "type": "vec2"
-            },
-            "link_damping": {
-              "default": -1.0,
-              "description": "On an articulation: damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one",
-              "min": -1.0,
-              "type": "float"
             },
             "motor": {
               "default": "off",
@@ -12434,20 +12513,6 @@
         "description": "The joint frame's x axis: what a hinge turns about, a slider slides along, and a generic joint's x and rotation_x name",
         "group": "anchors",
         "type": "vec3"
-      },
-      "break_force": {
-        "default": 0.0,
-        "description": "The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation",
-        "group": "breaking",
-        "min": 0.0,
-        "type": "float"
-      },
-      "break_torque": {
-        "default": 0.0,
-        "description": "The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation",
-        "group": "breaking",
-        "min": 0.0,
-        "type": "float"
       },
       "collide_connected": {
         "default": false,

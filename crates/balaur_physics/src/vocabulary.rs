@@ -289,6 +289,7 @@ pub(crate) mod keys {
     pub(crate) const LIMITS: &str = "limits";
     pub(crate) const LIMIT_IMPULSES: &str = "limit_impulses";
     pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
+    pub(crate) const LINK_AXES: &str = "link_axes";
     pub(crate) const LINK_DAMPING: &str = "link_damping";
     pub(crate) const LOCK_ROTATION: &str = "lock_rotation";
     pub(crate) const LOCK_TRANSLATION: &str = "lock_translation";

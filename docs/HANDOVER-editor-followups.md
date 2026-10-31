@@ -77,8 +77,10 @@ is rewritten in the same commit).
      `keep_collinear` sit in the `fit`, `polyline` and `convex_polygon`
      kinds of a collider's `shape`; `convex_decomposition2d`'s `method` is a
      variant, `overlap` on `exact` and the tuning on `vhacd` and `voxels`.
-     Open, on the main ones: `break_*` not for an articulation, the axis records'
-     `link_damping`/`armature`/`friction` only for one, soft-body
+     The joints' `break_*` rows are `breakable_joint2d`/`3d` beside a joint
+     (an articulation refuses one), and an articulation's per-axis
+     `link_damping`/`armature`/`friction` are its own `link_axes` records,
+     done 2026-10-31. Open, on the main ones: soft-body
      `collision_binding*` beside a `collision_mesh`, `skin` and
      `skin_collision` with cells, `tile_collision`'s `fit`.
    - `tilemap` cells/terrain/flags are string-encoded grids.

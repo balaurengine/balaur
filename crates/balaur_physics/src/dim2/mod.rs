@@ -472,6 +472,7 @@ const CARRIED: &[crate::shared::beside::Carried] = &[
     crate::shared::beside::carried::<joint::SpringJoint2d>(),
     crate::shared::beside::carried::<joint::GenericJoint2d>(),
     crate::shared::beside::carried::<joint::Articulation2d>(),
+    crate::shared::beside::carried::<joint::BreakableJoint2d>(),
 ];
 
 fn save_physics2d(eng: &Engine) -> serde_json::Value {

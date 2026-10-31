@@ -23,10 +23,6 @@ pub(crate) struct AxisRecord<'a> {
     pub(crate) model: &'a str,
     pub(crate) stiffness: f32,
     pub(crate) damping: f32,
-    /// On an articulation; below zero is rapier's own for the axis.
-    pub(crate) link_damping: f32,
-    pub(crate) armature: f32,
-    pub(crate) friction: f32,
 }
 
 impl<'a> AxisRecord<'a> {
@@ -42,21 +38,6 @@ impl<'a> AxisRecord<'a> {
             model: v::text(record, k::MOTOR_MODEL, w::AUTO),
             stiffness: v::f(record, k::STIFFNESS, 0.0),
             damping: v::f(record, k::DAMPING, DEFAULT_DAMPING),
-            link_damping: v::f(record, k::LINK_DAMPING, -1.0),
-            armature: v::f(record, k::ARMATURE, 0.0).max(0.0),
-            friction: v::f(record, k::FRICTION, 0.0).max(0.0),
-        }
-    }
-
-    /// The damping an articulation's chain takes on this axis: the record's,
-    /// or rapier's own, which damps a turn and leaves a slide free.
-    pub(crate) fn chain_damping(&self, angular: bool) -> f32 {
-        if self.link_damping >= 0.0 {
-            self.link_damping
-        } else if angular {
-            DEFAULT_LINK_DAMPING
-        } else {
-            0.0
         }
     }
 
@@ -68,6 +49,45 @@ impl<'a> AxisRecord<'a> {
 
     pub(crate) fn motorised(&self) -> bool {
         self.motor != crate::vocabulary::words::OFF
+    }
+}
+
+/// How an articulated link moves on one free axis, as an `articulation`'s
+/// `link_axes` record says, rapier's own where none names the axis.
+pub(crate) struct LinkRecord {
+    /// Below zero is rapier's own for the axis.
+    pub(crate) link_damping: f32,
+    pub(crate) armature: f32,
+    pub(crate) friction: f32,
+}
+
+impl LinkRecord {
+    /// The `link_axes` record for the axis named `word`, if `params` holds one.
+    pub(crate) fn of(params: &toml::Value, word: &str) -> Self {
+        use crate::vocabulary::{self as v, keys as k};
+        let record = params
+            .get(k::LINK_AXES)
+            .and_then(toml::Value::as_array)
+            .and_then(|rows| rows.iter().find(|row| v::text(row, k::AXIS, "") == word));
+        let empty = toml::Value::Table(toml::map::Map::new());
+        let record = record.unwrap_or(&empty);
+        Self {
+            link_damping: v::f(record, k::LINK_DAMPING, -1.0),
+            armature: v::f(record, k::ARMATURE, 0.0).max(0.0),
+            friction: v::f(record, k::FRICTION, 0.0).max(0.0),
+        }
+    }
+
+    /// The damping the chain takes on this axis: the record's, or rapier's
+    /// own, which damps a turn and leaves a slide free.
+    pub(crate) fn chain_damping(&self, angular: bool) -> f32 {
+        if self.link_damping >= 0.0 {
+            self.link_damping
+        } else if angular {
+            DEFAULT_LINK_DAMPING
+        } else {
+            0.0
+        }
     }
 }
 
@@ -107,9 +127,6 @@ pub(crate) fn default_record(axis: &str) -> toml::map::Map<String, toml::Value> 
         k::DAMPING.into(),
         toml::Value::Float(f64::from(DEFAULT_DAMPING)),
     );
-    out.insert(k::LINK_DAMPING.into(), toml::Value::Float(-1.0));
-    out.insert(k::ARMATURE.into(), zero());
-    out.insert(k::FRICTION.into(), zero());
     out
 }
 
@@ -335,13 +352,9 @@ macro_rules! functions {
                 let locked = link.joint().data.locked_axes.bits();
                 // rapier numbers a link's degrees of freedom by its free axes, in order.
                 let free = (0..AXIS_WORDS.len()).filter(|i| locked & (1 << i) == 0);
-                let unwritten = toml::Value::Table(toml::map::Map::new());
                 for (dof, i) in free.enumerate() {
                     let (word, axis) = AXIS_WORDS[i];
-                    let row = crate::shared::joint::records(params)
-                        .iter()
-                        .find(|row| v::text(row, k::AXIS, "") == word);
-                    let record = crate::shared::joint::AxisRecord::of(row.unwrap_or(&unwritten));
+                    let record = crate::shared::joint::LinkRecord::of(params, word);
                     let angular = JointAxesMask::ANG_AXES.contains(axis.into());
                     multibody.damping_mut()[start + dof] =
                         scalar::real(record.chain_damping(angular));

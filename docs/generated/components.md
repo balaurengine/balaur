@@ -48,7 +48,7 @@ its heading.
 
 ### `articulation2d`
 
-`2d` · `physics` · 7 properties
+`2d` · `physics` · 8 properties
 
 Solves the node's `joint2d` in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break.
 
@@ -62,6 +62,7 @@ Solves the node's `joint2d` in reduced coordinates: the chain never drifts and c
 <tr><td><code>gear_with</code></td><td>node</td><td>—</td><td>On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint&#x27;s first free axis</td></tr>
 <tr><td><code>gear_ratio</code></td><td>float</td><td><code>1.0</code></td><td>How far this joint turns or slides per unit of the gear_with joint&#x27;s</td></tr>
 <tr><td><code>gear_offset</code></td><td>float</td><td><code>0.0</code></td><td>Where this joint stands when the gear_with joint is at 0</td></tr>
+<tr><td><code>link_axes</code></td><td>list of record · <code>armature, axis, friction, link_damping</code></td><td><code>[]</code></td><td>One record per free axis whose link moves differently from rapier&#x27;s own: its damping, the inertia a rotor adds, and dry friction</td></tr>
 </tbody>
 </table>
 
@@ -191,6 +192,20 @@ Draws the node as its 2D children combined by `operation`, holes and all. The ch
 <tr><td><code>clean_result</code></td><td>bool</td><td><code>true</code></td><td>Clear the result of the near-duplicate points rounding leaves</td></tr>
 <tr><td><code>keep_collinear</code></td><td>bool</td><td><code>false</code></td><td>Keep a point that sits on the straight line between its neighbours, in the children and in the result</td></tr>
 <tr><td><code>min_area</code></td><td>float</td><td><code>0.0</code></td><td>A result outline or hole enclosing less than this area, in square units of the node&#x27;s own space, is dropped At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `breakable_joint2d`
+
+`2d` · `physics` · 2 properties
+
+What snaps the node's `joint2d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint; 0 never breaks it by force At least 0.0.</td></tr>
+<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -396,7 +411,7 @@ Which axes a `joint2d` of kind generic locks, and which free ones it ties into o
 
 ### `joint2d`
 
-`2d` · `physics` · 15 properties · 7 methods
+`2d` · `physics` · 13 properties · 7 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
 
@@ -407,7 +422,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_body</code></td><td>node</td><td>—</td><td>The node at the joint&#x27;s other end; this node is the first end</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier&#x27;s chains ignore the switch</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
-<tr><td><code>axes</code></td><td>list of record · <code>armature, axis, damping, friction, limits, link_damping, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
+<tr><td><code>axes</code></td><td>list of record · <code>axis, damping, limits, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
 <tr><td><code>anchor</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
 <tr><td><code>connected_anchor</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
 <tr><td><code>axis</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>The joint frame&#x27;s x axis: what a slider or a groove slides along, and a generic joint&#x27;s x names</td></tr>
@@ -416,8 +431,6 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_anchor_rotation</code></td><td>float</td><td><code>0.0</code></td><td>The same for the other end&#x27;s frame</td></tr>
 <tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 <tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
-<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
-<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1182,7 +1195,7 @@ On a node carrying `transform`, as `node.transform.<method>`:
 
 ### `articulation3d`
 
-`3d` · `physics` · 7 properties
+`3d` · `physics` · 8 properties
 
 Solves the node's `joint3d` in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break.
 
@@ -1196,6 +1209,7 @@ Solves the node's `joint3d` in reduced coordinates: the chain never drifts and c
 <tr><td><code>gear_with</code></td><td>node</td><td>—</td><td>On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint&#x27;s first free axis</td></tr>
 <tr><td><code>gear_ratio</code></td><td>float</td><td><code>1.0</code></td><td>How far this joint turns or slides per unit of the gear_with joint&#x27;s</td></tr>
 <tr><td><code>gear_offset</code></td><td>float</td><td><code>0.0</code></td><td>Where this joint stands when the gear_with joint is at 0</td></tr>
+<tr><td><code>link_axes</code></td><td>list of record · <code>armature, axis, friction, link_damping</code></td><td><code>[]</code></td><td>One record per free axis whose link moves differently from rapier&#x27;s own: its damping, the inertia a rotor adds, and dry friction</td></tr>
 </tbody>
 </table>
 
@@ -1337,6 +1351,20 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>built_mesh()</code></td><td><code>any</code></td><td>The triangles the node&#x27;s boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
+### `breakable_joint3d`
+
+`3d` · `physics` · 2 properties
+
+What snaps the node's `joint3d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint; 0 never breaks it by force At least 0.0.</td></tr>
+<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1560,7 +1588,7 @@ Which axes a `joint3d` of kind generic locks, and which free ones it ties into o
 
 ### `joint3d`
 
-`3d` · `physics` · 15 properties · 7 methods
+`3d` · `physics` · 13 properties · 7 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
 
@@ -1571,7 +1599,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_body</code></td><td>node</td><td>—</td><td>The node at the joint&#x27;s other end; this node is the first end</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier&#x27;s chains ignore the switch</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
-<tr><td><code>axes</code></td><td>list of record · <code>armature, axis, damping, friction, limits, link_damping, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
+<tr><td><code>axes</code></td><td>list of record · <code>axis, damping, limits, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
 <tr><td><code>anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
 <tr><td><code>connected_anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
 <tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The joint frame&#x27;s x axis: what a hinge turns about, a slider slides along, and a generic joint&#x27;s x and rotation_x name</td></tr>
@@ -1580,8 +1608,6 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same for the other end&#x27;s frame</td></tr>
 <tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 <tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
-<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
-<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
 </tbody>
 </table>
 

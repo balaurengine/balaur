@@ -224,6 +224,8 @@ kind = "hinge"
 connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
+
+[nodes.breakable_joint3d]
 break_force = 0.001
 "#,
         r#"pub class Scenario { node: Node, broke: int, ticks: int }
@@ -503,10 +505,14 @@ fn joints_and_shape_edits_survive_a_snapshot() {
         &app.engine,
         hanging,
         "joint3d",
-        Some(
-            &toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nbreak_force = 500.0")
-                .unwrap(),
-        ),
+        Some(&toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"").unwrap()),
+    )
+    .unwrap();
+    components::add(
+        &app.engine,
+        hanging,
+        "breakable_joint3d",
+        Some(&toml::from_str("break_force = 500.0").unwrap()),
     )
     .unwrap();
     let _ = anchor;
