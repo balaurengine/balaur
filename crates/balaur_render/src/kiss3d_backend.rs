@@ -608,14 +608,16 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         window.set_ui_retained(true);
         let mut f = Frontend::new(&window_settings);
         f.on_screen = false;
-        // Nothing can close a target that was never shown, and there is no
-        // vsync to block on, so the loop runs until the app asks to stop --
-        // which `--frames` arranges by inserting a quit-after-N system.
+        let mut in_flight = crate::pacing::InFlight::default();
+        // Nothing can close a target that was never shown, so the loop runs
+        // until the app asks to stop -- which `--frames` arranges by
+        // inserting a quit-after-N system.
         loop {
             let step = balaur_core::fixed_dt();
             if !f.step(&mut app, &mut window, step) {
                 break;
             }
+            in_flight.wait();
             // After the step, as the windowed loop draws: a capture of frame
             // N is then step N's shell rather than step N-1's.
             let draws_2d = !f.scene_2d.data().children().is_empty();
@@ -634,6 +636,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
                 break;
             }
             f.shoot(&app, &mut window);
+            in_flight.submitted();
             if app.engine.quit_requested() {
                 break;
             }

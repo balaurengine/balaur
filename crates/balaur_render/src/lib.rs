@@ -58,6 +58,8 @@ mod multimesh;
 mod multimesh_api;
 mod notifier;
 pub mod overlay;
+#[cfg(feature = "window")]
+mod pacing;
 mod particles;
 mod particles_3d;
 pub mod pick;
