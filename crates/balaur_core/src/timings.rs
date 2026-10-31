@@ -192,58 +192,16 @@ pub fn count_cpu() {
 }
 
 /// The CPU time every thread of the process has spent so far, as the
-/// operating system counts it; `None` where it does not.
+/// operating system counts it (`cpu-time`); `None` where it does not.
 #[must_use]
 pub fn process_cpu() -> Option<Duration> {
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "android"
-    ))]
+    #[cfg(not(target_family = "wasm"))]
     {
-        let mut at = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        // SAFETY: a plain call writing the clock into a timespec we own.
-        let read = unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &raw mut at) };
-        (read == 0).then(|| {
-            Duration::new(
-                u64::try_from(at.tv_sec).unwrap_or(0),
-                u32::try_from(at.tv_nsec).unwrap_or(0),
-            )
-        })
+        cpu_time::ProcessTime::try_now()
+            .ok()
+            .map(|time| time.as_duration())
     }
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::Foundation::FILETIME;
-        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
-        let zero = FILETIME {
-            dwLowDateTime: 0,
-            dwHighDateTime: 0,
-        };
-        let (mut created, mut exited, mut kernel, mut user) = (zero, zero, zero, zero);
-        // SAFETY: the current process's pseudo-handle and four FILETIMEs we own.
-        let read = unsafe {
-            GetProcessTimes(
-                GetCurrentProcess(),
-                &raw mut created,
-                &raw mut exited,
-                &raw mut kernel,
-                &raw mut user,
-            )
-        };
-        let ticks = |t: FILETIME| (u64::from(t.dwHighDateTime) << 32) | u64::from(t.dwLowDateTime);
-        (read != 0).then(|| Duration::from_nanos((ticks(kernel) + ticks(user)) * 100))
-    }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "android",
-        windows
-    )))]
+    #[cfg(target_family = "wasm")]
     {
         None
     }

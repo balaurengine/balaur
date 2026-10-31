@@ -92,6 +92,27 @@ fn cores() -> usize {
     std::thread::available_parallelism().map_or(1, std::num::NonZero::get)
 }
 
+/// How many cores work the frame waits on should take: the performance cores
+/// where the machine has more than one kind, every physical core where it
+/// has one, as `gdt-cpus` reads the operating system's own rating. `None`
+/// where it cannot say: a phone, a browser.
+///
+/// Spread over the efficiency cores too, a step burns more cores and finishes
+/// no sooner, since it waits on its slowest thread.
+#[must_use]
+pub fn performance_cores() -> Option<usize> {
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    {
+        gdt_cpus::num_performance_cores()
+            .ok()
+            .filter(|count| *count > 0)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        None
+    }
+}
+
 /// Run `work` off the tick, a slice at a time. See the native twin.
 ///
 /// A tab parks it even where it has workers: the tab's filesystem lives on

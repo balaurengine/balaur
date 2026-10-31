@@ -243,7 +243,7 @@ contact_frequency_hz = { type = "float", default = 30.0, min = 0.0, max = 1000.0
 contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
 static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
-threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
+threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is the performance cores where the machine has two kinds of core, else every core; a script's own set_threads outranks this." }
 "#.to_string()].join("\n"),
             ),
         );

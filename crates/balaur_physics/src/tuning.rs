@@ -747,7 +747,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ("tuning", &[], "() -> map", "The solver settings each world is running with, as `#{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."),
         ("quarantined", &[], "() -> map", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `#{ physics3d, physics2d }`, each `#{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer."),
         ("counters", &[], "() -> map", "What each world's last step spent its time on, as `#{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
-        ("set_threads", &[], "(count: int)", "How many threads the solver may use, from a script's `init`: rayon's pool is built once, before the first step, and a call after that says so and changes nothing. `[physics] threads` in `project.toml` does the same and outranks nothing -- an `init` that asks wins. The default is one less than the machine reports, capped at eight."),
+        ("set_threads", &[], "(count: int)", "How many threads the solver may use, from a script's `init`: rayon's pool is built once, before the first step, and a call after that says so and changes nothing. `[physics] threads` in `project.toml` does the same and outranks nothing -- an `init` that asks wins. The default is the machine's performance cores where it has two kinds of core, else every core."),
         ("threads", &[], "() -> int", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
     ]);
     m.function("set_tuning", |eng: &Engine, opts: Value| {
@@ -921,18 +921,19 @@ fn threads() -> usize {
     1
 }
 
-/// What the solver takes when a game says nothing.
-///
-/// One less than the machine reports, so the frame's own thread is not
-/// competing with the solver, and capped because a step stops scaling long
-/// before a large machine runs out of cores. `available_parallelism` answers 1
-/// on wasm and follows a container's CPU limit, so both come out right.
+/// What the solver takes when a game says nothing: the fast cores where the
+/// machine has more than one kind, every core where it has one. A step waits
+/// on its slowest thread, so threads on slow cores burn more cores for no
+/// sooner a finish. The frame's own thread waits out the step, so it takes no
+/// core of its own. `available_parallelism` answers 1 on wasm and follows a
+/// container's CPU limit, so both come out right.
 ///
 /// Safe to vary per machine: rapier's solver is coloured, so the digest is the
 /// same at one thread and at eight.
 fn default_threads() -> usize {
-    std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
-        .saturating_sub(1)
-        .clamp(1, 8)
+    balaur_core::task::performance_cores()
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
+        })
+        .max(1)
 }

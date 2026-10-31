@@ -36,8 +36,9 @@
    Threading *is* a feature, `balaur_physics/parallel`, because a browser is
    the one target that cannot always take it: rayon blocks on `Atomics.wait`,
    which needs the shared memory the threaded web runtime alone is built with.
-   Native builds have it on by default and nothing has to ask. The count is one
-   less than `available_parallelism` reports, capped at eight; `[physics]
+   Native builds have it on by default and nothing has to ask. The count is the
+   performance cores where the operating system rates its cores as more than
+   one kind (`task::performance_cores`), else every core; `[physics]
    threads` and `physics.set_threads` from a script's `init` override it, and
    the pool is built at the first tick so both are heard. Varying it is safe
    because the digest does not depend on it.

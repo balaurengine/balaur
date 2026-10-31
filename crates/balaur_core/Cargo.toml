@@ -49,7 +49,7 @@ workspace = true
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mio.workspace = true
 # The process's CPU time, for how many cores a frame kept busy (`timings`).
-libc = "0.2"
+cpu-time = "1"
 # The running executable mapped to read a fused game's trailer without
 # loading the whole binary (`standalone`).
 memmap2 = "0.9"
@@ -73,6 +73,7 @@ js-sys = "0.3.106"
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 rayon = "1"
 
-# The process's CPU time on Windows (`timings::process_cpu`).
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+# Which cores are the fast ones (`task::performance_cores`), where the crate
+# reads them: it has no phone or browser backend.
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+gdt-cpus = { version = "0.2606", default-features = false }

@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-814 packages listed here, some under licences that are not MIT.
+819 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,7 +22,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 418 |
+| `MIT OR Apache-2.0` | 423 |
 | `MIT` | 146 |
 | `Apache-2.0 OR MIT` | 46 |
 | `Apache-2.0 WITH LLVM-exception` | 27 |
@@ -169,6 +169,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [cosmic-text](https://github.com/pop-os/cosmic-text) | 0.19.0 | `MIT OR Apache-2.0` |
 | [cpal](https://github.com/RustAudio/cpal) | 0.18.2 | `Apache-2.0` |
 | [cpp_demangle](https://github.com/gimli-rs/cpp_demangle) | 0.5.1 | `MIT OR Apache-2.0` |
+| cpu-time | 1.0.0 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.3.1 | `MIT OR Apache-2.0` |
 | cranelift-assembler-x64 | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
@@ -264,6 +265,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [futures-sink](https://github.com/rust-lang/futures-rs) | 0.3.34 | `MIT OR Apache-2.0` |
 | [futures-task](https://github.com/rust-lang/futures-rs) | 0.3.34 | `MIT OR Apache-2.0` |
 | [futures-util](https://github.com/rust-lang/futures-rs) | 0.3.34 | `MIT OR Apache-2.0` |
+| [gdt-cpus](https://github.com/gdt-tools/gdt-cpus-rs) | 0.2606.1 | `MIT OR Apache-2.0` |
 | [generator](https://github.com/Xudong-Huang/generator-rs.git) | 0.8.11 | `MIT OR Apache-2.0` |
 | [generic-array](https://github.com/fizyk20/generic-array.git) | 0.14.7 | `MIT` |
 | [gethostname](https://codeberg.org/swsnr/gethostname.rs.git) | 1.1.0 | `Apache-2.0` |
@@ -808,7 +810,10 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [wgsl-types](https://github.com/webgpu-tools/wesl-rs) | 0.5.0 | `MIT OR Apache-2.0` |
 | [wgsl-types](https://github.com/webgpu-tools/wesl-rs) | 0.6.0 | `MIT OR Apache-2.0` |
 | [wide](https://github.com/Lokathor/wide) | 1.7.1 | `Zlib OR Apache-2.0 OR MIT` |
+| [winapi](https://github.com/retep998/winapi-rs) | 0.3.9 | `MIT OR Apache-2.0` |
+| [winapi-i686-pc-windows-gnu](https://github.com/retep998/winapi-rs) | 0.4.0 | `MIT OR Apache-2.0` |
 | [winapi-util](https://github.com/BurntSushi/winapi-util) | 0.1.11 | `Unlicense OR MIT` |
+| [winapi-x86_64-pc-windows-gnu](https://github.com/retep998/winapi-rs) | 0.4.0 | `MIT OR Apache-2.0` |
 | [windowfunctions](https://github.com/HEnquist/windowfunctions-rs) | 0.1.1 | `MIT` |
 | [windows](https://github.com/microsoft/windows-rs) | 0.62.2 | `MIT OR Apache-2.0` |
 | [windows-collections](https://github.com/microsoft/windows-rs) | 0.3.2 | `MIT OR Apache-2.0` |
@@ -886,7 +891,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gdt-cpus, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, zune-inflate.
 
 ### LICENSE-APACHE — 175 packages
 
@@ -2201,12 +2206,12 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 ```
 
-### LICENSE-APACHE — 23 packages
+### LICENSE-APACHE — 25 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-anstream 1.0.0, anstyle 1.0.14, anstyle-parse 1.0.0, anstyle-query 1.1.5, anstyle-wincon 3.0.11, bit_field 0.10.3, cobs 0.3.0, colorchoice 1.0.5, crc32fast 1.5.3, dpi 0.1.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.3.1, is_terminal_polyfill 1.70.2, jni-sys 0.3.1, jni-sys 0.4.1, no_std_io2 0.9.4, once_cell_polyfill 1.70.2, quick-error 2.0.1, rustfft 6.4.1, strength_reduce 0.2.4, unicode-general-category 1.1.0, winit 0.30.13
+anstream 1.0.0, anstyle 1.0.14, anstyle-parse 1.0.0, anstyle-query 1.1.5, anstyle-wincon 3.0.11, bit_field 0.10.3, cobs 0.3.0, colorchoice 1.0.5, cpu-time 1.0.0, crc32fast 1.5.3, dpi 0.1.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.3.1, is_terminal_polyfill 1.70.2, jni-sys 0.3.1, jni-sys 0.4.1, no_std_io2 0.9.4, once_cell_polyfill 1.70.2, quick-error 2.0.1, rustfft 6.4.1, strength_reduce 0.2.4, unicode-general-category 1.1.0, winapi 0.3.9, winit 0.30.13
 
 </details>
 
@@ -11733,6 +11738,37 @@ cosmic-text 0.19.0
 The MIT License (MIT)
 
 Copyright (c) 2022 System76
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### LICENSE-MIT — 1 package
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+cpu-time 1.0.0
+
+</details>
+
+```
+Copyright (c) 2017 The cpu-time Developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26544,6 +26580,37 @@ appreciated but is not required.
 2. Altered source versions must be plainly marked as such, and must not be
 misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
+```
+
+### LICENSE-MIT — 1 package
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+winapi 0.3.9
+
+</details>
+
+```
+Copyright (c) 2015-2018 The winapi-rs Developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ### LICENSE.txt — 1 package
