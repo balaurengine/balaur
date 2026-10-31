@@ -221,6 +221,9 @@ pub struct UiState {
     /// per second, and where the offset has got to. Dropped once it stops.
     pub scroll_flings: HashMap<u64, (egui::Vec2, egui::Vec2)>,
     pub textures: HashMap<String, egui::TextureHandle>,
+    /// Pictures a preloaded scene names, decoding on a worker thread: each
+    /// one's answer and the sampler it is uploaded with.
+    pub(crate) decoding: HashMap<String, images::Decoding>,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
     pub texture_generation: u64,
@@ -319,6 +322,11 @@ impl balaur_plugin::Plugin for UiPlugin {
         widget::beside::register_all(reg);
         widget::schema::register_widget_component(reg);
         widget::presets::register_widget_presets(reg)?;
+        balaur_core::preload::on_component(
+            reg.engine(),
+            <widget::properties::WidgetProperties as balaur_core::components::derived::Component>::NAME,
+            images::preload_widget,
+        );
         Ok(())
     }
 }
@@ -366,6 +374,8 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };
+    // Pictures a preload decoded since the last pass, up before anything draws.
+    images::settle(eng, ctx);
     {
         let mut state = state.borrow_mut();
         // Once a pass: egui takes the families given last pass, the shaper

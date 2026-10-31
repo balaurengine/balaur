@@ -743,6 +743,36 @@ fn scene_doc(eng: &Engine, path: &str) -> Result<(std::rc::Rc<str>, std::rc::Rc<
     Ok((source, doc))
 }
 
+/// [`crate::preload::scene`]: the scene at `path` and every prefab under it
+/// parsed into [`SceneFiles`], each component value handed to its
+/// preloaders. A prefab instanced twice is walked once.
+pub(crate) fn preload_scene(eng: &Engine, path: &str) -> Result<()> {
+    let mut seen = Vec::new();
+    preload_walk(eng, path, &mut seen)
+}
+
+fn preload_walk(eng: &Engine, path: &str, seen: &mut Vec<String>) -> Result<()> {
+    if seen.iter().any(|done| done == path) {
+        return Ok(());
+    }
+    seen.push(path.to_string());
+    let (_, doc) = scene_doc(eng, path)?;
+    for node in &doc.nodes {
+        for (key, value) in &node.extra {
+            crate::preload::feed(eng, key, value);
+        }
+        for keys in node.overrides.values().filter_map(toml::Value::as_table) {
+            for (key, value) in keys {
+                crate::preload::feed(eng, key, value);
+            }
+        }
+        if let Some(prefab) = &node.instance {
+            preload_walk(eng, prefab, seen)?;
+        }
+    }
+    Ok(())
+}
+
 /// When the file a scene path reads from last changed, under the first root
 /// that has it, as [`scene_from_file`] looks; `None` where none does.
 fn stamp_of(eng: &Engine, path: &str) -> Option<f64> {

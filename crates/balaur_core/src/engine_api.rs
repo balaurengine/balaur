@@ -197,6 +197,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: "scene",
+            name: "preload",
+            call: preload,
+        },
+        EngineOp {
+            module: "scene",
             name: "to_toml",
             call: to_toml,
         },
@@ -974,6 +979,13 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
         _ => crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?,
     }
     scene::announce_added_since(eng, base, before);
+    Ok(Value::Nil)
+}
+
+/// `scene.preload(path)`: the scene and its prefabs read and parsed, and
+/// what their components name started, before anything switches to it.
+fn preload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::preload::scene(eng, text(args, 0)?)?;
     Ok(Value::Nil)
 }
 

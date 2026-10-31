@@ -16,42 +16,150 @@ pub(crate) fn texture_of(
     path: &str,
 ) -> anyhow::Result<egui::TextureHandle> {
     let state = eng.resource::<UiState>();
-    let generation = balaur_core::assets::generation(eng);
     let cached = {
-        let mut state = state.borrow_mut();
-        // An edited image is a new picture under the same path, and the map
-        // would otherwise hold every one a session ever drew.
-        if state.texture_generation != generation {
-            state.textures.clear();
-            state.texture_generation = generation;
-        }
-        state.textures.get(path).cloned()
+        let mut held = state.borrow_mut();
+        forget_stale(eng, &mut held);
+        held.textures.get(path).cloned()
     };
     if let Some(found) = cached {
         return Ok(found);
     }
-    // Through ProjectFiles, so an image in a packed game loads from the pack
-    // rather than from a file that is not shipped.
+    // A preload already on it: its answer, waited for where it is not in yet,
+    // since the draw needs the picture now and the decode is half done.
+    let started = state.borrow_mut().decoding.remove(path);
+    let (color, sampler) = match started.map(|(answer, sampler)| (answer.recv(), sampler)) {
+        Some((Ok(color), sampler)) => (color?, sampler),
+        // A worker that died answers nothing: decoded here instead.
+        Some((Err(_), _)) | None => {
+            let (bytes, settings) = read(eng, path)?;
+            let sampler = options(&settings);
+            (decoded(&bytes, &settings)?, sampler)
+        }
+    };
+    Ok(upload(&state, ctx, path, color, sampler))
+}
+
+/// A picture decoding on a worker thread, and the sampler it goes up with.
+pub(crate) type Decoding = (
+    std::sync::mpsc::Receiver<anyhow::Result<egui::ColorImage>>,
+    egui::TextureOptions,
+);
+
+/// [`balaur_core::preload`]'s hand-off for a `widget`: its picture read now
+/// and decoded on a worker thread, so the screen that draws it finds it up.
+pub(crate) fn preload_widget(eng: &Engine, widget: &toml::Value) {
+    if let Some(path) = widget.get("image").and_then(toml::Value::as_str) {
+        prefetch(eng, path);
+    }
+}
+
+/// Start decoding `path` on a worker thread, unless it is up or on its way.
+/// A file that does not read is left for the draw to report.
+pub(crate) fn prefetch(eng: &Engine, path: &str) {
+    if path.is_empty() {
+        return;
+    }
+    let Some(state) = eng.try_resource::<UiState>() else {
+        return;
+    };
+    {
+        let mut state = state.borrow_mut();
+        forget_stale(eng, &mut state);
+        if state.textures.contains_key(path) || state.decoding.contains_key(path) {
+            return;
+        }
+    }
+    let Ok((bytes, settings)) = read(eng, path) else {
+        return;
+    };
+    let sampler = options(&settings);
+    let answer = balaur_core::task::compute(move || decoded(&bytes, &settings));
+    state
+        .borrow_mut()
+        .decoding
+        .insert(path.to_string(), (answer, sampler));
+}
+
+/// Upload every preloaded picture whose decode has come back. Called at the
+/// start of a pass, which is where the context is.
+pub(crate) fn settle(eng: &Engine, ctx: &egui::Context) {
+    let Some(state) = eng.try_resource::<UiState>() else {
+        return;
+    };
+    let done: Vec<(String, egui::ColorImage, egui::TextureOptions)> = {
+        let mut held = state.borrow_mut();
+        forget_stale(eng, &mut held);
+        if held.decoding.is_empty() {
+            return;
+        }
+        let mut done = Vec::new();
+        held.decoding
+            .retain(|path, (answer, sampler)| match answer.try_recv() {
+                Ok(Ok(color)) => {
+                    done.push((path.clone(), color, *sampler));
+                    false
+                }
+                // Refused: the draw that asks for it reports why.
+                Ok(Err(_)) | Err(std::sync::mpsc::TryRecvError::Disconnected) => false,
+                Err(std::sync::mpsc::TryRecvError::Empty) => true,
+            });
+        done
+    };
+    for (path, color, sampler) in done {
+        // The cache holds the handle; nothing draws it this pass.
+        let _ = upload(&state, ctx, &path, color, sampler);
+    }
+}
+
+/// An edited image is a new picture under the same path, and the map would
+/// otherwise hold every one a session ever drew: both maps go when any asset
+/// is reloaded.
+fn forget_stale(eng: &Engine, state: &mut UiState) {
+    let generation = balaur_core::assets::generation(eng);
+    if state.texture_generation != generation {
+        state.textures.clear();
+        state.decoding.clear();
+        state.texture_generation = generation;
+    }
+}
+
+/// A picture's bytes and import settings, through ProjectFiles, so an image
+/// in a packed game loads from the pack rather than from a file that is not
+/// shipped.
+fn read(eng: &Engine, path: &str) -> anyhow::Result<(Vec<u8>, toml::Table)> {
     let source = balaur_asset::texture_asset::source(eng, path)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&source.path)?;
-    // egui premultiplies what it is handed, so a bleed would change nothing.
-    let settings = &source.settings;
-    let rgba = balaur_asset::pixels::decode(
-        &bytes,
-        &settings.settings,
-        balaur_asset::pixels::Alpha::Premultiplied,
-    )?;
+    Ok((bytes, source.settings.settings.clone()))
+}
+
+/// Pixels egui takes. Premultiplied, which egui does to what it is handed
+/// anyway, so a bleed would change nothing.
+fn decoded(bytes: &[u8], settings: &toml::Table) -> anyhow::Result<egui::ColorImage> {
+    let rgba =
+        balaur_asset::pixels::decode(bytes, settings, balaur_asset::pixels::Alpha::Premultiplied)?;
     let size = [rgba.width() as usize, rgba.height() as usize];
-    let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-    let handle = ctx.load_texture(path, color, options(&settings.settings));
+    Ok(egui::ColorImage::from_rgba_unmultiplied(
+        size,
+        rgba.as_raw(),
+    ))
+}
+
+fn upload(
+    state: &std::rc::Rc<std::cell::RefCell<UiState>>,
+    ctx: &egui::Context,
+    path: &str,
+    color: egui::ColorImage,
+    sampler: egui::TextureOptions,
+) -> egui::TextureHandle {
+    let handle = ctx.load_texture(path, color, sampler);
     state
         .borrow_mut()
         .textures
         .insert(path.to_string(), handle.clone());
-    Ok(handle)
+    handle
 }
 
 /// The size a picture measures as: the pixels it was drawn at, which are the

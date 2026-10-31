@@ -6124,6 +6124,10 @@
         "least": 1,
         "signature": "(str, Node?) -> Node"
       },
+      "scene::preload": {
+        "least": 1,
+        "signature": "(str)"
+      },
       "scene::preset_info": {
         "least": 1,
         "signature": "(str) -> scene::Preset?"
@@ -26685,6 +26689,7 @@
         "instantiate": "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
+        "preload": "Ready a scene file before anything switches to it: the file and every prefab it instances read and parsed, and what their components name started off the frame, the pictures a screen draws decoded on worker threads. Builds no node: a switch to it, a frame or a minute later, finds it all warm. An app calls it at boot for each screen, or a screen ahead.",
         "preset_info": "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
         "removed_since": "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear.",
@@ -26717,6 +26722,7 @@
         "instantiate",
         "keep_changes",
         "node_by_id",
+        "preload",
         "preset_info",
         "presets",
         "removed_since",
@@ -26750,6 +26756,7 @@
         "instantiate": "(str, Node?, scene::InstantiateOptions?)",
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
+        "preload": "(str)",
         "preset_info": "(str) -> scene::Preset?",
         "presets": "() -> [str]",
         "removed_since": "(str, int) -> [Node]",

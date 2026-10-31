@@ -48,6 +48,7 @@ pub mod node_api;
 pub mod node_meta;
 pub mod pack;
 pub mod plugins;
+pub mod preload;
 pub mod presets;
 pub mod process;
 pub mod project;
