@@ -140,8 +140,8 @@ balaur_script_bs = { opt-level = 1 }
 balaur_text = { opt-level = 1 }
 balaur_ui = { opt-level = 1 }
 
-# A dependency's line tables are copied into each of the 130 test binaries and
-# read only when a backtrace passes through one. The workspace keeps its own.
+# Under `debugging`, which inherits these, a dependency's debug info would be
+# copied into each of the 130 test binaries; only the workspace keeps its own.
 [profile.dev.package."*"]
 debug = false
 # Rune's VM, egui and hecs: at 0 an editor frame ran 2.6 to 2.9x the instructions.
