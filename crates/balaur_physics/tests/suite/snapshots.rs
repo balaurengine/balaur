@@ -218,7 +218,7 @@ fn params_tables(app: &App) -> Vec<toml::Value> {
         three
             .joint_params
             .iter()
-            .map(|(entity, params)| (entity.to_bits(), params.clone()))
+            .map(|(entity, ask)| (entity.to_bits(), ask.to_table()))
             .collect(),
     ));
     out.extend(tables(

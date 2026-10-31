@@ -166,11 +166,9 @@ pub(crate) mod keys {
     pub(crate) const AABB_COLOR: &str = "aabb_color";
     pub(crate) const ALLOWED_LINEAR_ERROR: &str = "allowed_linear_error";
     pub(crate) const ANCHOR: &str = "anchor";
-    pub(crate) const ANCHOR_ROTATION: &str = "anchor_rotation";
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const ANGULAR_DAMPING: &str = "angular_damping";
     pub(crate) const APPLIED: &str = "applied";
-    pub(crate) const ARMATURE: &str = "armature";
     pub(crate) const AT: &str = "at";
     pub(crate) const AXES: &str = "axes";
     pub(crate) const AXES_LENGTH: &str = "axes_length";
@@ -184,8 +182,6 @@ pub(crate) mod keys {
     pub(crate) const BORDER_SUBDIVISIONS: &str = "border_subdivisions";
     pub(crate) const BODIES: &str = "bodies";
     pub(crate) const BRAKE: &str = "brake";
-    pub(crate) const BREAK_FORCE: &str = "break_force";
-    pub(crate) const BREAK_TORQUE: &str = "break_torque";
     pub(crate) const BROAD_PHASE_MS: &str = "broad_phase_ms";
     pub(crate) const CAN_SLEEP: &str = "can_sleep";
     pub(crate) const CCD_BROAD_PHASE_MS: &str = "ccd_broad_phase_ms";
@@ -207,7 +203,6 @@ pub(crate) mod keys {
     pub(crate) const COLLISION_TEST: &str = "collision_test";
     pub(crate) const CONNECTED_ANCHOR: &str = "connected_anchor";
     pub(crate) const CONNECTED_ANCHOR_ROTATION: &str = "connected_anchor_rotation";
-    pub(crate) const CONNECTED_AXIS: &str = "connected_axis";
     pub(crate) const CONNECTED_BODY: &str = "connected_body";
     pub(crate) const CONSTRAIN: &str = "constrain";
     pub(crate) const CONSTRAINT_COUNT: &str = "constraint_count";
@@ -227,8 +222,6 @@ pub(crate) mod keys {
     pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
     pub(crate) const CONTINUOUS_COLLISION: &str = "continuous_collision";
     pub(crate) const COORDINATES: &str = "coordinates";
-    pub(crate) const COUPLED_ROTATION: &str = "coupled_rotation";
-    pub(crate) const COUPLED_TRANSLATION: &str = "coupled_translation";
     pub(crate) const DISTANCE: &str = "distance";
     pub(crate) const DYNAMIC_COLOR: &str = "dynamic_color";
     pub(crate) const EDGES: &str = "edges";
@@ -256,9 +249,6 @@ pub(crate) mod keys {
     pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
     pub(crate) const FRICTION_IN_BIAS_PASS: &str = "friction_in_bias_pass";
     pub(crate) const FRICTION_MODEL: &str = "friction_model";
-    pub(crate) const GEAR_OFFSET: &str = "gear_offset";
-    pub(crate) const GEAR_RATIO: &str = "gear_ratio";
-    pub(crate) const GEAR_WITH: &str = "gear_with";
     pub(crate) const GRAVITY_2D: &str = "gravity_2d";
     pub(crate) const GRAVITY_3D: &str = "gravity_3d";
     pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
@@ -281,15 +271,10 @@ pub(crate) mod keys {
     pub(crate) const JOINT_SEPARATION_COLOR: &str = "joint_separation_color";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KINEMATIC_COLOR: &str = "kinematic_color";
-    pub(crate) const KINEMATIC_LINK: &str = "kinematic_link";
     pub(crate) const LENGTH_UNIT: &str = "length_unit";
     pub(crate) const LIMITS: &str = "limits";
     pub(crate) const LIMIT_IMPULSES: &str = "limit_impulses";
     pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
-    pub(crate) const LINK_AXES: &str = "link_axes";
-    pub(crate) const LINK_DAMPING: &str = "link_damping";
-    pub(crate) const LOCK_ROTATION: &str = "lock_rotation";
-    pub(crate) const LOCK_TRANSLATION: &str = "lock_translation";
     pub(crate) const MASS: &str = "mass";
     pub(crate) const MAX: &str = "max";
     pub(crate) const MAX_CONCAVITY: &str = "max_concavity";
@@ -298,7 +283,6 @@ pub(crate) mod keys {
     pub(crate) const MAX_DISTANCE: &str = "max_distance";
     pub(crate) const MAX_FORCE: &str = "max_force";
     pub(crate) const MAX_LINEAR_VELOCITY: &str = "max_linear_velocity";
-    pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MAX_TIME: &str = "max_time";
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const MIN: &str = "min";
@@ -326,8 +310,6 @@ pub(crate) mod keys {
     pub(crate) const OWN_POINT: &str = "own_point";
     /// The node a ragdoll keeps its bodies under.
     pub(crate) const PARENT: &str = "parent";
-    pub(crate) const PASSIVE_REST: &str = "passive_rest";
-    pub(crate) const PASSIVE_STIFFNESS: &str = "passive_stiffness";
     /// A world's entry in what `physics` reports for both, named for its module.
     pub(crate) const PHYSICS_2D: &str = "physics2d";
     pub(crate) const PHYSICS_3D: &str = "physics3d";

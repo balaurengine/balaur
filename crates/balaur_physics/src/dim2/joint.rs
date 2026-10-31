@@ -13,9 +13,10 @@ use crate::rapier2d::prelude::{
     SpringCoefficients, SpringJointBuilder,
 };
 use crate::scalar::{self, Real, Vector2};
+use crate::shared::joint::JointAsk as _;
 use anyhow::{Result, anyhow};
+use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Record, Written};
-use balaur_core::components::{ComponentDef, as_node};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
@@ -51,41 +52,50 @@ const AXIS_WORDS: &[(&str, JointAxis)] = &[
 
 /// The degrees of freedom a kind leaves free, which an `axes` record may name.
 /// A rope and a spring couple both linear axes into one distance, named `x`.
-fn free_axes(kind: &str, params: &toml::Value) -> JointAxesMask {
+fn free_axes(kind: &str, ask: &JointAsk2d) -> JointAxesMask {
     match kind {
         w::HINGE => JointAxesMask::FREE_REVOLUTE_AXES,
         w::SLIDER => JointAxesMask::FREE_PRISMATIC_AXES,
         w::ROPE | w::SPRING | w::GROOVE => JointAxesMask::LIN_X | JointAxesMask::ANG_X,
-        w::GENERIC => (JointAxesMask::LIN_AXES | JointAxesMask::ANG_AXES) - locked_axes(params),
+        w::GENERIC => {
+            (JointAxesMask::LIN_AXES | JointAxesMask::ANG_AXES) - locked_axes(&ask.generic)
+        }
         _ => JointAxesMask::empty(),
     }
 }
 
-fn locked_axes(params: &toml::Value) -> JointAxesMask {
-    let mut mask = JointAxesMask::empty();
-    for (name, axis) in [(w::X, JointAxesMask::LIN_X), (w::Y, JointAxesMask::LIN_Y)] {
-        if v::flag(params, k::LOCK_TRANSLATION, name) {
-            mask |= axis;
+/// The linear axes a list names.
+fn linear(axes: &[Axis2d]) -> JointAxesMask {
+    axes.iter().fold(JointAxesMask::empty(), |mask, axis| {
+        mask | match axis {
+            Axis2d::X => JointAxesMask::LIN_X,
+            Axis2d::Y => JointAxesMask::LIN_Y,
         }
-    }
-    if v::boolean(params, k::LOCK_ROTATION, false) {
-        mask |= JointAxesMask::ANG_X;
-    }
-    mask
+    })
 }
 
-pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
-    let kind = v::text(params, k::KIND, w::FIXED);
-    let axis = scalar::v2a(v::vec2(params, k::AXIS, [1.0, 0.0]));
+fn locked_axes(generic: &GenericJoint2d) -> JointAxesMask {
+    let turn = if generic.lock_rotation {
+        JointAxesMask::ANG_X
+    } else {
+        JointAxesMask::empty()
+    };
+    linear(&generic.lock_translation) | turn
+}
+
+pub(crate) fn joint_of(ask: &JointAsk2d) -> Result<GenericJoint> {
+    let held = &ask.joint;
+    let kind = held.kind.option();
+    let axis = scalar::v2a(held.axis);
     let axis = if axis.length_squared() < 1.0e-12 {
         Vector2::X
     } else {
         axis.normalize()
     };
-    let anchor1 = scalar::v2a(v::vec2(params, k::ANCHOR, [0.0; 2]));
-    let anchor2 = scalar::v2a(v::vec2(params, k::CONNECTED_ANCHOR, [0.0; 2]));
-    let max_length = scalar::real(v::f(params, k::MAX_LENGTH, 0.0));
-    let rest_length = scalar::real(v::f(params, k::REST_LENGTH, 0.0));
+    let anchor1 = scalar::v2a(held.anchor);
+    let anchor2 = scalar::v2a(held.connected_anchor);
+    let max_length = scalar::real(ask.rope.max_length);
+    let rest_length = scalar::real(ask.spring.rest_length);
     let mut joint: GenericJoint = match kind {
         w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -120,7 +130,7 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .local_anchor2(anchor2)
             .build()
             .into(),
-        w::GENERIC => GenericJointBuilder::new(locked_axes(params))
+        w::GENERIC => GenericJointBuilder::new(locked_axes(&ask.generic))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .local_axis1(axis)
@@ -129,23 +139,19 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
         other => return Err(anyhow!("unknown joint2d kind '{other}'")),
     };
     // The other end's own axis when it names one; `axis` reaches both ends otherwise.
-    let connected = scalar::v2a(v::vec2(params, k::CONNECTED_AXIS, [0.0; 2]));
+    let connected = scalar::v2a(held.connected_axis);
     if matches!(kind, w::SLIDER | w::GROOVE | w::GENERIC) && connected.length_squared() >= 1.0e-12 {
         joint.set_local_axis2(connected.normalize());
     }
-    let turn = |key: &str| scalar::Rotation2::from_angle(scalar::real(v::f(params, key, 0.0)));
-    joint.local_frame1.rotation *= turn(k::ANCHOR_ROTATION);
-    joint.local_frame2.rotation *= turn(k::CONNECTED_ANCHOR_ROTATION);
-    let (hz, ratio) = crate::shared::joint::softness(params);
+    let turn = |angle: f32| scalar::Rotation2::from_angle(scalar::real(angle));
+    joint.local_frame1.rotation *= turn(held.anchor_rotation);
+    joint.local_frame2.rotation *= turn(held.connected_anchor_rotation);
+    let (hz, ratio) = crate::shared::joint::softness(held.softness_hz, held.softness_damping_ratio);
     joint.softness = SpringCoefficients::new(hz, ratio);
-    for (name, axis) in [(w::X, JointAxesMask::LIN_X), (w::Y, JointAxesMask::LIN_Y)] {
-        if v::flag(params, k::COUPLED_TRANSLATION, name) {
-            joint.coupled_axes |= axis;
-        }
-    }
-    joint.set_contacts_enabled(v::boolean(params, k::COLLIDE_CONNECTED, false));
-    joint.set_enabled(v::boolean(params, k::ENABLED, true));
-    write_axes(&mut joint, params, kind)?;
+    joint.coupled_axes |= linear(&ask.generic.coupled_translation);
+    joint.set_contacts_enabled(held.collide_connected);
+    joint.set_enabled(held.enabled);
+    write_axes(&mut joint, ask, kind)?;
     Ok(joint)
 }
 
@@ -330,20 +336,147 @@ pub(crate) const PARAMS: &[&str] = &[
     <BreakableJoint2d as Component>::NAME,
 ];
 
-/// `held`'s table with the rows of the components beside it on `entity`
-/// written in, and whether an `articulation2d` stands beside it.
-fn params_of(world: &balaur_core::hecs::World, entity: Entity, held: &Joint2d) -> toml::Value {
-    let mut params = derived::to_table(held);
-    beside::write_in::<RopeJoint2d>(world, entity, held, &mut params);
-    beside::write_in::<SpringJoint2d>(world, entity, held, &mut params);
-    beside::write_in::<GenericJoint2d>(world, entity, held, &mut params);
-    beside::write_in::<Articulation2d>(world, entity, held, &mut params);
-    beside::write_in::<BreakableJoint2d>(world, entity, held, &mut params);
-    let reduced = world.get::<&Articulation2d>(entity).is_ok();
-    if let Some(table) = params.as_table_mut() {
-        table.insert(k::ARTICULATION.into(), reduced.into());
+/// What a node's joint is built from: the `joint2d` and the components
+/// beside it as its kind reads them.
+#[derive(Clone)]
+pub struct JointAsk2d {
+    pub joint: Joint2d,
+    pub rope: RopeJoint2d,
+    pub spring: SpringJoint2d,
+    pub generic: GenericJoint2d,
+    pub breakable: BreakableJoint2d,
+    /// The `articulation2d` beside it, when one stands there.
+    pub articulation: Option<Articulation2d>,
+}
+
+impl JointAsk2d {
+    /// What `entity` asks for, `None` without a `joint2d`.
+    pub fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let joint = (*world.get::<&Joint2d>(entity).ok()?).clone();
+        Some(Self {
+            rope: beside::held(world, entity, &joint),
+            spring: beside::held(world, entity, &joint),
+            generic: beside::held(world, entity, &joint),
+            breakable: beside::held(world, entity, &joint),
+            articulation: world
+                .get::<&Articulation2d>(entity)
+                .ok()
+                .map(|held| (*held).clone()),
+            joint,
+        })
     }
-    params
+
+    /// The ask as one table, the way a snapshot keeps it: every row of the
+    /// components beside the joint, and whether an articulation stands there.
+    pub fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.joint);
+        let articulation = self.articulation.clone().unwrap_or_default();
+        for beside in [
+            derived::to_table(&self.rope),
+            derived::to_table(&self.spring),
+            derived::to_table(&self.generic),
+            derived::to_table(&articulation),
+            derived::to_table(&self.breakable),
+        ] {
+            if let (Some(rows), toml::Value::Table(more)) = (table.as_table_mut(), beside) {
+                rows.extend(more);
+            }
+        }
+        if let Some(rows) = table.as_table_mut() {
+            rows.insert(k::ARTICULATION.into(), self.articulation.is_some().into());
+        }
+        table
+    }
+
+    /// The ask out of one table, as [`crate::shared::joint::JointAsk::to_table`]
+    /// wrote it.
+    pub fn from_table(params: &toml::Value) -> Result<Self> {
+        Ok(Self {
+            joint: derived::from_table(params)?,
+            rope: derived::from_table(params)?,
+            spring: derived::from_table(params)?,
+            generic: derived::from_table(params)?,
+            breakable: derived::from_table(params)?,
+            articulation: v::boolean(params, k::ARTICULATION, false)
+                .then(|| derived::from_table(params))
+                .transpose()?,
+        })
+    }
+}
+
+impl crate::shared::joint::JointAsk for JointAsk2d {
+    fn kind_word(&self) -> &'static str {
+        self.joint.kind.option()
+    }
+    fn enabled(&self) -> bool {
+        self.joint.enabled
+    }
+    fn articulated(&self) -> bool {
+        self.articulation.is_some()
+    }
+    fn kinematic_link(&self) -> bool {
+        self.articulation
+            .as_ref()
+            .is_some_and(|held| held.kinematic_link)
+    }
+    fn connected_body(&self) -> &str {
+        &self.joint.connected_body
+    }
+    fn gear_with(&self) -> &str {
+        self.articulation
+            .as_ref()
+            .map_or("", |held| &held.gear_with)
+    }
+    fn gear(&self) -> (f32, f32) {
+        self.articulation
+            .as_ref()
+            .map_or((1.0, 0.0), |held| (held.gear_ratio, held.gear_offset))
+    }
+    fn self_collision(&self) -> bool {
+        self.articulation
+            .as_ref()
+            .is_none_or(|held| held.self_collision)
+    }
+    fn passive(&self) -> (f32, f32) {
+        self.articulation.as_ref().map_or((0.0, 0.0), |held| {
+            (held.passive_stiffness, held.passive_rest)
+        })
+    }
+    fn link_record(&self, word: &str) -> crate::shared::joint::LinkRecord {
+        self.articulation
+            .as_ref()
+            .and_then(|held| held.link_axes.iter().find(|row| row.axis.option() == word))
+            .map_or(crate::shared::joint::LinkRecord::NONE, |row| {
+                crate::shared::joint::LinkRecord {
+                    link_damping: row.link_damping,
+                    armature: row.armature.max(0.0),
+                    friction: row.friction.max(0.0),
+                }
+            })
+    }
+    fn breaks(&self) -> (f32, f32) {
+        (self.breakable.break_force, self.breakable.break_torque)
+    }
+    fn rest_length(&self) -> f32 {
+        self.spring.rest_length
+    }
+    fn axis_records(&self) -> Vec<crate::shared::joint::AxisRecord> {
+        self.joint
+            .axes
+            .iter()
+            .map(|row| crate::shared::joint::AxisRecord {
+                axis: row.axis.option(),
+                limits: row.limits,
+                motor: row.motor.option(),
+                target: row.motor_target,
+                target_velocity: row.motor_target_velocity,
+                max_force: row.motor_max_force,
+                model: row.motor_model.option(),
+                stiffness: row.stiffness,
+                damping: row.damping,
+            })
+            .collect()
+    }
 }
 
 /// One free axis of a `joint2d` to limit or drive, as its `axes` list
@@ -378,6 +511,7 @@ pub struct FreeAxis2d {
 
 crate::shared::joint::functions!(
     joint = Joint2d,
+    ask = JointAsk2d,
     state = PhysicsState2d,
     world = PhysicsWorld2,
     reference = JointRef2d,
@@ -480,8 +614,8 @@ fn impulse_parts(world: &PhysicsWorld2, joint: &ImpulseJoint) -> Option<(Real, R
     Some((force.length(), (ang[0] - r1.perp_dot(force)).abs()))
 }
 
-pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    if toggled_in_place(eng, entity, params) {
+pub(crate) fn apply_joint(eng: &Engine, entity: Entity, ask: &JointAsk2d) -> Result<()> {
+    if toggled_in_place(eng, entity, ask) {
         return Ok(());
     }
     remove_joint(eng, entity);
@@ -489,23 +623,20 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         // After the removal, which clears it: what the joint was authored
         // from is what a `get` reports and what the retry re-reads.
         let state = eng.resource::<PhysicsState2d>();
-        state
-            .borrow_mut()
-            .joint_params
-            .insert(entity, params.clone());
+        state.borrow_mut().joint_params.insert(entity, ask.clone());
     }
-    let reduced = v::boolean(params, k::ARTICULATION, false);
+    let reduced = ask.articulated();
     // rapier's chains ignore a joint's switch, as in 3D.
-    if reduced && !v::boolean(params, k::ENABLED, true) {
+    if reduced && !ask.enabled() {
         return Ok(());
     }
-    let (break_force, break_torque) = crate::shared::joint::thresholds(params, reduced)?;
-    let Some(other) = as_node(eng, entity, params.get(k::CONNECTED_BODY)) else {
+    let (break_force, break_torque) = crate::shared::joint::thresholds(ask.breaks(), reduced)?;
+    let Some(other) = crate::shared::joint::node_named(eng, entity, ask.connected_body()) else {
         return Ok(());
     };
     // A bodiless child stands for the nearest body above it, as in 3D.
     let (a, b) = (body_above(eng, entity), body_above(eng, other));
-    let joint = joint_of(params)?;
+    let joint = joint_of(ask)?;
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let (first, second) = handles(&state, a, b)?;
@@ -515,7 +646,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         let mut joint = joint;
         joint.flip();
         let set = &mut state.world.multibody_joints;
-        let made = if v::boolean(params, k::KINEMATIC_LINK, false) {
+        let made = if ask.kinematic_link() {
             set.insert_kinematic(second, first, joint, true)
         } else {
             set.insert(second, first, joint, true)
@@ -649,16 +780,10 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector2, opts: &v::Opts<'_>) -
 
 /// The joint the component asks for, made again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let asked = {
-        let world = eng.world();
-        world
-            .get::<&Joint2d>(entity)
-            .map(|held| params_of(&world, entity, &held))
-    };
-    let Ok(params) = asked else {
+    let Some(ask) = JointAsk2d::of(&eng.world(), entity) else {
         return Ok(());
     };
-    apply_joint(eng, entity, &params)
+    apply_joint(eng, entity, &ask)
 }
 
 /// What a removed `Joint2d` leaves behind, taken with it.

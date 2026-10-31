@@ -301,7 +301,16 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
                 .collect(),
             collider::PARAMS,
         ),
-        joint_params: authored(eng, &world, &state.joint_params, joint::PARAMS),
+        joint_params: authored(
+            eng,
+            &world,
+            &state
+                .joint_params
+                .iter()
+                .map(|(entity, ask)| (*entity, ask.to_table()))
+                .collect(),
+            joint::PARAMS,
+        ),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         wheel_inputs: keyed(&world, &state.wheel_inputs),
         vehicles: vehicle::frame_rows(&world, &state.vehicles),
@@ -365,7 +374,18 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
             },
         )
         .collect();
-    state.joint_params = joint_params;
+    state.joint_params = joint_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match joint::JointAsk3d::from_table(params) {
+                Ok(ask) => Some((*entity, ask)),
+                Err(why) => {
+                    tracing::error!("restoring a joint: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.surfaces = frame.surfaces.into_iter().collect();
     state.wheel_inputs = wheel_inputs;
     state.vehicles = vehicles;

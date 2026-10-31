@@ -69,7 +69,7 @@ pub struct PhysicsState2d {
     pub(crate) tile_params: DetHashMap<Entity, tiles::TileCollision>,
     pub(crate) tile_built: DetHashMap<Entity, tiles::Built>,
     pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
-    pub joint_params: DetHashMap<Entity, toml::Value>,
+    pub joint_params: DetHashMap<Entity, joint::JointAsk2d>,
     /// What the contact hook reads per collider, as in 3D.
     pub(crate) surfaces: events::Surfaces,
     /// The asset generation the material files were last read at
@@ -511,7 +511,16 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         ),
         tile_built: crate::keyed(&world, &state.tile_built),
         tile_colliders: crate::keyed(&world, &state.tile_colliders),
-        joint_params: crate::authored(eng, &world, &state.joint_params, joint::PARAMS),
+        joint_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .joint_params
+                .iter()
+                .map(|(entity, ask)| (*entity, ask.to_table()))
+                .collect(),
+            joint::PARAMS,
+        ),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         grounded: crate::keyed(&world, &state.grounded),
         follows: crate::keyed(&world, &state.follows),
@@ -595,7 +604,18 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
         .collect();
     state.tile_built = tile_built;
     state.tile_colliders = tile_colliders;
-    state.joint_params = joint_params;
+    state.joint_params = joint_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match joint::JointAsk2d::from_table(params) {
+                Ok(ask) => Some((*entity, ask)),
+                Err(why) => {
+                    tracing::error!("restoring a joint: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.surfaces = frame.surfaces.into_iter().collect();
     state.grounded = grounded;
     state.follows = follows;

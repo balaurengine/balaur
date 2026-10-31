@@ -133,7 +133,7 @@ pub struct PhysicsState3d {
     /// would quietly lose them. Read back under whatever rapier does report,
     /// so a live edit still shows through.
     pub collider_params: DetHashMap<Entity, crate::collider::Asked3d>,
-    pub joint_params: DetHashMap<Entity, toml::Value>,
+    pub joint_params: DetHashMap<Entity, crate::joint::JointAsk3d>,
     /// What the contact hook reads per collider: one-way platforms and
     /// conveyor belts.
     pub(crate) surfaces: events::Surfaces,
