@@ -1,7 +1,8 @@
-> **Status:** built 2026-10-30, steps 1 and 3 to 6: the kernel is 28k lines
-> and five crates sit around it (the table below is what was built). Step 7,
-> the guard, and step 8, the record, follow. Step 2's baseline was measured
-> after the split, against the commit before it (§5).
+> **Status:** built 2026-10-30. The kernel is 28k lines and five crates sit
+> around it (the table below is what was built); step 7's guard is
+> `tests/suite/kernel_manifest.rs`, and step 8's record is ARCHITECTURE's
+> layer list and §5 below, measured after the split against the commit
+> before it.
 
 # Plan: the core split
 
@@ -107,3 +108,26 @@ What still crosses, 34 edges, and how each goes:
 Every crate builds, `scripts/precommit.sh --e2e` passes, the determinism
 traces match the baseline, and the kernel's `Cargo.toml` names no geometry,
 image or glTF crate.
+
+## 5. Measured
+
+Rebuild after a one-line edit, no sccache, warm third-party crates, a target
+of its own, Apple M1, 2026-10-30; `74a55533` (before) against `8339e975`
+(after), two runs each:
+
+| Edit, then build | Before | After |
+| --- | ---: | ---: |
+| `engine.rs`, `balaur_core` alone | 30.3 s, 30.0 s | 15.3 s, 14.2 s |
+| `engine.rs`, `balaur_cli` | 86.7 s, 75.1 s | 181.8 s, 115.5 s |
+| `csg.rs`, `balaur_cli` | 97.7 s, 126.3 s | 101.6 s, 128.7 s |
+
+The kernel alone rebuilds in half the time, which is what a test run of the
+kernel or of a crate on the kernel waits for. The whole binary does not: an
+edit to the kernel still rebuilds every crate above it, now five more, and an
+edit to geometry rebuilds what depends on geometry, which `balaur_cli` does.
+The split pays where a crate sits on the kernel and not on the rest
+(`balaur_script`, a plugin on `balaur_plugin` alone), and in the kernel's own
+tests. To repeat it: build the package once, append a comment line to the
+file, time `cargo build -q -p <package>` with `CARGO_INCREMENTAL=0`, restore
+the file, twice per tree.
+

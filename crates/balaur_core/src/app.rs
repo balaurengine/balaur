@@ -484,18 +484,20 @@ impl App {
         app.add_system(Stage::Last, |eng, _| {
             // Every free of the frame in one batch: see `scene::free_nodes`.
             let freed = eng.take_frees();
-            // Most ticks record nothing; the labels are only built for one
-            // that does.
-            if crate::replay::wants_events(eng) {
-                for &entity in &freed {
-                    let label = crate::digest::node_label(&eng.world(), entity);
-                    crate::replay::event(
-                        eng,
-                        "scene.free",
-                        format!("freed {label}"),
-                        Some(serde_json::json!({ "node": label })),
-                    );
+            // Most ticks record nothing, and a tick's log takes so many: a
+            // label is built only while one is wanted, so freeing fifty
+            // thousand nodes names the first few.
+            for &entity in &freed {
+                if !crate::replay::wants_events(eng) {
+                    break;
                 }
+                let label = crate::digest::node_label(&eng.world(), entity);
+                crate::replay::event(
+                    eng,
+                    "scene.free",
+                    format!("freed {label}"),
+                    Some(serde_json::json!({ "node": label })),
+                );
             }
             if !freed.is_empty() {
                 scene::announce_leaving(eng, &freed);

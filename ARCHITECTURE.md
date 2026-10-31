@@ -70,6 +70,25 @@ a `Builtins`; a bare app gets the kernel's own.
   and script host, with interior mutability and short borrows: Rust systems and
   script bindings see one state, unmarshalled. Single-threaded by design;
   parallelism goes inside a system.
+- **What the ECS work costs**, measured with `examples/benchmark` in release
+  on an Apple M1 on 2026-10-31, `690bc856` (before PLAN-ecs step 3) against
+  the build after step 13, two alternating runs each, the median of a case:
+
+  | Case | Before | After |
+  | --- | ---: | ---: |
+  | `nodes/add_children`, 50,000 | 37.4–37.9 ms | 38.2–38.3 ms |
+  | `nodes/delete_children_random`, 50,000 | 27.7–27.9 ms | 28.1 ms |
+  | `nodes/get_node` | 51.3–51.4 ms | 51.7–52.0 ms |
+  | `3d/drop` frame, 8,000 bodies | 3.54–3.55 ms | 3.54–3.68 ms |
+  | its scene mirror | 2.11 ms | 0.42 ms |
+
+  Peak memory did not move past run-to-run noise (the `kind/*` cases at
+  5,000 nodes read 1.0–1.1 GB either way, ±50 MB a run). By its types, a
+  change stamp is 40 bytes for each registered component a write put on a
+  node, and nothing for a node's spawned transform. The web build's bytes
+  were not measured here. One regression was found and fixed on the way: a
+  frame's frees built a replay label for every freed node instead of the
+  first few the tick's log keeps, 10 ms on 50,000 frees.
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
   `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
   component, `[nodes.transform]` in a file, and a node without one sits at its

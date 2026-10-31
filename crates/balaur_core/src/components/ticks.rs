@@ -78,13 +78,21 @@ pub(crate) fn removed(eng: &Engine, node: Entity, index: usize) {
     });
 }
 
-/// Every component in `present` came off `node`, which is being freed.
+/// Every component in `present` came off `node`, which is being freed. Only
+/// a component that holds a stamp is heard going: one the registry never
+/// wrote, a node's spawned `transform`, was never heard coming either. Freeing
+/// fifty thousand bare nodes is a check each, not a lookup per component.
 pub(crate) fn freed(eng: &Engine, node: Entity, present: u128) {
     let now = eng.change_tick();
     with(eng, |ticks| {
-        for index in 0..u128::BITS as usize {
-            if present & (1 << index) != 0 {
-                ticks.stamps.swap_remove(&(node, index));
+        if ticks.stamps.is_empty() {
+            return;
+        }
+        let mut bits = present;
+        while bits != 0 {
+            let index = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            if ticks.stamps.swap_remove(&(node, index)).is_some() {
                 ticks.removed.push((node, index, now));
             }
         }
