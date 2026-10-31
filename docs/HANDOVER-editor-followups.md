@@ -52,7 +52,7 @@ is rewritten in the same commit).
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
 - Beside components (physics) register before their main component, so a
-  scene builds the main one once, and so do the ones beside `widget`. 97
+  scene builds the main one once, and so do the ones beside `widget`. 100
   components are registered of the 128 `Attached` allows.
 
 ## Left to do, in order
