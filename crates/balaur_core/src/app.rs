@@ -1018,13 +1018,21 @@ impl App {
         }
     }
 
-    /// Feed and run `count` recorded frames.
+    /// Feed and run up to `count` recorded frames.
     ///
     /// A seek runs many in one call, which is why this is here and not in a
     /// system: only the app can both put a frame in the feed and tick it, and
     /// the fixed-step accumulator it owns has to start where the recording's
-    /// did.
+    /// did. A call stops once it has spent one fixed step of wall time, so a
+    /// seek moves as fast as the machine runs frames and the window it runs
+    /// in keeps its rate on a slow one and a fast one alike.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "paces a seek against the window's frame; which frames run is the recording's"
+    )]
     fn replay_frames(&mut self, count: usize) {
+        let started = Instant::now();
+        let budget = std::time::Duration::from_secs_f32(crate::fixed_dt());
         if std::mem::take(
             &mut self
                 .engine
@@ -1050,7 +1058,7 @@ impl App {
             // A seek arrives mid-budget, and a script may pause from inside
             // the frame that just ran: either way the rest of the budget is
             // no longer wanted.
-            if !crate::replay::is_advancing(&self.engine) {
+            if !crate::replay::is_advancing(&self.engine) || started.elapsed() >= budget {
                 break;
             }
         }

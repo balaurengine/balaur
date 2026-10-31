@@ -534,14 +534,20 @@ impl TimingLog {
             .fold((Duration::ZERO, Duration::ZERO), |(c, p), m| {
                 (c + m.cpu, p + m.interval)
             });
+        // The CPU clock's step, as small as a frame saw it: a frame or span
+        // only a few steps long reads its slices as cores it never had.
+        let step = self
+            .marks
+            .iter()
+            .map(|m| m.cpu)
+            .filter(|cpu| !cpu.is_zero())
+            .min()
+            .unwrap_or_default();
         if cpu > Duration::ZERO && period > Duration::ZERO {
-            // Over a frame long enough for the clock to have moved: the
-            // operating system counts other threads' time in slices, and one
-            // landing in a 100 µs frame reads as a dozen cores.
             let busiest = self
                 .marks
                 .iter()
-                .filter(|m| m.interval >= Duration::from_millis(4))
+                .filter(|m| !m.interval.is_zero() && m.interval >= step * 2)
                 .map(|m| m.cpu.as_secs_f64() / m.interval.as_secs_f64())
                 .fold(0.0, f64::max);
             let _ = writeln!(
@@ -550,10 +556,8 @@ impl TimingLog {
                 cpu.as_secs_f64() / period.as_secs_f64(),
             );
         }
-        // A span the run spent under 20 ms in is too short for the same
-        // reason: its few slices are noise, not its parallelism.
         for (name, cpu, wall) in &self.span_cpu {
-            if *wall >= Duration::from_millis(20) {
+            if !wall.is_zero() && *wall >= step * 20 {
                 let _ = writeln!(
                     out,
                     "  {name}: {:.2} cores busy while it ran",
