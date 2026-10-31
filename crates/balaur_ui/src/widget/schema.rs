@@ -88,9 +88,8 @@ fn read(eng: &Engine, entity: Entity, table: &GetFn) -> Option<toml::Value> {
 )]
 fn remove(eng: &Engine, entity: Entity) -> Result<()> {
     crate::widget::arena::widget_changed(entity);
-    let mut world = eng.world_mut();
-    let _ = world.remove_one::<WidgetProperties>(entity);
-    let _ = world.remove_one::<Widget>(entity);
+    let _ = eng.remove_one::<WidgetProperties>(entity);
+    let _ = eng.remove_one::<Widget>(entity);
     Ok(())
 }
 
@@ -155,8 +154,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         bail!("widget: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`");
     }
     let inspector = next.kind == w::INSPECTOR;
-    eng.world_mut()
-        .insert_one(entity, next)
+    eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
     told(eng, entity, inspector);
     Ok(())
@@ -260,7 +258,7 @@ pub(crate) fn reread_text_styles(eng: &Engine, read_at: &mut u64) {
         .collect();
     for (entity, reference) in named {
         let style = balaur_text::text_style::of(eng, &reference);
-        if let Ok(mut widget) = eng.world_mut().get::<&mut Widget>(entity) {
+        if let Ok(mut widget) = eng.world().get::<&mut Widget>(entity) {
             Arc::make_mut(&mut widget.text_look).dress_with(style);
         }
         crate::widget::arena::widget_changed(entity);

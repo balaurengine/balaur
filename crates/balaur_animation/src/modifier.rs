@@ -295,9 +295,8 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
             ],
             remove: Box::new(|eng, entity| {
                 {
-                    let mut world = eng.world_mut();
-                    let _ = world.remove_one::<Modifier2d>(entity);
-                    let _ = world.remove_one::<Params2d>(entity);
+                    let _ = eng.remove_one::<Modifier2d>(entity);
+                    let _ = eng.remove_one::<Params2d>(entity);
                 }
                 forget_jiggle(eng, entity);
                 Ok(())
@@ -319,9 +318,8 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
             ],
             remove: Box::new(|eng, entity| {
                 {
-                    let mut world = eng.world_mut();
-                    let _ = world.remove_one::<Modifier3d>(entity);
-                    let _ = world.remove_one::<Params3d>(entity);
+                    let _ = eng.remove_one::<Modifier3d>(entity);
+                    let _ = eng.remove_one::<Params3d>(entity);
                 }
                 forget_jiggle(eng, entity);
                 Ok(())
@@ -340,8 +338,7 @@ fn written_2d(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
         };
         params_of!(asked, asked.gravity.extend(0.0), asked.offset.extend(0.0))
     };
-    eng.world_mut()
-        .insert_one(entity, Params2d(Arc::new(params)))
+    eng.insert_one(entity, Params2d(Arc::new(params)))
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -354,8 +351,7 @@ fn written_3d(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
         };
         params_of!(asked, asked.gravity, asked.offset)
     };
-    eng.world_mut()
-        .insert_one(entity, Params3d(Arc::new(params)))
+    eng.insert_one(entity, Params3d(Arc::new(params)))
         .map_err(|_| anyhow!("node is dead"))
 }
 

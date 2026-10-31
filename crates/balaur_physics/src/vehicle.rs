@@ -484,7 +484,7 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             ],
             expects: &[c::BODY_3D],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Vehicle3d>(entity);
+                let _ = eng.remove_one::<Vehicle3d>(entity);
                 let state = eng.resource::<PhysicsState3d>();
                 state.borrow_mut().vehicles.swap_remove(&entity);
                 Ok(())
@@ -503,7 +503,7 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             ],
             expects: &[c::VEHICLE_3D],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Wheel3d>(entity);
+                let _ = eng.remove_one::<Wheel3d>(entity);
                 let state = eng.resource::<PhysicsState3d>();
                 state.borrow_mut().wheel_inputs.swap_remove(&entity);
                 Ok(())

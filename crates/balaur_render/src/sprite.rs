@@ -140,9 +140,8 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Sprite>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<Sprite>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Sprite>(Some(sprite_written))

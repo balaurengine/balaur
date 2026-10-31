@@ -197,8 +197,7 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         )
     };
     {
-        let mut world = eng.world_mut();
-        if let Ok(mut r) = world.get::<&mut crate::Renderable3d>(entity) {
+        if let Ok(mut r) = eng.world().get::<&mut crate::Renderable3d>(entity) {
             if r.shape != crate::Shape3d::Built || r.texture != texture {
                 r.version += 1;
             }
@@ -222,12 +221,10 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
                 overlay: crate::overlay::Overlay3d::default(),
                 version: 0,
             };
-            world
-                .insert_one(entity, renderable)
+            eng.insert_one(entity, renderable)
                 .map_err(|_| anyhow!("node is dead"))?;
         }
-        world
-            .insert_one(entity, emitter)
+        eng.insert_one(entity, emitter)
             .map_err(|_| anyhow!("node is dead"))?;
     }
     crate::set_lighting(eng, entity, &lighting);
@@ -247,10 +244,9 @@ pub(crate) fn register_particles_3d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::RENDER,
             ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Particles3d>(entity);
-                let _ = world.remove_one::<Emitter3d>(entity);
-                let _ = world.remove_one::<crate::Renderable3d>(entity);
+                let _ = eng.remove_one::<Particles3d>(entity);
+                let _ = eng.remove_one::<Emitter3d>(entity);
+                let _ = eng.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Particles3d>(Some(after_write))

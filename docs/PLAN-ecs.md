@@ -1,4 +1,8 @@
-> **Status:** planned 2026-10-30, nothing built. Steps 9 to 11 of
+> **Status:** planned 2026-10-30. Steps 1 and 2 built 2026-10-31: the door
+> (`Engine::spawn`, `spawn_node`, `insert`, `insert_one`, `remove_one`,
+> `remove`, `reparent`, `despawn`) and every crate moved onto it; the
+> `world-write` house lint fails a `world_mut()` outside the kernel's own
+> code and tests. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs

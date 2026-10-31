@@ -365,7 +365,7 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
         ComponentDef {
             tags: &[balaur_core::components::tag::AUDIO],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Listener>(entity);
+                let _ = eng.remove_one::<Listener>(entity);
                 if let Some(state) = eng.try_resource::<AudioState>() {
                     state.borrow_mut().listeners.shift_remove(&entity);
                 }

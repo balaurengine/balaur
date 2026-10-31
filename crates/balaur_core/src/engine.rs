@@ -95,10 +95,11 @@ impl Engine {
         self.inner.world.borrow()
     }
 
-    /// The whole world, writable. The kernel's: outside it a structural write
-    /// goes through the door below, so what hangs off a write runs every time
-    /// (PLAN-ecs §1). `scripts/house_lints.py` reports every other caller
-    /// (`world-write`) until the migration is through.
+    /// The whole world, writable: the kernel's, and a test's to set a world up.
+    /// Everywhere else a structural write goes through the door below, so
+    /// what hangs off a write runs every time (PLAN-ecs §1), and a component
+    /// changes in place through [`Engine::world`]; `scripts/house_lints.py`
+    /// fails another caller (`world-write`).
     pub fn world_mut(&self) -> RefMut<'_, hecs::World> {
         self.inner.world.borrow_mut()
     }
@@ -152,6 +153,20 @@ impl Engine {
         entity: hecs::Entity,
     ) -> Result<T, hecs::ComponentError> {
         self.inner.world.borrow_mut().remove::<T>(entity)
+    }
+
+    /// A new node named `name` under `parent`, as `scene::spawn_node` makes one.
+    pub fn spawn_node(&self, name: &str, parent: hecs::Entity) -> hecs::Entity {
+        crate::scene::spawn_node(&mut self.inner.world.borrow_mut(), name, parent)
+    }
+
+    /// Move a node under `parent`, keeping where it stands in the world, as
+    /// `scene::reparent` moves one.
+    ///
+    /// # Errors
+    /// If `parent` is the node or under it.
+    pub fn reparent(&self, node: hecs::Entity, parent: hecs::Entity) -> anyhow::Result<()> {
+        crate::scene::reparent(&mut self.inner.world.borrow_mut(), node, parent)
     }
 
     /// Destroy `entity` and everything it holds. A node's subtree is

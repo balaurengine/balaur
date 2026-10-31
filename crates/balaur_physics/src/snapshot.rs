@@ -179,20 +179,20 @@ pub(crate) fn asked_rows<C: Component>(
 /// they leave out: what a node reports is what its restored body, collider,
 /// joint or soft body was built from.
 pub(crate) fn restore_asked<C: Component>(eng: &Engine, rows: &DetHashMap<Entity, toml::Value>) {
-    let mut world = eng.world_mut();
-    let stale: Vec<Entity> = world
+    let stale: Vec<Entity> = eng
+        .world()
         .query::<(Entity, &C)>()
         .iter()
         .map(|(entity, _)| entity)
         .filter(|entity| !rows.contains_key(entity))
         .collect();
     for entity in stale {
-        let _ = world.remove_one::<C>(entity);
+        let _ = eng.remove_one::<C>(entity);
     }
     for (entity, params) in rows {
         match derived::from_table::<C>(params) {
             Ok(asked) => {
-                let _ = world.insert_one(*entity, asked);
+                let _ = eng.insert_one(*entity, asked);
             }
             Err(why) => tracing::error!(component = C::NAME, "restoring a component: {why:#}"),
         }

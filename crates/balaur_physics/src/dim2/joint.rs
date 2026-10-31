@@ -685,7 +685,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
             ],
             expects: &[c::BODY_2D],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Joint2d>(entity);
+                let _ = eng.remove_one::<Joint2d>(entity);
                 remove_joint(eng, entity);
                 Ok(())
             }),

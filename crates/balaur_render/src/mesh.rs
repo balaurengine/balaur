@@ -44,9 +44,8 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
         .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition))
         .map(|mesh| mesh.morphs.into_iter().map(|target| target.name).collect())
         .unwrap_or_default();
-    let mut world = eng.world_mut();
     if names.is_empty() {
-        let _ = world.remove_one::<MorphWeights>(entity);
+        let _ = eng.remove_one::<MorphWeights>(entity);
         return;
     }
     let weights: Vec<f32> = names
@@ -58,7 +57,7 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
                 .unwrap_or(0.0) as f32
         })
         .collect();
-    if let Ok(mut existing) = world.get::<&mut MorphWeights>(entity) {
+    if let Ok(mut existing) = eng.world().get::<&mut MorphWeights>(entity) {
         if existing.names != names || existing.weights != weights {
             existing.names = names;
             existing.weights = weights;
@@ -66,7 +65,7 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
         }
         return;
     }
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         MorphWeights {
             names,
@@ -126,8 +125,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 crate::material::set_material_3d(eng, entity, &text(k::MATERIAL))
             }),
                 Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<crate::Renderable3d>(entity);
+                let _ = eng.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
                 Box::new(|eng, entity| {
@@ -240,24 +238,25 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     for (entity, mesh, topology, color) in wanted {
         install(eng, entity, mesh, topology, color);
     }
-    let mut world = eng.world_mut();
     for entity in drawn {
-        let _ = world.insert_one(entity, SolverDrawn);
+        let _ = eng.insert_one(entity, SolverDrawn);
     }
-    let gone: Vec<Entity> = world
+    let gone: Vec<Entity> = eng
+        .world()
         .query::<Entity>()
         .with::<&SolverDrawn>()
         .without::<&SolvedMesh>()
         .iter()
         .collect();
     for entity in gone {
-        let _ = world.remove_one::<SolverDrawn>(entity);
-        let ours = world
+        let _ = eng.remove_one::<SolverDrawn>(entity);
+        let ours = eng
+            .world()
             .get::<&Renderable3d>(entity)
             .is_ok_and(|r| is_ours(&r));
         if ours {
-            let _ = world.remove_one::<Renderable3d>(entity);
-        } else if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+            let _ = eng.remove_one::<Renderable3d>(entity);
+        } else if let Ok(mut renderable) = eng.world().get::<&mut Renderable3d>(entity) {
             // The backend's node still holds the last deformed vertices.
             renderable.version = renderable.version.wrapping_add(1);
         }
@@ -301,11 +300,10 @@ fn mesh_of(solved: &SolvedMesh) -> MeshData {
 fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [f32; 4]) {
     let bounds = bounds_of(&mesh.positions);
     let built = Some(std::sync::Arc::new(mesh));
-    let mut world = eng.world_mut();
     // The version is the topology, so the backend rebuilds on a tear and on
     // nothing else (see the module docs).
     let version = u64::from(topology);
-    if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut renderable) = eng.world().get::<&mut Renderable3d>(entity) {
         renderable.shape = Shape3d::Built;
         renderable.built = built;
         renderable.bounds = bounds;
@@ -313,7 +311,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [
         renderable.color = color;
         return;
     }
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         Renderable3d {
             shape: Shape3d::Built,

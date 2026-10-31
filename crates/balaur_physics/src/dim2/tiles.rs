@@ -140,7 +140,7 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
             ],
             expects: &["tilemap"],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<TileCollision>(entity);
+                let _ = eng.remove_one::<TileCollision>(entity);
                 clear(eng, entity);
                 let state = eng.resource::<PhysicsState2d>();
                 let mut state = state.borrow_mut();

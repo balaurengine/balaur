@@ -672,7 +672,7 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     deform.offsets.extend_from_slice(offsets);
                     continue;
                 }
-                let _ = eng.world_mut().insert_one(
+                let _ = eng.insert_one(
                     *entity,
                     balaur_geometry::mesh::Deform {
                         offsets: offsets.clone(),

@@ -148,7 +148,7 @@ fn rig(app: &App, rest: f32) -> (Entity, Entity) {
     ))
     .unwrap();
     components::add(&app.engine, hips, "bone2d", Some(&params)).unwrap();
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     (rig, hips)
 }
 

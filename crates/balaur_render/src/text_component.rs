@@ -232,7 +232,7 @@ macro_rules! renderable_of {
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
     // Not a property: where the node sits says whose faces it draws in.
     next.style.in_content = balaur_core::project::in_content(eng, entity);
-    let world = eng.world_mut();
+    let world = eng.world();
     if let Ok(current) = world.get::<&TextRenderable>(entity) {
         if *current == next {
             return Ok(());
@@ -240,8 +240,7 @@ pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -
         next.version = current.version.wrapping_add(1);
     }
     drop(world);
-    eng.world_mut()
-        .insert_one(entity, next)
+    eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -296,9 +295,8 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Text2d>(entity);
-                let _ = world.remove_one::<TextRenderable>(entity);
+                let _ = eng.remove_one::<Text2d>(entity);
+                let _ = eng.remove_one::<TextRenderable>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Text2d>(Some(text2d_written))
@@ -313,9 +311,8 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::PERSPECTIVE, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Text3d>(entity);
-                let _ = world.remove_one::<TextRenderable>(entity);
+                let _ = eng.remove_one::<Text3d>(entity);
+                let _ = eng.remove_one::<TextRenderable>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Text3d>(Some(text3d_written))
@@ -434,7 +431,7 @@ pub(crate) fn sync_text(
         // Shaped at `raster`, wanted at `font_size`: the block is scaled back.
         let scale = (text.style.size / raster) / text.pixels_per_unit;
         let (centre, half) = crate::world_text::laid_box(&block, scale, text.style.align);
-        let _ = app.engine.world_mut().insert_one(
+        let _ = app.engine.insert_one(
             entity,
             LaidText {
                 centre: centre.extend(0.0),

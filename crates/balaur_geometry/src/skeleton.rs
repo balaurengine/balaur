@@ -175,7 +175,7 @@ pub fn bones_under(world: &World, root: Entity) -> Vec<Entity> {
 }
 
 /// Reset to Rest Pose: every bone under `root` takes its rest transform.
-pub fn apply_rest(world: &mut World, root: Entity) {
+pub fn apply_rest(world: &World, root: Entity) {
     for bone in bones_under(world, root) {
         let rest = world.get::<&Bone>(bone).map(|b| b.rest_transform());
         if let (Ok(rest), Ok(mut transform)) = (rest, world.get::<&mut Transform>(bone)) {
@@ -186,7 +186,7 @@ pub fn apply_rest(world: &mut World, root: Entity) {
 
 /// Overwrite Rest Pose: every bone under `root` records its current
 /// transform as its rest.
-pub fn overwrite_rest(world: &mut World, root: Entity) {
+pub fn overwrite_rest(world: &World, root: Entity) {
     for bone in bones_under(world, root) {
         let Ok(current) = world.get::<&Transform>(bone).map(|t| *t) else {
             continue;
@@ -472,12 +472,11 @@ pub struct Bone3d {
 )]
 fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
     balaur_core::transform::ensure(eng, entity);
-    let mut world = eng.world_mut();
-    let Ok(asked) = world.get::<&Bone2d>(entity).map(|held| *held) else {
+    let Ok(asked) = eng.world().get::<&Bone2d>(entity).map(|held| *held) else {
         return Ok(());
     };
     let [x, y] = asked.rest_position;
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         Bone {
             rest_position: Vec3::new(x, y, 0.0),
@@ -497,11 +496,10 @@ fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
 )]
 fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
     balaur_core::transform::ensure(eng, entity);
-    let mut world = eng.world_mut();
-    let Ok(asked) = world.get::<&Bone3d>(entity).map(|held| *held) else {
+    let Ok(asked) = eng.world().get::<&Bone3d>(entity).map(|held| *held) else {
         return Ok(());
     };
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         Bone {
             rest_position: asked.rest_position,
@@ -525,9 +523,8 @@ pub fn register_bone2d_component(app: &mut App) {
             ],
             expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Bone2d>(entity);
-                let _ = world.remove_one::<Bone>(entity);
+                let _ = eng.remove_one::<Bone2d>(entity);
+                let _ = eng.remove_one::<Bone>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Bone2d>(Some(bone2d_written))
@@ -546,9 +543,8 @@ pub fn register_bone3d_component(app: &mut App) {
             ],
             expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Bone3d>(entity);
-                let _ = world.remove_one::<Bone>(entity);
+                let _ = eng.remove_one::<Bone3d>(entity);
+                let _ = eng.remove_one::<Bone>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Bone3d>(Some(bone3d_written))
@@ -566,14 +562,14 @@ fn node_arg(args: &[Value]) -> Result<Entity> {
 /// `skeleton.apply_rest(node)`.
 pub(crate) fn apply_rest_op(eng: &Engine, args: &[Value]) -> Result<Value> {
     let root = node_arg(args)?;
-    apply_rest(&mut eng.world_mut(), root);
+    apply_rest(&eng.world(), root);
     Ok(Value::Nil)
 }
 
 /// `skeleton.overwrite_rest(node)`.
 pub(crate) fn overwrite_rest_op(eng: &Engine, args: &[Value]) -> Result<Value> {
     let root = node_arg(args)?;
-    overwrite_rest(&mut eng.world_mut(), root);
+    overwrite_rest(&eng.world(), root);
     Ok(Value::Nil)
 }
 

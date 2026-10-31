@@ -868,8 +868,7 @@ fn current_value(
     // A node that never moved carries no transform yet: it stands at the
     // identity, which is where a tween of it starts.
     if eng.world().get::<&Transform>(entity).is_err() {
-        eng.world_mut()
-            .insert_one(entity, Transform::identity())
+        eng.insert_one(entity, Transform::identity())
             .map_err(|_| anyhow!("node is dead"))?;
     }
     let world = eng.world();

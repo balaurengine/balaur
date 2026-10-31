@@ -170,7 +170,7 @@ fn register_follow2d_component(reg: &mut Registry<'_>) {
             ],
             expects: &[c::BODY_2D],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Follow2d>(entity);
+                let _ = eng.remove_one::<Follow2d>(entity);
                 let state = eng.resource::<PhysicsState2d>();
                 state.borrow_mut().follows.swap_remove(&entity);
                 Ok(())

@@ -768,7 +768,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Collider3d>(entity);
+                let _ = eng.remove_one::<Collider3d>(entity);
                 remove_colliders(eng, entity);
                 Ok(())
             }),
@@ -789,8 +789,7 @@ pub(crate) const PARAMS: &[&str] = &[
 /// the component reads it.
 fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let asked: Collider3d = crate::properties::asked_of(eng, params)?;
-    eng.world_mut()
-        .insert_one(entity, asked)
+    eng.insert_one(entity, asked)
         .map_err(|_| anyhow!("node is dead"))?;
     after_write(eng, entity, Written::Changed)
 }

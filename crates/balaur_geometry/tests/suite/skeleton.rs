@@ -74,7 +74,7 @@ fn apply_rest_puts_a_posed_bone_back_and_overwrite_rest_records_where_it_is() {
         t.position = Vec3::new(3.0, 4.0, 0.0);
         t.rotation = quat_about_z(0.5);
     }
-    apply_rest(&mut app.engine.world_mut(), rig);
+    apply_rest(&app.engine.world(), rig);
     {
         let world = app.engine.world();
         let t = world.get::<&Transform>(hip).unwrap();
@@ -87,7 +87,7 @@ fn apply_rest_puts_a_posed_bone_back_and_overwrite_rest_records_where_it_is() {
         t.position = Vec3::new(3.0, 4.0, 0.0);
         t.rotation = quat_about_z(0.5);
     }
-    overwrite_rest(&mut app.engine.world_mut(), rig);
+    overwrite_rest(&app.engine.world(), rig);
     let world = app.engine.world();
     let b = world.get::<&Bone>(hip).unwrap();
     assert!(close2(b.rest_position.truncate(), Vec2::new(3.0, 4.0)));
@@ -111,8 +111,8 @@ fn overwrite_then_apply_is_the_identity_bit_for_bit() {
             .map(|e| *world.get::<&Transform>(*e).unwrap())
             .collect()
     };
-    overwrite_rest(&mut app.engine.world_mut(), rig);
-    apply_rest(&mut app.engine.world_mut(), rig);
+    overwrite_rest(&app.engine.world(), rig);
+    apply_rest(&app.engine.world(), rig);
     let world = app.engine.world();
     for (entity, was) in [hip, thigh].iter().zip(before) {
         let now = world.get::<&Transform>(*entity).unwrap();
@@ -489,7 +489,7 @@ fn bone3d_reads_back_every_axis() {
             .unwrap() as f32,
         2.0
     ));
-    apply_rest(&mut app.engine.world_mut(), bone);
+    apply_rest(&app.engine.world(), bone);
     let world = app.engine.world();
     let t = world.get::<&Transform>(bone).unwrap();
     assert!(close(t.position.z, 3.0) && close(t.scale.x, 2.0));

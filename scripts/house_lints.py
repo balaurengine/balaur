@@ -680,15 +680,14 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "or say on the line above why this is a frame cap or a "
                                             "deadline", "ERROR"))
 
-            # One door for structural writes (PLAN-ecs §1): outside the kernel a
-            # spawn, insert, remove or despawn goes through `Engine`, so what
-            # hangs off a write runs every time. Reported while the crates move
-            # over; an error once they have.
+            # One door for structural writes outside the kernel (PLAN-ecs §1);
+            # a test sets a world up as it likes.
             if crate != "balaur_core" and ".world_mut()" in line and not in_test_mod:
                 findings.append(Finding(rel, i, "world-write",
                                         "the world is written around the door: use Engine's spawn, "
-                                        "insert, insert_one, remove_one, remove or despawn "
-                                        "(PLAN-ecs §1)", "REPORT"))
+                                        "spawn_node, insert, insert_one, remove_one, remove, "
+                                        "reparent or despawn, and world() to change a component "
+                                        "in place (PLAN-ecs §1)", "ERROR"))
 
             # ExternalIo is the recorded seam, and its worker `Sender` is
             # unreachable except through `start`, which does nothing while a

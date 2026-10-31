@@ -526,8 +526,7 @@ pub(crate) fn set_polygon(
     entity: Entity,
     polygon: std::sync::Arc<PolygonMesh>,
 ) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         let rebuild = r.shape != Shape2d::Polygon || r.polygon.as_deref() != Some(&*polygon);
         r.shape = Shape2d::Polygon;
         r.polygon = Some(polygon);
@@ -536,15 +535,14 @@ pub(crate) fn set_polygon(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                polygon: Some(polygon),
-                ..Renderable2d::fresh(Shape2d::Polygon)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            polygon: Some(polygon),
+            ..Renderable2d::fresh(Shape2d::Polygon)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// The box a mesh's vertices fill, or `None` when the asset will not load.
@@ -584,8 +582,7 @@ pub(crate) fn set_mesh(
     texture: String,
 ) -> Result<()> {
     let bounds = mesh_bounds(eng, &source);
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable3d>(entity) {
         let rebuild = r.shape != Shape3d::Mesh
             || r.mesh.as_deref() != Some(source.as_str())
             || r.skeleton != skeleton
@@ -600,26 +597,25 @@ pub(crate) fn set_mesh(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable3d {
-                shape: Shape3d::Mesh,
-                bounds,
-                color: [1.0, 1.0, 1.0, 1.0],
-                mesh: Some(source),
-                built: None,
-                skeleton,
-                texture,
-                material: String::new(),
-                shadows: true,
-                layers: u32::MAX,
-                render_layers: u32::MAX,
-                overlay: overlay::Overlay3d::default(),
-                version: 0,
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable3d {
+            shape: Shape3d::Mesh,
+            bounds,
+            color: [1.0, 1.0, 1.0, 1.0],
+            mesh: Some(source),
+            built: None,
+            skeleton,
+            texture,
+            material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
+            render_layers: u32::MAX,
+            overlay: overlay::Overlay3d::default(),
+            version: 0,
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// What a 3D renderable component's `cast_shadow`, `light_layers`,
@@ -656,7 +652,7 @@ impl Lighting3d {
 /// Put `lighting` on whatever 3D renderable the node just gained. A node
 /// with none of the rows casts, and every light and camera finds it.
 pub(crate) fn set_lighting(eng: &Engine, entity: Entity, lighting: &Lighting3d) {
-    let world = eng.world_mut();
+    let world = eng.world();
     if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.shadows = lighting.shadows;
         r.layers = lighting.layers;
@@ -686,8 +682,7 @@ pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable3d>(entity) {
         // A shape carries its own tessellation now, so a rebuild re-runs the
         // mesher: only a shape that actually changed asks for one.
         if r.shape != shape {
@@ -696,32 +691,31 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable3d {
-                shape,
-                bounds: None,
-                color: [0.8, 0.8, 0.8, 1.0],
-                mesh: None,
-                built: None,
-                skeleton: String::new(),
-                texture: String::new(),
-                material: String::new(),
-                shadows: true,
-                layers: u32::MAX,
-                render_layers: u32::MAX,
-                overlay: overlay::Overlay3d::default(),
-                version: 0,
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable3d {
+            shape,
+            bounds: None,
+            color: [0.8, 0.8, 0.8, 1.0],
+            mesh: None,
+            built: None,
+            skeleton: String::new(),
+            texture: String::new(),
+            material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
+            render_layers: u32::MAX,
+            overlay: overlay::Overlay3d::default(),
+            version: 0,
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// Point a 3D renderable at the image it draws, rebuilding its node when that
 /// changes.
 pub(crate) fn set_texture_3d(eng: &Engine, entity: Entity, texture: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut r = world
         .get::<&mut Renderable3d>(entity)
         .map_err(|_| anyhow!("node has no 3D shape yet"))?;
@@ -734,7 +728,7 @@ pub(crate) fn set_texture_3d(eng: &Engine, entity: Entity, texture: &str) -> Res
 
 /// The same for a 2D shape or polyline.
 pub(crate) fn set_texture_2d(eng: &Engine, entity: Entity, texture: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut r = world
         .get::<&mut Renderable2d>(entity)
         .map_err(|_| anyhow!("node has no 2D shape yet"))?;
@@ -753,8 +747,7 @@ pub(crate) fn set_polyline(
     shape: Shape2d,
     style: LineStyle,
 ) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         let rebuild = r.shape != shape
             || r.polyline.as_deref() != Some(source.as_str())
             || r.line.as_ref() != Some(&style);
@@ -766,36 +759,33 @@ pub(crate) fn set_polyline(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                polyline: Some(source),
-                line: Some(style),
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            polyline: Some(source),
+            line: Some(style),
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         if r.shape != shape {
             r.shape = shape;
             r.version += 1;
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                color: [0.8, 0.8, 0.8, 1.0],
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            color: [0.8, 0.8, 0.8, 1.0],
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// Half-extents of one frame of `path`, read from the image header.
@@ -848,8 +838,7 @@ pub(crate) fn set_sprite(
         hx: hx.max(f32::EPSILON),
         hy: hy.max(f32::EPSILON),
     };
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         // The frame alone changes UVs, which the backend re-applies every
         // sync; anything else means the backend's node has to be rebuilt.
         let rebuild = r.shape != shape
@@ -864,16 +853,15 @@ pub(crate) fn set_sprite(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                sprite: Some(texture),
-                pixels_per_unit: ppu,
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            sprite: Some(texture),
+            pixels_per_unit: ppu,
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// The `color` property of a renderable component's params.
@@ -905,7 +893,7 @@ pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
 
 /// Tint whichever renderable(s) the node carries (3D, 2D and/or particles).
 pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut any = false;
     if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.color = color;

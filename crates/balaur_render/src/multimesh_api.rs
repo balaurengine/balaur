@@ -22,7 +22,7 @@ fn with_multimesh<R>(
     f: impl FnOnce(&mut MultiMesh) -> Result<R>,
 ) -> Result<R> {
     let entity = entity_of(node)?;
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut multimesh = world
         .get::<&mut MultiMesh>(entity)
         .map_err(|_| anyhow!("the node carries no {MULTIMESH_3D} or {MULTIMESH_2D}"))?;

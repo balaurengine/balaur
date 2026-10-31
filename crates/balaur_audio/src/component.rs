@@ -105,7 +105,7 @@ pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
             events: &[(FINISHED_EVENT, "the handle that played out")],
             tags: &[balaur_core::components::tag::AUDIO],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Sound>(entity);
+                let _ = eng.remove_one::<Sound>(entity);
                 let Some(state) = eng.try_resource::<AudioState>() else {
                     return Ok(());
                 };

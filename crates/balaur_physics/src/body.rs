@@ -922,7 +922,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
             ],
             expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Body3d>(entity);
+                let _ = eng.remove_one::<Body3d>(entity);
                 // Removing the body keeps the collider, as static geometry.
                 let collider = authored_collider(eng, entity);
                 remove_body_and_colliders(eng, entity);

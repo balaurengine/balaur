@@ -940,7 +940,7 @@ mod tests {
         let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("."))).unwrap();
         balaur_plugin::load(&mut app, &mut crate::RenderPlugin::default()).unwrap();
         let root = app.engine.root();
-        let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Mast", root);
+        let node = app.engine.spawn_node("Mast", root);
         let table: toml::Value = toml::from_str(&format!("texture = \"{texture}\"")).unwrap();
         balaur_core::components::add(&app.engine, node, "sprite", Some(&table)).unwrap();
         let world = app.engine.world();
@@ -964,10 +964,10 @@ mod tests {
     fn a_tilemap_takes_its_place_in_the_draw_order() {
         let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
         let root = app.engine.root();
-        let sky = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sky", root);
-        let ship = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Ship", root);
+        let sky = app.engine.spawn_node("Sky", root);
+        let ship = app.engine.spawn_node("Ship", root);
         for (entity, layer) in [(sky, -100), (ship, -1)] {
-            let world = app.engine.world_mut();
+            let world = app.engine.world();
             let mut appearance = world
                 .get::<&mut balaur_core::GlobalAppearance>(entity)
                 .expect("a spawned node carries an appearance");
@@ -987,9 +987,7 @@ mod tests {
     fn a_later_sibling_draws_over_an_earlier_one() {
         let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
         let root = app.engine.root();
-        let spawn = |name: &str, parent| {
-            balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, parent)
-        };
+        let spawn = |name: &str, parent| app.engine.spawn_node(name, parent);
         let table = spawn("Table", root);
         let map = spawn("Map", root);
         let coast = spawn("Coast", map);

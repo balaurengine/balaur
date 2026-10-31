@@ -288,8 +288,7 @@ fn occluder_written(eng: &Engine, entity: Entity, _written: Written) -> Result<(
     } else {
         mesh_outline(eng, &mesh)
     };
-    eng.world_mut()
-        .insert_one(entity, Outline2d { points })
+    eng.insert_one(entity, Outline2d { points })
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -302,9 +301,8 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Occluder2d>(entity);
-                let _ = world.remove_one::<Outline2d>(entity);
+                let _ = eng.remove_one::<Occluder2d>(entity);
+                let _ = eng.remove_one::<Outline2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Occluder2d>(Some(occluder_written))
@@ -358,7 +356,7 @@ pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
             (entity, points)
         })
         .collect();
-    let world = eng.world_mut();
+    let world = eng.world();
     for (entity, points) in resolved {
         if let Ok(mut outline) = world.get::<&mut Outline2d>(entity)
             && outline.points != points

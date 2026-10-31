@@ -520,8 +520,7 @@ fn button_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
             finger: None,
         }
     };
-    eng.world_mut()
-        .insert_one(entity, button)
+    eng.insert_one(entity, button)
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -551,8 +550,7 @@ fn stick_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> 
             finger: None,
         }
     };
-    eng.world_mut()
-        .insert_one(entity, stick)
+    eng.insert_one(entity, stick)
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -566,9 +564,8 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::UI,
             ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<TouchButtonProperties>(entity);
-                let _ = world.remove_one::<TouchButton>(entity);
+                let _ = eng.remove_one::<TouchButtonProperties>(entity);
+                let _ = eng.remove_one::<TouchButton>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<TouchButtonProperties>(Some(button_written))
@@ -586,9 +583,8 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::UI,
             ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<TouchStickProperties>(entity);
-                let _ = world.remove_one::<TouchStick>(entity);
+                let _ = eng.remove_one::<TouchStickProperties>(entity);
+                let _ = eng.remove_one::<TouchStick>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<TouchStickProperties>(Some(stick_written))

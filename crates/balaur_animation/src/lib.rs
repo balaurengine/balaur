@@ -195,7 +195,7 @@ fn register_animation_component(reg: &mut Registry<'_>) {
             ],
             tags: &[balaur_core::components::tag::ANIMATION],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Animation>(entity);
+                let _ = eng.remove_one::<Animation>(entity);
                 if let Some(state) = eng.try_resource::<AnimationState>() {
                     state.borrow_mut().players.shift_remove(&entity);
                 }
@@ -217,7 +217,7 @@ fn register_machine_component(reg: &mut Registry<'_>) {
             ],
             tags: &[balaur_core::components::tag::ANIMATION],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<StateMachine>(entity);
+                let _ = eng.remove_one::<StateMachine>(entity);
                 if let Some(state) = eng.try_resource::<AnimationState>() {
                     state.borrow_mut().machines.shift_remove(&entity);
                 }

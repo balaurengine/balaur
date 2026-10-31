@@ -737,7 +737,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
             ],
             expects: &[balaur_core::transform::COMPONENT],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Body2d>(entity);
+                let _ = eng.remove_one::<Body2d>(entity);
                 let collider = authored_collider(eng, entity);
                 remove_body_and_colliders(eng, entity);
                 if let Some(params) = collider {

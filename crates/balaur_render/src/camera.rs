@@ -250,8 +250,7 @@ fn camera3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<(
         lens_of(&camera)
     };
     lens.and_then(|lens| {
-        eng.world_mut()
-            .insert_one(entity, lens)
+        eng.insert_one(entity, lens)
             .map_err(|_| anyhow!("node is dead"))
     })
 }
@@ -272,9 +271,8 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
             )],
             tags: &[balaur_core::components::tag::DIM_3D, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Camera3d>(entity);
-                let _ = world.remove_one::<Lens3d>(entity);
+                let _ = eng.remove_one::<Camera3d>(entity);
+                let _ = eng.remove_one::<Lens3d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Camera3d>(Some(camera3d_written))

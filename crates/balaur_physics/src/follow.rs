@@ -192,7 +192,7 @@ fn register_follow_component(reg: &mut Registry<'_>) {
             ],
             expects: &[c::BODY_3D],
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Follow3d>(entity);
+                let _ = eng.remove_one::<Follow3d>(entity);
                 let state = eng.resource::<PhysicsState3d>();
                 state.borrow_mut().follows.swap_remove(&entity);
                 Ok(())

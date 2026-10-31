@@ -907,8 +907,10 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
         }
         (positions, indices, color)
     };
-    let mut world = eng.world_mut();
-    if let Ok(mut solved) = world.get::<&mut balaur_geometry::mesh::SolvedMesh>(entity) {
+    if let Ok(mut solved) = eng
+        .world()
+        .get::<&mut balaur_geometry::mesh::SolvedMesh>(entity)
+    {
         solved.update(positions, indices);
         solved.color = color;
         return;
@@ -916,7 +918,7 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
     let mut solved = balaur_geometry::mesh::SolvedMesh::default();
     solved.update(positions, indices);
     solved.color = color;
-    let _ = world.insert_one(entity, solved);
+    let _ = eng.insert_one(entity, solved);
 }
 
 /// The colour a body draws in when its node has nothing of its own.
@@ -988,9 +990,8 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
             ],
             remove: Box::new(|eng, entity| {
                 remove_softbody(eng, entity);
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Softbody3d>(entity);
-                let _ = world.remove_one::<balaur_geometry::mesh::SolvedMesh>(entity);
+                let _ = eng.remove_one::<Softbody3d>(entity);
+                let _ = eng.remove_one::<balaur_geometry::mesh::SolvedMesh>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Softbody3d>(Some(after_write))
@@ -1055,8 +1056,7 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
             let asked: Softbody3d = crate::properties::asked_of(eng, &params)?;
             let params = params_of(&eng.world(), entity, &asked);
             let materials = cap::Materials::of(eng, &params)?;
-            eng.world_mut()
-                .insert_one(entity, asked)
+            eng.insert_one(entity, asked)
                 .map_err(|_| anyhow!("node is dead"))?;
             build_softbody(eng, entity, &params, &materials)
         },

@@ -862,11 +862,13 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         }
         (drawn, crate::softbody::drawn_color(params))
     };
-    let mut world = eng.world_mut();
     if let Some(triangles) = fresh {
-        let _ = world.insert_one(entity, draw::SkinTriangles(triangles));
+        let _ = eng.insert_one(entity, draw::SkinTriangles(triangles));
     }
-    if let Ok(mut solved) = world.get::<&mut balaur_geometry::mesh::SolvedPolygon>(entity) {
+    if let Ok(mut solved) = eng
+        .world()
+        .get::<&mut balaur_geometry::mesh::SolvedPolygon>(entity)
+    {
         solved.update(positions, indices);
         solved.color = color;
         return;
@@ -874,7 +876,7 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
     let mut solved = balaur_geometry::mesh::SolvedPolygon::default();
     solved.update(positions, indices);
     solved.color = color;
-    let _ = world.insert_one(entity, solved);
+    let _ = eng.insert_one(entity, solved);
 }
 
 pub(crate) fn write_every_solved_polygon(eng: &Engine) {
@@ -992,10 +994,9 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
             ],
             remove: Box::new(|eng, entity| {
                 remove_softbody_2d(eng, entity);
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Softbody2d>(entity);
-                let _ = world.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
-                let _ = world.remove_one::<draw::SkinTriangles>(entity);
+                let _ = eng.remove_one::<Softbody2d>(entity);
+                let _ = eng.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
+                let _ = eng.remove_one::<draw::SkinTriangles>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Softbody2d>(Some(after_write))
@@ -1033,8 +1034,7 @@ pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
             let asked: Softbody2d = crate::properties::asked_of(eng, &params)?;
             let params = params_of(&eng.world(), entity, &asked);
             let materials = cap::Materials::of(eng, &params)?;
-            eng.world_mut()
-                .insert_one(entity, asked)
+            eng.insert_one(entity, asked)
                 .map_err(|_| anyhow!("node is dead"))?;
             build_softbody_2d(eng, entity, &params, &materials)
         },

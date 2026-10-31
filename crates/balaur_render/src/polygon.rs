@@ -88,9 +88,8 @@ pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render", "animation"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Polygon>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<Polygon>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Polygon>(Some(polygon_written))
@@ -215,23 +214,23 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     }
     for (entity, mesh, topology) in wanted {
         let _ = set_polygon(eng, entity, Arc::new(mesh));
-        let _ = eng.world_mut().insert_one(entity, SolverDrawn2d(topology));
+        let _ = eng.insert_one(entity, SolverDrawn2d(topology));
     }
     for (entity, color) in tinted {
-        if let Ok(mut drawn) = eng.world_mut().get::<&mut Renderable2d>(entity) {
+        if let Ok(mut drawn) = eng.world().get::<&mut Renderable2d>(entity) {
             drawn.color = color;
         }
     }
-    let mut world = eng.world_mut();
-    let gone: Vec<Entity> = world
+    let gone: Vec<Entity> = eng
+        .world()
         .query::<Entity>()
         .with::<&SolverDrawn2d>()
         .without::<&balaur_geometry::mesh::SolvedPolygon>()
         .iter()
         .collect();
     for entity in gone {
-        let _ = world.remove_one::<SolverDrawn2d>(entity);
-        let _ = world.remove_one::<Renderable2d>(entity);
+        let _ = eng.remove_one::<SolverDrawn2d>(entity);
+        let _ = eng.remove_one::<Renderable2d>(entity);
     }
 }
 

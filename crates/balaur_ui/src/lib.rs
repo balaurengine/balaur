@@ -247,7 +247,7 @@ pub struct ScrollDrag {
 /// declares it is not in this build.
 pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
     let root = eng.root();
-    let entity = balaur_core::scene::spawn_node(&mut eng.world_mut(), "Toast", root);
+    let entity = eng.spawn_node("Toast", root);
     let params = toml::toml! { kind = "toast" text = text anchor = "top_right" x = 16.0 y = 16.0 };
     balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
 }

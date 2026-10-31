@@ -58,7 +58,7 @@ fn rigged(app: &App) -> (Entity, Entity, Entity, Entity) {
     let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
     let hip = bone(app, "Hip", rig, [0.0, 1.0]);
     let thigh = bone(app, "Thigh", hip, [0.0, -1.0]);
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     scene::propagate_transforms(&mut app.engine.world_mut(), app.engine.root());
     let skin = scene::spawn_node(&mut app.engine.world_mut(), "Skin", rig);
     let params: toml::Value = toml::from_str(SWING).unwrap();

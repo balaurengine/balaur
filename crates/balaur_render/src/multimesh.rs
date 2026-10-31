@@ -650,8 +650,7 @@ fn adopt(eng: &Engine, entity: Entity, source: &str, flat: bool) -> Option<Strin
             .ok()
     });
     let copied_from = definition_digest(eng, source);
-    let mut world = eng.world_mut();
-    if let Ok(mut held) = world.get::<&mut MultiMesh>(entity)
+    if let Ok(mut held) = eng.world().get::<&mut MultiMesh>(entity)
         && held.source == source
         && held.copied_from == copied_from
     {
@@ -670,10 +669,10 @@ fn adopt(eng: &Engine, entity: Entity, source: &str, flat: bool) -> Option<Strin
             .map_or(-1, |asset| asset.visible_instance_count),
         copied_from,
     };
-    if let Ok(mut held) = world.get::<&mut MultiMesh>(entity) {
+    if let Ok(mut held) = eng.world().get::<&mut MultiMesh>(entity) {
         *held = fresh;
     } else {
-        let _ = world.insert_one(entity, fresh);
+        let _ = eng.insert_one(entity, fresh);
     }
     mesh
 }
@@ -756,10 +755,9 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::PERSPECTIVE, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<MultiMesh3d>(entity);
-                let _ = world.remove_one::<MultiMesh>(entity);
-                let _ = world.remove_one::<Renderable3d>(entity);
+                let _ = eng.remove_one::<MultiMesh3d>(entity);
+                let _ = eng.remove_one::<MultiMesh>(entity);
+                let _ = eng.remove_one::<Renderable3d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<MultiMesh3d>(Some(multimesh3d_written))
@@ -770,10 +768,9 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<MultiMesh2d>(entity);
-                let _ = world.remove_one::<MultiMesh>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<MultiMesh2d>(entity);
+                let _ = eng.remove_one::<MultiMesh>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<MultiMesh2d>(Some(multimesh2d_written))

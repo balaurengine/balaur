@@ -521,9 +521,8 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         )
     };
     let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset).ok();
-    let mut world = eng.world_mut();
     let Some(set) = set else {
-        let _ = world.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
+        let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
         return;
     };
     let grid = grid_of(
@@ -542,18 +541,21 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         },
         &set,
     );
-    if let Ok(mut current) = world.get::<&mut balaur_geometry::tiles::TileGrid>(entity) {
+    if let Ok(mut current) = eng
+        .world()
+        .get::<&mut balaur_geometry::tiles::TileGrid>(entity)
+    {
         *current = grid;
         return;
     }
-    let _ = world.insert_one(entity, grid);
+    let _ = eng.insert_one(entity, grid);
 }
 
 fn set_tilemap(eng: &Engine, entity: Entity, next: TileLayout) -> Result<()> {
     // The world's borrow ends before the grid is mirrored: `sync_grid` takes
     // it again, and it loads an asset in between.
     let fresh = {
-        let world = eng.world_mut();
+        let world = eng.world();
         if let Ok(mut map) = world.get::<&mut TileLayout>(entity) {
             // Everything the mesh or the collider is built from: an origin
             // moves every cell, and a flag turns one.
@@ -574,8 +576,7 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: TileLayout) -> Result<()> {
         }
     };
     if let Some(next) = fresh {
-        eng.world_mut()
-            .insert_one(entity, next)
+        eng.insert_one(entity, next)
             .map_err(|_| anyhow!("node is dead"))?;
     }
     sync_grid(eng, entity);
@@ -675,10 +676,9 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Tilemap>(entity);
-                let _ = world.remove_one::<TileLayout>(entity);
-                let _ = world.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
+                let _ = eng.remove_one::<Tilemap>(entity);
+                let _ = eng.remove_one::<TileLayout>(entity);
+                let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Tilemap>(Some(tilemap_written))

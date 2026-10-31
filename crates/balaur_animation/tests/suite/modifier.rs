@@ -54,7 +54,7 @@ fn chain(app: &App, kind: &str, target: (f32, f32), flip: bool) -> (Entity, Enti
     let shoulder = bone(app, "Shoulder", rig, [0.0, 0.0]);
     let elbow = bone(app, "Elbow", shoulder, [1.0, 0.0]);
     let hand = bone(app, "Hand", elbow, [1.0, 0.0]);
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     node_at(app, "Target", rig, target.0, target.1);
     let params: toml::Value = toml::from_str(&format!(
         "kind = \"{kind}\"\nbone = \"Shoulder\"\ntarget = \"Target\"\nflip_bend_direction = {flip}"
@@ -202,7 +202,7 @@ fn a_bone_too_short_for_the_solver_leaves_the_pose_alone() {
     // `f32::clamp` panics when its own minimum is above its maximum.
     let elbow = bone(&app, "Elbow", shoulder, [1e-6, 0.0]);
     bone(&app, "Hand", elbow, [1.0, 0.0]);
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     node_at(&app, "Target", rig, 1.0, 1.0);
     let params: toml::Value =
         toml::from_str("kind = \"two_bone_ik\"\nbone = \"Shoulder\"\ntarget = \"Target\"").unwrap();
@@ -262,7 +262,7 @@ fn long_chain(app: &App, kind: &str, count: usize, target: (f32, f32), extra: &s
     // the solver has one segment fewer than it has bones.
     let tip: toml::Value = toml::from_str("rest_position = [1.0, 0.0]\nlength = 1.0").unwrap();
     components::add(&app.engine, parent, "bone2d", Some(&tip)).unwrap();
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     node_at(app, "Target", rig, target.0, target.1);
     let params: toml::Value = toml::from_str(&format!(
         "kind = \"{kind}\"\nbone = \"B0\"\ntarget = \"Target\"\n{extra}"
@@ -360,7 +360,7 @@ fn a_jiggle_bone_lags_the_pose_and_then_settles_on_it() {
     let tail = bone(&app, "Tail", hip, [1.0, 0.0]);
     let tip: toml::Value = toml::from_str("rest_position = [1.0, 0.0]\nlength = 1.0").unwrap();
     components::add(&app.engine, tail, "bone2d", Some(&tip)).unwrap();
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     let params: toml::Value =
         toml::from_str("kind = \"jiggle\"\nbone = \"Hip\"\nstiffness = 8.0\ndamping = 0.2")
             .unwrap();
@@ -405,7 +405,7 @@ fn a_jiggle_chain_solves_to_the_same_bits_twice() {
         let tail = bone(&app, "Tail", hip, [1.0, 0.0]);
         let tip: toml::Value = toml::from_str("rest_position = [1.0, 0.0]\nlength = 1.0").unwrap();
         components::add(&app.engine, tail, "bone2d", Some(&tip)).unwrap();
-        balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+        balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
         let params: toml::Value =
             toml::from_str("kind = \"jiggle\"\nuse_gravity = true\nstiffness = 4.0").unwrap();
         components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
@@ -436,7 +436,7 @@ fn a_3d_modifier_aims_a_bone_at_its_target() {
     let hand = scene::spawn_node(&mut app.engine.world_mut(), "Hand", arm);
     let child: toml::Value = toml::from_str("rest_position = [1.0, 0.0, 0.0]").unwrap();
     components::add(&app.engine, hand, "bone3d", Some(&child)).unwrap();
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     let target = scene::spawn_node(&mut app.engine.world_mut(), "Target", rig);
     app.engine
         .world_mut()
@@ -482,7 +482,7 @@ fn a_3d_fabrik_chain_reaches_its_target() {
         bones.push(node);
         parent = node;
     }
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     let target = scene::spawn_node(&mut app.engine.world_mut(), "Target", rig);
     app.engine
         .world_mut()

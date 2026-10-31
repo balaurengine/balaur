@@ -39,8 +39,7 @@ pub(crate) struct OnScreen {
 /// A notifier starts off screen; a written one keeps what it last saw.
 fn after_write(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
     if written == Written::Added {
-        eng.world_mut()
-            .insert_one(entity, OnScreen { on_screen: false })
+        eng.insert_one(entity, OnScreen { on_screen: false })
             .map_err(|_| anyhow!("node is dead"))?;
     }
     Ok(())
@@ -59,9 +58,8 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::RENDER,
             ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<ScreenNotifier2d>(entity);
-                let _ = world.remove_one::<OnScreen>(entity);
+                let _ = eng.remove_one::<ScreenNotifier2d>(entity);
+                let _ = eng.remove_one::<OnScreen>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<ScreenNotifier2d>(Some(after_write))

@@ -421,7 +421,7 @@ pub fn flat_surface_of(eng: &Engine, reference: &str) -> Surface {
 /// owns its pipeline, so it cannot be swapped onto a node already built
 /// against a different one.
 pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut renderable = world
         .get::<&mut crate::Renderable2d>(entity)
         .map_err(|_| anyhow!("node has no 2D shape yet"))?;
@@ -437,7 +437,7 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
 /// The 3D counterpart of [`set_material_2d`]; a change rebuilds the node for
 /// the same reason.
 pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut renderable = world
         .get::<&mut crate::Renderable3d>(entity)
         .map_err(|_| anyhow!("node has no 3D shape yet"))?;
@@ -481,19 +481,17 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                     .get(crate::vocabulary::keys::SOURCE)
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default();
-                let mut world = eng.world_mut();
-                world
+                eng.world()
                     .get::<&mut Appearance>(entity)
                     .map_err(|_| anyhow!("node is dead"))?
                     .material = MaterialId::intern(reference);
-                world
+                eng
                     .insert_one(entity, NodeMaterial)
                     .map_err(|_| anyhow!("node is dead"))
             }),
                 Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<NodeMaterial>(entity);
-                if let Ok(mut appearance) = world.get::<&mut Appearance>(entity) {
+                let _ = eng.remove_one::<NodeMaterial>(entity);
+                if let Ok(mut appearance) = eng.world().get::<&mut Appearance>(entity) {
                     appearance.material = MaterialId::NONE;
                 }
                 Ok(())

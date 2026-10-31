@@ -317,11 +317,7 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         .get::<&scene::Name>(rig)
         .map(|n| n.0.clone())
         .unwrap_or_default();
-    let container = {
-        let mut world = eng.world_mut();
-        let root = eng.root();
-        scene::spawn_node(&mut world, &format!("{rig_name}{CONTAINER_SUFFIX}"), root)
-    };
+    let container = eng.spawn_node(&format!("{rig_name}{CONTAINER_SUFFIX}"), eng.root());
     // Where the bodies are kept: the root, which a running game wants, or
     // the node the options name, which an editor building them into its
     // scene does. Moved there once they are built, keeping where they are.
@@ -357,7 +353,7 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     }
     if let Some(parent) = parent {
         let before = scene::child_count(&eng.world(), parent);
-        scene::reparent(&mut eng.world_mut(), container, parent)?;
+        eng.reparent(container, parent)?;
         scene::announce_added_since(eng, parent, before);
     }
     let ragdoll = Ragdoll {
@@ -381,10 +377,7 @@ fn spawn_body(
         .world()
         .get::<&scene::Name>(segment.bone)
         .map_or_else(|_| "Bone".to_string(), |n| n.0.clone());
-    let node = {
-        let mut world = eng.world_mut();
-        scene::spawn_node(&mut world, &name, container)
-    };
+    let node = eng.spawn_node(&name, container);
     let length = segment.length();
     let inverse = segment.rotation.inverse();
     let along = inverse * (segment.to - segment.from);

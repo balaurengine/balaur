@@ -287,7 +287,7 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
     };
     let hip = bone("Hip", rig, "rest_position = [0.0, 0.0]");
     bone("Tail", hip, "rest_position = [1.0, 0.0]\nlength = 1.0");
-    balaur_geometry::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    balaur_geometry::skeleton::apply_rest(&app.engine.world(), rig);
     // On the Hip rather than on the rig: the rig node carries no bone, so a
     // chain starting there spends its first segment on nothing.
     let params: toml::Value =

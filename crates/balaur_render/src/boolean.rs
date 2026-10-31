@@ -195,7 +195,7 @@ impl Combined2d {
 /// What the result's renderable is drawn with, onto one that already exists.
 fn dress_3d(eng: &Engine, entity: Entity, boolean: &Combined3d) -> Result<()> {
     {
-        let world = eng.world_mut();
+        let world = eng.world();
         let Ok(mut r) = world.get::<&mut Renderable3d>(entity) else {
             return Ok(());
         };
@@ -220,14 +220,12 @@ fn boolean3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<
         Combined3d::of(&asked)?
     };
     dress_3d(eng, entity, &next)?;
-    let mut world = eng.world_mut();
-    if let Ok(existing) = world.get::<&Combined3d>(entity)
+    if let Ok(existing) = eng.world().get::<&Combined3d>(entity)
         && existing.op == next.op
     {
         next.signature = existing.signature;
     }
-    world
-        .insert_one(entity, next)
+    eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -239,10 +237,9 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Boolean3d>(entity);
-                let _ = world.remove_one::<Combined3d>(entity);
-                let _ = world.remove_one::<Renderable3d>(entity);
+                let _ = eng.remove_one::<Boolean3d>(entity);
+                let _ = eng.remove_one::<Combined3d>(entity);
+                let _ = eng.remove_one::<Renderable3d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Boolean3d>(Some(boolean3d_written))
@@ -261,8 +258,7 @@ fn boolean2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<
         Combined2d::of(&asked)?
     };
     {
-        let mut world = eng.world_mut();
-        if let Ok(mut existing) = world.get::<&mut Combined2d>(entity)
+        if let Ok(mut existing) = eng.world().get::<&mut Combined2d>(entity)
             && existing.op == next.op
             && existing.options == next.options
             && existing.look.texture == next.look.texture
@@ -270,8 +266,7 @@ fn boolean2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<
             next.signature = existing.signature;
             next.shapes = std::mem::take(&mut existing.shapes);
         }
-        world
-            .insert_one(entity, next)
+        eng.insert_one(entity, next)
             .map_err(|_| anyhow!("node is dead"))?;
     }
     dress_2d(eng, entity)
@@ -284,10 +279,9 @@ pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Boolean2d>(entity);
-                let _ = world.remove_one::<Combined2d>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<Boolean2d>(entity);
+                let _ = eng.remove_one::<Combined2d>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Boolean2d>(Some(boolean2d_written))
@@ -305,7 +299,7 @@ fn dress_2d(eng: &Engine, entity: Entity) -> Result<()> {
         boolean.look.clone()
     };
     {
-        let world = eng.world_mut();
+        let world = eng.world();
         let Ok(mut r) = world.get::<&mut Renderable2d>(entity) else {
             return Ok(());
         };
@@ -476,15 +470,14 @@ pub(crate) fn resolve_booleans_system(eng: &Engine, _dt: f32) {
 /// like now.
 fn stale(eng: &Engine, flat: bool) -> Vec<(Entity, Vec<Entity>, u64)> {
     let owners: Vec<Entity> = {
-        let world = eng.world();
         if flat {
-            world
+            eng.world()
                 .query::<(Entity, &Combined2d)>()
                 .iter()
                 .map(|(e, _)| e)
                 .collect()
         } else {
-            world
+            eng.world()
                 .query::<(Entity, &Combined3d)>()
                 .iter()
                 .map(|(e, _)| e)
@@ -513,8 +506,7 @@ fn stale(eng: &Engine, flat: bool) -> Vec<(Entity, Vec<Entity>, u64)> {
 
 /// Where a node has settled this tick, or the origin when it has no pose.
 fn pose_of(eng: &Engine, entity: Entity) -> GlobalTransform {
-    let world = eng.world();
-    world
+    eng.world()
         .get::<&GlobalTransform>(entity)
         .map_or(GlobalTransform::identity(), |at| *at)
 }
@@ -540,7 +532,7 @@ fn resolve_3d(eng: &Engine) {
                 half: (max - min) / 2.0,
             }
         });
-        let mut world = eng.world_mut();
+        let world = eng.world();
         let Ok(mut boolean) = world.get::<&mut Combined3d>(entity) else {
             continue;
         };
@@ -561,16 +553,16 @@ fn resolve_3d(eng: &Engine) {
             version: 0,
         };
         drop(boolean);
+        drop(world);
         let built = Some(std::sync::Arc::new(result));
-        if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+        if let Ok(mut renderable) = eng.world().get::<&mut Renderable3d>(entity) {
             renderable.shape = Shape3d::Built;
             renderable.built = built;
             renderable.bounds = bounds;
             renderable.version += 1;
         } else {
-            let _ = world.insert_one(entity, Renderable3d { built, ..fresh });
+            let _ = eng.insert_one(entity, Renderable3d { built, ..fresh });
         }
-        drop(world);
         hide(eng, &operands);
     }
 }
@@ -599,7 +591,7 @@ fn resolve_2d(eng: &Engine) {
         let polygon = std::sync::Arc::new(fill_shapes(&shapes, texture, size));
         let created = eng.world().get::<&Renderable2d>(entity).is_err();
         {
-            let world = eng.world_mut();
+            let world = eng.world();
             if let Ok(mut boolean) = world.get::<&mut Combined2d>(entity) {
                 boolean.signature = signature;
                 boolean.shapes = shapes;
@@ -656,7 +648,7 @@ fn fill_shapes(shapes: &Shapes2d, texture: String, size: (u32, u32)) -> PolygonM
 /// Hide the operands: the node draws their result, and drawing them too
 /// would put the parts on top of the whole.
 fn hide(eng: &Engine, operands: &[Entity]) {
-    let world = eng.world_mut();
+    let world = eng.world();
     for entity in operands {
         if let Ok(mut appearance) = world.get::<&mut Appearance>(*entity) {
             appearance.visible = false;

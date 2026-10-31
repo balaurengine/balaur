@@ -453,9 +453,8 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::PERSPECTIVE, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Primitive3d>(entity);
-                let _ = world.remove_one::<Renderable3d>(entity);
+                let _ = eng.remove_one::<Primitive3d>(entity);
+                let _ = eng.remove_one::<Renderable3d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Primitive3d>(Some(shape3d_written))
@@ -538,9 +537,8 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Primitive2d>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<Primitive2d>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Primitive2d>(Some(shape2d_written))
@@ -555,9 +553,8 @@ pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Line2d>(entity);
-                let _ = world.remove_one::<Renderable2d>(entity);
+                let _ = eng.remove_one::<Line2d>(entity);
+                let _ = eng.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Line2d>(Some(line2d_written))

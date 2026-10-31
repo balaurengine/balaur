@@ -304,8 +304,7 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         };
         Particles::of(&asked)
     };
-    eng.world_mut()
-        .insert_one(entity, next)
+    eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
 
@@ -321,9 +320,8 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::RENDER,
             ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Particles2d>(entity);
-                let _ = world.remove_one::<Particles>(entity);
+                let _ = eng.remove_one::<Particles2d>(entity);
+                let _ = eng.remove_one::<Particles>(entity);
                 Ok(())
             }),
             ..ComponentDef::of::<Particles2d>(Some(after_write))
