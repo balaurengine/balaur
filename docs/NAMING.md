@@ -662,6 +662,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Rust run the moment an event is announced | `events::observe`, `unobserve`, `bubble`; `Observed` (`target`, `at`, `stop`), `ObserverId` | Bevy's observers, the DOM's bubbling and `stopPropagation` |
 | Two components kept in step: one target, its sources in order | `relationships::Relationship`, `Sources`; `relate`, `link`, `unlink`, `place`, `unlink_all`, `linked`, `target_of`, `sources_of`; the scene tree's `Parent` and `Children` | Bevy's relationships |
 | A node freed with the frame's batch | `Engine::defer_free`, `take_frees`; `node.queue_free` | Godot's `queue_free` |
+| Components a component brings at their defaults | `#[component(requires = [..])]`, `ComponentDef::requires`; `scene.component_requires` | Bevy's required components |
 | What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |

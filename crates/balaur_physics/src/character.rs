@@ -20,7 +20,7 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose, Real, Vector};
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Written};
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
@@ -35,7 +35,7 @@ use balaur_core::fixed_dt;
 // controller is rebuilt from this at every move.
 /// A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.
 #[derive(Clone, Component)]
-#[component(name = "character3d")]
+#[component(name = "character3d", requires = [balaur_core::transform::COMPONENT])]
 pub struct Character3d {
     /// Which way is up for this character: the axis it stands along and measures slopes against
     #[property(default = [0.0, 1.0, 0.0])]
@@ -241,16 +241,6 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// Moving a character writes the node's transform, so it needs one.
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "an after-write hook may refuse a write; this one never does"
-)]
-pub(crate) fn ensure_transform(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    balaur_core::transform::ensure(eng, entity);
-    Ok(())
-}
-
 /// The character component writes no rapier state of its own: it is read at
 /// the moment a script moves the node, and the collider does the rest.
 pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
@@ -262,7 +252,7 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::COLLIDER_3D],
-            ..ComponentDef::of::<Character3d>(Some(ensure_transform))
+            ..ComponentDef::of::<Character3d>(None)
         },
     );
 }

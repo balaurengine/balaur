@@ -37,8 +37,8 @@ mod changes;
 use changes::{added_since, change_tick, changed_since, removed_since};
 mod registry;
 use registry::{
-    apply_preset, component_expects, component_schema, component_tags, component_types,
-    preset_info, presets, warnings,
+    apply_preset, component_expects, component_requires, component_schema, component_tags,
+    component_types, preset_info, presets, warnings,
 };
 
 /// One engine operation, tagged with the module it belongs to.
@@ -234,6 +234,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: "scene",
             name: "component_expects",
             call: component_expects,
+        },
+        EngineOp {
+            module: "scene",
+            name: "component_requires",
+            call: component_requires,
         },
         EngineOp {
             module: "scene",

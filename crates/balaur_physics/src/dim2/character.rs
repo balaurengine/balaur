@@ -28,7 +28,7 @@ use glamx::EulerRot;
 
 /// A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 #[derive(Clone, Component)]
-#[component(name = "character2d")]
+#[component(name = "character2d", requires = [balaur_core::transform::COMPONENT])]
 pub struct Character2d {
     /// Which way is up for this character: the axis it stands along and measures slopes against
     #[property(default = [0.0, 1.0])]
@@ -240,7 +240,7 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::COLLIDER_2D],
-            ..ComponentDef::of::<Character2d>(Some(crate::character::ensure_transform))
+            ..ComponentDef::of::<Character2d>(None)
         },
     );
 }

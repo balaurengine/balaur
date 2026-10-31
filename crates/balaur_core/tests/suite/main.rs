@@ -33,6 +33,7 @@ mod prefabs;
 mod presets;
 mod relationships;
 mod replay;
+mod required;
 mod rng;
 mod robustness;
 mod rollback;

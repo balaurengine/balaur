@@ -47,7 +47,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
-| [`scene`](#scene) | 29 | 0 |
+| [`scene`](#scene) | 30 | 0 |
 | [`script`](#script) | 15 | 0 |
 | [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
@@ -1418,6 +1418,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `changed_since` | `(str, int) -> [Node]` |
 | `component_expects` | `(str) -> [str]?` |
 | `component_properties` | `(str, any) -> any` |
+| `component_requires` | `(str) -> [str]?` |
 | `component_schema` | `(str) -> any` |
 | `component_tags` | `(str) -> [str]?` |
 | `component_types` | `() -> [str]` |

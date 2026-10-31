@@ -230,11 +230,20 @@ const LIFECYCLE_POINTS: [&str; 5] = [
     "on_despawn",
 ];
 
-/// `#[component(name = "...", on_add = path, ..)]`, read: the name, and each
-/// lifecycle point named with its function.
-fn component_attrs(input: &DeriveInput) -> syn::Result<(String, Vec<(syn::Ident, syn::Path)>)> {
+/// What `#[component(..)]` says beside the name.
+struct ComponentAttrs {
+    name: String,
+    /// Each lifecycle point named, with its function.
+    lifecycle: Vec<(syn::Ident, syn::Path)>,
+    /// `requires = [..]`: the names of the components this one brings.
+    requires: Vec<syn::Expr>,
+}
+
+/// `#[component(name = "...", on_add = path, requires = [..], ..)]`, read.
+fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
     let mut name = None;
     let mut lifecycle = Vec::new();
+    let mut requires = Vec::new();
     for attr in &input.attrs {
         if !attr.path().is_ident("component") {
             continue;
@@ -243,6 +252,10 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<(String, Vec<(syn::Ident,
             if meta.path.is_ident("name") {
                 let text: syn::LitStr = meta.value()?.parse()?;
                 name = Some(text.value());
+                Ok(())
+            } else if meta.path.is_ident("requires") {
+                let list: syn::ExprArray = meta.value()?.parse()?;
+                requires.extend(list.elems);
                 Ok(())
             } else if let Some(point) = LIFECYCLE_POINTS
                 .iter()
@@ -253,7 +266,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<(String, Vec<(syn::Ident,
                 Ok(())
             } else {
                 Err(meta.error(
-                    "`component` takes `name`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
+                    "`component` takes `name`, `requires`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
                 ))
             }
         })?;
@@ -264,7 +277,11 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<(String, Vec<(syn::Ident,
             "a component names itself: #[component(name = \"...\")]",
         )
     })?;
-    Ok((name, lifecycle))
+    Ok(ComponentAttrs {
+        name,
+        lifecycle,
+        requires,
+    })
 }
 
 /// `const LIFECYCLE` naming each point the attribute named, nothing when it
@@ -418,13 +435,23 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     };
 
     let kind_impl = if component {
-        let (name, lifecycle) = component_attrs(input)?;
+        let ComponentAttrs {
+            name,
+            lifecycle,
+            requires,
+        } = component_attrs(input)?;
         let doc = doc_of(&input.attrs);
         let lifecycle = lifecycle_const(&derived, &lifecycle);
+        let requires = if requires.is_empty() {
+            quote! {}
+        } else {
+            quote! { const REQUIRES: &'static [&'static str] = &[#(#requires),*]; }
+        };
         quote! {
             impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
                 const NAME: &'static str = #name;
                 const DOC: &'static str = #doc;
+                #requires
                 #lifecycle
             }
         }

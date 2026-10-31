@@ -12,7 +12,6 @@ fn app() -> (App, hecs::Entity) {
     interpolate::apply_setting(&app.engine);
     let root = app.engine.root();
     let node = spawn_node(&mut app.engine.world_mut(), "Body", root);
-    balaur_core::transform::ensure(&app.engine, node);
     (app, node)
 }
 

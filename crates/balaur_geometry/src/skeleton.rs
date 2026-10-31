@@ -436,7 +436,7 @@ pub fn skin_positions(
 
 /// Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone2d", on_remove = bone2d_removed)]
+#[component(name = "bone2d", requires = [balaur_core::transform::COMPONENT], on_remove = bone2d_removed)]
 pub struct Bone2d {
     /// Local rest translation
     pub rest_position: [f32; 2],
@@ -451,7 +451,7 @@ pub struct Bone2d {
 
 /// Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone3d", on_remove = bone3d_removed)]
+#[component(name = "bone3d", requires = [balaur_core::transform::COMPONENT], on_remove = bone3d_removed)]
 pub struct Bone3d {
     /// Local rest translation
     pub rest_position: Vec3,
@@ -471,7 +471,6 @@ pub struct Bone3d {
     reason = "an after-write hook may refuse a write; this one never does"
 )]
 fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    balaur_core::transform::ensure(eng, entity);
     let Ok(asked) = eng.world().get::<&Bone2d>(entity).map(|held| *held) else {
         return Ok(());
     };
@@ -495,7 +494,6 @@ fn bone2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
     reason = "an after-write hook may refuse a write; this one never does"
 )]
 fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    balaur_core::transform::ensure(eng, entity);
     let Ok(asked) = eng.world().get::<&Bone3d>(entity).map(|held| *held) else {
         return Ok(());
     };

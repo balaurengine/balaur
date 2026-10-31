@@ -10,7 +10,9 @@
 //!
 //! `#[component(on_add = f, on_remove = g)]` beside its `name` declares the
 //! component's [`Lifecycle`]: plain functions `fn(&Engine, Entity)`, run by
-//! every write through the registry.
+//! every write through the registry. `requires = [name, ..]` names the
+//! components it brings, each put on at its defaults before its first write
+//! where the node lacks it.
 //!
 //! The struct holds what the component is asked for and nothing else. What a
 //! system works out from it -- a shaped text, a built body -- is the system's
@@ -61,6 +63,8 @@ pub trait Component: Fields + Send + Sync + 'static {
     /// What it runs as it goes on, is written and comes off: the derive's
     /// `#[component(on_add = ..)]` and the rest.
     const LIFECYCLE: Lifecycle = Lifecycle::NONE;
+    /// The components it brings: the derive's `#[component(requires = [..])]`.
+    const REQUIRES: &'static [&'static str] = &[];
 }
 
 /// One lifecycle call: the node, and the engine to read it through.
@@ -557,6 +561,7 @@ impl ComponentDef {
             events: &[],
             warnings: None,
             lifecycle: C::LIFECYCLE,
+            requires: C::REQUIRES,
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
                 // What the node held, to put back if the hook refuses: the

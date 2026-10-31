@@ -48,6 +48,16 @@ pub(super) fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
     }))
 }
 
+/// The components a component brings with it, put on at their defaults
+/// before its first write.
+pub(super) fn component_requires(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
+        Value::List(def.requires.iter().map(|name| Value::text(*name)).collect())
+    }))
+}
+
 pub(super) fn presets(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::presets::names(eng)

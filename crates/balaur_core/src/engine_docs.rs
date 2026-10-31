@@ -134,6 +134,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("component_types", &[], "() -> [string]", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string) -> [string]?", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
         ("component_expects", &[], "(name: string) -> [string]?", "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered."),
+        ("component_requires", &[], "(name: string) -> [string]?", "The components a component type brings: each a node lacks is put on at its defaults before the type's first write. Nil for a name nothing registered."),
         ("component_schema", &[], "(name: string) -> map?", "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any) -> map?", "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "() -> [string]", "The names of every registered preset."),

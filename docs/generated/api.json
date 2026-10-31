@@ -6092,6 +6092,10 @@
         "least": 1,
         "signature": "(str, any) -> any"
       },
+      "scene::component_requires": {
+        "least": 1,
+        "signature": "(str) -> [str]?"
+      },
       "scene::component_schema": {
         "least": 1,
         "signature": "(str) -> any"
@@ -26047,6 +26051,7 @@
         "changed_since": "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder.",
         "component_expects": "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component.",
+        "component_requires": "The components a component type brings: each a node lacks is put on at its defaults before the type's first write. Nil for a name nothing registered.",
         "component_schema": "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered.",
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
         "component_types": "The names of every registered component type, not the components on any node.",
@@ -26078,6 +26083,7 @@
         "changed_since",
         "component_expects",
         "component_properties",
+        "component_requires",
         "component_schema",
         "component_tags",
         "component_types",
@@ -26110,6 +26116,7 @@
         "changed_since": "(str, int) -> [Node]",
         "component_expects": "(str) -> [str]?",
         "component_properties": "(str, any) -> any",
+        "component_requires": "(str) -> [str]?",
         "component_schema": "(str) -> any",
         "component_tags": "(str) -> [str]?",
         "component_types": "() -> [str]",

@@ -17,7 +17,10 @@
 > `App::add_messages`, `Engine::send`, `MessageCursor` (`messages`). Step 7
 > built 2026-10-31: `events::observe`, `unobserve`, `bubble`, run first in
 > `events::announce`. Step 8 built 2026-10-31: `relationships`, and the scene
-> tree's `Parent` and `Children` on it. Steps 9 to 11 of
+> tree's `Parent` and `Children` on it. Step 9 built 2026-10-31:
+> `#[component(requires = [..])]`, `ComponentDef::requires`,
+> `scene.component_requires`; bodies, bones and characters require
+> `transform`, and `transform::ensure` is gone. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -116,7 +119,11 @@ something else in this engine.
   free and no digest moved.
 - **Required components.** A component that brings others with their
   defaults, declared on the derive, so a scene file, a script and Rust all
-  get them.
+  get them. `#[component(requires = [name, ..])]` (a name or a `COMPONENT`
+  const), or a hand definition's `requires`: before the component's first
+  write the registry adds each one the node lacks, at its defaults, and
+  each brings its own. A refused first write keeps what it brought; taking
+  the component off leaves them.
 - **Schedules.** Sets, `before`, `after` and run conditions on a system,
   sorted once when the app builds; a cycle is an error naming its systems.
   Systems with no order between them run in registration order. The eight
@@ -162,7 +169,7 @@ something else in this engine.
 8. **Relationships**, then the scene tree on them. The digest walks children
    in the same order, so no recording moves; a test proves it. *Built*; the
    determinism trace matches the one before step 3.
-9. **Required components.**
+9. **Required components.** *Built.*
 10. **Schedules**: sets, order, run conditions, cycle errors.
 11. **App modes.**
 12. **Typed systems**, and the systems that read better with them moved over.

@@ -28,7 +28,7 @@ use crate::{PhysicsState3d, node_pose};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "body3d")]
+#[component(name = "body3d", requires = [balaur_core::transform::COMPONENT])]
 pub struct Body3d {
     /// How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set
     #[property(default = BodyKind::Dynamic)]

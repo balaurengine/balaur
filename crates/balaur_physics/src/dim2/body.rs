@@ -34,7 +34,7 @@ use crate::vocabulary::{component as c, keys as k};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "body2d")]
+#[component(name = "body2d", requires = [balaur_core::transform::COMPONENT])]
 pub struct Body2d {
     /// How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set
     #[property(default = BodyKind::Dynamic)]

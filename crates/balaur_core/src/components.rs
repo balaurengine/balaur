@@ -119,7 +119,6 @@ pub use values::{merge_defaults, properties, rgba};
 
 pub use accepts::{AcceptsFn, refuse_unknown_keys};
 use attached::mark;
-pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use derived::{Lifecycle, LifecycleFn};
 pub use property::{
@@ -290,6 +289,11 @@ pub struct ComponentDef {
     /// `collider2d` is both `2d` and `physics`, and a single category path
     /// would bury one of those.
     pub tags: &'static [&'static str],
+    /// Components this one brings: each the node lacks is put on at its
+    /// defaults, through the registry, before this one's first write, so a
+    /// scene file, a script and Rust all get it. One it brings brings its own.
+    /// Taking this one off leaves them.
+    pub requires: &'static [&'static str],
     /// Components this one needs *something* from, any one of which will do.
     ///
     /// Not a requirement: a script may add the missing piece on a later tick,
@@ -343,6 +347,7 @@ impl ComponentDef {
             schema,
             doc: "",
             tags: &[],
+            requires: &[],
             expects: &[],
             events: &[],
             apply,
@@ -804,6 +809,8 @@ fn apply_at(
     let lifecycle = lifecycle_at(eng, index);
     if had {
         call(lifecycle.on_replace, eng, entity);
+    } else {
+        bring_required(eng, entity, index)?;
     }
     {
         let registry = registry.borrow();
@@ -830,6 +837,22 @@ fn apply_at(
         call(lifecycle.on_add, eng, entity);
     }
     call(lifecycle.on_insert, eng, entity);
+    Ok(())
+}
+
+/// Put on every component the one at `index` brings that the node lacks, at
+/// its defaults.
+fn bring_required(eng: &Engine, entity: Entity, index: usize) -> Result<()> {
+    let requires = eng
+        .try_resource::<ComponentRegistry>()
+        .and_then(|registry| registry.borrow().at(index).map(|(_, def)| def.requires))
+        .unwrap_or_default();
+    for name in requires {
+        if !has(eng, entity, name) {
+            add(eng, entity, name, None)
+                .with_context(|| format!("adding '{name}', which this component brings"))?;
+        }
+    }
     Ok(())
 }
 
