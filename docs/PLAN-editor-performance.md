@@ -901,6 +901,37 @@ No browser was timed. A native build with the `web` profile, fat LTO and
 on the template. 3 runs the same cycles for twice the bytes. Wasm's own
 overhead sits on top of these, so only the ratio carries over to a browser.
 
+**Toolchain, 2026-10-31.** Four setups on `a6b9e254`, incremental, sccache
+under the dependencies, one append to `lib.rs` per edit. CPU is user plus
+system seconds; the load ran from 25 to 170 on 8 cores, so wall time is not
+compared. The editor figures are instructions retired on `examples/text`.
+
+| | stable, LLVM (kept) | `balaur_core` at 0 | nightly `-Zthreads=8` | cranelift for the workspace |
+| --- | ---: | ---: | ---: | ---: |
+| core edit, editor rebuilt | 43 | 38 | 72 | 72 |
+| core edit, tests rebuilt | 244 | 286 | 387 | 408 |
+| ui edit, editor rebuilt | 61 | 47 | 98 | 70 |
+| ui edit, `-p balaur_ui` tests first built | 498 | 400 | 777 | 214 |
+| editor startup | 3.7 G | 5.0 G | 3.7 G | 9.4 G |
+| editor frame | 36.9 M | 48.8 M | 37.2 M | 64.1 M |
+| one edit, text / color / position | 5.2 / 5.6 / 4.0 M | 8.3 / 8.7 / 6.9 M | 4.8 / 6.6 / 3.7 M | 12.3 / 12.8 / 12.1 M |
+| tests | pass | pass | pass | 5 fail |
+
+- Core at 0 saves a tenth of a rebuild and costs a third more a frame and
+  two thirds more an edit.
+- The parallel front end spends 60% more CPU for nothing on a machine
+  whose cores are already busy.
+- Cranelift ties LLVM where a rebuild is front-end bound, as a core edit
+  is, and is 2.3 times cheaper where codegen dominates. Its editor runs a
+  frame in 1.7 times the instructions and an edit in 2.3 to 3. Five tests
+  that catch a panic fail under it.
+- Nightly's `-Zfeature-unification` did not unify a `-p` build with the
+  workspace's, so the shared feature set is the aliases in
+  `.cargo/config.toml` (docs/QUALITY.md).
+- After a core edit the test build spends 53% in the 38 integration test
+  binaries (about 4.4 s each, 1.7 s of it the link), 25% in unit tests that
+  live in `src`, and 18% rebuilding libraries the editor build now shares.
+
 ## 10. One edit
 
 Measured 2026-10-27 on the editor build of `a8f03337`: `balaur edit
