@@ -56,7 +56,7 @@ impl Cx<'_> {
                 } else {
                     ("submit", "handle_submit")
                 };
-                data.push(format!(".with(\"{slot}\", {name})"));
+                data.push(format!("\"{slot}\": {name}"));
                 for r in read {
                     if !caps.contains(&r) {
                         caps.push(r);
@@ -99,9 +99,9 @@ impl Cx<'_> {
             }
             for c in &caps {
                 let out = self.lookup(c).map_or_else(|| c.clone(), |v| v.out.clone());
-                data.push(format!(".with(\"{c}\", {out})"));
+                data.push(format!("\"{c}\": {out}"));
             }
-            let text = format!("map(){}", data.join(""));
+            let text = format!("{{ {} }}", data.join(", "));
             vals.push(("data".into(), Ex::atom(text, Ty::Any), vec![]));
         }
         if let Some(Ty::Shape(id)) = id.map(|id| self.p.norm(&Ty::Shape(id))) {
@@ -302,22 +302,28 @@ impl Cx<'_> {
     }
 }
 
-/// `map().with("k", v)..`: an object kept as `any`.
+/// `{ "k": v, .. }`: an object kept as `any`.
 fn map_literal(vals: &[(String, Ex, Vec<String>)], multi: bool) -> String {
-    let mut s = "map()".to_string();
-    for (k, ex, before) in vals {
-        let line = format!(".with(\"{k}\", {})", ex.s);
-        if multi {
-            for b in before {
-                s.push('\n');
-                s.push_str(&indent(b));
-            }
-            s.push('\n');
-            s.push_str(&indent(&line));
-        } else {
-            s.push_str(&line);
-        }
+    if vals.is_empty() {
+        return "{}".to_string();
     }
+    if !multi {
+        let parts: Vec<String> = vals
+            .iter()
+            .map(|(k, ex, _)| format!("\"{k}\": {}", ex.s))
+            .collect();
+        return format!("{{ {} }}", parts.join(", "));
+    }
+    let mut s = "{".to_string();
+    for (k, ex, before) in vals {
+        for b in before {
+            s.push('\n');
+            s.push_str(&indent(b));
+        }
+        s.push('\n');
+        s.push_str(&indent(&format!("\"{k}\": {},", ex.s)));
+    }
+    s.push_str("\n}");
     s
 }
 

@@ -49,12 +49,14 @@ impl Docs {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Module").patch_component("widget", map()
-            .with("options", view.get("modules"))
-            .with("text", view.get("pick")));
-        self.node.get_node("List").patch_component("widget", map().with("options", view.get("items")));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        self.node.get_node("Tools/Module").patch_component("widget", {
+            "options": view.get("modules"),
+            "text": view.get("pick"),
+        });
+        self.node.get_node("List").patch_component("widget", { "options": view.get("items") });
+        self.node.get_node("Nothing").patch_component("widget", {
+            "visible": view.get("says").as_str() != "",
+            "text": view.get("says"),
+        });
     }
 }

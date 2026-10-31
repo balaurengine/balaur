@@ -210,11 +210,14 @@ impl Scenario {
     fn init() {
         // One end pinned and edges that break at a tenth of their rest length,
         // so the heavy free end tears it and falls onto the ground.
-        self.node.set_component("soft_rope3d", map().with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0]).with("particle_count", 12));
-        self.node.softbody3d.set_softbody(map()
-            .with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]).with("mass", 400.0)
-            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0))
-            .with("events", ["collision"]));
+        self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
+        self.node.softbody3d.set_softbody({
+            "kind": physics3d::SOFT_ROPE,
+            "pinned_particles": [0],
+            "mass": 400.0,
+            "soft_material": { "tear_strain": 0.05, "tear_force": 2.0, "edge_hz": 4.0 },
+            "events": ["collision"],
+        });
     }
     pub fn on_tear(tear: any) { bump("edges", tear.get("edges").len()); }
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
@@ -244,10 +247,13 @@ script = { source = "scripts/scenario.bs" }
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.set_component("soft_rope3d", map().with("a", [0.0, 0.0, 0.0]).with("b", [0.0, -2.0, 0.0]).with("particle_count", 12));
-        self.node.softbody3d.set_softbody(map()
-            .with("kind", physics3d::SOFT_ROPE).with("pinned_particles", [0]).with("mass", 400.0)
-            .with("soft_material", map().with("tear_strain", 0.05).with("tear_force", 2.0).with("edge_hz", 4.0)));
+        self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
+        self.node.softbody3d.set_softbody({
+            "kind": physics3d::SOFT_ROPE,
+            "pinned_particles": [0],
+            "mass": 400.0,
+            "soft_material": { "tear_strain": 0.05, "tear_force": 2.0, "edge_hz": 4.0 },
+        });
     }
     pub fn on_tear(tear: any) {
         bump("tears", 1);

@@ -22,11 +22,11 @@ impl Textedit {
         }
         let field = self.node.get_node("Field");
         if view.get("open") && !self.open {
-            self.node.patch_component("widget", map().with("visible", true).with("x", view.get("x")).with("y", view.get("y")));
-            field.patch_component("widget", map().with("text", view.get("text")).with("width", view.get("width").as_float() - 20.0).with("font_size", view.get("size")));
+            self.node.patch_component("widget", { "visible": true, "x": view.get("x"), "y": view.get("y") });
+            field.patch_component("widget", { "text": view.get("text"), "width": view.get("width").as_float() - 20.0, "font_size": view.get("size") });
             ui::set_focus(field);
         } else if !view.get("open").as_bool() {
-            self.node.patch_component("widget", map().with("visible", false));
+            self.node.patch_component("widget", { "visible": false });
         }
         self.open = view.get("open").as_bool();
     }

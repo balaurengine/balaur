@@ -170,15 +170,16 @@ pub fn fill(state: &mut editor::State) {
         "Nodes, components, 2d, physics…"
     };
     let mark = if state.newnode_change { icons::ui("reset") } else { icons::ui("add") };
-    let host = window::picker(state, map()
-        .with("width", 520.0)
-        .with("mark", mark)
-        .with("placeholder", placeholder)
-        .with("query", state.newnode_query)
-        .with("rows_h", (specs.len() as float) * (row_height + 2.0) + 4.0)
-        .with("on", "handle")
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("fn", on_query_typed).with("submit", on_query_submitted)));
+    let host = window::picker(state, {
+        "width": 520.0,
+        "mark": mark,
+        "placeholder": placeholder,
+        "query": state.newnode_query,
+        "rows_h": (specs.len() as float) * (row_height + 2.0) + 4.0,
+        "on": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": on_query_typed, "submit": on_query_submitted },
+    });
     pool::sync(state, host, specs, 0.0, false);
 }
 
@@ -199,7 +200,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any]
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, map()));
+        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, {}));
     }
     for group in groups() {
         let title = group[1];
@@ -221,7 +222,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any]
             // the tree draw a component with.
             let mark = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-            out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_row, map().with("row", row)));
+            out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_row, { "row": row }));
         }
     }
     if out.len() == 0 {
@@ -231,8 +232,8 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any]
 }
 
 fn caption_row(text: str, height: float, wrap: bool) -> any {
-    let label = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", text).with("wrap", wrap);
-    map().with("full", true).with("height", height).with("controls", [label])
+    let label: any = { "kind": "label", "role": "text_caption", "grow": 1, "text": text, "wrap": wrap };
+    { "full": true, "height": height, "controls": [label] }
 }
 
 // A component's own colour token, or the plain text colour.
@@ -263,7 +264,7 @@ fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [a
         }
         let keys = source.parts.keys();
         let mark = icons::component(if keys.len() > 0 { keys[0] } else { "" });
-        out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, map().with("source", source)));
+        out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, { "source": source }));
     }
     out
 }
@@ -276,12 +277,13 @@ fn place_source_row(state: &mut editor::State, data: any, _value: any) {
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
 fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    let button = pool::on(map()
-        .with("kind", "button")
-        .with("role", "item_picker")
-        .with("grow", 1)
-        .with("text", caption)
-        .with("icon", mark)
-        .with("icon_color", color), handler, data);
-    map().with("full", true).with("height", row_height).with("controls", [button])
+    let button = pool::on({
+        "kind": "button",
+        "role": "item_picker",
+        "grow": 1,
+        "text": caption,
+        "icon": mark,
+        "icon_color": color,
+    }, handler, data);
+    { "full": true, "height": row_height, "controls": [button] }
 }

@@ -27,7 +27,7 @@ impl Problems {
             return;
         }
         let row = node.get_component("widget", "text");
-        node.patch_component("widget", map().with("text", ""));
+        node.patch_component("widget", { "text": "" });
         if row.as_str() != "" {
             self.editor.call("problems_pick", row);
         }
@@ -40,11 +40,13 @@ impl Problems {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("List").patch_component("widget", map()
-            .with("options", view.get("items"))
-            .with("visible", view.get("items").len() > 0));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        self.node.get_node("List").patch_component("widget", {
+            "options": view.get("items"),
+            "visible": view.get("items").len() > 0,
+        });
+        self.node.get_node("Nothing").patch_component("widget", {
+            "visible": view.get("says").as_str() != "",
+            "text": view.get("says"),
+        });
     }
 }

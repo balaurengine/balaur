@@ -213,7 +213,7 @@ pub fn change_type(state: &mut editor::State, index: int, name: str) -> bool {
 fn switch(node: any, parts: any) {
     for component in parts.keys() {
         let own = util::map_or_empty(node.get(component));
-        let accepts = util::map_or_empty(scene::component_properties(component, map()));
+        let accepts = util::map_or_empty(scene::component_properties(component, {}));
         for group in groups() {
             if !util::contains(group, component) {
                 continue;
@@ -268,15 +268,15 @@ fn fitted_2d(state: editor::State, node: any) -> any {
     if node.has("shape2d") {
         let shape = node.shape2d;
         if shape2d_kind(shape) == render::SHAPE_CIRCLE {
-            return map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", or_float(form(shape).get(RADIUS), 0.5));
+            return { "kind": physics2d::SHAPE_CIRCLE, "radius": or_float(form(shape).get(RADIUS), 0.5) };
         }
-        return map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", util::vec2(form(shape).get(SIZE), [1.0, 1.0]));
+        return { "kind": physics2d::SHAPE_RECTANGLE, "size": util::vec2(form(shape).get(SIZE), [1.0, 1.0]) };
     }
     let mesh = outline_2d(state, node, true);
     if mesh.is_nil() {
         return nil;
     }
-    map().with("kind", physics2d::SHAPE_CONVEX_DECOMPOSITION).with("mesh", mesh)
+    { "kind": physics2d::SHAPE_CONVEX_DECOMPOSITION, "mesh": mesh }
 }
 
 fn fitted_3d(node: any, parts: any) -> any {
@@ -284,16 +284,16 @@ fn fitted_3d(node: any, parts: any) -> any {
     let source = mesh_source(node);
     if !source.is_nil() {
         let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
-        return map().with("kind", kind).with("mesh", source);
+        return { "kind": kind, "mesh": source };
     }
     if !node.has("shape3d") {
         return nil;
     }
     let shape = node.shape3d;
     if shape3d_kind(shape) == render::SHAPE_SPHERE {
-        return map().with("kind", physics3d::SHAPE_SPHERE).with("radius", or_float(form(shape).get(RADIUS), 0.5));
+        return { "kind": physics3d::SHAPE_SPHERE, "radius": or_float(form(shape).get(RADIUS), 0.5) };
     }
-    map().with("kind", physics3d::SHAPE_BOX).with("size", util::vec3(form(shape).get(SIZE), [1.0, 1.0, 1.0]))
+    { "kind": physics3d::SHAPE_BOX, "size": util::vec3(form(shape).get(SIZE), [1.0, 1.0, 1.0]) }
 }
 
 // A number a table states, or `fallback` where it states none.
@@ -318,13 +318,13 @@ fn outline_2d(state: editor::State, node: any, trace: bool) -> any {
     }
     if node.has("sprite") && sprite_convertible(node.sprite) {
         if !trace {
-            return map();
+            return {};
         }
         let polygon = sprite_polygon(state, node.sprite);
         return if polygon.is_nil() { nil } else { polygon.mesh };
     }
     if node.has("shape2d") && shape2d_kind(node.shape2d) != "" {
-        return map().with("positions", shape_points(node.shape2d));
+        return { "positions": shape_points(node.shape2d) };
     }
     nil
 }
@@ -359,9 +359,10 @@ fn to_polygon(state: &mut editor::State, index: int) -> bool {
     let shape = node.shape2d;
     history::record(state, "make polygon", nil);
     let color = shape.get(COLOR);
-    let polygon = map()
-        .with("mesh", map().with("positions", shape_points(shape)))
-        .with("color", if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color });
+    let polygon: any = {
+        "mesh": { "positions": shape_points(shape) },
+        "color": if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color },
+    };
     node.remove("shape2d");
     node.set("polygon", polygon);
     model::write_row(found, node);
@@ -443,17 +444,17 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
 pub fn soft_sources(state: &mut editor::State, two_d: bool) -> [newnode::Entry] {
     let out: [newnode::Entry] = [];
     if two_d {
-        out.push(source_row("Rectangle", "a block of cells", "Jelly", map().with("shape2d", map().with("shape", map().with("kind", render::SHAPE_RECTANGLE)))));
-        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", map().with("shape2d", map().with("shape", map().with("kind", render::SHAPE_CIRCLE).with("radius", 0.5)))));
+        out.push(source_row("Rectangle", "a block of cells", "Jelly", { "shape2d": { "shape": { "kind": render::SHAPE_RECTANGLE } } }));
+        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", { "shape2d": { "shape": { "kind": render::SHAPE_CIRCLE, "radius": 0.5 } } }));
         for rel in project_files(state, "image") {
-            out.push(source_row(rel, "traced to its opaque outline", dropin::stem_of(rel), map().with("sprite", map().with("texture", rel))));
+            out.push(source_row(rel, "traced to its opaque outline", dropin::stem_of(rel), { "sprite": { "texture": rel } }));
         }
     } else {
-        out.push(source_row("Box", "a block of cells", "Jelly", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_BOX)))));
-        out.push(source_row("Sphere", "a ball of cells", "Blob", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_SPHERE).with("radius", 0.5)))));
-        out.push(source_row("Plane", "a sheet of cloth", "Cloth", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_PLANE).with("size", [2.0, 0.0, 2.0])))));
+        out.push(source_row("Box", "a block of cells", "Jelly", { "shape3d": { "shape": { "kind": render::SHAPE_BOX } } }));
+        out.push(source_row("Sphere", "a ball of cells", "Blob", { "shape3d": { "shape": { "kind": render::SHAPE_SPHERE, "radius": 0.5 } } }));
+        out.push(source_row("Plane", "a sheet of cloth", "Cloth", { "shape3d": { "shape": { "kind": render::SHAPE_PLANE, "size": [2.0, 0.0, 2.0] } } }));
         for rel in project_files(state, "model") {
-            out.push(source_row(rel, "filled with cells that carry it as a skin", dropin::stem_of(rel), map().with("mesh", map().with("source", map().with("source", rel)))));
+            out.push(source_row(rel, "filled with cells that carry it as a skin", dropin::stem_of(rel), { "mesh": { "source": { "source": rel } } }));
         }
     }
     out
@@ -561,7 +562,7 @@ pub fn sprite_to_polygon(state: &mut editor::State, index: int) -> bool {
         return false;
     }
     history::record(state, "trace sprite", nil);
-    replace(node, [], map().with("polygon", polygon));
+    replace(node, [], { "polygon": polygon });
     node.remove("sprite");
     model::write_row(found, node);
     selection::only(state, index);
@@ -591,9 +592,9 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
         if polygon.is_nil() {
             return nil;
         }
-        let body = map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", util::deep(polygon.mesh));
-        let fill = map().with("cell_size", cell_size(polygon.mesh.positions));
-        return map().with("-sprite", true).with("softbody2d", body).with("soft_volumetric2d", fill).with("polygon", polygon);
+        let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::deep(polygon.mesh) };
+        let fill: any = { "cell_size": cell_size(polygon.mesh.positions) };
+        return { "-sprite": true, "softbody2d": body, "soft_volumetric2d": fill, "polygon": polygon };
     }
     if node.has("polygon") {
         let mesh = node.polygon.get(MESH);
@@ -601,10 +602,10 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
             log::warn("{node.name}'s polygon has no mesh yet: trace or draw it first");
             return nil;
         }
-        let body = map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", util::copy(mesh));
-        let parts = map().with("softbody2d", body);
+        let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::copy(mesh) };
+        let parts: any = { "softbody2d": body };
         if mesh.kind() == "map" {
-            parts.set("soft_volumetric2d", map().with("cell_size", cell_size(mesh.positions)));
+            parts.set("soft_volumetric2d", { "cell_size": cell_size(mesh.positions) });
         }
         return parts;
     }
@@ -613,13 +614,13 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
     let tint: any = if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color };
     if shape2d_kind(shape) == render::SHAPE_RECTANGLE {
         let size = util::vec2(form(shape).get(SIZE), [1.0, 1.0]);
-        let body = map().with("kind", physics2d::SOFT_GRID).with("color", tint);
-        let grid = map().with("size", size).with("cells", cells_2d(size));
-        return map().with("-shape2d", true).with("softbody2d", body).with("soft_grid2d", grid);
+        let body: any = { "kind": physics2d::SOFT_GRID, "color": tint };
+        let grid: any = { "size": size, "cells": cells_2d(size) };
+        return { "-shape2d": true, "softbody2d": body, "soft_grid2d": grid };
     }
-    let body = map().with("kind", physics2d::SOFT_CIRCLE).with("color", tint);
-    let circle = map().with("radius", or_float(form(shape).get(RADIUS), 0.5)).with("particle_count", 32);
-    map().with("-shape2d", true).with("softbody2d", body).with("soft_circle2d", circle)
+    let body: any = { "kind": physics2d::SOFT_CIRCLE, "color": tint };
+    let circle: any = { "radius": or_float(form(shape).get(RADIUS), 0.5), "particle_count": 32 };
+    { "-shape2d": true, "softbody2d": body, "soft_circle2d": circle }
 }
 
 // What a 3D node becomes: a mesh the cells carry as a skin, or a shape turned
@@ -627,26 +628,26 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
 fn soft_parts_3d(node: any) -> any {
     let source = mesh_source(node);
     if !source.is_nil() {
-        return map().with("softbody3d", map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", source)).with("soft_skin3d", map().with("skin", true));
+        return { "softbody3d": { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": source }, "soft_skin3d": { "skin": true } };
     }
     let shape = node.shape3d;
     let color = shape.get(COLOR);
     let tint: any = if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color };
     let kind = shape3d_kind(shape);
     if kind == render::SHAPE_SPHERE {
-        let body = map().with("kind", physics3d::SOFT_SPHERE).with("color", tint);
-        let sphere = map().with("radius", or_float(form(shape).get(RADIUS), 0.5));
-        return map().with("-shape3d", true).with("softbody3d", body).with("soft_sphere3d", sphere);
+        let body: any = { "kind": physics3d::SOFT_SPHERE, "color": tint };
+        let sphere: any = { "radius": or_float(form(shape).get(RADIUS), 0.5) };
+        return { "-shape3d": true, "softbody3d": body, "soft_sphere3d": sphere };
     }
     let size = util::vec3(form(shape).get(SIZE), [1.0, 1.0, 1.0]);
     if kind == render::SHAPE_PLANE {
-        let body = map().with("kind", physics3d::SOFT_CLOTH).with("color", tint);
-        let grid = map().with("size", [size[0], 0.0, size[2]]).with("cells", [12.0, 12.0, 1.0]);
-        return map().with("-shape3d", true).with("softbody3d", body).with("soft_grid3d", grid);
+        let body: any = { "kind": physics3d::SOFT_CLOTH, "color": tint };
+        let grid: any = { "size": [size[0], 0.0, size[2]], "cells": [12.0, 12.0, 1.0] };
+        return { "-shape3d": true, "softbody3d": body, "soft_grid3d": grid };
     }
-    let body = map().with("kind", physics3d::SOFT_BOX).with("color", tint);
-    let grid = map().with("size", size).with("cells", [4.0, 4.0, 4.0]);
-    map().with("-shape3d", true).with("softbody3d", body).with("soft_grid3d", grid)
+    let body: any = { "kind": physics3d::SOFT_BOX, "color": tint };
+    let grid: any = { "size": size, "cells": [4.0, 4.0, 4.0] };
+    { "-shape3d": true, "softbody3d": body, "soft_grid3d": grid }
 }
 
 // A sprite drawn from one whole image converts; one cut from a sheet or a
@@ -666,18 +667,19 @@ fn sprite_polygon(state: editor::State, sprite: any) -> any {
     let texture = sprite.get(TEXTURE).as_str();
     let pixels_per_unit = drawn_scale(state, sprite, texture);
     // Every loop, so an image of two shapes gives both; `islands` drops the holes.
-    let options = map().with("pixels_per_unit", pixels_per_unit).with("threshold", 0.5).with("tolerance", 2.0).with("holes", true);
+    let options: any = { "pixels_per_unit": pixels_per_unit, "threshold": 0.5, "tolerance": 2.0, "holes": true };
     let mesh = islands(sprite, render::trace_texture(state.game_root + "/" + texture, options));
     if mesh.indices.len() == 0 {
         log::warn("{texture} has no opaque pixels to trace");
         return nil;
     }
     let color = sprite.get(COLOR);
-    map()
-        .with("mesh", mesh)
-        .with("texture", texture)
-        .with("pixels_per_unit", pixels_per_unit)
-        .with("color", if color.is_nil() { [1.0, 1.0, 1.0, 1.0] } else { color })
+    {
+        "mesh": mesh,
+        "texture": texture,
+        "pixels_per_unit": pixels_per_unit,
+        "color": if color.is_nil() { [1.0, 1.0, 1.0, 1.0] } else { color },
+    }
 }
 
 // Every opaque island of an image as one mesh: each traced outline placed
@@ -704,7 +706,7 @@ fn islands(sprite: any, loops: [[Vec2]]) -> any {
             positions.push(point);
         }
     }
-    map().with("positions", positions).with("indices", indices)
+    { "positions": positions, "indices": indices }
 }
 
 // The pixels a world unit holds where the sprite is drawn: its own setting, a

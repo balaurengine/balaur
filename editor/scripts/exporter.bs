@@ -23,8 +23,8 @@ pub fn state() -> ExporterState {
         // One row per target, as `export::targets()` reports them.
         rows: [],
         // Per target: "started", "done" or "failed", and what it said.
-        status: map(),
-        said: map(),
+        status: {},
+        said: {},
         // Where the last finished export landed, for the Open folder button.
         landed: "",
     }
@@ -89,18 +89,20 @@ fn specs(state: editor::State) -> [any] {
         note("Builds the project this editor is editing.", "text_caption"),
         // The sheet builds; what it builds from is a settings page, so the
         // sentence that used to name the table is the link to it.
-        map()
-            .with("full", true)
-            .with("height", 24)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip")
-                    .with("text", "export settings")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_settings_clicked)),
-            ]),
+        {
+            "full": true,
+            "height": 24,
+            "slot_role": "layout_actions",
+            "controls": [
+                {
+                    "kind": "button",
+                    "role": "chip",
+                    "text": "export settings",
+                    "on": "handle",
+                    "data": { "fn": on_settings_clicked },
+                },
+            ],
+        },
     ];
     let picker = runtime_spec(state);
     if picker.is_some() {
@@ -128,21 +130,23 @@ fn runtime_spec(state: editor::State) -> any {
         return nil;
     }
     let now = settings::base(RUNTIME_SETTING);
-    map()
-        .with("full", true)
-        .with("height", 24)
-        .with("slot_role", "layout_actions")
-        .with("controls", [
-            map().with("kind", "label").with("role", "text_caption").with("text", "Runtime"),
-            map()
-                .with("kind", "dropdown")
-                .with("role", "choice_form")
-                .with("width", 120)
-                .with("text", if now.kind() == "str" { now } else { options.at(0) })
-                .with("options", options)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_runtime_picked)),
-        ])
+    {
+        "full": true,
+        "height": 24,
+        "slot_role": "layout_actions",
+        "controls": [
+            { "kind": "label", "role": "text_caption", "text": "Runtime" },
+            {
+                "kind": "dropdown",
+                "role": "choice_form",
+                "width": 120,
+                "text": if now.kind() == "str" { now } else { options.at(0) },
+                "options": options,
+                "on": "handle",
+                "data": { "fn": on_runtime_picked },
+            },
+        ],
+    }
 }
 
 fn on_runtime_picked(state: &mut editor::State, data: any, picked: any) {
@@ -157,17 +161,19 @@ pub fn pick_runtime(state: &mut editor::State, picked: str) {
 }
 
 fn note(text: str, role: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", role)
-                .with("grow", 1)
-                .with("wrap", true)
-                .with("text", text),
-        ])
+    {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "label",
+                "role": role,
+                "grow": 1,
+                "wrap": true,
+                "text": text,
+            },
+        ],
+    }
 }
 
 // Reveal, beside the close, once an export has landed somewhere.
@@ -175,14 +181,15 @@ fn folder_button(state: editor::State) -> [any] {
     if state.exporter.landed == "" {
         return [];
     }
-    let reveal = [
-        map()
-            .with("kind", "button")
-            .with("role", "action_form")
-            .with("text", "Reveal")
-            .with("tooltip", "Show the last export in the file manager")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_reveal_clicked)),
+    let reveal: [any] = [
+        {
+            "kind": "button",
+            "role": "action_form",
+            "text": "Reveal",
+            "tooltip": "Show the last export in the file manager",
+            "on": "handle",
+            "data": { "fn": on_reveal_clicked },
+        },
     ];
     reveal
 }
@@ -211,27 +218,27 @@ fn target_specs(state: editor::State, row: any, out: [any]) {
     let note_text = row.get("note").as_str();
     let status = state.exporter.status.get(name).as_str();
     let said = state.exporter.said.get(name).as_str();
-    let controls: [any] = [map().with("kind", "label").with("role", "text_code").with("text", name)];
+    let controls: [any] = [{ "kind": "label", "role": "text_code", "text": name }];
     if runtime != name {
-        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "→ " + runtime));
+        controls.push({ "kind": "label", "role": "text_caption", "text": "→ " + runtime });
     }
-    controls.push(map().with("kind", "label").with("role", "text_caption").with("text", readiness(installed, fetchable)));
+    controls.push({ "kind": "label", "role": "text_caption", "text": readiness(installed, fetchable) });
     if note_text != "" {
-        controls.push(map().with("kind", "label").with("role", "note_warning").with("text", note_text));
+        controls.push({ "kind": "label", "role": "note_warning", "text": note_text });
     }
-    controls.push(map().with("kind", "row").with("grow", 1));
+    controls.push({ "kind": "row", "grow": 1 });
     let verb = export_button(state, name, installed, fetchable, status);
     if verb.kind() == "map" {
         controls.push(verb);
     }
     if status == "started" {
-        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "building…"));
+        controls.push({ "kind": "label", "role": "text_caption", "text": "building…" });
     } else if status == "failed" {
-        controls.push(map().with("kind", "label").with("role", "note_danger").with("text", "failed"));
+        controls.push({ "kind": "label", "role": "note_danger", "text": "failed" });
     } else if status == "done" {
-        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", "done"));
+        controls.push({ "kind": "label", "role": "text_caption", "text": "done" });
     }
-    out.push(map().with("full", true).with("height", 24).with("slot_role", "layout_actions").with("controls", controls));
+    out.push({ "full": true, "height": 24, "slot_role": "layout_actions", "controls": controls });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
         out.push(note(said, if status == "failed" { "note_danger" } else { "text_caption" }));
@@ -244,13 +251,14 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
     if status == "started" || !(installed || fetchable) {
         return nil;
     }
-    map()
-        .with("kind", "button")
-        .with("role", "action_form")
-        .with("text", if installed { "export" } else { "download & export" })
-        .with("tooltip", "Export the project for this target")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_export_clicked).with("name", name))
+    {
+        "kind": "button",
+        "role": "action_form",
+        "text": if installed { "export" } else { "download & export" },
+        "tooltip": "Export the project for this target",
+        "on": "handle",
+        "data": { "fn": on_export_clicked, "name": name },
+    }
 }
 
 fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
@@ -259,5 +267,5 @@ fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
     status_map.set(name, "started");
     // `download` is the consent this click just gave: the engine
     // never fetches a runtime without being told it may.
-    export::start(name, map().with("download", true));
+    export::start(name, export::StartOptions { download: true });
 }

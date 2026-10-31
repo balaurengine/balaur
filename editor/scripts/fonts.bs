@@ -70,7 +70,7 @@ pub fn choices(state: &mut editor::State) -> [str] {
 /// directory on the machine.
 fn installed_faces(state: &mut editor::State) -> any {
     if state.system_fonts.is_nil() {
-        let found = map();
+        let found: any = {};
         for face in project::system_fonts() {
             found.set("{face.family} {face.style} · system", face.path);
         }
@@ -102,7 +102,7 @@ pub fn pick(state: &mut editor::State, at: inspector::AtTop, label: str) {
 pub fn open(state: &mut editor::State, at: inspector::AtTop) {
     state.font_finding = Finding { at: at, query: "" };
     if state.font_families.is_nil() && !waiting_on(state, "families") {
-        ask(state, CATALOGUE, Waiting { purpose: "families", family: nil, at: nil }, map());
+        ask(state, CATALOGUE, Waiting { purpose: "families", family: nil, at: nil }, {});
     }
     window::picker_changed(state);
 }
@@ -136,15 +136,16 @@ fn ask(state: &mut editor::State, url: str, waiting: Waiting, options: any) {
 pub fn fill(state: &mut editor::State) {
     let row_height = util::max(style::row_height(state), 30.0);
     let specs = rows(state, row_height);
-    let host = window::picker(state, map()
-        .with("width", 520.0)
-        .with("mark", icons::ui("search"))
-        .with("placeholder", "Open fonts: a family, serif, mono…")
-        .with("query", state.font_finding.unwrap().query)
-        .with("rows_h", (specs.len() as float) * (row_height + 2.0) + 4.0)
-        .with("on", "handle")
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("fn", typed).with("submit", typed)));
+    let host = window::picker(state, {
+        "width": 520.0,
+        "mark": icons::ui("search"),
+        "placeholder": "Open fonts: a family, serif, mono…",
+        "query": state.font_finding.unwrap().query,
+        "rows_h": (specs.len() as float) * (row_height + 2.0) + 4.0,
+        "on": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": typed, "submit": typed },
+    });
     pool::sync(state, host, specs, 0.0, false);
 }
 
@@ -169,12 +170,13 @@ fn rows(state: &mut editor::State, row_height: float) -> [any] {
         if query != "" && !(name + " " + category).to_lower().contains(query) {
             continue;
         }
-        let button = pool::on(map()
-            .with("kind", "button")
-            .with("role", "item_picker")
-            .with("grow", 1)
-            .with("text", "{name}  ·  {category}"), take_family, map().with("family", family));
-        out.push(map().with("full", true).with("height", row_height).with("controls", [button]));
+        let button = pool::on({
+            "kind": "button",
+            "role": "item_picker",
+            "grow": 1,
+            "text": "{name}  ·  {category}",
+        }, take_family, { "family": family });
+        out.push({ "full": true, "height": row_height, "controls": [button] });
     }
     if out.len() == 0 {
         out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
@@ -183,8 +185,8 @@ fn rows(state: &mut editor::State, row_height: float) -> [any] {
 }
 
 fn caption_row(text: str) -> any {
-    let label = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("text", text).with("wrap", true);
-    map().with("full", true).with("height", 0.0).with("controls", [label])
+    let label: any = { "kind": "label", "role": "text_caption", "grow": 1, "text": text, "wrap": true };
+    { "full": true, "height": 0.0, "controls": [label] }
 }
 
 fn take_family(state: &mut editor::State, data: any, _value: any) {
@@ -195,7 +197,7 @@ fn take_family(state: &mut editor::State, data: any, _value: any) {
 /// and its licence fetched into the project.
 pub fn take(state: &mut editor::State, family: any) {
     let at = state.font_finding.unwrap().at;
-    ask(state, CATALOGUE + "/" + family.id.as_str(), Waiting { purpose: "faces", family: family, at: at }, map());
+    ask(state, CATALOGUE + "/" + family.id.as_str(), Waiting { purpose: "faces", family: family, at: at }, {});
     log::info("fetching {family.family}…");
     close(state);
 }
@@ -258,13 +260,13 @@ fn fetch_face(state: &mut editor::State, waiting: Waiting, faces: any) {
     }
     let base = CATALOGUE + "/" + waiting.family.id.as_str() + "/";
     let name = face.file.as_str();
-    ask(state, base + name, Waiting { purpose: "face", family: waiting.family, at: waiting.at }, map().with("save_to", "fonts/" + name));
+    ask(state, base + name, Waiting { purpose: "face", family: waiting.family, at: waiting.at }, { "save_to": "fonts/" + name });
     // Beside the face and named for it, the licence's own name after it:
     // `Inter-Regular.OFL.txt`. An export ships it with the face.
     let licence = faces.licence.as_str();
     let halves = name.split_once(".");
     let stem = if halves.len() == 2 { halves[0] } else { name };
-    ask(state, base + licence, Waiting { purpose: "licence", family: waiting.family, at: "fonts/{stem}.{licence}" }, map());
+    ask(state, base + licence, Waiting { purpose: "licence", family: waiting.family, at: "fonts/{stem}.{licence}" }, {});
 }
 
 /// A face downloaded: into the project, and named by the row it was picked

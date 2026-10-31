@@ -34,13 +34,13 @@ fn plugin_components_roundtrip_through_the_registry() {
                 // set_component adds with defaults when the node lacks the
                 // component, and merges when it has it; there is no add_component.
                 n.set_component("body3d");
-                n.set_component("collider3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
-                n.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
-                n.set_component("widget", map().with("text", "hi"));
+                n.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
+                n.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
+                n.set_component("widget", { "text": "hi" });
 
                 let body = n.get_component("body3d");
                 self.check(body.get("kind").as_str() == "dynamic", "default body kind");
-                n.set_component("body3d", map().with("kind", "static"));
+                n.set_component("body3d", { "kind": "static" });
                 self.check(n.get_component("body3d", "kind").as_str() == "static", "edited body kind");
 
                 let col = n.get_component("collider3d");
@@ -288,9 +288,10 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Curve");
-                n.set_component("line2d", map()
-                    .with("width", 0.05)
-                    .with("mesh", map().with("type", "path2d").with("points", [[0.0, 0.0], [1.0, 0.0]]).with("closed", false)));
+                n.set_component("line2d", {
+                    "width": 0.05,
+                    "mesh": { "type": "path2d", "points": [[0.0, 0.0], [1.0, 0.0]], "closed": false },
+                });
                 // It resolved to an inline reference rather than failing, and the
                 // component reads back with one.
                 let mesh = n.get_component("line2d", "mesh").as_str();
@@ -355,8 +356,8 @@ fn a_one_property_write_leaves_the_rest() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Moved");
-                n.set_component("transform", map().with("position", [1.0, 2.0, 3.0]).with("scale", [4.0, 4.0, 4.0]));
-                n.patch_component("transform", map().with("position", [9.0, 0.0, 0.0]));
+                n.set_component("transform", { "position": [1.0, 2.0, 3.0], "scale": [4.0, 4.0, 4.0] });
+                n.patch_component("transform", { "position": [9.0, 0.0, 0.0] });
 
                 let at = n.get_component("transform", "position");
                 self.check(at.at(0).as_float() == 9.0, "position moved");
@@ -426,8 +427,8 @@ fn a_keyed_read_answers_one_property() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Keyed");
-                n.set_component("widget", map().with("text", "hi").with("kind", "button"));
-                n.set_component("collider3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
+                n.set_component("widget", { "text": "hi", "kind": "button" });
+                n.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
 
                 self.check(n.get_component("widget", "text").as_str() == "hi", "widget text");
                 self.check(n.get_component("widget", "kind").as_str() == "button", "widget kind");

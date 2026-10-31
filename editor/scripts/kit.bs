@@ -76,7 +76,7 @@ fn game_name(state: editor::State) -> str {
 /// What a verb remembers between frames: open tabs, open branches, drafts.
 fn memory(state: &mut editor::State) -> any {
     if state.kit_state.is_nil() {
-        state.kit_state = map();
+        state.kit_state = {};
     }
     state.kit_state
 }
@@ -121,8 +121,8 @@ pub fn area(host: str, name: str) -> Node {
 
 // A tab or a page button, which remembers itself picked per `id`.
 fn pick_button(state: &mut editor::State, id: str, name: str, role: str, on: bool) -> any {
-    let button = map().with("kind", "button").with("text", name).with("role", role).with("checked", on);
-    pool::on(button, picked, map().with("key", "tab:" + id).with("name", name))
+    let button: any = { "kind": "button", "text": name, "role": role, "checked": on };
+    pool::on(button, picked, { "key": "tab:" + id, "name": name })
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
@@ -176,39 +176,42 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
     let controls: [any] = [];
     for group in util::list_or_empty(groups) {
         if group.title.as_str() != "" {
-            controls.push(map().with("kind", "label").with("role", "text_caption").with("text", group.title));
+            controls.push({ "kind": "label", "role": "text_caption", "text": group.title });
         }
         for name in util::list_or_empty(group.names) {
             controls.push(pick_button(state, id, name.as_str(), "item_sidebar", name.as_str() == current));
         }
     }
     bar(state, host, "side", controls);
-    util::fill(host + "/Split/Side", map().with("visible", true));
+    util::fill(host + "/Split/Side", { "visible": true });
     memory(state).set("tab:" + id, current);
     current
 }
 
 /// A heading between groups of rows.
 pub fn heading(title: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 24)
-        .with("controls", [map().with("kind", "label").with("role", "action_section").with("text", title)])
+    {
+        "full": true,
+        "height": 24,
+        "controls": [{ "kind": "label", "role": "action_section", "text": title }],
+    }
 }
 
 /// What a panel says when it has nothing.
 pub fn empty(text: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_caption")
-                .with("grow", 1)
-                .with("wrap", true)
-                .with("text", text),
-        ])
+    {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_caption",
+                "grow": 1,
+                "wrap": true,
+                "text": text,
+            },
+        ],
+    }
 }
 
 /// Write the editor's own settings file, after a plugin set an editor-scope
@@ -232,23 +235,24 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
     let key = "shown:" + label;
     let revealed = memory(state).get(key).as_bool();
     let controls: [any] = [
-        map()
-            .with("kind", "label")
-            .with("grow", 1)
-            .with("truncate", true)
-            .with("role", option(options, "role", "text_caption"))
-            .with("text", if masked && !revealed { mask(text) } else { text }),
+        {
+            "kind": "label",
+            "grow": 1,
+            "truncate": true,
+            "role": option(options, "role", "text_caption"),
+            "text": if masked && !revealed { mask(text) } else { text },
+        },
     ];
     if masked {
-        let button = map().with("kind", "button").with("role", "chip").with("text", if revealed { "hide" } else { "show" });
-        controls.push(pool::on(button, field_toggled, map().with("key", key)));
+        let button: any = { "kind": "button", "role": "chip", "text": if revealed { "hide" } else { "show" } };
+        controls.push(pool::on(button, field_toggled, { "key": key }));
     }
     if option(options, "copy", false).as_bool() {
         let whole = option(options, "copy_text", text);
-        let button = map().with("kind", "button").with("role", "chip").with("text", "copy");
-        controls.push(pool::on(button, field_copied, map().with("whole", whole)));
+        let button: any = { "kind": "button", "role": "chip", "text": "copy" };
+        controls.push(pool::on(button, field_copied, { "whole": whole }));
     }
-    map().with("label", label).with("height", 22).with("slot_role", "layout_actions").with("controls", controls)
+    { "label": label, "height": 22, "slot_role": "layout_actions", "controls": controls }
 }
 
 fn field_toggled(state: &mut editor::State, data: any, _value: any) {
@@ -311,7 +315,7 @@ fn shown(value: any) -> str {
 /// the caller puts the specs on its host.
 pub fn tree(state: &mut editor::State, id: str, value: any, options: any) -> any {
     let none: [any] = [];
-    let out = map().with("specs", none).with("value", value).with("changed", false).with("write", option(options, "write", nil));
+    let out: any = { "specs": none, "value": value, "changed": false, "write": option(options, "write", nil) };
     let edit = option(options, "edit", false).as_bool();
     let label = option(options, "label", "").as_str();
     branch(state, out, id, [], label, value, edit, 0);
@@ -333,18 +337,20 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
     let count = if value.kind() == "map" { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
     if titled {
-        let button = map()
-            .with("kind", "button")
-            .with("role", "chip")
-            .with("text", indent(depth) + (if open { "▾ " } else { "▸ " }) + label);
-        out.specs.push(map()
-            .with("full", true)
-            .with("height", 22)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                pool::on(button, folded, map().with("key", key).with("open", open)),
-                map().with("kind", "label").with("role", "text_caption").with("text", count),
-            ]));
+        let button: any = {
+            "kind": "button",
+            "role": "chip",
+            "text": indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
+        };
+        out.specs.push({
+            "full": true,
+            "height": 22,
+            "slot_role": "layout_actions",
+            "controls": [
+                pool::on(button, folded, { "key": key, "open": open }),
+                { "kind": "label", "role": "text_caption", "text": count },
+            ],
+        });
     }
     if !open {
         return;
@@ -385,13 +391,13 @@ fn indent(depth: int) -> str {
 
 fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
     let text = shown(value);
-    let control = if edit {
-        let field = map().with("kind", "text_field").with("role", "input_form").with("grow", 1).with("text", text);
-        pool::on_submit(field, typed, map().with("text", text).with("out", out).with("keys", keys).with("value", value))
+    let control: any = if edit {
+        let field: any = { "kind": "text_field", "role": "input_form", "grow": 1, "text": text };
+        pool::on_submit(field, typed, { "text": text, "out": out, "keys": keys, "value": value })
     } else {
-        map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("truncate", true).with("text", text)
+        { "kind": "label", "role": "text_caption", "grow": 1, "truncate": true, "text": text }
     };
-    out.specs.push(map().with("height", 22).with("controls", [control]).with("label", indent(depth) + label));
+    out.specs.push({ "height": 22, "controls": [control], "label": indent(depth) + label });
 }
 
 fn typed(state: &mut editor::State, data: any, now: any) {
@@ -454,16 +460,17 @@ pub fn files(state: &mut editor::State, id: str, options: any) -> [any] {
     for name in util::list_or_empty(options.only) {
         only.push(name.as_str());
     }
-    let reveal_root = map().with("kind", "button").with("role", "chip").with("text", "reveal");
-    let out = [
-        map()
-            .with("full", true)
-            .with("height", 24)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("truncate", true).with("text", short_path(root)),
-                pool::on(reveal_root, revealed, map().with("path", root)),
-            ]),
+    let reveal_root: any = { "kind": "button", "role": "chip", "text": "reveal" };
+    let out: [any] = [
+        {
+            "full": true,
+            "height": 24,
+            "slot_role": "layout_actions",
+            "controls": [
+                { "kind": "label", "role": "text_caption", "grow": 1, "truncate": true, "text": short_path(root) },
+                pool::on(reveal_root, revealed, { "path": root }),
+            ],
+        },
     ];
     let drawn = folder(state, id, root, "", only, option(options, "edit", true).as_bool(), 0, out);
     if drawn == 0 {
@@ -501,15 +508,15 @@ fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [s
 fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [any]) {
     let key = "file:" + id;
     let open = memory(state).get(key).as_bool();
-    let toggle = map().with("kind", "button").with("role", "chip").with("text", (if open { "▾ " } else { "▸ " }) + rel);
-    let controls = [pool::on(toggle, folded, map().with("key", key).with("open", open))];
+    let toggle: any = { "kind": "button", "role": "chip", "text": (if open { "▾ " } else { "▸ " }) + rel };
+    let controls = [pool::on(toggle, folded, { "key": key, "open": open })];
     let when = fs::modified_time(path);
     if when.is_some() {
-        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", ago(engine::unix_time() - when.unwrap())));
+        controls.push({ "kind": "label", "role": "text_caption", "text": ago(engine::unix_time() - when.unwrap()) });
     }
-    let reveal = map().with("kind", "button").with("role", "chip").with("text", "reveal");
-    controls.push(pool::on(reveal, revealed, map().with("path", path)));
-    out.push(map().with("full", true).with("height", 24).with("controls", controls).with("slot_role", "layout_actions"));
+    let reveal: any = { "kind": "button", "role": "chip", "text": "reveal" };
+    controls.push(pool::on(reveal, revealed, { "path": path }));
+    out.push({ "full": true, "height": 24, "controls": controls, "slot_role": "layout_actions" });
     if open {
         document(state, id, path, edit, out);
     }
@@ -529,16 +536,17 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [any
     }
     let value = if as_toml { toml::parse(text.unwrap()) } else { json::parse(text.unwrap()) };
     if value.is_nil() {
-        out.push(map()
-            .with("full", true)
-            .with("height", 22)
-            .with("controls", [
-                map().with("kind", "label").with("role", "note_warning").with("grow", 1).with("wrap", true).with("text", "does not parse"),
-            ]));
+        out.push({
+            "full": true,
+            "height": 22,
+            "controls": [
+                { "kind": "label", "role": "note_warning", "grow": 1, "wrap": true, "text": "does not parse" },
+            ],
+        });
         return;
     }
-    let keep = map().with("file", path).with("toml", as_toml);
-    for spec in util::list_or_empty(tree(state, id, value, map().with("edit", edit).with("write", keep)).specs) {
+    let keep: any = { "file": path, "toml": as_toml };
+    for spec in util::list_or_empty(tree(state, id, value, { "edit": edit, "write": keep }).specs) {
         out.push(spec);
     }
 }

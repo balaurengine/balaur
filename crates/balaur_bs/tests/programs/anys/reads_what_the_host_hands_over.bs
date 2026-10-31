@@ -35,11 +35,11 @@ pub fn echo(v: any) -> any {
 
 pub fn built() -> any {
     let tags: [any] = ["a", "b"];
-    map().with("hp", 10).with("tags", tags).with("hp", 12)
+    { "hp": 12, "tags": tags }
 }
 
 pub fn shared() -> str {
-    let a = map();
+    let a: any = {};
     let b = a;
     a.set("hp", 10);
     b.set("hp", 12);

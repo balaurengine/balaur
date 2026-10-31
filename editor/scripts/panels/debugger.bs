@@ -62,7 +62,7 @@ impl Debugger {
             return;
         }
         let tools = self.node.get_node("Tools");
-        tools.get_node("Pause").patch_component("widget", map().with("visible", view.get("can_pause")));
+        tools.get_node("Pause").patch_component("widget", { "visible": view.get("can_pause") });
         let steps = STEPS();
         for index in 0..steps.len() {
             let step = steps[index];
@@ -72,13 +72,14 @@ impl Debugger {
             }
             tools.get_node(step).patch_component("widget", shown);
         }
-        tools.get_node("Where").patch_component("widget", map().with("text", view.get("where")));
-        tools.get_node("Threw").patch_component("widget", map().with("visible", view.get("threw").as_str() != "").with("text", view.get("threw")));
-        tools.get_node("BreakOnError").patch_component("widget", map().with("checked", view.get("break_on_error")));
-        self.node.get_node("Stack").patch_component("widget", map()
-            .with("visible", view.get("stopped"))
-            .with("options", view.get("frames"))
-            .with("text", view.get("picked")));
+        tools.get_node("Where").patch_component("widget", { "text": view.get("where") });
+        tools.get_node("Threw").patch_component("widget", { "visible": view.get("threw").as_str() != "", "text": view.get("threw") });
+        tools.get_node("BreakOnError").patch_component("widget", { "checked": view.get("break_on_error") });
+        self.node.get_node("Stack").patch_component("widget", {
+            "visible": view.get("stopped"),
+            "options": view.get("frames"),
+            "text": view.get("picked"),
+        });
     }
 }
 

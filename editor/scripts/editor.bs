@@ -332,7 +332,7 @@ pub fn fresh_state() -> State {
         newnode_soft: "",
         renaming: false,
         rename_text: "",
-        chip_state: map(),
+        chip_state: {},
         compact: false,
         // The room's answers the docks were last folded for: a change is a
         // new screen, whatever the class words did.
@@ -348,12 +348,12 @@ pub fn fresh_state() -> State {
         release_at: -1,
         states_applied: false,
         start_states: "",
-        script_buffers: map(),
-        schemas: map(),
-        expects: map(),
-        opened: map(),
-        script_dirty: map(),
-        collapsed: map(),
+        script_buffers: {},
+        schemas: {},
+        expects: {},
+        opened: {},
+        script_dirty: {},
+        collapsed: {},
         // The panel `view:<id>` asked for, and the rect last logged for it.
         view_shot: "",
         view_logged: "",
@@ -369,15 +369,15 @@ pub fn fresh_state() -> State {
         // The inspector's rows, described each frame and made by `pool.bs`.
         form: [],
         // What each pooled host was last filled for; see `pool::strip_when`.
-        pool_keys: map(),
+        pool_keys: {},
         inspector_after: 0.0,
-        inspect_warned: map(),
+        inspect_warned: {},
         // Each component's rows cut into native runs, by component.
-        inspect_layout: map(),
+        inspect_layout: {},
         tree_cache: left::TreeCache { key: "", rows: [] },
         // The guard on each word `signals` tells, and the keys each word was
         // last told for.
-        told: map(),
+        told: {},
         inspector_key: nil,
         docks_key: nil,
         chrome_key: nil,
@@ -404,9 +404,9 @@ pub fn fresh_state() -> State {
         // keyed by node id, and isolate hides everything outside the set.
         selected: 0,
         selected_rows: [0],
-        locks: map(),
+        locks: {},
         // Four camera slots on the viewport chip row, kept for the session.
-        bookmarks: map(),
+        bookmarks: {},
         isolated: false,
         isolate_hidden: [],
         fps: 0.0,
@@ -451,11 +451,11 @@ pub fn fresh_state() -> State {
         // a document over it.
         viewport_live: true,
         mode2d: false,
-        sources: map(),
+        sources: {},
         // The edited scene's whole document, so a save keeps what the editor
         // does not model and the mirror sees its `[[assets]]`.
-        scene_doc: map(),
-        listings: map(),
+        scene_doc: {},
+        listings: {},
         clip: nil,
         hooks_source: "",
         hooks_live: [],
@@ -507,7 +507,7 @@ pub fn fresh_state() -> State {
         assets_touched: false,
         // This batch of imports, by the source each reports: the ones running
         // and the ones lately ended. `chrome::toast` draws them.
-        jobs: map(),
+        jobs: {},
         // What `imports:` still has to start, and the frame it starts on.
         import_queue: [],
         import_drip: false,
@@ -515,14 +515,14 @@ pub fn fresh_state() -> State {
         settings: settings::state(),
         themewin: themewin::state(),
         window: window::state(),
-        search: map(),
+        search: {},
         showcase: showcase::state(),
         inputview: inputview::state(),
         library: library::state(),
         manager: manager::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
-        plugins: map(),
+        plugins: {},
         registry: plugins::state(),
         scene_root: nil,
         nodes: [],
@@ -539,7 +539,7 @@ pub fn fresh_state() -> State {
         system_fonts: nil,
         font_finding: nil,
         font_families: nil,
-        font_requests: map(),
+        font_requests: {},
         row_after: nil,
         kit_state: nil,
         rows_query: "",
@@ -556,11 +556,11 @@ pub fn boot(state: &mut State, editor: Node, listen: bool) {
     plugins::load(state);
     if listen {
         // Exports and imports run off the frame and report back here as they go.
-        export::listen(editor, map());
-        import::listen(editor, map());
-        release::listen(editor, map());
-        forge::listen(editor, map());
-        picture::listen(editor, map());
+        export::listen(editor, nil);
+        import::listen(editor, nil);
+        release::listen(editor, nil);
+        forge::listen(editor, nil);
+        picture::listen(editor, nil);
         signals::hear_own(editor);
         signals::hear_engine(editor);
         signals::hear_boxes(state, editor);

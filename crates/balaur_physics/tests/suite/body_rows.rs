@@ -300,13 +300,13 @@ script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 collider3d = { shape = { kind = "box" } }
 "#,
-        r#"pub class Scenario { node: Node }
+        r"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.body3d.teleport(1.0, 2.0, 3.0, map().with("rotation", [0.0, 0.5, 0.0]));
+        self.node.body3d.teleport(1.0, 2.0, 3.0, physics3d::TeleportOptions { rotation: [0.0, 0.5, 0.0] });
     }
 }
-"#,
+",
     );
     booted.tick(1);
     let crate_node = booted.node("Crate");

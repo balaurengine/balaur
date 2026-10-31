@@ -25,11 +25,11 @@ impl Platform {
         // A tween is a clip generated on the spot: it reads the value the node
         // has right now and animates from it, through the same sampler and the
         // same fixed step a clip asset goes through.
-        let steps = [
-            map().with("property", "shape3d/color").with("to", [1.0, 0.8, 0.25, 1.0]).with("duration", 0.25),
-            map().with("property", "shape3d/color").with("to", [0.55, 0.35, 0.8, 1.0]).with("duration", 0.75).with("ease", animation::EASE_OUT_QUAD),
+        let steps: [any] = [
+            { "property": "shape3d/color", "to": [1.0, 0.8, 0.25, 1.0], "duration": 0.25 },
+            { "property": "shape3d/color", "to": [0.55, 0.35, 0.8, 1.0], "duration": 0.75, "ease": animation::EASE_OUT_QUAD },
         ];
-        animation::tween(self.node, map().with("steps", steps));
+        animation::tween(self.node, animation::Tween { steps: steps });
         log::info("platform turned {self.turns} time(s)");
     }
 }

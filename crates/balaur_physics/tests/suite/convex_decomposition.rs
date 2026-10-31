@@ -211,7 +211,7 @@ fn a_script_can_ask_for_the_pieces() {
 impl Scenario {
     fn init() {
         let l = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
-        let plain = geometry2d::convex_decomposition(l, map().with("overlap", 0.0));
+        let plain = geometry2d::convex_decomposition(l, geometry2d::DecompositionOptions { overlap: 0.0 });
         if plain.len() != 2 { log::error("an L should cut into two pieces"); }
         let grown = geometry2d::convex_decomposition(l);
         if grown.len() != 2 { log::error("the overlap changed the piece count"); }

@@ -73,13 +73,13 @@ impl Code {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")));
+        self.node.patch_component("widget", { "visible": view.get("shown"), "inset": view.get("inset") });
         if !view.get("shown").as_bool() {
             return;
         }
-        self.node.get_node("Note").patch_component("widget", map().with("visible", view.get("note").as_str() != "").with("text", view.get("note")));
+        self.node.get_node("Note").patch_component("widget", { "visible": view.get("note").as_str() != "", "text": view.get("note") });
         let scroll = self.node.get_node("Scroll");
-        scroll.patch_component("widget", map().with("visible", view.get("note").as_str() == ""));
+        scroll.patch_component("widget", { "visible": view.get("note").as_str() == "" });
         if view.get("note").as_str() != "" {
             return;
         }
@@ -87,13 +87,13 @@ impl Code {
         // The text only when the buffer moved under the editor: what is typed is
         // the widget's own, and writing it back would put the caret at the end.
         if view.get("path").as_str() != self.path || view.get("rev").as_int() != self.rev {
-            editor.patch_component("widget", map().with("text", view.get("text")));
+            editor.patch_component("widget", { "text": view.get("text") });
             self.path = view.get("path").as_str();
             self.rev = view.get("rev").as_int();
         }
         editor.patch_component("widget_code", view.get("look"));
         if view.get("scroll_to").as_float() >= 0.0 {
-            scroll.patch_component("widget_scroll", map().with("scroll_offset", [0.0, view.get("scroll_to")]));
+            scroll.patch_component("widget_scroll", { "scroll_offset": [0.0, view.get("scroll_to")] });
         }
     }
 }

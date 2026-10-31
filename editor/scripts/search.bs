@@ -8,14 +8,15 @@ use editor;
 /// state under the same `id`, so `query` answers for either. Its edit comes
 /// back to the Editor's `search_typed` with the `id` it carries.
 pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> any {
-    map()
-        .with("kind", "text_field")
-        .with("role", "input_dock")
-        .with("width", width)
-        .with("text", query(state, id))
-        .with("placeholder", placeholder)
-        .with("on", "search_typed")
-        .with("data", id)
+    {
+        "kind": "text_field",
+        "role": "input_dock",
+        "width": width,
+        "text": query(state, id),
+        "placeholder": placeholder,
+        "on": "search_typed",
+        "data": id,
+    }
 }
 
 /// What a search control's edit writes: the query under its `id`.

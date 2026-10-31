@@ -132,7 +132,7 @@ pub fn label(n: int) -> str { "#{n} {defs::NAME}" }
 pub fn pick(f: fn(int) -> int, x: int) -> int { f(x) }
 pub fn first(xs: [str]) -> str? { if xs.len() > 0 { xs[0] } else { nil } }
 pub fn bump(n: &mut int) { n += 1; }
-pub fn table() -> any { map().with("a", 1).with("b", [1, 2, 3]) }
+pub fn table() -> any { { "a": 1, "b": [1, 2, 3] } }
 pub fn halve() -> fn(int) -> int { half }
 fn half(n: int) -> int { n / 2 }
 "##;

@@ -9,6 +9,6 @@ impl ComponentRead {
     fn update(dt: float) {
         let held = self.node.get_component("shape2d", "shape").get("radius");
         self.seen = if held.kind() == "float" { held.as_float() } else { 0.0 };
-        self.node.patch_component("shape2d", map().with("shape", map().with("radius", self.seen)));
+        self.node.patch_component("shape2d", { "shape": { "radius": self.seen } });
     }
 }

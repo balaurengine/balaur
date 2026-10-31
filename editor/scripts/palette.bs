@@ -257,12 +257,12 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     }
     if !physics::drawn_mesh(found, two_d).is_nil() {
         for shape in physics::collider_shapes(two_d) {
-            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.properties).with("beside", shape.beside));
+            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
         for shape in physics::soft_shapes(two_d) {
-            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.properties).with("beside", shape.beside));
+            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -449,13 +449,14 @@ fn run_add_component(state: &mut editor::State, data: any) {
 pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
     let row_height = util::max(style::row_height(state), 30.0);
-    let field = map()
-        .with("width", 560.0)
-        .with("mark", icons::ui("search"))
-        .with("placeholder", "Nodes, commands, workspaces…")
-        .with("query", state.palette_query)
-        .with("rows_h", (matched.len() as float) * (row_height + 2.0) + 4.0);
-    let host = window::picker(state, pool::on_submit(pool::on(field, typed, map()), submitted, map()));
+    let field: any = {
+        "width": 560.0,
+        "mark": icons::ui("search"),
+        "placeholder": "Nodes, commands, workspaces…",
+        "query": state.palette_query,
+        "rows_h": (matched.len() as float) * (row_height + 2.0) + 4.0,
+    };
+    let host = window::picker(state, pool::on_submit(pool::on(field, typed, {}), submitted, {}));
     pool::sync(state, host, row_specs(state, matched, row_height), 0.0, false);
 }
 
@@ -485,8 +486,8 @@ fn matches(state: &mut editor::State) -> [Command] {
 fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [any] {
     let out: [any] = [];
     if matched.len() == 0 {
-        let none = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("wrap", true).with("text", "no matches");
-        out.push(map().with("full", true).with("controls", [none]));
+        let none: any = { "kind": "label", "role": "text_caption", "grow": 1, "wrap": true, "text": "no matches" };
+        out.push({ "full": true, "controls": [none] });
         state.palette_submit = false;
         return out;
     }
@@ -501,22 +502,24 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
     }
     for at in 0..matched.len() {
         let command_entry = matched[at];
-        let button = map()
-            .with("kind", "button")
-            .with("grow", 1)
-            .with("text", command_entry.label)
-            .with("icon", command_entry.icon)
-            .with("role", "item_picker")
-            .with("checked", at == 0)
-            .with("tooltip", command_entry.key);
-        out.push(map()
-            .with("full", true)
-            .with("height", row_height)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                pool::on(button, picked, map().with("run", command_entry.run).with("arg", command_entry.data)),
-                map().with("kind", "label").with("role", "text_caption").with("text", command_entry.key),
-            ]));
+        let button: any = {
+            "kind": "button",
+            "grow": 1,
+            "text": command_entry.label,
+            "icon": command_entry.icon,
+            "role": "item_picker",
+            "checked": at == 0,
+            "tooltip": command_entry.key,
+        };
+        out.push({
+            "full": true,
+            "height": row_height,
+            "slot_role": "layout_actions",
+            "controls": [
+                pool::on(button, picked, { "run": command_entry.run, "arg": command_entry.data }),
+                { "kind": "label", "role": "text_caption", "text": command_entry.key },
+            ],
+        });
     }
     out
 }

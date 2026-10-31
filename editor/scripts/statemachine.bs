@@ -75,7 +75,7 @@ fn source(state: &mut editor::State) -> Source? {
             return Source { doc: loaded, path: path };
         }
     }
-    Source { doc: map().with("type", MACHINE_TYPE).with("states", map()).with("transitions", []), path: nil }
+    Source { doc: { "type": MACHINE_TYPE, "states": {}, "transitions": [] }, path: nil }
 }
 
 // A copy to change, so the edit lands after the history step: a machine in
@@ -102,7 +102,7 @@ fn write(state: &mut editor::State, found: Source, label: str) {
         log::info("{label}: {path}");
     } else {
         history::record(state, label, nil);
-        model::selected_node(state).patch_component(COMPONENT, map().with("machine", found.doc));
+        model::selected_node(state).patch_component(COMPONENT, { "machine": found.doc });
         history::commit(state);
     }
     signals::changed(state, "machine");
@@ -114,14 +114,14 @@ pub fn create(state: &mut editor::State) {
         return;
     }
     history::record(state, "add state machine", nil);
-    let machine = map().with("type", MACHINE_TYPE).with("start", "").with("states", map()).with("transitions", []);
-    model::selected_node(state).set_component(COMPONENT, map().with("machine", machine).with("player", "").with("active", true));
+    let machine: any = { "type": MACHINE_TYPE, "start": "", "states": {}, "transitions": [] };
+    model::selected_node(state).set_component(COMPONENT, { "machine": machine, "player": "", "active": true });
     history::commit(state);
 }
 
 fn states(doc: any) -> any {
     let held = doc.states;
-    if held.kind() == "map" { held } else { map() }
+    if held.kind() == "map" { held } else { {} }
 }
 
 fn transitions(doc: any) -> [any] {
@@ -223,7 +223,7 @@ pub fn add_transition(state: &mut editor::State) {
     }
     let to = if names.len() > 1 { names[1] } else { names[0] };
     let held = transitions(found.doc);
-    held.push(map().with("from", names[0]).with("to", to).with("advance_mode", animation::ADVANCE_MODE_ENABLED));
+    held.push({ "from": names[0], "to": to, "advance_mode": animation::ADVANCE_MODE_ENABLED });
     state.machine.open = held.len() - 1;
     found.doc.set("transitions", held);
     write(state, found, "add transition");
@@ -295,18 +295,19 @@ fn offer(state: editor::State) -> [any] {
     }
     return [
         caption("no state machine on this node"),
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_secondary")
-            .with("text", "add state machine")
-            .with("tooltip", "Give the node an embedded `state_machine` over its own player")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_add_machine_pressed)),
+        {
+            "kind": "button",
+            "role": "action_form_secondary",
+            "text": "add state machine",
+            "tooltip": "Give the node an embedded `state_machine` over its own player",
+            "on": "handle",
+            "data": { "fn": on_add_machine_pressed },
+        },
     ];
 }
 
 fn caption(text: str) -> any {
-    map().with("kind", "label").with("role", "text_caption").with("text", text)
+    { "kind": "label", "role": "text_caption", "text": text }
 }
 
 fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -321,18 +322,19 @@ fn header_controls(state: editor::State, found: Source) -> [any] {
     let out = [
         caption(place),
         caption("start"),
-        map()
-            .with("kind", "dropdown")
-            .with("role", "choice_form")
-            .with("width", FIELD_WIDTH)
-            .with("text", doc.start.as_str())
-            .with("options", state_names(doc))
-            .with("on", "handle")
-            .with("data", map().with("fn", on_start_picked)),
+        {
+            "kind": "dropdown",
+            "role": "choice_form",
+            "width": FIELD_WIDTH,
+            "text": doc.start.as_str(),
+            "options": state_names(doc),
+            "on": "handle",
+            "data": { "fn": on_start_picked },
+        },
     ];
     let now = live_state(state);
     if now != "" {
-        out.push(map().with("kind", "label").with("role", "chip").with("checked", true).with("text", "now {now}"));
+        out.push({ "kind": "label", "role": "chip", "checked": true, "text": "now {now}" });
     }
     out
 }
@@ -365,56 +367,62 @@ fn row_specs(state: &mut editor::State, doc: any) -> [any] {
         let clip = machine_states.get(name);
         // Bound afresh: a closure made in a loop captures the binding.
         let state_name = name;
-        let control = if clip.kind() == "str" {
-            map()
-                .with("kind", "dropdown")
-                .with("role", "choice_form")
-                .with("width", FIELD_WIDTH)
-                .with("text", if clip.as_str() == "" { state_name } else { clip.as_str() })
-                .with("options", clips)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_state_clip_picked).with("state", state_name))
+        let control: any = if clip.kind() == "str" {
+            {
+                "kind": "dropdown",
+                "role": "choice_form",
+                "width": FIELD_WIDTH,
+                "text": if clip.as_str() == "" { state_name } else { clip.as_str() },
+                "options": clips,
+                "on": "handle",
+                "data": { "fn": on_state_clip_picked, "state": state_name },
+            }
         } else {
             caption("nested machine")
         };
-        out.push(map()
-            .with("full", false)
-            .with("height", ROW_HEIGHT)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
+        out.push({
+            "full": false,
+            "height": ROW_HEIGHT,
+            "slot_role": "layout_actions",
+            "controls": [
                 control,
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip_quiet")
-                    .with("text", "×")
-                    .with("tooltip", "Remove the state and its transitions")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_state_remove_pressed).with("state", state_name)),
-            ])
-            .with("label", state_name));
+                {
+                    "kind": "button",
+                    "role": "chip_quiet",
+                    "text": "×",
+                    "tooltip": "Remove the state and its transitions",
+                    "on": "handle",
+                    "data": { "fn": on_state_remove_pressed, "state": state_name },
+                },
+            ],
+            "label": state_name,
+        });
     }
-    out.push(map()
-        .with("full", true)
-        .with("height", ROW_HEIGHT)
-        .with("slot_role", "layout_actions")
-        .with("controls", [
-            map()
-                .with("kind", "text_field")
-                .with("role", "input_form")
-                .with("width", NAME_WIDTH + FIELD_WIDTH)
-                .with("text", state.machine.naming)
-                .with("placeholder", "new state")
-                .with("on", "handle")
-                .with("on_submit", "handle_submit")
-                .with("data", map().with("fn", on_new_state_typed).with("submit", on_new_state_submitted)),
-            map()
-                .with("kind", "button")
-                .with("role", "action_form_secondary")
-                .with("text", "add state")
-                .with("tooltip", "A state playing the clip of its own name")
-                .with("on", "handle")
-                .with("data", map().with("fn", on_add_state_pressed)),
-        ]));
+    out.push({
+        "full": true,
+        "height": ROW_HEIGHT,
+        "slot_role": "layout_actions",
+        "controls": [
+            {
+                "kind": "text_field",
+                "role": "input_form",
+                "width": NAME_WIDTH + FIELD_WIDTH,
+                "text": state.machine.naming,
+                "placeholder": "new state",
+                "on": "handle",
+                "on_submit": "handle_submit",
+                "data": { "fn": on_new_state_typed, "submit": on_new_state_submitted },
+            },
+            {
+                "kind": "button",
+                "role": "action_form_secondary",
+                "text": "add state",
+                "tooltip": "A state playing the clip of its own name",
+                "on": "handle",
+                "data": { "fn": on_add_state_pressed },
+            },
+        ],
+    });
     transition_specs(state, doc, out);
     out
 }
@@ -452,13 +460,14 @@ fn named(state: &mut editor::State, text: str) {
 
 fn transition_specs(state: editor::State, doc: any, out: [any]) {
     out.push(head_spec("TRANSITIONS", [
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_secondary")
-            .with("text", "add transition")
-            .with("tooltip", "A transition between two states, opened for editing")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_add_transition_pressed)),
+        {
+            "kind": "button",
+            "role": "action_form_secondary",
+            "text": "add transition",
+            "tooltip": "A transition between two states, opened for editing",
+            "on": "handle",
+            "data": { "fn": on_add_transition_pressed },
+        },
     ]));
     let names = state_names(doc);
     // `end` is somewhere a transition goes, never somewhere one leaves.
@@ -473,28 +482,31 @@ fn transition_specs(state: editor::State, doc: any, out: [any]) {
         let from = if transition.from.is_nil() { "?" } else { transition.from.as_str() };
         let to = if transition.to.is_nil() { "?" } else { transition.to.as_str() };
         let mode = if transition.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition.advance_mode.as_str() };
-        out.push(map()
-            .with("full", true)
-            .with("height", ROW_HEIGHT)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map()
-                    .with("kind", "button")
-                    .with("min_width", NAME_WIDTH + FIELD_WIDTH)
-                    .with("role", "item_list")
-                    .with("checked", open)
-                    .with("text", "{from} → {to}  {mode}")
-                    .with("tooltip", "Open the transition's fields")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_transition_picked).with("open", open).with("index", index)),
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip_quiet")
-                    .with("text", "×")
-                    .with("tooltip", "Remove the transition")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_transition_remove_pressed).with("index", index)),
-            ]));
+        out.push({
+            "full": true,
+            "height": ROW_HEIGHT,
+            "slot_role": "layout_actions",
+            "controls": [
+                {
+                    "kind": "button",
+                    "min_width": NAME_WIDTH + FIELD_WIDTH,
+                    "role": "item_list",
+                    "checked": open,
+                    "text": "{from} → {to}  {mode}",
+                    "tooltip": "Open the transition's fields",
+                    "on": "handle",
+                    "data": { "fn": on_transition_picked, "open": open, "index": index },
+                },
+                {
+                    "kind": "button",
+                    "role": "chip_quiet",
+                    "text": "×",
+                    "tooltip": "Remove the transition",
+                    "on": "handle",
+                    "data": { "fn": on_transition_remove_pressed, "index": index },
+                },
+            ],
+        });
         if open {
             field_specs(state, index, transition, names, targets, out);
         }
@@ -522,24 +534,25 @@ fn head_spec(text: str, verbs: [any]) -> any {
     for verb in verbs {
         controls.push(verb);
     }
-    map().with("full", true).with("height", ROW_HEIGHT).with("slot_role", "layout_actions").with("controls", controls)
+    { "full": true, "height": ROW_HEIGHT, "slot_role": "layout_actions", "controls": controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
 fn field_spec(label: str, control: any) -> any {
-    map().with("full", false).with("height", ROW_HEIGHT).with("controls", [control]).with("label", "    " + label)
+    { "full": false, "height": ROW_HEIGHT, "controls": [control], "label": "    " + label }
 }
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> any {
-    map()
-        .with("kind", "dropdown")
-        .with("role", "choice_form")
-        .with("width", FIELD_WIDTH)
-        .with("text", current)
-        .with("options", choices)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_choice_picked).with("at", at).with("key", key))
+    {
+        "kind": "dropdown",
+        "role": "choice_form",
+        "width": FIELD_WIDTH,
+        "text": current,
+        "options": choices,
+        "on": "handle",
+        "data": { "fn": on_choice_picked, "at": at, "key": key },
+    }
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
@@ -549,14 +562,15 @@ fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
 }
 
 fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: str) -> any {
-    map()
-        .with("kind", "text_field")
-        .with("role", "input_form")
-        .with("width", FIELD_WIDTH)
-        .with("text", current)
-        .with("placeholder", placeholder)
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("submit", on_text_submitted).with("current", current).with("at", at).with("key", key))
+    {
+        "kind": "text_field",
+        "role": "input_form",
+        "width": FIELD_WIDTH,
+        "text": current,
+        "placeholder": placeholder,
+        "on_submit": "handle_submit",
+        "data": { "submit": on_text_submitted, "current": current, "at": at, "key": key },
+    }
 }
 
 fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
@@ -571,16 +585,17 @@ fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
 // `whole` is both how it steps and what it writes: a drag value shows as many
 // decimals as its speed has, and `priority` parses a whole number only.
 fn number(state: editor::State, at: int, key: str, current: float, whole: bool) -> any {
-    map()
-        .with("kind", "number_field")
-        .with("role", "input_number")
-        .with("width", FIELD_WIDTH)
-        .with("value", current.as_float())
-        .with("min", 0.0)
-        .with("max", if whole { 1000.0 } else { 100.0 })
-        .with("drag_speed", if whole { 1.0 } else { 0.01 })
-        .with("on", "handle")
-        .with("data", map().with("fn", on_number_changed).with("at", at).with("key", key).with("whole", whole))
+    {
+        "kind": "number_field",
+        "role": "input_number",
+        "width": FIELD_WIDTH,
+        "value": current.as_float(),
+        "min": 0.0,
+        "max": if whole { 1000.0 } else { 100.0 },
+        "drag_speed": if whole { 1.0 } else { 0.01 },
+        "on": "handle",
+        "data": { "fn": on_number_changed, "at": at, "key": key, "whole": whole },
+    }
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
@@ -595,12 +610,13 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 }
 
 fn flag(state: editor::State, at: int, key: str, on: bool) -> any {
-    map()
-        .with("kind", "switch")
-        .with("role", "switch_form")
-        .with("checked", on)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_flag_changed).with("at", at).with("key", key))
+    {
+        "kind": "switch",
+        "role": "switch_form",
+        "checked": on,
+        "on": "handle",
+        "data": { "fn": on_flag_changed, "at": at, "key": key },
+    }
 }
 
 fn on_flag_changed(state: &mut editor::State, data: any, value: any) {

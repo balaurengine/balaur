@@ -75,25 +75,27 @@ fn fold_row(state: &mut editor::State, role: str, open: bool, text: str, icon: s
 /// A fold's heading with verbs of its own after it, for a section that can be
 /// taken off the node.
 fn fold_row_with(state: &mut editor::State, role: str, open: bool, text: str, icon: str, icon_color: str, key: str, store: str, extra: [any]) {
-    let controls = [
-        map()
-            .with("kind", "label")
-            .with("role", "text_caret_" + role)
-            .with("text", if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }),
-        map()
-            .with("kind", "button")
-            .with("role", "action_" + role)
-            .with("grow", 1)
-            .with("text", text)
-            .with("icon", icon)
-            .with("icon_color", icon_color)
-            .with("on", "handle")
-            .with("data", map().with("fn", folded).with("key", key).with("store", store).with("open", open)),
+    let controls: [any] = [
+        {
+            "kind": "label",
+            "role": "text_caret_" + role,
+            "text": if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+        },
+        {
+            "kind": "button",
+            "role": "action_" + role,
+            "grow": 1,
+            "text": text,
+            "icon": icon,
+            "icon_color": icon_color,
+            "on": "handle",
+            "data": { "fn": folded, "key": key, "store": store, "open": open },
+        },
     ];
     for one in extra {
         controls.push(one);
     }
-    push(state, map().with("full", true).with("height", row_height(state)).with("slot_role", "layout_" + role).with("controls", controls));
+    push(state, { "full": true, "height": row_height(state), "slot_role": "layout_" + role, "controls": controls });
 }
 
 fn folded(state: &mut editor::State, data: any, _value: any) {
@@ -201,7 +203,7 @@ pub fn add_row(state: &mut editor::State, spec: any) {
 
 /// One labelled row of controls, for a panel describing its own form.
 pub fn form_row(state: &mut editor::State, label: str, controls: [any]) {
-    push(state, map().with("full", false).with("controls", controls).with("label", label));
+    push(state, { "full": false, "controls": controls, "label": label });
 }
 
 /// A property's value as its row draws it. `unit` is display only: the
@@ -226,10 +228,11 @@ fn property_tip(property: str, spec: any) -> str {
 /// A line of text spanning both columns, for a heading or a note: a label
 /// in `role`, so nothing is drawn by hand.
 pub fn note_row(state: &mut editor::State, height: float, role: str, text: str) {
-    push(state, map()
-        .with("full", true)
-        .with("height", height)
-        .with("controls", [map().with("kind", "label").with("role", role).with("text", text)]));
+    push(state, {
+        "full": true,
+        "height": height,
+        "controls": [{ "kind": "label", "role": role, "text": text }],
+    });
 }
 
 // The label column, derived from the form: at a width neither column fits,
@@ -273,21 +276,23 @@ fn multi_note(state: &mut editor::State) {
     if count < 2 {
         return;
     }
-    push(state, map()
-        .with("full", true)
-        .with("height", row_height(state) + 4.0)
-        .with("controls", [
-            map()
-                .with("kind", "panel")
-                .with("role", "note_primary")
-                .with("grow", 1)
-                .with("icon", icons::ui("select-all"))
-                .with("text", if state.compact {
+    push(state, {
+        "full": true,
+        "height": row_height(state) + 4.0,
+        "controls": [
+            {
+                "kind": "panel",
+                "role": "note_primary",
+                "grow": 1,
+                "icon": icons::ui("select-all"),
+                "text": if state.compact {
                     "{count} nodes selected"
                 } else {
                     "{count} nodes selected · editing applies to all"
-                }),
-        ]));
+                },
+            },
+        ],
+    });
 }
 
 fn instance_note(state: &mut editor::State, tokens: any) {
@@ -296,38 +301,44 @@ fn instance_note(state: &mut editor::State, tokens: any) {
         return;
     }
     // A prefab path is as long as the project makes it, so the column cuts it.
-    push(state, map()
-        .with("full", true)
-        .with("height", row_height(state) + 8.0)
-        .with("controls", [
-            map()
-                .with("role", "sheet_note")
-                .with("grow", 1)
-                .with("controls", [
-                    map()
-                        .with("kind", "label")
-                        .with("role", "text_note")
-                        .with("grow", 1)
-                        .with("text", icons::ui("instance") + " from " + model::prefab_of(node)),
-                    map()
-                        .with("kind", "button")
-                        .with("role", "action_prefab")
-                        .with("text", "open")
-                        .with("tooltip", "Open the prefab; an edit there reaches every copy of it")
-                        .with("on", "handle")
-                        .with("data", map().with("fn", on_note_prefab_open)),
-                ]),
-        ]));
-    push(state, map()
-        .with("full", true)
-        .with("height", row_height(state))
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_caption")
-                .with("grow", 1)
-                .with("text", "edits become overrides on " + model::path_in_instance(node)),
-        ]));
+    push(state, {
+        "full": true,
+        "height": row_height(state) + 8.0,
+        "controls": [
+            {
+                "role": "sheet_note",
+                "grow": 1,
+                "controls": [
+                    {
+                        "kind": "label",
+                        "role": "text_note",
+                        "grow": 1,
+                        "text": icons::ui("instance") + " from " + model::prefab_of(node),
+                    },
+                    {
+                        "kind": "button",
+                        "role": "action_prefab",
+                        "text": "open",
+                        "tooltip": "Open the prefab; an edit there reaches every copy of it",
+                        "on": "handle",
+                        "data": { "fn": on_note_prefab_open },
+                    },
+                ],
+            },
+        ],
+    });
+    push(state, {
+        "full": true,
+        "height": row_height(state),
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_caption",
+                "grow": 1,
+                "text": "edits become overrides on " + model::path_in_instance(node),
+            },
+        ],
+    });
 }
 
 fn on_note_prefab_open(state: &mut editor::State, data: any, _value: any) {
@@ -339,25 +350,28 @@ fn instance_source_row(state: &mut editor::State, tokens: any, node: Node) {
     if !node.is_valid() || node.instance().is_none() {
         return;
     }
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("controls", [
-            map()
-                .with("role", "sheet_prefab")
-                .with("grow", 1)
-                .with("controls", [
-                    map().with("kind", "label").with("role", "text_code_secondary").with("grow", 1).with("truncate", true).with("text", node.instance().or("")),
-                    map()
-                        .with("kind", "button")
-                        .with("role", "action_prefab")
-                        .with("text", "open")
-                        .with("tooltip", "Open the prefab; an edit there reaches every copy of it")
-                        .with("on", "handle")
-                        .with("data", map().with("fn", on_row_prefab_open)),
-                ]),
-        ])
-        .with("label", "Prefab"));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "controls": [
+            {
+                "role": "sheet_prefab",
+                "grow": 1,
+                "controls": [
+                    { "kind": "label", "role": "text_code_secondary", "grow": 1, "truncate": true, "text": node.instance().or("") },
+                    {
+                        "kind": "button",
+                        "role": "action_prefab",
+                        "text": "open",
+                        "tooltip": "Open the prefab; an edit there reaches every copy of it",
+                        "on": "handle",
+                        "data": { "fn": on_row_prefab_open },
+                    },
+                ],
+            },
+        ],
+        "label": "Prefab",
+    });
 }
 
 fn on_row_prefab_open(state: &mut editor::State, data: any, _value: any) {
@@ -373,28 +387,31 @@ fn script_section(state: &mut editor::State, tokens: any) {
     if !section(state, tokens, "Script") {
         return;
     }
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("slot_role", "layout_actions")
-        .with("controls", [
-            map()
-                .with("kind", "text_field")
-                .with("role", "input_path")
-                .with("grow", 1)
-                .with("text", model::script_rel(node).as_str())
-                .with("placeholder", "scripts/name.bs")
-                .with("on_submit", "handle_submit")
-                .with("data", map().with("submit", on_script_path_submitted)),
-            map()
-                .with("kind", "dropdown")
-                .with("role", "choice")
-                .with("text", "pick")
-                .with("options", shell::script_files(state))
-                .with("on", "handle")
-                .with("data", map().with("fn", on_script_file_picked)),
-        ])
-        .with("label", "Script"));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "slot_role": "layout_actions",
+        "controls": [
+            {
+                "kind": "text_field",
+                "role": "input_path",
+                "grow": 1,
+                "text": model::script_rel(node).as_str(),
+                "placeholder": "scripts/name.bs",
+                "on_submit": "handle_submit",
+                "data": { "submit": on_script_path_submitted },
+            },
+            {
+                "kind": "dropdown",
+                "role": "choice",
+                "text": "pick",
+                "options": shell::script_files(state),
+                "on": "handle",
+                "data": { "fn": on_script_file_picked },
+            },
+        ],
+        "label": "Script",
+    });
     script_properties_rows(state, tokens, node);
 }
 
@@ -430,23 +447,25 @@ fn script_properties_rows(state: &mut editor::State, tokens: any, node: Node) {
         let spec = util::copy(export);
         spec.remove("name");
         // `property_value_row` reads the value out of a table by name.
-        property_value_row(state, tokens, SCRIPT_PROPERTIES, name, spec, map().with(name, value));
+        property_value_row(state, tokens, SCRIPT_PROPERTIES, name, spec, { name: value });
         if overridden {
             let back = export.default;
-            push(state, map()
-                .with("full", false)
-                .with("height", 22)
-                .with("controls", [
-                    map()
-                        .with("kind", "button")
-                        .with("height", control_height(state))
-                        .with("text", "reset")
-                        .with("role", "chip")
-                        .with("width", 52)
-                        .with("tooltip", "Back to the script's default")
-                        .with("on", "handle")
-                        .with("data", map().with("fn", on_script_property_reset).with("name", name).with("back", back)),
-                ]));
+            push(state, {
+                "full": false,
+                "height": 22,
+                "controls": [
+                    {
+                        "kind": "button",
+                        "height": control_height(state),
+                        "text": "reset",
+                        "role": "chip",
+                        "width": 52,
+                        "tooltip": "Back to the script's default",
+                        "on": "handle",
+                        "data": { "fn": on_script_property_reset, "name": name, "back": back },
+                    },
+                ],
+            });
         }
     }
 }
@@ -531,7 +550,7 @@ fn current_whole(state: editor::State, at: AtTop) -> any {
     }
     // A row naming a record asset is edited as the definition it names.
     let reference = as_text(now);
-    let definition = if reference == "" { map() } else { util::deep(util::map_or_empty(assets::load(reference))) };
+    let definition: any = if reference == "" { {} } else { util::deep(util::map_or_empty(assets::load(reference))) };
     definition.remove("type");
     definition
 }
@@ -661,15 +680,16 @@ fn fresh_key(held: any, numbered: bool) -> str {
 /// is drawn.
 fn with_remove(state: &mut editor::State, at: AtTop, step: any) -> any {
     let held = state.row_after;
-    state.row_after = map()
-        .with("kind", "button")
-        .with("text", icons::ui("close"))
-        .with("role", "chip")
-        .with("width", 22)
-        .with("height", control_height(state))
-        .with("tooltip", "Take this one out")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_entry_removed).with("at", at).with("step", step));
+    state.row_after = {
+        "kind": "button",
+        "text": icons::ui("close"),
+        "role": "chip",
+        "width": 22,
+        "height": control_height(state),
+        "tooltip": "Take this one out",
+        "on": "handle",
+        "data": { "fn": on_entry_removed, "at": at, "step": step },
+    };
     held
 }
 
@@ -713,19 +733,21 @@ fn edit_flags(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
                 on = true;
             }
         }
-        controls.push(map()
-            .with("kind", "button")
-            .with("text", name)
-            .with("role", "chip_flag")
-            .with("checked", on)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_flag_toggled).with("held", held).with("name", name).with("on", on).with("at", at)));
+        controls.push({
+            "kind": "button",
+            "text": name,
+            "role": "chip_flag",
+            "checked": on,
+            "on": "handle",
+            "data": { "fn": on_flag_toggled, "held": held, "name": name, "on": on, "at": at },
+        });
     }
-    push(state, map()
-        .with("full", false)
-        .with("controls", controls)
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": controls,
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_flag_toggled(state: &mut editor::State, data: any, _value: any) {
@@ -751,28 +773,31 @@ fn edit_node(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
     for node in state.nodes {
         paths.push("/" + model::path_in_scene(state, node));
     }
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("slot_role", "layout_actions")
-        .with("controls", [
-            map()
-                .with("kind", "text_field")
-                .with("grow", 1)
-                .with("text", as_text(value))
-                .with("placeholder", "— none —")
-                .with("on_submit", "handle_submit")
-                .with("data", map().with("submit", on_node_path_submitted).with("at", at)),
-            map()
-                .with("kind", "dropdown")
-                .with("role", "choice")
-                .with("text", "pick")
-                .with("options", paths)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_node_picked).with("at", at)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "slot_role": "layout_actions",
+        "controls": [
+            {
+                "kind": "text_field",
+                "grow": 1,
+                "text": as_text(value),
+                "placeholder": "— none —",
+                "on_submit": "handle_submit",
+                "data": { "submit": on_node_path_submitted, "at": at },
+            },
+            {
+                "kind": "dropdown",
+                "role": "choice",
+                "text": "pick",
+                "options": paths,
+                "on": "handle",
+                "data": { "fn": on_node_picked, "at": at },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_node_path_submitted(state: &mut editor::State, data: any, text: any) {
@@ -788,22 +813,23 @@ fn on_node_picked(state: &mut editor::State, data: any, picked: any) {
 // One editor per schema datatype, looked up rather than branched on, so a
 // plugin can register an editor for a datatype the editor has never heard of.
 fn editors() -> any {
-    map()
-        .with("float", edit_float)
-        .with("int", edit_int)
-        .with("bool", edit_bool)
-        .with("enum", edit_enum)
-        .with("vec2", edit_vector)
-        .with("vec3", edit_vector)
-        .with("vec4", edit_vector)
-        .with("color", edit_color)
-        .with("asset", edit_asset)
-        .with("flags", edit_flags)
-        .with("node", edit_node)
-        .with("list", edit_list)
-        .with("map", edit_map)
-        .with("record", edit_record)
-        .with("variant", edit_variant)
+    {
+        "float": edit_float,
+        "int": edit_int,
+        "bool": edit_bool,
+        "enum": edit_enum,
+        "vec2": edit_vector,
+        "vec3": edit_vector,
+        "vec4": edit_vector,
+        "color": edit_color,
+        "asset": edit_asset,
+        "flags": edit_flags,
+        "node": edit_node,
+        "list": edit_list,
+        "map": edit_map,
+        "record": edit_record,
+        "variant": edit_variant,
+    }
 }
 
 // A list: what it holds and how many, then a row an entry, each drawn by the
@@ -812,7 +838,7 @@ fn edit_list(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
     let held = util::list_or_empty(value);
     let of = util::map_or_empty(spec.of);
     let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
-    holder_row(state, tokens, at, spec, "{what} · {held.len()}", map().with("of", of).with("key", ""));
+    holder_row(state, tokens, at, spec, "{what} · {held.len()}", { "of": of, "key": "" });
     for index in 0..held.len() {
         let was = with_remove(state, at, index);
         draw_value(state, tokens, at_step(at, index, "{index}"), of, held.at(index));
@@ -829,7 +855,7 @@ fn edit_map(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value:
     let numbered = spec.key.as_str() == "int";
     let keys = util::keys_sorted(held);
     let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
-    holder_row(state, tokens, at, spec, "{what} · {keys.len()}", map().with("of", of).with("key", fresh_key(held, numbered)));
+    holder_row(state, tokens, at, spec, "{what} · {keys.len()}", { "of": of, "key": fresh_key(held, numbered) });
     for key in keys {
         let was = with_remove(state, at, key);
         draw_value(state, tokens, at_step(at, key, key), of, held.get(key));
@@ -861,7 +887,7 @@ fn edit_variant(state: &mut editor::State, tokens: any, at: AtTop, spec: any, va
     let held = util::map_or_empty(value);
     let variants = util::map_or_empty(spec.variants);
     let kind = if held.kind.is_nil() { util::map_or_empty(spec.default).kind.as_str() } else { held.kind.as_str() };
-    let picker = map().with("type", "enum").with("options", util::keys_sorted(variants)).with("description", spec.description);
+    let picker: any = { "type": "enum", "options": util::keys_sorted(variants), "description": spec.description };
     edit_enum(state, tokens, at_step(at, "kind", at.label), picker, kind);
     let fields = util::map_or_empty(util::map_or_empty(variants.get(kind)).fields);
     for field in util::keys_sorted(fields) {
@@ -875,19 +901,20 @@ fn edit_variant(state: &mut editor::State, tokens: any, at: AtTop, spec: any, va
 // holds, and where `add` (`{ of, key }`, the new entry's spec and the key a
 // map gives it) is one of the things it takes. A record has nothing to add.
 fn holder_row(state: &mut editor::State, tokens: any, at: AtTop, spec: any, note: str, add: any) {
-    let controls: [any] = [map().with("kind", "label").with("grow", 1).with("text", note).with("role", "text_caption")];
+    let controls: [any] = [{ "kind": "label", "grow": 1, "text": note, "role": "text_caption" }];
     if !add.is_nil() {
-        controls.push(map()
-            .with("kind", "button")
-            .with("text", icons::ui("add"))
-            .with("role", "chip")
-            .with("width", 22)
-            .with("height", control_height(state))
-            .with("tooltip", "Add one")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_entry_added).with("add", add).with("at", at)));
+        controls.push({
+            "kind": "button",
+            "text": icons::ui("add"),
+            "role": "chip",
+            "width": 22,
+            "height": control_height(state),
+            "tooltip": "Add one",
+            "on": "handle",
+            "data": { "fn": on_entry_added, "add": add, "at": at },
+        });
     }
-    push(state, map().with("full", false).with("controls", controls).with("label", at.label).with("tooltip", row_tip(at, spec)));
+    push(state, { "full": false, "controls": controls, "label": at.label, "tooltip": row_tip(at, spec) });
 }
 
 fn on_entry_added(state: &mut editor::State, data: any, _value: any) {
@@ -910,17 +937,19 @@ fn property_row(state: &mut editor::State, tokens: any, component: str, property
 
 // A full-width line of warning text under whatever row came before it.
 fn warn_note(state: &mut editor::State, text: str) {
-    push(state, map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "note_warning")
-                .with("grow", 1)
-                .with("wrap", true)
-                .with("text", "⚠ {text}"),
-        ]));
+    push(state, {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "note_warning",
+                "grow": 1,
+                "wrap": true,
+                "text": "⚠ {text}",
+            },
+        ],
+    });
 }
 
 fn has_property_warning(by_property: any, component: str) -> bool {
@@ -959,11 +988,12 @@ fn draw_value(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
     let datatype = spec.type.as_str();
     let controls = plugins::property_controls(state, datatype, spec, value, at);
     if !controls.is_nil() {
-        push(state, map()
-            .with("full", false)
-            .with("controls", util::list_or_empty(controls))
-            .with("label", at.label)
-            .with("tooltip", row_tip(at, spec)));
+        push(state, {
+            "full": false,
+            "controls": util::list_or_empty(controls),
+            "label": at.label,
+            "tooltip": row_tip(at, spec),
+        });
         return;
     }
     let found = editors().get(datatype);
@@ -993,19 +1023,21 @@ fn number_of(value: any) -> float {
 }
 
 fn edit_float(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "number_field")
-                .with("grow", 1)
-                .with("value", shown_as(spec, number_of(value)))
-                .with("drag_speed", if spec.step.is_nil() { 0.02 } else { spec.step.as_float() })
-                .with("on", "handle")
-                .with("data", map().with("fn", on_float_edited).with("at", at).with("spec", spec)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "number_field",
+                "grow": 1,
+                "value": shown_as(spec, number_of(value)),
+                "drag_speed": if spec.step.is_nil() { 0.02 } else { spec.step.as_float() },
+                "on": "handle",
+                "data": { "fn": on_float_edited, "at": at, "spec": spec },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_float_edited(state: &mut editor::State, data: any, value: any) {
@@ -1014,19 +1046,21 @@ fn on_float_edited(state: &mut editor::State, data: any, value: any) {
 }
 
 fn edit_int(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "number_field")
-                .with("grow", 1)
-                .with("value", number_of(value))
-                .with("drag_speed", if spec.step.is_nil() { 1.0 } else { spec.step.as_float() })
-                .with("on", "handle")
-                .with("data", map().with("fn", on_int_edited).with("at", at).with("spec", spec)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "number_field",
+                "grow": 1,
+                "value": number_of(value),
+                "drag_speed": if spec.step.is_nil() { 1.0 } else { spec.step.as_float() },
+                "on": "handle",
+                "data": { "fn": on_int_edited, "at": at, "spec": spec },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_int_edited(state: &mut editor::State, data: any, value: any) {
@@ -1035,18 +1069,20 @@ fn on_int_edited(state: &mut editor::State, data: any, value: any) {
 }
 
 fn edit_bool(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "checkbox")
-                .with("text", "")
-                .with("checked", value.as_bool())
-                .with("on", "handle")
-                .with("data", map().with("fn", on_bool_toggled).with("at", at)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "checkbox",
+                "text": "",
+                "checked": value.as_bool(),
+                "on": "handle",
+                "data": { "fn": on_bool_toggled, "at": at },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_bool_toggled(state: &mut editor::State, data: any, on: any) {
@@ -1055,19 +1091,21 @@ fn on_bool_toggled(state: &mut editor::State, data: any, on: any) {
 }
 
 fn edit_enum(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "dropdown")
-                .with("grow", 1)
-                .with("text", as_text(value))
-                .with("options", util::list_or_empty(spec.options))
-                .with("on", "handle")
-                .with("data", map().with("fn", on_enum_picked).with("at", at)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "dropdown",
+                "grow": 1,
+                "text": as_text(value),
+                "options": util::list_or_empty(spec.options),
+                "on": "handle",
+                "data": { "fn": on_enum_picked, "at": at },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_enum_picked(state: &mut editor::State, data: any, picked: any) {
@@ -1080,14 +1118,15 @@ fn on_enum_picked(state: &mut editor::State, data: any, picked: any) {
 fn edit_color(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::list_or_empty(value);
     let text = "{util::fixed(channel(held, 0, 1.0), 2)} {util::fixed(channel(held, 1, 1.0), 2)} {util::fixed(channel(held, 2, 1.0), 2)} {util::fixed(channel(held, 3, 1.0), 2)}";
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map().with("kind", "color_picker").with("width", 34).with("picked_color", held).with("on", "handle").with("data", map().with("fn", on_color_picked).with("at", at)),
-            map().with("kind", "label").with("grow", 1).with("text", text).with("role", "text_caption"),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            { "kind": "color_picker", "width": 34, "picked_color": held, "on": "handle", "data": { "fn": on_color_picked, "at": at } },
+            { "kind": "label", "grow": 1, "text": text, "role": "text_caption" },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_color_picked(state: &mut editor::State, data: any, rgba: any) {
@@ -1112,16 +1151,17 @@ fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
     let controls: [any] = [];
     for slot in 0..count {
         let step = spec.get("step");
-        controls.push(map()
-            .with("kind", "number_field")
-            .with("grow", 1)
-            .with("value", shown_as(spec, channel(held, slot, fallback)))
-            .with("drag_speed", if step.is_nil() { if datatype.as_str() == "color" { 0.005 } else { 0.02 } } else { step.as_float() })
-            .with("prefix", letters[slot])
-            .with("on", "handle")
-            .with("data", map().with("fn", on_vector_edited).with("count", count).with("at", at).with("held", held).with("fallback", fallback).with("slot", slot).with("datatype", datatype).with("spec", spec)));
+        controls.push({
+            "kind": "number_field",
+            "grow": 1,
+            "value": shown_as(spec, channel(held, slot, fallback)),
+            "drag_speed": if step.is_nil() { if datatype.as_str() == "color" { 0.005 } else { 0.02 } } else { step.as_float() },
+            "prefix": letters[slot],
+            "on": "handle",
+            "data": { "fn": on_vector_edited, "count": count, "at": at, "held": held, "fallback": fallback, "slot": slot, "datatype": datatype, "spec": spec },
+        });
     }
-    push(state, map().with("full", false).with("controls", controls).with("label", at.label).with("tooltip", row_tip(at, spec)));
+    push(state, { "full": false, "controls": controls, "label": at.label, "tooltip": row_tip(at, spec) });
 }
 
 fn on_vector_edited(state: &mut editor::State, data: any, value: any) {
@@ -1171,48 +1211,52 @@ fn edit_asset(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
     let reference = model::relative_file(state, own).as_str();
     let inline = reference.starts_with("#!");
     let directory = if asset_type != "" { assets::directory(asset_type) } else { "" };
-    let controls = [
+    let controls: [any] = [
         if inline {
-            map().with("kind", "label").with("role", "text_code_quiet").with("grow", 1).with("text", "— embedded —")
+            { "kind": "label", "role": "text_code_quiet", "grow": 1, "text": "— embedded —" }
         } else {
-            map()
-                .with("kind", "text_field")
-                .with("grow", 1)
-                .with("text", reference)
-                .with("placeholder", placeholder)
-                .with("on_submit", "handle_submit")
-                .with("data", map().with("submit", on_asset_path_submitted).with("at", at))
+            {
+                "kind": "text_field",
+                "grow": 1,
+                "text": reference,
+                "placeholder": placeholder,
+                "on_submit": "handle_submit",
+                "data": { "submit": on_asset_path_submitted, "at": at },
+            }
         },
     ];
     if asset_type == "font" && !inline {
-        controls.push(map()
-            .with("kind", "dropdown")
-            .with("role", "choice")
-            .with("text", "pick")
-            .with("options", fonts::choices(state))
-            .with("on", "handle")
-            .with("data", map().with("fn", edit_asset_on_font).with("at", at)));
+        controls.push({
+            "kind": "dropdown",
+            "role": "choice",
+            "text": "pick",
+            "options": fonts::choices(state),
+            "on": "handle",
+            "data": { "fn": edit_asset_on_font, "at": at },
+        });
     }
     if directory != "" {
-        controls.push(map()
-            .with("kind", "button")
-            .with("role", "action_dock_secondary")
-            .with("text", if inline { "save to file" } else { "embed" })
-            .with("tooltip", if inline {
+        controls.push({
+            "kind": "button",
+            "role": "action_dock_secondary",
+            "text": if inline { "save to file" } else { "embed" },
+            "tooltip": if inline {
                 "Write this {asset_type} to {directory}/ and reference it"
             } else {
                 "Copy this file's definition onto the node"
-            })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_asset_embed_or_save).with("inline", inline).with("at", at).with("asset_type", asset_type).with("dir", directory).with("reference", reference)));
+            },
+            "on": "handle",
+            "data": { "fn": on_asset_embed_or_save, "inline": inline, "at": at, "asset_type": asset_type, "dir": directory, "reference": reference },
+        });
     }
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("slot_role", "layout_actions")
-        .with("controls", controls)
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "slot_role": "layout_actions",
+        "controls": controls,
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
     // Not when the node's own `material` component is the source: it draws them.
     if asset_type == "material" && !from.here {
         // The live spelling, which the editor's own engine can load and save.
@@ -1301,27 +1345,30 @@ fn shader_row(state: &mut editor::State, tokens: any, reference: str, shader: st
     if !util::contains(choices, current) {
         choices.insert(0, current);
     }
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("slot_role", "layout_shader")
-        .with("controls", [
-            map()
-                .with("kind", "button")
-                .with("role", "icon_action_form_secondary")
-                .with("text", icons::ui("open"))
-                .with("tooltip", "Edit " + current)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_shader_opened).with("shader", shader)),
-            map()
-                .with("kind", "dropdown")
-                .with("grow", 1)
-                .with("text", current)
-                .with("options", choices)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_shader_picked).with("current", current).with("reference", reference)),
-        ])
-        .with("label", "  Shader"));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "slot_role": "layout_shader",
+        "controls": [
+            {
+                "kind": "button",
+                "role": "icon_action_form_secondary",
+                "text": icons::ui("open"),
+                "tooltip": "Edit " + current,
+                "on": "handle",
+                "data": { "fn": on_shader_opened, "shader": shader },
+            },
+            {
+                "kind": "dropdown",
+                "grow": 1,
+                "text": current,
+                "options": choices,
+                "on": "handle",
+                "data": { "fn": on_shader_picked, "current": current, "reference": reference },
+            },
+        ],
+        "label": "  Shader",
+    });
 }
 
 fn on_shader_opened(state: &mut editor::State, data: any, _value: any) {
@@ -1341,18 +1388,20 @@ fn on_shader_picked(state: &mut editor::State, data: any, picked: any) {
 /// feature still shows.
 fn feature_rows(state: &mut editor::State, tokens: any, reference: str, features: any) {
     for name in util::keys_sorted(features) {
-        push(state, map()
-            .with("full", false)
-            .with("height", row_height(state))
-            .with("controls", [
-                map()
-                    .with("kind", "switch")
-                    .with("role", "switch_form")
-                    .with("checked", features.get(name).as_bool())
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_feature_toggled).with("reference", reference).with("name", name)),
-            ])
-            .with("label", "  @" + name));
+        push(state, {
+            "full": false,
+            "height": row_height(state),
+            "controls": [
+                {
+                    "kind": "switch",
+                    "role": "switch_form",
+                    "checked": features.get(name).as_bool(),
+                    "on": "handle",
+                    "data": { "fn": on_feature_toggled, "reference": reference, "name": name },
+                },
+            ],
+            "label": "  @" + name,
+        });
     }
 }
 
@@ -1384,26 +1433,28 @@ fn write_material_feature(state: editor::State, reference: str, name: str, on: a
 
 fn material_row(state: &mut editor::State, tokens: any, reference: str, name: str, datatype: str, value: any) {
     // Indented, because these belong to the row above rather than the node.
-    let control = if datatype == "color" {
+    let control: any = if datatype == "color" {
         // `material_params` hands a colour back as its four channels.
         let channels = util::list_or_empty(value);
         if value.kind() == "map" {
             channels = [value.r.as_float(), value.g.as_float(), value.b.as_float(), value.a.as_float()];
         }
-        map()
-            .with("kind", "color_picker")
-            .with("width", 34)
-            .with("picked_color", channels)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_material_color_picked).with("reference", reference).with("name", name))
+        {
+            "kind": "color_picker",
+            "width": 34,
+            "picked_color": channels,
+            "on": "handle",
+            "data": { "fn": on_material_color_picked, "reference": reference, "name": name },
+        }
     } else if datatype == "float" {
-        map()
-            .with("kind", "number_field")
-            .with("grow", 1)
-            .with("value", value.as_float())
-            .with("drag_speed", 0.001)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_material_float_edited).with("reference", reference).with("name", name))
+        {
+            "kind": "number_field",
+            "grow": 1,
+            "value": value.as_float(),
+            "drag_speed": 0.001,
+            "on": "handle",
+            "data": { "fn": on_material_float_edited, "reference": reference, "name": name },
+        }
     } else if datatype == "texture" {
         // A slot names an image, or nothing: the picker is over what the
         // project has under `art/`, plus the choice of no map at all.
@@ -1414,37 +1465,40 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
                 choices.push("art/" + file.name.as_str());
             }
         }
-        map()
-            .with("kind", "dropdown")
-            .with("grow", 1)
-            .with("text", if current == "" { "none" } else { current })
-            .with("options", choices)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_material_texture_picked).with("reference", reference).with("name", name))
+        {
+            "kind": "dropdown",
+            "grow": 1,
+            "text": if current == "" { "none" } else { current },
+            "options": choices,
+            "on": "handle",
+            "data": { "fn": on_material_texture_picked, "reference": reference, "name": name },
+        }
     } else {
         let count = if datatype == "vec2" { 2 } else { 3 };
         let letters = ["x", "y", "z"];
         let held = util::list_or_empty(value);
         let cells: [any] = [];
         for slot in 0..count {
-            cells.push(map()
-                .with("kind", "number_field")
-                .with("grow", 1)
-                .with("drag_speed", 0.02)
-                .with("prefix", letters[slot])
-                .with("value", channel(held, slot, 0.0))
-                .with("on", "handle")
-                .with("data", map().with("fn", on_material_vector_edited).with("count", count).with("held", held).with("slot", slot).with("reference", reference).with("name", name)));
+            cells.push({
+                "kind": "number_field",
+                "grow": 1,
+                "drag_speed": 0.02,
+                "prefix": letters[slot],
+                "value": channel(held, slot, 0.0),
+                "on": "handle",
+                "data": { "fn": on_material_vector_edited, "count": count, "held": held, "slot": slot, "reference": reference, "name": name },
+            });
         }
-        map().with("grow", 1).with("controls", cells)
+        { "grow": 1, "controls": cells }
     };
     // Indented, because these belong to the row above rather than the node.
-    push(state, map()
-        .with("full", false)
-        .with("height", row_height(state))
-        .with("controls", [control])
-        .with("label", "  " + util::property_label(name))
-        .with("tooltip", util::property_label(name)));
+    push(state, {
+        "full": false,
+        "height": row_height(state),
+        "controls": [control],
+        "label": "  " + util::property_label(name),
+        "tooltip": util::property_label(name),
+    });
 }
 
 fn on_material_color_picked(state: &mut editor::State, data: any, rgba: any) {
@@ -1476,7 +1530,7 @@ fn write_material_parameter(state: editor::State, reference: str, name: str, val
         log::warn("cannot read the material {reference}: {definition}");
         return;
     }
-    let parameters = if definition.params.kind() == "map" { definition.params } else { map() };
+    let parameters: any = if definition.params.kind() == "map" { definition.params } else { {} };
     // An empty texture slot is cleared rather than written as "": a param
     // naming no file is not a param.
     if value.kind() == "str" && value.as_str() == "" {
@@ -1490,20 +1544,22 @@ fn write_material_parameter(state: editor::State, reference: str, name: str, val
 
 // Anything with no registered editor: its text, straight through.
 fn edit_text(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "text_field")
-                .with("grow", 1)
-                .with("role", "input")
-                .with("text", model::relative_file(state, as_text(value)))
-                .with("placeholder", "— empty —")
-                .with("on", "handle")
-                .with("data", map().with("fn", on_text_edited).with("at", at)),
-        ])
-        .with("label", at.label)
-        .with("tooltip", row_tip(at, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "text_field",
+                "grow": 1,
+                "role": "input",
+                "text": model::relative_file(state, as_text(value)),
+                "placeholder": "— empty —",
+                "on": "handle",
+                "data": { "fn": on_text_edited, "at": at },
+            },
+        ],
+        "label": at.label,
+        "tooltip": row_tip(at, spec),
+    });
 }
 
 fn on_text_edited(state: &mut editor::State, data: any, text: any) {
@@ -1539,38 +1595,42 @@ fn readonly_row(state: &mut editor::State, property: str, spec: any, data: any) 
     let value = if data.has(property) { data.get(property) } else { spec.default };
     // A read-only value is whatever the component reports, a joined list
     // included: it gets the column, and is cut off at its end.
-    push(state, map()
-        .with("full", false)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_code_quiet")
-                .with("grow", 1)
-                .with("truncate", true)
-                .with("text", readonly_text(spec, value)),
-            map().with("kind", "label").with("role", "text_hint").with("truncate", false).with("text", "read-only"),
-        ])
-        .with("label", util::property_label(property))
-        .with("tooltip", property_tip(property, spec)));
+    push(state, {
+        "full": false,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_code_quiet",
+                "grow": 1,
+                "truncate": true,
+                "text": readonly_text(spec, value),
+            },
+            { "kind": "label", "role": "text_hint", "truncate": false, "text": "read-only" },
+        ],
+        "label": util::property_label(property),
+        "tooltip": property_tip(property, spec),
+    });
 }
 
 // A pointer at the Events view, in place of a section no derived editor can
 // draw: the rows are tables, not properties.
 fn bindings_note(state: &mut editor::State, tokens: any) {
     section(state, tokens, "BINDINGS");
-    push(state, map()
-        .with("full", true)
-        .with("height", row_height(state) + 2.0)
-        .with("controls", [
-            map()
-                .with("kind", "button")
-                .with("role", "action_note")
-                .with("grow", 1)
-                .with("text", "{events::rows(state).len()} row(s) · open the Bindings view")
-                .with("icon", icons::ui("events"))
-                .with("on", "handle")
-                .with("data", map().with("fn", on_bindings_open)),
-        ]));
+    push(state, {
+        "full": true,
+        "height": row_height(state) + 2.0,
+        "controls": [
+            {
+                "kind": "button",
+                "role": "action_note",
+                "grow": 1,
+                "text": "{events::rows(state).len()} row(s) · open the Bindings view",
+                "icon": icons::ui("events"),
+                "on": "handle",
+                "data": { "fn": on_bindings_open },
+            },
+        ],
+    });
 }
 
 fn on_bindings_open(state: &mut editor::State, data: any, _value: any) {
@@ -1594,7 +1654,7 @@ pub fn node_components(state: &mut editor::State) -> [str] {
 /// needs it. A cycle keeps registration order for what is left of it rather
 /// than dropping those sections.
 fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
-    let waiting = map();
+    let waiting: any = {};
     for name in names {
         waiting.set(name, 0);
     }
@@ -1650,8 +1710,8 @@ fn component_sections(state: &mut editor::State, tokens: any) {
     }
     // Advisory only: the engine applied what it could, and says what is off.
     let warned = util::list_or_empty(scene::warnings(found));
-    let whole = map();
-    let by_property = map();
+    let whole: any = {};
+    let by_property: any = {};
     for warning in warned {
         let component = warning.component.as_str();
         let key = if warning.property.is_nil() { component } else { "{component}.{warning.property.as_str()}" };
@@ -1694,13 +1754,14 @@ fn component_sections(state: &mut editor::State, tokens: any) {
         let flagged = whole.has(component) || has_property_warning(by_property, component);
         let title = if flagged { component.to_upper() + "  ⚠" } else { component.to_upper() };
         fold_row_with(state, "section", open, title, mark.glyph, ink(tokens, mark.token), key, "collapsed", [
-            map()
-                .with("kind", "button")
-                .with("role", "icon_action_form")
-                .with("text", icons::ui("close"))
-                .with("tooltip", "Remove component")
-                .with("on", "handle")
-                .with("data", map().with("fn", on_component_removed).with("comp", component)),
+            {
+                "kind": "button",
+                "role": "icon_action_form",
+                "text": icons::ui("close"),
+                "tooltip": "Remove component",
+                "on": "handle",
+                "data": { "fn": on_component_removed, "comp": component },
+            },
         ]);
         if !open {
             continue;
@@ -1744,7 +1805,7 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
     }
     let schema = model::schema(state, component);
     let loose: [str] = [];
-    let grouped = map();
+    let grouped: any = {};
     // Groups in the order the schema first names them.
     let order: [str] = [];
     for property in schema.keys() {
@@ -1766,9 +1827,9 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
         for property in util::list_or_empty(grouped.get(group)) {
             properties.push(property.as_str());
         }
-        groups.push(map().with("name", group).with("count", properties.len()).with("parts", parts_of(state, schema, properties)));
+        groups.push({ "name": group, "count": properties.len(), "parts": parts_of(state, schema, properties) });
     }
-    let laid = map().with("editors", editors).with("loose", parts_of(state, schema, loose)).with("groups", groups);
+    let laid: any = { "editors": editors, "loose": parts_of(state, schema, loose), "groups": groups };
     state.inspect_layout.set(component, laid);
     laid
 }
@@ -1785,13 +1846,13 @@ fn parts_of(state: editor::State, schema: any, properties: [str]) -> [any] {
             continue;
         }
         if run.len() > 0 {
-            parts.push(map().with("run", run));
+            parts.push({ "run": run });
             run = [];
         }
-        parts.push(map().with("prop", property));
+        parts.push({ "prop": property });
     }
     if run.len() > 0 {
-        parts.push(map().with("run", run));
+        parts.push({ "run": run });
     }
     parts
 }
@@ -1852,24 +1913,26 @@ fn part_rows(state: &mut editor::State, tokens: any, found: Node, component: str
 /// One `inspector` over a run of a component's properties: the rows are the
 /// engine's, read off the registry and the live node every pass.
 fn native_row(state: &mut editor::State, found: Node, component: str, properties: any) {
-    push(state, map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "inspector")
-                .with("grow", 1)
-                .with("gap", [2, 2])
-                .with("target", found.path())
-                .with("component", component)
-                .with("options", properties)
-                .with("label_width", label_width(state))
-                .with("wrap", stacked(state))
-                .with("row_height", row_height(state))
-                .with("relative_to", state.game_root)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_native_row_edited).with("comp", component)),
-        ]));
+    push(state, {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "inspector",
+                "grow": 1,
+                "gap": [2, 2],
+                "target": found.path(),
+                "component": component,
+                "options": properties,
+                "label_width": label_width(state),
+                "wrap": stacked(state),
+                "row_height": row_height(state),
+                "relative_to": state.game_root,
+                "on": "handle",
+                "data": { "fn": on_native_row_edited, "comp": component },
+            },
+        ],
+    });
 }
 
 fn on_native_row_edited(state: &mut editor::State, data: any, edit: any) {
@@ -1950,7 +2013,7 @@ pub fn reread_rows(name: str, properties: [str]?) {
 pub fn show_panel() {
     let found = scene::get_node(PANEL);
     if found.is_valid() {
-        found.patch_component("widget", map().with("visible", true));
+        found.patch_component("widget", { "visible": true });
     }
 }
 

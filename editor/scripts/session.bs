@@ -272,8 +272,8 @@ pub fn open(state: &mut editor::State, name: str) {
     // Loading puts the clock back to where the session started, so every
     // cache that ages against `engine::unix_time()` now thinks it is fresh until
     // the clock catches up.
-    state.sources = map();
-    state.listings = map();
+    state.sources = {};
+    state.listings = {};
     state.session.listed_at = -1.0;
     signals::changed(state, "recordings");
     state.lint.at = -1.0;

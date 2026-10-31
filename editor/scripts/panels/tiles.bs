@@ -54,7 +54,7 @@ impl Tiles {
         let list = self.node.get_node("Cards");
         list.patch_component("widget", Parameters { visible: cards, options: view.get("items"), text: view.get("picked") });
         if cards {
-            list.patch_component("widget_list", map().with("sheet", view.get("sheet")));
+            list.patch_component("widget_list", { "sheet": view.get("sheet") });
         }
     }
 }

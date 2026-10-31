@@ -59,7 +59,7 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         let controls: [any] = [];
-        for index in 0..self.count { controls.push(map().with(\"kind\", \"label\").with(\"text\", \"L{index}\")); }
+        for index in 0..self.count { controls.push({ \"kind\": \"label\", \"text\": \"L{index}\" }); }
         ui::fill_strip(\"Root/Bar\", controls);
         self.count = 1;
     }
@@ -98,7 +98,7 @@ fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
         "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
     fn update(dt: float) {
-        let controls: [any] = [map().with(\"kind\", \"checkbox\").with(\"checked\", self.on).with(\"on\", \"toggled\")];
+        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on\": \"toggled\" }];
         ui::fill_strip(\"Root/Bar\", controls);
     }
     pub fn toggled(data: any, v: any) {
@@ -150,10 +150,10 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
-            scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"visible\", false));
+            scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"visible\": false });
         } else {
-            let label: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"x\")];
-            let rows: [any] = [map().with(\"label\", \"a\").with(\"controls\", label)];
+            let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
+            let rows: [any] = [{ \"label\": \"a\", \"controls\": label }];
             ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
         }
     }
@@ -185,17 +185,24 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
         "pub class Root { node: Node, frames: int, edits: int }
 impl Root {
     fn init() {
-        scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"kind\", \"column\").with(\"anchor\", \"fill\"));
+        scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"kind\": \"column\", \"anchor\": \"fill\" });
     }
     fn update(dt: float) {
         self.frames += 1;
-        let control = if self.frames < 3 {
-            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", 0.5).with(\"min\", 0.01)
-                .with(\"max\", 2.0).with(\"prefix\", \"px\").with(\"on\", \"edited\")
+        let control: any = if self.frames < 3 {
+            {
+                \"kind\": \"number_field\",
+                \"grow\": 1,
+                \"value\": 0.5,
+                \"min\": 0.01,
+                \"max\": 2.0,
+                \"prefix\": \"px\",
+                \"on\": \"edited\",
+            }
         } else {
-            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", -24.0).with(\"on\", \"edited\")
+            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on\": \"edited\" }
         };
-        let rows: [any] = [map().with(\"label\", \"x\").with(\"controls\", [control])];
+        let rows: [any] = [{ \"label\": \"x\", \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
     }
     pub fn edited(data: any, v: any) { self.edits += 1; }

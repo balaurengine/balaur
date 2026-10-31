@@ -85,7 +85,7 @@ fn open_rows(state: &mut editor::State) -> [any] {
         return state.tree_cache.rows;
     }
     let rows: [any] = [];
-    let depth_of = map();
+    let depth_of: any = {};
     let folded: Node = nil;
     for index in 0..state.nodes.len() {
         let found = state.nodes[index];
@@ -99,7 +99,7 @@ fn open_rows(state: &mut editor::State) -> [any] {
         depth_of.set(id, depth);
         let has_kids = found.children().len() > 0;
         let is_last = model::is_scene_root(state, found) || found.sibling_index() == found.parent().children().len() - 1;
-        rows.push(map().with("index", index).with("depth", depth).with("is_last", is_last).with("has_kids", has_kids));
+        rows.push({ "index": index, "depth": depth, "is_last": is_last, "has_kids": has_kids });
         if has_kids && state.collapsed.has(id) {
             folded = found;
         }
@@ -357,7 +357,7 @@ pub fn hide_tree(state: editor::State) {
 pub fn show_tree() {
     let found = scene::get_node(PANEL);
     if found.is_valid() {
-        found.patch_component("widget", map().with("visible", true));
+        found.patch_component("widget", { "visible": true });
     }
 }
 
@@ -374,7 +374,7 @@ fn filtered_rows(state: editor::State, query: str, facet: str) -> [any] {
         if facet != "" && !tagged(state, index, facet) {
             continue;
         }
-        out.push(map().with("index", index).with("depth", 0).with("is_last", true).with("has_kids", false));
+        out.push({ "index": index, "depth": 0, "is_last": true, "has_kids": false });
     }
     out
 }
@@ -401,7 +401,7 @@ pub fn secondary_pick(state: &mut editor::State, picked: str) {
 pub fn show_outline() {
     let found = scene::get_node(OUTLINE);
     if found.is_valid() {
-        found.patch_component("widget", map().with("visible", true));
+        found.patch_component("widget", { "visible": true });
     }
 }
 
@@ -431,29 +431,31 @@ pub fn rename_close(state: &mut editor::State) {
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
     let row_height = util::max(style::row_height(state), 28.0);
-    let host = window::picker(state, map()
-        .with("width", 420.0)
-        // The node's own mark, which is what the tree row it renames wears.
-        .with("mark", node_mark(state))
-        .with("placeholder", "Name")
-        .with("query", state.rename_text)
-        .with("rows_h", row_height + 6.0)
-        .with("on", "handle")
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("fn", on_rename_typed).with("submit", on_rename_submitted)));
+    let host = window::picker(state, {
+        "width": 420.0,
+        "mark": node_mark(state),
+        "placeholder": "Name",
+        "query": state.rename_text,
+        "rows_h": row_height + 6.0,
+        "on": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": on_rename_typed, "submit": on_rename_submitted },
+    });
     pool::sync(state, host, [
-        map()
-            .with("full", true)
-            .with("height", row_height)
-            .with("controls", [
-                map()
-                    .with("kind", "button")
-                    .with("role", "action_form_primary")
-                    .with("grow", 1)
-                    .with("text", "Rename")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_rename_clicked)),
-            ]),
+        {
+            "full": true,
+            "height": row_height,
+            "controls": [
+                {
+                    "kind": "button",
+                    "role": "action_form_primary",
+                    "grow": 1,
+                    "text": "Rename",
+                    "on": "handle",
+                    "data": { "fn": on_rename_clicked },
+                },
+            ],
+        },
     ], 0.0, false);
 }
 

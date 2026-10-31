@@ -6,7 +6,7 @@ fn mark(doc: [any]) {
     }
 }
 pub fn marked() -> str {
-    let list: any = [map().with("name", "a")];
+    let list: any = [{ "name": "a" }];
     mark(list);
     let none: any = nil;
     mark(none);

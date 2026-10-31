@@ -14,6 +14,6 @@ impl Breathe {
     pub fn update(dt: float) {
         self.clock += dt;
         let weight = 0.5 + 0.5 * math::sin(self.clock * 1.5);
-        self.node.patch_component("mesh", map().with("morph.peak", weight));
+        self.node.patch_component("mesh", { "morph.peak": weight });
     }
 }

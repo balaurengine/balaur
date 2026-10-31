@@ -21,11 +21,11 @@ const LOBBY_SCRIPT: &str = r#"
 pub class Lobby { node: Node }
 impl Lobby {
     pub fn host_match(transport: str) {
-        multiplayer::host(map().with("transport", transport).with("name", "host"));
+        multiplayer::host(multiplayer::HostOptions { transport: transport, name: "host" });
     }
 
     pub fn join_match(url: str, hash: any) {
-        multiplayer::join(url, map().with("cert_hash", hash).with("name", "guest"));
+        multiplayer::join(url, multiplayer::JoinOptions { cert_hash: hash, name: "guest" });
     }
 }
 "#;

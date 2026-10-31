@@ -52,7 +52,7 @@ fn HUMANOID() -> [str] {
 
 /// The dock's own state, hung on `state.bonemap`.
 pub fn state() -> BonemapState {
-    BonemapState { bones: map(), path: "", rig: "", picking: nil }
+    BonemapState { bones: {}, path: "", rig: "", picking: nil }
 }
 
 // The rig this map is being built against: the selection, or the rig above it
@@ -150,7 +150,7 @@ pub fn autofill(state: &mut editor::State) {
 }
 
 pub fn clear(state: &mut editor::State) {
-    state.bonemap.bones = map();
+    state.bonemap.bones = {};
     signals::changed(state, "bonemap");
 }
 
@@ -163,7 +163,7 @@ fn default_path(state: editor::State) -> str {
 }
 
 pub fn save(state: &mut editor::State) {
-    let mapped = map();
+    let mapped: any = {};
     let bones = state.bonemap.bones;
     for name in bones.keys() {
         let path = bones.get(name);
@@ -176,7 +176,7 @@ pub fn save(state: &mut editor::State) {
         return;
     }
     let path = if state.bonemap.path == "" { default_path(state) } else { state.bonemap.path };
-    let doc = map().with("type", "bone_map").with("bones", mapped);
+    let doc: any = { "type": "bone_map", "bones": mapped };
     fs::write(state.game_root + "/" + path, toml::encode(doc));
     state.bonemap.path = path;
     log::info("{mapped.len()} bones written to {path}");
@@ -191,12 +191,12 @@ const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Bonemap";
 pub fn fill(state: editor::State) {
     let paths = bone_paths(state);
     if paths.len() == 0 {
-        util::fill(PANEL + "/Missing", map().with("visible", true));
-        util::fill(PANEL + "/Body", map().with("visible", false));
+        util::fill(PANEL + "/Missing", { "visible": true });
+        util::fill(PANEL + "/Body", { "visible": false });
         return;
     }
-    util::fill(PANEL + "/Missing", map().with("visible", false));
-    util::fill(PANEL + "/Body", map().with("visible", true));
+    util::fill(PANEL + "/Missing", { "visible": false });
+    util::fill(PANEL + "/Body", { "visible": true });
     let filled = 0;
     let bones = state.bonemap.bones;
     for name in bones.keys() {
@@ -204,8 +204,9 @@ pub fn fill(state: editor::State) {
             filled += 1;
         }
     }
-    util::fill(PANEL + "/Body/Verbs/Count", map()
-        .with("text", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig"));
+    util::fill(PANEL + "/Body/Verbs/Count", {
+        "text": "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig",
+    });
     let rows: [any] = [];
     for name in HUMANOID() {
         for spec in row(state, paths, name) {
@@ -232,57 +233,62 @@ pub fn verb(state: &mut editor::State, name: str) {
 fn row(state: editor::State, paths: [str], name: str) -> [any] {
     let picked = state.bonemap.bones.get(name).as_str();
     let open = state.bonemap.picking == name;
-    let controls = [
-        map()
-            .with("kind", "label")
-            .with("role", if picked == "" { "text_code_quiet" } else { "text_code" })
-            .with("font_size", 12)
-            .with("width", NAME_WIDTH)
-            .with("text", name),
-        map()
-            .with("kind", "button")
-            .with("role", "chip")
-            .with("width", PICK_WIDTH)
-            .with("height", 22)
-            .with("text", if picked == "" { "—" } else { picked })
-            .with("text_align", "start")
-            .with("checked", open)
-            .with("tooltip", "Pick the bone this canonical name means on this rig")
-            .with("on", "handle")
-            .with("data", map().with("fn", toggle_picker).with("open", open).with("name", name)),
+    let controls: [any] = [
+        {
+            "kind": "label",
+            "role": if picked == "" { "text_code_quiet" } else { "text_code" },
+            "font_size": 12,
+            "width": NAME_WIDTH,
+            "text": name,
+        },
+        {
+            "kind": "button",
+            "role": "chip",
+            "width": PICK_WIDTH,
+            "height": 22,
+            "text": if picked == "" { "—" } else { picked },
+            "text_align": "start",
+            "checked": open,
+            "tooltip": "Pick the bone this canonical name means on this rig",
+            "on": "handle",
+            "data": { "fn": toggle_picker, "open": open, "name": name },
+        },
     ];
     if picked != "" {
-        controls.push(map()
-            .with("kind", "button")
-            .with("role", "chip_quiet")
-            .with("text", "×")
-            .with("tooltip", "Leave this row empty")
-            .with("on", "handle")
-            .with("data", map().with("fn", leave_row_empty).with("name", name)));
+        controls.push({
+            "kind": "button",
+            "role": "chip_quiet",
+            "text": "×",
+            "tooltip": "Leave this row empty",
+            "on": "handle",
+            "data": { "fn": leave_row_empty, "name": name },
+        });
     }
-    let out = [map().with("full", true).with("height", 24).with("controls", controls)];
+    let out: [any] = [{ "full": true, "height": 24, "controls": controls }];
     if !open {
         return out;
     }
     for bone_path in paths {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
-        out.push(map()
-            .with("full", true)
-            .with("height", 20)
-            .with("controls", [
-                map().with("kind", "label").with("width", NAME_WIDTH).with("text", ""),
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip")
-                    .with("width", PICK_WIDTH)
-                    .with("height", 20)
-                    .with("text", path)
-                    .with("text_align", "start")
-                    .with("checked", path == picked)
-                    .with("on", "handle")
-                    .with("data", map().with("fn", pick_bone_path).with("name", name).with("path", path)),
-            ]));
+        out.push({
+            "full": true,
+            "height": 20,
+            "controls": [
+                { "kind": "label", "width": NAME_WIDTH, "text": "" },
+                {
+                    "kind": "button",
+                    "role": "chip",
+                    "width": PICK_WIDTH,
+                    "height": 20,
+                    "text": path,
+                    "text_align": "start",
+                    "checked": path == picked,
+                    "on": "handle",
+                    "data": { "fn": pick_bone_path, "name": name, "path": path },
+                },
+            ],
+        });
     }
     out
 }

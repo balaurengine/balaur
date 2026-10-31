@@ -100,7 +100,7 @@ pub fn driving(state: editor::State) -> bool {
 }
 
 pub fn start(state: &mut editor::State, name: str) {
-    let sequence = Sequence { name: name, at: 0, kept: map(), pointer: [0.0, 0.0], steps: [], spans: [], seen: 0, acts: [], spans_ui: [], seen_ui: 0 };
+    let sequence = Sequence { name: name, at: 0, kept: {}, pointer: [0.0, 0.0], steps: [], spans: [], seen: 0, acts: [], spans_ui: [], seen_ui: 0 };
     if name == "scenes" {
         scenes(state, sequence);
     } else if name == "scripting" {
@@ -196,7 +196,9 @@ fn over_ui(sequence: Sequence, from: int, to: int, run: fn(&mut editor::State, a
 
 // One of `verb`'s verbs as an act, with what else it reads.
 fn act_verb(sequence: Sequence, frame: int, name: str, data: any) {
-    act(sequence, frame, verb, data.with("verb", name));
+    let carried = util::copy(data);
+    carried.set("verb", name);
+    act(sequence, frame, verb, carried);
 }
 
 fn ease(progress: float) -> float {
@@ -222,7 +224,7 @@ fn feed_pointer(state: &mut editor::State, pointer_x: float, pointer_y: float) {
 // Where it starts is only known once the walk begins, so the span's first
 // frame reads it and the rest interpolate.
 fn glide(sequence: Sequence, from: int, to: int, place: any) {
-    over(sequence, from, to, gliding, map().with("place", place).with("ready", false));
+    over(sequence, from, to, gliding, { "place": place, "ready": false });
 }
 
 fn gliding(state: &mut editor::State, segment: any, progress: float) {
@@ -274,8 +276,8 @@ fn keys(state: &mut editor::State, data: any) {
 
 // Keys held from one frame to another.
 fn hold(sequence: Sequence, from: int, to: int, held: [str]) {
-    at(sequence, from, keys, map().with("keys", held).with("down", true));
-    at(sequence, to, keys, map().with("keys", held).with("down", false));
+    at(sequence, from, keys, { "keys": held, "down": true });
+    at(sequence, to, keys, { "keys": held, "down": false });
 }
 
 fn tap(sequence: Sequence, frame: int, key: str) {
@@ -285,9 +287,9 @@ fn tap(sequence: Sequence, frame: int, key: str) {
 // A chord held while the verb `name` runs: the overlay names the keys, which
 // is the only thing that explains a shortcut nobody can see being typed.
 fn chord(sequence: Sequence, frame: int, held: [str], name: str) {
-    at(sequence, frame, keys, map().with("keys", held).with("down", true));
-    act_verb(sequence, frame + 3, name, map());
-    at(sequence, frame + 16, keys, map().with("keys", held).with("down", false));
+    at(sequence, frame, keys, { "keys": held, "down": true });
+    act_verb(sequence, frame + 3, name, {});
+    at(sequence, frame + 16, keys, { "keys": held, "down": false });
 }
 
 /// Where a control sits, in design px, read off the rects `layout.bs`
@@ -459,14 +461,14 @@ fn place_of(state: &mut editor::State, place: any) -> [float] {
 
 // A place named by one key: `at_place("spot", "play")`.
 fn at_place(name: str, value: any) -> any {
-    map().with(name, value)
+    { name: value }
 }
 
 // A click a viewer can follow: the cursor walks in, presses where the control
 // is, the verb runs under it, and the button comes back up.
 fn click(sequence: Sequence, frame: int, place: any, name: str, data: any) {
     glide(sequence, frame - GLIDE, frame, place);
-    at(sequence, frame, pressed_at, map().with("place", place));
+    at(sequence, frame, pressed_at, { "place": place });
     act_verb(sequence, frame + 3, name, data);
     at(sequence, frame + 12, release, nil);
 }
@@ -478,7 +480,7 @@ fn pressed_at(state: &mut editor::State, data: any) {
 }
 
 fn click_row(sequence: Sequence, frame: int, name: str) {
-    click(sequence, frame, at_place("row", name), "choose", map().with("name", name));
+    click(sequence, frame, at_place("row", name), "choose", { "name": name });
 }
 
 fn index_of(state: editor::State, name: str) -> int? {
@@ -660,7 +662,7 @@ fn follow(state: &mut editor::State, data: any, progress: float) {
 }
 
 fn following(place: any, offset_x: float) -> any {
-    map().with("place", place).with("dx", offset_x)
+    { "place": place, "dx": offset_x }
 }
 
 // The slingshot: grab the bird, pull down and left, let go.
@@ -680,18 +682,18 @@ fn pulling(state: &mut editor::State, data: any, progress: float) {
 // The screen the editor starts on: its pages in turn, then the sheet that
 // makes a project from a template.
 fn manager_pages(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "manager", map());
-    click(sequence, 50, at_place("manager", "examples"), "manager_tab", map().with("id", "examples"));
-    click(sequence, 210, at_place("manager", "projects"), "manager_tab", map().with("id", "projects"));
-    click(sequence, 330, at_place("manager", "new"), "manager_new", map());
+    act_verb(sequence, 1, "manager", {});
+    click(sequence, 50, at_place("manager", "examples"), "manager_tab", { "id": "examples" });
+    click(sequence, 210, at_place("manager", "projects"), "manager_tab", { "id": "projects" });
+    click(sequence, 330, at_place("manager", "new"), "manager_new", {});
 }
 
 // Files arriving one at a time, each let go where the pointer is: the editor
 // keeps drawing while the job writes them.
 fn importing(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
-    act_verb(sequence, 1, "dock", map().with("id", "assets"));
-    act_verb(sequence, 1, "drip_off", map());
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_verb(sequence, 1, "dock", { "id": "assets" });
+    act_verb(sequence, 1, "drip_off", {});
     drop_file(sequence, 70, 0.34, 0.44);
     drop_file(sequence, 190, 0.56, 0.34);
     drop_file(sequence, 310, 0.44, 0.62);
@@ -700,22 +702,22 @@ fn importing(state: &mut editor::State, sequence: Sequence) {
 
 // The pointer walks somewhere in the viewport and lets the next file go.
 fn drop_file(sequence: Sequence, frame: int, fraction_x: float, fraction_y: float) {
-    click(sequence, frame, at_place("viewport", [fraction_x, fraction_y]), "import_next", map());
+    click(sequence, frame, at_place("viewport", [fraction_x, fraction_y]), "import_next", {});
 }
 
 // The code pane taking the window: a node with a script, the Focus chip
 // folding the three docks away, and the shortcut putting them back.
 fn focusing(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCRIPT));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCRIPT });
     click_row(sequence, 40, "Spinner");
-    click(sequence, 200, at_place("spot", "focus_chip"), "focus", map());
+    click(sequence, 200, at_place("spot", "focus_chip"), "focus", {});
     chord(sequence, 480, [input::KEY_LEFT_SHIFT, input::KEY_LEFT_META, input::KEY_BACKSLASH], "focus");
 }
 
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
 // selection, an edit, and its undo.
 fn scenes(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     click_row(sequence, 30, "Platform");
     click_row(sequence, 150, "Ball");
     click_row(sequence, 250, "Spinner");
@@ -724,7 +726,7 @@ fn scenes(state: &mut editor::State, sequence: Sequence) {
     // A drag on the inspector's scale field, with the button held throughout.
     glide(sequence, 520 - GLIDE, 520, at_place("spot", "scale_x"));
     at(sequence, 540, press, nil);
-    at(sequence, 540, verb, map().with("verb", "record").with("label", "scale Spinner"));
+    at(sequence, 540, verb, { "verb": "record", "label": "scale Spinner" });
     over_ui(sequence, 540, 620, scaling, nil);
     over(sequence, 540, 620, follow, following(at_place("spot", "scale_x"), 30.0));
     at(sequence, 630, release, nil);
@@ -739,35 +741,35 @@ fn scaling(state: &mut editor::State, data: any, progress: float) {
 // Scripting, `examples/hello`: a change saved while the scene runs, then a
 // breakpoint stepped in the Debugger dock.
 fn scripting(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "keep", map().with("rel", SPINNER));
-    click(sequence, 30, at_place("spot", "script_tab"), "workspace", map().with("id", defs::WORKSPACE_SCRIPT));
+    act_verb(sequence, 1, "keep", { "rel": SPINNER });
+    click(sequence, 30, at_place("spot", "script_tab"), "workspace", { "id": defs::WORKSPACE_SCRIPT });
     click_row(sequence, 110, "Spinner");
-    click(sequence, 200, at_place("spot", "play"), "play", map());
+    click(sequence, 200, at_place("spot", "play"), "play", {});
     // The cursor rests on the edited line, or on the last one the pane can
     // show when the edit is below its foot.
-    glide(sequence, 300 - GLIDE, 300, map().with("gutter", "self.angle += dt").with("rel", SPINNER).with("dx", 220.0));
-    act_verb(sequence, 320, "edit", map().with("rel", SPINNER).with("from", "(self.speed + nudge").with("to", "(self.speed * 4.0 + nudge"));
+    glide(sequence, 300 - GLIDE, 300, { "gutter": "self.angle += dt", "rel": SPINNER, "dx": 220.0 });
+    act_verb(sequence, 320, "edit", { "rel": SPINNER, "from": "(self.speed + nudge", "to": "(self.speed * 4.0 + nudge" });
     chord(sequence, 400, [input::KEY_LEFT_META, input::KEY_S], "save");
     // Scrolled to first: the line the breakpoint goes on is near the file's
     // foot, and a mark on a line half off the pane reads as nothing happening.
-    let place = map().with("scrolled", "action_just_pressed").with("rel", SPINNER).with("row", 8);
-    click(sequence, 520, place, "breakpoint", map().with("rel", SPINNER).with("needle", "action_just_pressed"));
+    let place: any = { "scrolled": "action_just_pressed", "rel": SPINNER, "row": 8 };
+    click(sequence, 520, place, "breakpoint", { "rel": SPINNER, "needle": "action_just_pressed" });
     chord(sequence, 640, ["F10"], "step_over");
     chord(sequence, 720, ["F10"], "step_over");
-    act_verb(sequence, 800, "breakpoint", map().with("rel", SPINNER).with("needle", "let nudge"));
-    act_verb(sequence, 800, "continue", map());
-    act_verb(sequence, 860, "restore", map().with("rel", SPINNER));
+    act_verb(sequence, 800, "breakpoint", { "rel": SPINNER, "needle": "let nudge" });
+    act_verb(sequence, 800, "continue", {});
+    act_verb(sequence, 860, "restore", { "rel": SPINNER });
 }
 
 // Completion, `examples/hello`: the caret lands after `text`, a module path,
 // and the popup opens under it. The caret is placed rather than typed, the
 // way `edit_source` writes the buffer rather than typing into it.
 fn completion(state: &mut editor::State, sequence: Sequence, text: str) {
-    act_verb(sequence, 1, "keep", map().with("rel", SPINNER));
+    act_verb(sequence, 1, "keep", { "rel": SPINNER });
     // Re-opened every frame: `center::code_pane` runs after this and would
     // otherwise close it from the widget's own caret, which offscreen is none.
-    over_ui(sequence, 20, 400, completing, map().with("rel", SPINNER).with("text", text));
-    act_verb(sequence, 420, "restore", map().with("rel", SPINNER));
+    over_ui(sequence, 20, 400, completing, { "rel": SPINNER, "text": text });
+    act_verb(sequence, 420, "restore", { "rel": SPINNER });
 }
 
 // Put `text` on its own line after `fn init`, where the pane already looks
@@ -802,24 +804,24 @@ fn completing(state: &mut editor::State, data: any, _progress: float) {
 
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "fit_figure", map());
-    click(sequence, 20, at_place("spot", "animation_tab"), "workspace", map().with("id", defs::WORKSPACE_ANIMATION));
+    act_verb(sequence, 1, "fit_figure", {});
+    click(sequence, 20, at_place("spot", "animation_tab"), "workspace", { "id": defs::WORKSPACE_ANIMATION });
     click_row(sequence, 90, "Thigh");
-    click(sequence, 150, at_place("spot", "bone_tool"), "bone_tool", map());
+    click(sequence, 150, at_place("spot", "bone_tool"), "bone_tool", {});
     over_ui(sequence, 200, 340, scrubbing, nil);
-    act_verb(sequence, 380, "seek", map().with("time", 1.0));
+    act_verb(sequence, 380, "seek", { "time": 1.0 });
     // Drag the bone itself: the cursor sits on it while it turns.
     glide(sequence, 430 - GLIDE, 430, at_place("selection", true));
     at(sequence, 430, press, nil);
-    act_verb(sequence, 434, "record", map().with("label", "pose Thigh"));
+    act_verb(sequence, 434, "record", { "label": "pose Thigh" });
     over_ui(sequence, 434, 520, posing, nil);
     over(sequence, 434, 520, follow, following(at_place("selection", true), 0.0));
     at(sequence, 530, release, nil);
-    click(sequence, 600, at_place("spot", "key"), "key", map());
-    click(sequence, 700, at_place("spot", "play"), "play", map());
+    click(sequence, 600, at_place("spot", "key"), "key", {});
+    click(sequence, 700, at_place("spot", "play"), "play", {});
     // Stopped while the figure is still on its feet: the rig's own script
     // ragdolls it a few seconds in, which reads as the clip breaking.
-    click(sequence, 800, at_place("spot", "stop"), "stop", map());
+    click(sequence, 800, at_place("spot", "stop"), "stop", {});
 }
 
 fn scrubbing(state: &mut editor::State, data: any, progress: float) {
@@ -833,20 +835,20 @@ fn posing(state: &mut editor::State, data: any, progress: float) {
 // Physics, `examples/angrynerds`: the collider overlays, then play and a
 // shot at the towers.
 fn physics(state: &mut editor::State, sequence: Sequence) {
-    click(sequence, 20, at_place("spot", "physics_tab"), "workspace", map().with("id", defs::WORKSPACE_PHYSICS));
-    act_verb(sequence, 23, "zoom", map().with("to", 45.0));
+    click(sequence, 20, at_place("spot", "physics_tab"), "workspace", { "id": defs::WORKSPACE_PHYSICS });
+    act_verb(sequence, 23, "zoom", { "to": 45.0 });
     click_row(sequence, 80, "Bird");
-    click(sequence, 150, at_place("spot", "play"), "play", map());
-    act_verb(sequence, 160, "fit_level", map());
+    click(sequence, 150, at_place("spot", "play"), "play", {});
+    act_verb(sequence, 160, "fit_level", {});
     fling(sequence, 220);
 }
 
 // Input, `examples/hello`: the overlay, fed the keys and clicks a person
 // would press.
 fn input_clip(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     click_row(sequence, 30, "Spinner");
-    click(sequence, 110, at_place("spot", "play"), "play", map());
+    click(sequence, 110, at_place("spot", "play"), "play", {});
     tap(sequence, 200, "Space");
     hold(sequence, 260, 340, [input::KEY_A]);
     hold(sequence, 370, 450, [input::KEY_D]);
@@ -868,44 +870,44 @@ fn sweeping(state: &mut editor::State, data: any, progress: float) {
 // open the session and it flies again with nobody at the mouse; scrub back,
 // pause, play on.
 fn determinism(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
-    act_verb(sequence, 1, "zoom", map().with("to", 45.0));
-    act_verb(sequence, 1, "verify", map());
-    act_verb(sequence, 1, "dock", map().with("id", "recordings"));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_verb(sequence, 1, "zoom", { "to": 45.0 });
+    act_verb(sequence, 1, "verify", {});
+    act_verb(sequence, 1, "dock", { "id": "recordings" });
     click_row(sequence, 40, "Bird");
-    click(sequence, 120, at_place("spot", "play"), "play", map());
-    act_verb(sequence, 123, "dock", map().with("id", "recordings"));
-    act_verb(sequence, 130, "fit_level", map());
+    click(sequence, 120, at_place("spot", "play"), "play", {});
+    act_verb(sequence, 123, "dock", { "id": "recordings" });
+    act_verb(sequence, 130, "fit_level", {});
     fling(sequence, 200);
-    click(sequence, 520, at_place("spot", "stop"), "stop", map());
-    act_verb(sequence, 523, "dock", map().with("id", "recordings"));
-    click(sequence, 640, at_place("spot", "recordings"), "open_newest", map());
-    act_verb(sequence, 650, "fit_level", map());
+    click(sequence, 520, at_place("spot", "stop"), "stop", {});
+    act_verb(sequence, 523, "dock", { "id": "recordings" });
+    click(sequence, 640, at_place("spot", "recordings"), "open_newest", {});
+    act_verb(sequence, 650, "fit_level", {});
 }
 
 // Shaders, `examples/shaders`: the material in the inspector, its shader in
 // the code editor, a channel view, and a save that relinks the sprite.
 fn shaders(state: &mut editor::State, sequence: Sequence) {
     let rel = "shaders/glow.wesl";
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     // The dock names each previewed line and its type as it is asked for.
-    act_verb(sequence, 1, "dock", map().with("id", "output"));
-    act_verb(sequence, 1, "keep", map().with("rel", rel));
+    act_verb(sequence, 1, "dock", { "id": "output" });
+    act_verb(sequence, 1, "keep", { "rel": rel });
     click_row(sequence, 40, "Logo");
-    click(sequence, 150, at_place("spot", "shader_field"), "shader", map().with("rel", rel));
+    click(sequence, 150, at_place("spot", "shader_field"), "shader", { "rel": rel });
     // No per-line value preview: `render::set_shader_preview` relinks the
     // material in a run and not in the editor, so the viewport would show the
     // same picture whichever line was asked for.
-    click(sequence, 320, at_place("spot", "doc_scene"), "doctab", map().with("id", "scene"));
-    act_verb(sequence, 400, "debug_view", map().with("id", "uv"));
-    act_verb(sequence, 520, "debug_view", map().with("id", "normals"));
-    act_verb(sequence, 640, "debug_view", map().with("id", ""));
-    click(sequence, 700, at_place("spot", "doc_code"), "doctab", map().with("id", "script"));
-    act_verb(sequence, 780, "edit", map().with("rel", rel).with("from", "dist * params.rings").with("to", "dist * params.rings * 3.0"));
+    click(sequence, 320, at_place("spot", "doc_scene"), "doctab", { "id": "scene" });
+    act_verb(sequence, 400, "debug_view", { "id": "uv" });
+    act_verb(sequence, 520, "debug_view", { "id": "normals" });
+    act_verb(sequence, 640, "debug_view", { "id": "" });
+    click(sequence, 700, at_place("spot", "doc_code"), "doctab", { "id": "script" });
+    act_verb(sequence, 780, "edit", { "rel": rel, "from": "dist * params.rings", "to": "dist * params.rings * 3.0" });
     chord(sequence, 840, [input::KEY_LEFT_META, input::KEY_S], "save");
-    click(sequence, 900, at_place("spot", "doc_scene"), "doctab", map().with("id", "scene"));
-    act_verb(sequence, 1080, "doctab", map().with("id", "script"));
-    act_verb(sequence, 1080, "restore", map().with("rel", rel));
+    click(sequence, 900, at_place("spot", "doc_scene"), "doctab", { "id": "scene" });
+    act_verb(sequence, 1080, "doctab", { "id": "script" });
+    act_verb(sequence, 1080, "restore", { "rel": rel });
 }
 
 // The Theme window, `examples/hello`: a duplicate's primary colour walked to
@@ -956,28 +958,28 @@ fn mix(from: str, to: str, progress: float) -> str {
 fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     let preferences = settings::preferences_path();
     let was = fs::read(preferences);
-    act_verb(sequence, 1, "workspace", map().with("id", defs::WORKSPACE_SCENE));
+    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     chord(sequence, 40, [input::KEY_LEFT_META, input::KEY_K], "palette");
-    over_ui(sequence, 70, 110, typing, map().with("word", "theme"));
-    click(sequence, 150, at_place("centre", "Editor/Picker/PickerScroll/PickerRows/R0"), "theme", map());
-    click(sequence, 250, at_place("head", "Duplicate"), "theme_duplicate", map());
+    over_ui(sequence, 70, 110, typing, { "word": "theme" });
+    click(sequence, 150, at_place("centre", "Editor/Picker/PickerScroll/PickerRows/R0"), "theme", {});
+    click(sequence, 250, at_place("head", "Duplicate"), "theme_duplicate", {});
     // One source: the fills, the inks and the tints derived from it follow.
-    glide(sequence, 330 - GLIDE, 330, map().with("form", "primary").with("at", 0));
+    glide(sequence, 330 - GLIDE, 330, { "form": "primary", "at": 0 });
     at(sequence, 330, press, nil);
     over_ui(sequence, 335, 455, recolouring, nil);
     at(sequence, 460, release, nil);
-    click(sequence, 540, at_place("centre", SIDE + "/C3"), "theme_page", map().with("id", "controls"));
-    click(sequence, 620, map().with("form", "chip").with("at", 1), "theme_role", map().with("id", "chip"));
-    let padding = map().with("form", "  padding_x").with("at", 0);
+    click(sequence, 540, at_place("centre", SIDE + "/C3"), "theme_page", { "id": "controls" });
+    click(sequence, 620, { "form": "chip", "at": 1 }, "theme_role", { "id": "chip" });
+    let padding: any = { "form": "  padding_x", "at": 0 };
     glide(sequence, 700 - GLIDE, 700, padding);
     at(sequence, 700, press, nil);
     over_ui(sequence, 705, 785, padding_out, nil);
     over(sequence, 705, 785, follow, following(padding, 40.0));
     at(sequence, 790, release, nil);
     // The bar reads title, spring, Save, close: Save is its third node.
-    click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", map());
-    click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", map());
-    let put_back = map().with("verb", "theme_put_back").with("prefs", preferences);
+    click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", {});
+    click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});
+    let put_back: any = { "verb": "theme_put_back", "prefs": preferences };
     if was.is_some() {
         put_back.set("kept", was.unwrap());
     }

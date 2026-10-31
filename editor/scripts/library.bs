@@ -70,7 +70,7 @@ fn catalogue(state: &mut editor::State) -> Catalogue {
         return state.library.catalogue.unwrap();
     }
     let text = fs::read(ROOT + "/catalog.toml");
-    let table = if text.is_some() { util::map_or_empty(toml::parse(text.unwrap())) } else { map() };
+    let table: any = if text.is_some() { util::map_or_empty(toml::parse(text.unwrap())) } else { {} };
     if text.is_none() {
         log::warn("no library manifest at " + ROOT);
     } else if table.len() == 0 {
@@ -290,7 +290,7 @@ fn dependency_view(state: &mut editor::State) -> View {
             let title = if entry.is_nil() { rel } else { entry.get("name").as_str() };
             let note = if entry.is_nil() { folder + "/" + rel } else { entry.get("note").as_str() };
             items.push(util::row(file_icon(rel), alias + " · " + title, note, tokens.text_default.as_str()));
-            held.push(map().with("kind", "dependency").with("file", folder + "/" + rel));
+            held.push({ "kind": "dependency", "file": folder + "/" + rel });
         }
     }
     state.library.shown = Shown { items: items, held: held };
@@ -304,7 +304,7 @@ fn dependency_view(state: &mut editor::State) -> View {
 
 /// A dependency's `catalog.toml` entries by file, or an empty map.
 fn catalogue_of(root: str) -> any {
-    let out = map();
+    let out: any = {};
     let text = fs::read(root + "/catalog.toml");
     if text.is_none() {
         return out;
@@ -365,7 +365,7 @@ fn forge_view(state: &mut editor::State) -> View {
         }
         let note = if tags == "" { row.get("description").as_str() } else { row.get("description").as_str() + " · " + tags };
         items.push(util::row(icons::panel("assets"), row.get("project").as_str(), note, tokens.text_default.as_str()));
-        held.push(map().with("kind", "forge").with("file", row.get("project").as_str()));
+        held.push({ "kind": "forge", "file": row.get("project").as_str() });
     }
     state.library.shown = Shown { items: items, held: held };
     let says = if state.library.forge_says != "" {

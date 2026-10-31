@@ -9,7 +9,7 @@ use balaur_script::{Bindings, BindingsExt};
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 /// A map a script builds, three keys.
-const MAP: &str = "map().with(\"x\", 1.0).with(\"y\", 2.0).with(\"name\", \"widget\")";
+const MAP: &str = "{ \"x\": 1.0, \"y\": 2.0, \"name\": \"widget\" }";
 
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {

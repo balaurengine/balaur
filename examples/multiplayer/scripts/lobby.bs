@@ -61,6 +61,6 @@ impl Lobby {
 
     fn say(text: str) {
         log::info(text);
-        self.node.get_node("Sheet/Status").patch_component("widget", map().with("text", text));
+        self.node.get_node("Sheet/Status").patch_component("widget", { "text": text });
     }
 }

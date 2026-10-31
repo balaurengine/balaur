@@ -112,14 +112,24 @@ pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_wid
 /// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over
 /// the locals in `data` was. The Editor's `handle` makes the call.
 pub fn on(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    spec.with("on", "handle").with("data", data.with("fn", handler))
+    let carried = util::copy(util::map_or_empty(data));
+    carried.set("fn", handler);
+    let out = util::copy(spec);
+    out.set("on", "handle");
+    out.set("data", carried);
+    out
 }
 
 /// `on` for Enter in a field, beside or instead of its edit.
 pub fn on_submit(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
     let held = spec.get("data");
     let carried = if held.is_nil() { data } else { held };
-    spec.with("on_submit", "handle_submit").with("data", carried.with("submit", handler))
+    let kept = util::copy(util::map_or_empty(carried));
+    kept.set("submit", handler);
+    let out = util::copy(spec);
+    out.set("on_submit", "handle_submit");
+    out.set("data", kept);
+    out
 }
 
 /// Stop drawing the whole pool, for a panel that has nothing to show. What it

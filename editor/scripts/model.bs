@@ -52,7 +52,7 @@ pub fn source(state: &mut editor::State, rel: str) -> any {
         }
     }
     let text: any = fs::read(state.game_root + "/" + rel);
-    state.sources.set(rel, map().with("text", text).with("at", now));
+    state.sources.set(rel, { "text": text, "at": now });
     text
 }
 
@@ -83,7 +83,7 @@ pub fn hooks(state: &mut editor::State, rel: str) -> any {
         let hooks: [any] = [];
         for one in script::symbols(rel, text.as_str()) {
             if one.kind == "function" {
-                hooks.push(map().with("name", one.name).with("line", one.line).with("detail", one.detail));
+                hooks.push({ "name": one.name, "line": one.line, "detail": one.detail });
             }
         }
         entry.set("hooks", hooks);
@@ -105,7 +105,7 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
         }
     }
     let files = util::list_or_empty(fs::list(state.game_root + "/" + rel));
-    state.listings.set(rel, map().with("files", files).with("at", now));
+    state.listings.set(rel, { "files": files, "at": now });
     files
 }
 
@@ -115,8 +115,8 @@ pub fn forget(state: &mut editor::State, rel: str?) {
     if rel.is_some() {
         state.sources.remove(rel.unwrap());
     } else {
-        state.sources = map();
-        state.listings = map();
+        state.sources = {};
+        state.listings = {};
     }
 }
 
@@ -132,7 +132,7 @@ pub fn script_rel(found: Node) -> any {
 // What this node sets over its script's exported defaults. Sparse: a
 // property back at its default is absent, so a changed default reaches it.
 pub fn script_props(found: Node) -> any {
-    if found.is_valid() { util::map_or_empty(found.script_props()) } else { map() }
+    if found.is_valid() { util::map_or_empty(found.script_props()) } else { {} }
 }
 
 // The properties the script declares, cached beside its text: asking the host
@@ -301,7 +301,7 @@ pub fn index_of_id(state: editor::State, id: str) -> int? {
 /// An id no node of the scene carries, named for `name` the way the engine
 /// names a node a scene gave none.
 pub fn fresh_id(state: editor::State, name: str) -> str {
-    let taken = map();
+    let taken: any = {};
     for found in state.nodes {
         if found.is_valid() {
             taken.set(found.stable_id(), true);
@@ -552,7 +552,7 @@ pub fn load(state: &mut editor::State) {
         state.game_name = "";
         state.scene_rel = "";
         state.scene_path = "";
-        state.scene_doc = map();
+        state.scene_doc = {};
         clear_scene(state);
         history::reset(state);
         return;
@@ -681,7 +681,7 @@ pub fn build(state: &mut editor::State, text: str) {
     clear_scene(state);
     physics::clear();
     let under = mirror(state);
-    scene::instantiate(text, under, map().with("scripts", false).with("root", state.game_root));
+    scene::instantiate(text, under, scene::InstantiateOptions { scripts: false, root: state.game_root });
     let built = under.children();
     state.scene_root = if built.len() > 0 { built[0] } else { nil };
     physics::set_paused(true);
@@ -710,7 +710,7 @@ pub fn build(state: &mut editor::State, text: str) {
 /// keeps for stop to build again.
 pub fn scene_text(state: &mut editor::State) -> str {
     arrange::leave_isolate(state);
-    let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), map().with("root", state.game_root)));
+    let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), scene::ToTomlOptions { root: state.game_root }));
     let assets = state.scene_doc.assets;
     if !assets.is_nil() {
         written.set("assets", assets);
@@ -986,7 +986,7 @@ pub fn write(state: &mut editor::State) {
     // table the engine does not write.
     arrange::leave_isolate(state);
     let text = fs::read(state.scene_path).or("");
-    let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), map().with("root", state.game_root)));
+    let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), scene::ToTomlOptions { root: state.game_root }));
     // The blocks only once a tool changed one: patching them rewrites the
     // whole list, comments and all.
     if state.assets_touched {
@@ -1048,9 +1048,10 @@ pub fn instance_scene(state: &mut editor::State, rel: str) {
         return;
     }
     history::record(state, "instance " + rel, nil);
-    let made = spawn(state, selected_node(state), prefab_name(rel), map()
-        .with("instance", rel)
-        .with(TRANSFORM, map().with("position", [0.0, 0.0, 0.0])));
+    let made = spawn(state, selected_node(state), prefab_name(rel), {
+        "instance": rel,
+        TRANSFORM: { "position": [0.0, 0.0, 0.0] },
+    });
     reindex(state);
     selection::only(state, index_of_node(state, made).unwrap_or(0));
     log::info("instanced " + rel);
@@ -1130,7 +1131,7 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
     let parent = selected_node(state);
     let name = if kind.is_some() { kind_name(kind.unwrap()) } else { "Node" };
     history::record(state, "add {name}", nil);
-    let made = spawn(state, parent, name, map().with(TRANSFORM, map().with("position", landing(state, parent))));
+    let made = spawn(state, parent, name, { TRANSFORM: { "position": landing(state, parent) } });
     if kind.is_some() {
         if util::contains(scene::presets(), kind.unwrap()) {
             scene::apply_preset(made, kind.unwrap());
@@ -1189,13 +1190,13 @@ pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> 
     entry.set("id", fresh_id(state, unique));
     entry.set("name", unique);
     entry.remove("parent");
-    let document = map().with("nodes", [entry]);
+    let document: any = { "nodes": [entry] };
     // The scene's own blocks, so a `#id` the node names resolves.
     let assets = state.scene_doc.assets;
     if !assets.is_nil() {
         document.set("assets", assets);
     }
-    scene::instantiate(toml::encode(document), parent, map().with("scripts", false).with("root", state.game_root));
+    scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
     let made = parent.children();
     let found = made[made.len() - 1];
     // Listed now, so a second spawn before the caller lists the rows again
@@ -1253,7 +1254,7 @@ pub fn set_component_property(state: &mut editor::State, name: str, property: st
     for row in selection::all(state) {
         let found = node(state, row);
         if found.is_valid() && found.has_component(name) {
-            found.try_patch_component(name, map().with(property, value));
+            found.try_patch_component(name, { property: value });
         }
     }
 }
@@ -1298,7 +1299,7 @@ fn beside(state: editor::State, found: Node) -> Node {
 /// What `found` asks, as a scene file's node table without its id or parent:
 /// what a copy of it is built from. Its children are not in it.
 fn own_entry(state: editor::State, found: Node) -> any {
-    let written = toml::parse(scene::to_toml(found, map().with("root", state.game_root)));
+    let written = toml::parse(scene::to_toml(found, scene::ToTomlOptions { root: state.game_root }));
     let entry = util::list_or_empty(written.nodes)[0];
     entry.remove("id");
     entry.remove("parent");
@@ -1308,7 +1309,7 @@ fn own_entry(state: editor::State, found: Node) -> any {
 /// A node and its subtree as a scene file's text: what it asks, for a check
 /// that an edit and its undo left it as it was.
 pub fn node_text(state: editor::State, found: Node) -> str {
-    scene::to_toml(found, map().with("root", state.game_root))
+    scene::to_toml(found, scene::ToTomlOptions { root: state.game_root })
 }
 
 // Duplicate every selected node, without its children, beside it.
@@ -1336,7 +1337,7 @@ pub fn duplicate_selected(state: &mut editor::State) {
 /// paste mints a fresh one, and two nodes with one id is what the engine
 /// cannot tell apart.
 pub fn copy_selected(state: editor::State) -> str {
-    toml::encode(map().with("nodes", [own_entry(state, selected_node(state))]))
+    toml::encode({ "nodes": [own_entry(state, selected_node(state))] })
 }
 
 /// Paste a scene document beside the selection. Anything that is not one is
@@ -1427,7 +1428,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
         if !assets.is_nil() {
             document.set("assets", assets);
         }
-        scene::instantiate(toml::encode(document), parent, map().with("scripts", false).with("root", state.game_root));
+        scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
         let made = parent.children();
         made[made.len() - 1].set_sibling_index(change.place.as_int());
         return;
@@ -1467,7 +1468,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
 /// and `write_row` hands back. It lives for one edit; the node is what is
 /// kept.
 pub fn row_of(found: Node) -> any {
-    let row = map();
+    let row: any = {};
     if !found.is_valid() {
         return row;
     }
@@ -1490,7 +1491,7 @@ pub fn write_row(found: Node, row: any) {
     }
     for name in row.keys() {
         let wanted = util::map_or_empty(row.get(name));
-        if !found.has_component(name) || toml::encode(map().with("v", found.authored(name))) != toml::encode(map().with("v", wanted)) {
+        if !found.has_component(name) || toml::encode({ "v": found.authored(name) }) != toml::encode({ "v": wanted }) {
             found.set_component(name, wanted);
         }
     }
@@ -1552,7 +1553,7 @@ fn restore_keys(found: Node, was: any) {
         found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
     }
     if found.z_index() != was.z_index.as_int() {
-        found.set_z_index(was.z_index.as_int(), map().with("z_as_relative", was.z_as_relative.as_bool()));
+        found.set_z_index(was.z_index.as_int(), { "z_as_relative": was.z_as_relative.as_bool() });
     }
     if found.process() != was.process.as_str() {
         found.set_process(was.process.as_str());

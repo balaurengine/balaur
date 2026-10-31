@@ -288,7 +288,7 @@ fn ensure_mesh(state: editor::State) -> any {
     }
     let edited_component = component(state, model::selected_node(state));
     let none: [any] = [];
-    edited_component.set("mesh", map().with("positions", none));
+    edited_component.set("mesh", { "positions": none });
     edited_component.mesh
 }
 
@@ -518,7 +518,7 @@ pub fn sync_bones(state: &mut editor::State) {
     if mesh.is_nil() {
         return;
     }
-    let had = map();
+    let had: any = {};
     for bone in bone_list(mesh) {
         had.set(bone.path.as_str(), util::list_or_empty(bone.weights));
     }
@@ -532,9 +532,9 @@ pub fn sync_bones(state: &mut editor::State) {
         while weights.len() < count {
             weights.push(0.0);
         }
-        bones.push(map().with("path", path).with("weights", weights));
+        bones.push({ "path": path, "weights": weights });
     }
-    mesh.set("skin", map().with("bones", bones));
+    mesh.set("skin", { "bones": bones });
     state.polygon.bone = if bones.len() > 0 { 0 } else { nil };
     signals::inspector(state);
     write(state);
@@ -720,7 +720,7 @@ fn swap_outline(list: any, outline: int) {
 // one call mirrors a whole rig rather than half of it twice.
 fn mirror_weights(mesh: any) {
     let bones = bone_list(mesh);
-    let by_path = map();
+    let by_path: any = {};
     for index in 0..bones.len() {
         by_path.set(bones[index].path.as_str(), index);
     }
@@ -755,10 +755,11 @@ pub fn trace(state: &mut editor::State) {
         log::warn("this polygon's mesh is a file; embed it to trace into it");
         return;
     }
-    let options = map()
-        .with("threshold", state.polygon.threshold)
-        .with("tolerance", state.polygon.tolerance)
-        .with("pixels_per_unit", pixels_per_unit(state));
+    let options: any = {
+        "threshold": state.polygon.threshold,
+        "tolerance": state.polygon.tolerance,
+        "pixels_per_unit": pixels_per_unit(state),
+    };
     let loops = render::trace_texture(state.game_root + "/" + texture, options);
     if loops.len() == 0 || loops[0].len() < 3 {
         log::warn("{texture} has no opaque pixels at this threshold");
@@ -970,10 +971,11 @@ fn enter_uv(state: &mut editor::State) {
         return;
     }
     let backdrop = state.mirror.unwrap().add_child("UvBackdrop");
-    backdrop.set_component("sprite", map()
-        .with("texture", state.game_root + "/" + texture)
-        .with("pixels_per_unit", pixels_per_unit(state))
-        .with("color", [1.0, 1.0, 1.0, 0.55]));
+    backdrop.set_component("sprite", {
+        "texture": state.game_root + "/" + texture,
+        "pixels_per_unit": pixels_per_unit(state),
+        "color": [1.0, 1.0, 1.0, 0.55],
+    });
     state.polygon.backdrop = backdrop;
     signals::inspector(state);
 }
@@ -1128,17 +1130,18 @@ pub fn mode_specs(state: editor::State) -> [any] {
     let out: [any] = [];
     for id in modes(state) {
         let on = mode == id;
-        out.push(map()
-            .with("kind", "button")
-            .with("text", mode_name(id))
-            .with("height", 24)
-            .with("font_size", style::SMALL)
-            .with("font_weight", 700)
-            .with("fill", if on { tokens.primary_bg } else { tokens.bg_panel })
-            .with("stroke", tokens.border_default)
-            .with("text_color", if on { tokens.primary_text } else { tokens.text_muted })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_mode_picked).with("picked", id)));
+        out.push({
+            "kind": "button",
+            "text": mode_name(id),
+            "height": 24,
+            "font_size": style::SMALL,
+            "font_weight": 700,
+            "fill": if on { tokens.primary_bg } else { tokens.bg_panel },
+            "stroke": tokens.border_default,
+            "text_color": if on { tokens.primary_text } else { tokens.text_muted },
+            "on": "handle",
+            "data": { "fn": on_mode_picked, "picked": id },
+        });
     }
     out
 }
@@ -1160,15 +1163,16 @@ pub fn option_specs(state: editor::State) -> [any] {
         }
         if names.len() > 0 {
             let active = if state.polygon.bone.is_some() { state.polygon.bone.unwrap() } else { 0 };
-            out.push(map()
-                .with("kind", "dropdown")
-                .with("width", 140)
-                .with("height", 24)
-                .with("text", names[util::int_min(active, names.len() - 1)])
-                .with("options", names)
-                .with("tooltip", "The bone the brush paints")
-                .with("on", "handle")
-                .with("data", map().with("fn", option_bone).with("names", names)));
+            out.push({
+                "kind": "dropdown",
+                "width": 140,
+                "height": 24,
+                "text": names[util::int_min(active, names.len() - 1)],
+                "options": names,
+                "tooltip": "The bone the brush paints",
+                "on": "handle",
+                "data": { "fn": option_bone, "names": names },
+            });
         }
         out.push(option_field(state.polygon.radius, 0.5, 2.0, 400.0, "px", "How far the brush reaches", option_radius));
         out.push(option_field(state.polygon.strength, 0.01, 0.01, 2.0, "×", "How much a stroke adds", option_strength));
@@ -1179,18 +1183,19 @@ pub fn option_specs(state: editor::State) -> [any] {
 }
 
 fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> any {
-    map()
-        .with("kind", "number_field")
-        .with("width", 76)
-        .with("height", 24)
-        .with("value", value)
-        .with("drag_speed", step)
-        .with("min", low)
-        .with("max", high)
-        .with("prefix", prefix)
-        .with("tooltip", tooltip)
-        .with("on", "handle")
-        .with("data", map().with("fn", then))
+    {
+        "kind": "number_field",
+        "width": 76,
+        "height": 24,
+        "value": value,
+        "drag_speed": step,
+        "min": low,
+        "max": high,
+        "prefix": prefix,
+        "tooltip": tooltip,
+        "on": "handle",
+        "data": { "fn": then },
+    }
 }
 
 fn option_bone(state: &mut editor::State, data: any, picked: any) {

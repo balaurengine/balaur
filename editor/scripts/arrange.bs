@@ -134,10 +134,11 @@ pub fn group(state: &mut editor::State) {
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
     history::record(state, "group", nil);
-    let made = model::spawn(state, parent, "Group", map().with("transform", map()
-        .with("position", util::vector_subtract(center, base))
-        .with("rotation_euler", [0.0, 0.0, 0.0])
-        .with("scale", [1.0, 1.0, 1.0])));
+    let made = model::spawn(state, parent, "Group", { "transform": {
+        "position": util::vector_subtract(center, base),
+        "rotation_euler": [0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0],
+    } });
     // Where the first member stood, so the group takes its place in the order.
     if members[0].parent() == parent {
         made.set_sibling_index(members[0].sibling_index());

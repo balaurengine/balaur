@@ -93,7 +93,7 @@ fn icon_width(state: editor::State) -> float {
 // A dark system gets the light-inked mark on a dark plate.
 pub fn set_app_icon(dark: bool) {
     if dark {
-        window::set_app_icon("assets/balaur-logo-dark.png", map().with("plate", DARK_PLATE()));
+        window::set_app_icon("assets/balaur-logo-dark.png", window::AppIconOptions { plate: DARK_PLATE() });
     } else {
         window::set_app_icon("assets/balaur-logo.png");
     }
@@ -255,12 +255,13 @@ pub fn fill(state: &mut editor::State) {
     let mark = brand(state);
     let node = scene::get_node(BRAND_NODE);
     if node.is_valid() {
-        node.patch_component("widget", map()
-            .with("image", mark.logo)
-            .with("text", mark.name)
-            .with("trailing", icons::ui("caret-down"))
-            .with("height", row_height(state) - 4.0));
-        node.patch_component("widget_menu", map().with("showing", state.menu_open));
+        node.patch_component("widget", {
+            "image": mark.logo,
+            "text": mark.name,
+            "trailing": icons::ui("caret-down"),
+            "height": row_height(state) - 4.0,
+        });
+        node.patch_component("widget_menu", { "showing": state.menu_open });
     }
     let menu_at = menu_key(state);
     if pool::strip_due(state, BRAND_NODE, menu_at) {
@@ -326,78 +327,83 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
     let out: [any] = [];
     for workspace in defs::workspaces() {
         let id = workspace.id;
-        out.push(map()
-            .with("kind", "button")
-            .with("height", height)
-            .with("role", "tab_workspace")
-            .with("checked", state.workspace == id)
-            .with("text", if state.compact { "" } else { workspace.name })
-            .with("icon", workspace.icon)
-            .with("tooltip", workspace.name)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_workspace_pressed).with("id", id)));
+        out.push({
+            "kind": "button",
+            "height": height,
+            "role": "tab_workspace",
+            "checked": state.workspace == id,
+            "text": if state.compact { "" } else { workspace.name },
+            "icon": workspace.icon,
+            "tooltip": workspace.name,
+            "on": "handle",
+            "data": { "fn": on_workspace_pressed, "id": id },
+        });
     }
     for entry in doc_controls(state, tokens, height) {
         out.push(entry);
     }
-    out.push(map()
-        .with("kind", "button")
-        .with("height", height)
-        .with("icon", icons::ui("split"))
-        .with("role", "tab_workspace")
-        .with("checked", state.split)
-        .with("text", if state.compact { "" } else { "Split" })
-        .with("tooltip", "Show the code and the viewport at once (⌘\\)")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_split_pressed)));
+    out.push({
+        "kind": "button",
+        "height": height,
+        "icon": icons::ui("split"),
+        "role": "tab_workspace",
+        "checked": state.split,
+        "text": if state.compact { "" } else { "Split" },
+        "tooltip": "Show the code and the viewport at once (⌘\\)",
+        "on": "handle",
+        "data": { "fn": on_split_pressed },
+    });
     // Beside the split, because the two are the same question: how much of the
     // window the code is worth.
     let can_focus = state.focus || shell::focus_target(state);
-    out.push(map()
-        .with("kind", "button")
-        .with("height", height)
-        .with("icon", icons::ui(if state.focus { "unfocus" } else { "focus" }))
-        .with("role", "tab_workspace")
-        .with("checked", state.focus)
-        .with("text", if state.compact { "" } else { "Focus" })
-        .with("enabled", can_focus)
-        .with("tooltip", if state.focus {
+    out.push({
+        "kind": "button",
+        "height": height,
+        "icon": icons::ui(if state.focus { "unfocus" } else { "focus" }),
+        "role": "tab_workspace",
+        "checked": state.focus,
+        "text": if state.compact { "" } else { "Focus" },
+        "enabled": can_focus,
+        "tooltip": if state.focus {
             "Put the docks back (⇧⌘\\)"
         } else if can_focus {
             "Give the code the whole window (⇧⌘\\)"
         } else {
             "The selection has no script to focus"
-        })
-        .with("on", "handle")
-        .with("data", map().with("fn", on_focus_pressed)));
+        },
+        "on": "handle",
+        "data": { "fn": on_focus_pressed },
+    });
     // The spring: what is after it sits against the bar's right edge.
-    out.push(map().with("kind", "row").with("grow", 1));
+    out.push({ "kind": "row", "grow": 1 });
     for entry in transport_controls(state) {
         out.push(entry);
     }
-    out.push(map()
-        .with("kind", "button")
-        .with("height", row_height(state))
-        .with("width", icon_width(state))
-        .with("padding", 0)
-        .with("role", "item_bar")
-        .with("text", "")
-        .with("icon", if tokens.get("dark").as_bool() { icons::ui("dark") } else { icons::ui("light") })
-        .with("tooltip", "Toggle theme")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_theme_pressed)));
+    out.push({
+        "kind": "button",
+        "height": row_height(state),
+        "width": icon_width(state),
+        "padding": 0,
+        "role": "item_bar",
+        "text": "",
+        "icon": if tokens.get("dark").as_bool() { icons::ui("dark") } else { icons::ui("light") },
+        "tooltip": "Toggle theme",
+        "on": "handle",
+        "data": { "fn": on_theme_pressed },
+    });
     let named = !state.compact;
-    out.push(map()
-        .with("kind", "button")
-        .with("height", row_height(state))
-        .with("role", "item_bar")
-        .with("width", if named { 0.0 } else { icon_width(state) })
-        .with("padding", if named { -1.0 } else { 0.0 })
-        .with("text", if named { "Run a command" } else { "" })
-        .with("icon", icons::ui("search"))
-        .with("tooltip", "⌘K")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_command_pressed)));
+    out.push({
+        "kind": "button",
+        "height": row_height(state),
+        "role": "item_bar",
+        "width": if named { 0.0 } else { icon_width(state) },
+        "padding": if named { -1.0 } else { 0.0 },
+        "text": if named { "Run a command" } else { "" },
+        "icon": icons::ui("search"),
+        "tooltip": "⌘K",
+        "on": "handle",
+        "data": { "fn": on_command_pressed },
+    });
     out
 }
 
@@ -458,43 +464,46 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
     let role = "tab_workspace";
     // Built by pushing: a `[` after an `if` block is read as indexing it.
     let inner: [any] = [];
-    inner.push(map()
-        .with("kind", "button")
-        .with("height", height)
-        .with("text", label)
-        .with("icon", icon)
-        .with("role", role)
-        .with("checked", active)
-        .with("corner_radius", 0)
-        .with("fill", "none")
-        .with("padding", [7, -1, 7, -1])
-        .with("on", "handle")
-        .with("data", map().with("fn", on_doc_picked).with("id", id)));
+    inner.push({
+        "kind": "button",
+        "height": height,
+        "text": label,
+        "icon": icon,
+        "role": role,
+        "checked": active,
+        "corner_radius": 0,
+        "fill": "none",
+        "padding": [7, -1, 7, -1],
+        "on": "handle",
+        "data": { "fn": on_doc_picked, "id": id },
+    });
     if closable {
-        inner.push(map()
-            .with("kind", "button")
-            .with("height", height)
-            .with("width", 13)
-            .with("padding", 0)
-            .with("text", "")
-            .with("icon", icons::ui("close"))
-            .with("role", role)
-            .with("checked", active)
-            .with("corner_radius", 0)
-            .with("fill", "none")
-            .with("tooltip", "Close")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_doc_close_pressed).with("id", id)));
+        inner.push({
+            "kind": "button",
+            "height": height,
+            "width": 13,
+            "padding": 0,
+            "text": "",
+            "icon": icons::ui("close"),
+            "role": role,
+            "checked": active,
+            "corner_radius": 0,
+            "fill": "none",
+            "tooltip": "Close",
+            "on": "handle",
+            "data": { "fn": on_doc_close_pressed, "id": id },
+        });
     }
-    inner.push(map().with("kind", "row").with("width", 5));
+    inner.push({ "kind": "row", "width": 5 });
     // One tile: the row carries the fill and the corners, and the halves
     // inside it paint nothing.
     let out: [any] = [];
-    out.push(map()
-        .with("height", height)
-        .with("corner_radius", 4)
-        .with("controls", inner)
-        .with("fill", if active { "primary_bg" } else { "none" }));
+    out.push({
+        "height": height,
+        "corner_radius": 4,
+        "controls": inner,
+        "fill": if active { "primary_bg" } else { "none" },
+    });
     out
 }
 
@@ -518,52 +527,55 @@ fn transport_controls(state: editor::State) -> [any] {
         state.playing && (physics::is_paused())
     };
     [
-        map()
-            .with("kind", "button")
-            .with("text", "")
-            .with("icon", icons::ui("play"))
-            .with("height", row_height(state))
-            .with("width", icon_width(state))
-            .with("padding", 0)
-            .with("icon_size", PLAY_SIZE)
-            .with("role", "icon_action_primary")
-            .with("checked", state.playing)
-            .with("tooltip", if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_play_pressed)),
-        map()
-            .with("kind", "button")
-            .with("text", "")
-            .with("icon", icons::ui("pause"))
-            .with("enabled", running)
-            .with("height", row_height(state))
-            .with("width", icon_width(state))
-            .with("padding", 0)
-            .with("icon_size", STEP_SIZE)
-            .with("role", "icon_action_primary")
-            .with("checked", paused)
-            .with("tooltip", if !running {
+        {
+            "kind": "button",
+            "text": "",
+            "icon": icons::ui("play"),
+            "height": row_height(state),
+            "width": icon_width(state),
+            "padding": 0,
+            "icon_size": PLAY_SIZE,
+            "role": "icon_action_primary",
+            "checked": state.playing,
+            "tooltip": if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
+            "on": "handle",
+            "data": { "fn": on_play_pressed },
+        },
+        {
+            "kind": "button",
+            "text": "",
+            "icon": icons::ui("pause"),
+            "enabled": running,
+            "height": row_height(state),
+            "width": icon_width(state),
+            "padding": 0,
+            "icon_size": STEP_SIZE,
+            "role": "icon_action_primary",
+            "checked": paused,
+            "tooltip": if !running {
                 "Run the scene first"
             } else if replaying {
                 "Pause playback"
             } else {
                 "Pause simulation"
-            })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_pause_pressed).with("replaying", replaying)),
-        map()
-            .with("kind", "button")
-            .with("text", "")
-            .with("icon", icons::ui("stop"))
-            .with("enabled", running)
-            .with("height", row_height(state))
-            .with("width", icon_width(state))
-            .with("padding", 0)
-            .with("icon_size", STEP_SIZE)
-            .with("role", "icon_action_primary")
-            .with("tooltip", if running { "Stop" } else { "Nothing is running" })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_stop_pressed).with("replaying", replaying)),
+            },
+            "on": "handle",
+            "data": { "fn": on_pause_pressed, "replaying": replaying },
+        },
+        {
+            "kind": "button",
+            "text": "",
+            "icon": icons::ui("stop"),
+            "enabled": running,
+            "height": row_height(state),
+            "width": icon_width(state),
+            "padding": 0,
+            "icon_size": STEP_SIZE,
+            "role": "icon_action_primary",
+            "tooltip": if running { "Stop" } else { "Nothing is running" },
+            "on": "handle",
+            "data": { "fn": on_stop_pressed, "replaying": replaying },
+        },
     ]
 }
 
@@ -616,7 +628,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
         } else {
             "{name} {job.over.as_str()} · {done} {plural(done, "file")}"
         };
-        lines.push(map().with("kind", "label").with("role", "text_note").with("text", line).with("text_color", tokens.text_muted));
+        lines.push({ "kind": "label", "role": "text_note", "text": line, "text_color": tokens.text_muted });
     }
     pool::strip(state, IMPORTS + "/Lines", lines);
     let totals = dropin::job_totals(state);
@@ -668,45 +680,49 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
     } else {
         tokens.get("text_subtle")
     }).as_str();
-    let out = [
-        map().with("kind", "row").with("width", 6).with("corner_radius", 0),
-        map().with("kind", "row").with("width", 5).with("height", 5).with("corner_radius", 3).with("fill", lamp),
-        map()
-            .with("kind", "label")
-            .with("corner_radius", 0)
-            .with("text", status_mode(state))
-            .with("role", "text_caption")
-            .with("text_color", tokens.get("text_muted").as_str()),
+    let out: [any] = [
+        { "kind": "row", "width": 6, "corner_radius": 0 },
+        { "kind": "row", "width": 5, "height": 5, "corner_radius": 3, "fill": lamp },
+        {
+            "kind": "label",
+            "corner_radius": 0,
+            "text": status_mode(state),
+            "role": "text_caption",
+            "text_color": tokens.get("text_muted").as_str(),
+        },
     ];
     // Narrow: the columns go one at a time rather than running together.
     if room > 300.0 {
         let stats = model::stats(state);
         let nodes = stats.nodes;
         let scripts = stats.scripts;
-        out.push(map()
-            .with("kind", "label")
-            .with("corner_radius", 0)
-            .with("text", "{nodes} {plural(nodes.as_int(), "node")} · {scripts} {plural(scripts.as_int(), "script")}")
-            .with("role", "text_caption")
-            .with("text_color", tokens.get("text_subtle").as_str()));
+        out.push({
+            "kind": "label",
+            "corner_radius": 0,
+            "text": "{nodes} {plural(nodes.as_int(), "node")} · {scripts} {plural(scripts.as_int(), "script")}",
+            "role": "text_caption",
+            "text_color": tokens.get("text_subtle").as_str(),
+        });
     }
     if room > 560.0 {
-        out.push(map()
-            .with("kind", "label")
-            .with("corner_radius", 0)
-            .with("text", "kiss3d · wgpu")
-            .with("role", "text_caption")
-            .with("text_color", tokens.get("text_subtle").as_str()));
+        out.push({
+            "kind": "label",
+            "corner_radius": 0,
+            "text": "kiss3d · wgpu",
+            "role": "text_caption",
+            "text_color": tokens.get("text_subtle").as_str(),
+        });
     }
-    out.push(map().with("kind", "row").with("corner_radius", 0).with("grow", 1));
+    out.push({ "kind": "row", "corner_radius": 0, "grow": 1 });
     if room > 420.0 {
-        out.push(map()
-            .with("kind", "label")
-            .with("corner_radius", 0)
-            .with("text", "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}")
-            .with("role", "text_caption")
-            .with("text_color", tokens.get("text_subtle").as_str()));
+        out.push({
+            "kind": "label",
+            "corner_radius": 0,
+            "text": "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}",
+            "role": "text_caption",
+            "text_color": tokens.get("text_subtle").as_str(),
+        });
     }
-    out.push(map().with("kind", "row").with("width", 6).with("corner_radius", 0));
+    out.push({ "kind": "row", "width": 6, "corner_radius": 0 });
     out
 }

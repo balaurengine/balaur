@@ -100,7 +100,7 @@ pub(super) fn expr(e: &E) -> String {
         E::Index(r, k) => format!("{}[{}]", receiver(r), expr(k)),
         E::Dot(r, k) => format!("{}.{k}", receiver(r)),
         E::NilAny => "nil()".into(),
-        E::MapAny => "map()".into(),
+        E::MapAny => "any_map()".into(),
     }
 }
 

@@ -52,13 +52,14 @@ fn drop_box(parent: Node, n: int) {
     let box = parent.add_child("Box{n}");
     let col = (n % 6) as float;
     let row = (n / 6) as float;
-    box.set_component("transform", map()
-        .with("position", [-3.0 + col * 1.2, 0.8 + row * 1.4, 0.0])
-        .with("rotation_euler", [0.0, 0.0, 0.25 * (n as float)]));
+    box.set_component("transform", {
+        "position": [-3.0 + col * 1.2, 0.8 + row * 1.4, 0.0],
+        "rotation_euler": [0.0, 0.0, 0.25 * (n as float)],
+    });
     // Light gravity, so the fall is long enough to pause in the middle of.
-    box.set_component("body2d", map().with("kind", "dynamic").with("gravity_scale", 0.35));
-    box.set_component("collider2d", map().with("shape", map().with("kind", "rectangle").with("size", [0.68, 0.68])).with("physics_material", map().with("restitution", 0.3)));
-    box.set_component("shape2d", map().with("shape", map().with("kind", "rectangle").with("size", [0.68, 0.68]).with("corner_radius", 0.08)).with("color", tint(n)));
+    box.set_component("body2d", { "kind": "dynamic", "gravity_scale": 0.35 });
+    box.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [0.68, 0.68] }, "physics_material": { "restitution": 0.3 } });
+    box.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [0.68, 0.68], "corner_radius": 0.08 }, "color": tint(n) });
 }
 
 fn tint(n: int) -> str {
@@ -72,7 +73,7 @@ fn tint(n: int) -> str {
 }
 
 fn label(x: float, y: float, text: str, size: float, color: [float]) {
-    render::draw_text_2d(x, y, text, map().with("font_size", size).with("color", color).with("text_align", "center"));
+    render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: "center" });
 }
 
 // A square that turns every frame, paused or not: what an `always` subtree

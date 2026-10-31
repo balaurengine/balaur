@@ -982,8 +982,8 @@ const MOVER: &str = r#"
 pub class Mover { node: Node, landed: int, ready: bool }
 impl Mover {
     fn init() {
-        let rise = map().with("property", "position").with("to", [0.0, 10.0, 0.0]).with("duration", 0.5);
-        animation::tween(self.node, map().with("steps", [rise, map().with("call", "land")]));
+        let rise = animation::Step { property: "position", to: [0.0, 10.0, 0.0], duration: 0.5 };
+        animation::tween(self.node, animation::Tween { steps: [rise, animation::Step { call: "land" }] });
         self.ready = true;
     }
     pub fn land() {

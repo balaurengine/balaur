@@ -45,15 +45,16 @@ pub fn summarize(samples: [float]) -> any {
     sorted.sort();
     let m = mean(sorted);
     let n = sorted.len();
-    map()
-        .with("count", n)
-        .with("mean_ms", m)
-        .with("stddev_ms", stddev(sorted, m))
-        .with("min_ms", if n == 0 { 0.0 } else { sorted[0] })
-        .with("p50_ms", percentile(sorted, 0.5))
-        .with("p95_ms", percentile(sorted, 0.95))
-        .with("p99_ms", percentile(sorted, 0.99))
-        .with("max_ms", if n == 0 { 0.0 } else { sorted[n - 1] })
+    {
+        "count": n,
+        "mean_ms": m,
+        "stddev_ms": stddev(sorted, m),
+        "min_ms": if n == 0 { 0.0 } else { sorted[0] },
+        "p50_ms": percentile(sorted, 0.5),
+        "p95_ms": percentile(sorted, 0.95),
+        "p99_ms": percentile(sorted, 0.99),
+        "max_ms": if n == 0 { 0.0 } else { sorted[n - 1] },
+    }
 }
 
 const QUANTUM: float = 0.01;

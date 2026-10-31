@@ -159,7 +159,7 @@ pub fn known(state: &mut editor::State) -> [str] {
 
 // Where a panel lands when it is opened from the menu rather than moved.
 fn homes() -> any {
-    map().with("scene", "left").with("outline", "left").with("inspector", "right").with("import", "right")
+    { "scene": "left", "outline": "left", "inspector": "right", "import": "right" }
 }
 
 pub fn home(id: str) -> str {
@@ -179,25 +179,26 @@ pub fn panels(state: &mut editor::State) -> any {
             return cache.table;
         }
     }
-    let table = map()
-        .with("scene", map().with("name", "Scene").with("icon", icons::panel("scene")).with("tall", false))
-        .with("outline", map().with("name", left::outline_title(state)).with("icon", icons::panel("outline")).with("tall", false))
-        .with("inspector", map().with("name", "Inspector").with("icon", icons::panel("inspector")).with("tall", false))
-        .with("import", map().with("name", "Import").with("icon", icons::panel("import")).with("tall", false))
-        .with("output", map().with("name", "Output").with("icon", icons::panel("output")).with("tall", false))
-        .with("problems", map().with("name", "Problems").with("icon", icons::panel("problems")).with("tall", false))
-        .with("assets", map().with("name", "Assets").with("icon", icons::panel("assets")).with("tall", false))
-        .with("docs", map().with("name", "Docs").with("icon", icons::panel("docs")).with("tall", true))
-        .with("timeline", map().with("name", "Timeline").with("icon", icons::panel("timeline")).with("tall", true))
-        .with("debugger", map().with("name", "Debugger").with("icon", icons::panel("debugger")).with("tall", true))
-        .with("recordings", map().with("name", "Recordings").with("icon", icons::panel("recordings")).with("tall", true))
-        .with("profiler", map().with("name", "Profiler").with("icon", icons::panel("profiler")).with("tall", true))
-        .with("cost", map().with("name", "Cost").with("icon", icons::panel("cost")).with("tall", true))
-        .with("library", map().with("name", "Library").with("icon", icons::panel("library")).with("tall", false))
-        .with("tiles", map().with("name", "Tiles").with("icon", icons::panel("tiles")).with("tall", true))
-        .with("weights", map().with("name", "Weights").with("icon", icons::panel("weights")).with("tall", true))
-        .with("bonemap", map().with("name", "Bone map").with("icon", icons::panel("bonemap")).with("tall", true))
-        .with("statemachine", map().with("name", "State machine").with("icon", icons::panel("statemachine")).with("tall", true));
+    let table: any = {
+        "scene": { "name": "Scene", "icon": icons::panel("scene"), "tall": false },
+        "outline": { "name": left::outline_title(state), "icon": icons::panel("outline"), "tall": false },
+        "inspector": { "name": "Inspector", "icon": icons::panel("inspector"), "tall": false },
+        "import": { "name": "Import", "icon": icons::panel("import"), "tall": false },
+        "output": { "name": "Output", "icon": icons::panel("output"), "tall": false },
+        "problems": { "name": "Problems", "icon": icons::panel("problems"), "tall": false },
+        "assets": { "name": "Assets", "icon": icons::panel("assets"), "tall": false },
+        "docs": { "name": "Docs", "icon": icons::panel("docs"), "tall": true },
+        "timeline": { "name": "Timeline", "icon": icons::panel("timeline"), "tall": true },
+        "debugger": { "name": "Debugger", "icon": icons::panel("debugger"), "tall": true },
+        "recordings": { "name": "Recordings", "icon": icons::panel("recordings"), "tall": true },
+        "profiler": { "name": "Profiler", "icon": icons::panel("profiler"), "tall": true },
+        "cost": { "name": "Cost", "icon": icons::panel("cost"), "tall": true },
+        "library": { "name": "Library", "icon": icons::panel("library"), "tall": false },
+        "tiles": { "name": "Tiles", "icon": icons::panel("tiles"), "tall": true },
+        "weights": { "name": "Weights", "icon": icons::panel("weights"), "tall": true },
+        "bonemap": { "name": "Bone map", "icon": icons::panel("bonemap"), "tall": true },
+        "statemachine": { "name": "State machine", "icon": icons::panel("statemachine"), "tall": true },
+    };
     for entry in state.registry.panels {
         let icon = if entry.icon == "" { icons::panel(entry.id) } else { entry.icon };
         table.set(entry.id, Table { name: entry.title, icon: icon, tall: entry.tall });
@@ -250,7 +251,7 @@ pub fn toggle(state: &mut editor::State, id: str) {
 
 fn panel(state: &mut editor::State, id: str) -> any {
     let found = panels(state).get(id);
-    if found.is_nil() { map().with("name", id).with("icon", icons::panel(id)).with("tall", false) } else { found }
+    if found.is_nil() { { "name": id, "icon": icons::panel(id), "tall": false } } else { found }
 }
 
 /// What a panel is called, for a menu row outside this module.
@@ -340,8 +341,8 @@ fn body(state: editor::State, id: str) {
         // An open recording's lanes take the list's room.
         if id == "recordings" {
             let open = session::loaded(state);
-            util::fill(BOTTOM + "Recordings", map().with("visible", !open));
-            util::fill(BOTTOM + "Lanes", map().with("visible", open));
+            util::fill(BOTTOM + "Recordings", { "visible": !open });
+            util::fill(BOTTOM + "Lanes", { "visible": open });
             return;
         }
         show_panel(own_node(id));
@@ -354,7 +355,7 @@ fn body(state: editor::State, id: str) {
     } else if id == "inspector" {
         inspector::show_panel();
     } else if id == "import" {
-        util::fill("Editor/Shell/Body/Right/RightSheet/Import", map().with("visible", true));
+        util::fill("Editor/Shell/Body/Right/RightSheet/Import", { "visible": true });
     } else {
         fill_plugin(state, id);
     }
@@ -384,7 +385,7 @@ const BOTTOM: str = "Editor/Shell/Body/Centre/Bottom/";
 // The bottom panels, each a scene of its own under the dock with its own
 // script: shown and hidden here, filled by themselves. A panel's node by id.
 fn own_nodes() -> any {
-    map().with("output", "Output").with("problems", "Problems").with("docs", "Docs").with("profiler", "Profiler").with("cost", "Cost").with("assets", "Assets").with("library", "Library").with("tiles", "Tiles").with("statemachine", "StateMachine").with("recordings", "Recordings").with("debugger", "Debugger").with("timeline", "Timeline").with("weights", "Weights").with("bonemap", "Bonemap")
+    { "output": "Output", "problems": "Problems", "docs": "Docs", "profiler": "Profiler", "cost": "Cost", "assets": "Assets", "library": "Library", "tiles": "Tiles", "statemachine": "StateMachine", "recordings": "Recordings", "debugger": "Debugger", "timeline": "Timeline", "weights": "Weights", "bonemap": "Bonemap" }
 }
 
 fn own_node(id: str) -> str {
@@ -408,7 +409,7 @@ fn filled_by_itself(id: str) -> bool {
 }
 
 fn show_panel(name: str) {
-    util::fill(BOTTOM + name, map().with("visible", true));
+    util::fill(BOTTOM + name, { "visible": true });
 }
 
 /// Fill a panel's strip of chips at `path`: `rows` is a list of controls a
@@ -416,38 +417,39 @@ fn show_panel(name: str) {
 pub fn toolbar(state: editor::State, path: str, rows: [[any]]) {
     let groups: [any] = [];
     for row in rows {
-        groups.push(map().with("kind", "row").with("role", "toolbar_dock").with("gap", [6, 6]).with("align_items", "center").with("controls", row));
+        groups.push({ "kind": "row", "role": "toolbar_dock", "gap": [6, 6], "align_items": "center", "controls": row });
     }
     pool::strip(state, path, groups);
 }
 
 fn node_owners() -> any {
-    map()
-        .with("bottom", [
-            map().with("hide", "Output").with("panels", ["output"]),
-            map().with("hide", "Problems").with("panels", ["problems"]),
-            map().with("hide", "Docs").with("panels", ["docs"]),
-            map().with("hide", "Profiler").with("panels", ["profiler"]),
-            map().with("hide", "Cost").with("panels", ["cost"]),
-            map().with("hide", "Assets").with("panels", ["assets"]),
-            map().with("hide", "Library").with("panels", ["library"]),
-            map().with("hide", "Tiles").with("panels", ["tiles"]),
-            map().with("hide", "StateMachine").with("panels", ["statemachine"]),
-            map().with("hide", "Recordings").with("panels", ["recordings"]),
-            map().with("hide", "Lanes").with("panels", ["recordings"]),
-            map().with("hide", "Timeline").with("panels", ["timeline"]),
-            map().with("hide", "Weights").with("panels", ["weights"]),
-            map().with("hide", "Bonemap").with("panels", ["bonemap"]),
-            map().with("hide", "Debugger").with("panels", ["debugger"]),
-        ])
-        .with("left", [
-            map().with("hide", "tree").with("panels", ["scene"]),
-            map().with("hide", "outline").with("panels", ["outline"]),
-        ])
-        .with("right", [
-            map().with("hide", "inspector").with("panels", ["inspector"]),
-            map().with("hide", "import").with("panels", ["import"]),
-        ])
+    {
+        "bottom": [
+            { "hide": "Output", "panels": ["output"] },
+            { "hide": "Problems", "panels": ["problems"] },
+            { "hide": "Docs", "panels": ["docs"] },
+            { "hide": "Profiler", "panels": ["profiler"] },
+            { "hide": "Cost", "panels": ["cost"] },
+            { "hide": "Assets", "panels": ["assets"] },
+            { "hide": "Library", "panels": ["library"] },
+            { "hide": "Tiles", "panels": ["tiles"] },
+            { "hide": "StateMachine", "panels": ["statemachine"] },
+            { "hide": "Recordings", "panels": ["recordings"] },
+            { "hide": "Lanes", "panels": ["recordings"] },
+            { "hide": "Timeline", "panels": ["timeline"] },
+            { "hide": "Weights", "panels": ["weights"] },
+            { "hide": "Bonemap", "panels": ["bonemap"] },
+            { "hide": "Debugger", "panels": ["debugger"] },
+        ],
+        "left": [
+            { "hide": "tree", "panels": ["scene"] },
+            { "hide": "outline", "panels": ["outline"] },
+        ],
+        "right": [
+            { "hide": "inspector", "panels": ["inspector"] },
+            { "hide": "import", "panels": ["import"] },
+        ],
+    }
 }
 
 fn hide_node(state: editor::State, which: str) {
@@ -528,8 +530,8 @@ pub fn plugin_host(state: editor::State, side: str, id: str) -> str {
         }
         scene::instantiate(host_fragment(host_name(id)), under);
     }
-    util::fill(parent, map().with("visible", true));
-    util::fill(path, map().with("visible", true));
+    util::fill(parent, { "visible": true });
+    util::fill(path, { "visible": true });
     path
 }
 
@@ -630,17 +632,18 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
 /// The panel's own controls and the fold, in that order: where they have
 /// always been, at the end of the head rather than the end of the tabs.
 fn tail_controls(state: editor::State, side: str) -> [any] {
-    let fold = map()
-        .with("kind", "button")
-        .with("height", tab_height(state))
-        .with("width", tab_height(state))
-        .with("padding", 0)
-        .with("text", "")
-        .with("icon", icons::ui(shut_icon(side)))
-        .with("role", "icon_action")
-        .with("tooltip", "Minimize")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_fold_pressed).with("side", side));
+    let fold: any = {
+        "kind": "button",
+        "height": tab_height(state),
+        "width": tab_height(state),
+        "padding": 0,
+        "text": "",
+        "icon": icons::ui(shut_icon(side)),
+        "role": "icon_action",
+        "tooltip": "Minimize",
+        "on": "handle",
+        "data": { "fn": on_fold_pressed, "side": side },
+    };
     // Every panel carries its own tools in its own scene.
     let controls = [fold];
     controls
@@ -666,31 +669,33 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
         // One tile: the row carries the fill and the corners, and the two
         // halves inside it paint nothing, so the pair reads as one control.
         let inner: [any] = [];
-        inner.push(map()
-            .with("kind", "button")
-            .with("height", height)
-            .with("text", label)
-            .with("padding", [6, -1, 6, -1])
-            .with("corner_radius", 4)
-            .with("fill", "none")
-            .with("role", "tab")
-            .with("checked", active)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_tab_picked).with("side", side).with("held", held)));
+        inner.push({
+            "kind": "button",
+            "height": height,
+            "text": label,
+            "padding": [6, -1, 6, -1],
+            "corner_radius": 4,
+            "fill": "none",
+            "role": "tab",
+            "checked": active,
+            "on": "handle",
+            "data": { "fn": on_tab_picked, "side": side, "held": held },
+        });
         // Its own role, so the half of the tile under the pointer is the half
         // that lights up: a mark that looked the same either way was aimed at
         // and missed, and the click landed on the name beside it.
-        inner.push(map()
-            .with("kind", "button")
-            .with("height", height)
-            .with("width", 22)
-            .with("text", "")
-            .with("corner_radius", 4)
-            .with("role", "icon_action_tab")
-            .with("icon", icons::ui("close"))
-            .with("tooltip", "Close {info.get("name")}")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_tab_close_pressed).with("held", held)));
+        inner.push({
+            "kind": "button",
+            "height": height,
+            "width": 22,
+            "text": "",
+            "corner_radius": 4,
+            "role": "icon_action_tab",
+            "icon": icons::ui("close"),
+            "tooltip": "Close {info.get("name")}",
+            "on": "handle",
+            "data": { "fn": on_tab_close_pressed, "held": held },
+        });
         inner.push(TabSpacer { kind: "row", width: 3 });
         out.push(TabTile {
             height: height,
@@ -707,16 +712,17 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
         }
     }
     if hidden.len() > 0 {
-        out.push(map()
-            .with("kind", "dropdown")
-            .with("role", "choice")
-            .with("height", height)
-            .with("width", MORE_WIDTH)
-            .with("text", "+{hidden.len()}")
-            .with("options", hidden)
-            .with("tooltip", "More tabs")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_more_tab_picked).with("side", side)));
+        out.push({
+            "kind": "dropdown",
+            "role": "choice",
+            "height": height,
+            "width": MORE_WIDTH,
+            "text": "+{hidden.len()}",
+            "options": hidden,
+            "tooltip": "More tabs",
+            "on": "handle",
+            "data": { "fn": on_more_tab_picked, "side": side },
+        });
     }
     out
 }

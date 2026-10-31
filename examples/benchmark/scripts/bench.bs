@@ -60,7 +60,7 @@ impl Bench {
         self.queue = [];
         self.results = [];
         self.state = "idle";
-        self.samples = map();
+        self.samples = {};
         self.status = "pick a case";
         self.draw = true;
         self.steps = STEPS;
@@ -286,7 +286,7 @@ impl Bench {
             let needed = if c.settle > self.warmup { c.settle } else { self.warmup };
             if self.tick >= needed {
                 self.tick = 0;
-                self.samples = map();
+                self.samples = {};
                 self.state = "time";
                 self.status = "{e.key}: measuring";
                 if self.shot != "" {
@@ -372,65 +372,68 @@ impl Bench {
 
     fn physics_result(c: load::Case, w: world::World) -> any {
         let extra = c.extra;
-        map()
-            .with("case", c.name)
-            .with("dimensions", if c.dimensions == 2 { "2d" } else { "3d" })
-            .with("engine_label", "Balaur")
-            .with("steps", self.steps)
-            .with("warmup", self.warmup)
-            .with("physics_ticks_per_second", 60)
-            .with("body_count", w.bodies.len())
-            .with("static_count", w.statics)
-            .with("joint_count", w.joints)
-            .with("work_units", w.queries)
-            .with("extra_metrics", extra(w, c))
-            .with("fingerprint", stats::fingerprint(w.bodies, c.dimensions))
-            .with("build_ms", self.build_ms)
-            .with("step_ms", self.summary("step_ms"))
-            .with("physics_ms", self.summary("physics_ms"))
-            .with("script_ms", self.summary("script_ms"))
-            .with("frame_ms", self.summary("frame_ms"))
-            .with("platform", engine::target())
+        {
+            "case": c.name,
+            "dimensions": if c.dimensions == 2 { "2d" } else { "3d" },
+            "engine_label": "Balaur",
+            "steps": self.steps,
+            "warmup": self.warmup,
+            "physics_ticks_per_second": 60,
+            "body_count": w.bodies.len(),
+            "static_count": w.statics,
+            "joint_count": w.joints,
+            "work_units": w.queries,
+            "extra_metrics": extra(w, c),
+            "fingerprint": stats::fingerprint(w.bodies, c.dimensions),
+            "build_ms": self.build_ms,
+            "step_ms": self.summary("step_ms"),
+            "physics_ms": self.summary("physics_ms"),
+            "script_ms": self.summary("script_ms"),
+            "frame_ms": self.summary("frame_ms"),
+            "platform": engine::target(),
+        }
     }
 
     /// What a load case reports: how many there were, the frame they
     /// produced, and where that frame went.
     fn load_result(c: load::Case, w: world::World) -> any {
         let extra = c.extra;
-        map()
-            .with("case", c.name)
-            .with("dimensions", "load")
-            .with("engine_label", "Balaur")
-            .with("steps", self.steps)
-            .with("warmup", self.warmup)
-            .with("count", c.count)
-            .with("script", c.script)
-            .with("build_ms", self.build_ms)
-            .with("frame_ms", self.summary("frame_ms"))
-            .with("wall_ms", self.summary("wall_ms"))
-            .with("update_ms", self.summary("update_ms"))
-            .with("sync_ms", self.summary("sync_ms"))
-            .with("script_ms", self.summary("script_ms"))
-            .with("mirror_ms", self.summary("mirror_ms"))
-            .with("ui_ms", self.summary("ui_ms"))
-            .with("render_cpu_ms", self.summary("render_cpu_ms"))
-            .with("render_gpu_ms", self.summary("render_gpu_ms"))
-            .with("instructions", self.summary("instructions"))
-            .with("extra_metrics", extra(w, c))
-            .with("platform", engine::target())
+        {
+            "case": c.name,
+            "dimensions": "load",
+            "engine_label": "Balaur",
+            "steps": self.steps,
+            "warmup": self.warmup,
+            "count": c.count,
+            "script": c.script,
+            "build_ms": self.build_ms,
+            "frame_ms": self.summary("frame_ms"),
+            "wall_ms": self.summary("wall_ms"),
+            "update_ms": self.summary("update_ms"),
+            "sync_ms": self.summary("sync_ms"),
+            "script_ms": self.summary("script_ms"),
+            "mirror_ms": self.summary("mirror_ms"),
+            "ui_ms": self.summary("ui_ms"),
+            "render_cpu_ms": self.summary("render_cpu_ms"),
+            "render_gpu_ms": self.summary("render_gpu_ms"),
+            "instructions": self.summary("instructions"),
+            "extra_metrics": extra(w, c),
+            "platform": engine::target(),
+        }
     }
 
     fn node_result(c: load::Case) -> any {
-        map()
-            .with("case", c.name)
-            .with("dimensions", "nodes")
-            .with("engine_label", "Balaur")
-            .with("iterations", c.iterations)
-            .with("repeats", c.repeats)
-            .with("stages", c.stages)
-            .with("build_ms", self.build_ms)
-            .with("loop_ms", self.summary("loop_ms"))
-            .with("platform", engine::target())
+        {
+            "case": c.name,
+            "dimensions": "nodes",
+            "engine_label": "Balaur",
+            "iterations": c.iterations,
+            "repeats": c.repeats,
+            "stages": c.stages,
+            "build_ms": self.build_ms,
+            "loop_ms": self.summary("loop_ms"),
+            "platform": engine::target(),
+        }
     }
 
     fn summary(key: str) -> any {
@@ -446,7 +449,7 @@ impl Bench {
     fn start_next() {
         self.repeat = 0;
         self.made = 0;
-        self.samples = map();
+        self.samples = {};
         if self.queue.len() == 0 {
             if self.headless {
                 engine::quit();
@@ -479,14 +482,14 @@ impl Bench {
         for c in self.cases {
             keys.push(c.key);
         }
-        menu.get_node("Cases").patch_component("widget", map().with("options", keys));
+        menu.get_node("Cases").patch_component("widget", { "options": keys });
         self.show_status();
     }
 
     fn show_status() {
         let label = self.node.get_node("Menu/Status");
         if label.is_valid() {
-            label.patch_component("widget", map().with("text", self.status));
+            label.patch_component("widget", { "text": self.status });
         }
     }
 
@@ -499,7 +502,7 @@ impl Bench {
         for row in self.results {
             lines = if lines == "" { line_of(row) } else { "{lines}\n{line_of(row)}" };
         }
-        label.patch_component("widget", map().with("text", lines));
+        label.patch_component("widget", { "text": lines });
     }
 
     pub fn on_pick(key: any) {
@@ -588,10 +591,10 @@ fn tune(c: load::Case) {
     }
     physics::set_sleeping_allowed(false);
     if c.dimensions == 2 {
-        physics::set_tuning(map().with("length_unit", 100.0));
+        physics::set_tuning({ "length_unit": 100.0 });
         physics2d::set_gravity(0.0, -980.0);
     } else {
-        physics::set_tuning(map().with("length_unit", 1.0));
+        physics::set_tuning({ "length_unit": 1.0 });
         physics3d::set_gravity(0.0, -9.81, 0.0);
     }
 }

@@ -65,7 +65,7 @@ const TOKENS: &[&str] = &[
     "{str: int}",
     "Node",
     "self.",
-    "map()",
+    "{}",
     "use x;",
 ];
 

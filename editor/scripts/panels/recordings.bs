@@ -38,7 +38,7 @@ impl Recordings {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Verify").patch_component("widget", map().with("checked", view.get("verify")));
-        self.node.get_node("Nothing").patch_component("widget", map().with("visible", view.get("count").as_int() == 0));
+        self.node.get_node("Tools/Verify").patch_component("widget", { "checked": view.get("verify") });
+        self.node.get_node("Nothing").patch_component("widget", { "visible": view.get("count").as_int() == 0 });
     }
 }

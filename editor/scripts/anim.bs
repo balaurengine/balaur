@@ -263,11 +263,12 @@ pub fn key_count(clip_definition: any) -> int {
 
 fn component_parameters(animation_component: any, library: any) -> any {
     let speed = animation_component.speed_scale;
-    map()
-        .with("library", library)
-        .with("autoplay", animation_component.autoplay.as_str())
-        .with("speed_scale", if speed.is_nil() { 1.0 } else { speed.as_float() })
-        .with("root_node", animation_component.root_node.as_str())
+    {
+        "library": library,
+        "autoplay": animation_component.autoplay.as_str(),
+        "speed_scale": if speed.is_nil() { 1.0 } else { speed.as_float() },
+        "root_node": animation_component.root_node.as_str(),
+    }
 }
 
 /// Put the edited clip in front of the engine and hold it at the playhead:
@@ -332,9 +333,9 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
     }
     history::record(state, "create clip", nil);
     let name = found.name().to_lower();
-    let clips = map().with(name, map().with("length", 2.0).with("loop_mode", animation::LOOP_LINEAR));
-    let library = map().with("type", CLIP_TYPE).with(GROUP, clips);
-    found.set_component(COMPONENT, map().with("library", library).with("autoplay", name).with("speed_scale", 1.0).with("root_node", ""));
+    let clips: any = { name: { "length": 2.0, "loop_mode": animation::LOOP_LINEAR } };
+    let library: any = { "type": CLIP_TYPE, GROUP: clips };
+    found.set_component(COMPONENT, { "library": library, "autoplay": name, "speed_scale": 1.0, "root_node": "" });
     // The node carries the component now, which the frame's held read did not.
     model::drop_edited(state);
     state.clip = nil;
@@ -351,7 +352,7 @@ fn track_for(clip_definition: any, property: str, target: str) -> any {
             return track;
         }
     }
-    let track = map().with("property", property).with("interpolation", animation::INTERPOLATION_LINEAR).with("keys", []);
+    let track: any = { "property": property, "interpolation": animation::INTERPOLATION_LINEAR, "keys": [] };
     if target != "" {
         track.set("target", target);
     }
@@ -363,7 +364,7 @@ fn track_for(clip_definition: any, property: str, target: str) -> any {
 }
 
 fn put_key(track: any, time: float, value: any) {
-    let key = map().with("time", time).with("value", value);
+    let key: any = { "time": time, "value": value };
     let keys = util::list_or_empty(track.keys);
     let out: [any] = [];
     let placed = false;
@@ -525,7 +526,7 @@ pub fn make_inline(state: &mut editor::State) {
     // the name `autoplay` now has to carry.
     let parts = rel.unwrap().split_once("#");
     if parts.len() == 2 {
-        copy = map().with(GROUP, map().with(parts[1], copy));
+        copy = { GROUP: { parts[1]: copy } };
         animation_component.set("autoplay", parts[1]);
     }
     copy.set("type", CLIP_TYPE);

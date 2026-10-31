@@ -24,8 +24,8 @@ fn calls_indexes_ranges_and_lists_keep_tight() {
 
 #[test]
 fn lines_are_indented_by_the_brackets_above() {
-    let messy = "impl A {\nfn f() {\nlet m = map()\n.with(\"a\", [\n1,\n2,\n])\n.with(\"b\", 2);\nif a\n&& b {\nc();\n}\n}\n}\n";
-    let want = "impl A {\n    fn f() {\n        let m = map()\n            .with(\"a\", [\n                1,\n                2,\n            ])\n            .with(\"b\", 2);\n        if a\n            && b {\n            c();\n        }\n    }\n}\n";
+    let messy = "impl A {\nfn f() {\nlet m = start()\n.and(\"a\", [\n1,\n2,\n])\n.and(\"b\", 2);\nif a\n&& b {\nc();\n}\n}\n}\n";
+    let want = "impl A {\n    fn f() {\n        let m = start()\n            .and(\"a\", [\n                1,\n                2,\n            ])\n            .and(\"b\", 2);\n        if a\n            && b {\n            c();\n        }\n    }\n}\n";
     assert_eq!(laid(messy), want);
 }
 

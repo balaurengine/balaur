@@ -35,7 +35,8 @@ enum T {
 }
 
 /// What every program declares before its functions.
-const DECLARATIONS: &str = "struct Point { x: int, y: int }\nenum Shade { Dark, Lit(int) }\n";
+const DECLARATIONS: &str =
+    "struct Point { x: int, y: int }\nenum Shade { Dark, Lit(int) }\nfn any_map() -> any { {} }\n";
 
 /// The keys a `{str: int}` literal and a write may name.
 const KEYS: [&str; 3] = ["a", "b", "c"];
@@ -122,7 +123,7 @@ enum E {
     Dot(Box<E>, &'static str),
     /// `nil()`: an `any` holding nothing.
     NilAny,
-    /// `map()`: a new, empty `any` map.
+    /// `any_map()`: a new, empty `any` map, which `DECLARATIONS` builds.
     MapAny,
 }
 

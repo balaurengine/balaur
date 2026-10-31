@@ -108,7 +108,7 @@ fn save(state: &mut editor::State) {
         return;
     }
     let path = state.pen.path.unwrap();
-    let definition = map().with("type", "path2d").with("points", path.points).with("closed", path.closed);
+    let definition: any = { "type": "path2d", "points": path.points, "closed": path.closed };
     assets::save(asset_path(state, found), definition);
     model::forget(state, nil);
     // The stroke is drawn from the asset, so the node has to be told the file
@@ -276,12 +276,13 @@ pub fn toggle_closed(state: &mut editor::State) {
 pub fn new_path(state: &mut editor::State) {
     let name = model::unique_name(state, "Path");
     let relative_path = "paths/{name.to_lower()}.toml";
-    assets::save(state.game_root + "/" + relative_path, map().with("type", "path2d").with("points", []).with("closed", false));
+    assets::save(state.game_root + "/" + relative_path, { "type": "path2d", "points": [], "closed": false });
     model::forget(state, nil);
     history::record(state, "add path", nil);
-    let made = model::spawn(state, state.scene_root.unwrap(), name, map()
-        .with("transform", map().with("position", [0.0, 0.0, 0.0]))
-        .with("line2d", map().with("mesh", relative_path).with("width", 0.06)));
+    let made = model::spawn(state, state.scene_root.unwrap(), name, {
+        "transform": { "position": [0.0, 0.0, 0.0] },
+        "line2d": { "mesh": relative_path, "width": 0.06 },
+    });
     model::reindex(state);
     selection::only(state, model::index_of_node(state, made).unwrap_or(0));
     state.tool = "pen";

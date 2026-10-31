@@ -39,9 +39,9 @@ impl Import {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Name").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("name")));
-        self.node.get_node("From").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("from")));
-        self.node.get_node("Nothing").patch_component("widget", map().with("visible", !view.get("ready").as_bool()).with("text", view.get("says")));
-        self.node.get_node("Scroll").patch_component("widget", map().with("visible", view.get("ready")));
+        self.node.get_node("Name").patch_component("widget", { "visible": view.get("ready"), "text": view.get("name") });
+        self.node.get_node("From").patch_component("widget", { "visible": view.get("ready"), "text": view.get("from") });
+        self.node.get_node("Nothing").patch_component("widget", { "visible": !view.get("ready").as_bool(), "text": view.get("says") });
+        self.node.get_node("Scroll").patch_component("widget", { "visible": view.get("ready") });
     }
 }
