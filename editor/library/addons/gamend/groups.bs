@@ -24,7 +24,7 @@ pub fn approve_join_request(node: Node, id: any, request_id: any) -> any {
     gamend::rest(node, "POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve", nil())
 }
 
-/// Cancel a sent group invitation
+/// Cancel a pending group invitation
 /// `DELETE /api/v1/groups/sent_invitations/{invite_id}`
 pub fn cancel_group_invite(node: Node, invite_id: any) -> any {
     gamend::rest(node, "DELETE", "/api/v1/groups/sent_invitations/{invite_id}", nil())
@@ -54,6 +54,12 @@ pub fn create_group_icon_upload_url(node: Node, id: any, params: any) -> any {
     gamend::rest(node, "POST", "/api/v1/groups/{id}/icon/upload_url", params)
 }
 
+/// Make a group's invite link (admin only)
+/// `POST /api/v1/groups/{id}/invite_link`
+pub fn create_group_invite_link(node: Node, id: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/{id}/invite_link", nil())
+}
+
 /// Decline a group invitation
 /// `POST /api/v1/groups/invitations/{invite_id}/decline`
 pub fn decline_group_invite(node: Node, invite_id: any) -> any {
@@ -64,6 +70,12 @@ pub fn decline_group_invite(node: Node, invite_id: any) -> any {
 /// `DELETE /api/v1/groups/{id}`
 pub fn delete_group(node: Node, id: any) -> any {
     gamend::rest(node, "DELETE", "/api/v1/groups/{id}", nil())
+}
+
+/// Turn a group's invite link off (admin only)
+/// `DELETE /api/v1/groups/{id}/invite_link`
+pub fn delete_group_invite_link(node: Node, id: any) -> any {
+    gamend::rest(node, "DELETE", "/api/v1/groups/{id}/invite_link", nil())
 }
 
 /// Demote admin to member
@@ -81,6 +93,12 @@ pub fn get_group(node: Node, id: any) -> any {
     gamend::rest(node, "GET", "/api/v1/groups/{id}", nil())
 }
 
+/// Get a group's invite link (admin only)
+/// `GET /api/v1/groups/{id}/invite_link`
+pub fn get_group_invite_link(node: Node, id: any) -> any {
+    gamend::rest(node, "GET", "/api/v1/groups/{id}/invite_link", nil())
+}
+
 /// Invite a user to a group (admin only)
 /// `POST /api/v1/groups/{id}/invite`
 pub fn invite_to_group(node: Node, id: any, params: any) -> any {
@@ -94,6 +112,12 @@ pub fn invite_to_group(node: Node, id: any, params: any) -> any {
 /// `POST /api/v1/groups/{id}/join`
 pub fn join_group(node: Node, id: any) -> any {
     gamend::rest(node, "POST", "/api/v1/groups/{id}/join", nil())
+}
+
+/// Join a group through its invite link
+/// `POST /api/v1/groups/invite_links/{token}/join`
+pub fn join_group_by_invite_link(node: Node, token: any) -> any {
+    gamend::rest(node, "POST", "/api/v1/groups/invite_links/{token}/join", nil())
 }
 
 /// Kick a member (admin only)
@@ -116,6 +140,13 @@ pub fn leave_group(node: Node, id: any) -> any {
 pub fn list_group_invitations(node: Node, options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
     gamend::rest(node, "GET", "/api/v1/groups/invitations{query}", nil())
+}
+
+/// List a group's pending invitations (admin only)
+/// `GET /api/v1/groups/{id}/invites`
+pub fn list_group_invites(node: Node, id: any, options: any) -> any {
+    let query = core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", "/api/v1/groups/{id}/invites{query}", nil())
 }
 
 /// List group members
@@ -151,6 +182,12 @@ pub fn list_my_groups(node: Node, options: any) -> any {
 pub fn list_sent_invitations(node: Node, options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
     gamend::rest(node, "GET", "/api/v1/groups/sent_invitations{query}", nil())
+}
+
+/// See the group an invite link opens
+/// `GET /api/v1/groups/invite_links/{token}`
+pub fn preview_group_invite_link(node: Node, token: any) -> any {
+    gamend::rest(node, "GET", "/api/v1/groups/invite_links/{token}", nil())
 }
 
 /// Promote member to admin

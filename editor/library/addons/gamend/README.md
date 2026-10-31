@@ -14,7 +14,7 @@ let reply = await task::wait(lobbies::quick_join(self.node, { "title": "duel", "
 if e.get("kind").as_str() == lobby::MEMBER_JOINED { }
 ```
 
-273 operations in 44 modules, and 98 realtime events.
+279 operations in 44 modules, and 98 realtime events.
 
 Beside the generated modules and `events.bs`, written by hand:
 
@@ -359,24 +359,30 @@ Groups.
 | --- | --- | --- |
 | `accept_group_invite(node, invite_id)` | `POST /api/v1/groups/invitations/{invite_id}/accept` | Accept a group invitation |
 | `approve_join_request(node, id, request_id)` | `POST /api/v1/groups/{id}/join_requests/{request_id}/approve` | Approve a join request (admin only) |
-| `cancel_group_invite(node, invite_id)` | `DELETE /api/v1/groups/sent_invitations/{invite_id}` | Cancel a sent group invitation |
+| `cancel_group_invite(node, invite_id)` | `DELETE /api/v1/groups/sent_invitations/{invite_id}` | Cancel a pending group invitation |
 | `cancel_join_request(node, id, request_id)` | `DELETE /api/v1/groups/{id}/join_requests/{request_id}` | Cancel your own pending join request |
 | `create_group(node, params)` | `POST /api/v1/groups` | Create a group |
 | `create_group_icon_upload_url(node, id, params)` | `POST /api/v1/groups/{id}/icon/upload_url` | Request a group icon upload ticket (admin only) |
+| `create_group_invite_link(node, id)` | `POST /api/v1/groups/{id}/invite_link` | Make a group's invite link (admin only) |
 | `decline_group_invite(node, invite_id)` | `POST /api/v1/groups/invitations/{invite_id}/decline` | Decline a group invitation |
 | `delete_group(node, id)` | `DELETE /api/v1/groups/{id}` | Delete a group (admin only) |
+| `delete_group_invite_link(node, id)` | `DELETE /api/v1/groups/{id}/invite_link` | Turn a group's invite link off (admin only) |
 | `demote_group_member(node, id, params)` | `POST /api/v1/groups/{id}/demote` | Demote admin to member |
 | `get_group(node, id)` | `GET /api/v1/groups/{id}` | Get group details |
+| `get_group_invite_link(node, id)` | `GET /api/v1/groups/{id}/invite_link` | Get a group's invite link (admin only) |
 | `invite_to_group(node, id, params)` | `POST /api/v1/groups/{id}/invite` | Invite a user to a group (admin only) |
 | `join_group(node, id)` | `POST /api/v1/groups/{id}/join` | Join a group |
+| `join_group_by_invite_link(node, token)` | `POST /api/v1/groups/invite_links/{token}/join` | Join a group through its invite link |
 | `kick_group_member(node, id, params)` | `POST /api/v1/groups/{id}/kick` | Kick a member (admin only) |
 | `leave_group(node, id)` | `POST /api/v1/groups/{id}/leave` | Leave a group |
 | `list_group_invitations(node, options)` | `GET /api/v1/groups/invitations` | List my group invitations |
+| `list_group_invites(node, id, options)` | `GET /api/v1/groups/{id}/invites` | List a group's pending invitations (admin only) |
 | `list_group_members(node, id, options)` | `GET /api/v1/groups/{id}/members` | List group members |
 | `list_groups(node, options)` | `GET /api/v1/groups` | List groups |
 | `list_join_requests(node, id, options)` | `GET /api/v1/groups/{id}/join_requests` | List pending join requests (admin only) |
 | `list_my_groups(node, options)` | `GET /api/v1/groups/me` | List groups I belong to |
 | `list_sent_invitations(node, options)` | `GET /api/v1/groups/sent_invitations` | List group invitations I have sent |
+| `preview_group_invite_link(node, token)` | `GET /api/v1/groups/invite_links/{token}` | See the group an invite link opens |
 | `promote_group_member(node, id, params)` | `POST /api/v1/groups/{id}/promote` | Promote member to admin |
 | `reject_join_request(node, id, request_id)` | `POST /api/v1/groups/{id}/join_requests/{request_id}/reject` | Reject a join request (admin only) |
 | `set_group_icon(node, id, params)` | `POST /api/v1/groups/{id}/icon` | Confirm an uploaded group icon (admin only) |
