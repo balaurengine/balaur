@@ -34,8 +34,7 @@
 > measured first, went from 2.12 ms to 0.42 ms a frame (3D drop, 8,000
 > bodies) and 2.64 ms to 0.51 ms (2D pyramid, 10,000) by sorting the few
 > nodes each pass wants by `scene::tree_rank`, not by threads. The costs §3
-> asks for are measured and in ARCHITECTURE (*What the ECS work costs*),
-> but for the web build's bytes. Steps 9 to 11 of
+> asks for are measured and in ARCHITECTURE (*What the ECS work costs*). Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs

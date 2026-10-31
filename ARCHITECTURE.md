@@ -85,8 +85,9 @@ a `Builtins`; a bare app gets the kernel's own.
   Peak memory did not move past run-to-run noise (the `kind/*` cases at
   5,000 nodes read 1.0–1.1 GB either way, ±50 MB a run). By its types, a
   change stamp is 40 bytes for each registered component a write put on a
-  node, and nothing for a node's spawned transform. The web build's bytes
-  were not measured here. One regression was found and fixed on the way: a
+  node, and nothing for a node's spawned transform. The web module (the
+  `web` profile with the runtime's features) went from 23,538,175 to
+  23,608,909 bytes, 6.39 to 6.41 MB under brotli: 22 KB on the wire. One regression was found and fixed on the way: a
   frame's frees built a replay label for every freed node instead of the
   first few the tick's log keeps, 10 ms on 50,000 frees.
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
