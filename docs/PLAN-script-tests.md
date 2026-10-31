@@ -1,9 +1,10 @@
 > **Status:** planned 2026-10-30. Steps 1, 3 to 10 built 2026-10-30, and
-> §8's structs, enums, maps, optionals and native code 2026-10-31: 60
-> programs on wasmi, wasmtime, native code and the browser's engine, a
-> mutation test on every push, `cargo fuzz` targets, and
-> `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
-> PLAN-foundations, step 10 is in its step 7, steps 8 and 9 are its step 13.
+> §8's structs, enums, maps, optionals, native code, `any`, passing and
+> shrinking 2026-10-31: 60 programs on wasmi, wasmtime, native code and
+> the browser's engine, a mutation test on every push, `cargo fuzz`
+> targets, and `scripts/check_scripts.sh` in CI. Step 2 is part done
+> (below). Steps 1 to 7 are step 6 of PLAN-foundations, step 10 is in its
+> step 7, steps 8 and 9 are its step 13.
 
 # Plan: Balaur Script's tests, and enums with `match`
 
@@ -125,13 +126,29 @@ native code added 2026-10-31: every program declares `struct Point { x:
 int, y: int }` and `enum Shade { Dark, Lit(int) }` and may hold a Point
 (fields read and written), a Shade (read by `match`, its `Lit` bound in the
 arm), a `{str: int}` (keys written, read with `.or`, counted) and an `int?`
-(`nil` or an int, read with `.or`). A struct and a map are only ever
-literals, so the generator never gives one two names and copy-or-share
-cannot tell the engines from the interpreter. With the `c` and `native`
-features every program also runs as native code, all of them one C build;
-600 programs agree on wasmi, wasmtime and native code in 20 s, 2,000 on
-wasmi in a second. Not yet in it: `any`, a struct or map passed between
-functions, and automatic shrinking.
+(`nil` or an int, read with `.or`). With the `c` and `native` features
+every program also runs as native code, 16 programs a library, the
+libraries built side by side.
+
+`any`, passing and shrinking added 2026-10-31. Helpers take and give a
+Point (copied, or changed through `&mut`: copied in, stored back), a
+`{str: int}` (shared) and an `any`, and a variable of each is read,
+assigned and returned, so two names holding one map are tested, not
+avoided. An `any` holds every kind boxed; it is read by `as_int` and the
+rest, by a typed `let`, as an argument and beside a plain value, indexed,
+walked by `for`, changed by `set`, `push`, `put`, `insert` and `remove`,
+copied by `with` and `sorted`, and compared. Only a new cell goes into one,
+so no list holds itself. The interpreter types each expression as the
+compiler does and follows `prelude/any.bs` (`random/anys.rs`). A
+disagreement is shrunk (helpers, parameters and statements dropped, an
+expression cut to a part or its type's zero), printed, and saved as
+`tests/programs/random/seed_<seed>_program_<n>.bs`, expecting the
+interpreter's answer; `a_disagreement_shrinks_to_the_lines_that_show_it`
+shrinks against an interpreter whose `*` adds, from 30 lines to at most
+10. 18,000 programs agree on wasmi and wasmtime (5,000 in about 110 s), and
+600 more on native code too (110 s); none has disagreed. The 60 a push take
+1.5 s, or about 10 s with native code. Not in it: an enum or a `{int: V}` in
+an `any`, `keys`, and a class.
 
 ## 9. A language reference
 

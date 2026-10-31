@@ -3,7 +3,7 @@
 // `BLESS=1` rewrites the answers; `BS_PROGRAMS=x` runs the paths holding `x`.
 
 #[path = "../corpus/mod.rs"]
-mod corpus;
+pub(crate) mod corpus;
 
 #[cfg(all(feature = "c", feature = "native"))]
 use balaur_bs::Compiled;
