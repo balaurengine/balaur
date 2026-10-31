@@ -108,7 +108,7 @@ impl Runtime {
             Ty::Array(_) => self.encode(ty, &Value::Array(vec![])),
             // A class is never null: a field of one starts as its defaults.
             Ty::Struct(s) if self.meta.is_class(s) => {
-                self.encode(ty, &Value::Struct(s.clone(), vec![]))
+                self.encode(ty, &Value::Struct(smol_str::SmolStr::new(s), vec![]))
             }
             Ty::Struct(s) if has_heap(&self.meta, ty) => {
                 let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();

@@ -1,7 +1,7 @@
 // A module run as native code an export built ahead of time (`crate::c`), when
 // a loaded build has its hash; any other goes to the engine it would have had.
 
-use super::engine::{Args, ImportCtx, Raw, Setup, Shared, Wasm, read_from};
+use super::engine::{Args, ImportCtx, Raw, Setup, Shared, Wasm, copy_from, read_from};
 use super::host::dispatch;
 use std::collections::HashMap;
 use std::ffi::{CStr, c_char, c_void};
@@ -611,6 +611,9 @@ impl ImportCtx for View {
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
         read_from(self.memory(), at, len)
     }
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        copy_from(self.memory(), at, out);
+    }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         let (module, inst, _) = self.parts();
         let mut len = 0u64;
@@ -752,6 +755,9 @@ impl Wasm for Native {
     }
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
         view(self.ctx).read(at, len)
+    }
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        view(self.ctx).read_into(at, out);
     }
     fn memory_len(&self) -> usize {
         view(self.ctx).memory().len()

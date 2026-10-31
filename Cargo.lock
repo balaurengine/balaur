@@ -642,6 +642,7 @@ dependencies = [
  "rayon",
  "rustc-hash 2.1.3",
  "smallvec",
+ "smol_str 0.3.7",
  "twox-hash",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -1044,6 +1045,7 @@ dependencies = [
  "balaur_script",
  "notify",
  "smallvec",
+ "smol_str 0.3.7",
  "tracing",
 ]
 

@@ -9,6 +9,7 @@ use super::host::CtxReader;
 use super::values::{Value, decode, float, width};
 use crate::{Meta, Ty};
 use smallvec::SmallVec;
+use std::borrow::Cow;
 
 /// A call's arguments, each read as the engine function asks for it: `None`
 /// for one not of that kind, which [`CallArgs::value`] reads whatever it is.
@@ -24,8 +25,9 @@ pub trait CallArgs {
     fn text(&self, index: usize) -> Option<&str>;
     /// Missing, or nil.
     fn is_nil(&self, index: usize) -> bool;
-    /// The argument whatever its kind; `Value::Void` past the last.
-    fn value(&self, index: usize) -> Value;
+    /// The argument whatever its kind; `Value::Void` past the last. Lent
+    /// where it was read already, so converting it copies nothing twice.
+    fn value(&self, index: usize) -> Cow<'_, Value>;
 }
 
 /// Values already read, as an `extern fn` or a test has them.
@@ -68,8 +70,10 @@ impl CallArgs for Read<'_> {
     fn is_nil(&self, index: usize) -> bool {
         matches!(self.0.get(index), None | Some(Value::Void))
     }
-    fn value(&self, index: usize) -> Value {
-        self.0.get(index).cloned().unwrap_or(Value::Void)
+    fn value(&self, index: usize) -> Cow<'_, Value> {
+        self.0
+            .get(index)
+            .map_or(Cow::Owned(Value::Void), Cow::Borrowed)
     }
 }
 
@@ -108,7 +112,7 @@ impl<'a> Slots<'a> {
             .map(
                 |index| match self.held.get_mut(index).and_then(Option::take) {
                     Some(value) => value,
-                    None => self.value(index),
+                    None => self.value(index).into_owned(),
                 },
             )
             .collect()
@@ -182,19 +186,19 @@ impl CallArgs for Slots<'_> {
     fn is_nil(&self, index: usize) -> bool {
         index >= self.tys.len() || matches!(self.held.get(index), Some(Some(Value::Void)))
     }
-    fn value(&self, index: usize) -> Value {
+    fn value(&self, index: usize) -> Cow<'_, Value> {
         if let Some(Some(value)) = self.held.get(index) {
-            return value.clone();
+            return Cow::Borrowed(value);
         }
         let Some(raw) = self.slot(index) else {
-            return Value::Void;
+            return Cow::Owned(Value::Void);
         };
-        match &self.tys[index] {
+        Cow::Owned(match &self.tys[index] {
             Ty::Int | Ty::Fn(..) => Value::Int(bits(raw)),
             Ty::Node => Value::Node(bits(raw)),
             Ty::Float => Value::Float(self.float(index).unwrap_or(0.0)),
             Ty::Bool => Value::Bool(raw.i32() != 0),
             _ => Value::Void,
-        }
+        })
     }
 }

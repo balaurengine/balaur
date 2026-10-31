@@ -163,7 +163,7 @@ impl ScriptHost<Engine> for BsHost {
                 Value::Map(
                     fields
                         .iter()
-                        .map(|(k, v)| (k.clone(), to_neutral(v)))
+                        .map(|(k, v)| (k.to_string(), to_neutral(v)))
                         .collect(),
                 ),
             ));

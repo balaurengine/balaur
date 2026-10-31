@@ -3,6 +3,7 @@
 
 use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value};
 use balaur_bs::{Compiled, Options, compile, errors};
+use smol_str::SmolStr;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -265,7 +266,7 @@ pub(crate) fn same(a: &Value, b: &Value) -> bool {
     }
 }
 
-pub(crate) fn same_fields(x: &[(String, Value)], y: &[(String, Value)]) -> bool {
+pub(crate) fn same_fields(x: &[(SmolStr, Value)], y: &[(SmolStr, Value)]) -> bool {
     x.len() == y.len() && x.iter().zip(y).all(|((k, a), (l, b))| k == l && same(a, b))
 }
 
@@ -436,7 +437,7 @@ impl Parser<'_> {
                     return Err(format!("`{w}` is not a value"));
                 }
                 let fields = self.pairs(false)?;
-                Ok(Value::Struct(w, fields))
+                Ok(Value::Struct(w.into(), fields))
             }
         }
     }
@@ -457,7 +458,7 @@ impl Parser<'_> {
         }
     }
 
-    fn pairs(&mut self, quoted: bool) -> Result<Vec<(String, Value)>, String> {
+    fn pairs(&mut self, quoted: bool) -> Result<Vec<(SmolStr, Value)>, String> {
         let mut pairs = Vec::new();
         if self.eat('}') {
             return Ok(pairs);
@@ -468,7 +469,7 @@ impl Parser<'_> {
             if !self.eat(':') {
                 return Err(format!("`:` after `{key}`"));
             }
-            pairs.push((key, self.value()?));
+            pairs.push((key.into(), self.value()?));
             if self.eat('}') {
                 return Ok(pairs);
             }

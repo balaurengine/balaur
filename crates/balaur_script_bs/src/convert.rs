@@ -4,6 +4,7 @@ use crate::api::Structs;
 use balaur_bs::Ty;
 use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_script::Value as N;
+use smol_str::SmolStr;
 
 const VEC: [(&str, &[&str]); 3] = [
     ("Vec2", &["x", "y"]),
@@ -23,7 +24,7 @@ pub(crate) fn to_neutral(v: &L) -> N {
         L::Map(entries) => N::Map(
             entries
                 .iter()
-                .map(|(k, v)| (k.clone(), to_neutral(v)))
+                .map(|(k, v)| (k.to_string(), to_neutral(v)))
                 .collect(),
         ),
         L::Struct(name, fields) => {
@@ -41,7 +42,7 @@ pub(crate) fn to_neutral(v: &L) -> N {
                     fields
                         .iter()
                         .filter(|(_, v)| !matches!(v, L::Void))
-                        .map(|(k, v)| (k.clone(), to_neutral(v)))
+                        .map(|(k, v)| (k.to_string(), to_neutral(v)))
                         .collect(),
                 ),
             }
@@ -79,7 +80,7 @@ fn dynamic(v: &N) -> L {
         N::Map(entries) => L::Map(
             entries
                 .iter()
-                .map(|(k, v)| (k.clone(), dynamic(v)))
+                .map(|(k, v)| (SmolStr::from(k.as_str()), dynamic(v)))
                 .collect(),
         ),
         _ => numbers(v).map_or(L::Void, |xs| {
@@ -120,19 +121,19 @@ pub(crate) fn from_neutral_in(v: &N, ty: &Ty, structs: &Structs) -> L {
                 let values = fields
                     .iter()
                     .zip(xs.into_iter().chain(std::iter::repeat(0.0)))
-                    .map(|(f, x)| ((*f).to_string(), L::Float(x)))
+                    .map(|(f, x)| (SmolStr::new(f), L::Float(x)))
                     .collect();
-                return L::Struct(name.clone(), values);
+                return L::Struct(SmolStr::new(name), values);
             }
             if let Some(fields) = structs.get(name) {
                 return record(name, fields, v, structs);
             }
             match v {
                 N::Map(fields) => L::Struct(
-                    name.clone(),
+                    SmolStr::new(name),
                     fields
                         .iter()
-                        .map(|(k, v)| (k.clone(), from_neutral(v, &Ty::Void)))
+                        .map(|(k, v)| (SmolStr::from(k.as_str()), from_neutral(v, &Ty::Void)))
                         .collect(),
                 ),
                 _ => L::Void,
@@ -156,10 +157,10 @@ fn record(name: &str, fields: &[(String, Ty)], v: &N, structs: &Structs) -> L {
                 .iter()
                 .find(|(k, _)| k == f)
                 .map_or(&N::Nil, |(_, v)| v);
-            (f.clone(), from_neutral_in(got, t, structs))
+            (SmolStr::new(f), from_neutral_in(got, t, structs))
         })
         .collect();
-    L::Struct(name.to_string(), values)
+    L::Struct(SmolStr::new(name), values)
 }
 
 /// Every argument of a call as the seam's values, for an engine function

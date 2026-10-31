@@ -64,6 +64,11 @@ pub(crate) trait Wasm {
         Err(format!("{key}: this script is not built as units"))
     }
     fn read(&self, at: usize, len: usize) -> Vec<u8>;
+    /// `out.len()` bytes at `at` into `out`, zeros past the end: the read a
+    /// word of the module's memory wants, allocating nothing.
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        out.copy_from_slice(&self.read(at, out.len()));
+    }
     fn memory_len(&self) -> usize;
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
@@ -110,6 +115,10 @@ pub(crate) enum Outcome {
 /// The module, as a host function sees it while it runs.
 pub(crate) trait ImportCtx {
     fn read(&self, at: usize, len: usize) -> Vec<u8>;
+    /// [`Wasm::read_into`], as a host function sees the module.
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        out.copy_from_slice(&self.read(at, out.len()));
+    }
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);
@@ -151,6 +160,14 @@ pub(crate) trait ImportCtx {
 
 /// Reads past the end of memory come back as zeros, as an unwritten slot would.
 #[cfg(any(feature = "wasmi", native, jit))]
+/// `data[at..]` into `out`, or zeros where `data` ends first.
+pub(crate) fn copy_from(data: &[u8], at: usize, out: &mut [u8]) {
+    match data.get(at..at + out.len()) {
+        Some(bytes) => out.copy_from_slice(bytes),
+        None => out.fill(0),
+    }
+}
+
 pub(crate) fn read_from(data: &[u8], at: usize, len: usize) -> Vec<u8> {
     data.get(at..at + len)
         .map_or_else(|| vec![0; len], <[u8]>::to_vec)

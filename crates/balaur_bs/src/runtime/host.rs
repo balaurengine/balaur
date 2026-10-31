@@ -61,7 +61,9 @@ impl HostFns {
         self.bind_engine(move |key, ret| {
             let (f, key, ret) = (f.clone(), key.to_string(), ret.clone());
             Ok(Rc::new(move |args: &dyn CallArgs| {
-                let values: Vec<Value> = (0..args.len()).map(|index| args.value(index)).collect();
+                let values: Vec<Value> = (0..args.len())
+                    .map(|index| args.value(index).into_owned())
+                    .collect();
                 f(&key, &values, &ret)
             }) as Bound)
         })
@@ -304,6 +306,9 @@ pub(crate) struct CtxReader<'a>(pub &'a dyn ImportCtx);
 impl Reader for CtxReader<'_> {
     fn bytes(&self, at: usize, len: usize) -> Vec<u8> {
         self.0.read(at, len)
+    }
+    fn fill(&self, at: usize, out: &mut [u8]) {
+        self.0.read_into(at, out);
     }
 }
 

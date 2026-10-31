@@ -118,11 +118,11 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     rt.call_method(&mut e, "edit", &[]).unwrap();
     let doc = |rev: i64, extra: Option<bool>| {
         let mut fields = vec![
-            ("name".to_string(), Value::Str("a".into())),
-            ("rev".to_string(), Value::Int(rev)),
+            ("name".into(), Value::Str("a".into())),
+            ("rev".into(), Value::Int(rev)),
         ];
         if let Some(b) = extra {
-            fields.push(("saved".to_string(), Value::Bool(b)));
+            fields.push(("saved".into(), Value::Bool(b)));
         }
         Some(Value::Struct("Doc".into(), fields))
     };
@@ -275,7 +275,7 @@ impl Ball {
     let Value::Struct(_, fields) = &set.borrow()[0] else {
         panic!("the position was not written");
     };
-    assert_eq!(fields[1], ("y".to_string(), Value::Float(3.5)));
+    assert_eq!(fields[1], ("y".into(), Value::Float(3.5)));
     rt.drop_object(ball);
     assert_eq!(rt.live(), 0);
 }

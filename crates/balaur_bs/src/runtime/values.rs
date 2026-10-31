@@ -3,6 +3,7 @@
 
 use super::engine::Raw;
 use crate::{Meta, Ty};
+use smol_str::SmolStr;
 
 /// A script value as the host sees it.
 #[derive(Clone, Debug, PartialEq)]
@@ -14,10 +15,12 @@ pub enum Value {
     Node(i64),
     Str(String),
     Array(Vec<Value>),
-    /// The struct's name, then its fields in declaration order.
-    Struct(String, Vec<(String, Value)>),
+    /// The struct's name, then its fields in declaration order. Names are
+    /// short and repeated, so they are held inline and copied without an
+    /// allocation.
+    Struct(SmolStr, Vec<(SmolStr, Value)>),
     /// What an `any` holds when it is a map: keys in the order they came.
-    Map(Vec<(String, Value)>),
+    Map(Vec<(SmolStr, Value)>),
 }
 
 impl Value {
@@ -32,6 +35,8 @@ impl Value {
 /// Something module memory can be read from: a live instance, or a copy.
 pub(crate) trait Reader {
     fn bytes(&self, at: usize, len: usize) -> Vec<u8>;
+    /// `out.len()` bytes at `at` into `out`, allocating nothing.
+    fn fill(&self, at: usize, out: &mut [u8]);
 }
 
 impl Reader for [u8] {
@@ -39,21 +44,20 @@ impl Reader for [u8] {
         self.get(at..at + len)
             .map_or_else(|| vec![0; len], <[u8]>::to_vec)
     }
+    fn fill(&self, at: usize, out: &mut [u8]) {
+        super::engine::copy_from(self, at, out);
+    }
 }
 
 pub(crate) fn rd32(r: &(impl Reader + ?Sized), at: usize) -> u32 {
-    u32::from_le_bytes(
-        r.bytes(at, 4)
-            .try_into()
-            .expect("bytes(at, 4) is four bytes"),
-    )
+    let mut word = [0; 4];
+    r.fill(at, &mut word);
+    u32::from_le_bytes(word)
 }
 pub(crate) fn rd64(r: &(impl Reader + ?Sized), at: usize) -> u64 {
-    u64::from_le_bytes(
-        r.bytes(at, 8)
-            .try_into()
-            .expect("bytes(at, 8) is eight bytes"),
-    )
+    let mut word = [0; 8];
+    r.fill(at, &mut word);
+    u64::from_le_bytes(word)
 }
 
 /// The float in `bits`, as a module hands it out. A NaN's sign and payload
@@ -169,10 +173,10 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
                 .map(|(n, t)| {
                     let v = read_value(meta, m, t, off);
                     off += 8 * width(meta, t);
-                    (n.clone(), v)
+                    (SmolStr::new(n), v)
                 })
                 .collect();
-            Value::Struct(s.clone(), values)
+            Value::Struct(SmolStr::new(s), values)
         }
     }
 }
@@ -197,11 +201,11 @@ pub(crate) fn read_object(meta: &Meta, m: &(impl Reader + ?Sized), s: &str, p: u
         .map(|(n, t)| {
             let v = read_value(meta, m, t, off);
             off += 8 * width(meta, t);
-            (n.clone(), v)
+            (SmolStr::new(n), v)
         })
         .collect();
     READING.with(|reading| reading.borrow_mut().pop());
-    Value::Struct(s.to_string(), values)
+    Value::Struct(SmolStr::new(s), values)
 }
 
 pub(crate) fn read_str(m: &(impl Reader + ?Sized), p: usize) -> Value {
@@ -242,8 +246,8 @@ pub(crate) fn read_any(meta: &Meta, m: &(impl Reader + ?Sized), p: usize) -> Val
                     k.into_iter()
                         .zip(v)
                         .map(|(k, v)| match k {
-                            Value::Str(k) => (k, v),
-                            _ => (String::new(), v),
+                            Value::Str(k) => (SmolStr::from(k), v),
+                            _ => (SmolStr::default(), v),
                         })
                         .collect(),
                 ),
@@ -262,8 +266,12 @@ pub(crate) fn any_cell<E>(
 ) -> Result<Option<(i32, u64)>, E> {
     use crate::anys::{BOOL, FLOAT, INT, LIST, MAP, NODE, STR};
     let list = Ty::Array(Box::new(Ty::Any));
-    let map = |heap: &mut dyn FnMut(&Ty, &Value) -> Result<u32, E>, entries: &[(String, Value)]| {
-        let keys = entries.iter().map(|(k, _)| Value::Str(k.clone())).collect();
+    let map = |heap: &mut dyn FnMut(&Ty, &Value) -> Result<u32, E>,
+               entries: &[(SmolStr, Value)]| {
+        let keys = entries
+            .iter()
+            .map(|(k, _)| Value::Str(k.to_string()))
+            .collect();
         let values = entries.iter().map(|(_, v)| v.clone()).collect();
         let k = heap(&Ty::Array(Box::new(Ty::Str)), &Value::Array(keys))?;
         let v = heap(&list, &Value::Array(values))?;
@@ -338,10 +346,10 @@ pub(crate) fn decode(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, raw: &[Ra
                     let k = width(meta, t);
                     let v = decode(meta, m, t, &raw[at..at + k]);
                     at += k;
-                    (n.clone(), v)
+                    (SmolStr::new(n), v)
                 })
                 .collect();
-            Value::Struct(s.clone(), values)
+            Value::Struct(SmolStr::new(s), values)
         }
     }
 }

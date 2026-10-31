@@ -170,6 +170,10 @@ impl Wasm for Inside {
         // SAFETY: as in `ctx`.
         unsafe { &*self.0 }.read(at, len)
     }
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        // SAFETY: as in `ctx`.
+        unsafe { &*self.0 }.read_into(at, out);
+    }
     fn memory_len(&self) -> usize {
         0
     }

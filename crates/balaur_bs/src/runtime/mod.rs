@@ -141,6 +141,9 @@ impl Reader for Live<'_> {
     fn bytes(&self, at: usize, len: usize) -> Vec<u8> {
         self.0.read(at, len)
     }
+    fn fill(&self, at: usize, out: &mut [u8]) {
+        self.0.read_into(at, out);
+    }
 }
 
 pub struct Runtime {
@@ -382,7 +385,7 @@ impl Runtime {
         }
         let fields = init
             .iter()
-            .map(|(name, value)| ((*name).to_string(), value.clone()))
+            .map(|(name, value)| (smol_str::SmolStr::new(*name), value.clone()))
             .collect();
         let raw = self.encode(&Ty::Struct(ty.into()), &Value::Struct(ty.into(), fields))?;
         Ok(Object {
@@ -418,7 +421,7 @@ impl Runtime {
     }
 
     /// Every field of `obj`, by name.
-    pub fn fields(&mut self, obj: &Object) -> Vec<(String, Value)> {
+    pub fn fields(&mut self, obj: &Object) -> Vec<(smol_str::SmolStr, Value)> {
         self.in_unit(obj.unit, |rt| {
             let ty = Ty::Struct(obj.ty.clone());
             match decode(&rt.meta, &Live(&*rt.wasm), &ty, &obj.raw) {
@@ -764,7 +767,7 @@ impl Runtime {
             let new_fields = into
                 .in_unit(*unit, |rt| rt.meta.fields(&obj.ty).map(<[_]>::to_vec))
                 .unwrap_or_default();
-            let carried: Vec<(String, Value)> = self
+            let carried: Vec<(smol_str::SmolStr, Value)> = self
                 .fields(obj)
                 .into_iter()
                 .filter(|(name, _)| {
@@ -778,12 +781,17 @@ impl Runtime {
             for (name, value) in &carried {
                 let held = self.in_unit(obj.unit, |rt| rt.held_object(obj, name));
                 match held.and_then(|pointer| carried_at.get(&pointer)) {
-                    Some(target) => links.push((index, name.clone(), *target)),
+                    Some(target) => links.push((index, name.to_string(), *target)),
                     None => init.push((name.as_str(), value.clone())),
                 }
             }
             replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &init))?);
-            kept_all.push(carried.into_iter().map(|(name, _)| name).collect());
+            kept_all.push(
+                carried
+                    .into_iter()
+                    .map(|(name, _)| name.to_string())
+                    .collect(),
+            );
         }
         for (holder, field, target) in &links {
             let pointer = Runtime::pointer(&replacements[*target]);

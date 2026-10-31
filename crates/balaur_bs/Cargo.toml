@@ -12,6 +12,7 @@ description = "Balaur Script: a small statically typed scripting language compil
 twox-hash = { version = "2", default-features = false, features = ["xxhash3_64", "xxhash3_128"] }
 libm.workspace = true
 rustc-hash.workspace = true
+smol_str.workspace = true
 wasm-encoder = "0.262"
 smallvec.workspace = true
 wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch"] }

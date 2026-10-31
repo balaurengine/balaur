@@ -7,6 +7,7 @@ authors.workspace = true
 description = "Balaur Script behind the scripting seam: `.bs` scripts beside Rune ones."
 
 [dependencies]
+smol_str.workspace = true
 notify.workspace = true
 anyhow.workspace = true
 balaur_core.workspace = true
