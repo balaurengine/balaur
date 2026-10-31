@@ -17,7 +17,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 2 | 0 |
-| [`engine`](#engine) | 29 | 0 |
+| [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 6 | 0 |
 | [`export`](#export) | 6 | 0 |
 | [`forge`](#forge) | 6 | 0 |
@@ -47,7 +47,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
-| [`scene`](#scene) | 26 | 0 |
+| [`scene`](#scene) | 29 | 0 |
 | [`script`](#script) | 15 | 0 |
 | [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
@@ -300,6 +300,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | Function | Signature |
 | --- | --- |
 | `args` | `() -> [str]` |
+| `change_tick` | `() -> int` |
 | `dark_mode` | `() -> bool` |
 | `delta` | `() -> float` |
 | `device_id` | `() -> str` |
@@ -1409,10 +1410,12 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 
 | Function | Signature |
 | --- | --- |
+| `added_since` | `(str, int) -> [Node]` |
 | `apply_preset` | `(Node, str)` |
 | `attach_scripts` | `(Node)` |
 | `bindable_events` | `(Node?) -> [str]` |
 | `binding_actions` | `() -> [str]` |
+| `changed_since` | `(str, int) -> [Node]` |
 | `component_expects` | `(str) -> [str]?` |
 | `component_properties` | `(str, any) -> any` |
 | `component_schema` | `(str) -> any` |
@@ -1424,6 +1427,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `node_by_id` | `(str, Node?) -> Node` |
 | `preset_info` | `(str) -> scene::Preset?` |
 | `presets` | `() -> [str]` |
+| `removed_since` | `(str, int) -> [Node]` |
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |
 | `source` | `(str) -> str?` |

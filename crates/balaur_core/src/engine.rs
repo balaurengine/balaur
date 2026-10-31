@@ -33,6 +33,9 @@ pub(crate) struct EngineInner {
     pub(crate) time: Cell<f64>,
     pub(crate) delta: Cell<f32>,
     pub(crate) tick: Cell<u64>,
+    /// Stepped before every system runs: what a component's change is
+    /// stamped with and a reader compares against (PLAN-ecs §2).
+    pub(crate) change_tick: Cell<u64>,
     pub(crate) quit: Cell<bool>,
     /// What the process exits with once it quits; 0 unless a script said.
     pub(crate) exit_code: Cell<i32>,
@@ -76,6 +79,7 @@ impl Engine {
                 time: Cell::new(0.0),
                 delta: Cell::new(0.0),
                 tick: Cell::new(0),
+                change_tick: Cell::new(1),
                 quit: Cell::new(false),
                 exit_code: Cell::new(0),
                 tokens: Cell::new(1),
@@ -268,6 +272,25 @@ impl Engine {
     ///
     /// A replay, a digest trace and a networked peer all key off this rather
     /// than off [`Engine::time`], which accumulates float error.
+    /// The change tick now: stepped before and after every system runs, so a
+    /// write is stamped with the run that made it, and one between two runs
+    /// with a tick no reader covered yet. It starts at 1, so a reader that
+    /// never ran asks from 0 and hears everything. It only goes up, a restored
+    /// frame included, so a reader's last tick is never ahead of it; a `u64`,
+    /// so it never wraps.
+    #[must_use]
+    pub fn change_tick(&self) -> u64 {
+        self.inner.change_tick.get()
+    }
+
+    /// Step the change tick for the system about to run, answering the new
+    /// one.
+    pub fn advance_change_tick(&self) -> u64 {
+        let next = self.inner.change_tick.get() + 1;
+        self.inner.change_tick.set(next);
+        next
+    }
+
     pub fn tick(&self) -> u64 {
         self.inner.tick.get()
     }

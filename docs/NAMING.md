@@ -655,6 +655,8 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A primitive and its dimensions, on a shape | `shape` (`shape3d`, `shape2d`): `kind` and that kind's fields | Godot's mesh resources |
 | A component written by hand, not derived | `ComponentDef::by_hand(schema, apply, remove, get)` | none |
 | A component as a save writes it | `components::written`, `written_of`; `node.authored` | none |
+| The counter writes are stamped with, apart from the simulation's `tick` | `Engine::change_tick`, `advance_change_tick`; `engine.change_tick` | Bevy's change ticks |
+| What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |
 | Jobs in flight | `export.running_count`, `import.running_count` | none |

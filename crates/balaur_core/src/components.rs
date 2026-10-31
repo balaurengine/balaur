@@ -110,6 +110,7 @@ mod attached;
 pub mod derived;
 mod property;
 mod schema;
+pub mod ticks;
 mod values;
 mod written;
 
@@ -866,6 +867,7 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     if let Ok(mut held) = eng.world().get::<&mut Attached>(entity) {
         *held = Attached::default();
     }
+    ticks::freed(eng, entity, owed.present);
     if bits == 0 {
         return;
     }

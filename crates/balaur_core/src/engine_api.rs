@@ -33,6 +33,8 @@ use crate::scene;
 // declared; the code lives in `file_api`.
 pub(crate) use crate::file_api::resolve;
 pub use crate::file_api::{from_json, to_json};
+mod changes;
+use changes::{added_since, change_tick, changed_since, removed_since};
 mod registry;
 use registry::{
     apply_preset, component_expects, component_schema, component_tags, component_types,
@@ -65,6 +67,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: "engine",
             name: "tick",
             call: tick,
+        },
+        EngineOp {
+            module: "engine",
+            name: "change_tick",
+            call: change_tick,
         },
         EngineOp {
             module: "engine",
@@ -167,6 +174,21 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: "scene",
             name: "with_component",
             call: with_component,
+        },
+        EngineOp {
+            module: "scene",
+            name: "added_since",
+            call: added_since,
+        },
+        EngineOp {
+            module: "scene",
+            name: "changed_since",
+            call: changed_since,
+        },
+        EngineOp {
+            module: "scene",
+            name: "removed_since",
+            call: removed_since,
         },
         EngineOp {
             module: "scene",

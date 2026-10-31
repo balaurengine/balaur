@@ -2,7 +2,10 @@
 > (`Engine::spawn`, `spawn_node`, `insert`, `insert_one`, `remove_one`,
 > `remove`, `reparent`, `despawn`) and every crate moved onto it; the
 > `world-write` house lint fails a `world_mut()` outside the kernel's own
-> code and tests. Steps 9 to 11 of
+> code and tests. Step 3 built 2026-10-31: `Engine::change_tick`, stamps in
+> `components::ticks` fed by the calls that feed the change log, and
+> `scene.added_since`, `changed_since`, `removed_since` for scripts. Two
+> calls differ from §2 below, each with its reason there. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -34,12 +37,26 @@ it does not.
 Names marked *(name)* wait on NAMING.md: a hook and a state already mean
 something else in this engine.
 
-- **Ticks.** One engine counter, stepped per system run, in the snapshot and
-  restored with it. A reader keeps the tick it last ran at; "changed since"
-  is a comparison. A `u64`, so it never wraps.
-- **Change detection.** `changed` and `added` filters over a query, and the
-  components removed this tick, recorded by the door. The change log reads
-  ticks instead of being told by each writer.
+- **Ticks.** One engine counter, `change_tick`, apart from the simulation's
+  `tick`: stepped before and after every system run and at each frame's
+  start, so a write between two systems is newer than what the first one
+  read. A reader keeps the tick it last ran at; "changed since" is a
+  comparison. A `u64`, so it never wraps. *Built differently:* the counter
+  is not in the snapshot and never goes back. A reader's last tick lives in
+  the reader (a closure, a script), which no snapshot reaches, so a counter
+  put back behind it would hide every write until it caught up. A restore
+  steps it and marks the moment instead: a reader that last ran before it
+  hears every holder as changed, so a system driven by changes re-syncs
+  everything once, which costs work and never a wrong answer.
+- **Change detection.** Added, changed and removed since a tick, by registry
+  index (`components::ticks`), which is how scripts address components too;
+  what came off is kept for the frame it came off in and the next. A write
+  of what a component already holds stamps nothing, as it logs nothing.
+  *Built differently:* the change log and the stamps are fed by the same
+  call per write (`changes::component`, `property`, `attached`, `removed`,
+  and a freed node's components), not the log from the stamps: the log
+  carries which properties moved and what they held, which a stamp cannot
+  say.
 - **Lifecycle calls** *(name)*. Bevy's component hooks: code run on add,
   insert, replace, remove and despawn, declared on the derive. They get a
   command queue and read access. They never call a script: anything a script
@@ -95,7 +112,7 @@ something else in this engine.
    private to the kernel. A `world-write` house lint fails a `world_mut()`
    outside it, written first and reporting until the migration ends.
 2. **The migration**, a crate a commit, render last as the largest.
-3. **Ticks and change detection**, with the change log moved onto them.
+3. **Ticks and change detection**, fed by the change log's calls. *Built.*
 4. **Lifecycle calls**, and `after_write`'s added and changed cases moved
    onto them.
 5. **Commands.**
@@ -115,6 +132,7 @@ round-trips, and a determinism trace.
 
 ## 5. Done when
 
-The scene tree runs on relationships and the change log on ticks. The render
+The scene tree runs on relationships, and the change log and the ticks are
+fed by one call per write. The render
 mirror syncs only what changed, and no Rust writes the world around the door.
 The costs in §3 are measured and written into ARCHITECTURE.

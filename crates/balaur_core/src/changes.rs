@@ -174,6 +174,7 @@ pub(crate) fn component(
     asked: Option<&toml::Value>,
     was: Option<toml::Value>,
 ) {
+    crate::components::ticks::changed(eng, node, index);
     let keys: Keys = asked
         .and_then(toml::Value::as_table)
         .map(|table| table.keys().map(SmolStr::new).collect());
@@ -196,6 +197,7 @@ pub(crate) fn property(
     key: &str,
     was: Option<toml::Value>,
 ) {
+    crate::components::ticks::changed(eng, node, index);
     keep(eng, node, "component", || {
         vec![
             ("component".into(), component_name(eng, index)),
@@ -212,6 +214,7 @@ pub(crate) fn property(
 
 /// Component `index` went onto `node`, which had none.
 pub(crate) fn attached(eng: &Engine, node: Entity, index: usize) {
+    crate::components::ticks::added(eng, node, index);
     keep(eng, node, "attached", || {
         vec![("component".into(), component_name(eng, index))]
     });
@@ -220,6 +223,7 @@ pub(crate) fn attached(eng: &Engine, node: Entity, index: usize) {
 
 /// Component `index` came off `node`, holding `was`.
 pub(crate) fn removed(eng: &Engine, node: Entity, index: usize, was: Option<toml::Value>) {
+    crate::components::ticks::removed(eng, node, index);
     keep(eng, node, "removed", || {
         vec![
             ("component".into(), component_name(eng, index)),

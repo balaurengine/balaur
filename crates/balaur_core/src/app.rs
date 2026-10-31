@@ -302,6 +302,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::rollback::Clock::default());
     eng.insert_resource(crate::events::EventState::default());
     eng.insert_resource(crate::changes::Changes::default());
+    eng.insert_resource(crate::components::ticks::Ticks::default());
     eng.insert_resource(crate::digest::DigestRegistry::default());
     eng.insert_resource(crate::replay::ReplayRegistry::default());
     eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -1032,6 +1033,7 @@ impl App {
         // A re-run tick is simulation only: nothing draws a world about to be
         // stepped again.
         let resimulating = crate::rollback::is_resimulating(&self.engine);
+        crate::components::ticks::frame_started(&self.engine);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
             let started = Instant::now();
             if resimulating && stage == Stage::Render as usize {
@@ -1041,7 +1043,9 @@ impl App {
                 fixed_steps = self.run_fixed_steps(dt);
             } else {
                 for system in &mut self.systems[stage] {
+                    self.engine.advance_change_tick();
                     system(&self.engine, dt);
+                    self.engine.advance_change_tick();
                 }
             }
             *elapsed = started.elapsed();
@@ -1076,7 +1080,9 @@ impl App {
         self.accumulator = (self.accumulator + dt).min(budget);
         while self.accumulator >= step {
             for system in &mut self.systems[Stage::FixedUpdate as usize] {
+                self.engine.advance_change_tick();
                 system(&self.engine, step);
+                self.engine.advance_change_tick();
             }
             // After the step, so the pair kept is the pose this step left and
             // the one before it: what a frame between the two blends.

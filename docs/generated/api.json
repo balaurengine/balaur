@@ -2112,6 +2112,10 @@
         "least": 0,
         "signature": "() -> [str]"
       },
+      "engine::change_tick": {
+        "least": 0,
+        "signature": "() -> int"
+      },
       "engine::dark_mode": {
         "least": 0,
         "signature": "() -> bool"
@@ -6056,6 +6060,10 @@
         "least": 1,
         "signature": "(str, any)"
       },
+      "scene::added_since": {
+        "least": 2,
+        "signature": "(str, int) -> [Node]"
+      },
       "scene::apply_preset": {
         "least": 2,
         "signature": "(Node, str)"
@@ -6071,6 +6079,10 @@
       "scene::binding_actions": {
         "least": 0,
         "signature": "() -> [str]"
+      },
+      "scene::changed_since": {
+        "least": 2,
+        "signature": "(str, int) -> [Node]"
       },
       "scene::component_expects": {
         "least": 1,
@@ -6115,6 +6127,10 @@
       "scene::presets": {
         "least": 0,
         "signature": "() -> [str]"
+      },
+      "scene::removed_since": {
+        "least": 2,
+        "signature": "(str, int) -> [Node]"
       },
       "scene::root": {
         "least": 0,
@@ -20598,6 +20614,7 @@
       "doc": "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
+        "change_tick": "The change tick now, stepped before every system runs and never put back. Keep it where a script last looked, and `scene.changed_since` answers what moved after it.",
         "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says.",
         "delta": "Seconds the frame in progress covers, the same number a system is handed.",
         "device_id": "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session.",
@@ -20629,6 +20646,7 @@
       },
       "functions": [
         "args",
+        "change_tick",
         "dark_mode",
         "delta",
         "device_id",
@@ -20661,6 +20679,7 @@
       "name": "engine",
       "signatures": {
         "args": "() -> [str]",
+        "change_tick": "() -> int",
         "dark_mode": "() -> bool",
         "delta": "() -> float",
         "device_id": "() -> str",
@@ -26020,10 +26039,12 @@
       "constants": [],
       "doc": "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
       "docs": {
+        "added_since": "The nodes the component went onto after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder.",
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
         "attach_scripts": "Run every script the nodes under a node name, children first: what starts a scene built with `{ scripts: false }`.",
         "bindable_events": "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce.",
         "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
+        "changed_since": "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder.",
         "component_expects": "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component.",
         "component_schema": "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered.",
@@ -26035,6 +26056,7 @@
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "preset_info": "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
+        "removed_since": "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
@@ -26048,10 +26070,12 @@
         "with_component": "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."
       },
       "functions": [
+        "added_since",
         "apply_preset",
         "attach_scripts",
         "bindable_events",
         "binding_actions",
+        "changed_since",
         "component_expects",
         "component_properties",
         "component_schema",
@@ -26063,6 +26087,7 @@
         "node_by_id",
         "preset_info",
         "presets",
+        "removed_since",
         "root",
         "set_variable",
         "source",
@@ -26077,10 +26102,12 @@
       ],
       "name": "scene",
       "signatures": {
+        "added_since": "(str, int) -> [Node]",
         "apply_preset": "(Node, str)",
         "attach_scripts": "(Node)",
         "bindable_events": "(Node?) -> [str]",
         "binding_actions": "() -> [str]",
+        "changed_since": "(str, int) -> [Node]",
         "component_expects": "(str) -> [str]?",
         "component_properties": "(str, any) -> any",
         "component_schema": "(str) -> any",
@@ -26092,6 +26119,7 @@
         "node_by_id": "(str, Node?) -> Node",
         "preset_info": "(str) -> scene::Preset?",
         "presets": "() -> [str]",
+        "removed_since": "(str, int) -> [Node]",
         "root": "() -> Node",
         "set_variable": "(str, any)",
         "source": "(str) -> str?",

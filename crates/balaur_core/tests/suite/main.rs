@@ -6,6 +6,7 @@
 
 mod asset_ids;
 mod assets;
+mod change_ticks;
 mod classes;
 mod components;
 mod dependencies;
