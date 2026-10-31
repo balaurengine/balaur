@@ -93,9 +93,10 @@ parent = "head"
 [nodes.widget]
 kind = "number_field"
 width = 72
-drag_speed = 0.01
 suffix = " s"
 tooltip = "How long the clip runs"
+[nodes.widget_range]
+drag_speed = 0.01
 
 [[nodes]]
 id = "loop"
@@ -206,6 +207,7 @@ name = "Scrub"
 parent = "scrub_row"
 [nodes.widget]
 kind = "slider"
+[nodes.widget_range]
 value = 0.0
 min = 0.0
 max = 1.0

@@ -85,6 +85,7 @@ kind = "scroll"
 role = "header_toolbar"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -151,6 +152,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -259,6 +261,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -419,6 +422,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -782,9 +786,10 @@ parent = "manager_tools"
 kind = "text_field"
 role = "input_form"
 text = ""
-placeholder = "Filter projects"
 grow = 1
 min_width = 240
+[nodes.widget_field]
+placeholder = "Filter projects"
 
 [[nodes]]
 id = "manager_open"

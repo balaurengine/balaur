@@ -189,8 +189,9 @@ parent = "left"
 [nodes.widget]
 kind = "text_field"
 text = "a line the reader types into"
-placeholder = "field"
 height = 26
+[nodes.widget_field]
+placeholder = "field"
 
 [[nodes]]
 id = "f_area"
@@ -290,10 +291,11 @@ name = "CDrag"
 parent = "c_row"
 [nodes.widget]
 kind = "number_field"
-value = 1.5
-drag_speed = 0.05
 prefix = "x"
 grow = 1
+[nodes.widget_range]
+value = 1.5
+drag_speed = 0.05
 
 [[nodes]]
 id = "c_color"
@@ -321,10 +323,11 @@ name = "SSlider"
 parent = "s_row"
 [nodes.widget]
 kind = "slider"
+grow = 1
+[nodes.widget_range]
 value = 0.6
 min = 0.0
 max = 1.0
-grow = 1
 
 [[nodes]]
 id = "s_progress"
@@ -332,9 +335,10 @@ name = "SProgress"
 parent = "s_row"
 [nodes.widget]
 kind = "progress_bar"
-value = 0.42
 text = "42%"
 grow = 1
+[nodes.widget_range]
+value = 0.42
 
 [[nodes]]
 id = "h_data"
@@ -387,10 +391,10 @@ text = "Table"
 kind = "table"
 height = 196
 font = "fonts/JetBrainsMono-Regular.ttf"
-# The column names, and with them how many columns the table has.
 [nodes.widget_table]
 titles = ["name", "kind", "size"]
 
+# The column names, and with them how many columns the table has.
 [[nodes]]
 id = "h_boxes"
 name = "HBoxes"

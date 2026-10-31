@@ -32,7 +32,9 @@ impl Imports {
             return;
         }
         self.node.patch_component("widget", map().with("visible", view.get("shown")));
-        self.node.get_node("Bar").patch_component("widget", map().with("visible", view.get("bar")).with("value", view.get("value")));
+        let bar = self.node.get_node("Bar");
+        bar.patch_component("widget", map().with("visible", view.get("bar")));
+        bar.patch_component("widget_range", map().with("value", view.get("value")));
         self.until = view.get("until").as_float();
         if view.get("until").as_float() > 0.0 {
             ui::request_repaint(map().with("after", view.get("until").as_float() - engine::unix_time() + 0.05));

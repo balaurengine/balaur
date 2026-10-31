@@ -408,7 +408,6 @@ pub(crate) mod keys {
     /// Which page a `tabs` widget shows.
     pub(crate) const CURRENT_PAGE: &str = "current_page";
     pub(crate) const ALIGN_ITEMS: &str = "align_items";
-    pub(crate) const ARROWS: &str = "arrows";
     /// A `fold`'s theme: the picture its header draws for the arrow, and the
     /// frame around what it shows while open.
     pub(crate) const ARROW: &str = "arrow";
@@ -431,8 +430,6 @@ pub(crate) mod keys {
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const DASHED: &str = "dashed";
-    pub(crate) const SCROLL_DEADZONE: &str = "scroll_deadzone";
-    pub(crate) const DECIMALS: &str = "decimals";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";
     pub(crate) const FONT: &str = "font";
@@ -470,19 +467,15 @@ pub(crate) mod keys {
     pub(crate) const MAX_LINES: &str = "max_lines";
     pub(crate) const TAB_WIDTH: &str = "tab_width";
     pub(crate) const MARKUP: &str = "markup";
-    pub(crate) const MAX: &str = "max";
     pub(crate) const AXIS: &str = "axis";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";
-    pub(crate) const MAX_LENGTH: &str = "max_length";
-    pub(crate) const MIN: &str = "min";
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
     pub(crate) const HIDE_WIDER: &str = "hide_wider";
     pub(crate) const HIDE_SHORTER: &str = "hide_shorter";
     pub(crate) const HIDE_TALLER: &str = "hide_taller";
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
-    pub(crate) const NUMERIC: &str = "numeric";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const PASS_NODE: &str = "pass_node";
@@ -502,7 +495,6 @@ pub(crate) mod keys {
     /// what is behind it, which must keep its clicks.
     pub(crate) const INTERACTIVE: &str = "interactive";
     pub(crate) const ENABLED: &str = "enabled";
-    pub(crate) const REGION: &str = "region";
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
@@ -510,13 +502,8 @@ pub(crate) mod keys {
     pub(crate) const TITLE_BAR: &str = "title_bar";
     pub(crate) const HEADER: &str = "header";
     pub(crate) const REVERSE: &str = "reverse";
-    pub(crate) const REORDERABLE: &str = "reorderable";
-    pub(crate) const ON_MOVE: &str = "on_move";
-    pub(crate) const ON_MARK: &str = "on_mark";
     /// The mark a `mark` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
-    pub(crate) const DRAGGABLE: &str = "draggable";
-    pub(crate) const ON_DROP: &str = "on_drop";
     /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
     pub(crate) const ROW_SELECTED: &str = "row_selected";
     pub(crate) const ROW_SELECTED_TEXT: &str = "row_selected_text";
@@ -531,17 +518,13 @@ pub(crate) mod keys {
     pub(crate) const INK: &str = "ink";
     pub(crate) const RATIO: &str = "ratio";
     pub(crate) const NEED: &str = "need";
-    pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";
     pub(crate) const MULTI_SELECT: &str = "multi_select";
     pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const WHILE_TYPING: &str = "while_typing";
     pub(crate) const TAKES_TYPING: &str = "takes_typing";
-    pub(crate) const FIT: &str = "fit";
     pub(crate) const SLICE: &str = "slice";
-    pub(crate) const SHEET: &str = "sheet";
-    pub(crate) const STEP: &str = "step";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
     pub(crate) const SUBMITTED: &str = "submitted";
@@ -597,42 +580,7 @@ pub(crate) mod keys {
     pub(crate) const SENSE: &str = "sense";
     pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
     pub(crate) const INDETERMINATE: &str = "indeterminate";
-    pub(crate) const SHOW_VALUE: &str = "show_value";
-    pub(crate) const LOGARITHMIC: &str = "logarithmic";
-    pub(crate) const SMALLEST_POSITIVE: &str = "smallest_positive";
-    pub(crate) const LARGEST_FINITE: &str = "largest_finite";
-    pub(crate) const CLAMP: &str = "clamp";
-    pub(crate) const CLAMP_EXISTING: &str = "clamp_existing";
-    pub(crate) const SMART_AIM: &str = "smart_aim";
     pub(crate) const DRAG_SPEED: &str = "drag_speed";
-    pub(crate) const TRAILING_FILL: &str = "trailing_fill";
-    pub(crate) const HANDLE: &str = "handle";
-    pub(crate) const HANDLE_ASPECT: &str = "handle_aspect";
-    pub(crate) const NUMBER_FORMAT: &str = "number_format";
-    pub(crate) const UPDATE_WHILE_EDITING: &str = "update_while_editing";
-    pub(crate) const SHOW_PERCENTAGE: &str = "show_percentage";
-    pub(crate) const ANIMATE: &str = "animate";
-    pub(crate) const LIST_HEIGHT: &str = "list_height";
-    pub(crate) const EDITABLE: &str = "editable";
-    pub(crate) const TAB_INSERTS: &str = "tab_inserts";
-    pub(crate) const CARET_AT_END: &str = "caret_at_end";
-    pub(crate) const CLIP_TEXT: &str = "clip_text";
-    pub(crate) const SUBMIT_KEY: &str = "submit_key";
-    /// What a scroll area takes, from the component and from `ui.scroll`.
-    pub(crate) const SCROLLBAR: &str = "scrollbar";
-    pub(crate) const STICK_TO_END: &str = "stick_to_end";
-    pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";
-    pub(crate) const MIN_SCROLLED_WIDTH: &str = "min_scrolled_width";
-    pub(crate) const MIN_SCROLLED_HEIGHT: &str = "min_scrolled_height";
-    pub(crate) const ANIMATED: &str = "animated";
-    pub(crate) const WHEEL_SPEED: &str = "wheel_speed";
-    pub(crate) const DRAG_SCROLL: &str = "drag_scroll";
-    pub(crate) const WHEEL_SCROLL: &str = "wheel_scroll";
-    pub(crate) const DRAG_CURSOR: &str = "drag_cursor";
-    pub(crate) const TINT: &str = "tint";
-    pub(crate) const ANGLE_DEGREES: &str = "angle_degrees";
-    pub(crate) const ANGLE_ORIGIN: &str = "angle_origin";
-    pub(crate) const ALT_TEXT: &str = "alt_text";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";
     pub(crate) const CONSTRAIN: &str = "constrain";

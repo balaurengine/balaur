@@ -31,8 +31,9 @@ parent = "find"
 kind = "text_field"
 role = "input_dock"
 text = ""
-placeholder = "Search"
 grow = 1
+[nodes.widget_field]
+placeholder = "Search"
 
 [[nodes]]
 id = "add"
@@ -80,9 +81,10 @@ multi_select = true
 row_height = 23
 # A right click or a long press picks the row it lands on and opens these.
 context = "tree_menu"
-# The eye and the lock a row draws at its right; the Editor answers them.
+[nodes.widget_list]
 on_mark = "tree_mark"
 
+# The eye and the lock a row draws at its right; the Editor answers them.
 [nodes.widget.touch]
 row_height = 33
 

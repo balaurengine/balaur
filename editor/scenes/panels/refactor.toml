@@ -33,6 +33,7 @@ parent = "panel"
 kind = "text_field"
 role = "input_form"
 text = ""
+[nodes.widget_field]
 placeholder = "name"
 
 [[nodes]]
@@ -43,6 +44,7 @@ parent = "panel"
 kind = "text_field"
 role = "input_form"
 text = ""
+[nodes.widget_field]
 placeholder = "new name"
 
 [[nodes]]

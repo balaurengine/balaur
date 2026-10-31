@@ -373,9 +373,6 @@ pub(crate) struct WidgetProperties {
     /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0
     #[property(min = 0.0, group = "layout")]
     pub(crate) row_height: f32,
-    /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
-    #[property(min = 0.0, group = "layout")]
-    pub(crate) list_height: f32,
     /// How this widget and everything under it is drawn; inherited from the nearest ancestor that names one
     #[property(asset = "widget_theme", group = "paint")]
     pub(crate) theme: SmolStr,
@@ -412,42 +409,12 @@ pub(crate) struct WidgetProperties {
     /// The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption's height
     #[property(group = "paint")]
     pub(crate) image: SmolStr,
-    /// The picture a `list` cuts its card faces from
-    #[property(group = "paint")]
-    pub(crate) sheet: SmolStr,
-    /// What an `image` is multiplied by; white draws it as it is
-    #[property(color, default = [1.0, 1.0, 1.0, 1.0], group = "paint")]
-    pub(crate) tint: [f32; 4],
-    /// How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead
-    #[property(group = "paint")]
-    pub(crate) fit: Fit,
-    /// The part of an `image` drawn, as left, top, width and height in the picture's own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too
-    #[property(default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
-    pub(crate) region: [f32; 4],
     /// Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture
     #[property(default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
     pub(crate) slice: [f32; 4],
-    /// How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners
-    #[property(group = "paint")]
-    pub(crate) angle_degrees: f32,
-    /// The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle
-    #[property(default = [0.5, 0.5], group = "paint")]
-    pub(crate) angle_origin: [f32; 2],
     /// A wash behind the text of the kinds egui draws; alpha 0 is none
     #[property(color, default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
     pub(crate) text_background: [f32; 4],
-    /// A `slider`'s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall
-    #[property(default = Handle::new(w::CIRCLE), group = "paint")]
-    pub(crate) handle: Handle,
-    /// How wide a `rect` handle is against its height
-    #[property(default = 0.5, min = 0.0, group = "paint")]
-    pub(crate) handle_aspect: f32,
-    /// Fill a `slider`'s track from its start up to the handle
-    #[property(group = "paint")]
-    pub(crate) trailing_fill: bool,
-    /// Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise
-    #[property(group = "paint")]
-    pub(crate) animate: bool,
     /// The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font
     #[property(asset = "font", group = "font")]
     pub(crate) font: SmolStr,
@@ -505,9 +472,6 @@ pub(crate) struct WidgetProperties {
     /// Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why
     #[property(group = "text")]
     pub(crate) tooltip: SmolStr,
-    /// Text an `image` draws in place of a picture that will not load
-    #[property(group = "text")]
-    pub(crate) alt_text: SmolStr,
     /// Let a drag over this label select its text, and the platform's copy key take it
     #[property(group = "text")]
     pub(crate) selectable: bool,
@@ -526,15 +490,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_link: SmolStr,
-    /// Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed
-    #[property(group = "events")]
-    pub(crate) on_drop: SmolStr,
-    /// Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_move: SmolStr,
-    /// Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
-    #[property(group = "events")]
-    pub(crate) on_mark: SmolStr,
     /// Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets
     #[property(group = "events")]
     pub(crate) pass_node: bool,
@@ -565,9 +520,6 @@ pub(crate) struct WidgetProperties {
     /// Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up
     #[property(group = "events")]
     pub(crate) takes_typing: bool,
-    /// The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
-    #[property(group = "events")]
-    pub(crate) submit_key: SmolStr,
     /// Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own
     #[property(group = "events")]
     pub(crate) context: SmolStr,
@@ -580,66 +532,9 @@ pub(crate) struct WidgetProperties {
     /// A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it. A `dropdown` with it stays open past a pick until a click outside it
     #[property(group = "events")]
     pub(crate) keep_open: bool,
-    /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
-    #[property(group = "events")]
-    pub(crate) draggable: bool,
-    /// Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder
-    #[property(group = "events")]
-    pub(crate) reorderable: bool,
-    /// Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it
-    #[property(group = "value")]
-    pub(crate) value: f32,
     /// Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look
     #[property(group = "value")]
     pub(crate) checked: bool,
-    /// The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
-    #[property(group = "value")]
-    pub(crate) min: f32,
-    /// The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
-    #[property(default = 1.0, group = "value")]
-    pub(crate) max: f32,
-    /// The grid a `slider` snaps to, and how far a `number_field`'s `arrows` move it; 0 is continuous, and 1 for the arrows
-    #[property(min = 0.0, group = "value")]
-    pub(crate) step: f32,
-    /// How many decimals a `slider`'s or `number_field`'s number shows; below zero lets egui decide
-    #[property(default = -1, group = "value")]
-    pub(crate) decimals: i64,
-    /// Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track
-    #[property(default = Clamp::new(w::ALWAYS), group = "value")]
-    pub(crate) clamp: Clamp,
-    /// Pull a `number_field`'s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded
-    #[property(group = "value")]
-    pub(crate) clamp_existing: bool,
-    /// Space a `slider`'s track logarithmically, for a range across orders of magnitude
-    #[property(group = "value")]
-    pub(crate) logarithmic: bool,
-    /// The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui's millionth
-    #[property(min = 0.0, group = "value")]
-    pub(crate) smallest_positive: f32,
-    /// The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit
-    #[property(min = 0.0, group = "value")]
-    pub(crate) largest_finite: f32,
-    /// Round a dragged `slider` to the simplest number near the pointer
-    #[property(default = true, group = "value")]
-    pub(crate) smart_aim: bool,
-    /// Draw a `slider`'s number beside its track, for the reader to drag or type into
-    #[property(group = "value")]
-    pub(crate) show_value: bool,
-    /// Draw a `progress_bar`'s fill as a percentage on it, in place of its `text`
-    #[property(group = "value")]
-    pub(crate) show_percentage: bool,
-    /// The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole
-    #[property(default = NumberFormat::new(w::DECIMAL), group = "value")]
-    pub(crate) number_format: NumberFormat,
-    /// How far a `number_field`, or a `slider`'s shown number, moves per design pixel dragged; 0 takes egui's, which is 1 on a number field and scales with the range on a slider
-    #[property(min = 0.0, group = "value")]
-    pub(crate) drag_speed: f32,
-    /// Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`
-    #[property(group = "value")]
-    pub(crate) arrows: bool,
-    /// Write a `slider`'s or `number_field`'s number as the reader types it; off, only once the typing is left
-    #[property(default = true, group = "value")]
-    pub(crate) update_while_editing: bool,
     /// The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order
     #[property(group = "value")]
     pub(crate) options: Vec<SmolStr>,
@@ -658,63 +553,6 @@ pub(crate) struct WidgetProperties {
     /// Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`
     #[property(group = "value")]
     pub(crate) indeterminate: bool,
-    /// What a `text_field` or `text_area` shows while it is empty
-    #[property(group = "value")]
-    pub(crate) placeholder: SmolStr,
-    /// The most characters a `text_field` takes; 0 is no limit
-    #[property(min = 0.0, group = "value")]
-    pub(crate) max_length: f32,
-    /// Keep a `text_field` to digits, a sign and a point
-    #[property(group = "value")]
-    pub(crate) numeric: bool,
-    /// Draw a `text_field`'s text as dots, for a password
-    #[property(group = "value")]
-    pub(crate) secret: bool,
-    /// Let the reader change a `text_field`, `text_area` or `code`'s text; off, it can be neither edited nor selected
-    #[property(default = true, group = "value")]
-    pub(crate) editable: bool,
-    /// Cut a `text_field`'s text at its edge; off, the field grows to show it whole
-    #[property(default = true, group = "value")]
-    pub(crate) clip_text: bool,
-    /// Put the caret at the end of a `text_field`, `text_area` or `code`'s text when it first takes focus; off, at the start
-    #[property(default = true, group = "value")]
-    pub(crate) caret_at_end: bool,
-    /// Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on
-    #[property(group = "value")]
-    pub(crate) tab_inserts: bool,
-    /// When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box
-    #[property(default = Scrollbar::new(w::AUTO), group = "value")]
-    pub(crate) scrollbar: Scrollbar,
-    /// Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too
-    #[property(default = [-1.0, -1.0], group = "value")]
-    pub(crate) scroll_offset: [f32; 2],
-    /// Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too
-    #[property(group = "value")]
-    pub(crate) stick_to_end: bool,
-    /// Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump
-    #[property(default = true, group = "value")]
-    pub(crate) animated: bool,
-    /// Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`
-    #[property(default = true, group = "value")]
-    pub(crate) wheel_scroll: bool,
-    /// How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own
-    #[property(default = [1.0, 1.0], group = "value")]
-    pub(crate) wheel_speed: [f32; 2],
-    /// When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself
-    #[property(default = DragScroll::new(w::TOUCH), group = "value")]
-    pub(crate) drag_scroll: DragScroll,
-    /// The pointer's shape while a drag scrolls a `scroll`, `list`, `tree` or `table`'s content; `arrow` leaves it as it is
-    #[property(default = Cursor::new(w::cursor::ARROW), group = "value")]
-    pub(crate) drag_cursor: Cursor,
-    /// How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once
-    #[property(min = 0.0, group = "value")]
-    pub(crate) scroll_deadzone: f32,
-    /// The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui's
-    #[property(min = 0.0, group = "value")]
-    pub(crate) min_scrolled_width: f32,
-    /// The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's
-    #[property(min = 0.0, group = "value")]
-    pub(crate) min_scrolled_height: f32,
     /// How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing
     #[property(min = 0.0, group = "value")]
     pub(crate) splitter_width: f32,

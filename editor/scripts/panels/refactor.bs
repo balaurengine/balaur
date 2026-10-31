@@ -42,8 +42,10 @@ impl Refactor {
         self.node.get_node("Title").patch_component("widget", map().with("text", view.get("title")));
         // The fields' text only as the sheet opens: after that it is what is typed.
         if !self.open {
-            self.node.get_node("From").patch_component("widget", map().with("text", view.get("from")).with("placeholder", view.get("from_hint")));
-            self.node.get_node("To").patch_component("widget", map().with("text", view.get("to")).with("placeholder", view.get("to_hint")));
+            self.node.get_node("From").patch_component("widget", map().with("text", view.get("from")));
+            self.node.get_node("From").patch_component("widget_field", map().with("placeholder", view.get("from_hint")));
+            self.node.get_node("To").patch_component("widget", map().with("text", view.get("to")));
+            self.node.get_node("To").patch_component("widget_field", map().with("placeholder", view.get("to_hint")));
             ui::set_focus(self.node.get_node(if view.get("from").as_str() == "" { "From" } else { "To" }));
         }
         self.open = true;

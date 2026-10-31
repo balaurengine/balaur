@@ -78,13 +78,16 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
         } else {
             format!("{} = \"{name}\"", keys::KIND)
         };
+        // The kind's own rows come with it, so the inspector shows them.
+        let mut parts = vec![("widget", Some(params.as_str()))];
+        parts.extend(
+            crate::widget::beside::read_by(name)
+                .into_iter()
+                .map(|beside| (beside, None)),
+        );
         reg.register_preset(
             name,
-            preset(
-                description,
-                &[balaur_core::components::tag::UI],
-                &[("widget", Some(params.as_str()))],
-            )?,
+            preset(description, &[balaur_core::components::tag::UI], &parts)?,
         );
     }
     Ok(())

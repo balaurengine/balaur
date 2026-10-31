@@ -15,7 +15,7 @@ fn heard(app: &balaur::App, entity: Entity, event: &str) -> Vec<Value> {
 #[test]
 fn a_slider_commits_its_value_when_the_press_lets_go() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 min = 0.0 max = 10.0 };
+    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 widget_range = { min = 0.0, max = 10.0 }   };
     let slider = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);

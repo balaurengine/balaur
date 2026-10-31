@@ -193,8 +193,9 @@ fn a_drag_over_a_selectable_label_selects_and_copies() {
 fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "number_field" value = 11.0 min = 0.0 max = 12.0 step = 1.0
-        arrows = true prefix = "W" suffix = "px" x = 10.0 y = 10.0
+        kind = "number_field"
+         prefix = "W" suffix = "px" x = 10.0 y = 10.0
+        widget_range = { value = 11.0, min = 0.0, max = 12.0, step = 1.0, arrows = true }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -214,7 +215,7 @@ fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     pass(&app, &ctx, press(at, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "value"),
+        beside_property(&app, entity, "widget_range", "value"),
         toml::Value::Float(12.0),
         "the up arrow did not step the number"
     );
@@ -223,7 +224,7 @@ fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     pass(&app, &ctx, press(at, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "value"),
+        beside_property(&app, entity, "widget_range", "value"),
         toml::Value::Float(12.0),
         "the step ran past `max`"
     );

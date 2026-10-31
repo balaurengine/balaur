@@ -117,7 +117,12 @@ fn an_inspector_draws_a_row_for_every_property_its_component_declares() {
             .map(|text| Some(toml::Value::String(text.into())))
     );
     assert_eq!(
-        prop(&app, control(&app, 0, 1), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 1),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(2.0))
     );
     assert_eq!(
@@ -153,7 +158,12 @@ fn an_edit_on_one_channel_reports_the_whole_vector_and_writes_nothing_itself() {
     // The script did not write it, so the node and the row keep what it was.
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 1), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 1),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(2.0))
     );
 }
@@ -193,7 +203,12 @@ fn the_rows_follow_the_node_once_told_it_moved() {
     balaur_core::components::patch(&app.engine, root, "transform", &write.into()).unwrap();
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 2), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 2),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(3.0)),
         "a pass read the component without being told"
     );
@@ -201,7 +216,12 @@ fn the_rows_follow_the_node_once_told_it_moved() {
     assert!(balaur_ui::reread(&app.engine, root, None, None));
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 2), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 2),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(9.0))
     );
 }
@@ -297,7 +317,10 @@ impl Root {
     );
     // `node.path()` starts with the root's own name, which `get_node` does not.
     let first = node(&app, "Root/Bar/R0/H/C/C0/R0/H/C/C0").expect("its first row's control");
-    assert_eq!(prop(&app, first, "value"), Some(toml::Value::Float(1.0)));
+    assert_eq!(
+        balaur_core::components::property(&app.engine, first, "widget_range", "value"),
+        Some(toml::Value::Float(1.0))
+    );
     let drawn = balaur_ui::widget_rect(first).expect("drawn");
     assert!(drawn.width() > 0.0 && drawn.height() > 0.0, "{drawn:?}");
     assert!(balaur_ui::edit(&app.engine, first, &Value::Num(4.0)));
@@ -383,5 +406,8 @@ impl Root {
     settle(&mut app, &ctx);
     assert_eq!(kids(&app), 4, "and back as an inspector, its rows again");
     let first = node(&app, "Root/Bar/R0/H/C/C0/R0/H/C/C0").expect("its first row's control");
-    assert_eq!(prop(&app, first, "value"), Some(toml::Value::Float(1.0)));
+    assert_eq!(
+        balaur_core::components::property(&app.engine, first, "widget_range", "value"),
+        Some(toml::Value::Float(1.0))
+    );
 }

@@ -59,10 +59,11 @@ name = "Scrub"
 parent = "head"
 [nodes.widget]
 kind = "slider"
+grow = 1
+[nodes.widget_range]
 value = 0.0
 min = 0.0
 max = 1.0
-grow = 1
 
 [[nodes]]
 id = "at"

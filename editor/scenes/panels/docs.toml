@@ -41,8 +41,9 @@ parent = "tools"
 kind = "text_field"
 role = "input_dock"
 text = ""
-placeholder = "Search"
 width = 150
+[nodes.widget_field]
+placeholder = "Search"
 
 [[nodes]]
 id = "list"

@@ -68,10 +68,11 @@ parent = "list_box"
 [nodes.widget]
 kind = "list"
 multi_select = true
-reorderable = true
-on_move = "on_move"
 row_height = 22
 grow = 1
+[nodes.widget_list]
+reorderable = true
+on_move = "on_move"
 
 [[nodes]]
 id = "tree_box"
@@ -97,11 +98,12 @@ name = "Outline"
 parent = "tree_box"
 [nodes.widget]
 kind = "tree"
-reorderable = true
-on_move = "on_move"
 row_height = 22
 font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
+[nodes.widget_list]
+reorderable = true
+on_move = "on_move"
 
 [[nodes]]
 id = "table_box"

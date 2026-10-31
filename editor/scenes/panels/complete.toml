@@ -48,8 +48,9 @@ parent = "complete"
 kind = "scroll"
 axis = "horizontal"
 height = 1
-scrollbar = "never"
 interactive = false
+[nodes.widget_scroll]
+scrollbar = "never"
 
 [[nodes]]
 id = "keys_row"

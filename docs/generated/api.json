@@ -6925,7 +6925,21 @@
     "transform": "The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.",
     "vehicle3d": "Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.",
     "wheel3d": "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
-    "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`."
+    "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.",
+    "widget_code": "The rows a `code` widget reads: what it highlights and its gutter.",
+    "widget_color_picker": "The rows a `color_picker` reads: the colour it holds and what it offers.",
+    "widget_dropdown": "The row a `dropdown` reads: how tall its list grows.",
+    "widget_field": "The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.",
+    "widget_image": "The rows an `image` reads: the part of the picture drawn and how it sits in its box.",
+    "widget_inspector": "The rows an `inspector` reads: the node and component it shows.",
+    "widget_list": "The rows a `list` or `tree` reads: its card faces, and what a drag or a mark on a row does.",
+    "widget_menu": "The rows a `menu` reads: where its popup opens and what shuts it.",
+    "widget_range": "The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.",
+    "widget_scroll": "The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.",
+    "widget_separator": "The rows a `separator` reads: the room it takes and how far its line runs.",
+    "widget_table": "The rows a `table` reads: its columns and how they sort.",
+    "widget_toast": "The row a `toast` reads: how long it stays.",
+    "widget_window": "The rows a `window` or a `dialog` reads: its chrome, and what shuts it."
   },
   "component_events": {
     "animation": [
@@ -8200,10 +8214,6 @@
       "hide_wider",
       "hide_shorter",
       "hide_taller",
-      "placement",
-      "placement_fallbacks",
-      "popup_gap",
-      "popup_width",
       "padding",
       "gap",
       "align_items",
@@ -8229,13 +8239,7 @@
       "column",
       "header",
       "title_bar",
-      "widths",
-      "label_width",
       "row_height",
-      "list_height",
-      "gutter_width",
-      "spacing",
-      "overhang",
       "theme",
       "role",
       "fill",
@@ -8248,19 +8252,8 @@
       "icon_color",
       "icon_size",
       "image",
-      "sheet",
-      "tint",
-      "fit",
-      "region",
       "slice",
-      "angle_degrees",
-      "angle_origin",
-      "backdrop_color",
       "text_background",
-      "handle",
-      "handle_aspect",
-      "trailing_fill",
-      "animate",
       "font",
       "font_size",
       "font_weight",
@@ -8280,17 +8273,12 @@
       "suffix",
       "trailing",
       "tooltip",
-      "alt_text",
       "selectable",
       "on_click",
       "on_change",
       "on_submit",
       "on_focus",
       "on_link",
-      "on_drop",
-      "on_move",
-      "on_mark",
-      "on_gutter",
       "pass_node",
       "clicked",
       "submitted",
@@ -8301,25 +8289,80 @@
       "shortcut",
       "while_typing",
       "takes_typing",
-      "submit_key",
       "context",
       "open",
       "current_page",
-      "default_open",
-      "collapsible",
-      "closable",
-      "hide_on_close",
-      "resizable",
-      "dismissable",
-      "close_on",
       "keep_open",
-      "showing",
+      "checked",
+      "options",
+      "selection",
+      "multi_select",
+      "radio_group",
+      "toggle",
+      "indeterminate",
+      "splitter_width",
+      "reverse"
+    ],
+    "widget_code": [
+      "language",
+      "breakpoints",
+      "problems",
+      "warnings",
+      "current_line",
+      "gutter_width",
+      "on_gutter"
+    ],
+    "widget_color_picker": [
+      "picked_color",
+      "alpha",
+      "inline"
+    ],
+    "widget_dropdown": [
+      "list_height"
+    ],
+    "widget_field": [
+      "placeholder",
+      "max_length",
+      "numeric",
+      "secret",
+      "editable",
+      "clip_text",
+      "caret_at_end",
+      "tab_inserts",
+      "submit_key"
+    ],
+    "widget_image": [
+      "tint",
+      "fit",
+      "region",
+      "angle_degrees",
+      "angle_origin",
+      "alt_text"
+    ],
+    "widget_inspector": [
+      "component",
+      "target",
+      "relative_to",
+      "label_width"
+    ],
+    "widget_list": [
+      "sheet",
       "draggable",
       "reorderable",
-      "sortable",
+      "on_drop",
+      "on_move",
+      "on_mark"
+    ],
+    "widget_menu": [
+      "placement",
+      "placement_fallbacks",
+      "popup_gap",
+      "popup_width",
+      "close_on",
+      "showing"
+    ],
+    "widget_range": [
       "value",
-      "checked",
-      "picked_color",
       "min",
       "max",
       "step",
@@ -8336,22 +8379,12 @@
       "drag_speed",
       "arrows",
       "update_while_editing",
-      "options",
-      "selection",
-      "multi_select",
-      "radio_group",
-      "toggle",
-      "indeterminate",
-      "alpha",
-      "inline",
-      "placeholder",
-      "max_length",
-      "numeric",
-      "secret",
-      "editable",
-      "clip_text",
-      "caret_at_end",
-      "tab_inserts",
+      "handle",
+      "handle_aspect",
+      "trailing_fill",
+      "animate"
+    ],
+    "widget_scroll": [
       "scrollbar",
       "scroll_offset",
       "stick_to_end",
@@ -8362,20 +8395,29 @@
       "drag_cursor",
       "scroll_deadzone",
       "min_scrolled_width",
-      "min_scrolled_height",
-      "splitter_width",
+      "min_scrolled_height"
+    ],
+    "widget_separator": [
+      "spacing",
+      "overhang"
+    ],
+    "widget_table": [
       "titles",
+      "widths",
       "sort",
-      "reverse",
-      "component",
-      "target",
-      "relative_to",
-      "language",
-      "breakpoints",
-      "problems",
-      "warnings",
-      "current_line",
+      "sortable"
+    ],
+    "widget_toast": [
       "duration"
+    ],
+    "widget_window": [
+      "collapsible",
+      "default_open",
+      "closable",
+      "hide_on_close",
+      "resizable",
+      "dismissable",
+      "backdrop_color"
     ]
   },
   "component_tags": {
@@ -8711,6 +8753,48 @@
       "physics"
     ],
     "widget": [
+      "ui"
+    ],
+    "widget_code": [
+      "ui"
+    ],
+    "widget_color_picker": [
+      "ui"
+    ],
+    "widget_dropdown": [
+      "ui"
+    ],
+    "widget_field": [
+      "ui"
+    ],
+    "widget_image": [
+      "ui"
+    ],
+    "widget_inspector": [
+      "ui"
+    ],
+    "widget_list": [
+      "ui"
+    ],
+    "widget_menu": [
+      "ui"
+    ],
+    "widget_range": [
+      "ui"
+    ],
+    "widget_scroll": [
+      "ui"
+    ],
+    "widget_separator": [
+      "ui"
+    ],
+    "widget_table": [
+      "ui"
+    ],
+    "widget_toast": [
+      "ui"
+    ],
+    "widget_window": [
       "ui"
     ]
   },
@@ -17865,23 +17949,6 @@
         ],
         "type": "enum"
       },
-      "alpha": {
-        "default": "blend",
-        "description": "What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending",
-        "group": "value",
-        "options": [
-          "none",
-          "blend",
-          "additive"
-        ],
-        "type": "enum"
-      },
-      "alt_text": {
-        "default": "",
-        "description": "Text an `image` draws in place of a picture that will not load",
-        "group": "text",
-        "type": "string"
-      },
       "anchor": {
         "default": "top_left",
         "description": "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`",
@@ -17906,33 +17973,6 @@
         ],
         "type": "enum"
       },
-      "angle_degrees": {
-        "default": 0.0,
-        "description": "How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners",
-        "group": "paint",
-        "type": "float"
-      },
-      "angle_origin": {
-        "default": [
-          0.5,
-          0.5
-        ],
-        "description": "The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle",
-        "group": "paint",
-        "type": "vec2"
-      },
-      "animate": {
-        "default": false,
-        "description": "Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise",
-        "group": "paint",
-        "type": "bool"
-      },
-      "animated": {
-        "default": true,
-        "description": "Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump",
-        "group": "value",
-        "type": "bool"
-      },
       "areas": {
         "default": [],
         "description": "A `grid`'s named areas, one string a row of space-separated names with `.` for a cell in none: `[\"head head\", \"side main\"]`. A child names one in `row` and `column`",
@@ -17942,12 +17982,6 @@
           "type": "string"
         },
         "type": "list"
-      },
-      "arrows": {
-        "default": false,
-        "description": "Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`",
-        "group": "value",
-        "type": "bool"
       },
       "aspect_ratio": {
         "default": 0.0,
@@ -17997,17 +18031,6 @@
         ],
         "type": "enum"
       },
-      "backdrop_color": {
-        "default": [
-          0.0,
-          0.0,
-          0.0,
-          0.549
-        ],
-        "description": "What a `dialog` dims the screen behind it with",
-        "group": "paint",
-        "type": "color"
-      },
       "basis": {
         "default": -1.0,
         "description": "The size this child starts from along its container's direction, before `grow` and `shrink`, in design pixels; below zero is 0 for one that grows and its own size otherwise",
@@ -18035,42 +18058,9 @@
         ],
         "type": "enum"
       },
-      "breakpoints": {
-        "default": [],
-        "description": "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means",
-        "group": "value",
-        "of": {
-          "default": "",
-          "type": "string"
-        },
-        "type": "list"
-      },
-      "caret_at_end": {
-        "default": true,
-        "description": "Put the caret at the end of a `text_field`, `text_area` or `code`'s text when it first takes focus; off, at the start",
-        "group": "value",
-        "type": "bool"
-      },
       "checked": {
         "default": false,
         "description": "Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
-        "group": "value",
-        "type": "bool"
-      },
-      "clamp": {
-        "default": "always",
-        "description": "Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track",
-        "group": "value",
-        "options": [
-          "always",
-          "edits",
-          "never"
-        ],
-        "type": "enum"
-      },
-      "clamp_existing": {
-        "default": false,
-        "description": "Pull a `number_field`'s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded",
         "group": "value",
         "type": "bool"
       },
@@ -18081,45 +18071,10 @@
         "readonly": true,
         "type": "bool"
       },
-      "clip_text": {
-        "default": true,
-        "description": "Cut a `text_field`'s text at its edge; off, the field grows to show it whole",
-        "group": "value",
-        "type": "bool"
-      },
-      "closable": {
-        "default": true,
-        "description": "Draw a `window`'s cross",
-        "group": "events",
-        "type": "bool"
-      },
-      "close_on": {
-        "default": "click_outside",
-        "description": "What shuts a `menu`'s popup besides a row: a click outside it, any click at all, or nothing but Escape",
-        "group": "events",
-        "options": [
-          "click_outside",
-          "click",
-          "never"
-        ],
-        "type": "enum"
-      },
-      "collapsible": {
-        "default": false,
-        "description": "Give a `window`'s title bar an arrow that folds the window to its bar and back",
-        "group": "events",
-        "type": "bool"
-      },
       "column": {
         "default": "",
         "description": "On a `grid`'s child: the columns it covers, in the words `row` takes",
         "group": "layout",
-        "type": "string"
-      },
-      "component": {
-        "default": "",
-        "description": "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved",
-        "group": "value",
         "type": "string"
       },
       "constrain": {
@@ -18149,13 +18104,6 @@
         "description": "Corner radius in design pixels, a `progress_bar`'s and an `image`'s included; below zero takes the theme's own, which for a button is as round as its text is tall",
         "group": "paint",
         "type": "float"
-      },
-      "current_line": {
-        "default": 0,
-        "description": "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none",
-        "group": "value",
-        "min": 0,
-        "type": "int"
       },
       "current_page": {
         "default": "",
@@ -18212,18 +18160,6 @@
         "group": "paint",
         "type": "bool"
       },
-      "decimals": {
-        "default": -1,
-        "description": "How many decimals a `slider`'s or `number_field`'s number shows; below zero lets egui decide",
-        "group": "value",
-        "type": "int"
-      },
-      "default_open": {
-        "default": true,
-        "description": "Whether a `collapsible` window starts unfolded",
-        "group": "events",
-        "type": "bool"
-      },
       "direction": {
         "default": "left_to_right",
         "description": "Which way a row and a grid's columns run: `right_to_left` starts them at the right edge",
@@ -18233,92 +18169,6 @@
           "right_to_left"
         ],
         "type": "enum"
-      },
-      "dismissable": {
-        "default": true,
-        "description": "Let Escape or a click on the dim shut a `dialog`; off, only the scene does",
-        "group": "events",
-        "type": "bool"
-      },
-      "drag_cursor": {
-        "default": "arrow",
-        "description": "The pointer's shape while a drag scrolls a `scroll`, `list`, `tree` or `table`'s content; `arrow` leaves it as it is",
-        "group": "value",
-        "options": [
-          "arrow",
-          "none",
-          "hand",
-          "text",
-          "vertical_text",
-          "cross",
-          "cell",
-          "wait",
-          "progress",
-          "help",
-          "context_menu",
-          "move",
-          "grab",
-          "grabbing",
-          "alias",
-          "copy",
-          "no_drop",
-          "forbidden",
-          "all_scroll",
-          "resize_x",
-          "resize_y",
-          "resize_n",
-          "resize_e",
-          "resize_s",
-          "resize_w",
-          "resize_ne",
-          "resize_nw",
-          "resize_se",
-          "resize_sw",
-          "resize_nesw",
-          "resize_nwse",
-          "resize_col",
-          "resize_row",
-          "zoom_in",
-          "zoom_out"
-        ],
-        "type": "enum"
-      },
-      "drag_scroll": {
-        "default": "touch",
-        "description": "When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself",
-        "group": "value",
-        "options": [
-          "touch",
-          "always",
-          "never"
-        ],
-        "type": "enum"
-      },
-      "drag_speed": {
-        "default": 0.0,
-        "description": "How far a `number_field`, or a `slider`'s shown number, moves per design pixel dragged; 0 takes egui's, which is 1 on a number field and scales with the range on a slider",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "draggable": {
-        "default": false,
-        "description": "Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go",
-        "group": "events",
-        "type": "bool"
-      },
-      "duration": {
-        "default": 3.0,
-        "description": "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "editable": {
-        "default": true,
-        "description": "Let the reader change a `text_field`, `text_area` or `code`'s text; off, it can be neither edited nor selected",
-        "group": "value",
-        "type": "bool"
       },
       "enabled": {
         "default": true,
@@ -18336,19 +18186,6 @@
         "description": "What is painted behind this widget, an `image`'s picture included, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
         "group": "paint",
         "type": "string"
-      },
-      "fit": {
-        "default": "",
-        "description": "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead",
-        "group": "paint",
-        "options": [
-          "",
-          "contain",
-          "cover",
-          "fill",
-          "none"
-        ],
-        "type": "enum"
       },
       "focusable": {
         "default": true,
@@ -18417,30 +18254,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "gutter_width": {
-        "default": 0.0,
-        "description": "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits",
-        "group": "layout",
-        "min": 0.0,
-        "type": "float"
-      },
-      "handle": {
-        "default": "circle",
-        "description": "A `slider`'s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall",
-        "group": "paint",
-        "options": [
-          "circle",
-          "rect"
-        ],
-        "type": "enum"
-      },
-      "handle_aspect": {
-        "default": 0.5,
-        "description": "How wide a `rect` handle is against its height",
-        "group": "paint",
-        "min": 0.0,
-        "type": "float"
-      },
       "header": {
         "default": true,
         "description": "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row",
@@ -18467,12 +18280,6 @@
         "group": "placement",
         "min": 0.0,
         "type": "float"
-      },
-      "hide_on_close": {
-        "default": true,
-        "description": "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides",
-        "group": "events",
-        "type": "bool"
       },
       "hide_shorter": {
         "default": 0.0,
@@ -18522,12 +18329,6 @@
       "indeterminate": {
         "default": false,
         "description": "Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`",
-        "group": "value",
-        "type": "bool"
-      },
-      "inline": {
-        "default": false,
-        "description": "Draw a `color_picker`'s picker in place, rather than behind a swatch that opens it",
         "group": "value",
         "type": "bool"
       },
@@ -18607,26 +18408,6 @@
         ],
         "type": "enum"
       },
-      "label_width": {
-        "default": 0.0,
-        "description": "How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead",
-        "group": "layout",
-        "min": 0.0,
-        "type": "float"
-      },
-      "language": {
-        "default": "",
-        "description": "The language a `code` widget highlights",
-        "group": "value",
-        "type": "string"
-      },
-      "largest_finite": {
-        "default": 0.0,
-        "description": "The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
       "layer": {
         "default": "",
         "description": "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface",
@@ -18643,19 +18424,6 @@
           "glyph"
         ],
         "type": "enum"
-      },
-      "list_height": {
-        "default": 0.0,
-        "description": "The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's",
-        "group": "layout",
-        "min": 0.0,
-        "type": "float"
-      },
-      "logarithmic": {
-        "default": false,
-        "description": "Space a `slider`'s track logarithmically, for a range across orders of magnitude",
-        "group": "value",
-        "type": "bool"
       },
       "margin": {
         "default": [
@@ -18674,23 +18442,10 @@
         "group": "text",
         "type": "bool"
       },
-      "max": {
-        "default": 1.0,
-        "description": "The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
-        "group": "value",
-        "type": "float"
-      },
       "max_height": {
         "default": 0.0,
         "description": "Largest height a container may give this widget, and a `resizable` window be dragged to, in design pixels; 0 is no limit",
         "group": "placement",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_length": {
-        "default": 0.0,
-        "description": "The most characters a `text_field` takes; 0 is no limit",
-        "group": "value",
         "min": 0.0,
         "type": "float"
       },
@@ -18708,12 +18463,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "min": {
-        "default": 0.0,
-        "description": "The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
-        "group": "value",
-        "type": "float"
-      },
       "min_height": {
         "default": 0.0,
         "description": "Smallest height a container may give this widget, and a `resizable` window be dragged to, in design pixels",
@@ -18727,20 +18476,6 @@
         "group": "layout",
         "min": 1,
         "type": "int"
-      },
-      "min_scrolled_height": {
-        "default": 0.0,
-        "description": "The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "min_scrolled_width": {
-        "default": 0.0,
-        "description": "The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui's",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
       },
       "min_width": {
         "default": 0.0,
@@ -18761,24 +18496,6 @@
         "group": "value",
         "type": "bool"
       },
-      "number_format": {
-        "default": "decimal",
-        "description": "The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole",
-        "group": "value",
-        "options": [
-          "decimal",
-          "binary",
-          "octal",
-          "hex"
-        ],
-        "type": "enum"
-      },
-      "numeric": {
-        "default": false,
-        "description": "Keep a `text_field` to digits, a sign and a point",
-        "group": "value",
-        "type": "bool"
-      },
       "on_change": {
         "default": "",
         "description": "Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
@@ -18791,39 +18508,15 @@
         "group": "events",
         "type": "string"
       },
-      "on_drop": {
-        "default": "",
-        "description": "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed",
-        "group": "events",
-        "type": "string"
-      },
       "on_focus": {
         "default": "",
         "description": "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
-      "on_gutter": {
-        "default": "",
-        "description": "Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it",
-        "group": "events",
-        "type": "string"
-      },
       "on_link": {
         "default": "",
         "description": "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it",
-        "group": "events",
-        "type": "string"
-      },
-      "on_mark": {
-        "default": "",
-        "description": "Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing",
-        "group": "events",
-        "type": "string"
-      },
-      "on_move": {
-        "default": "",
-        "description": "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -18861,12 +18554,6 @@
         ],
         "type": "enum"
       },
-      "overhang": {
-        "default": 0.0,
-        "description": "How far a `separator`'s line runs past each end of the room it was given, in design pixels; below zero stops it short",
-        "group": "layout",
-        "type": "float"
-      },
       "padding": {
         "default": [
           -1.0,
@@ -18884,132 +18571,17 @@
         "group": "events",
         "type": "bool"
       },
-      "picked_color": {
-        "default": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "What a `color_picker` holds; `on_change` hears the new one",
-        "group": "value",
-        "type": "color"
-      },
-      "placeholder": {
-        "default": "",
-        "description": "What a `text_field` or `text_area` shows while it is empty",
-        "group": "value",
-        "type": "string"
-      },
-      "placement": {
-        "default": "below",
-        "description": "Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen",
-        "group": "placement",
-        "options": [
-          "below",
-          "below_center",
-          "below_end",
-          "above",
-          "above_center",
-          "above_end",
-          "right",
-          "right_center",
-          "right_end",
-          "left",
-          "left_center",
-          "left_end",
-          "pointer",
-          "center"
-        ],
-        "type": "enum"
-      },
-      "placement_fallbacks": {
-        "default": [],
-        "description": "The placements a `menu`'s popup tries, in order, where its own does not fit the screen; empty tries egui's, and naming the placement alone keeps it where it is",
-        "group": "placement",
-        "of": {
-          "default": "below",
-          "options": [
-            "below",
-            "below_center",
-            "below_end",
-            "above",
-            "above_center",
-            "above_end",
-            "right",
-            "right_center",
-            "right_end",
-            "left",
-            "left_center",
-            "left_end"
-          ],
-          "type": "enum"
-        },
-        "type": "list"
-      },
-      "popup_gap": {
-        "default": -1.0,
-        "description": "The space between a `menu`'s button and its popup, in design pixels; below zero takes egui's",
-        "group": "placement",
-        "type": "float"
-      },
-      "popup_width": {
-        "default": 0.0,
-        "description": "How wide a `menu`'s popup starts, in design pixels; 0 sizes it to its rows",
-        "group": "placement",
-        "min": 0.0,
-        "type": "float"
-      },
       "prefix": {
         "default": "",
         "description": "Text drawn before a `number_field`'s or a shown `slider`'s number with a space between, and before a `text_field`'s or `text_area`'s text",
         "group": "text",
         "type": "string"
       },
-      "problems": {
-        "default": [],
-        "description": "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter",
-        "group": "value",
-        "of": {
-          "default": "",
-          "type": "string"
-        },
-        "type": "list"
-      },
       "radio_group": {
         "default": "",
         "description": "A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
         "group": "value",
         "type": "string"
-      },
-      "region": {
-        "default": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "The part of an `image` drawn, as left, top, width and height in the picture's own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too",
-        "group": "paint",
-        "type": "vec4"
-      },
-      "relative_to": {
-        "default": "",
-        "description": "The folder an `inspector` shows a file's path from: a value under it loses that much of its front",
-        "group": "value",
-        "type": "string"
-      },
-      "reorderable": {
-        "default": false,
-        "description": "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder",
-        "group": "events",
-        "type": "bool"
-      },
-      "resizable": {
-        "default": false,
-        "description": "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`",
-        "group": "events",
-        "type": "bool"
       },
       "reverse": {
         "default": false,
@@ -19054,45 +18626,12 @@
         ],
         "type": "flags"
       },
-      "scroll_deadzone": {
-        "default": 0.0,
-        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "scroll_offset": {
-        "default": [
-          -1.0,
-          -1.0
-        ],
-        "description": "Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too",
-        "group": "value",
-        "type": "vec2"
-      },
-      "scrollbar": {
-        "default": "auto",
-        "description": "When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box",
-        "group": "value",
-        "options": [
-          "auto",
-          "always",
-          "never"
-        ],
-        "type": "enum"
-      },
       "scrollbar_width": {
         "default": 0.0,
         "description": "The room a box with `overflow = \"scroll\"` keeps clear inside its edge for a bar, in design pixels",
         "group": "layout",
         "min": 0.0,
         "type": "float"
-      },
-      "secret": {
-        "default": false,
-        "description": "Draw a `text_field`'s text as dots, for a password",
-        "group": "value",
-        "type": "bool"
       },
       "selectable": {
         "default": false,
@@ -19122,40 +18661,16 @@
         ],
         "type": "enum"
       },
-      "sheet": {
-        "default": "",
-        "description": "The picture a `list` cuts its card faces from",
-        "group": "paint",
-        "type": "string"
-      },
       "shortcut": {
         "default": "",
         "description": "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
         "group": "events",
         "type": "string"
       },
-      "show_percentage": {
-        "default": false,
-        "description": "Draw a `progress_bar`'s fill as a percentage on it, in place of its `text`",
-        "group": "value",
-        "type": "bool"
-      },
       "show_tooltip_when_elided": {
         "default": true,
         "description": "Show a `label`'s whole text when the pointer rests on it and `truncate` cut it short",
         "group": "text",
-        "type": "bool"
-      },
-      "show_value": {
-        "default": false,
-        "description": "Draw a `slider`'s number beside its track, for the reader to drag or type into",
-        "group": "value",
-        "type": "bool"
-      },
-      "showing": {
-        "default": false,
-        "description": "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there",
-        "group": "events",
         "type": "bool"
       },
       "shrink": {
@@ -19175,37 +18690,6 @@
         "group": "paint",
         "type": "vec4"
       },
-      "smallest_positive": {
-        "default": 0.0,
-        "description": "The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui's millionth",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "smart_aim": {
-        "default": true,
-        "description": "Round a dragged `slider` to the simplest number near the pointer",
-        "group": "value",
-        "type": "bool"
-      },
-      "sort": {
-        "default": "",
-        "description": "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`",
-        "group": "value",
-        "type": "string"
-      },
-      "sortable": {
-        "default": false,
-        "description": "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret",
-        "group": "events",
-        "type": "bool"
-      },
-      "spacing": {
-        "default": -1.0,
-        "description": "The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6",
-        "group": "layout",
-        "type": "float"
-      },
       "splitter_width": {
         "default": 0.0,
         "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing",
@@ -19213,29 +18697,10 @@
         "min": 0.0,
         "type": "float"
       },
-      "step": {
-        "default": 0.0,
-        "description": "The grid a `slider` snaps to, and how far a `number_field`'s `arrows` move it; 0 is continuous, and 1 for the arrows",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
-      },
-      "stick_to_end": {
-        "default": false,
-        "description": "Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too",
-        "group": "value",
-        "type": "bool"
-      },
       "stroke": {
         "default": "",
         "description": "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
         "group": "paint",
-        "type": "string"
-      },
-      "submit_key": {
-        "default": "",
-        "description": "The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says",
-        "group": "events",
         "type": "string"
       },
       "submitted": {
@@ -19250,12 +18715,6 @@
         "group": "text",
         "type": "string"
       },
-      "tab_inserts": {
-        "default": false,
-        "description": "Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on",
-        "group": "value",
-        "type": "bool"
-      },
       "tab_width": {
         "default": 8,
         "description": "Spaces between tab stops",
@@ -19269,12 +18728,6 @@
         "description": "Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up",
         "group": "events",
         "type": "bool"
-      },
-      "target": {
-        "default": "",
-        "description": "The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it",
-        "group": "value",
-        "type": "string"
       },
       "text": {
         "default": "label",
@@ -19334,32 +18787,11 @@
         "group": "paint",
         "type": "asset"
       },
-      "tint": {
-        "default": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "What an `image` is multiplied by; white draws it as it is",
-        "group": "paint",
-        "type": "color"
-      },
       "title_bar": {
         "default": false,
         "description": "On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is",
         "group": "layout",
         "type": "bool"
-      },
-      "titles": {
-        "default": [],
-        "description": "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names",
-        "group": "value",
-        "of": {
-          "default": "",
-          "type": "string"
-        },
-        "type": "list"
       },
       "toggle": {
         "default": false,
@@ -19379,12 +18811,6 @@
         "group": "text",
         "type": "string"
       },
-      "trailing_fill": {
-        "default": false,
-        "description": "Fill a `slider`'s track from its start up to the handle",
-        "group": "paint",
-        "type": "bool"
-      },
       "truncate": {
         "default": false,
         "description": "Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text",
@@ -19402,47 +18828,10 @@
         ],
         "type": "enum"
       },
-      "update_while_editing": {
-        "default": true,
-        "description": "Write a `slider`'s or `number_field`'s number as the reader types it; off, only once the typing is left",
-        "group": "value",
-        "type": "bool"
-      },
-      "value": {
-        "default": 0.0,
-        "description": "Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it",
-        "group": "value",
-        "type": "float"
-      },
       "visible": {
         "default": true,
         "description": "Draw the widget; hidden widgets keep their state",
         "type": "bool"
-      },
-      "warnings": {
-        "default": [],
-        "description": "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it",
-        "group": "value",
-        "of": {
-          "default": "",
-          "type": "string"
-        },
-        "type": "list"
-      },
-      "wheel_scroll": {
-        "default": true,
-        "description": "Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`",
-        "group": "value",
-        "type": "bool"
-      },
-      "wheel_speed": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own",
-        "group": "value",
-        "type": "vec2"
       },
       "while_typing": {
         "default": true,
@@ -19463,16 +18852,6 @@
         "group": "placement",
         "min": 0.0,
         "type": "float"
-      },
-      "widths": {
-        "default": [],
-        "description": "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back",
-        "group": "layout",
-        "of": {
-          "default": "",
-          "type": "string"
-        },
-        "type": "list"
       },
       "wrap": {
         "default": false,
@@ -19505,6 +18884,651 @@
         "description": "Vertical offset from the anchor, in design pixels",
         "group": "placement",
         "type": "float"
+      }
+    },
+    "widget_code": {
+      "breakpoints": {
+        "default": [],
+        "description": "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      },
+      "current_line": {
+        "default": 0,
+        "description": "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none",
+        "min": 0,
+        "type": "int"
+      },
+      "gutter_width": {
+        "default": 0.0,
+        "description": "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits",
+        "min": 0.0,
+        "type": "float"
+      },
+      "language": {
+        "default": "",
+        "description": "The language a `code` widget highlights",
+        "type": "string"
+      },
+      "on_gutter": {
+        "default": "",
+        "description": "Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it",
+        "type": "string"
+      },
+      "problems": {
+        "default": [],
+        "description": "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      },
+      "warnings": {
+        "default": [],
+        "description": "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      }
+    },
+    "widget_color_picker": {
+      "alpha": {
+        "default": "blend",
+        "description": "What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending",
+        "options": [
+          "none",
+          "blend",
+          "additive"
+        ],
+        "type": "enum"
+      },
+      "inline": {
+        "default": false,
+        "description": "Draw a `color_picker`'s picker in place, rather than behind a swatch that opens it",
+        "type": "bool"
+      },
+      "picked_color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "What a `color_picker` holds; `on_change` hears the new one",
+        "type": "color"
+      }
+    },
+    "widget_dropdown": {
+      "list_height": {
+        "default": 0.0,
+        "description": "The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "widget_field": {
+      "caret_at_end": {
+        "default": true,
+        "description": "Put the caret at the end of a `text_field`, `text_area` or `code`'s text when it first takes focus; off, at the start",
+        "type": "bool"
+      },
+      "clip_text": {
+        "default": true,
+        "description": "Cut a `text_field`'s text at its edge; off, the field grows to show it whole",
+        "type": "bool"
+      },
+      "editable": {
+        "default": true,
+        "description": "Let the reader change a `text_field`, `text_area` or `code`'s text; off, it can be neither edited nor selected",
+        "type": "bool"
+      },
+      "max_length": {
+        "default": 0.0,
+        "description": "The most characters a `text_field` takes; 0 is no limit",
+        "min": 0.0,
+        "type": "float"
+      },
+      "numeric": {
+        "default": false,
+        "description": "Keep a `text_field` to digits, a sign and a point",
+        "type": "bool"
+      },
+      "placeholder": {
+        "default": "",
+        "description": "What a `text_field` or `text_area` shows while it is empty",
+        "type": "string"
+      },
+      "secret": {
+        "default": false,
+        "description": "Draw a `text_field`'s text as dots, for a password",
+        "type": "bool"
+      },
+      "submit_key": {
+        "default": "",
+        "description": "The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says",
+        "type": "string"
+      },
+      "tab_inserts": {
+        "default": false,
+        "description": "Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on",
+        "type": "bool"
+      }
+    },
+    "widget_image": {
+      "alt_text": {
+        "default": "",
+        "description": "Text an `image` draws in place of a picture that will not load",
+        "type": "string"
+      },
+      "angle_degrees": {
+        "default": 0.0,
+        "description": "How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners",
+        "type": "float"
+      },
+      "angle_origin": {
+        "default": [
+          0.5,
+          0.5
+        ],
+        "description": "The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle",
+        "type": "vec2"
+      },
+      "fit": {
+        "default": "",
+        "description": "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead",
+        "options": [
+          "",
+          "contain",
+          "cover",
+          "fill",
+          "none"
+        ],
+        "type": "enum"
+      },
+      "region": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "The part of an `image` drawn, as left, top, width and height in the picture's own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too",
+        "type": "vec4"
+      },
+      "tint": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "What an `image` is multiplied by; white draws it as it is",
+        "type": "color"
+      }
+    },
+    "widget_inspector": {
+      "component": {
+        "default": "",
+        "description": "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved",
+        "type": "string"
+      },
+      "label_width": {
+        "default": 0.0,
+        "description": "How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead",
+        "min": 0.0,
+        "type": "float"
+      },
+      "relative_to": {
+        "default": "",
+        "description": "The folder an `inspector` shows a file's path from: a value under it loses that much of its front",
+        "type": "string"
+      },
+      "target": {
+        "default": "",
+        "description": "The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it",
+        "type": "string"
+      }
+    },
+    "widget_list": {
+      "draggable": {
+        "default": false,
+        "description": "Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go",
+        "type": "bool"
+      },
+      "on_drop": {
+        "default": "",
+        "description": "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed",
+        "type": "string"
+      },
+      "on_mark": {
+        "default": "",
+        "description": "Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing",
+        "type": "string"
+      },
+      "on_move": {
+        "default": "",
+        "description": "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it",
+        "type": "string"
+      },
+      "reorderable": {
+        "default": false,
+        "description": "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder",
+        "type": "bool"
+      },
+      "sheet": {
+        "default": "",
+        "description": "The picture a `list` cuts its card faces from",
+        "type": "string"
+      }
+    },
+    "widget_menu": {
+      "close_on": {
+        "default": "click_outside",
+        "description": "What shuts a `menu`'s popup besides a row: a click outside it, any click at all, or nothing but Escape",
+        "options": [
+          "click_outside",
+          "click",
+          "never"
+        ],
+        "type": "enum"
+      },
+      "placement": {
+        "default": "below",
+        "description": "Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen",
+        "options": [
+          "below",
+          "below_center",
+          "below_end",
+          "above",
+          "above_center",
+          "above_end",
+          "right",
+          "right_center",
+          "right_end",
+          "left",
+          "left_center",
+          "left_end",
+          "pointer",
+          "center"
+        ],
+        "type": "enum"
+      },
+      "placement_fallbacks": {
+        "default": [],
+        "description": "The placements a `menu`'s popup tries, in order, where its own does not fit the screen; empty tries egui's, and naming the placement alone keeps it where it is",
+        "of": {
+          "default": "below",
+          "options": [
+            "below",
+            "below_center",
+            "below_end",
+            "above",
+            "above_center",
+            "above_end",
+            "right",
+            "right_center",
+            "right_end",
+            "left",
+            "left_center",
+            "left_end"
+          ],
+          "type": "enum"
+        },
+        "type": "list"
+      },
+      "popup_gap": {
+        "default": -1.0,
+        "description": "The space between a `menu`'s button and its popup, in design pixels; below zero takes egui's",
+        "type": "float"
+      },
+      "popup_width": {
+        "default": 0.0,
+        "description": "How wide a `menu`'s popup starts, in design pixels; 0 sizes it to its rows",
+        "min": 0.0,
+        "type": "float"
+      },
+      "showing": {
+        "default": false,
+        "description": "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there",
+        "type": "bool"
+      }
+    },
+    "widget_range": {
+      "animate": {
+        "default": false,
+        "description": "Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise",
+        "type": "bool"
+      },
+      "arrows": {
+        "default": false,
+        "description": "Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`",
+        "type": "bool"
+      },
+      "clamp": {
+        "default": "always",
+        "description": "Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track",
+        "options": [
+          "always",
+          "edits",
+          "never"
+        ],
+        "type": "enum"
+      },
+      "clamp_existing": {
+        "default": false,
+        "description": "Pull a `number_field`'s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded",
+        "type": "bool"
+      },
+      "decimals": {
+        "default": -1,
+        "description": "How many decimals a `slider`'s or `number_field`'s number shows; below zero lets egui decide",
+        "type": "int"
+      },
+      "drag_speed": {
+        "default": 0.0,
+        "description": "How far a `number_field`, or a `slider`'s shown number, moves per design pixel dragged; 0 takes egui's, which is 1 on a number field and scales with the range on a slider",
+        "min": 0.0,
+        "type": "float"
+      },
+      "handle": {
+        "default": "circle",
+        "description": "A `slider`'s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall",
+        "options": [
+          "circle",
+          "rect"
+        ],
+        "type": "enum"
+      },
+      "handle_aspect": {
+        "default": 0.5,
+        "description": "How wide a `rect` handle is against its height",
+        "min": 0.0,
+        "type": "float"
+      },
+      "largest_finite": {
+        "default": 0.0,
+        "description": "The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit",
+        "min": 0.0,
+        "type": "float"
+      },
+      "logarithmic": {
+        "default": false,
+        "description": "Space a `slider`'s track logarithmically, for a range across orders of magnitude",
+        "type": "bool"
+      },
+      "max": {
+        "default": 1.0,
+        "description": "The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
+        "type": "float"
+      },
+      "min": {
+        "default": 0.0,
+        "description": "The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
+        "type": "float"
+      },
+      "number_format": {
+        "default": "decimal",
+        "description": "The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole",
+        "options": [
+          "decimal",
+          "binary",
+          "octal",
+          "hex"
+        ],
+        "type": "enum"
+      },
+      "show_percentage": {
+        "default": false,
+        "description": "Draw a `progress_bar`'s fill as a percentage on it, in place of its `text`",
+        "type": "bool"
+      },
+      "show_value": {
+        "default": false,
+        "description": "Draw a `slider`'s number beside its track, for the reader to drag or type into",
+        "type": "bool"
+      },
+      "smallest_positive": {
+        "default": 0.0,
+        "description": "The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui's millionth",
+        "min": 0.0,
+        "type": "float"
+      },
+      "smart_aim": {
+        "default": true,
+        "description": "Round a dragged `slider` to the simplest number near the pointer",
+        "type": "bool"
+      },
+      "step": {
+        "default": 0.0,
+        "description": "The grid a `slider` snaps to, and how far a `number_field`'s `arrows` move it; 0 is continuous, and 1 for the arrows",
+        "min": 0.0,
+        "type": "float"
+      },
+      "trailing_fill": {
+        "default": false,
+        "description": "Fill a `slider`'s track from its start up to the handle",
+        "type": "bool"
+      },
+      "update_while_editing": {
+        "default": true,
+        "description": "Write a `slider`'s or `number_field`'s number as the reader types it; off, only once the typing is left",
+        "type": "bool"
+      },
+      "value": {
+        "default": 0.0,
+        "description": "Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it",
+        "type": "float"
+      }
+    },
+    "widget_scroll": {
+      "animated": {
+        "default": true,
+        "description": "Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump",
+        "type": "bool"
+      },
+      "drag_cursor": {
+        "default": "arrow",
+        "description": "The pointer's shape while a drag scrolls a `scroll`, `list`, `tree` or `table`'s content; `arrow` leaves it as it is",
+        "options": [
+          "arrow",
+          "none",
+          "hand",
+          "text",
+          "vertical_text",
+          "cross",
+          "cell",
+          "wait",
+          "progress",
+          "help",
+          "context_menu",
+          "move",
+          "grab",
+          "grabbing",
+          "alias",
+          "copy",
+          "no_drop",
+          "forbidden",
+          "all_scroll",
+          "resize_x",
+          "resize_y",
+          "resize_n",
+          "resize_e",
+          "resize_s",
+          "resize_w",
+          "resize_ne",
+          "resize_nw",
+          "resize_se",
+          "resize_sw",
+          "resize_nesw",
+          "resize_nwse",
+          "resize_col",
+          "resize_row",
+          "zoom_in",
+          "zoom_out"
+        ],
+        "type": "enum"
+      },
+      "drag_scroll": {
+        "default": "touch",
+        "description": "When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself",
+        "options": [
+          "touch",
+          "always",
+          "never"
+        ],
+        "type": "enum"
+      },
+      "min_scrolled_height": {
+        "default": 0.0,
+        "description": "The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's",
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_scrolled_width": {
+        "default": 0.0,
+        "description": "The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui's",
+        "min": 0.0,
+        "type": "float"
+      },
+      "scroll_deadzone": {
+        "default": 0.0,
+        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
+        "min": 0.0,
+        "type": "float"
+      },
+      "scroll_offset": {
+        "default": [
+          -1.0,
+          -1.0
+        ],
+        "description": "Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too",
+        "type": "vec2"
+      },
+      "scrollbar": {
+        "default": "auto",
+        "description": "When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box",
+        "options": [
+          "auto",
+          "always",
+          "never"
+        ],
+        "type": "enum"
+      },
+      "stick_to_end": {
+        "default": false,
+        "description": "Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too",
+        "type": "bool"
+      },
+      "wheel_scroll": {
+        "default": true,
+        "description": "Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`",
+        "type": "bool"
+      },
+      "wheel_speed": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own",
+        "type": "vec2"
+      }
+    },
+    "widget_separator": {
+      "overhang": {
+        "default": 0.0,
+        "description": "How far a `separator`'s line runs past each end of the room it was given, in design pixels; below zero stops it short",
+        "type": "float"
+      },
+      "spacing": {
+        "default": -1.0,
+        "description": "The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6",
+        "type": "float"
+      }
+    },
+    "widget_table": {
+      "sort": {
+        "default": "",
+        "description": "The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. The widget's `reverse` takes them the other way round",
+        "type": "string"
+      },
+      "sortable": {
+        "default": false,
+        "description": "Let a click on the header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret",
+        "type": "bool"
+      },
+      "titles": {
+        "default": [],
+        "description": "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      },
+      "widths": {
+        "default": [],
+        "description": "Each column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      }
+    },
+    "widget_toast": {
+      "duration": {
+        "default": 3.0,
+        "description": "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "widget_window": {
+      "backdrop_color": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.549
+        ],
+        "description": "What a `dialog` dims the screen behind it with",
+        "type": "color"
+      },
+      "closable": {
+        "default": true,
+        "description": "Draw a `window`'s cross",
+        "type": "bool"
+      },
+      "collapsible": {
+        "default": false,
+        "description": "Give a `window`'s title bar an arrow that folds the window to its bar and back",
+        "type": "bool"
+      },
+      "default_open": {
+        "default": true,
+        "description": "Whether a `collapsible` window starts unfolded",
+        "type": "bool"
+      },
+      "dismissable": {
+        "default": true,
+        "description": "Let Escape or a click on the dim shut a `dialog`; off, only the scene does",
+        "type": "bool"
+      },
+      "hide_on_close": {
+        "default": true,
+        "description": "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides",
+        "type": "bool"
+      },
+      "resizable": {
+        "default": false,
+        "description": "Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`",
+        "type": "bool"
       }
     }
   },

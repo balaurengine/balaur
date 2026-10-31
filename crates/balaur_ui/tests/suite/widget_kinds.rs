@@ -42,7 +42,7 @@ fn a_check_flips_on_click_and_reads_back() {
 #[test]
 fn a_slider_click_writes_where_it_landed() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 min = 0.0 max = 10.0 };
+    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 widget_range = { min = 0.0, max = 10.0 }   };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -50,7 +50,9 @@ fn a_slider_click_writes_where_it_landed() {
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(
         value > 5.0 && value <= 10.0,
         "a click past the middle lands high: {value}"
@@ -60,8 +62,7 @@ fn a_slider_click_writes_where_it_landed() {
 #[test]
 fn a_drag_value_shows_its_number_and_takes_a_drag() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
+    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 widget_range = { value = 2.0, step = 1.0 }   };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -79,14 +80,16 @@ fn a_drag_value_shows_its_number_and_takes_a_drag() {
     );
     pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(value > 2.0, "dragging right raises it: {value}");
 }
 
 #[test]
 fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = -24.0 min = 0.0 max = 100.0 step = 1.0 };
+    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 widget_range = { value = -24.0, min = 0.0, max = 100.0, step = 1.0 }     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -95,7 +98,7 @@ fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
         consume_input(&mut app);
     }
     assert_eq!(
-        balaur_core::components::as_f64(&property(&app, entity, "value")),
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value")),
         Some(-24.0),
         "nobody touched it, so nothing clamped it"
     );
@@ -108,7 +111,9 @@ fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
     );
     pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(
         (0.0..=100.0).contains(&value),
         "a drag lands inside the range: {value}"
@@ -503,7 +508,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] }
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] widget_scroll = { scroll_deadzone = 30.0 } }
             .into(),
     );
     let first = add_child_widget(
@@ -783,7 +788,7 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" image = "wide.png" fit = "contain" width = 40.0 };
+    let params = toml::toml! { kind = "image" image = "wide.png"  width = 40.0 widget_image = { fit = "contain" } };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
     let own = toml::toml! { kind = "image" image = "wide.png" };
     let native = add_child_widget(&app, row, "Native", &own.into());

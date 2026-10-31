@@ -51,9 +51,10 @@ parent = "tools"
 kind = "text_field"
 role = "input_dock"
 text = ""
-placeholder = "new name"
 width = 180
 visible = false
+[nodes.widget_field]
+placeholder = "new name"
 
 [[nodes]]
 id = "gap"
@@ -169,8 +170,9 @@ parent = "tools"
 kind = "text_field"
 role = "input_dock"
 text = ""
-placeholder = "Search"
 width = 140
+[nodes.widget_field]
+placeholder = "Search"
 
 # The cards: a dragged one let go over the viewport places its file there.
 [[nodes]]
@@ -182,6 +184,7 @@ kind = "list"
 grow = 1
 text = ""
 grid_columns = "repeat(6, 1fr)"
+[nodes.widget_list]
 draggable = true
 
 [nodes.widget.touch]

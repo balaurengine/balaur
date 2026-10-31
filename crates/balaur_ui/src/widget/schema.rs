@@ -150,10 +150,6 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     };
     dress(eng, &mut next);
     crate::widget::grid::check(&next.layout)?;
-    let chord = &next.egui.submit_key;
-    if !chord.is_empty() && crate::chord::chord(chord).is_none() {
-        bail!("widget: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`");
-    }
     let inspector = next.kind == w::INSPECTOR;
     eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
@@ -318,16 +314,6 @@ fn egui(widget: &mut Widget) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
 }
 
-/// One field two kinds spell two ways: the first of `image` and `sheet` a
-/// widget names; a `code` widget's `language` is the third (`widget_code`).
-fn source_of(asked: &WidgetProperties) -> smol_str::SmolStr {
-    [&asked.image, &asked.sheet]
-        .into_iter()
-        .find(|named| !named.is_empty())
-        .cloned()
-        .unwrap_or_default()
-}
-
 /// Which of the four edges a `safe_area` names, in `EDGES` order.
 fn edges(named: &[Edge]) -> [bool; 4] {
     let mut out = [false; 4];
@@ -440,7 +426,6 @@ cache_fields! {
         k::HEADER => widget.header = asked.header;
         k::TITLE_BAR => widget.title_bar = asked.title_bar;
         k::ROW_HEIGHT => widget.row_height = asked.row_height;
-        k::LIST_HEIGHT => egui(widget).list_height = asked.list_height;
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
         k::FILL => widget.fill = asked.fill.clone();
@@ -452,18 +437,8 @@ cache_fields! {
         k::ICON => widget.icon = asked.icon.clone();
         k::ICON_COLOR => widget.icon_color = asked.icon_color.clone();
         k::ICON_SIZE => widget.icon_size = asked.icon_size;
-        k::IMAGE => widget.source = source_of(asked);
-        k::SHEET => widget.source = source_of(asked);
-        k::TINT => egui(widget).tint = asked.tint;
-        k::FIT => widget.fit = asked.fit.0.clone();
-        k::REGION => egui(widget).region = asked.region;
+        k::IMAGE => widget.source = asked.image.clone();
         k::SLICE => widget.slice = asked.slice;
-        k::ANGLE_DEGREES => egui(widget).angle_degrees = asked.angle_degrees;
-        k::ANGLE_ORIGIN => egui(widget).angle_origin = asked.angle_origin;
-        k::HANDLE => egui(widget).handle = asked.handle.0.clone();
-        k::HANDLE_ASPECT => egui(widget).handle_aspect = asked.handle_aspect;
-        k::TRAILING_FILL => egui(widget).trailing_fill = asked.trailing_fill;
-        k::ANIMATE => egui(widget).animate = asked.animate;
         k::FONT => widget.font = asked.font.clone();
         k::FONT_SIZE => widget.font_size = asked.font_size;
         k::FONT_WEIGHT => widget.font_weight = asked.font_weight as f32;
@@ -479,16 +454,12 @@ cache_fields! {
         k::SUFFIX => widget.suffix = asked.suffix.clone();
         k::TRAILING => widget.trailing = asked.trailing.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
-        k::ALT_TEXT => egui(widget).alt_text = asked.alt_text.clone();
         k::SELECTABLE => widget.selectable = asked.selectable;
         k::ON_CLICK => widget.on_click = asked.on_click.clone();
         k::ON_CHANGE => widget.on_change = asked.on_change.clone();
         k::ON_SUBMIT => widget.on_submit = asked.on_submit.clone();
         k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
         k::ON_LINK => widget.on_link = asked.on_link.clone();
-        k::ON_DROP => widget.on_drop = asked.on_drop.clone();
-        k::ON_MOVE => widget.on_move = asked.on_move.clone();
-        k::ON_MARK => widget.on_mark = asked.on_mark.clone();
         k::PASS_NODE => widget.pass_node = asked.pass_node;
         k::CLICKED => widget.clicked = asked.clicked;
         k::SUBMITTED => widget.submitted = asked.submitted;
@@ -503,59 +474,19 @@ cache_fields! {
         k::OPEN => widget.open = asked.open;
         k::CURRENT_PAGE => widget.active = asked.current_page.clone();
         k::KEEP_OPEN => widget.keep_open = asked.keep_open;
-        k::DRAGGABLE => widget.draggable = asked.draggable;
-        k::REORDERABLE => widget.reorderable = asked.reorderable;
-        k::VALUE => widget.value = asked.value;
         k::CHECKED => widget.checked = asked.checked;
-        k::MIN => widget.min = asked.min;
-        k::MAX => widget.max = asked.max;
-        k::STEP => widget.step = asked.step;
-        k::DECIMALS => egui(widget).decimals = i32::try_from(asked.decimals)
-            .unwrap_or(if asked.decimals < 0 { i32::MIN } else { i32::MAX });
-        k::CLAMP => egui(widget).clamp = asked.clamp.0.clone();
-        k::CLAMP_EXISTING => egui(widget).clamp_existing = asked.clamp_existing;
-        k::LOGARITHMIC => egui(widget).logarithmic = asked.logarithmic;
-        k::SMALLEST_POSITIVE => egui(widget).smallest_positive = asked.smallest_positive;
-        k::LARGEST_FINITE => egui(widget).largest_finite = asked.largest_finite;
-        k::SMART_AIM => egui(widget).smart_aim = asked.smart_aim;
-        k::SHOW_VALUE => egui(widget).show_value = asked.show_value;
-        k::SHOW_PERCENTAGE => egui(widget).show_percentage = asked.show_percentage;
-        k::NUMBER_FORMAT => egui(widget).number_format = asked.number_format.0.clone();
-        k::DRAG_SPEED => egui(widget).drag_speed = asked.drag_speed;
-        k::ARROWS => widget.arrows = asked.arrows;
-        k::UPDATE_WHILE_EDITING => egui(widget).update_while_editing =
-            asked.update_while_editing;
         k::OPTIONS => widget.options.clone_from(&asked.options);
         k::SELECTION => widget.selection.clone_from(&asked.selection);
         k::MULTI_SELECT => widget.multi = asked.multi_select;
         k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
         k::TOGGLE => widget.toggle = asked.toggle;
         k::INDETERMINATE => egui(widget).indeterminate = asked.indeterminate;
-        k::PLACEHOLDER => widget.placeholder = asked.placeholder.clone();
-        k::MAX_LENGTH => widget.max_length = asked.max_length;
-        k::NUMERIC => widget.numeric = asked.numeric;
-        k::SECRET => widget.secret = asked.secret;
-        k::EDITABLE => egui(widget).editable = asked.editable;
-        k::CLIP_TEXT => egui(widget).clip_text = asked.clip_text;
-        k::CARET_AT_END => egui(widget).caret_at_end = asked.caret_at_end;
-        k::TAB_INSERTS => egui(widget).tab_inserts = asked.tab_inserts;
-        k::SCROLLBAR => egui(widget).scrollbar = asked.scrollbar.0.clone();
-        k::SCROLL_OFFSET => egui(widget).scroll_offset = asked.scroll_offset;
-        k::STICK_TO_END => egui(widget).stick_to_end = asked.stick_to_end;
-        k::ANIMATED => egui(widget).animated = asked.animated;
-        k::WHEEL_SCROLL => egui(widget).wheel_scroll = asked.wheel_scroll;
-        k::WHEEL_SPEED => egui(widget).wheel_speed = asked.wheel_speed;
-        k::DRAG_SCROLL => egui(widget).drag_scroll = asked.drag_scroll.0.clone();
-        k::DRAG_CURSOR => egui(widget).drag_cursor = asked.drag_cursor.0.clone();
-        k::SCROLL_DEADZONE => widget.deadzone = asked.scroll_deadzone;
-        k::MIN_SCROLLED_WIDTH => egui(widget).min_scrolled_width = asked.min_scrolled_width;
-        k::MIN_SCROLLED_HEIGHT => egui(widget).min_scrolled_height = asked.min_scrolled_height;
         k::SPLITTER_WIDTH => widget.handle = asked.splitter_width;
         k::REVERSE => widget.reverse = asked.reverse;
     }
     whole [
         k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
-        k::COLUMN, k::SUBMIT_KEY, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
+        k::COLUMN, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
         k::TAB_WIDTH,
     ] {
         widget.layout.grid_columns = asked.grid_columns.clone();
@@ -565,7 +496,6 @@ cache_fields! {
         widget.layout.areas.clone_from(&asked.areas);
         widget.layout.row = asked.row.clone();
         widget.layout.column = asked.column.clone();
-        egui(widget).submit_key = asked.submit_key.clone();
         widget.text_look = Arc::new(TextLook::of(asked));
     }
 }

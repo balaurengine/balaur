@@ -215,11 +215,11 @@ impl Root {
         "the number was drawn"
     );
     assert_eq!(
-        prop(&app, field[0], "value"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "value"),
         Some(toml::Value::Float(-24.0))
     );
     assert_eq!(
-        prop(&app, field[0], "max"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "max"),
         Some(toml::Value::Float(1.0)),
         "the range went with the control that stated it"
     );

@@ -2502,7 +2502,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 208 properties
+`ui` · 120 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -2541,10 +2541,6 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>hide_wider</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_shorter</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is shorter than this many design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_taller</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this tall or taller, in design pixels. Zero is no line At least 0.0.</td></tr>
-<tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, to its right or to its left, each from the side&#x27;s start (`below` starts at the button&#x27;s left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen One of <code>below</code>, <code>below_center</code>, <code>below_end</code>, <code>above</code>, <code>above_center</code>, <code>above_end</code>, <code>right</code>, <code>right_center</code>, <code>right_end</code>, <code>left</code>, <code>left_center</code>, <code>left_end</code>, <code>pointer</code>, <code>center</code>.</td></tr>
-<tr><td><code>placement_fallbacks</code></td><td>list of enum</td><td><code>[]</code></td><td>The placements a `menu`&#x27;s popup tries, in order, where its own does not fit the screen; empty tries egui&#x27;s, and naming the placement alone keeps it where it is</td></tr>
-<tr><td><code>popup_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between a `menu`&#x27;s button and its popup, in design pixels; below zero takes egui&#x27;s</td></tr>
-<tr><td><code>popup_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `menu`&#x27;s popup starts, in design pixels; 0 sizes it to its rows At least 0.0.</td></tr>
 <tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside the widget&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. A container keeps it round its children, a `button` and a `label` round their text, and every other kind in its box. A side below zero takes the theme&#x27;s (`padding_x` across and `padding_y` down, else `padding`), else 8 round a `panel`, 12 either side of a `button`&#x27;s or `menu`&#x27;s caption and 0 elsewhere; a stated zero is no space at all. On a `text_field`, `text_area` or `code` it is the margin round the text, where below zero takes egui&#x27;s</td></tr>
 <tr><td><code>gap</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Space between a container&#x27;s children, across and down, in design pixels: a row puts the first between its children and the second between the lines it wraps onto, a column the second between its children, and a grid the first between its columns and the second between its rows. On a `button` the first is the space between its picture, icon and caption. Below zero on an axis takes the theme&#x27;s own, which is 8 where it says nothing and half the font size on a button, and a stated zero puts them edge to edge</td></tr>
 <tr><td><code>align_items</code></td><td>enum</td><td><code>stretch</code></td><td>Where a container puts its children across its own direction, and a `grid` each child in its cell down: `stretch` makes each as wide (or tall) as the container, `baseline` lines up their first lines of text, the others keep each child&#x27;s own size One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
@@ -2570,13 +2566,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>column</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the columns it covers, in the words `row` takes</td></tr>
 <tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns, and a `window`&#x27;s title bar. Off, a table&#x27;s columns are still `titles`&#x27;, and a table that names none keeps its first row as a row</td></tr>
 <tr><td><code>title_bar</code></td><td>bool</td><td><code>false</code></td><td>On a `fold`&#x27;s child: drawn in the fold&#x27;s header after its arrow and caption, as Godot&#x27;s title bar control is</td></tr>
-<tr><td><code>widths</code></td><td>list of string</td><td><code>[]</code></td><td>Each `table` column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
-<tr><td><code>label_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide an `inspector`&#x27;s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead At least 0.0.</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height. An `inspector`&#x27;s file rows are this tall and its chips 4 less, 24 where it is 0 At least 0.0.</td></tr>
-<tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
-<tr><td><code>gutter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `code` widget&#x27;s gutter is, in design pixels; 0 takes the built-in width, which holds four digits At least 0.0.</td></tr>
-<tr><td><code>spacing</code></td><td>float</td><td><code>-1.0</code></td><td>The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6</td></tr>
-<tr><td><code>overhang</code></td><td>float</td><td><code>0.0</code></td><td>How far a `separator`&#x27;s line runs past each end of the room it was given, in design pixels; below zero stops it short</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, an `image`&#x27;s picture included, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
@@ -2589,19 +2579,8 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
 <tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption&#x27;s height</td></tr>
-<tr><td><code>sheet</code></td><td>string</td><td>—</td><td>The picture a `list` cuts its card faces from</td></tr>
-<tr><td><code>tint</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What an `image` is multiplied by; white draws it as it is</td></tr>
-<tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>
-<tr><td><code>region</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The part of an `image` drawn, as left, top, width and height in the picture&#x27;s own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
-<tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners</td></tr>
-<tr><td><code>angle_origin</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle</td></tr>
-<tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.549]</code></td><td>What a `dialog` dims the screen behind it with</td></tr>
 <tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws; alpha 0 is none</td></tr>
-<tr><td><code>handle</code></td><td>enum</td><td><code>circle</code></td><td>A `slider`&#x27;s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall One of <code>circle</code>, <code>rect</code>.</td></tr>
-<tr><td><code>handle_aspect</code></td><td>float</td><td><code>0.5</code></td><td>How wide a `rect` handle is against its height At least 0.0.</td></tr>
-<tr><td><code>trailing_fill</code></td><td>bool</td><td><code>false</code></td><td>Fill a `slider`&#x27;s track from its start up to the handle</td></tr>
-<tr><td><code>animate</code></td><td>bool</td><td><code>false</code></td><td>Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise</td></tr>
 <tr><td><code>font</code></td><td>asset · <code>font</code></td><td>—</td><td>The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme&#x27;s default font</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100–900.</td></tr>
@@ -2621,17 +2600,12 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
-<tr><td><code>alt_text</code></td><td>string</td><td>—</td><td>Text an `image` draws in place of a picture that will not load</td></tr>
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_drop</code></td><td>string</td><td>—</td><td>Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed</td></tr>
-<tr><td><code>on_move</code></td><td>string</td><td>—</td><td>Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_mark</code></td><td>string</td><td>—</td><td>Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing</td></tr>
-<tr><td><code>on_gutter</code></td><td>string</td><td>—</td><td>Script method called with the line a click on a `code` widget&#x27;s gutter landed on, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>pass_node</code></td><td>bool</td><td><code>false</code></td><td>Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>submitted</code></td><td>bool</td><td><code>false</code></td><td>True for the one frame a `text_field` was submitted, the way `clicked` reports a press</td></tr>
@@ -2642,81 +2616,19 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
 <tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`</td></tr>
 <tr><td><code>takes_typing</code></td><td>bool</td><td><code>false</code></td><td>Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list&#x27;s arrows, Enter and Escape while it is up</td></tr>
-<tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
 <tr><td><code>context</code></td><td>string</td><td>—</td><td>Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
-<tr><td><code>default_open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `collapsible` window starts unfolded</td></tr>
-<tr><td><code>collapsible</code></td><td>bool</td><td><code>false</code></td><td>Give a `window`&#x27;s title bar an arrow that folds the window to its bar and back</td></tr>
-<tr><td><code>closable</code></td><td>bool</td><td><code>true</code></td><td>Draw a `window`&#x27;s cross</td></tr>
-<tr><td><code>hide_on_close</code></td><td>bool</td><td><code>true</code></td><td>Whether a `window`&#x27;s close button shuts it; off, the button only emits `close_request` and the script decides</td></tr>
-<tr><td><code>resizable</code></td><td>bool</td><td><code>false</code></td><td>Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`</td></tr>
-<tr><td><code>dismissable</code></td><td>bool</td><td><code>true</code></td><td>Let Escape or a click on the dim shut a `dialog`; off, only the scene does</td></tr>
-<tr><td><code>close_on</code></td><td>enum</td><td><code>click_outside</code></td><td>What shuts a `menu`&#x27;s popup besides a row: a click outside it, any click at all, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
 <tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it. A `dropdown` with it stays open past a pick until a click outside it</td></tr>
-<tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
-<tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
-<tr><td><code>reorderable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script&#x27;s to reorder</td></tr>
-<tr><td><code>sortable</code></td><td>bool</td><td><code>false</code></td><td>Let a click on a `table`&#x27;s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret</td></tr>
-<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
-<tr><td><code>picked_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color_picker` holds; `on_change` hears the new one</td></tr>
-<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
-<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
-<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how far a `number_field`&#x27;s `arrows` move it; 0 is continuous, and 1 for the arrows At least 0.0.</td></tr>
-<tr><td><code>decimals</code></td><td>int</td><td><code>-1</code></td><td>How many decimals a `slider`&#x27;s or `number_field`&#x27;s number shows; below zero lets egui decide</td></tr>
-<tr><td><code>clamp</code></td><td>enum</td><td><code>always</code></td><td>Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track One of <code>always</code>, <code>edits</code>, <code>never</code>.</td></tr>
-<tr><td><code>clamp_existing</code></td><td>bool</td><td><code>false</code></td><td>Pull a `number_field`&#x27;s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded</td></tr>
-<tr><td><code>logarithmic</code></td><td>bool</td><td><code>false</code></td><td>Space a `slider`&#x27;s track logarithmically, for a range across orders of magnitude</td></tr>
-<tr><td><code>smallest_positive</code></td><td>float</td><td><code>0.0</code></td><td>The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui&#x27;s millionth At least 0.0.</td></tr>
-<tr><td><code>largest_finite</code></td><td>float</td><td><code>0.0</code></td><td>The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit At least 0.0.</td></tr>
-<tr><td><code>smart_aim</code></td><td>bool</td><td><code>true</code></td><td>Round a dragged `slider` to the simplest number near the pointer</td></tr>
-<tr><td><code>show_value</code></td><td>bool</td><td><code>false</code></td><td>Draw a `slider`&#x27;s number beside its track, for the reader to drag or type into</td></tr>
-<tr><td><code>show_percentage</code></td><td>bool</td><td><code>false</code></td><td>Draw a `progress_bar`&#x27;s fill as a percentage on it, in place of its `text`</td></tr>
-<tr><td><code>number_format</code></td><td>enum</td><td><code>decimal</code></td><td>The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole One of <code>decimal</code>, <code>binary</code>, <code>octal</code>, <code>hex</code>.</td></tr>
-<tr><td><code>drag_speed</code></td><td>float</td><td><code>0.0</code></td><td>How far a `number_field`, or a `slider`&#x27;s shown number, moves per design pixel dragged; 0 takes egui&#x27;s, which is 1 on a number field and scales with the range on a slider At least 0.0.</td></tr>
-<tr><td><code>arrows</code></td><td>bool</td><td><code>false</code></td><td>Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`</td></tr>
-<tr><td><code>update_while_editing</code></td><td>bool</td><td><code>true</code></td><td>Write a `slider`&#x27;s or `number_field`&#x27;s number as the reader types it; off, only once the typing is left</td></tr>
 <tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order</td></tr>
 <tr><td><code>selection</code></td><td>list of string</td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one</td></tr>
 <tr><td><code>multi_select</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
 <tr><td><code>radio_group</code></td><td>string</td><td>—</td><td>A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
 <tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
 <tr><td><code>indeterminate</code></td><td>bool</td><td><code>false</code></td><td>Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`</td></tr>
-<tr><td><code>alpha</code></td><td>enum</td><td><code>blend</code></td><td>What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending One of <code>none</code>, <code>blend</code>, <code>additive</code>.</td></tr>
-<tr><td><code>inline</code></td><td>bool</td><td><code>false</code></td><td>Draw a `color_picker`&#x27;s picker in place, rather than behind a swatch that opens it</td></tr>
-<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `text_field` or `text_area` shows while it is empty</td></tr>
-<tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `text_field` takes; 0 is no limit At least 0.0.</td></tr>
-<tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `text_field` to digits, a sign and a point</td></tr>
-<tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `text_field`&#x27;s text as dots, for a password</td></tr>
-<tr><td><code>editable</code></td><td>bool</td><td><code>true</code></td><td>Let the reader change a `text_field`, `text_area` or `code`&#x27;s text; off, it can be neither edited nor selected</td></tr>
-<tr><td><code>clip_text</code></td><td>bool</td><td><code>true</code></td><td>Cut a `text_field`&#x27;s text at its edge; off, the field grows to show it whole</td></tr>
-<tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
-<tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
-<tr><td><code>scrollbar</code></td><td>enum</td><td><code>auto</code></td><td>When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box One of <code>auto</code>, <code>always</code>, <code>never</code>.</td></tr>
-<tr><td><code>scroll_offset</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too</td></tr>
-<tr><td><code>stick_to_end</code></td><td>bool</td><td><code>false</code></td><td>Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too</td></tr>
-<tr><td><code>animated</code></td><td>bool</td><td><code>true</code></td><td>Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump</td></tr>
-<tr><td><code>wheel_scroll</code></td><td>bool</td><td><code>true</code></td><td>Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`</td></tr>
-<tr><td><code>wheel_speed</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui&#x27;s own</td></tr>
-<tr><td><code>drag_scroll</code></td><td>enum</td><td><code>touch</code></td><td>When dragging a `scroll`, `list`, `tree` or `table`&#x27;s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself One of <code>touch</code>, <code>always</code>, <code>never</code>.</td></tr>
-<tr><td><code>drag_cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while a drag scrolls a `scroll`, `list`, `tree` or `table`&#x27;s content; `arrow` leaves it as it is One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
-<tr><td><code>scroll_deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
-<tr><td><code>min_scrolled_width</code></td><td>float</td><td><code>0.0</code></td><td>The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
-<tr><td><code>min_scrolled_height</code></td><td>float</td><td><code>0.0</code></td><td>The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
 <tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing At least 0.0.</td></tr>
-<tr><td><code>titles</code></td><td>list of string</td><td><code>[]</code></td><td>A `table`&#x27;s column names, in order, and with them how many columns it has: a name ending in `&gt;` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names</td></tr>
-<tr><td><code>sort</code></td><td>string</td><td>—</td><td>The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`</td></tr>
 <tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named. A `row`, `column` or `flow` lays its children out from its far end</td></tr>
-<tr><td><code>component</code></td><td>string</td><td>—</td><td>The component an `inspector` shows a row of each property of, read off the registry&#x27;s schema and the node every pass. `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved</td></tr>
-<tr><td><code>target</code></td><td>string</td><td>—</td><td>The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it</td></tr>
-<tr><td><code>relative_to</code></td><td>string</td><td>—</td><td>The folder an `inspector` shows a file&#x27;s path from: a value under it loses that much of its front</td></tr>
-<tr><td><code>language</code></td><td>string</td><td>—</td><td>The language a `code` widget highlights</td></tr>
-<tr><td><code>breakpoints</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means</td></tr>
-<tr><td><code>problems</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter</td></tr>
-<tr><td><code>warnings</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
-<tr><td><code>current_line</code></td><td>int</td><td><code>0</code></td><td>The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none At least 0.</td></tr>
-<tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -2745,6 +2657,262 @@ Announced from a node carrying `widget`:
 <tr><td><code>scrolled</code></td><td>the offset, <code>[x, y]</code></td></tr>
 <tr><td><code>close_request</code></td><td>nil</td></tr>
 <tr><td><code>resized</code></td><td><code>#{ x, y, width, height }</code>, while someone listens on the node</td></tr>
+</tbody>
+</table>
+
+### `widget_code`
+
+`ui` · 7 properties
+
+The rows a `code` widget reads: what it highlights and its gutter.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>language</code></td><td>string</td><td>—</td><td>The language a `code` widget highlights</td></tr>
+<tr><td><code>breakpoints</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means</td></tr>
+<tr><td><code>problems</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter</td></tr>
+<tr><td><code>warnings</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
+<tr><td><code>current_line</code></td><td>int</td><td><code>0</code></td><td>The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none At least 0.</td></tr>
+<tr><td><code>gutter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `code` widget&#x27;s gutter is, in design pixels; 0 takes the built-in width, which holds four digits At least 0.0.</td></tr>
+<tr><td><code>on_gutter</code></td><td>string</td><td>—</td><td>Script method called with the line a click on a `code` widget&#x27;s gutter landed on, on this node or the nearest ancestor whose script declares it</td></tr>
+</tbody>
+</table>
+
+### `widget_color_picker`
+
+`ui` · 3 properties
+
+The rows a `color_picker` reads: the colour it holds and what it offers.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>picked_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color_picker` holds; `on_change` hears the new one</td></tr>
+<tr><td><code>alpha</code></td><td>enum</td><td><code>blend</code></td><td>What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending One of <code>none</code>, <code>blend</code>, <code>additive</code>.</td></tr>
+<tr><td><code>inline</code></td><td>bool</td><td><code>false</code></td><td>Draw a `color_picker`&#x27;s picker in place, rather than behind a swatch that opens it</td></tr>
+</tbody>
+</table>
+
+### `widget_dropdown`
+
+`ui` · 1 property
+
+The row a `dropdown` reads: how tall its list grows.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `widget_field`
+
+`ui` · 9 properties
+
+The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `text_field` or `text_area` shows while it is empty</td></tr>
+<tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `text_field` takes; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `text_field` to digits, a sign and a point</td></tr>
+<tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `text_field`&#x27;s text as dots, for a password</td></tr>
+<tr><td><code>editable</code></td><td>bool</td><td><code>true</code></td><td>Let the reader change a `text_field`, `text_area` or `code`&#x27;s text; off, it can be neither edited nor selected</td></tr>
+<tr><td><code>clip_text</code></td><td>bool</td><td><code>true</code></td><td>Cut a `text_field`&#x27;s text at its edge; off, the field grows to show it whole</td></tr>
+<tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
+<tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
+<tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
+</tbody>
+</table>
+
+### `widget_image`
+
+`ui` · 6 properties
+
+The rows an `image` reads: the part of the picture drawn and how it sits in its box.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>tint</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What an `image` is multiplied by; white draws it as it is</td></tr>
+<tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>
+<tr><td><code>region</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The part of an `image` drawn, as left, top, width and height in the picture&#x27;s own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too</td></tr>
+<tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners</td></tr>
+<tr><td><code>angle_origin</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle</td></tr>
+<tr><td><code>alt_text</code></td><td>string</td><td>—</td><td>Text an `image` draws in place of a picture that will not load</td></tr>
+</tbody>
+</table>
+
+### `widget_inspector`
+
+`ui` · 4 properties
+
+The rows an `inspector` reads: the node and component it shows.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>component</code></td><td>string</td><td>—</td><td>The component an `inspector` shows a row of each property of, read off the registry&#x27;s schema and the node every pass. The widget&#x27;s `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved</td></tr>
+<tr><td><code>target</code></td><td>string</td><td>—</td><td>The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it</td></tr>
+<tr><td><code>relative_to</code></td><td>string</td><td>—</td><td>The folder an `inspector` shows a file&#x27;s path from: a value under it loses that much of its front</td></tr>
+<tr><td><code>label_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide an `inspector`&#x27;s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `widget_list`
+
+`ui` · 6 properties
+
+The rows a `list` or `tree` reads: its card faces, and what a drag or a mark on a row does.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sheet</code></td><td>string</td><td>—</td><td>The picture a `list` cuts its card faces from</td></tr>
+<tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
+<tr><td><code>reorderable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script&#x27;s to reorder</td></tr>
+<tr><td><code>on_drop</code></td><td>string</td><td>—</td><td>Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed</td></tr>
+<tr><td><code>on_move</code></td><td>string</td><td>—</td><td>Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_mark</code></td><td>string</td><td>—</td><td>Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing</td></tr>
+</tbody>
+</table>
+
+### `widget_menu`
+
+`ui` · 6 properties
+
+The rows a `menu` reads: where its popup opens and what shuts it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, to its right or to its left, each from the side&#x27;s start (`below` starts at the button&#x27;s left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen One of <code>below</code>, <code>below_center</code>, <code>below_end</code>, <code>above</code>, <code>above_center</code>, <code>above_end</code>, <code>right</code>, <code>right_center</code>, <code>right_end</code>, <code>left</code>, <code>left_center</code>, <code>left_end</code>, <code>pointer</code>, <code>center</code>.</td></tr>
+<tr><td><code>placement_fallbacks</code></td><td>list of enum</td><td><code>[]</code></td><td>The placements a `menu`&#x27;s popup tries, in order, where its own does not fit the screen; empty tries egui&#x27;s, and naming the placement alone keeps it where it is</td></tr>
+<tr><td><code>popup_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between a `menu`&#x27;s button and its popup, in design pixels; below zero takes egui&#x27;s</td></tr>
+<tr><td><code>popup_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `menu`&#x27;s popup starts, in design pixels; 0 sizes it to its rows At least 0.0.</td></tr>
+<tr><td><code>close_on</code></td><td>enum</td><td><code>click_outside</code></td><td>What shuts a `menu`&#x27;s popup besides a row: a click outside it, any click at all, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
+<tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
+</tbody>
+</table>
+
+### `widget_range`
+
+`ui` · 21 properties
+
+The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
+<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
+<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
+<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how far a `number_field`&#x27;s `arrows` move it; 0 is continuous, and 1 for the arrows At least 0.0.</td></tr>
+<tr><td><code>decimals</code></td><td>int</td><td><code>-1</code></td><td>How many decimals a `slider`&#x27;s or `number_field`&#x27;s number shows; below zero lets egui decide</td></tr>
+<tr><td><code>clamp</code></td><td>enum</td><td><code>always</code></td><td>Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track One of <code>always</code>, <code>edits</code>, <code>never</code>.</td></tr>
+<tr><td><code>clamp_existing</code></td><td>bool</td><td><code>false</code></td><td>Pull a `number_field`&#x27;s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded</td></tr>
+<tr><td><code>logarithmic</code></td><td>bool</td><td><code>false</code></td><td>Space a `slider`&#x27;s track logarithmically, for a range across orders of magnitude</td></tr>
+<tr><td><code>smallest_positive</code></td><td>float</td><td><code>0.0</code></td><td>The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui&#x27;s millionth At least 0.0.</td></tr>
+<tr><td><code>largest_finite</code></td><td>float</td><td><code>0.0</code></td><td>The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>smart_aim</code></td><td>bool</td><td><code>true</code></td><td>Round a dragged `slider` to the simplest number near the pointer</td></tr>
+<tr><td><code>show_value</code></td><td>bool</td><td><code>false</code></td><td>Draw a `slider`&#x27;s number beside its track, for the reader to drag or type into</td></tr>
+<tr><td><code>show_percentage</code></td><td>bool</td><td><code>false</code></td><td>Draw a `progress_bar`&#x27;s fill as a percentage on it, in place of its `text`</td></tr>
+<tr><td><code>number_format</code></td><td>enum</td><td><code>decimal</code></td><td>The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole One of <code>decimal</code>, <code>binary</code>, <code>octal</code>, <code>hex</code>.</td></tr>
+<tr><td><code>drag_speed</code></td><td>float</td><td><code>0.0</code></td><td>How far a `number_field`, or a `slider`&#x27;s shown number, moves per design pixel dragged; 0 takes egui&#x27;s, which is 1 on a number field and scales with the range on a slider At least 0.0.</td></tr>
+<tr><td><code>arrows</code></td><td>bool</td><td><code>false</code></td><td>Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`</td></tr>
+<tr><td><code>update_while_editing</code></td><td>bool</td><td><code>true</code></td><td>Write a `slider`&#x27;s or `number_field`&#x27;s number as the reader types it; off, only once the typing is left</td></tr>
+<tr><td><code>handle</code></td><td>enum</td><td><code>circle</code></td><td>A `slider`&#x27;s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall One of <code>circle</code>, <code>rect</code>.</td></tr>
+<tr><td><code>handle_aspect</code></td><td>float</td><td><code>0.5</code></td><td>How wide a `rect` handle is against its height At least 0.0.</td></tr>
+<tr><td><code>trailing_fill</code></td><td>bool</td><td><code>false</code></td><td>Fill a `slider`&#x27;s track from its start up to the handle</td></tr>
+<tr><td><code>animate</code></td><td>bool</td><td><code>false</code></td><td>Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise</td></tr>
+</tbody>
+</table>
+
+### `widget_scroll`
+
+`ui` · 11 properties
+
+The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>scrollbar</code></td><td>enum</td><td><code>auto</code></td><td>When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box One of <code>auto</code>, <code>always</code>, <code>never</code>.</td></tr>
+<tr><td><code>scroll_offset</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too</td></tr>
+<tr><td><code>stick_to_end</code></td><td>bool</td><td><code>false</code></td><td>Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too</td></tr>
+<tr><td><code>animated</code></td><td>bool</td><td><code>true</code></td><td>Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump</td></tr>
+<tr><td><code>wheel_scroll</code></td><td>bool</td><td><code>true</code></td><td>Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`</td></tr>
+<tr><td><code>wheel_speed</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui&#x27;s own</td></tr>
+<tr><td><code>drag_scroll</code></td><td>enum</td><td><code>touch</code></td><td>When dragging a `scroll`, `list`, `tree` or `table`&#x27;s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself One of <code>touch</code>, <code>always</code>, <code>never</code>.</td></tr>
+<tr><td><code>drag_cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while a drag scrolls a `scroll`, `list`, `tree` or `table`&#x27;s content; `arrow` leaves it as it is One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
+<tr><td><code>scroll_deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
+<tr><td><code>min_scrolled_width</code></td><td>float</td><td><code>0.0</code></td><td>The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>min_scrolled_height</code></td><td>float</td><td><code>0.0</code></td><td>The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `widget_separator`
+
+`ui` · 2 properties
+
+The rows a `separator` reads: the room it takes and how far its line runs.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>spacing</code></td><td>float</td><td><code>-1.0</code></td><td>The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6</td></tr>
+<tr><td><code>overhang</code></td><td>float</td><td><code>0.0</code></td><td>How far a `separator`&#x27;s line runs past each end of the room it was given, in design pixels; below zero stops it short</td></tr>
+</tbody>
+</table>
+
+### `widget_table`
+
+`ui` · 4 properties
+
+The rows a `table` reads: its columns and how they sort.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>titles</code></td><td>list of string</td><td><code>[]</code></td><td>A `table`&#x27;s column names, in order, and with them how many columns it has: a name ending in `&gt;` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names</td></tr>
+<tr><td><code>widths</code></td><td>list of string</td><td><code>[]</code></td><td>Each column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
+<tr><td><code>sort</code></td><td>string</td><td>—</td><td>The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. The widget&#x27;s `reverse` takes them the other way round</td></tr>
+<tr><td><code>sortable</code></td><td>bool</td><td><code>false</code></td><td>Let a click on the header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret</td></tr>
+</tbody>
+</table>
+
+### `widget_toast`
+
+`ui` · 1 property
+
+The row a `toast` reads: how long it stays.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `widget_window`
+
+`ui` · 7 properties
+
+The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>collapsible</code></td><td>bool</td><td><code>false</code></td><td>Give a `window`&#x27;s title bar an arrow that folds the window to its bar and back</td></tr>
+<tr><td><code>default_open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `collapsible` window starts unfolded</td></tr>
+<tr><td><code>closable</code></td><td>bool</td><td><code>true</code></td><td>Draw a `window`&#x27;s cross</td></tr>
+<tr><td><code>hide_on_close</code></td><td>bool</td><td><code>true</code></td><td>Whether a `window`&#x27;s close button shuts it; off, the button only emits `close_request` and the script decides</td></tr>
+<tr><td><code>resizable</code></td><td>bool</td><td><code>false</code></td><td>Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`</td></tr>
+<tr><td><code>dismissable</code></td><td>bool</td><td><code>true</code></td><td>Let Escape or a click on the dim shut a `dialog`; off, only the scene does</td></tr>
+<tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.549]</code></td><td>What a `dialog` dims the screen behind it with</td></tr>
 </tbody>
 </table>
 

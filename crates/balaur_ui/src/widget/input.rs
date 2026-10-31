@@ -622,10 +622,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.text = text.as_str().into();
             &[k::TEXT]
         }
-        Edit::Value(value) => {
-            asked.value = *value;
-            &[k::VALUE]
-        }
         Edit::Open(open) => {
             asked.open = *open;
             &[k::OPEN]
@@ -645,12 +641,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
         Edit::Sorted(_, reverse) => {
             asked.reverse = *reverse;
             &[k::REVERSE]
-        }
-        // Written down as well as heard, so `scroll_offset` reads back where
-        // the reader left it.
-        Edit::Scrolled(offset) => {
-            asked.scroll_offset = *offset;
-            &[k::SCROLL_OFFSET]
         }
         _ => &[],
     }
@@ -751,8 +741,14 @@ fn settle_edits(
 /// it changes are a kind's own: a picked colour, a table's column shares
 /// and the column it sorts by. Written down so the scene keeps them.
 fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
-    use crate::widget::beside::{self, WidgetColorPicker, WidgetTable};
+    use crate::widget::beside::{self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable};
     match edit {
+        Edit::Value(value) => beside::edit::<WidgetRange>(eng, entity, |held| held.value = *value),
+        // Written down as well as heard, so `scroll_offset` reads back where
+        // the reader left it.
+        Edit::Scrolled(offset) => {
+            beside::edit::<WidgetScroll>(eng, entity, |held| held.scroll_offset = *offset);
+        }
         Edit::Color(rgba) => {
             beside::edit::<WidgetColorPicker>(eng, entity, |held| held.picked_color = *rgba);
         }

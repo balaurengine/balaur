@@ -53,6 +53,7 @@ parent = "panel"
 kind = "text_field"
 role = "input_dock"
 text = ""
+[nodes.widget_field]
 placeholder = "Search"
 
 [[nodes]]

@@ -22,7 +22,8 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::node::{EguiOptions, Inspecting, Widget};
 use crate::widget::properties::{
-    Alpha, CloseOn, Numeral, Placement, SidePlacement, WidgetProperties,
+    Alpha, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
+    Scrollbar, SidePlacement, WidgetProperties,
 };
 
 /// A component beside `widget`, read by the kinds `reads` names.
@@ -32,6 +33,11 @@ pub(crate) trait Beside: Component + Clone {
 
     /// The rows onto the widget the layer reads.
     fn put(&self, widget: &mut Widget);
+
+    /// Refuse what the types alone cannot judge.
+    fn check(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// The rows a `code` widget reads: what it highlights and its gutter.
@@ -130,6 +136,10 @@ impl Beside for WidgetTable {
 }
 
 /// The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_window")]
 pub(crate) struct WidgetWindow {
@@ -282,6 +292,320 @@ impl Beside for WidgetColorPicker {
     }
 }
 
+/// The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_range")]
+pub(crate) struct WidgetRange {
+    /// Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it
+    pub(crate) value: f32,
+    /// The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
+    pub(crate) min: f32,
+    /// The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
+    #[property(default = 1.0)]
+    pub(crate) max: f32,
+    /// The grid a `slider` snaps to, and how far a `number_field`'s `arrows` move it; 0 is continuous, and 1 for the arrows
+    #[property(min = 0.0)]
+    pub(crate) step: f32,
+    /// How many decimals a `slider`'s or `number_field`'s number shows; below zero lets egui decide
+    #[property(default = -1)]
+    pub(crate) decimals: i64,
+    /// Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track
+    #[property(default = Clamp::new(w::ALWAYS))]
+    pub(crate) clamp: Clamp,
+    /// Pull a `number_field`'s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded
+    pub(crate) clamp_existing: bool,
+    /// Space a `slider`'s track logarithmically, for a range across orders of magnitude
+    pub(crate) logarithmic: bool,
+    /// The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui's millionth
+    #[property(min = 0.0)]
+    pub(crate) smallest_positive: f32,
+    /// The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit
+    #[property(min = 0.0)]
+    pub(crate) largest_finite: f32,
+    /// Round a dragged `slider` to the simplest number near the pointer
+    #[property(default = true)]
+    pub(crate) smart_aim: bool,
+    /// Draw a `slider`'s number beside its track, for the reader to drag or type into
+    pub(crate) show_value: bool,
+    /// Draw a `progress_bar`'s fill as a percentage on it, in place of its `text`
+    pub(crate) show_percentage: bool,
+    /// The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole
+    #[property(default = NumberFormat::new(w::DECIMAL))]
+    pub(crate) number_format: NumberFormat,
+    /// How far a `number_field`, or a `slider`'s shown number, moves per design pixel dragged; 0 takes egui's, which is 1 on a number field and scales with the range on a slider
+    #[property(min = 0.0)]
+    pub(crate) drag_speed: f32,
+    /// Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`
+    pub(crate) arrows: bool,
+    /// Write a `slider`'s or `number_field`'s number as the reader types it; off, only once the typing is left
+    #[property(default = true)]
+    pub(crate) update_while_editing: bool,
+    /// A `slider`'s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall
+    #[property(default = Handle::new(w::CIRCLE))]
+    pub(crate) handle: Handle,
+    /// How wide a `rect` handle is against its height
+    #[property(default = 0.5, min = 0.0)]
+    pub(crate) handle_aspect: f32,
+    /// Fill a `slider`'s track from its start up to the handle
+    pub(crate) trailing_fill: bool,
+    /// Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise
+    pub(crate) animate: bool,
+}
+
+impl Beside for WidgetRange {
+    fn reads(asked: &WidgetProperties) -> bool {
+        matches!(
+            asked.kind.0.as_str(),
+            w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR
+        )
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        widget.value = self.value;
+        widget.min = self.min;
+        widget.max = self.max;
+        widget.step = self.step;
+        egui(widget).decimals = i32::try_from(self.decimals).unwrap_or(if self.decimals < 0 {
+            i32::MIN
+        } else {
+            i32::MAX
+        });
+        egui(widget).clamp = self.clamp.0.clone();
+        egui(widget).clamp_existing = self.clamp_existing;
+        egui(widget).logarithmic = self.logarithmic;
+        egui(widget).smallest_positive = self.smallest_positive;
+        egui(widget).largest_finite = self.largest_finite;
+        egui(widget).smart_aim = self.smart_aim;
+        egui(widget).show_value = self.show_value;
+        egui(widget).show_percentage = self.show_percentage;
+        egui(widget).number_format = self.number_format.0.clone();
+        egui(widget).drag_speed = self.drag_speed;
+        widget.arrows = self.arrows;
+        egui(widget).update_while_editing = self.update_while_editing;
+        egui(widget).handle = self.handle.0.clone();
+        egui(widget).handle_aspect = self.handle_aspect;
+        egui(widget).trailing_fill = self.trailing_fill;
+        egui(widget).animate = self.animate;
+    }
+}
+
+/// The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_field")]
+pub(crate) struct WidgetField {
+    /// What a `text_field` or `text_area` shows while it is empty
+    pub(crate) placeholder: SmolStr,
+    /// The most characters a `text_field` takes; 0 is no limit
+    #[property(min = 0.0)]
+    pub(crate) max_length: f32,
+    /// Keep a `text_field` to digits, a sign and a point
+    pub(crate) numeric: bool,
+    /// Draw a `text_field`'s text as dots, for a password
+    pub(crate) secret: bool,
+    /// Let the reader change a `text_field`, `text_area` or `code`'s text; off, it can be neither edited nor selected
+    #[property(default = true)]
+    pub(crate) editable: bool,
+    /// Cut a `text_field`'s text at its edge; off, the field grows to show it whole
+    #[property(default = true)]
+    pub(crate) clip_text: bool,
+    /// Put the caret at the end of a `text_field`, `text_area` or `code`'s text when it first takes focus; off, at the start
+    #[property(default = true)]
+    pub(crate) caret_at_end: bool,
+    /// Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on
+    pub(crate) tab_inserts: bool,
+    /// The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
+    pub(crate) submit_key: SmolStr,
+}
+
+impl Beside for WidgetField {
+    fn reads(asked: &WidgetProperties) -> bool {
+        matches!(
+            asked.kind.0.as_str(),
+            w::TEXT_FIELD | w::TEXT_AREA | w::CODE
+        )
+    }
+
+    /// A `submit_key` that is not a chord.
+    fn check(&self) -> Result<()> {
+        let chord = &self.submit_key;
+        if !chord.is_empty() && crate::chord::chord(chord).is_none() {
+            anyhow::bail!(
+                "widget_field: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`"
+            );
+        }
+        Ok(())
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        widget.placeholder = self.placeholder.clone();
+        widget.max_length = self.max_length;
+        widget.numeric = self.numeric;
+        widget.secret = self.secret;
+        egui(widget).editable = self.editable;
+        egui(widget).clip_text = self.clip_text;
+        egui(widget).caret_at_end = self.caret_at_end;
+        egui(widget).tab_inserts = self.tab_inserts;
+        egui(widget).submit_key = self.submit_key.clone();
+    }
+}
+
+/// The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_scroll")]
+pub(crate) struct WidgetScroll {
+    /// When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box
+    #[property(default = Scrollbar::new(w::AUTO))]
+    pub(crate) scrollbar: Scrollbar,
+    /// Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too
+    #[property(default = [-1.0, -1.0])]
+    pub(crate) scroll_offset: [f32; 2],
+    /// Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too
+    pub(crate) stick_to_end: bool,
+    /// Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump
+    #[property(default = true)]
+    pub(crate) animated: bool,
+    /// Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`
+    #[property(default = true)]
+    pub(crate) wheel_scroll: bool,
+    /// How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own
+    #[property(default = [1.0, 1.0])]
+    pub(crate) wheel_speed: [f32; 2],
+    /// When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself
+    #[property(default = DragScroll::new(w::TOUCH))]
+    pub(crate) drag_scroll: DragScroll,
+    /// The pointer's shape while a drag scrolls a `scroll`, `list`, `tree` or `table`'s content; `arrow` leaves it as it is
+    #[property(default = Cursor::new(w::cursor::ARROW))]
+    pub(crate) drag_cursor: Cursor,
+    /// How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once
+    #[property(min = 0.0)]
+    pub(crate) scroll_deadzone: f32,
+    /// The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui's
+    #[property(min = 0.0)]
+    pub(crate) min_scrolled_width: f32,
+    /// The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's
+    #[property(min = 0.0)]
+    pub(crate) min_scrolled_height: f32,
+}
+
+impl Beside for WidgetScroll {
+    fn reads(asked: &WidgetProperties) -> bool {
+        matches!(
+            asked.kind.0.as_str(),
+            w::SCROLL | w::LIST | w::TREE | w::TABLE
+        )
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        egui(widget).scrollbar = self.scrollbar.0.clone();
+        egui(widget).scroll_offset = self.scroll_offset;
+        egui(widget).stick_to_end = self.stick_to_end;
+        egui(widget).animated = self.animated;
+        egui(widget).wheel_scroll = self.wheel_scroll;
+        egui(widget).wheel_speed = self.wheel_speed;
+        egui(widget).drag_scroll = self.drag_scroll.0.clone();
+        egui(widget).drag_cursor = self.drag_cursor.0.clone();
+        widget.deadzone = self.scroll_deadzone;
+        egui(widget).min_scrolled_width = self.min_scrolled_width;
+        egui(widget).min_scrolled_height = self.min_scrolled_height;
+    }
+}
+
+/// The rows an `image` reads: the part of the picture drawn and how it sits in its box.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_image")]
+pub(crate) struct WidgetImage {
+    /// What an `image` is multiplied by; white draws it as it is
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub(crate) tint: [f32; 4],
+    /// How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead
+    pub(crate) fit: Fit,
+    /// The part of an `image` drawn, as left, top, width and height in the picture's own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too
+    #[property(default = [0.0, 0.0, 0.0, 0.0])]
+    pub(crate) region: [f32; 4],
+    /// How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners
+    pub(crate) angle_degrees: f32,
+    /// The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle
+    #[property(default = [0.5, 0.5])]
+    pub(crate) angle_origin: [f32; 2],
+    /// Text an `image` draws in place of a picture that will not load
+    pub(crate) alt_text: SmolStr,
+}
+
+impl Beside for WidgetImage {
+    fn reads(asked: &WidgetProperties) -> bool {
+        asked.kind.0 == w::IMAGE
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        egui(widget).tint = self.tint;
+        widget.fit = self.fit.0.clone();
+        egui(widget).region = self.region;
+        egui(widget).angle_degrees = self.angle_degrees;
+        egui(widget).angle_origin = self.angle_origin;
+        egui(widget).alt_text = self.alt_text.clone();
+    }
+}
+
+/// The rows a `list` or `tree` reads: its card faces, and what a drag or a mark on a row does.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_list")]
+pub(crate) struct WidgetList {
+    /// The picture a `list` cuts its card faces from
+    pub(crate) sheet: SmolStr,
+    /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
+    pub(crate) draggable: bool,
+    /// Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder
+    pub(crate) reorderable: bool,
+    /// Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed
+    pub(crate) on_drop: SmolStr,
+    /// Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_move: SmolStr,
+    /// Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
+    pub(crate) on_mark: SmolStr,
+}
+
+impl Beside for WidgetList {
+    fn reads(asked: &WidgetProperties) -> bool {
+        matches!(asked.kind.0.as_str(), w::LIST | w::TREE)
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        widget.source = self.sheet.clone();
+        widget.draggable = self.draggable;
+        widget.reorderable = self.reorderable;
+        widget.on_drop = self.on_drop.clone();
+        widget.on_move = self.on_move.clone();
+        widget.on_mark = self.on_mark.clone();
+    }
+}
+
+/// The row a `dropdown` reads: how tall its list grows.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "widget_dropdown")]
+pub(crate) struct WidgetDropdown {
+    /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
+    #[property(min = 0.0)]
+    pub(crate) list_height: f32,
+}
+
+impl Beside for WidgetDropdown {
+    fn reads(asked: &WidgetProperties) -> bool {
+        asked.kind.0 == w::DROPDOWN
+    }
+
+    fn put(&self, widget: &mut Widget) {
+        egui(widget).list_height = self.list_height;
+    }
+}
+
 /// Every component beside `widget`, in the order a scene names them.
 macro_rules! each_beside {
     ($apply:ident!($($args:tt)*)) => {
@@ -294,7 +618,13 @@ macro_rules! each_beside {
             WidgetToast,
             WidgetSeparator,
             WidgetMenu,
-            WidgetColorPicker
+            WidgetColorPicker,
+            WidgetRange,
+            WidgetField,
+            WidgetScroll,
+            WidgetImage,
+            WidgetList,
+            WidgetDropdown
         )
     };
 }
@@ -307,6 +637,24 @@ pub(crate) fn names() -> &'static [&'static str] {
         };
     }
     each_beside!(name_each!())
+}
+
+/// The components beside `widget` a widget of `kind` reads, by name: what a
+/// preset of that kind gives the node beside it.
+pub(crate) fn read_by(kind: &str) -> Vec<&'static str> {
+    let asked = WidgetProperties {
+        kind: crate::widget::properties::Kind::new(kind),
+        ..WidgetProperties::default()
+    };
+    macro_rules! read_each {
+        ($asked:expr; $($beside:ty),*) => {
+            [$((<$beside>::reads($asked), <$beside as Component>::NAME)),*]
+        };
+    }
+    each_beside!(read_each!(&asked))
+        .into_iter()
+        .filter_map(|(reads, name)| reads.then_some(name))
+        .collect()
 }
 
 /// The component beside `widget` that holds the row `key`, if one does.
@@ -403,11 +751,11 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
     );
 }
 
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "the shape a component's after-write hook is registered as"
-)]
 fn written<C: Beside>(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let held = eng.world().get::<&C>(entity).map(|held| held.check());
+    if let Ok(Err(why)) = held {
+        return Err(why);
+    }
     refresh::<C>(eng, entity);
     Ok(())
 }

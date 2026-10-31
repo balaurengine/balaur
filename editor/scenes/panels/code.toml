@@ -44,11 +44,11 @@ parent = "scroll"
 kind = "code"
 text = ""
 font_size = 13
+[nodes.widget_code]
+gutter_width = 34
 
 # Rename a name across the scripts, or find and replace: over the code's top
 # right, with the list of what would change before anything is written.
-[nodes.widget_code]
-gutter_width = 34
 [[nodes]]
 id = "refactor"
 name = "Refactor"

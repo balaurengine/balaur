@@ -4,9 +4,10 @@
 > and native code and forge's build-size page (PLAN-script-tests §2, §8,
 > §9); of the editor follow-ups, the derive is finished, the per-kind
 > splits are done for primitives, colliders, joints and soft bodies, and
-> every physics builder reads typed components, with the `widget` split and
-> the stricter language open (HANDOVER-editor-followups); the UI gaps wait
-> on the `widget` split (PLAN-ui-gaps).
+> every physics builder reads typed components, and `widget` is split into
+> components beside it, with the stricter language open
+> (HANDOVER-editor-followups); the UI gaps' text fields are next
+> (PLAN-ui-gaps).
 
 # Plan: foundations
 

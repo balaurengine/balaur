@@ -774,8 +774,9 @@ impl Owner {
             "Rows",
             &toml::toml! {
                 kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-                row_height = 20.0 reorderable = true on_move = "on_move"
+                row_height = 20.0
                 options = ["One", "Two", "Three"]
+                widget_list = { reorderable = true, on_move = "on_move" }
             }
             .into(),
         );
@@ -833,8 +834,9 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            row_height = 20.0 on_move = "on_move"
+            row_height = 20.0
             options = ["One", "Two", "Three"]
+            widget_list = { on_move = "on_move" }
         }
         .into(),
     );
@@ -880,8 +882,9 @@ impl Owner {
             "Cards",
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-                grid_columns = "repeat(3, 1fr)" draggable = true on_drop = "on_drop"
+                grid_columns = "repeat(3, 1fr)"
                 options = ["One", "Two", "Three"]
+                widget_list = { draggable = true, on_drop = "on_drop" }
             }
             .into(),
         );
@@ -975,8 +978,9 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            row_height = 20.0 on_mark = "on_mark"
+            row_height = 20.0
             options = ["\u{1f}One\u{1f}\u{1f}\u{1f}one\u{1f}eye=E\u{1e}lock=L", "\u{1f}Two\u{1f}\u{1f}\u{1f}two\u{1f}eye=E"]
+            widget_list = { on_mark = "on_mark" }
         }
         .into(),
     );

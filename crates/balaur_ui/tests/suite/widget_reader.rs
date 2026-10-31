@@ -55,20 +55,22 @@ fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
         &toml::toml! { kind = "text_field" text = "" role = "danger" }.into(),
     );
     let index = components::index_of(&app.engine, "widget").expect("widget is registered");
-    for key in [
-        "submitted",
-        "clicked",
-        "role",
-        "visible",
-        "text",
-        "value",
-        "checked",
-    ] {
+    for key in ["submitted", "clicked", "role", "visible", "text", "checked"] {
         assert!(
             components::answers_alone(&app.engine, entity, index, key),
             "`widget.{key}` is read every frame and still builds the whole table"
         );
     }
+    // A number's value lives beside the widget now, and is read as often.
+    let number = add_widget(
+        &app,
+        &toml::toml! { kind = "number_field" widget_range = { value = 2.0 } }.into(),
+    );
+    let range = components::index_of(&app.engine, "widget_range").expect("registered");
+    assert!(
+        components::answers_alone(&app.engine, number, range, "value"),
+        "`widget_range.value` is read every frame and still builds the whole table"
+    );
 }
 
 /// The control: a key that is no property, a screen class's table, reads

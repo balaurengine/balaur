@@ -1,8 +1,9 @@
 > **Status:** planned 2026-10-30. Built 2026-10-30: §1's engine
 > (`balaur_text/src/edit.rs`), §4's arrows and §5, with §5's radial
-> gradients and stops past two on 2026-10-31. Wiring §1 into the text
-> kinds waits on the `widget` derive and per-kind split; §2 and §3 are step
-> 12 of PLAN-foundations, after the ECS work for the parts that read ticks.
+> gradients and stops past two on 2026-10-31. The `widget` split it waited
+> on is done (2026-10-31: `widget_field` holds the text kinds' rows), so
+> wiring §1 into the text kinds is next; §2 and §3 are step 12 of
+> PLAN-foundations, after the ECS work for the parts that read ticks.
 
 # Plan: the UI's gaps
 

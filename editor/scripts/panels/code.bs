@@ -93,7 +93,7 @@ impl Code {
         }
         editor.patch_component("widget_code", view.get("look"));
         if view.get("scroll_to").as_float() >= 0.0 {
-            scroll.patch_component("widget", map().with("scroll_offset", [0.0, view.get("scroll_to")]));
+            scroll.patch_component("widget_scroll", map().with("scroll_offset", [0.0, view.get("scroll_to")]));
         }
     }
 }

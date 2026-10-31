@@ -61,11 +61,11 @@ parent = "bar"
 kind = "menu"
 text = "File"
 trailing = "▾"
-# Held open by the scene rather than by a click, which is how a screenshot
-# and an offscreen run can show what a menu looks like open.
 [nodes.widget_menu]
 showing = true
 
+# Held open by the scene rather than by a click, which is how a screenshot
+# and an offscreen run can show what a menu looks like open.
 [[nodes]]
 id = "file_new"
 name = "New"
