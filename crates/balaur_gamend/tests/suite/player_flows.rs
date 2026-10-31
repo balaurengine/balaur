@@ -12,7 +12,7 @@ use balaur_gamend::client::{Client, Credentials, Session, auth};
 use balaur_testkit::{gamend_url, run_until_within};
 use serde_json::json;
 
-const FLOWS: &str = include_str!("player_flows.bs");
+const FLOWS: &str = include_str!("../player_flows.bs");
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game requires it:
 /// every `.bs` module, `events/` among them, under `addons/gamend/`.

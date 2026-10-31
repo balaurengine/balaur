@@ -51,7 +51,7 @@ The engine:
 | Phoenix Channels V2 over a `balaur_websocket` connection on every platform, stepped once a tick; Fetch for REST in the browser | `client/phoenix.rs`, `realtime.rs`, `browser.rs` |
 | Tests against a local Gamend on port 4000, or `GAMEND_URL`, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
 | A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs`, `realtime.rs` |
-| Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |
+| Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/suite/player_flows.rs`, `player_flows.rn` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
 
 Missing:
