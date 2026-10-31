@@ -23,8 +23,8 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
              [[nodes]]\nid = \"shown\"\nname = \"Shown\"\nparent = \"root\"\n\
              widget = {{ kind = \"label\", text = \"hi\", anchor = \"bottom_right\" }}\n\n\
              [[nodes]]\nid = \"form\"\nname = \"Form\"\nparent = \"root\"\n\
-             widget = {{ kind = \"inspector\", anchor = \"fill\", label_width = 80, \
-             target = \"Root{}\", component = \"{component}\", on_change = \"edited\"{extra} }}\n",
+             widget = {{ kind = \"inspector\", anchor = \"fill\", on_change = \"edited\"{extra} }}\n\
+             widget_inspector = {{ label_width = 80, target = \"Root{}\", component = \"{component}\" }}\n",
             if component == "widget" { "/Shown" } else { "" }
         ),
     )

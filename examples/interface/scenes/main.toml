@@ -301,8 +301,9 @@ name = "CColor"
 parent = "c_row"
 [nodes.widget]
 kind = "color_picker"
-picked_color = [0.44, 0.64, 0.85, 1.0]
 width = 38
+[nodes.widget_color_picker]
+picked_color = [0.44, 0.64, 0.85, 1.0]
 
 [[nodes]]
 id = "s_row"
@@ -387,6 +388,7 @@ kind = "table"
 height = 196
 font = "fonts/JetBrainsMono-Regular.ttf"
 # The column names, and with them how many columns the table has.
+[nodes.widget_table]
 titles = ["name", "kind", "size"]
 
 [[nodes]]

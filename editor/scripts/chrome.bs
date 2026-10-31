@@ -259,8 +259,8 @@ pub fn fill(state: &mut editor::State) {
             .with("image", mark.logo)
             .with("text", mark.name)
             .with("trailing", icons::ui("caret-down"))
-            .with("height", row_height(state) - 4.0)
-            .with("showing", state.menu_open));
+            .with("height", row_height(state) - 4.0));
+        node.patch_component("widget_menu", map().with("showing", state.menu_open));
     }
     let menu_at = menu_key(state);
     if pool::strip_due(state, BRAND_NODE, menu_at) {

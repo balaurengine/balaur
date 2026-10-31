@@ -140,9 +140,10 @@ kind = "table"
 grow = 1
 text = ""
 visible = false
-sortable = true
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_table]
+sortable = true
 titles = ["template", "what it makes", "the command it is made with"]
 widths = ["1", "1.6", "2"]
 

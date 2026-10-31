@@ -16,8 +16,8 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
 use crate::vocabulary::{keys as k, words as w};
-use crate::widget::node::{Bits, EguiOptions, Inspecting, Widget};
-use crate::widget::properties::{Edge, Numeral, WidgetProperties};
+use crate::widget::node::{Bits, EguiOptions, Widget};
+use crate::widget::properties::{Edge, WidgetProperties};
 use crate::widget::text_look::TextLook;
 
 /// The class tables a widget was written with, in the order they apply:
@@ -141,6 +141,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         };
         asked.clicked = false;
         let mut next = widget_of(&asked);
+        crate::widget::beside::put_all(&world, entity, &asked, &mut next);
         next.classes = world
             .get::<&Widget>(entity)
             .ok()
@@ -162,7 +163,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
 
 /// Tell the arena that a widget was written, and the inspectors' state where
 /// the widget is one.
-fn told(eng: &Engine, entity: Entity, inspector: bool) {
+pub(crate) fn told(eng: &Engine, entity: Entity, inspector: bool) {
     crate::widget::arena::widget_changed(entity);
     if inspector {
         crate::widget::inspector::noticed(eng, entity);
@@ -296,7 +297,9 @@ pub(crate) fn for_classes(
             let _ = merged.as_mut()?.write(index, value);
         }
     }
-    let mut classed = widget_of(&merged?);
+    let merged = merged?;
+    let mut classed = widget_of(&merged);
+    crate::widget::beside::put_all(&eng.world(), entity, &merged, &mut classed);
     classed.classes.clone_from(&widget.classes);
     dress(eng, &mut classed);
     Some(classed)
@@ -309,37 +312,16 @@ pub(crate) fn widget_of(asked: &WidgetProperties) -> Widget {
     widget
 }
 
-/// What an `inspector` reads, shared with every widget that states none of
-/// it: almost all of them, and a widget is cloned a node a frame.
-fn inspecting(asked: &WidgetProperties) -> Arc<Inspecting> {
-    thread_local! {
-        static NONE: Arc<Inspecting> = Arc::default();
-    }
-    let read = Inspecting {
-        target: asked.target.clone(),
-        component: asked.component.clone(),
-        label_width: asked.label_width,
-        relative_to: asked.relative_to.clone(),
-    };
-    NONE.with(|none| {
-        if **none == read {
-            Arc::clone(none)
-        } else {
-            Arc::new(read)
-        }
-    })
-}
-
 /// The egui options of a widget, to write one: a copy where the arena still
 /// shares them.
 fn egui(widget: &mut Widget) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
 }
 
-/// One field three kinds spell three ways: the first of `image`, `sheet` and
-/// `language` a widget names.
+/// One field two kinds spell two ways: the first of `image` and `sheet` a
+/// widget names; a `code` widget's `language` is the third (`widget_code`).
 fn source_of(asked: &WidgetProperties) -> smol_str::SmolStr {
-    [&asked.image, &asked.sheet, &asked.language]
+    [&asked.image, &asked.sheet]
         .into_iter()
         .find(|named| !named.is_empty())
         .cloned()
@@ -358,16 +340,6 @@ fn edges(named: &[Edge]) -> [bool; 4] {
 /// Whether `contain` names layout containment, then paint containment.
 fn containment(named: &[crate::widget::properties::Containment]) -> [bool; 2] {
     [w::contain::LAYOUT, w::contain::PAINT].map(|word| named.iter().any(|held| held.0 == word))
-}
-
-/// A count a property holds as a whole number, never below zero.
-fn count(value: i64) -> u32 {
-    u32::try_from(value.max(0)).unwrap_or(u32::MAX)
-}
-
-/// The lines a code widget's gutter property names, counting from 1.
-fn lines(texts: &[Numeral]) -> Vec<u32> {
-    texts.iter().filter_map(Numeral::line).collect()
 }
 
 /// Redo the fields of `widget` that `names` fill, each a property with a
@@ -448,11 +420,6 @@ cache_fields! {
         k::HIDE_WIDER => widget.hide_wider = asked.hide_wider;
         k::HIDE_SHORTER => widget.hide_shorter = asked.hide_shorter;
         k::HIDE_TALLER => widget.hide_taller = asked.hide_taller;
-        k::PLACEMENT => widget.placement = asked.placement.0.clone();
-        k::PLACEMENT_FALLBACKS => egui(widget).placement_fallbacks =
-            asked.placement_fallbacks.iter().map(|side| side.0.clone()).collect();
-        k::POPUP_GAP => egui(widget).popup_gap = asked.popup_gap;
-        k::POPUP_WIDTH => egui(widget).popup_width = asked.popup_width;
         k::PADDING => widget.padding = asked.padding.0;
         k::GAP => widget.gap = asked.gap;
         k::ALIGN_ITEMS => widget.align = asked.align_items.0.clone();
@@ -472,12 +439,8 @@ cache_fields! {
         k::AUTO_FLOW => widget.layout.auto_flow = asked.auto_flow.0.clone();
         k::HEADER => widget.header = asked.header;
         k::TITLE_BAR => widget.title_bar = asked.title_bar;
-        k::WIDTHS => widget.widths = asked.widths.iter().filter_map(Numeral::share).collect();
         k::ROW_HEIGHT => widget.row_height = asked.row_height;
         k::LIST_HEIGHT => egui(widget).list_height = asked.list_height;
-        k::GUTTER_WIDTH => widget.gutter_width = asked.gutter_width;
-        k::SPACING => egui(widget).spacing = asked.spacing;
-        k::OVERHANG => egui(widget).overhang = asked.overhang;
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
         k::FILL => widget.fill = asked.fill.clone();
@@ -497,7 +460,6 @@ cache_fields! {
         k::SLICE => widget.slice = asked.slice;
         k::ANGLE_DEGREES => egui(widget).angle_degrees = asked.angle_degrees;
         k::ANGLE_ORIGIN => egui(widget).angle_origin = asked.angle_origin;
-        k::BACKDROP_COLOR => egui(widget).backdrop_color = asked.backdrop_color;
         k::HANDLE => egui(widget).handle = asked.handle.0.clone();
         k::HANDLE_ASPECT => egui(widget).handle_aspect = asked.handle_aspect;
         k::TRAILING_FILL => egui(widget).trailing_fill = asked.trailing_fill;
@@ -527,7 +489,6 @@ cache_fields! {
         k::ON_DROP => widget.on_drop = asked.on_drop.clone();
         k::ON_MOVE => widget.on_move = asked.on_move.clone();
         k::ON_MARK => widget.on_mark = asked.on_mark.clone();
-        k::ON_GUTTER => widget.on_gutter = asked.on_gutter.clone();
         k::PASS_NODE => widget.pass_node = asked.pass_node;
         k::CLICKED => widget.clicked = asked.clicked;
         k::SUBMITTED => widget.submitted = asked.submitted;
@@ -541,21 +502,11 @@ cache_fields! {
         k::CONTEXT => widget.context = asked.context.clone();
         k::OPEN => widget.open = asked.open;
         k::CURRENT_PAGE => widget.active = asked.current_page.clone();
-        k::DEFAULT_OPEN => egui(widget).default_open = asked.default_open;
-        k::COLLAPSIBLE => egui(widget).collapsible = asked.collapsible;
-        k::CLOSABLE => egui(widget).closable = asked.closable;
-        k::HIDE_ON_CLOSE => widget.hide_on_close = asked.hide_on_close;
-        k::RESIZABLE => egui(widget).resizable = asked.resizable;
-        k::DISMISSABLE => egui(widget).dismissable = asked.dismissable;
-        k::CLOSE_ON => egui(widget).close_on = asked.close_on.0.clone();
         k::KEEP_OPEN => widget.keep_open = asked.keep_open;
-        k::SHOWING => widget.showing = asked.showing;
         k::DRAGGABLE => widget.draggable = asked.draggable;
         k::REORDERABLE => widget.reorderable = asked.reorderable;
-        k::SORTABLE => widget.sortable = asked.sortable;
         k::VALUE => widget.value = asked.value;
         k::CHECKED => widget.checked = asked.checked;
-        k::PICKED_COLOR => widget.color = asked.picked_color;
         k::MIN => widget.min = asked.min;
         k::MAX => widget.max = asked.max;
         k::STEP => widget.step = asked.step;
@@ -580,8 +531,6 @@ cache_fields! {
         k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
         k::TOGGLE => widget.toggle = asked.toggle;
         k::INDETERMINATE => egui(widget).indeterminate = asked.indeterminate;
-        k::ALPHA => egui(widget).alpha = asked.alpha.0.clone();
-        k::INLINE => egui(widget).inline = asked.inline;
         k::PLACEHOLDER => widget.placeholder = asked.placeholder.clone();
         k::MAX_LENGTH => widget.max_length = asked.max_length;
         k::NUMERIC => widget.numeric = asked.numeric;
@@ -602,20 +551,11 @@ cache_fields! {
         k::MIN_SCROLLED_WIDTH => egui(widget).min_scrolled_width = asked.min_scrolled_width;
         k::MIN_SCROLLED_HEIGHT => egui(widget).min_scrolled_height = asked.min_scrolled_height;
         k::SPLITTER_WIDTH => widget.handle = asked.splitter_width;
-        k::TITLES => widget.titles.clone_from(&asked.titles);
-        k::SORT => widget.sort = asked.sort.clone();
         k::REVERSE => widget.reverse = asked.reverse;
-        k::LANGUAGE => widget.source = source_of(asked);
-        k::BREAKPOINTS => widget.breakpoints = lines(&asked.breakpoints);
-        k::PROBLEMS => widget.problems = lines(&asked.problems);
-        k::WARNINGS => widget.warnings = lines(&asked.warnings);
-        k::CURRENT_LINE => widget.current_line = count(asked.current_line);
-        k::DURATION => widget.duration = asked.duration;
     }
     whole [
         k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
-        k::COLUMN, k::SUBMIT_KEY, k::TARGET, k::COMPONENT, k::LABEL_WIDTH, k::RELATIVE_TO,
-        k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
+        k::COLUMN, k::SUBMIT_KEY, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
         k::TAB_WIDTH,
     ] {
         widget.layout.grid_columns = asked.grid_columns.clone();
@@ -626,7 +566,6 @@ cache_fields! {
         widget.layout.row = asked.row.clone();
         widget.layout.column = asked.column.clone();
         egui(widget).submit_key = asked.submit_key.clone();
-        widget.inspect = inspecting(asked);
         widget.text_look = Arc::new(TextLook::of(asked));
     }
 }

@@ -630,10 +630,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.open = *open;
             &[k::OPEN]
         }
-        Edit::Color(rgba) => {
-            asked.picked_color = *rgba;
-            &[k::PICKED_COLOR]
-        }
         // A dropdown shows what was picked; a menu keeps its caption.
         Edit::Choice(choice) if asked.kind.0 != w::MENU => {
             asked.text = choice.as_str().into();
@@ -644,16 +640,11 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
             &[k::TEXT, k::SELECTION]
         }
-        // The chrome a reader dragged: written down so the scene keeps it,
-        // and reported to nobody, as a seam between two containers is.
-        Edit::Widths(shares) => {
-            asked.widths = shares.iter().copied().map(Numeral::of).collect();
-            &[k::WIDTHS]
-        }
-        Edit::Sorted(column, reverse) => {
-            asked.sort = column.as_str().into();
+        // The column a table's rows are ordered by is the table's
+        // (`widget_table`, in `besides_written`); which way is the widget's.
+        Edit::Sorted(_, reverse) => {
             asked.reverse = *reverse;
-            &[k::SORT, k::REVERSE]
+            &[k::REVERSE]
         }
         // Written down as well as heard, so `scroll_offset` reads back where
         // the reader left it.
@@ -738,19 +729,43 @@ fn settle_edits(
         if matches!(edit, Edit::Submit(_)) {
             submitted.push(entity);
         }
-        let world = eng.world();
-        let (Ok(mut asked), Ok(mut widget)) = (
-            world.get::<&mut WidgetProperties>(entity),
-            world.get::<&mut Widget>(entity),
-        ) else {
-            continue;
-        };
-        // Written straight onto the component, so the arena's copy of this one
-        // is stale until the next pass re-reads it.
-        crate::widget::arena::widget_changed(entity);
-        settle_one(entity, &mut asked, &mut widget, edit, emitted, &mut signals);
+        {
+            let world = eng.world();
+            let (Ok(mut asked), Ok(mut widget)) = (
+                world.get::<&mut WidgetProperties>(entity),
+                world.get::<&mut Widget>(entity),
+            ) else {
+                continue;
+            };
+            // Written straight onto the component, so the arena's copy of
+            // this one is stale until the next pass re-reads it.
+            crate::widget::arena::widget_changed(entity);
+            settle_one(entity, &mut asked, &mut widget, edit, emitted, &mut signals);
+        }
+        besides_written(eng, entity, edit);
     }
     (signals, submitted)
+}
+
+/// What an edit writes onto a component beside the widget, where the rows
+/// it changes are a kind's own: a picked colour, a table's column shares
+/// and the column it sorts by. Written down so the scene keeps them.
+fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
+    use crate::widget::beside::{self, WidgetColorPicker, WidgetTable};
+    match edit {
+        Edit::Color(rgba) => {
+            beside::edit::<WidgetColorPicker>(eng, entity, |held| held.picked_color = *rgba);
+        }
+        // The chrome a reader dragged, reported to nobody, as a seam between
+        // two containers is.
+        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, |held| {
+            held.widths = shares.iter().copied().map(Numeral::of).collect();
+        }),
+        Edit::Sorted(column, _) => {
+            beside::edit::<WidgetTable>(eng, entity, |held| held.sort = column.as_str().into());
+        }
+        _ => {}
+    }
 }
 
 /// A widget as the click pass writes it: the properties, and the widget the

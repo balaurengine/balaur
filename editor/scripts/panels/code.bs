@@ -83,15 +83,15 @@ impl Code {
         if view.get("note").as_str() != "" {
             return;
         }
-        let look = view.get("look");
+        let editor = scroll.get_node("Editor");
         // The text only when the buffer moved under the editor: what is typed is
         // the widget's own, and writing it back would put the caret at the end.
         if view.get("path").as_str() != self.path || view.get("rev").as_int() != self.rev {
-            look.set("text", view.get("text"));
+            editor.patch_component("widget", map().with("text", view.get("text")));
             self.path = view.get("path").as_str();
             self.rev = view.get("rev").as_int();
         }
-        scroll.get_node("Editor").patch_component("widget", look);
+        editor.patch_component("widget_code", view.get("look"));
         if view.get("scroll_to").as_float() >= 0.0 {
             scroll.patch_component("widget", map().with("scroll_offset", [0.0, view.get("scroll_to")]));
         }

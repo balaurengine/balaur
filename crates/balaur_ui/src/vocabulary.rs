@@ -423,21 +423,16 @@ pub(crate) mod keys {
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
-    pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const RADIO_GROUP: &str = "radio_group";
     pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const CLICKED: &str = "clicked";
-    pub(crate) const CLOSABLE: &str = "closable";
-    pub(crate) const COLLAPSIBLE: &str = "collapsible";
     pub(crate) const PICKED_COLOR: &str = "picked_color";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
-    pub(crate) const CURRENT_LINE: &str = "current_line";
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const SCROLL_DEADZONE: &str = "scroll_deadzone";
     pub(crate) const DECIMALS: &str = "decimals";
-    pub(crate) const DURATION: &str = "duration";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";
     pub(crate) const FONT: &str = "font";
@@ -450,7 +445,6 @@ pub(crate) mod keys {
     pub(crate) const GAP: &str = "gap";
     pub(crate) const GROW: &str = "grow";
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
-    pub(crate) const GUTTER_WIDTH: &str = "gutter_width";
     pub(crate) const SPLITTER_WIDTH: &str = "splitter_width";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const ICON: &str = "icon";
@@ -468,7 +462,6 @@ pub(crate) mod keys {
     pub(crate) const KEEP_OPEN: &str = "keep_open";
     pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
-    pub(crate) const LANGUAGE: &str = "language";
     pub(crate) const LAYER: &str = "layer";
     pub(crate) const TEXT_BACKGROUND: &str = "text_background";
     pub(crate) const TEXT_STYLE: &str = "text_style";
@@ -495,7 +488,6 @@ pub(crate) mod keys {
     pub(crate) const PASS_NODE: &str = "pass_node";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
-    pub(crate) const ON_GUTTER: &str = "on_gutter";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
     pub(crate) const OPTIONS: &str = "options";
@@ -503,33 +495,20 @@ pub(crate) mod keys {
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";
     pub(crate) const PLACEHOLDER: &str = "placeholder";
-    pub(crate) const PLACEMENT: &str = "placement";
     pub(crate) const PREFIX: &str = "prefix";
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
-    pub(crate) const PROBLEMS: &str = "problems";
     pub(crate) const CORNER_RADIUS: &str = "corner_radius";
     /// Whether an overlay answers the pointer. Off for one that is read over
     /// what is behind it, which must keep its clicks.
     pub(crate) const INTERACTIVE: &str = "interactive";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const REGION: &str = "region";
-    pub(crate) const RESIZABLE: &str = "resizable";
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
-    /// What an `inspector` shows: a node by path, one of its components, and
-    /// how its rows spell a file and lay out a label.
-    pub(crate) const TARGET: &str = "target";
-    pub(crate) const COMPONENT: &str = "component";
-    pub(crate) const LABEL_WIDTH: &str = "label_width";
-    pub(crate) const RELATIVE_TO: &str = "relative_to";
-    pub(crate) const TITLES: &str = "titles";
     pub(crate) const TITLE_BAR: &str = "title_bar";
-    pub(crate) const WIDTHS: &str = "widths";
     pub(crate) const HEADER: &str = "header";
-    pub(crate) const SORT: &str = "sort";
-    pub(crate) const SORTABLE: &str = "sortable";
     pub(crate) const REVERSE: &str = "reverse";
     pub(crate) const REORDERABLE: &str = "reorderable";
     pub(crate) const ON_MOVE: &str = "on_move";
@@ -537,7 +516,6 @@ pub(crate) mod keys {
     /// The mark a `mark` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
     pub(crate) const DRAGGABLE: &str = "draggable";
-    pub(crate) const HIDE_ON_CLOSE: &str = "hide_on_close";
     pub(crate) const ON_DROP: &str = "on_drop";
     /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
     pub(crate) const ROW_SELECTED: &str = "row_selected";
@@ -577,13 +555,11 @@ pub(crate) mod keys {
     pub(crate) const CURSOR: &str = "cursor";
     pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const ICON_FILL: &str = "icon_fill";
-    pub(crate) const SHOWING: &str = "showing";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const VISIBLE: &str = "visible";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
-    pub(crate) const WARNINGS: &str = "warnings";
     pub(crate) const WIDTH: &str = "width";
     pub(crate) const WRAP: &str = "wrap";
     pub(crate) const X: &str = "x";
@@ -636,11 +612,7 @@ pub(crate) mod keys {
     pub(crate) const UPDATE_WHILE_EDITING: &str = "update_while_editing";
     pub(crate) const SHOW_PERCENTAGE: &str = "show_percentage";
     pub(crate) const ANIMATE: &str = "animate";
-    pub(crate) const SPACING: &str = "spacing";
-    pub(crate) const OVERHANG: &str = "overhang";
     pub(crate) const LIST_HEIGHT: &str = "list_height";
-    pub(crate) const ALPHA: &str = "alpha";
-    pub(crate) const INLINE: &str = "inline";
     pub(crate) const EDITABLE: &str = "editable";
     pub(crate) const TAB_INSERTS: &str = "tab_inserts";
     pub(crate) const CARET_AT_END: &str = "caret_at_end";
@@ -661,16 +633,9 @@ pub(crate) mod keys {
     pub(crate) const ANGLE_DEGREES: &str = "angle_degrees";
     pub(crate) const ANGLE_ORIGIN: &str = "angle_origin";
     pub(crate) const ALT_TEXT: &str = "alt_text";
-    pub(crate) const POPUP_GAP: &str = "popup_gap";
-    pub(crate) const POPUP_WIDTH: &str = "popup_width";
-    pub(crate) const PLACEMENT_FALLBACKS: &str = "placement_fallbacks";
-    pub(crate) const CLOSE_ON: &str = "close_on";
-    pub(crate) const BACKDROP_COLOR: &str = "backdrop_color";
-    pub(crate) const DISMISSABLE: &str = "dismissable";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";
     pub(crate) const CONSTRAIN: &str = "constrain";
-    pub(crate) const DEFAULT_OPEN: &str = "default_open";
     pub(crate) const FADE_IN: &str = "fade_in";
 }
 

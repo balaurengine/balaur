@@ -51,6 +51,7 @@ kind = "table"
 grow = 1
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_table]
 sortable = true
 
 [nodes.widget.touch]

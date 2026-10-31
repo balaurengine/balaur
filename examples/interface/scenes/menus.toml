@@ -63,6 +63,7 @@ text = "File"
 trailing = "▾"
 # Held open by the scene rather than by a click, which is how a screenshot
 # and an offscreen run can show what a menu looks like open.
+[nodes.widget_menu]
 showing = true
 
 [[nodes]]
@@ -169,6 +170,7 @@ parent = "bar"
 kind = "menu"
 text = "View"
 trailing = "▾"
+[nodes.widget_menu]
 placement = "above"
 
 [[nodes]]
@@ -263,6 +265,7 @@ y = 18
 align_items = "start"
 padding = 12
 gap = [2, 2]
+[nodes.widget_toast]
 duration = 0
 
 [[nodes]]

@@ -43,9 +43,8 @@ is rewritten in the same commit).
 - A component whose cache must go with it overrides `remove` (bones,
   bindings, the animation and audio ones). If that pattern keeps repeating,
   a `removed` hook on `ComponentDef::of` would say it once.
-- Physics' collider, joint, softbody and tile builders still read a table
-  (`derived::to_table` of the struct) because script calls (`set_collider`,
-  shape queries, motor calls) feed them tables too. Typing them is open.
+- Physics' builders read typed structs (item 7); a script call's table is
+  read into the struct first, and a snapshot converts at its edges.
 - `refresh_multimeshes_system` re-applies through `get` + `patch` of the same
   table, which `patch` reads as unchanged, so a reload never re-copies the
   instances. It was so before the derive.
@@ -53,9 +52,8 @@ is rewritten in the same commit).
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
 - Beside components (physics) register before their main component, so a
-  scene builds the main one once. 83 components are registered of the 128
-  `Attached` allows; a widget split into a component per kind would add
-  about 30.
+  scene builds the main one once, and so do the ones beside `widget`. 97
+  components are registered of the 128 `Attached` allows.
 
 ## Left to do, in order
 
@@ -67,9 +65,20 @@ is rewritten in the same commit).
    definition is `ComponentDef::by_hand(schema, apply, remove, get)`.
 2. **Per-kind rows still applying on a condition** (PLAN-component-order
    §4): no property should.
-   - `widget`: 31 kinds in one component; one component per kind
-     (PLAN-widgets). Its writes are cheap now, so this is the Inspector's
-     dead rows, not the frame.
+   - `widget`: done 2026-10-31. The rows one set of kinds reads are a
+     component beside it (`crates/balaur_ui/src/widget/beside.rs`):
+     `widget_range` (slider, number_field, progress_bar), `widget_field`
+     (text_field, text_area, code), `widget_scroll` (scroll, list, tree,
+     table), `widget_list` (list, tree), `widget_table`, `widget_code`,
+     `widget_inspector`, `widget_menu`, `widget_window` (window, dialog),
+     `widget_color_picker`, `widget_image`, `widget_dropdown`,
+     `widget_separator`, `widget_toast`. Each puts its rows on the `Widget`
+     where the kind reads them, its defaults where the node holds none; a
+     reader's edit (a value, a colour, a scroll, a sort) is written onto
+     it. A pooled control's spec stays one table: the pool sends each row
+     to the component holding it. What stays on `widget` is read by most
+     kinds, or by kinds the clusters cut across (`options`, `checked`,
+     `prefix`, `reverse`, the grid rows a list's cards also read).
    - The primitives' dimensions: done 2026-10-31. A `variant` property
      type holds a kind and that kind's rows; `shape2d`, `shape3d`,
      `collider2d` and `collider3d` each hold one `shape`.

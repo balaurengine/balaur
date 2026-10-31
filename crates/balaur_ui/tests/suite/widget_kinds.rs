@@ -139,14 +139,13 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
 #[test]
 fn a_color_swatch_keeps_what_the_scene_gave_it() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [1.0, 0.0, 0.0, 1.0] };
+    let params = toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 widget_color_picker = { picked_color = [1.0, 0.0, 0.0, 1.0] } };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, vec![]);
     consume_input(&mut app);
-    let held = property(&app, entity, "picked_color");
+    let held = beside_property(&app, entity, "widget_color_picker", "picked_color");
     let red = held
         .as_array()
         .and_then(|a| a.first())
@@ -161,8 +160,7 @@ fn a_color_swatch_keeps_what_the_scene_gave_it() {
 #[test]
 fn a_color_swatch_paints_its_floats_as_srgb() {
     let (_dir, app) = app();
-    let params =
-        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [0.5, 0.5, 0.5, 1.0] };
+    let params = toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 widget_color_picker = { picked_color = [0.5, 0.5, 0.5, 1.0] } };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -928,13 +926,15 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
 fn toasts_stack_at_their_anchor_and_leave_when_their_time_is_up() {
     let (_dir, mut app) = app();
     let one = toml::toml! {
-        kind = "toast" text = "Saved" anchor = "top_right" duration = 0.2
+        kind = "toast" text = "Saved" anchor = "top_right"
         width = 120.0 height = 30.0
+        widget_toast = { duration = 0.2 }
     };
     let first = add_widget(&app, &one.into());
     let two = toml::toml! {
-        kind = "toast" text = "Copied" anchor = "top_right" duration = 0.2
+        kind = "toast" text = "Copied" anchor = "top_right"
         width = 120.0 height = 30.0
+        widget_toast = { duration = 0.2 }
     };
     let second = add_widget(&app, &two.into());
     let ctx = egui::Context::default();
@@ -972,8 +972,9 @@ fn a_toast_takes_no_click_from_what_is_under_it() {
     add_widget(
         &app,
         &toml::toml! {
-            kind = "toast" text = "Saved" anchor = "top_left" duration = 0.0
+            kind = "toast" text = "Saved" anchor = "top_left"
             width = 200.0 height = 60.0
+            widget_toast = { duration = 0.0 }
         }
         .into(),
     );

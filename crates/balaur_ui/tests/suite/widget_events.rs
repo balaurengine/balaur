@@ -170,7 +170,7 @@ fn a_window_that_keeps_itself_open_only_asks_to_close() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "window" text = "Debug" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        hide_on_close = false
+        widget_window = { hide_on_close = false }
     };
     let window = add_widget(&app, &params.into());
     let ctx = egui::Context::default();

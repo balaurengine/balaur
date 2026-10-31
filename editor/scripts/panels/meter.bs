@@ -58,11 +58,11 @@ impl Meter {
             // Widths only when the columns change: stating them every time would
             // snap the reader's own drag away.
             self.titled = titled;
-            table.patch_component("widget", map()
+            table.patch_component("widget_table", map()
                 .with("titles", view.get("titles"))
                 .with("widths", view.get("widths"))
-                .with("sort", "")
-                .with("reverse", false));
+                .with("sort", ""));
+            table.patch_component("widget", map().with("reverse", false));
         }
         table.patch_component("widget", map().with("options", view.get("items")).with("visible", view.get("items").len() > 0));
         self.node.get_node("Nothing").patch_component("widget", map()

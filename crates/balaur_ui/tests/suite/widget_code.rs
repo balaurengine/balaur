@@ -38,7 +38,7 @@ fn a_code_gutter_marks_the_lines_its_node_names() {
     let params = toml::toml! {
         kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0
         theme = "themes/game.toml" text = "one\ntwo\nthree"
-        breakpoints = ["2"] current_line = 3
+        widget_code = { breakpoints = ["2"], current_line = 3 }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -74,7 +74,8 @@ impl Owner {
         .unwrap();
     let params = toml::toml! {
         kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        on_gutter = "on_hit" text = "one\ntwo\nthree"
+        text = "one\ntwo\nthree"
+        widget_code = { on_gutter = "on_hit" }
     };
     let entity = add_child_widget(&app, owner, "Code", &params.into());
     let ctx = egui::Context::default();

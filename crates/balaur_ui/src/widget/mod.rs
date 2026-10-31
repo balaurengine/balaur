@@ -4,6 +4,7 @@
 pub(crate) mod anchor;
 pub(crate) mod arena;
 pub(crate) mod arrange;
+pub(crate) mod beside;
 pub(crate) mod button;
 pub(crate) mod code;
 pub(crate) mod drag;

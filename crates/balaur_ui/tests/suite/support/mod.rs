@@ -54,8 +54,32 @@ pub fn app_with_editor_fonts() -> (tempfile::TempDir, App) {
 pub fn add_widget(app: &App, params: &toml::Value) -> Entity {
     let root = app.engine.root();
     let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
+    add_widget_to(app, entity, params);
     entity
+}
+
+/// `params` on `entity` as a scene writes a widget: its own rows to
+/// `widget`, and each `widget_*` table in them to that component beside it.
+pub fn add_widget_to(app: &App, entity: Entity, params: &toml::Value) {
+    let mut own = params.as_table().cloned().unwrap_or_default();
+    let beside: Vec<(String, toml::Value)> = own
+        .iter()
+        .filter(|(key, value)| key.starts_with("widget_") && value.is_table())
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    for (key, _) in &beside {
+        own.remove(key);
+    }
+    balaur::components::add(
+        &app.engine,
+        entity,
+        "widget",
+        Some(&toml::Value::Table(own)),
+    )
+    .unwrap();
+    for (name, rows) in beside {
+        balaur::components::add(&app.engine, entity, &name, Some(&rows)).unwrap();
+    }
 }
 
 /// One egui pass over `run_pass` with the given input. The first pass only
@@ -180,7 +204,7 @@ pub fn clicked(app: &App, entity: Entity) -> bool {
 /// was always there; what changed is that the layer reads it.
 pub fn add_child_widget(app: &App, parent: Entity, name: &str, params: &toml::Value) -> Entity {
     let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, parent);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
+    add_widget_to(app, entity, params);
     entity
 }
 
@@ -265,6 +289,15 @@ pub fn menu(app: &App) -> (Entity, Vec<Entity>) {
         })
         .collect();
     (column, buttons)
+}
+
+/// A row of a component beside the widget, `widget_table` or the rest.
+pub fn beside_property(app: &App, entity: Entity, component: &str, key: &str) -> toml::Value {
+    balaur::components::get(&app.engine, entity, component)
+        .unwrap_or_else(|| panic!("no `{component}` on the node"))
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| panic!("the `{component}` has no `{key}`"))
 }
 
 pub fn property(app: &App, entity: Entity, key: &str) -> toml::Value {

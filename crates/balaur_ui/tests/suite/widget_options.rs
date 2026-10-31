@@ -67,18 +67,27 @@ fn every_option_reads_back_as_it_was_written() {
         prefix = "x" logarithmic = true smallest_positive = 0.5 largest_finite = 900.0 clamp = "edits"
         clamp_existing = true smart_aim = false drag_speed = 0.25 decimals = 2 trailing_fill = true
         handle = "rect" handle_aspect = 0.75 number_format = "hex" update_while_editing = false
-        show_percentage = true animate = true spacing = 9.0 overhang = -2.0 list_height = 120.0 alpha = "additive"
-        inline = true editable = false tab_inserts = true caret_at_end = false clip_text = false
+        show_percentage = true animate = true list_height = 120.0
+        editable = false tab_inserts = true caret_at_end = false clip_text = false
         submit_key = "cmd+enter" scrollbar = "always" stick_to_end = true scroll_offset = [3.0, 40.0]
         min_scrolled_width = 30.0 min_scrolled_height = 20.0 animated = false wheel_speed = [2.0, 0.5]
         drag_scroll = "never" wheel_scroll = false drag_cursor = "grabbing" tint = [0.5, 0.5, 1.0, 1.0]
         region = [1.0, 2.0, 3.0, 4.0] angle_degrees = 30.0 angle_origin = [0.0, 1.0] alt_text = "a cat"
-        popup_gap = 2.0 popup_width = 140.0 placement_fallbacks = ["above", "right_end"] close_on = "never"
-        backdrop_color = [1.0, 0.0, 0.0, 0.5] dismissable = false resizable = true collapsible = true
-        closable = false movable = true constrain = true default_open = false fade_in = true
+        movable = true constrain = true fade_in = true
+        widget_separator = { spacing = 9.0, overhang = -2.0 } widget_color_picker = { alpha = "additive", inline = true } widget_menu = { popup_gap = 2.0, popup_width = 140.0, placement_fallbacks = ["above", "right_end"], close_on = "never" } widget_window = { backdrop_color = [1.0, 0.0, 0.0, 0.5], dismissable = false, resizable = true, collapsible = true, closable = false, default_open = false }
     };
     let entity = add_widget(&app, &written.clone().into());
     for (key, value) in &written {
+        if let Some(rows) = value.as_table() {
+            for (row, value) in rows {
+                assert_eq!(
+                    &beside_property(&app, entity, key, row),
+                    value,
+                    "`{key}.{row}` came back changed"
+                );
+            }
+            continue;
+        }
         assert_eq!(
             &property(&app, entity, key),
             value,
@@ -215,7 +224,7 @@ fn a_separator_takes_the_room_its_spacing_names() {
         &app,
         column,
         "r",
-        &toml::toml! { kind = "separator" spacing = 20.0 }.into(),
+        &toml::toml! { kind = "separator" widget_separator = { spacing = 20.0 } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -227,7 +236,7 @@ fn a_separator_takes_the_room_its_spacing_names() {
 fn a_color_picker_drawn_inline_shows_its_picker_in_place() {
     let shapes = |inline: bool| {
         let (_dir, _app, _, _, out) =
-            drawn(&toml::toml! { kind = "color_picker" inline = inline x = 0.0 y = 0.0 }.into());
+            drawn(&toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 widget_color_picker = { inline = inline } }.into());
         out.shapes.len()
     };
     assert!(
@@ -471,7 +480,8 @@ fn an_image_that_will_not_load_draws_its_alt_text() {
 fn a_menu_opens_to_the_side_its_placement_names() {
     let (_dir, _app, menu, _, out) = drawn(
         &toml::toml! {
-            kind = "menu" text = "File" options = ["Open", "Save"] placement = "right" showing = true x = 20.0 y = 20.0
+            kind = "menu" text = "File" options = ["Open", "Save"] x = 20.0 y = 20.0
+            widget_menu = { placement = "right", showing = true }
         }
         .into(),
     );
@@ -493,7 +503,8 @@ fn a_dialog_dims_with_its_backdrop_and_stays_when_it_is_not_dismissable() {
     let dialog = add_widget(
         &app,
         &toml::toml! {
-            kind = "dialog" text = "Sure?" width = 200.0 height = 100.0 dismissable = false backdrop_color = [1.0, 0.0, 0.0, 0.5]
+            kind = "dialog" text = "Sure?" width = 200.0 height = 100.0
+            widget_window = { dismissable = false, backdrop_color = [1.0, 0.0, 0.0, 0.5] }
         }
         .into(),
     );
@@ -571,7 +582,8 @@ fn a_constrained_window_stays_on_its_surface() {
 
 #[test]
 fn a_resizable_window_grows_by_its_grip() {
-    let (_dir, mut app, entity, ctx) = window(toml::toml! { resizable = true max_width = 230.0 });
+    let (_dir, mut app, entity, ctx) =
+        window(toml::toml! { max_width = 230.0 widget_window = { resizable = true } });
     let rect = root_rect(&ctx, entity);
     drag(
         &app,
@@ -589,7 +601,7 @@ fn a_resizable_window_grows_by_its_grip() {
 
 #[test]
 fn a_collapsible_window_folds_to_its_bar_and_back() {
-    let (_dir, app, entity, ctx) = window(toml::toml! { collapsible = true });
+    let (_dir, app, entity, ctx) = window(toml::toml! { widget_window = { collapsible = true } });
     let child = add_child_widget(
         &app,
         entity,
@@ -638,7 +650,7 @@ fn a_window_without_a_header_or_a_cross_draws_neither() {
     let (_dir, app, _, ctx) = window(toml::toml! { header = false });
     let bare = pass(&app, &ctx, vec![]);
     assert!(!has_text(&bare, "Debug") && !has_text(&bare, "×"));
-    let (_dir, app, _, ctx) = window(toml::toml! { closable = false });
+    let (_dir, app, _, ctx) = window(toml::toml! { widget_window = { closable = false } });
     let titled = pass(&app, &ctx, vec![]);
     assert!(has_text(&titled, "Debug") && !has_text(&titled, "×"));
 }
@@ -731,7 +743,8 @@ fn a_fixed_width_button_cuts_a_caption_too_long_for_it_at_its_edge() {
 
 #[test]
 fn a_collapsible_window_that_does_not_start_open_starts_folded() {
-    let (_dir, _app, entity, ctx) = window(toml::toml! { collapsible = true default_open = false });
+    let (_dir, _app, entity, ctx) =
+        window(toml::toml! { widget_window = { collapsible = true, default_open = false } });
     assert!(
         root_rect(&ctx, entity).height() < 60.0,
         "{:?}",
@@ -789,7 +802,7 @@ fn a_separator_s_overhang_runs_its_line_past_its_room() {
             &app,
             column,
             "r",
-            &toml::toml! { kind = "separator" overhang = overhang }.into(),
+            &toml::toml! { kind = "separator" widget_separator = { overhang = overhang } }.into(),
         );
         let ctx = egui::Context::default();
         settle(&app, &ctx);

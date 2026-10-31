@@ -84,6 +84,8 @@ struct Ops {
     get: Op,
     set: Op,
     patch: Op,
+    has: Op,
+    remove: Op,
 }
 
 impl Ops {
@@ -101,6 +103,8 @@ impl Ops {
             get: node_op("get_component")?,
             set: node_op("set_component")?,
             patch: node_op("patch_component")?,
+            has: node_op("has_component")?,
+            remove: node_op("remove_component")?,
         })
     }
 }
@@ -190,8 +194,49 @@ impl Pool<'_> {
         .unwrap_or(Value::Nil)
     }
 
+    /// Write a control's spec: the widget's rows to `widget`, and the rows
+    /// its kind keeps beside it (`widget_table`, `widget_menu` and the rest)
+    /// to that component. A whole write takes off a beside component the
+    /// spec no longer names, as it drops the widget's own rows.
     fn write(&self, op: Op, node: &Value, spec: Value) -> Result<()> {
-        op(self.eng, &[node.clone(), Value::text(p::WIDGET), spec]).map(|_| ())
+        let Value::Map(entries) = spec else {
+            return op(self.eng, &[node.clone(), Value::text(p::WIDGET), spec]).map(|_| ());
+        };
+        let mut own = Vec::new();
+        let mut beside: Vec<(&'static str, Vec<(String, Value)>)> = Vec::new();
+        for (key, value) in entries {
+            match crate::widget::beside::owner_of(&key) {
+                Some(name) => match beside.iter_mut().find(|(held, _)| *held == name) {
+                    Some((_, rows)) => rows.push((key, value)),
+                    None => beside.push((name, vec![(key, value)])),
+                },
+                None => own.push((key, value)),
+            }
+        }
+        op(
+            self.eng,
+            &[node.clone(), Value::text(p::WIDGET), Value::Map(own)],
+        )?;
+        let whole = std::ptr::fn_addr_eq(op, self.ops.set);
+        for name in crate::widget::beside::names() {
+            match beside.iter().position(|(held, _)| held == name) {
+                Some(at) => {
+                    let rows = beside.swap_remove(at).1;
+                    op(
+                        self.eng,
+                        &[node.clone(), Value::text(*name), Value::Map(rows)],
+                    )?;
+                }
+                None if whole => {
+                    let named = [node.clone(), Value::text(*name)];
+                    if matches!((self.ops.has)(self.eng, &named), Ok(Value::Bool(true))) {
+                        (self.ops.remove)(self.eng, &named)?;
+                    }
+                }
+                None => {}
+            }
+        }
+        Ok(())
     }
 
     fn children(&self, node: &Value) -> Vec<Value> {

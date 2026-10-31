@@ -295,18 +295,6 @@ pub(crate) struct WidgetProperties {
     /// Not drawn while the room is this tall or taller, in design pixels. Zero is no line
     #[property(min = 0.0, group = "placement")]
     pub(crate) hide_taller: f32,
-    /// Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen
-    #[property(default = Placement::new(w::BELOW), group = "placement")]
-    pub(crate) placement: Placement,
-    /// The placements a `menu`'s popup tries, in order, where its own does not fit the screen; empty tries egui's, and naming the placement alone keeps it where it is
-    #[property(group = "placement")]
-    pub(crate) placement_fallbacks: Vec<SidePlacement>,
-    /// The space between a `menu`'s button and its popup, in design pixels; below zero takes egui's
-    #[property(default = -1.0, group = "placement")]
-    pub(crate) popup_gap: f32,
-    /// How wide a `menu`'s popup starts, in design pixels; 0 sizes it to its rows
-    #[property(min = 0.0, group = "placement")]
-    pub(crate) popup_width: f32,
     /// Space inside the widget's edge, in design pixels: one number for every side, or left, top, right and bottom. A container keeps it round its children, a `button` and a `label` round their text, and every other kind in its box. A side below zero takes the theme's (`padding_x` across and `padding_y` down, else `padding`), else 8 round a `panel`, 12 either side of a `button`'s or `menu`'s caption and 0 elsewhere; a stated zero is no space at all. On a `text_field`, `text_area` or `code` it is the margin round the text, where below zero takes egui's
     #[property(default = Sides([-1.0; 4]), group = "layout")]
     pub(crate) padding: Sides,
@@ -382,27 +370,12 @@ pub(crate) struct WidgetProperties {
     /// On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is
     #[property(group = "layout")]
     pub(crate) title_bar: bool,
-    /// Each `table` column's share of the width, in the order `titles` names them: `["2", "1", "1"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back
-    #[property(group = "layout")]
-    pub(crate) widths: Vec<Numeral>,
-    /// How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead
-    #[property(min = 0.0, group = "layout")]
-    pub(crate) label_width: f32,
     /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0
     #[property(min = 0.0, group = "layout")]
     pub(crate) row_height: f32,
     /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
     #[property(min = 0.0, group = "layout")]
     pub(crate) list_height: f32,
-    /// How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits
-    #[property(min = 0.0, group = "layout")]
-    pub(crate) gutter_width: f32,
-    /// The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6
-    #[property(default = -1.0, group = "layout")]
-    pub(crate) spacing: f32,
-    /// How far a `separator`'s line runs past each end of the room it was given, in design pixels; below zero stops it short
-    #[property(group = "layout")]
-    pub(crate) overhang: f32,
     /// How this widget and everything under it is drawn; inherited from the nearest ancestor that names one
     #[property(asset = "widget_theme", group = "paint")]
     pub(crate) theme: SmolStr,
@@ -460,9 +433,6 @@ pub(crate) struct WidgetProperties {
     /// The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle
     #[property(default = [0.5, 0.5], group = "paint")]
     pub(crate) angle_origin: [f32; 2],
-    /// What a `dialog` dims the screen behind it with
-    #[property(color, default = [0.0, 0.0, 0.0, 0.549], group = "paint")]
-    pub(crate) backdrop_color: [f32; 4],
     /// A wash behind the text of the kinds egui draws; alpha 0 is none
     #[property(color, default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
     pub(crate) text_background: [f32; 4],
@@ -565,9 +535,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
     #[property(group = "events")]
     pub(crate) on_mark: SmolStr,
-    /// Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_gutter: SmolStr,
     /// Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets
     #[property(group = "events")]
     pub(crate) pass_node: bool,
@@ -610,51 +577,21 @@ pub(crate) struct WidgetProperties {
     /// Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name
     #[property(group = "events")]
     pub(crate) current_page: SmolStr,
-    /// Whether a `collapsible` window starts unfolded
-    #[property(default = true, group = "events")]
-    pub(crate) default_open: bool,
-    /// Give a `window`'s title bar an arrow that folds the window to its bar and back
-    #[property(group = "events")]
-    pub(crate) collapsible: bool,
-    /// Draw a `window`'s cross
-    #[property(default = true, group = "events")]
-    pub(crate) closable: bool,
-    /// Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides
-    #[property(default = true, group = "events")]
-    pub(crate) hide_on_close: bool,
-    /// Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`
-    #[property(group = "events")]
-    pub(crate) resizable: bool,
-    /// Let Escape or a click on the dim shut a `dialog`; off, only the scene does
-    #[property(default = true, group = "events")]
-    pub(crate) dismissable: bool,
-    /// What shuts a `menu`'s popup besides a row: a click outside it, any click at all, or nothing but Escape
-    #[property(default = CloseOn::new(w::CLICK_OUTSIDE), group = "events")]
-    pub(crate) close_on: CloseOn,
     /// A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it. A `dropdown` with it stays open past a pick until a click outside it
     #[property(group = "events")]
     pub(crate) keep_open: bool,
-    /// Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there
-    #[property(group = "events")]
-    pub(crate) showing: bool,
     /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
     #[property(group = "events")]
     pub(crate) draggable: bool,
     /// Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder
     #[property(group = "events")]
     pub(crate) reorderable: bool,
-    /// Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret
-    #[property(group = "events")]
-    pub(crate) sortable: bool,
     /// Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it
     #[property(group = "value")]
     pub(crate) value: f32,
     /// Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look
     #[property(group = "value")]
     pub(crate) checked: bool,
-    /// What a `color_picker` holds; `on_change` hears the new one
-    #[property(color, default = [1.0, 1.0, 1.0, 1.0], group = "value")]
-    pub(crate) picked_color: [f32; 4],
     /// The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
     #[property(group = "value")]
     pub(crate) min: f32,
@@ -721,12 +658,6 @@ pub(crate) struct WidgetProperties {
     /// Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`
     #[property(group = "value")]
     pub(crate) indeterminate: bool,
-    /// What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending
-    #[property(default = Alpha::new(w::BLEND), group = "value")]
-    pub(crate) alpha: Alpha,
-    /// Draw a `color_picker`'s picker in place, rather than behind a swatch that opens it
-    #[property(group = "value")]
-    pub(crate) inline: bool,
     /// What a `text_field` or `text_area` shows while it is empty
     #[property(group = "value")]
     pub(crate) placeholder: SmolStr,
@@ -787,40 +718,7 @@ pub(crate) struct WidgetProperties {
     /// How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing
     #[property(min = 0.0, group = "value")]
     pub(crate) splitter_width: f32,
-    /// A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names
-    #[property(group = "value")]
-    pub(crate) titles: Vec<SmolStr>,
-    /// The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`
-    #[property(group = "value")]
-    pub(crate) sort: SmolStr,
     /// Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named. A `row`, `column` or `flow` lays its children out from its far end
     #[property(group = "value")]
     pub(crate) reverse: bool,
-    /// The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved
-    #[property(group = "value")]
-    pub(crate) component: SmolStr,
-    /// The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it
-    #[property(group = "value")]
-    pub(crate) target: SmolStr,
-    /// The folder an `inspector` shows a file's path from: a value under it loses that much of its front
-    #[property(group = "value")]
-    pub(crate) relative_to: SmolStr,
-    /// The language a `code` widget highlights
-    #[property(group = "value")]
-    pub(crate) language: SmolStr,
-    /// The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means
-    #[property(group = "value")]
-    pub(crate) breakpoints: Vec<Numeral>,
-    /// The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter
-    #[property(group = "value")]
-    pub(crate) problems: Vec<Numeral>,
-    /// The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it
-    #[property(group = "value")]
-    pub(crate) warnings: Vec<Numeral>,
-    /// The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none
-    #[property(min = 0, group = "value")]
-    pub(crate) current_line: i64,
-    /// How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away
-    #[property(default = 3.0, min = 0.0, group = "value")]
-    pub(crate) duration: f32,
 }

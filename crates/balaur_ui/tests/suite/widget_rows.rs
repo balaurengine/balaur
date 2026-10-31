@@ -144,8 +144,8 @@ fn a_table_draws_only_the_rows_that_fit() {
         .collect();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "count>", "state"]
         options = (many)
+        widget_table = { titles = ["name", "count>", "state"] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -173,8 +173,8 @@ fn a_table_row_splits_into_one_cell_a_column() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "size"]
         options = ["hero.png\u{1f}12 KB"]
+        widget_table = { titles = ["name", "size"] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -201,8 +201,8 @@ fn dragging_a_seam_moves_the_column_beside_it() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "size"]
         options = ["hero.png\u{1f}12 KB"]
+        widget_table = { titles = ["name", "size"] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -233,7 +233,7 @@ fn dragging_a_seam_moves_the_column_beside_it() {
         after > before + 40.0,
         "the drag widened the first column: {before} to {after}"
     );
-    let widths = property(&app, entity, "widths");
+    let widths = beside_property(&app, entity, "widget_table", "widths");
     let stated: Vec<f64> = widths
         .as_array()
         .expect("the shares are a list")
@@ -457,8 +457,8 @@ fn a_table_row_wears_the_colour_it_carries_past_its_last_cell() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "size"]
         options = ["plain\u{1f}1 KB", "loud\u{1f}2 KB\u{1f}#ff0000"]
+        widget_table = { titles = ["name", "size"] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -535,8 +535,8 @@ fn themed(theme: &str, params: &toml::Value) -> egui::FullOutput {
 fn a_table(theme: bool) -> toml::Value {
     let mut params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "size"]
         options = ["hero.png\u{1f}12 KB", "map.png\u{1f}3 KB"]
+        widget_table = { titles = ["name", "size"] }
     };
     if theme {
         params.insert("theme".into(), toml::Value::String("themes/t.toml".into()));
@@ -635,9 +635,8 @@ fn a_table_takes_the_column_shares_the_scene_states() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        titles = ["name", "size"]
-        widths = ["3", "1"]
         options = ["hero.png\u{1f}12 KB"]
+        widget_table = { titles = ["name", "size"], widths = ["3", "1"] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -687,10 +686,13 @@ fn a_table_sorts_by_the_column_it_names() {
         let (_dir, app) = app();
         let mut params = toml::toml! {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
-            titles = ["name", "size>"]
             options = ["b\u{1f}3 KB", "a\u{1f}12 KB", "c\u{1f}1 KB"]
+            widget_table = { titles = ["name", "size>"] }
         };
-        params.insert("sort".into(), toml::Value::String(sort.into()));
+        params["widget_table"]
+            .as_table_mut()
+            .unwrap()
+            .insert("sort".into(), toml::Value::String(sort.into()));
         params.insert("reverse".into(), toml::Value::Boolean(reverse));
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
@@ -715,9 +717,8 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
-        titles = ["name", "size"]
-        sortable = true
         options = ["b\u{1f}3", "a\u{1f}12"]
+        widget_table = { titles = ["name", "size"], sortable = true }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -732,7 +733,7 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
     pass(&app, &ctx, press(hit, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "sort"),
+        beside_property(&app, entity, "widget_table", "sort"),
         toml::Value::String("name".into()),
         "the click sorts by the column it landed on"
     );
@@ -919,8 +920,8 @@ fn a_table_puts_every_cell_where_its_text_align_says() {
         let (_dir, app) = app();
         let mut params = toml::toml! {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-            titles = ["name", "size>"]
             options = ["hero\u{1f}12 KB"]
+            widget_table = { titles = ["name", "size>"] }
         };
         params.insert("text_align".into(), toml::Value::String(align.into()));
         add_widget(&app, &params.into());

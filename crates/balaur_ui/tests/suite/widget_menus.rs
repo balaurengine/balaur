@@ -137,7 +137,7 @@ fn a_row_closes_its_menu_unless_it_keeps_it_open() {
 #[test]
 fn a_showing_menu_is_open_without_a_click() {
     let (_dir, app) = app();
-    let params = toml::toml! { kind = "menu" text = "Menu" showing = true x = 10.0 y = 10.0 };
+    let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 widget_menu = { showing = true } };
     let host = add_widget(&app, &params.into());
     let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
     add_child_widget(&app, host, "R0", &row.into());
@@ -347,7 +347,8 @@ fn a_menu_opens_where_its_placement_says() {
     for placement in ["below", "above", "pointer", "center"] {
         let (_dir, app) = app();
         let params = toml::toml! {
-            kind = "menu" text = "Menu" placement = placement x = 10.0 y = 200.0
+            kind = "menu" text = "Menu" x = 10.0 y = 200.0
+            widget_menu = { placement = placement }
         };
         let host = add_widget(&app, &params.into());
         let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
@@ -456,7 +457,7 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     assert!(clicked(&app, row), "the chord did not click the shut row");
     // What the row shows beside its caption: the chord, written the way this
     // platform writes it.
-    let showing = toml::toml! { kind = "menu" text = "File" showing = true x = 10.0 y = 200.0 };
+    let showing = toml::toml! { kind = "menu" text = "File" x = 10.0 y = 200.0 widget_menu = { showing = true } };
     let open = add_widget(&app, &showing.into());
     let labelled = toml::toml! {
         kind = "button" text = "Save" width = 173.0 height = 22.0 shortcut = "cmd+s"

@@ -312,6 +312,9 @@ impl balaur_plugin::Plugin for UiPlugin {
         );
         api::install_ui_api(&mut *reg.script_module("ui")?);
         widget::input::register(reg);
+        // Before `widget`, so a scene gives a node these first and builds
+        // its widget once, with their rows.
+        widget::beside::register_all(reg);
         widget::schema::register_widget_component(reg);
         widget::presets::register_widget_presets(reg)?;
         Ok(())
