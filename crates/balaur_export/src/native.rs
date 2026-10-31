@@ -21,14 +21,23 @@ const FLAGS: [&str; 6] = [
 ];
 
 /// Where LLVM installs itself beyond `PATH`: Homebrew keeps lld apart from
-/// clang, and Windows has one directory.
-const KNOWN_DIRS: [&str; 5] = [
-    "/opt/homebrew/opt/llvm/bin",
-    "/opt/homebrew/opt/lld/bin",
-    "/usr/local/opt/llvm/bin",
-    "/usr/local/opt/lld/bin",
-    r"C:\Program Files\LLVM\bin",
-];
+/// clang, and Windows has one directory, under whichever Program Files the
+/// machine has.
+fn known_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = [
+        "/opt/homebrew/opt/llvm/bin",
+        "/opt/homebrew/opt/lld/bin",
+        "/usr/local/opt/llvm/bin",
+        "/usr/local/opt/lld/bin",
+    ]
+    .iter()
+    .map(PathBuf::from)
+    .collect();
+    if let Some(programs) = std::env::var_os("ProgramFiles") {
+        dirs.push(PathBuf::from(programs).join("LLVM").join("bin"));
+    }
+    dirs
+}
 
 /// The API floor every 64-bit Android ABI shares; the C calls nothing that
 /// a later one adds.
@@ -124,7 +133,7 @@ fn search_dirs() -> Vec<PathBuf> {
     if let Some(path) = std::env::var_os("PATH") {
         dirs.extend(std::env::split_paths(&path));
     }
-    dirs.extend(KNOWN_DIRS.iter().map(PathBuf::from));
+    dirs.extend(known_dirs());
     let mut versioned: Vec<(u32, PathBuf)> = std::fs::read_dir("/usr/lib")
         .map(|entries| {
             entries

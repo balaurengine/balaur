@@ -51,24 +51,13 @@ unsafe extern "C" fn resize(ptr: *mut c_void, old: u64, new: u64) -> *mut c_void
     }
 }
 
-#[cfg(target_vendor = "apple")]
+/// The calling thread's lowest stack address, as `stacker` reads it from the
+/// system: here, less what is left below. Zero where it cannot say, and the
+/// module then takes its floor from where the host first called in.
 unsafe extern "C" fn stack_bottom() -> usize {
-    unsafe extern "C" {
-        fn pthread_self() -> *mut c_void;
-        fn pthread_get_stackaddr_np(thread: *mut c_void) -> *mut c_void;
-        fn pthread_get_stacksize_np(thread: *mut c_void) -> usize;
-    }
-    // SAFETY: libSystem's own answers about the calling thread.
-    unsafe {
-        let t = pthread_self();
-        pthread_get_stackaddr_np(t) as usize - pthread_get_stacksize_np(t)
-    }
-}
-
-// Elsewhere the module takes its floor from where the host first called in.
-#[cfg(not(target_vendor = "apple"))]
-unsafe extern "C" fn stack_bottom() -> usize {
-    0
+    let here = 0u8;
+    let sp = std::ptr::addr_of!(here) as usize;
+    stacker::remaining_stack().map_or(0, |left| sp.saturating_sub(left))
 }
 
 #[repr(C)]

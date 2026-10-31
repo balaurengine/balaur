@@ -30,6 +30,9 @@ rayon = { version = "1", optional = true }
 # browser has no dlopen, so there `native` is inert like `wasmtime`.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libloading = { version = "0.9", optional = true }
+# The calling thread's real stack bottom, on every native platform, for a
+# native module's recursion guard.
+stacker = { version = "0.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = { version = "0.3.106", optional = true }
@@ -55,7 +58,7 @@ web = ["dep:js-sys", "dep:wasm-bindgen"]
 # Modules translated to C, for an export to a platform that runs no JIT.
 c = ["dep:wasmparser"]
 # Runs a module from the native build an export made of it, when one is loaded.
-native = ["libloading"]
+native = ["libloading", "stacker"]
 
 [lints]
 workspace = true

@@ -26,7 +26,7 @@ atomics only that build has.
 | `bs-wasmi` | off | off | The interpreter alone: what the web editor's module adds beside `bs-web` so a debugger can park a call. | nothing |
 | `bs-web` | off | on |  | nothing |
 | `compile` | on | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the export pack. | nothing |
-| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (25 crates) |
+| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (26 crates) |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | on | on | One feature per container `audio` decodes; a build without one plays none of that format. | `symphonia-bundle-flac` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |

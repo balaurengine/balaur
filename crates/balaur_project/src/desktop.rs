@@ -1,31 +1,28 @@
 //! The shell around a running game: handing it a URL to open, or a file to
 //! show in the file manager.
 //!
-//! Three shells, because each hands work over differently. A desktop spawns an
-//! opener process. A browser tab calls `window.open`. A phone has neither and
-//! wants its own platform call, which is not wired up yet.
+//! Three shells, because each hands work over differently. A desktop asks the
+//! system's own handler (`opener`), a phone its browser (`webbrowser`), and a
+//! browser tab calls `window.open`.
 //!
 //! Both are effects on the world outside the simulation and neither is
 //! recorded, the way rumble is not: a replay must not open a browser window,
 //! and nothing about the result feeds a later tick.
 //!
-//! The tools are each platform's own, called with arguments rather than
-//! through a shell, so nothing here interpolates a string into a command line.
 
 use anyhow::{Result, bail};
 
-/// The desktop shell: an opener process and a file manager. Gated once here
-/// rather than on each of the five items inside, which a phone and a tab both
-/// lack.
+/// The desktop shell, through `opener`: the system's own handler for a URL,
+/// and the file manager. Gated once here rather than on each item inside,
+/// which a phone and a tab both lack.
 #[cfg(desktop)]
 mod shell {
     use std::path::Path;
-    use std::process::Command;
 
     use anyhow::{Result, bail};
 
     pub(super) fn hand_over(url: &str) -> Result<()> {
-        spawn(&opener(), &[url])
+        opener::open(url).map_err(|e| anyhow::anyhow!("opening {url:?}: {e}"))
     }
 
     /// Show a file in the file manager, selected where the platform can.
@@ -36,41 +33,7 @@ mod shell {
         if !path.exists() {
             bail!("{} does not exist", path.display());
         }
-        let text = path.to_string_lossy().into_owned();
-        if cfg!(target_os = "macos") {
-            return spawn("open", &["-R", &text]);
-        }
-        if cfg!(windows) {
-            return spawn("explorer", &[&format!("/select,{text}")]);
-        }
-        // Nothing portable selects a file on a Linux desktop, so the directory
-        // holding it is what opens.
-        let dir = if path.is_dir() {
-            path
-        } else {
-            path.parent().unwrap_or(path)
-        };
-        spawn(&opener(), &[&dir.to_string_lossy()])
-    }
-
-    fn opener() -> String {
-        if cfg!(target_os = "macos") {
-            "open".into()
-        } else if cfg!(windows) {
-            "explorer".into()
-        } else {
-            "xdg-open".into()
-        }
-    }
-
-    /// Hand the work over and stop caring: a file manager runs for as long as
-    /// the player leaves it open, which is not something a frame waits for.
-    fn spawn(program: &str, args: &[&str]) -> Result<()> {
-        Command::new(program)
-            .args(args)
-            .spawn()
-            .map_err(|e| anyhow::anyhow!("{program}: {e}"))?;
-        Ok(())
+        opener::reveal(path).map_err(|e| anyhow::anyhow!("revealing {}: {e}", path.display()))
     }
 }
 
@@ -87,10 +50,8 @@ pub use shell::reveal;
 /// point.
 const OPENABLE: [&str; 3] = ["http://", "https://", "mailto:"];
 
-/// Open a URL in whatever the player browses with.
-///
-/// Every desktop and a browser tab can. iOS and Android cannot yet; the
-/// error says so.
+/// Open a URL in whatever the player browses with: on a desktop, a phone or
+/// a browser tab.
 ///
 /// # Errors
 /// If the scheme is not one a game may open, or this shell has no way to
@@ -102,13 +63,11 @@ pub fn open_url(url: &str) -> Result<()> {
     hand_over(url)
 }
 
-/// A phone has no opener process to spawn: iOS wants `UIApplication.openURL:`
-/// and Android an `ACTION_VIEW` intent, each through that platform's own
-/// crate. Saying so beats spawning `xdg-open`, which no phone has, and
-/// reporting that it is missing.
+/// A phone's browser through `webbrowser`: `UIApplication.openURL:` on iOS,
+/// an `ACTION_VIEW` intent on Android.
 #[cfg(mobile)]
 fn hand_over(url: &str) -> Result<()> {
-    bail!("open_url has no opener on this platform yet, so {url:?} stays closed")
+    webbrowser::open(url).map_err(|e| anyhow::anyhow!("opening {url:?}: {e}"))
 }
 
 /// A new tab, which is what a browser has instead of an opener. A popup
