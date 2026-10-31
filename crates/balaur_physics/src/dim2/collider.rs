@@ -22,7 +22,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::properties::{Axis2d, ColliderEvent, ContactPair, Fill, LayerTest};
-use crate::vocabulary::{self as v, component as c, keys as k};
+use crate::vocabulary::component as c;
 use balaur_core::layers::Layer;
 
 /// The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
@@ -480,26 +480,6 @@ pub(crate) fn mass_at(
     builder.mass_properties(MassProperties::new(com, mass, inertia))
 }
 
-/// Put a 2D collider on the layers `params` names, for a builder whose other
-/// rows its owner has already set (see `crate::collider::with_groups`).
-pub(crate) fn with_groups_2d(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
-    builder.collision_groups(interaction_groups(
-        params,
-        k::COLLISION_LAYER,
-        k::COLLISION_MASK,
-        k::COLLISION_TEST,
-    ))
-}
-
-/// Report what `params` asks for, as `crate::collider::with_events` does in 3D.
-pub(crate) fn with_events_2d(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
-    let events = ActiveEvents::from_bits_truncate(v::bits(params, k::EVENTS, &v::flags::events()));
-    let threshold = scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0));
-    builder
-        .active_events(events)
-        .contact_force_event_threshold(threshold)
-}
-
 /// Build again each collider and soft body naming a material file once the
 /// asset cache has moved, so a material saved in the editor shows on every
 /// body naming it, as a re-read tile map's cells do.
@@ -512,7 +492,6 @@ pub(crate) fn reread_materials(eng: &Engine) {
             return;
         }
         state.materials_read = generation;
-        let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
         let colliders = state
             .collider_params
             .iter()
@@ -521,7 +500,10 @@ pub(crate) fn reread_materials(eng: &Engine) {
         let soft = state
             .soft_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &both))
+            .filter(|(_, asked)| {
+                crate::material::is_a_file(&asked.body.physics_material)
+                    || crate::material::is_a_file(&asked.body.soft_material)
+            })
             .map(|(entity, _)| (*entity, None));
         colliders.chain(soft).collect()
     };

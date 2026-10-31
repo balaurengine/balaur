@@ -10,8 +10,8 @@ mod layers;
 mod read;
 mod soft;
 
-pub(crate) use layers::{bits, flags, named_bits};
-pub(crate) use read::{Opts, boolean, color, f, flag, indices, map, text, vec2, vec3};
+pub(crate) use layers::{flags, named_bits};
+pub(crate) use read::{Opts, boolean, f, map, text};
 
 /// The closed sets of words a scene file, a script table and the inspector all
 /// spell. Written once here so a matcher, a schema's `options` list and the
@@ -183,7 +183,6 @@ pub(crate) mod keys {
     pub(crate) const BODIES: &str = "bodies";
     pub(crate) const BRAKE: &str = "brake";
     pub(crate) const BROAD_PHASE_MS: &str = "broad_phase_ms";
-    pub(crate) const CAN_SLEEP: &str = "can_sleep";
     pub(crate) const CCD_BROAD_PHASE_MS: &str = "ccd_broad_phase_ms";
     pub(crate) const CCD_MS: &str = "ccd_ms";
     pub(crate) const CCD_NARROW_PHASE_MS: &str = "ccd_narrow_phase_ms";
@@ -200,7 +199,6 @@ pub(crate) mod keys {
     pub(crate) const COLLISION_DETECTION_MS: &str = "collision_detection_ms";
     pub(crate) const COLLISION_LAYER: &str = "collision_layer";
     pub(crate) const COLLISION_MASK: &str = "collision_mask";
-    pub(crate) const COLLISION_TEST: &str = "collision_test";
     pub(crate) const CONNECTED_ANCHOR: &str = "connected_anchor";
     pub(crate) const CONNECTED_ANCHOR_ROTATION: &str = "connected_anchor_rotation";
     pub(crate) const CONNECTED_BODY: &str = "connected_body";
@@ -210,12 +208,10 @@ pub(crate) mod keys {
     pub(crate) const CONTACT_COUNT: &str = "contact_count";
     pub(crate) const CONTACT_DAMPING: &str = "contact_damping";
     pub(crate) const CONTACT_DEPTH_COLOR: &str = "contact_depth_color";
-    pub(crate) const CONTACT_FORCE_THRESHOLD: &str = "contact_force_threshold";
     pub(crate) const CONTACT_FREQUENCY_HZ: &str = "contact_frequency_hz";
     pub(crate) const CONTACT_NORMAL: &str = "contact_normal";
     pub(crate) const CONTACT_NORMAL_COLOR: &str = "contact_normal_color";
     pub(crate) const CONTACT_NORMAL_LENGTH: &str = "contact_normal_length";
-    pub(crate) const CONTACT_PAIRS: &str = "contact_pairs";
     pub(crate) const CONTACT_PAIR_COUNT: &str = "contact_pair_count";
     pub(crate) const CONTACT_POINT: &str = "contact_point";
     pub(crate) const CONTACT_RECYCLE_DISTANCE: &str = "contact_recycle_distance";
@@ -231,14 +227,12 @@ pub(crate) mod keys {
     pub(crate) const DENSITY: &str = "density";
     pub(crate) const DIRECTION: &str = "direction";
     pub(crate) const DISABLED_TINT: &str = "disabled_tint";
-    pub(crate) const DOMINANCE: &str = "dominance";
     pub(crate) const DRIVE: &str = "drive";
     /// A ragdoll's `follow3d`/`follow2d` table, with `drive = "follow"`.
     pub(crate) const FOLLOW: &str = "follow";
     pub(crate) const EDGE_NORMAL_COLOR: &str = "edge_normal_color";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const ENGINE_FORCE: &str = "engine_force";
-    pub(crate) const EVENTS: &str = "events";
     pub(crate) const EXCLUDE: &str = "exclude";
     pub(crate) const EXCLUDE_BODY: &str = "exclude_body";
     pub(crate) const FILL: &str = "fill";
@@ -341,7 +335,6 @@ pub(crate) mod keys {
     pub(crate) const RESTITUTION_COMBINE: &str = "restitution_combine";
     pub(crate) const REST_LENGTH: &str = "rest_length";
     pub(crate) const ROTATION: &str = "rotation";
-    pub(crate) const SELF_COLLISION: &str = "self_collision";
     pub(crate) const SENSOR: &str = "sensor";
     pub(crate) const SHAPE: &str = "shape";
     pub(crate) const SIDE_IMPULSE: &str = "side_impulse";
@@ -363,8 +356,6 @@ pub(crate) mod keys {
     pub(crate) const SOFTNESS_DAMPING_RATIO: &str = "softness_damping_ratio";
     pub(crate) const SOFTNESS_HZ: &str = "softness_hz";
     pub(crate) const SOLVER_ITERATIONS: &str = "solver_iterations";
-    pub(crate) const SOLVER_LAYER: &str = "solver_layer";
-    pub(crate) const SOLVER_MASK: &str = "solver_mask";
     pub(crate) const SOLVER_MS: &str = "solver_ms";
     pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
     pub(crate) const STANDALONE_COLOR: &str = "standalone_color";

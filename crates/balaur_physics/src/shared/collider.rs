@@ -162,33 +162,6 @@ macro_rules! functions {
             builder
         }
 
-        fn test_mode(name: &str) -> InteractionTestMode {
-            if name == crate::vocabulary::words::EITHER {
-                InteractionTestMode::Or
-            } else {
-                InteractionTestMode::And
-            }
-        }
-
-        /// The 32 layers a `flags` pair names, tested as `test_key` says. An
-        /// empty mask means every layer: the alternative is 32 strings in every
-        /// scene file that wants the default.
-        pub(crate) fn interaction_groups(
-            params: &toml::Value,
-            memberships_key: &str,
-            filter_key: &str,
-            test_key: &str,
-        ) -> InteractionGroups {
-            InteractionGroups::new(
-                Group::from_bits_truncate(balaur_core::layers::bits(
-                    params.get(memberships_key),
-                    false,
-                )),
-                Group::from_bits_truncate(balaur_core::layers::bits(params.get(filter_key), true)),
-                test_mode(v::text(params, test_key, crate::vocabulary::words::BOTH)),
-            )
-        }
-
         /// The nearest body at or above `entity` in the scene tree, and the node that
         /// owns it.
         ///

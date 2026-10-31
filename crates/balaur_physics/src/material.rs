@@ -83,12 +83,6 @@ pub(crate) fn register_physics_material_asset(reg: &mut Registry<'_>) {
     );
 }
 
-/// The surface a component's `physics_material` row names: the asset, or
-/// the asset at its defaults when the row is empty.
-pub(crate) fn of(eng: &Engine, params: &toml::Value) -> Result<Rc<PhysicsMaterial>> {
-    balaur_core::assets::record(eng, params.get(k::PHYSICS_MATERIAL), k::PHYSICS_MATERIAL)
-}
-
 /// The material a component's `physics_material` names: a file, an inline
 /// one's key, or the default for none.
 pub(crate) fn named(eng: &Engine, reference: &str) -> Result<Rc<PhysicsMaterial>> {
@@ -100,14 +94,4 @@ pub(crate) fn named(eng: &Engine, reference: &str) -> Result<Rc<PhysicsMaterial>
 /// component holding it; an inline one is keyed by its own content.
 pub(crate) fn is_a_file(reference: &str) -> bool {
     !reference.is_empty() && !reference.starts_with('#')
-}
-
-/// Whether `params` names a material kept in a file in any of `rows`, which
-/// can change under the component holding it; an inline one is keyed by its
-/// own content.
-pub(crate) fn names_a_file(params: &toml::Value, rows: &[&str]) -> bool {
-    rows.iter().any(|row| {
-        let reference = v::text(params, row, "");
-        !reference.is_empty() && !reference.starts_with('#')
-    })
 }

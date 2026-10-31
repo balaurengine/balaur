@@ -26,10 +26,6 @@ pub(crate) trait Beside: Component {
     fn reads(main: &Self::Main) -> bool;
 }
 
-/// Write `C`'s rows into `params`, `main`'s own table: what the node holds
-/// when it holds `C` and `main`'s kind reads it, else `C`'s defaults where
-/// `params` has no such row yet.
-///
 /// The beside component `C` as the main one's kind reads it: the node's own
 /// where the kind reads one, its defaults otherwise.
 pub(crate) fn held<C: Beside + Clone>(world: &World, entity: Entity, main: &C::Main) -> C {
@@ -43,35 +39,32 @@ pub(crate) fn held<C: Beside + Clone>(world: &World, entity: Entity, main: &C::M
     }
 }
 
-/// Two beside components may share a row's name (a sphere's `radius` and a
-/// cloth tube's), and the moved rows kept their defaults, so the one the
-/// kind reads wins whichever order they are written in.
-pub(crate) fn write_in<C: Beside>(
-    world: &World,
-    entity: Entity,
-    main: &C::Main,
-    params: &mut toml::Value,
-) {
-    let held = if C::reads(main) {
-        world
-            .get::<&C>(entity)
-            .ok()
-            .map(|held| derived::to_table(&*held))
-    } else {
-        None
-    };
-    let Some(table) = params.as_table_mut() else {
+/// Write `beside`'s rows into `table`, its main component's: over what is
+/// there when the main one's kind reads it, else only where a row is
+/// missing. Two beside components may share a row's name (a sphere's
+/// `radius` and a cloth tube's), so the one the kind reads wins whichever
+/// order they are written in.
+pub(crate) fn table_in<C: Component>(table: &mut toml::Value, beside: &C, read: bool) {
+    let (Some(rows), toml::Value::Table(more)) = (table.as_table_mut(), derived::to_table(beside))
+    else {
         return;
     };
-    match held {
-        Some(toml::Value::Table(rows)) => table.extend(rows),
-        _ => {
-            if let toml::Value::Table(rows) = derived::to_table(&C::default()) {
-                for (name, value) in rows {
-                    table.entry(name).or_insert(value);
-                }
-            }
+    if read {
+        rows.extend(more);
+    } else {
+        for (name, value) in more {
+            rows.entry(name).or_insert(value);
         }
+    }
+}
+
+/// `C` out of a table [`table_in`] wrote: its defaults where `main`'s kind
+/// reads none of its rows.
+pub(crate) fn from_table<C: Beside>(params: &toml::Value, main: &C::Main) -> anyhow::Result<C> {
+    if C::reads(main) {
+        derived::from_table(params)
+    } else {
+        Ok(C::default())
     }
 }
 

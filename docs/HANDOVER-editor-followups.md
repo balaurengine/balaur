@@ -114,8 +114,10 @@ is rewritten in the same commit).
    2026-10-31: a collider's ask is `Asked3d`/`Asked2d` and its other rows
    go through `ColliderRows` and one `with_rows` per dimension; a joint's is
    `JointAsk3d`/`JointAsk2d`, read through `JointAsk`; the physics state
-   keeps them typed and the snapshot converts at its edges. Open: the soft
-   bodies and the bodies' `body_params` still read the table.
+   keeps them typed and the snapshot converts at its edges. Soft bodies
+   build from `SoftAsked3d`/`SoftAsked2d` (the component and those beside
+   it) and a typed `SoftMaterial`, done 2026-10-31; a body already built
+   from `Body3d`/`Body2d`, its snapshot rows the one table left.
 8. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.

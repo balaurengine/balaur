@@ -59,7 +59,7 @@ pub struct PhysicsState2d {
     pub joints: DetHashMap<Entity, joint::JointRef2d>,
     /// Soft bodies per entity, and what each was built from, as in 3D.
     pub soft_bodies: DetHashMap<Entity, softbody::SoftRef2d>,
-    pub soft_params: DetHashMap<Entity, toml::Value>,
+    pub soft_params: DetHashMap<Entity, softbody::SoftAsked2d>,
     /// What each collider and joint was authored from, as in the 3D world:
     /// rapier keeps the shape, not the asset or the choices behind it.
     pub collider_params: DetHashMap<Entity, collider::Asked2d>,
@@ -488,7 +488,16 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         body_params: crate::asked_rows::<body::Body2d>(eng, &world),
         joints: crate::keyed(&world, &state.joints),
         soft_bodies: crate::keyed(&world, &state.soft_bodies),
-        soft_params: crate::authored(eng, &world, &state.soft_params, softbody::PARAMS),
+        soft_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .soft_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            softbody::PARAMS,
+        ),
         collider_params: crate::authored(
             eng,
             &world,
@@ -577,7 +586,18 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     state.body_authored = body_authored;
     state.joints = joints;
     state.soft_bodies = soft_bodies;
-    state.soft_params = soft_params;
+    state.soft_params = soft_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match softbody::SoftAsked2d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a softbody2d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.collider_params = collider_params
         .iter()
         .filter_map(

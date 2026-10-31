@@ -15,10 +15,63 @@ use crate::vocabulary::{self as v, keys as k, words as w};
 
 const DOC: &str = "What a soft body is made of: how its cells resist, its springs, how it keeps its volume, how it yields and when it tears. A `softbody2d` or `softbody3d` names one in its `soft_material` row, or writes one inline:\n\n```toml\ntype = \"soft_material\"\ncell_model = \"neo_hookean\"\nyoung_modulus = 50000.0\n```";
 
-/// A soft body's material, as its definition holds it with every row filled
-/// in: the readers that build rapier's material read it by row.
-#[derive(Debug)]
-pub(crate) struct SoftMaterial(pub(crate) toml::Value);
+/// A soft body's material, read out of its definition once: the builders in
+/// both dimensions turn it into rapier's own types.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SoftMaterial {
+    pub(crate) cell_model: CellModel,
+    pub(crate) young_modulus: f32,
+    pub(crate) poisson_ratio: f32,
+    pub(crate) elastic_damping: f32,
+    pub(crate) deformation_damping: f32,
+    pub(crate) edge: Spring,
+    pub(crate) bend: Spring,
+    pub(crate) volume: Spring,
+    pub(crate) shape_matching_spring: Spring,
+    /// A 3D cloth's woven springs; a zero takes the edge spring's.
+    pub(crate) shear: Spring,
+    pub(crate) warp: Spring,
+    pub(crate) weft: Spring,
+    /// `None` keeps what the layout chose.
+    pub(crate) shape_matching: Option<bool>,
+    pub(crate) volume_preservation: bool,
+    pub(crate) volume_factor: f32,
+    pub(crate) plastic_yield: f32,
+    pub(crate) plastic_creep: f32,
+    pub(crate) plastic_max: f32,
+    pub(crate) edge_plastic_yield: f32,
+    pub(crate) edge_plastic_creep: f32,
+    pub(crate) edge_plastic_max: f32,
+    pub(crate) edge_plastic_flow: PlasticFlow,
+    /// Zero is unbreakable.
+    pub(crate) tear_force: f32,
+    pub(crate) tear_strain: f32,
+    pub(crate) tear_smoothing: f32,
+    pub(crate) interior_strength: f32,
+}
+
+/// What a cell resists with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CellModel {
+    Volume,
+    Corotational,
+    NeoHookean,
+}
+
+/// Whether an edge sets under a squeeze, a stretch or both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlasticFlow {
+    Both,
+    Compression,
+    Tension,
+}
+
+/// A spring's frequency in hertz and its damping ratio.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Spring {
+    pub(crate) hz: f32,
+    pub(crate) damping: f32,
+}
 
 /// The asset's rows: the ones a soft body used to carry itself, the cells
 /// and springs first, then its volume, its yield and its tearing.
@@ -192,15 +245,63 @@ fn holding_rows() -> String {
     reason = "the asset layer's parser type, which other assets fail through"
 )]
 fn parse(table: &toml::Value) -> Result<Rc<dyn std::any::Any>> {
-    Ok(Rc::new(SoftMaterial(table.clone())))
+    Ok(Rc::new(read(table)))
+}
+
+fn read(made: &toml::Value) -> SoftMaterial {
+    let spring = |hz: &str, damping: &str, defaults: (f32, f32)| Spring {
+        hz: v::f(made, hz, defaults.0),
+        damping: v::f(made, damping, defaults.1),
+    };
+    SoftMaterial {
+        cell_model: match v::text(made, k::CELL_MODEL, w::VOLUME) {
+            w::COROTATIONAL => CellModel::Corotational,
+            w::NEO_HOOKEAN => CellModel::NeoHookean,
+            _ => CellModel::Volume,
+        },
+        young_modulus: v::f(made, k::YOUNG_MODULUS, 1.0e4),
+        poisson_ratio: v::f(made, k::POISSON_RATIO, 0.3),
+        elastic_damping: v::f(made, k::ELASTIC_DAMPING, 1.0),
+        deformation_damping: v::f(made, k::DEFORMATION_DAMPING, 0.0),
+        edge: spring(k::EDGE_HZ, k::EDGE_DAMPING, (30.0, 1.0)),
+        bend: spring(k::BEND_HZ, k::BEND_DAMPING, (10.0, 1.0)),
+        volume: spring(k::VOLUME_HZ, k::VOLUME_DAMPING, (30.0, 1.0)),
+        shape_matching_spring: spring(k::SHAPE_MATCHING_HZ, k::SHAPE_MATCHING_DAMPING, (10.0, 1.0)),
+        shear: spring(k::SHEAR_HZ, k::SHEAR_DAMPING, (0.0, 0.0)),
+        warp: spring(k::WARP_HZ, k::WARP_DAMPING, (0.0, 0.0)),
+        weft: spring(k::WEFT_HZ, k::WEFT_DAMPING, (0.0, 0.0)),
+        shape_matching: match v::text(made, k::SHAPE_MATCHING, w::AUTO) {
+            w::ON => Some(true),
+            w::OFF => Some(false),
+            _ => None,
+        },
+        volume_preservation: v::boolean(made, k::VOLUME_PRESERVATION, true),
+        volume_factor: v::f(made, k::VOLUME_FACTOR, 1.0),
+        plastic_yield: v::f(made, k::PLASTIC_YIELD, 0.0),
+        plastic_creep: v::f(made, k::PLASTIC_CREEP, 1.0),
+        plastic_max: v::f(made, k::PLASTIC_MAX, 1.0),
+        edge_plastic_yield: v::f(made, k::EDGE_PLASTIC_YIELD, 0.0),
+        edge_plastic_creep: v::f(made, k::EDGE_PLASTIC_CREEP, 1.0),
+        edge_plastic_max: v::f(made, k::EDGE_PLASTIC_MAX, 0.5),
+        edge_plastic_flow: match v::text(made, k::EDGE_PLASTIC_FLOW, w::BOTH) {
+            w::COMPRESSION_FLOW => PlasticFlow::Compression,
+            w::TENSION => PlasticFlow::Tension,
+            _ => PlasticFlow::Both,
+        },
+        tear_force: v::f(made, k::TEAR_FORCE, 0.0),
+        tear_strain: v::f(made, k::TEAR_STRAIN, 0.0),
+        tear_smoothing: v::f(made, k::TEAR_SMOOTHING, 0.0),
+        interior_strength: v::f(made, k::INTERIOR_STRENGTH, 1.0),
+    }
 }
 
 pub(crate) fn register_soft_material_asset(reg: &mut Registry<'_>) {
     reg.register_record_asset(k::SOFT_MATERIAL, "soft_materials", DOC, schema(), parse);
 }
 
-/// The material a soft body's `soft_material` row names: the asset, or the
-/// asset at its defaults when the row is empty.
-pub(crate) fn of(eng: &Engine, params: &toml::Value) -> Result<Rc<SoftMaterial>> {
-    balaur_core::assets::record(eng, params.get(k::SOFT_MATERIAL), k::SOFT_MATERIAL)
+/// The material a soft body's `soft_material` row names: a file, an inline
+/// one's key, or the asset at its defaults for none.
+pub(crate) fn named(eng: &Engine, reference: &str) -> Result<Rc<SoftMaterial>> {
+    let value = (!reference.is_empty()).then(|| toml::Value::String(reference.to_owned()));
+    balaur_core::assets::record(eng, value.as_ref(), k::SOFT_MATERIAL)
 }

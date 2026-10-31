@@ -290,7 +290,16 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         body_params: asked_rows::<crate::body::Body3d>(eng, &world),
         joints: keyed(&world, &state.joints),
         soft_bodies: keyed(&world, &state.soft_bodies),
-        soft_params: authored(eng, &world, &state.soft_params, softbody::PARAMS),
+        soft_params: authored(
+            eng,
+            &world,
+            &state
+                .soft_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            softbody::PARAMS,
+        ),
         collider_params: authored(
             eng,
             &world,
@@ -361,7 +370,18 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.body_authored = body_authored;
     state.joints = joints;
     state.soft_bodies = soft_bodies;
-    state.soft_params = soft_params;
+    state.soft_params = soft_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match softbody::SoftAsked3d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a softbody3d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.collider_params = collider_params
         .iter()
         .filter_map(

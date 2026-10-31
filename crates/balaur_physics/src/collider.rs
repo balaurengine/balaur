@@ -20,7 +20,7 @@ use crate::scalar::{self, Pose};
 use crate::shared::beside::{self, Beside};
 
 use crate::properties::{Axis3d, ColliderEvent, ContactPair, Decomposition3d, Fill, LayerTest};
-use crate::vocabulary::{self as v, component as c, keys as k};
+use crate::vocabulary::{component as c, keys as k};
 use balaur_core::layers::Layer;
 
 use crate::{PhysicsState3d, node_pose};
@@ -433,33 +433,7 @@ pub(crate) fn surface_of(asked: &Collider3d) -> Option<crate::events::Surface> {
         .then_some(crate::events::Surface { one_way, velocity })
 }
 
-/// Report what `params` asks for, for a builder whose other rows its owner
-/// has already set.
-pub(crate) fn with_events(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
-    let threshold = scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0));
-    builder
-        .active_events(active_events(params))
-        .contact_force_event_threshold(threshold)
-}
-
-/// Put a collider on the layers `params` names, for a builder whose other
-/// rows its owner has already set.
-pub(crate) fn with_groups(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
-    builder.collision_groups(interaction_groups(
-        params,
-        k::COLLISION_LAYER,
-        k::COLLISION_MASK,
-        k::COLLISION_TEST,
-    ))
-}
-
 crate::shared::collider::functions!(state = PhysicsState3d, refit = crate::body::refit_mass);
-
-/// Rapier reports nothing by default, for speed. A collider opts in here, and
-/// `crate::events` turns what it reports into a call on the node's script.
-pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
-    ActiveEvents::from_bits_truncate(v::bits(params, k::EVENTS, &v::flags::events()))
-}
 
 /// Build again each collider and soft body naming a material file once the
 /// asset cache has moved, so a material saved in the editor shows on every
@@ -473,7 +447,6 @@ pub(crate) fn reread_materials(eng: &Engine) {
             return;
         }
         state.materials_read = generation;
-        let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
         let colliders = state
             .collider_params
             .iter()
@@ -482,7 +455,10 @@ pub(crate) fn reread_materials(eng: &Engine) {
         let soft = state
             .soft_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &both))
+            .filter(|(_, asked)| {
+                crate::material::is_a_file(&asked.body.physics_material)
+                    || crate::material::is_a_file(&asked.body.soft_material)
+            })
             .map(|(entity, _)| (*entity, None));
         colliders.chain(soft).collect()
     };

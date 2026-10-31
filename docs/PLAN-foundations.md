@@ -2,11 +2,11 @@
 > the core split and the ECS are built (PLAN-core-split, PLAN-ecs); the
 > script tests are built but for the random programs' structs, enums, maps
 > and native code and forge's build-size page (PLAN-script-tests §2, §8,
-> §9); of the editor follow-ups, the derive is finished and the per-kind
-> splits are done for primitives, colliders, joints and soft bodies, with
-> the `widget` split, the typed physics builders and the stricter language
-> open (HANDOVER-editor-followups); the UI gaps wait on the `widget` split
-> (PLAN-ui-gaps).
+> §9); of the editor follow-ups, the derive is finished, the per-kind
+> splits are done for primitives, colliders, joints and soft bodies, and
+> every physics builder reads typed components, with the `widget` split and
+> the stricter language open (HANDOVER-editor-followups); the UI gaps wait
+> on the `widget` split (PLAN-ui-gaps).
 
 # Plan: foundations
 

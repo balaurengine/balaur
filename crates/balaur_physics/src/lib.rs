@@ -125,7 +125,7 @@ pub struct PhysicsState3d {
     /// particles, not the layout that laid them out, so the component would
     /// lose its `kind` and its cell size on a read-back without this.
     pub soft_bodies: DetHashMap<Entity, softbody::SoftRef3d>,
-    pub soft_params: DetHashMap<Entity, toml::Value>,
+    pub soft_params: DetHashMap<Entity, softbody::SoftAsked3d>,
     /// What each collider and joint was authored from.
     ///
     /// Rapier keeps a shape, not the asset it was built from, and not the
