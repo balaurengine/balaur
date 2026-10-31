@@ -80,8 +80,9 @@ is rewritten in the same commit).
      The joints' `break_*` rows are `breakable_joint2d`/`3d` beside a joint
      (an articulation refuses one), and an articulation's per-axis
      `link_damping`/`armature`/`friction` are its own `link_axes` records,
-     done 2026-10-31. Open, on the main ones: soft-body
-     `collision_binding*` beside a `collision_mesh`, `skin` and
+     done 2026-10-31; a soft body's collision mesh is `soft_collision2d`/`3d`
+     beside it, its binding a variant whose `nearest` holds the distance
+     (a variant kind may hold nothing). Open, on the main ones: `skin` and
      `skin_collision` with cells, `tile_collision`'s `fit`.
    - `tilemap` cells/terrain/flags are string-encoded grids.
 3. **One source for a widget's values**: done. `input.rs` writes

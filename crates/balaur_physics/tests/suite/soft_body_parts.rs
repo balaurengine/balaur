@@ -71,9 +71,9 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let colliders = |extra: &str| {
+    let colliders = |first: &str| {
         let script = format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        self.node.set_component(\"soft_grid3d\", map().with(\"cells\", [2.0, 2.0, 2.0])); self.node.softbody3d.set_softbody(map().with(\"kind\", \"box\"){extra});\n    }}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        {first}self.node.set_component(\"soft_grid3d\", map().with(\"cells\", [2.0, 2.0, 2.0])); self.node.softbody3d.set_softbody(map().with(\"kind\", \"box\"));\n    }}\n}}\n"
         );
         let (dir, app) = boot(&script, 2);
         let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
@@ -83,7 +83,7 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
     };
     let plain = colliders("");
     let meshed = colliders(
-        ".with(\"collision_mesh\", \"#wedge\").with(\"collision_binding\", \"nearest\").with(\"collision_binding_distance\", 2.0)",
+        "self.node.set_component(\"soft_collision3d\", map().with(\"collision_mesh\", \"#wedge\").with(\"collision_binding\", map().with(\"kind\", \"nearest\").with(\"distance\", 2.0))); ",
     );
     assert_eq!(meshed, plain + 1, "the mesh is one deformable collider");
 }
@@ -93,7 +93,9 @@ fn a_collision_mesh_bound_to_particles_it_lacks_is_refused() {
     let errors = run(r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.set_component("soft_rope3d", map().with("particle_count", 2)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("collision_mesh", "#wedge").with("collision_binding", "particles"));
+        self.node.set_component("soft_rope3d", map().with("particle_count", 2));
+        self.node.set_component("soft_collision3d", map().with("collision_mesh", "#wedge").with("collision_binding", map().with("kind", "particles")));
+        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE));
     }
 }
 "##);

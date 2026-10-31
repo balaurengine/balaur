@@ -6,7 +6,9 @@
 //! script calls and readers that take them as text.
 
 use balaur_core::Engine;
-use balaur_core::components::derived::{self, Component, Enum, Property, Record, Result, toml};
+use balaur_core::components::derived::{
+    self, Component, Enum, Property, Record, Result, Variant, toml,
+};
 use balaur_core::hecs::Entity;
 
 /// The node a `node` property names, resolved from the node that holds it as
@@ -261,12 +263,24 @@ pub enum Orientation {
     Shell,
 }
 
-/// How a soft body's collision mesh is bound to its particles.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum CollisionBinding {
-    Nearest,
+/// How a soft body's collision mesh follows the body.
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum Binding {
+    /// Each vertex on the nearest particle within its distance
+    #[option(default)]
+    Nearest(NearestBinding),
+    /// Vertex i on particle i
     Particles,
+    /// Each vertex riding the cell that holds it
     Cells,
+}
+
+/// How near a particle a vertex binds to.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct NearestBinding {
+    /// How far a vertex may sit from the particle it binds to
+    #[property(default = 0.01, min = 0.0)]
+    pub distance: f32,
 }
 
 /// Which of a soft body's edges only pull.

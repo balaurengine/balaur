@@ -475,6 +475,75 @@ fn expand_enum(input: &DeriveInput) -> syn::Result<Tokens> {
     })
 }
 
+/// The match arms a variant enum's `Property` impl needs, one per variant:
+/// the pattern naming it, its spec, its value, and the read of one.
+struct VariantArms {
+    patterns: Vec<Tokens>,
+    describes: Vec<Tokens>,
+    to_values: Vec<Tokens>,
+    from_values: Vec<Tokens>,
+}
+
+/// Each variant's arms: one holding a record reads and writes its fields,
+/// one holding nothing is its name alone.
+fn variant_arms(
+    derived: &Tokens,
+    variants: &[&syn::Ident],
+    records: &[Option<&syn::Type>],
+    options: &[String],
+    docs: &[String],
+) -> VariantArms {
+    let mut arms = VariantArms {
+        patterns: Vec::new(),
+        describes: Vec::new(),
+        to_values: Vec::new(),
+        from_values: Vec::new(),
+    };
+    for (((ident, record), option), doc) in variants.iter().zip(records).zip(options).zip(docs) {
+        if let Some(record) = record {
+            arms.patterns.push(quote!(Self::#ident(_)));
+            arms.describes
+                .push(quote!(#derived::variant_record::<#record>(#doc)));
+            arms.to_values
+                .push(quote!(Self::#ident(held) => #derived::variant_value(#option, held)));
+            arms.from_values.push(quote!(#option => ::core::result::Result::Ok(Self::#ident(#derived::from_table(value)?))));
+        } else {
+            arms.patterns.push(quote!(Self::#ident));
+            arms.describes.push(quote!(#derived::variant_unit(#doc)));
+            arms.to_values
+                .push(quote!(Self::#ident => #derived::variant_name(#option)));
+            arms.from_values
+                .push(quote!(#option => ::core::result::Result::Ok(Self::#ident)));
+        }
+    }
+    arms
+}
+
+/// A variant's name, snake case unless `#[option(name = "...")]` says, and
+/// whether `#[option(default)]` marks it.
+fn variant_option(variant: &syn::Variant) -> syn::Result<(String, bool)> {
+    let mut name = snake(&variant.ident.to_string());
+    let mut chosen = false;
+    for attr in &variant.attrs {
+        if !attr.path().is_ident("option") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("name") {
+                let text: syn::LitStr = meta.value()?.parse()?;
+                name = text.value();
+                Ok(())
+            } else if meta.path.is_ident("default") {
+                chosen = true;
+                Ok(())
+            } else {
+                Err(meta.error("`option` takes `name` or `default`"))
+            }
+        })?;
+    }
+    Ok((name, chosen))
+}
+
 fn expand_variant(input: &DeriveInput) -> syn::Result<Tokens> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -492,44 +561,43 @@ fn expand_variant(input: &DeriveInput) -> syn::Result<Tokens> {
     let mut default = None;
     for variant in &data.variants {
         let record = match &variant.fields {
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0].ty,
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => Some(&fields.unnamed[0].ty),
+            Fields::Unit => None,
             _ => {
                 return Err(syn::Error::new(
                     variant.span(),
-                    "a variant holds one record: `Box(BoxShape)`",
+                    "a variant holds one record, `Box(BoxShape)`, or nothing",
                 ));
             }
         };
-        let mut name = snake(&variant.ident.to_string());
-        for attr in &variant.attrs {
-            if !attr.path().is_ident("option") {
-                continue;
-            }
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("name") {
-                    let text: syn::LitStr = meta.value()?.parse()?;
-                    name = text.value();
-                    Ok(())
-                } else if meta.path.is_ident("default") {
-                    default = Some(variants.len());
-                    Ok(())
-                } else {
-                    Err(meta.error("`option` takes `name` or `default`"))
-                }
-            })?;
+        let (name, chosen) = variant_option(variant)?;
+        if chosen {
+            default = Some(variants.len());
         }
         options.push(name);
         variants.push(&variant.ident);
         records.push(record);
         docs.push(doc_of(&variant.attrs));
     }
-    let Some(first) = variants.first() else {
+    if variants.is_empty() {
         return Err(syn::Error::new(
             input.ident.span(),
             "a variant enum needs one variant",
         ));
+    }
+    let chosen_at = default.unwrap_or(0);
+    let chosen = variants[chosen_at];
+    let chosen_value = if records[chosen_at].is_some() {
+        quote!(Self::#chosen(::core::default::Default::default()))
+    } else {
+        quote!(Self::#chosen)
     };
-    let chosen = default.map_or(*first, |at| variants[at]);
+    let VariantArms {
+        patterns,
+        describes,
+        to_values,
+        from_values,
+    } = variant_arms(&derived, &variants, &records, &options, &docs);
     Ok(quote! {
         impl #ident {
             /// Every variant's name, in the order the enum declares them.
@@ -539,36 +607,33 @@ fn expand_variant(input: &DeriveInput) -> syn::Result<Tokens> {
             #[must_use]
             pub const fn option(&self) -> &'static str {
                 match self {
-                    #(Self::#variants(_) => #options,)*
+                    #(#patterns => #options,)*
                 }
             }
         }
 
         impl ::core::default::Default for #ident {
             fn default() -> Self {
-                Self::#chosen(::core::default::Default::default())
+                #chosen_value
             }
         }
 
         impl #derived::Property for #ident {
             fn describe(spec: &mut #toml::map::Map<::std::string::String, #toml::Value>) {
                 let mut variants = #toml::map::Map::new();
-                #(variants.insert(
-                    ::std::string::String::from(#options),
-                    #derived::variant_record::<#records>(#docs),
-                );)*
+                #(variants.insert(::std::string::String::from(#options), #describes);)*
                 #derived::describe_variant(spec, variants);
             }
 
             fn to_value(&self) -> #toml::Value {
                 match self {
-                    #(Self::#variants(held) => #derived::variant_value(#options, held),)*
+                    #(#to_values,)*
                 }
             }
 
             fn from_value(value: &#toml::Value) -> #derived::Result<Self> {
                 match #derived::variant_kind(value, Self::OPTIONS)? {
-                    #(#options => ::core::result::Result::Ok(Self::#variants(#derived::from_table(value)?)),)*
+                    #(#from_values,)*
                     _ => ::core::unreachable!("variant_kind answers one of OPTIONS"),
                 }
             }

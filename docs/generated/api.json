@@ -6874,6 +6874,8 @@
     "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.",
     "soft_circle2d": "The size of a `softbody2d` laid out as a circle: a disk of particles inside a rim.",
     "soft_cloth_tube3d": "The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped around a segment.",
+    "soft_collision2d": "A mesh the node's `softbody2d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.",
+    "soft_collision3d": "A mesh the node's `softbody3d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.",
     "soft_custom2d": "The particles and elements of a custom `softbody2d`, as the author lists them.",
     "soft_custom3d": "The particles and elements of a custom `softbody3d`, as the author lists them.",
     "soft_grid2d": "The size and the cells of a `softbody2d` laid out as a grid: a sheet of particles.",
@@ -7801,6 +7803,16 @@
       "axis",
       "cells"
     ],
+    "soft_collision2d": [
+      "collision_mesh",
+      "collision_binding",
+      "collision_self_contacts"
+    ],
+    "soft_collision3d": [
+      "collision_mesh",
+      "collision_binding",
+      "collision_self_contacts"
+    ],
     "soft_custom2d": [
       "points",
       "cell_indices",
@@ -7877,10 +7889,6 @@
       "particle_radius",
       "orientation",
       "skin_collision",
-      "collision_mesh",
-      "collision_binding",
-      "collision_binding_distance",
-      "collision_self_contacts",
       "collision_layer",
       "collision_mask",
       "solver_layer",
@@ -7921,10 +7929,6 @@
       "particle_radius",
       "orientation",
       "skin_collision",
-      "collision_mesh",
-      "collision_binding",
-      "collision_binding_distance",
-      "collision_self_contacts",
       "collision_layer",
       "collision_mask",
       "solver_layer",
@@ -8561,6 +8565,14 @@
       "physics"
     ],
     "soft_cloth_tube3d": [
+      "3d",
+      "physics"
+    ],
+    "soft_collision2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_collision3d": [
       "3d",
       "physics"
     ],
@@ -14702,6 +14714,96 @@
         "type": "float"
       }
     },
+    "soft_collision2d": {
+      "collision_binding": {
+        "default": {
+          "distance": 0.01,
+          "kind": "nearest"
+        },
+        "description": "How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh",
+        "type": "variant",
+        "variants": {
+          "cells": {
+            "description": "Each vertex riding the cell that holds it",
+            "fields": {},
+            "type": "record"
+          },
+          "nearest": {
+            "description": "Each vertex on the nearest particle within its distance",
+            "fields": {
+              "distance": {
+                "default": 0.01,
+                "description": "How far a vertex may sit from the particle it binds to",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "particles": {
+            "description": "Vertex i on particle i",
+            "fields": {},
+            "type": "record"
+          }
+        }
+      },
+      "collision_mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "The mesh, in the node's space",
+        "type": "asset"
+      },
+      "collision_self_contacts": {
+        "default": false,
+        "description": "Let the mesh collide with itself",
+        "type": "bool"
+      }
+    },
+    "soft_collision3d": {
+      "collision_binding": {
+        "default": {
+          "distance": 0.01,
+          "kind": "nearest"
+        },
+        "description": "How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh",
+        "type": "variant",
+        "variants": {
+          "cells": {
+            "description": "Each vertex riding the cell that holds it",
+            "fields": {},
+            "type": "record"
+          },
+          "nearest": {
+            "description": "Each vertex on the nearest particle within its distance",
+            "fields": {
+              "distance": {
+                "default": 0.01,
+                "description": "How far a vertex may sit from the particle it binds to",
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "particles": {
+            "description": "Vertex i on particle i",
+            "fields": {},
+            "type": "record"
+          }
+        }
+      },
+      "collision_mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "The mesh, in the node's space",
+        "type": "asset"
+      },
+      "collision_self_contacts": {
+        "default": false,
+        "description": "Let the mesh collide with itself",
+        "type": "bool"
+      }
+    },
     "soft_custom2d": {
       "bend_edge_indices": {
         "default": [],
@@ -15054,24 +15156,6 @@
         "group": "collision",
         "type": "bool"
       },
-      "collision_binding": {
-        "default": "nearest",
-        "description": "How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh",
-        "group": "collision",
-        "options": [
-          "nearest",
-          "particles",
-          "cells"
-        ],
-        "type": "enum"
-      },
-      "collision_binding_distance": {
-        "default": 0.01,
-        "description": "How far a collision-mesh vertex may sit from the particle `nearest` binds it to",
-        "group": "collision",
-        "min": 0.0,
-        "type": "float"
-      },
       "collision_layer": {
         "default": [
           "1"
@@ -15153,19 +15237,6 @@
           "32"
         ],
         "type": "flags"
-      },
-      "collision_mesh": {
-        "asset": "mesh",
-        "default": "",
-        "description": "A mesh, in the node's space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D",
-        "group": "collision",
-        "type": "asset"
-      },
-      "collision_self_contacts": {
-        "default": false,
-        "description": "Let the collision mesh collide with itself",
-        "group": "collision",
-        "type": "bool"
       },
       "color": {
         "default": [
@@ -15646,24 +15717,6 @@
         "group": "collision",
         "type": "bool"
       },
-      "collision_binding": {
-        "default": "nearest",
-        "description": "How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh",
-        "group": "collision",
-        "options": [
-          "nearest",
-          "particles",
-          "cells"
-        ],
-        "type": "enum"
-      },
-      "collision_binding_distance": {
-        "default": 0.01,
-        "description": "How far a collision-mesh vertex may sit from the particle `nearest` binds it to",
-        "group": "collision",
-        "min": 0.0,
-        "type": "float"
-      },
       "collision_layer": {
         "default": [
           "1"
@@ -15745,19 +15798,6 @@
           "32"
         ],
         "type": "flags"
-      },
-      "collision_mesh": {
-        "asset": "mesh",
-        "default": "",
-        "description": "A mesh, in the node's space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D",
-        "group": "collision",
-        "type": "asset"
-      },
-      "collision_self_contacts": {
-        "default": false,
-        "description": "Let the collision mesh collide with itself",
-        "group": "collision",
-        "type": "bool"
       },
       "color": {
         "default": [

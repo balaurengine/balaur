@@ -297,6 +297,11 @@ fn check_variants(variants: &toml::Value) -> Result<(), String> {
                 "variant '{name}' has a field named `{KIND}`, which names the variant"
             ));
         }
+        // A kind with nothing more to say holds no fields, which a record
+        // on its own may not.
+        if fields.is_some_and(toml::map::Map::is_empty) {
+            continue;
+        }
         check_spec(record, false).map_err(|why| format!("variant '{name}': {why}"))?;
     }
     Ok(())

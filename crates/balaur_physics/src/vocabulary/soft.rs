@@ -68,7 +68,6 @@ pub(crate) mod keys {
     pub(crate) const COLLIDES: &str = "collides";
     pub(crate) const COLLISION_MESH: &str = "collision_mesh";
     pub(crate) const COLLISION_BINDING: &str = "collision_binding";
-    pub(crate) const COLLISION_BINDING_DISTANCE: &str = "collision_binding_distance";
     pub(crate) const COLLISION_SELF_CONTACTS: &str = "collision_self_contacts";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const CROSSING_REPULSION: &str = "crossing_repulsion";

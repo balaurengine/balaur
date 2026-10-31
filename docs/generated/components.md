@@ -761,6 +761,21 @@ The size of a `softbody2d` laid out as a circle: a disk of particles inside a ri
 </tbody>
 </table>
 
+### `soft_collision2d`
+
+`2d` · `physics` · 3 properties
+
+A mesh the node's `softbody2d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh, in the node&#x27;s space</td></tr>
+<tr><td><code>collision_binding</code></td><td>variant</td><td><code>{&quot;distance&quot;: 0.01, &quot;kind&quot;: &quot;nearest&quot;}</code></td><td>How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh <code>kind</code> is one of: <code>cells</code> (); <code>nearest</code> (distance); <code>particles</code> ().</td></tr>
+<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the mesh collide with itself</td></tr>
+</tbody>
+</table>
+
 ### `soft_custom2d`
 
 `2d` · `physics` · 5 properties
@@ -849,7 +864,7 @@ How a volumetric `softbody2d` fills its mesh's outline with triangles.
 
 ### `softbody2d`
 
-`2d` · `physics` · `render` · 42 properties · 45 methods
+`2d` · `physics` · `render` · 38 properties · 45 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -876,10 +891,6 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
-<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>A mesh, in the node&#x27;s space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D</td></tr>
-<tr><td><code>collision_binding</code></td><td>enum</td><td><code>nearest</code></td><td>How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh One of <code>nearest</code>, <code>particles</code>, <code>cells</code>.</td></tr>
-<tr><td><code>collision_binding_distance</code></td><td>float</td><td><code>0.01</code></td><td>How far a collision-mesh vertex may sit from the particle `nearest` binds it to At least 0.0.</td></tr>
-<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the collision mesh collide with itself</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
@@ -1896,6 +1907,21 @@ The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped 
 </tbody>
 </table>
 
+### `soft_collision3d`
+
+`3d` · `physics` · 3 properties
+
+A mesh the node's `softbody3d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh, in the node&#x27;s space</td></tr>
+<tr><td><code>collision_binding</code></td><td>variant</td><td><code>{&quot;distance&quot;: 0.01, &quot;kind&quot;: &quot;nearest&quot;}</code></td><td>How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh <code>kind</code> is one of: <code>cells</code> (); <code>nearest</code> (distance); <code>particles</code> ().</td></tr>
+<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the mesh collide with itself</td></tr>
+</tbody>
+</table>
+
 ### `soft_custom3d`
 
 `3d` · `physics` · 7 properties
@@ -1977,7 +2003,7 @@ How a volumetric `softbody3d` fills its mesh with tetrahedra.
 
 ### `softbody3d`
 
-`3d` · `physics` · `render` · 42 properties · 47 methods
+`3d` · `physics` · `render` · 38 properties · 47 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -2004,10 +2030,6 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
-<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>A mesh, in the node&#x27;s space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D</td></tr>
-<tr><td><code>collision_binding</code></td><td>enum</td><td><code>nearest</code></td><td>How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh One of <code>nearest</code>, <code>particles</code>, <code>cells</code>.</td></tr>
-<tr><td><code>collision_binding_distance</code></td><td>float</td><td><code>0.01</code></td><td>How far a collision-mesh vertex may sit from the particle `nearest` binds it to At least 0.0.</td></tr>
-<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the collision mesh collide with itself</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>

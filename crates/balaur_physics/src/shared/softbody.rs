@@ -681,12 +681,17 @@ macro_rules! collision_mesh {
             let mut collider = surface_collider(params, &materials.surface);
             collider.shape = $shape(vertices, indices)?;
             let collider = collider.position(frame.inverse());
-            let binding = match v::text(params, k::COLLISION_BINDING, w::NEAREST) {
+            // The binding is a variant: its kind, and the distance `nearest` reads.
+            let binding_row = params
+                .get(k::COLLISION_BINDING)
+                .cloned()
+                .unwrap_or_else(|| toml::Value::Table(toml::map::Map::new()));
+            let binding = match v::text(&binding_row, k::KIND, w::NEAREST) {
                 w::BIND_PARTICLES => SoftMeshBinding::direct((0..count).collect()),
                 w::BIND_CELLS => SoftMeshBinding::skinned(),
                 _ => SoftMeshBinding::direct_by_position(crate::scalar::real(v::f(
-                    params,
-                    k::COLLISION_BINDING_DISTANCE,
+                    &binding_row,
+                    k::DISTANCE,
                     0.01,
                 ))),
             }

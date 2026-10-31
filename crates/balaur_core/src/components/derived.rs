@@ -132,6 +132,24 @@ pub fn variant_record<F: Fields>(doc: &str) -> toml::Value {
     toml::Value::Table(spec)
 }
 
+/// A variant that holds nothing but its name: a record with no fields.
+pub fn variant_unit(doc: &str) -> toml::Value {
+    let mut spec = toml::map::Map::new();
+    spec.insert("type".into(), toml::Value::String("record".into()));
+    spec.insert("fields".into(), toml::Value::Table(toml::map::Map::new()));
+    if !doc.is_empty() {
+        spec.insert("description".into(), toml::Value::String(doc.to_owned()));
+    }
+    toml::Value::Table(spec)
+}
+
+/// A variant's value that holds nothing but its `kind`.
+pub fn variant_name(kind: &str) -> toml::Value {
+    let mut table = toml::map::Map::new();
+    table.insert(super::KIND.into(), toml::Value::String(kind.to_owned()));
+    toml::Value::Table(table)
+}
+
 /// A variant's value: its fields as a table, and the `kind` naming it.
 pub fn variant_value<F: Fields>(kind: &str, held: &F) -> toml::Value {
     let mut table = to_table(held);

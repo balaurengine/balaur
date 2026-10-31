@@ -20,7 +20,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::PhysicsState2d;
 use crate::properties::{
-    ColliderEvent, CollisionBinding, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices,
+    Binding, ColliderEvent, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices,
     Orientation, ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier2d::prelude::{
@@ -103,18 +103,6 @@ pub struct Softbody2d {
     /// Meet the world through the skin rather than the cells' boundary
     #[property(group = "collision")]
     pub skin_collision: bool,
-    /// A mesh, in the node's space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D
-    #[property(asset = "mesh", group = "collision")]
-    pub collision_mesh: String,
-    /// How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh
-    #[property(default = CollisionBinding::Nearest, group = "collision")]
-    pub collision_binding: CollisionBinding,
-    /// How far a collision-mesh vertex may sit from the particle `nearest` binds it to
-    #[property(default = 0.01, group = "collision", min = 0.0)]
-    pub collision_binding_distance: f32,
-    /// Let the collision mesh collide with itself
-    #[property(group = "collision")]
-    pub collision_self_contacts: bool,
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -169,6 +157,27 @@ pub struct Softbody2d {
     /// Which body wins a contact: a higher one is never pushed by a lower one
     #[property(group = "solver", max = 127, min = -127)]
     pub dominance: i64,
+}
+
+/// A mesh the node's `softbody2d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.
+#[derive(Clone, Component)]
+#[component(name = "soft_collision2d")]
+pub struct SoftCollision2d {
+    /// The mesh, in the node's space
+    #[property(asset = "mesh")]
+    pub collision_mesh: String,
+    /// How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh
+    pub collision_binding: Binding,
+    /// Let the mesh collide with itself
+    pub collision_self_contacts: bool,
+}
+
+impl Beside for SoftCollision2d {
+    type Main = Softbody2d;
+
+    fn reads(_: &Softbody2d) -> bool {
+        true
+    }
 }
 
 /// The size and the cells of a `softbody2d` laid out as a grid: a sheet of particles.
@@ -322,6 +331,7 @@ pub(crate) const PARAMS: &[&str] = &[
     <SoftPolyline2d as Component>::NAME,
     <SoftVolumetric2d as Component>::NAME,
     <SoftCustom2d as Component>::NAME,
+    <SoftCollision2d as Component>::NAME,
 ];
 
 /// `held`'s table with the rows of the components beside it on `entity`
@@ -335,6 +345,7 @@ fn params_of(world: &balaur_core::hecs::World, entity: Entity, held: &Softbody2d
     beside::write_in::<SoftPolyline2d>(world, entity, held, &mut params);
     beside::write_in::<SoftVolumetric2d>(world, entity, held, &mut params);
     beside::write_in::<SoftCustom2d>(world, entity, held, &mut params);
+    beside::write_in::<SoftCollision2d>(world, entity, held, &mut params);
     params
 }
 
@@ -966,6 +977,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
     beside::register::<SoftPolyline2d>(reg, main, tags, after_write);
     beside::register::<SoftVolumetric2d>(reg, main, tags, after_write);
     beside::register::<SoftCustom2d>(reg, main, tags, after_write);
+    beside::register::<SoftCollision2d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Softbody2d::NAME,

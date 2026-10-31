@@ -23,7 +23,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::PhysicsState3d;
 use crate::properties::{
-    ColliderEvent, CollisionBinding, ContactPair, EdgeSpring, EdgeTearResistance, Fill, Indices,
+    Binding, ColliderEvent, ContactPair, EdgeSpring, EdgeTearResistance, Fill, Indices,
     Orientation, ParticlePair, SoftKind3d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier3d::prelude::{SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
@@ -104,18 +104,6 @@ pub struct Softbody3d {
     /// Meet the world through the skin rather than the cells' boundary
     #[property(group = "collision")]
     pub skin_collision: bool,
-    /// A mesh, in the node's space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D
-    #[property(asset = "mesh", group = "collision")]
-    pub collision_mesh: String,
-    /// How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh
-    #[property(default = CollisionBinding::Nearest, group = "collision")]
-    pub collision_binding: CollisionBinding,
-    /// How far a collision-mesh vertex may sit from the particle `nearest` binds it to
-    #[property(default = 0.01, group = "collision", min = 0.0)]
-    pub collision_binding_distance: f32,
-    /// Let the collision mesh collide with itself
-    #[property(group = "collision")]
-    pub collision_self_contacts: bool,
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -170,6 +158,27 @@ pub struct Softbody3d {
     /// Which body wins a contact: a higher one is never pushed by a lower one
     #[property(group = "solver", max = 127, min = -127)]
     pub dominance: i64,
+}
+
+/// A mesh the node's `softbody3d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.
+#[derive(Clone, Component)]
+#[component(name = "soft_collision3d")]
+pub struct SoftCollision3d {
+    /// The mesh, in the node's space
+    #[property(asset = "mesh")]
+    pub collision_mesh: String,
+    /// How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh
+    pub collision_binding: Binding,
+    /// Let the mesh collide with itself
+    pub collision_self_contacts: bool,
+}
+
+impl Beside for SoftCollision3d {
+    type Main = Softbody3d;
+
+    fn reads(_: &Softbody3d) -> bool {
+        true
+    }
 }
 
 /// The size and the cells of a `softbody3d` laid out as a box or a cloth: a block of particles, or a sheet of them.
@@ -328,6 +337,7 @@ pub(crate) const PARAMS: &[&str] = &[
     <SoftRope3d as Component>::NAME,
     <SoftVolumetric3d as Component>::NAME,
     <SoftCustom3d as Component>::NAME,
+    <SoftCollision3d as Component>::NAME,
 ];
 
 /// `held`'s table with the rows of the components beside it on `entity`
@@ -340,6 +350,7 @@ fn params_of(world: &balaur_core::hecs::World, entity: Entity, held: &Softbody3d
     beside::write_in::<SoftRope3d>(world, entity, held, &mut params);
     beside::write_in::<SoftVolumetric3d>(world, entity, held, &mut params);
     beside::write_in::<SoftCustom3d>(world, entity, held, &mut params);
+    beside::write_in::<SoftCollision3d>(world, entity, held, &mut params);
     params
 }
 
@@ -962,6 +973,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
     beside::register::<SoftRope3d>(reg, main, tags, after_write);
     beside::register::<SoftVolumetric3d>(reg, main, tags, after_write);
     beside::register::<SoftCustom3d>(reg, main, tags, after_write);
+    beside::register::<SoftCollision3d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Softbody3d::NAME,

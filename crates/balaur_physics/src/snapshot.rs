@@ -364,6 +364,7 @@ const CARRIED: &[crate::shared::beside::Carried] = &[
     crate::shared::beside::carried::<softbody::SoftRope3d>(),
     crate::shared::beside::carried::<softbody::SoftVolumetric3d>(),
     crate::shared::beside::carried::<softbody::SoftCustom3d>(),
+    crate::shared::beside::carried::<softbody::SoftCollision3d>(),
     crate::shared::beside::carried::<joint::RopeJoint3d>(),
     crate::shared::beside::carried::<joint::SpringJoint3d>(),
     crate::shared::beside::carried::<joint::GenericJoint3d>(),
