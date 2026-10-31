@@ -40,6 +40,7 @@ mod rollback;
 mod scene;
 mod scene_ids;
 mod scene_toml;
+mod schedules;
 mod settings;
 mod snapshot;
 mod standalone;

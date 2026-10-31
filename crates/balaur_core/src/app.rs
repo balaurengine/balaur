@@ -43,6 +43,18 @@ pub enum Stage {
 
 const STAGE_COUNT: usize = 8;
 
+/// Each stage's name, for what a stage that cannot be ordered says.
+const STAGE_NAMES: [&str; STAGE_COUNT] = [
+    "First",
+    "PreUpdate",
+    "Update",
+    "FixedUpdate",
+    "PostUpdate",
+    "SceneSync",
+    "Render",
+    "Last",
+];
+
 /// The simulation's tick rate. One declaration, because two independently
 /// written 60ths of a second are equal today and a desync the day one moves.
 pub const DEFAULT_TICK_HZ: u32 = 60;
@@ -238,7 +250,7 @@ pub struct FrameDriver(pub Option<DriveFn>);
 
 pub struct App {
     pub engine: Engine,
-    systems: Vec<Vec<SystemFn>>,
+    systems: Vec<crate::schedule::Schedule>,
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
@@ -403,7 +415,9 @@ impl App {
         }
         let mut app = Self {
             engine,
-            systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
+            systems: (0..STAGE_COUNT)
+                .map(|_| crate::schedule::Schedule::default())
+                .collect(),
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
@@ -646,13 +660,55 @@ impl App {
         self
     }
 
-    pub fn add_system(
+    /// A system in `stage`, after every one added before it that nothing
+    /// orders it against; named by its function, so another can order itself
+    /// by that name.
+    pub fn add_system<F: FnMut(&Engine, f32) + 'static>(
         &mut self,
         stage: Stage,
-        system: impl FnMut(&Engine, f32) + 'static,
+        system: F,
     ) -> &mut Self {
-        self.systems[stage as usize].push(Box::new(system));
+        let name = std::any::type_name::<F>().to_owned();
+        self.systems[stage as usize].add(crate::schedule::System::boxed(name, Box::new(system)));
         self
+    }
+
+    /// A system in `stage` with a name, sets, an order and conditions.
+    pub fn add_scheduled(&mut self, stage: Stage, system: crate::schedule::System) -> &mut Self {
+        self.systems[stage as usize].add(system);
+        self
+    }
+
+    /// Give set `name` in `stage` an order and conditions, added to what it
+    /// had.
+    pub fn configure_set(
+        &mut self,
+        stage: Stage,
+        name: &str,
+        set: crate::schedule::Set,
+    ) -> &mut Self {
+        self.systems[stage as usize].configure_set(name, set);
+        self
+    }
+
+    /// Sort every stage now, answering the first that cannot be ordered: a
+    /// check before running, where a frame would panic.
+    ///
+    /// # Errors
+    /// The stage and the systems of its cycle.
+    pub fn check_schedules(&mut self) -> Result<()> {
+        for (stage, schedule) in self.systems.iter_mut().enumerate() {
+            schedule.order().map_err(|why| {
+                anyhow::anyhow!("the {} stage cannot be ordered: {why}", STAGE_NAMES[stage])
+            })?;
+        }
+        Ok(())
+    }
+
+    /// How many systems `stage` runs.
+    #[must_use]
+    pub fn system_count(&self, stage: Stage) -> usize {
+        self.systems[stage as usize].len()
     }
 
     /// The binding group a plugin registers into, creating it if needed.
@@ -1038,11 +1094,7 @@ impl App {
             if stage == Stage::FixedUpdate as usize {
                 fixed_steps = self.run_fixed_steps(dt);
             } else {
-                for system in &mut self.systems[stage] {
-                    self.engine.advance_change_tick();
-                    system(&self.engine, dt);
-                    self.engine.advance_change_tick();
-                }
+                self.systems[stage].run(STAGE_NAMES[stage], &self.engine, dt);
                 self.engine.apply_deferred();
             }
             *elapsed = started.elapsed();
@@ -1076,11 +1128,8 @@ impl App {
         let budget = step * max_substeps() as f32 * self.engine.time_scale().max(1.0);
         self.accumulator = (self.accumulator + dt).min(budget);
         while self.accumulator >= step {
-            for system in &mut self.systems[Stage::FixedUpdate as usize] {
-                self.engine.advance_change_tick();
-                system(&self.engine, step);
-                self.engine.advance_change_tick();
-            }
+            let fixed = Stage::FixedUpdate as usize;
+            self.systems[fixed].run(STAGE_NAMES[fixed], &self.engine, step);
             self.engine.apply_deferred();
             // After the step, so the pair kept is the pose this step left and
             // the one before it: what a frame between the two blends.

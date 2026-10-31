@@ -20,7 +20,10 @@
 > tree's `Parent` and `Children` on it. Step 9 built 2026-10-31:
 > `#[component(requires = [..])]`, `ComponentDef::requires`,
 > `scene.component_requires`; bodies, bones and characters require
-> `transform`, and `transform::ensure` is gone. Steps 9 to 11 of
+> `transform`, and `transform::ensure` is gone. Step 10 built 2026-10-31:
+> `schedule::System` (`in_set`, `before`, `after`, `run_if`), `Set`,
+> `App::add_scheduled`, `configure_set`, `check_schedules`; a plain
+> `add_system` is named by its function's path. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -127,7 +130,14 @@ something else in this engine.
 - **Schedules.** Sets, `before`, `after` and run conditions on a system,
   sorted once when the app builds; a cycle is an error naming its systems.
   Systems with no order between them run in registration order. The eight
-  stages stay the frame's spine.
+  stages stay the frame's spine. A stage sorts the first time it runs after
+  a system was added (`App::check_schedules` sorts every stage up front and
+  answers the cycle instead of panicking), taking the earliest-added system
+  free to run each time. A label naming no system or set orders nothing and
+  is logged, so a plugin may order itself against an optional one. A set's
+  conditions are asked once a stage run. A plain `add_system` is named by its
+  function's path (`std::any::type_name`), so a `fn` item is a label as it
+  stands.
 - **App modes** *(name)*. Bevy's `States`: a value with enter and exit
   schedules, sub-modes that exist while a parent mode holds a value, and
   computed modes. In the digest and the snapshot.
@@ -170,7 +180,7 @@ something else in this engine.
    in the same order, so no recording moves; a test proves it. *Built*; the
    determinism trace matches the one before step 3.
 9. **Required components.** *Built.*
-10. **Schedules**: sets, order, run conditions, cycle errors.
+10. **Schedules**: sets, order, run conditions, cycle errors. *Built.*
 11. **App modes.**
 12. **Typed systems**, and the systems that read better with them moved over.
 13. **Parallel work inside a system**, for what measures as hot: the render

@@ -63,6 +63,7 @@ pub mod scene;
 pub mod scene_api;
 pub mod scene_switch;
 pub mod scene_toml;
+pub mod schedule;
 pub mod settings;
 pub mod settings_api;
 pub mod snapshot;
