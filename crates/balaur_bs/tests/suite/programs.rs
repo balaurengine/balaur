@@ -22,9 +22,9 @@ fn every_program_answers_as_written_on_every_engine() {
         "no programs under {}",
         root.display()
     );
-    for p in &mut programs {
-        build(p, bless, &mut failures);
-    }
+    failures.extend(on_every_core(&mut programs, |p, failures| {
+        build(p, bless, failures);
+    }));
     #[cfg(all(feature = "c", feature = "native"))]
     {
         let built: Vec<&Compiled> = programs
@@ -36,9 +36,9 @@ fn every_program_answers_as_written_on_every_engine() {
         }
     }
     let engines = engines();
-    for p in &mut programs {
-        run(p, &engines, bless, &mut failures);
-    }
+    failures.extend(on_every_core(&mut programs, |p, failures| {
+        run(p, &engines, bless, failures);
+    }));
     if bless {
         for p in &programs {
             let written = rewrite(&p.src, &p.expected);
@@ -128,4 +128,33 @@ mod native {
             Err(format!("loaded {loaded} of {} modules", programs.len()))
         }
     }
+}
+
+/// `each` over the programs, a share of them on every core, and the failures
+/// in the order the programs came in.
+fn on_every_core(
+    programs: &mut [Program],
+    each: impl Fn(&mut Program, &mut Vec<String>) + Sync,
+) -> Vec<String> {
+    let workers = std::thread::available_parallelism().map_or(1, usize::from);
+    let share = programs.len().div_ceil(workers).max(1);
+    std::thread::scope(|scope| {
+        let each = &each;
+        let started: Vec<_> = programs
+            .chunks_mut(share)
+            .map(|part| {
+                scope.spawn(move || {
+                    let mut failures = Vec::new();
+                    for p in part {
+                        each(p, &mut failures);
+                    }
+                    failures
+                })
+            })
+            .collect();
+        started
+            .into_iter()
+            .flat_map(|one| one.join().expect("a program's run panicked"))
+            .collect()
+    })
 }

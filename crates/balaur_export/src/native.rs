@@ -677,18 +677,25 @@ mod tests {
         };
         let out = tempfile::tempdir().unwrap();
         let magic = |path: &Path| std::fs::read(path).unwrap()[..4].to_vec();
-        for (target, start) in [
-            ("linux-x64", b"\x7fELF".to_vec()),
-            ("linux-arm64-server", b"\x7fELF".to_vec()),
-            ("windows-x64", b"MZ".to_vec()),
-            ("windows-arm64", b"MZ".to_vec()),
-            ("macos-universal", vec![0xca, 0xfe, 0xba, 0xbe]),
-        ] {
-            let exe = out.path().join(target).join("game");
-            std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
-            let lib = build_desktop(&exe, target, &request).unwrap().unwrap();
-            assert_eq!(magic(&lib)[..start.len()], start, "{target}");
-        }
+        // Side by side: each is a clang and a link of its own, and one after
+        // another they were the longest test in the workspace.
+        std::thread::scope(|scope| {
+            for (target, start) in [
+                ("linux-x64", b"\x7fELF".to_vec()),
+                ("linux-arm64-server", b"\x7fELF".to_vec()),
+                ("windows-x64", b"MZ".to_vec()),
+                ("windows-arm64", b"MZ".to_vec()),
+                ("macos-universal", vec![0xca, 0xfe, 0xba, 0xbe]),
+            ] {
+                let (out, request, magic) = (&out, &request, &magic);
+                scope.spawn(move || {
+                    let exe = out.path().join(target).join("game");
+                    std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+                    let lib = build_desktop(&exe, target, request).unwrap().unwrap();
+                    assert_eq!(magic(&lib)[..start.len()], start, "{target}");
+                });
+            }
+        });
         assert_eq!(
             build_desktop(&out.path().join("game"), "web", &request).unwrap(),
             None

@@ -116,10 +116,15 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 # is ready or its queue wakes it. Already built through tokio.
 mio = { version = "1", default-features = false, features = ["os-poll", "net"] }
 
-# Fast script iteration is the whole point; keep debug builds usable. Line
-# tables only, and opt 0 except where an editor frame runs, below.
+# No debug info: on macOS any sends each link through dsymutil, 20 s of CPU a
+# test binary. A panic still names its line; `--profile debugging` keeps all.
 [profile.dev]
-debug = "line-tables-only"
+debug = false
+
+# A dev build a debugger can step through: full debug info, a dSYM on macOS.
+[profile.debugging]
+inherits = "dev"
+debug = true
 
 # The crates an editor frame runs through. The script runtime and the hecs,
 # glam and egui generics instantiate here: at 0 a 2000-node frame ran 2.6x the

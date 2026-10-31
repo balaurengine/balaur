@@ -515,7 +515,7 @@ fn picture(project: &Path, path: &str) -> Result<RgbaImage> {
     Ok(if image.width() == SIDE {
         image
     } else {
-        image::imageops::resize(&image, SIDE, SIDE, FilterType::Lanczos3)
+        resized(&image, SIDE)
     })
 }
 
@@ -525,7 +525,7 @@ fn png(picture: &RgbaImage, size: u32) -> Vec<u8> {
     let at = if picture.width() == size {
         picture
     } else {
-        scaled = image::imageops::resize(picture, size, size, FilterType::Lanczos3);
+        scaled = resized(picture, size);
         &scaled
     };
     encode(at)
@@ -534,11 +534,21 @@ fn png(picture: &RgbaImage, size: u32) -> Vec<u8> {
 /// The picture inset to an adaptive layer's safe zone, on transparency.
 fn inset_png(picture: &RgbaImage, size: u32) -> Vec<u8> {
     let inner = (size as f32 * SAFE_ZONE).round() as u32;
-    let scaled = image::imageops::resize(picture, inner, inner, FilterType::Lanczos3);
+    let scaled = resized(picture, inner);
     let mut canvas = RgbaImage::new(size, size);
     let at = i64::from((size - inner) / 2);
     image::imageops::overlay(&mut canvas, &scaled, at, at);
     encode(&canvas)
+}
+
+/// `picture` at `side` by `side`, through `DynamicImage`, whose methods the
+/// image crate compiles itself at its own optimisation: the generic
+/// `imageops::resize` instantiated here ran at opt 0 in a dev build, seconds a
+/// size, and the same filter gives the same pixels either way.
+fn resized(picture: &RgbaImage, side: u32) -> RgbaImage {
+    image::DynamicImage::ImageRgba8(picture.clone())
+        .resize_exact(side, side, FilterType::Lanczos3)
+        .into_rgba8()
 }
 
 fn encode(picture: &RgbaImage) -> Vec<u8> {

@@ -231,7 +231,11 @@ fn picture(source: &[u8], side: u32) -> Option<image::RgbaImage> {
     Some(if image.width() == side && image.height() == side {
         image
     } else {
-        image::imageops::resize(&image, side, side, image::imageops::FilterType::CatmullRom)
+        // Through `DynamicImage`, which the image crate compiles at its own
+        // optimisation; the generic instantiated here would be this crate's.
+        image::DynamicImage::ImageRgba8(image)
+            .resize_exact(side, side, image::imageops::FilterType::CatmullRom)
+            .into_rgba8()
     })
 }
 

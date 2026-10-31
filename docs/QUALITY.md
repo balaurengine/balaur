@@ -169,6 +169,14 @@ three desktop platforms. Beyond `cargo test --workspace`:
   to a local Gamend on port 4000 (`GAMEND_URL` overrides): CI starts one with
   Gamend's `setup-gamend` action, and locally `gamend daemon` serves one.
 
+What keeps a run short: a dev build carries no debug info, so no link goes
+through `dsymutil` (`--profile debugging` for a debugger); a long test does
+its work on every core (the corpus, the export of every target) and nextest
+starts it first (`.config/nextest.toml`); and a generic from a dependency
+that does heavy work is called through a concrete type the dependency
+compiles itself (`image`'s `DynamicImage`), at opt 3, not instantiated in a
+crate built at opt 0.
+
 ## End to end, over every example
 
 `scripts/e2e.sh` runs each of the fifteen examples these ways. CI does not
