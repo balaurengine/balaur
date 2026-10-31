@@ -1063,6 +1063,33 @@ position moves the most between runs:
 | the Inspector writes `transform.position` | 3.9 M | 1.8 to 2.4 M |
 | the engine writes `text2d.text`, the Inspector's rows following | 4.6 M | 2.8 to 3.0 M |
 
+**In a browser, 2026-10-31.** The editor's web module (`package_runtime.sh
+web`, `VARIANT=editor`) in headless Chrome on an M1, `?state=` driving the
+same bench, `Performance.getMetrics`' main-thread task time over 600 frames:
+
+| one edit a frame | main thread a frame | of it, wasm and script |
+| --- | ---: | ---: |
+| nothing, the editor idle | 0.43 ms | 0.18 ms |
+| the Inspector writes `text2d.text` | 5.00 ms | 4.71 ms |
+| the Inspector writes `text2d.color` | 5.02 ms | 4.75 ms |
+| the Inspector writes `transform.position` | 4.76 ms | 4.50 ms |
+| the engine writes `text2d.text` | 4.74 ms | 4.48 ms |
+
+The engine's own write costs what the Inspector's does, so it is the frame
+any visible change costs, not the edit: natively the egui pass and the render
+are 28 % each and the editor's scripts 24 %. A quarter of the browser's time
+is calls out of the module into JavaScript: WebGPU's `writeBuffer` and
+`createBuffer` each frame, and the calls into each `.bs` module, which is a
+wasm instance of its own reached through JS. An edit makes about 47 calls
+from a script into the engine, so the crossings are the calls' marshalling,
+not their count. The module ships without a name section, so the profile
+names no function; a build with `debug = "line-tables-only"` would.
+
+A tab reloaded twice failed the third boot with "Cannot allocate Wasm memory
+for new instance": every `.bs` module reserves its own memory, and a tab's
+earlier reservations are not yet freed. One memory imported by every module
+would reserve once.
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind
