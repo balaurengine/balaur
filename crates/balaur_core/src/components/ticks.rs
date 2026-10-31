@@ -137,10 +137,20 @@ pub fn added_since(eng: &Engine, index: usize, since: u64) -> Vec<Entity> {
     matching(eng, index, since, |stamp| stamp.added)
 }
 
-/// The nodes component `index` went onto or changed on after tick `since`.
+/// The nodes component `index` went onto or changed on after tick `since`:
+/// written through the registry, or by a system through a tracked query.
 #[must_use]
 pub fn changed_since(eng: &Engine, index: usize, since: u64) -> Vec<Entity> {
-    matching(eng, index, since, |stamp| stamp.changed)
+    let mut found = matching(eng, index, since, |stamp| stamp.changed);
+    let column = eng
+        .try_resource::<super::ComponentRegistry>()
+        .and_then(|registry| registry.borrow().at(index).and_then(|(_, def)| def.ticks));
+    if let Some(column) = column {
+        found.extend((column.changed_since)(&eng.world(), since));
+        found.sort_unstable_by_key(|node| node.to_bits());
+        found.dedup();
+    }
+    found
 }
 
 /// The nodes component `index` came off after tick `since`, oldest first.
@@ -188,6 +198,72 @@ fn matching(eng: &Engine, index: usize, since: u64, of: impl Fn(&Stamp) -> u64) 
     found
 }
 
+thread_local! {
+    /// The change tick of the system running on this thread: what a tracked
+    /// write stores. Set as the engine steps it, and on a pool thread for the
+    /// batch it runs.
+    static NOW: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Say the change tick now on this thread.
+pub(crate) fn set_now(tick: u64) {
+    NOW.with(|now| now.set(tick));
+}
+
+/// The change tick of the system running on this thread.
+#[must_use]
+pub fn now_here() -> u64 {
+    NOW.with(std::cell::Cell::get)
+}
+
+/// A derived component's change tick, in a column beside it: what a write
+/// through a tracked query stores, as bevy keeps a tick beside each
+/// component.
+pub struct Ticked<T> {
+    pub changed: u64,
+    marker: std::marker::PhantomData<fn() -> T>,
+}
+
+impl<T> Ticked<T> {
+    #[must_use]
+    pub fn at(changed: u64) -> Self {
+        Self {
+            changed,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+/// What a derived component's definition does with its tick column, which
+/// its `apply` puts on with the component.
+#[derive(Clone, Copy)]
+pub struct TickColumn {
+    /// Take it off a node the component came off.
+    pub detach: fn(&Engine, Entity),
+    /// The nodes whose column says written after a tick.
+    pub changed_since: fn(&hecs::World, u64) -> Vec<Entity>,
+}
+
+impl TickColumn {
+    /// The column for component `C`.
+    #[must_use]
+    pub fn of<C: 'static>() -> Self {
+        Self {
+            detach: |eng, node| {
+                let _ = eng.remove_one::<Ticked<C>>(node);
+            },
+            changed_since: |world, since| {
+                world
+                    .query::<(Entity, &Ticked<C>)>()
+                    .iter()
+                    .filter(|(_, ticked)| ticked.changed > since)
+                    .map(|(node, _)| node)
+                    .collect()
+            },
+        }
+    }
+}
+
 /// A write a system made through a tracked query: the component's Rust type
 /// and the node.
 type Written = (std::any::TypeId, Entity);
@@ -199,6 +275,10 @@ thread_local! {
 
 /// What the pool's threads handed over, for the drain on the engine's thread.
 static HANDED: std::sync::Mutex<Vec<Written>> = std::sync::Mutex::new(Vec::new());
+
+/// Whether anything waits in [`HANDED`], read without the lock: every
+/// system's end drains, and almost none has anything to stamp.
+static HANDED_ANY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// A tracked query's item was written through: noted on this thread now,
 /// stamped when the system that wrote it ends ([`drain_written`]).
@@ -215,6 +295,7 @@ pub(crate) fn hand_over() {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .extend(mine);
+        HANDED_ANY.store(true, std::sync::atomic::Ordering::Release);
     }
 }
 
@@ -222,12 +303,20 @@ pub(crate) fn hand_over() {
 /// component the registry does not know left alone: what a system's tracked
 /// writes become, at the end of its run.
 pub(crate) fn drain_written(eng: &Engine) {
+    // Read, not taken: the common case is nothing at all.
+    if !HANDED_ANY.load(std::sync::atomic::Ordering::Relaxed)
+        && WRITTEN.with(|written| written.borrow().is_empty())
+    {
+        return;
+    }
     let mut noted = WRITTEN.with(|written| std::mem::take(&mut *written.borrow_mut()));
-    noted.extend(std::mem::take(
-        &mut *HANDED
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner),
-    ));
+    if HANDED_ANY.swap(false, std::sync::atomic::Ordering::Acquire) {
+        noted.extend(std::mem::take(
+            &mut *HANDED
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        ));
+    }
     if noted.is_empty() {
         return;
     }

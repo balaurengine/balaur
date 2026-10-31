@@ -336,6 +336,8 @@ pub struct ComponentDef {
     /// The Rust type a derived component is, so a write a system makes through
     /// a tracked query finds its place here; none for one written by hand.
     pub type_id: Option<std::any::TypeId>,
+    /// A derived component's tick column, which a tracked query writes.
+    pub ticks: Option<ticks::TickColumn>,
 }
 
 impl ComponentDef {
@@ -361,6 +363,7 @@ impl ComponentDef {
             warnings: None,
             lifecycle: Lifecycle::NONE,
             type_id: None,
+            ticks: None,
         }
     }
 }
@@ -868,6 +871,12 @@ fn bring_required(eng: &Engine, entity: Entity, index: usize) -> Result<()> {
     Ok(())
 }
 
+/// The tick column of the component at `index`, if it is derived.
+fn ticks_at(eng: &Engine, index: usize) -> Option<ticks::TickColumn> {
+    eng.try_resource::<ComponentRegistry>()
+        .and_then(|registry| registry.borrow().at(index).and_then(|(_, def)| def.ticks))
+}
+
 /// The lifecycle calls of the component at `index`, none for an unknown one.
 pub(crate) fn lifecycle_at(eng: &Engine, index: usize) -> Lifecycle {
     eng.try_resource::<ComponentRegistry>()
@@ -903,6 +912,9 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
         call(lifecycle.on_remove, eng, entity);
     }
     let index = remove_hook(eng, entity, name)?;
+    if let Some(column) = ticks_at(eng, index) {
+        (column.detach)(eng, entity);
+    }
     mark(eng, entity, index, false);
     crate::changes::removed(eng, entity, index, was);
     crate::warnings::accepted(eng, entity, name);

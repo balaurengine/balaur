@@ -86,13 +86,15 @@ something else in this engine.
   and a freed node's components), not the log from the stamps: the log
   carries which properties moved and what they held, which a stamp cannot
   say. A system's own writes are seen through `Tracked<T>` in a typed query,
-  built 2026-10-31: its item, `Mut<'_, T>`, notes the write on its first
-  `DerefMut`, on the writing thread (a batch on the pool hands its notes
-  over when it ends), and the schedule stamps them all in one pass with the
-  system's change tick when the system ends. They stamp, they do not log:
-  undo and the editor hear the registry's writes. A plain `&mut T` stays
-  free and unseen. A tracked write costs 10 ns, bevy's 0.65: bevy keeps a
-  tick column beside each component, which is the step past this one.
+  built 2026-10-31: a derived component's `apply` puts a `Ticked<T>` column
+  beside it in the same archetype move, as bevy keeps a tick beside each
+  component, and the item, `Mut<'_, T>`, stores the system's change tick
+  there on its first `DerefMut` (a pool thread is handed the tick for its
+  batch). `changed_since` reads the stamps and scans the column. A
+  component put on around the registry has no column: its write is noted
+  on the writing thread and stamped when the system ends. They stamp, they
+  do not log: undo and the editor hear the registry's writes. A plain
+  `&mut T` stays free and unseen.
 - **Lifecycle calls**. Bevy's component hooks: `on_add`, `on_insert`,
   `on_replace`, `on_remove` and `on_despawn`, plain `fn(&Engine, Entity)`,
   declared on the derive (`#[component(on_add = f)]`) or on a hand

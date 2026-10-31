@@ -277,6 +277,7 @@ impl Engine {
     pub fn advance_change_tick(&self) -> u64 {
         let next = self.inner.change_tick.get() + 1;
         self.inner.change_tick.set(next);
+        crate::components::ticks::set_now(next);
         next
     }
 

@@ -563,6 +563,7 @@ impl ComponentDef {
             lifecycle: C::LIFECYCLE,
             requires: C::REQUIRES,
             type_id: Some(std::any::TypeId::of::<C>()),
+            ticks: Some(super::ticks::TickColumn::of::<C>()),
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
                 // What the node held, to put back if the hook refuses: the
@@ -575,9 +576,10 @@ impl ComponentDef {
                     };
                     match replaced {
                         Ok(before) => Some(before),
+                        // With its tick column, in one move to the new archetype.
                         Err(next) => {
                             world
-                                .insert_one(entity, next)
+                                .insert(entity, (next, super::ticks::Ticked::<C>::at(0)))
                                 .map_err(|_| anyhow!("node is dead"))?;
                             None
                         }
@@ -595,13 +597,21 @@ impl ComponentDef {
                             }
                         }
                         None => {
-                            let _ = world.remove_one::<C>(entity);
+                            let _ = world.remove::<(C, super::ticks::Ticked<C>)>(entity);
                         }
                     }
                 })
             }),
             remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<C>(entity);
+                // With its tick column in one move; alone where the node never
+                // had the column, as one put on around the registry.
+                let mut world = eng.world_mut();
+                if world
+                    .remove::<(C, super::ticks::Ticked<C>)>(entity)
+                    .is_err()
+                {
+                    let _ = world.remove_one::<C>(entity);
+                }
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
