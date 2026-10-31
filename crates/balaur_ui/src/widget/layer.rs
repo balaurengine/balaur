@@ -131,6 +131,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         rects: crate::widget::taffy::Rects::default(),
         fresh,
         touched,
+        pushed: false,
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().chain(fired).collect(),
@@ -361,7 +362,7 @@ fn place_root(
         crate::widget::taffy::Room::fixed(align.anchor_size(pos, assigned))
     };
     let probe = root_ui(ctx);
-    let touched = painting.touched.clone();
+    let touched = painting.to_push();
     let mut rects = crate::widget::taffy::solve(
         eng,
         painting.arena,
@@ -406,7 +407,7 @@ fn measured(
     );
     let space =
         crate::widget::taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, bounds));
-    let touched = painting.touched.clone();
+    let touched = painting.to_push();
     let rects = crate::widget::taffy::solve(
         eng,
         painting.arena,
@@ -485,9 +486,12 @@ pub(crate) struct Painting<'a> {
     /// Whether the arena was rebuilt this pass. False means the tree taffy
     /// holds already describes it, so a solve restyles the root and no more.
     pub(crate) fresh: bool,
-    /// The slots re-read this pass, for a solve to push into taffy. Taken by
-    /// the first solve: the tree is shared, so once is enough.
+    /// The slots re-read this pass. The first solve pushes them into taffy,
+    /// whose tree every solve shares, so once is enough; they stay here for
+    /// [`Self::deep`].
     pub(crate) touched: Vec<usize>,
+    /// Whether a solve has pushed `touched` this pass.
+    pub(crate) pushed: bool,
     /// Whether the pointer is over the widget being drawn, and whether it is
     /// held there. Set by the draw and never by the measure: a size that
     /// followed the pointer would move whatever sits beside it.
@@ -513,21 +517,23 @@ impl Painting<'_> {
     }
 
     /// Whether a subtree has to be walked again rather than taken as taffy
-    /// already holds it: because the whole arena was rebuilt, or because one
-    /// of this pass's writes landed inside this subtree. A kind that places
-    /// its own children solves them apart from the root, so it has to ask.
+    /// already holds it: because the whole arena was rebuilt, or because its
+    /// root was written, whose look its children inherit. A write below the
+    /// root was pushed with its own subtree by the pass's first solve. A kind
+    /// that places its own children solves them apart from the root, so it
+    /// has to ask.
     pub(crate) fn deep(&self, root: usize) -> bool {
-        self.fresh
-            || self.touched.iter().any(|&at| {
-                let mut node = Some(at);
-                while let Some(index) = node {
-                    if index == root {
-                        return true;
-                    }
-                    node = self.arena[index].parent;
-                }
-                false
-            })
+        self.fresh || self.touched.contains(&root)
+    }
+
+    /// The slots for a solve to push into taffy: this pass's writes the first
+    /// time, nothing after.
+    fn to_push(&mut self) -> Vec<usize> {
+        if std::mem::replace(&mut self.pushed, true) {
+            Vec::new()
+        } else {
+            self.touched.clone()
+        }
     }
 
     /// The style a widget is drawn with, in the theme in force here.
