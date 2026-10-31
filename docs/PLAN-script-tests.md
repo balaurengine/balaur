@@ -147,7 +147,9 @@ interpreter's answer; `a_disagreement_shrinks_to_the_lines_that_show_it`
 shrinks against an interpreter whose `*` adds, from 30 lines to at most
 10. 18,000 programs agree on wasmi and wasmtime (5,000 in about 110 s), and
 600 more on native code too (110 s); none has disagreed. The 60 a push take
-1.5 s, or about 10 s with native code. Not in it: an enum or a `{int: V}` in
+1.5 s; with native code the first 16 of them run natively too, one library
+(`BS_RANDOM_NATIVE` for more), since a program's C carries the `any`
+prelude and all 60 cost about 10 s. Not in it: an enum or a `{int: V}` in
 an `any`, `keys`, and a class.
 
 ## 9. A language reference

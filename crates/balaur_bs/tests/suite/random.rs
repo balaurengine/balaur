@@ -183,6 +183,10 @@ enum Fault {
 
 const SEED: u64 = 0x0bad_5eed;
 
+/// How many of a run's programs also run as native code, one library
+/// (`BS_RANDOM_NATIVE`).
+const NATIVE: usize = 16;
+
 /// How many programs a shrink may try before it settles.
 const SHRINK_BUDGET: usize = 4000;
 
@@ -381,6 +385,13 @@ fn random_programs_answer_as_the_reference_interpreter_does() {
         .and_then(|s| s.parse().ok())
         .unwrap_or(60);
     let show = std::env::var_os("BS_RANDOM_SHOW").is_some();
+    // Every program runs on wasmi and wasmtime, and the first of them as
+    // native code too: a program's C carries the `any` prelude, so building
+    // all of them natively would cost every push ten seconds.
+    let native: usize = std::env::var("BS_RANDOM_NATIVE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(NATIVE);
     let mut failures = Vec::new();
     let mut answered = 0;
     // Every program made and compiled first, so native code is a C build of
@@ -412,9 +423,19 @@ fn random_programs_answer_as_the_reference_interpreter_does() {
         }
     }
     #[cfg(all(feature = "c", feature = "native"))]
-    native_build(&made.iter().map(|(.., c)| c).collect::<Vec<_>>()).unwrap();
-    for (n, funcs, want, c) in &made {
+    native_build(
+        &made
+            .iter()
+            .take(native)
+            .map(|(.., c)| c)
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    for (at, (n, funcs, want, c)) in made.iter().enumerate() {
         for engine in engines() {
+            if engine.0 == "native" && at >= native {
+                continue;
+            }
             if let Some(f) = fault(want, &run_main(c, engine.1)) {
                 failures.push(found(seed, *n, funcs, &f, engine));
                 break;
