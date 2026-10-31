@@ -660,6 +660,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A write asked for now and made at the end of the stage | `Engine::defer`, `defer_spawn_node`, `defer_spawn`, `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`, `apply_deferred` | Bevy's `Commands`, `apply_deferred` |
 | A typed value one Rust system sends and others read once each | `App::add_messages`, `Engine::send`, `Messages`, `MessageCursor` (`read`, `read_cloned`) | Bevy's `Events`, `EventReader` |
 | Rust run the moment an event is announced | `events::observe`, `unobserve`, `bubble`; `Observed` (`target`, `at`, `stop`), `ObserverId` | Bevy's observers, the DOM's bubbling and `stopPropagation` |
+| Two components kept in step: one target, its sources in order | `relationships::Relationship`, `Sources`; `relate`, `link`, `unlink`, `place`, `unlink_all`, `linked`, `target_of`, `sources_of`; the scene tree's `Parent` and `Children` | Bevy's relationships |
 | A node freed with the frame's batch | `Engine::defer_free`, `take_frees`; `node.queue_free` | Godot's `queue_free` |
 | What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |

@@ -52,6 +52,7 @@ pub mod process;
 pub mod project;
 mod project_files;
 mod regex_api;
+pub mod relationships;
 pub mod replay;
 pub mod replay_api;
 pub mod resources;

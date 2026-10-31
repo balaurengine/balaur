@@ -31,6 +31,7 @@ mod pause;
 mod plugins;
 mod prefabs;
 mod presets;
+mod relationships;
 mod replay;
 mod rng;
 mod robustness;

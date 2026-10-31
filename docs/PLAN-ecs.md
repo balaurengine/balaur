@@ -16,7 +16,8 @@
 > free is `defer_free`, still the frame's batch. Step 6 built 2026-10-31:
 > `App::add_messages`, `Engine::send`, `MessageCursor` (`messages`). Step 7
 > built 2026-10-31: `events::observe`, `unobserve`, `bubble`, run first in
-> `events::announce`. Steps 9 to 11 of
+> `events::announce`. Step 8 built 2026-10-31: `relationships`, and the scene
+> tree's `Parent` and `Children` on it. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -103,10 +104,16 @@ something else in this engine.
   system iterating a query can spawn and then name what it spawned. Freeing
   a node stays the frame's: `defer_free` queues it for the one batch in
   `Last`, what a script's `queue_free` has always said.
-- **Relationships.** A pair of components the lifecycle calls keep
-  consistent: set the one side, the other follows, and despawning a target
-  can take its sources with it. The scene tree is the first: `Parent` and
-  `Children` keep their names and their order, which the digest walks.
+- **Relationships.** A pair of components kept consistent: set the one side,
+  the other follows, and despawning a target can take its sources with it.
+  The scene tree is the first: `Parent` and `Children` keep their names and
+  their order, which the digest walks. *Built differently:* the calls
+  (`relationships::relate`, `link`, `unlink`, `place`, `unlink_all`,
+  `linked`) keep the two sides in step, not lifecycle calls: the tree is not
+  a registry component, and every write of it already went through
+  `scene`, which now writes both sides through these. `linked` walks a
+  subtree in the order a free always went, the last source first, so no
+  free and no digest moved.
 - **Required components.** A component that brings others with their
   defaults, declared on the derive, so a scene file, a script and Rust all
   get them.
@@ -153,7 +160,8 @@ something else in this engine.
 6. **Messages.** *Built.*
 7. **Observers**, inside `events::announce`. *Built.*
 8. **Relationships**, then the scene tree on them. The digest walks children
-   in the same order, so no recording moves; a test proves it.
+   in the same order, so no recording moves; a test proves it. *Built*; the
+   determinism trace matches the one before step 3.
 9. **Required components.**
 10. **Schedules**: sets, order, run conditions, cycle errors.
 11. **App modes.**
