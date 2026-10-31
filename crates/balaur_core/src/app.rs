@@ -1086,6 +1086,7 @@ impl App {
         let resimulating = crate::rollback::is_resimulating(&self.engine);
         crate::components::ticks::frame_started(&self.engine);
         crate::messages::frame_started(&self.engine);
+        crate::modes::change_all(&self.engine);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
             let started = Instant::now();
             if resimulating && stage == Stage::Render as usize {

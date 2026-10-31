@@ -664,6 +664,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A node freed with the frame's batch | `Engine::defer_free`, `take_frees`; `node.queue_free` | Godot's `queue_free` |
 | Components a component brings at their defaults | `#[component(requires = [..])]`, `ComponentDef::requires`; `scene.component_requires` | Bevy's required components |
 | A stage's systems in order | `schedule::System` (`new`, `in_set`, `before`, `after`, `run_if`), `Set`; `App::add_scheduled`, `configure_set`, `check_schedules`, `system_count` | Bevy's schedules and system sets |
+| A value the whole app is in, with systems on entering and leaving it | `modes::Mode`; `App::add_mode`, `add_sub_mode`, `add_computed_mode`, `on_enter`, `on_exit`; `Engine::mode`, `set_mode`; `modes::in_mode` | Bevy's `States`, `SubStates`, `ComputedStates` |
 | What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |

@@ -43,6 +43,7 @@ pub mod layers;
 pub mod logbuf;
 pub mod math_api;
 pub mod messages;
+pub mod modes;
 pub mod node_api;
 pub mod node_meta;
 pub mod pack;
