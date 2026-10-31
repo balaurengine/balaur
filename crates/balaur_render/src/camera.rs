@@ -24,7 +24,7 @@ pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
 // `drive_camera_system` copies the current one into [`CameraConfig3d`],
 // through the [`Lens3d`] a write leaves beside it.
 #[derive(Component)]
-#[component(name = "camera3d")]
+#[component(name = "camera3d", on_remove = camera3d_removed)]
 pub struct Camera3d {
     /// Whether this camera drives the view; the last current one wins
     #[property(default = true)]
@@ -255,6 +255,11 @@ fn camera3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<(
     })
 }
 
+/// What a removed `Camera3d` leaves behind, taken with it.
+fn camera3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Lens3d>(entity);
+}
+
 /// The `camera3d` and `camera2d` components. Two rather than one with a
 /// `kind`: a component's tags are what the editor files a node under, and a
 /// tag is per type while a kind would be per node -- so one component could
@@ -270,11 +275,6 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
                 "whether it is the camera drawn from now",
             )],
             tags: &[balaur_core::components::tag::DIM_3D, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Camera3d>(entity);
-                let _ = eng.remove_one::<Lens3d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Camera3d>(Some(camera3d_written))
         },
     );

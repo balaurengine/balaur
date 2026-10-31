@@ -121,6 +121,7 @@ pub use accepts::{AcceptsFn, refuse_unknown_keys};
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
+pub use derived::{Lifecycle, LifecycleFn};
 pub use property::{
     PropertyPlace, answers_alone, place_of, property, property_at, property_placed, set_property,
     set_property_at, set_property_placed,
@@ -307,6 +308,10 @@ pub struct ComponentDef {
     pub events: &'static [(&'static str, &'static str)],
     /// Insert-or-update the component from a full property table.
     pub apply: ApplyFn,
+    /// Take the component off. A derived one's takes the struct; what it
+    /// leaves beside it goes in its `on_remove` ([`Lifecycle`]), and a hand
+    /// one is left for a removal that can fail or must follow the struct
+    /// going.
     pub remove: RemoveFn,
     /// Current property table, or None when the entity lacks the component.
     ///
@@ -322,6 +327,8 @@ pub struct ComponentDef {
     pub write: Option<WriteFn>,
     /// What is off about the component on a node, for the editor to show.
     pub warnings: WarningsFn,
+    /// What it runs as it goes on, is written and comes off.
+    pub lifecycle: Lifecycle,
 }
 
 impl ComponentDef {
@@ -344,6 +351,7 @@ impl ComponentDef {
             read: None,
             write: None,
             warnings: None,
+            lifecycle: Lifecycle::NONE,
         }
     }
 }
@@ -793,6 +801,10 @@ fn apply_at(
     let was = (had && crate::changes::keeps(eng, entity))
         .then(|| written_at(eng, entity, index))
         .flatten();
+    let lifecycle = lifecycle_at(eng, index);
+    if had {
+        call(lifecycle.on_replace, eng, entity);
+    }
     {
         let registry = registry.borrow();
         let (_, def) = registry
@@ -800,7 +812,12 @@ fn apply_at(
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
         if let Err(why) = (def.apply)(eng, entity, full) {
             let held = (def.get)(eng, entity);
+            drop(registry);
             crate::warnings::refused(eng, entity, name, held.as_ref(), full, &why);
+            // The values put back are written as much as any.
+            if had {
+                call(lifecycle.on_insert, eng, entity);
+            }
             return Err(why.context(format!("applying component '{name}'")));
         }
     }
@@ -810,8 +827,24 @@ fn apply_at(
         crate::changes::component(eng, entity, index, asked, was);
     } else {
         crate::changes::attached(eng, entity, index);
+        call(lifecycle.on_add, eng, entity);
     }
+    call(lifecycle.on_insert, eng, entity);
     Ok(())
+}
+
+/// The lifecycle calls of the component at `index`, none for an unknown one.
+pub(crate) fn lifecycle_at(eng: &Engine, index: usize) -> Lifecycle {
+    eng.try_resource::<ComponentRegistry>()
+        .and_then(|registry| registry.borrow().at(index).map(|(_, def)| def.lifecycle))
+        .unwrap_or_default()
+}
+
+/// Run one lifecycle call, if the component declares it.
+pub(crate) fn call(at: Option<LifecycleFn>, eng: &Engine, entity: Entity) {
+    if let Some(at) = at {
+        at(eng, entity);
+    }
 }
 
 /// [`get`] with the definition already resolved.
@@ -827,6 +860,13 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
     let was = index_of(eng, name)
         .filter(|_| crate::changes::keeps(eng, entity))
         .and_then(|index| written_at(eng, entity, index));
+    if let Some(index) = index_of(eng, name)
+        && attached_of(eng, entity).has(index)
+    {
+        let lifecycle = lifecycle_at(eng, index);
+        call(lifecycle.on_replace, eng, entity);
+        call(lifecycle.on_remove, eng, entity);
+    }
     let index = remove_hook(eng, entity, name)?;
     mark(eng, entity, index, false);
     crate::changes::removed(eng, entity, index, was);
@@ -874,14 +914,21 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
         return;
     };
-    let names: Vec<SmolStr> = registry
+    let owed: Vec<(SmolStr, Lifecycle)> = registry
         .borrow()
         .iter()
         .enumerate()
         .filter(|(i, _)| bits & (1u128 << i) != 0)
-        .map(|(_, (name, _))| name.clone())
+        .map(|(_, (name, def))| (name.clone(), def.lifecycle))
         .collect();
-    for name in names {
+    // Every `on_despawn` first, so each hears the node whole, then each
+    // component's way off.
+    for (_, lifecycle) in &owed {
+        call(lifecycle.on_despawn, eng, entity);
+    }
+    for (name, lifecycle) in owed {
+        call(lifecycle.on_replace, eng, entity);
+        call(lifecycle.on_remove, eng, entity);
         if let Err(why) = remove_hook(eng, entity, &name) {
             tracing::error!(error = %why, component = %name, "removing a component from a freed node");
         }

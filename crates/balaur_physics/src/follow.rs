@@ -20,7 +20,7 @@ use crate::vocabulary::component as c;
 
 /// Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.
 #[derive(Clone, Component)]
-#[component(name = "follow3d")]
+#[component(name = "follow3d", on_remove = follow3d_removed)]
 pub struct Follow3d {
     /// The node whose pose the body is pulled to; empty pulls nothing
     #[property(node)]
@@ -123,6 +123,12 @@ impl FollowRef3d {
     }
 }
 
+/// What a removed `Follow3d` leaves behind, taken with it.
+fn follow3d_removed(eng: &Engine, entity: Entity) {
+    let state = eng.resource::<PhysicsState3d>();
+    state.borrow_mut().follows.swap_remove(&entity);
+}
+
 /// The system, before the step it feeds, and the component.
 pub(crate) fn build(reg: &mut Registry<'_>) {
     reg.add_system(Stage::FixedUpdate, follow_system);
@@ -191,12 +197,6 @@ fn register_follow_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::BODY_3D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Follow3d>(entity);
-                let state = eng.resource::<PhysicsState3d>();
-                state.borrow_mut().follows.swap_remove(&entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Follow3d>(None)
         },
     );

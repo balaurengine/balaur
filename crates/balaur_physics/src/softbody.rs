@@ -42,7 +42,7 @@ mod wire;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "softbody3d")]
+#[component(name = "softbody3d", on_remove = softbody3d_removed)]
 pub struct Softbody3d {
     /// How the body's particles and elements are laid out
     #[property(default = SoftKind3d::Box)]
@@ -961,6 +961,12 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     apply_softbody(eng, entity, &params)
 }
 
+/// What a removed `Softbody3d` leaves behind, taken with it.
+fn softbody3d_removed(eng: &Engine, entity: Entity) {
+    remove_softbody(eng, entity);
+    let _ = eng.remove_one::<balaur_geometry::mesh::SolvedMesh>(entity);
+}
+
 /// `softbody3d`: what was asked, held on the node; the body and the table it
 /// was built from are in [`crate::PhysicsState3d`].
 pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
@@ -988,12 +994,6 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
                 balaur_core::components::tag::RENDER,
             ],
-            remove: Box::new(|eng, entity| {
-                remove_softbody(eng, entity);
-                let _ = eng.remove_one::<Softbody3d>(entity);
-                let _ = eng.remove_one::<balaur_geometry::mesh::SolvedMesh>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Softbody3d>(Some(after_write))
         },
     );

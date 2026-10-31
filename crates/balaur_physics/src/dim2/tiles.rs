@@ -35,7 +35,7 @@ pub(crate) struct Built {
 // tile that names no collision is a hole.
 /// Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.
 #[derive(Clone, Component)]
-#[component(name = "tile_collision")]
+#[component(name = "tile_collision", on_remove = tile_collision_removed)]
 pub struct TileCollision {
     /// Collide at all; a disabled collider keeps its shape and costs nothing
     #[property(default = true)]
@@ -127,6 +127,15 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     rebuild(eng, entity)
 }
 
+/// What a removed `TileCollision` leaves behind, taken with it.
+fn tile_collision_removed(eng: &Engine, entity: Entity) {
+    clear(eng, entity);
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    state.tile_params.swap_remove(&entity);
+    state.tile_built.swap_remove(&entity);
+}
+
 /// `tile_collision`: what was asked, held on the node; the colliders its map
 /// makes and the table they were built from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
@@ -139,15 +148,6 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &["tilemap"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<TileCollision>(entity);
-                clear(eng, entity);
-                let state = eng.resource::<PhysicsState2d>();
-                let mut state = state.borrow_mut();
-                state.tile_params.swap_remove(&entity);
-                state.tile_built.swap_remove(&entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<TileCollision>(Some(after_write))
         },
     );

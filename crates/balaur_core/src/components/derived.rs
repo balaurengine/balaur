@@ -8,6 +8,10 @@
 //! component's whole table. A field's type says what the property is through
 //! [`Property`], which the derive needs of every field.
 //!
+//! `#[component(on_add = f, on_remove = g)]` beside its `name` declares the
+//! component's [`Lifecycle`]: plain functions `fn(&Engine, Entity)`, run by
+//! every write through the registry.
+//!
 //! The struct holds what the component is asked for and nothing else. What a
 //! system works out from it -- a shaped text, a built body -- is the system's
 //! own, kept beside it.
@@ -54,6 +58,49 @@ pub trait Component: Fields + Send + Sync + 'static {
     /// What the component gives a node, for the generated reference: the
     /// struct's doc comment.
     const DOC: &'static str;
+    /// What it runs as it goes on, is written and comes off: the derive's
+    /// `#[component(on_add = ..)]` and the rest.
+    const LIFECYCLE: Lifecycle = Lifecycle::NONE;
+}
+
+/// One lifecycle call: the node, and the engine to read it through.
+pub type LifecycleFn = fn(&Engine, Entity);
+
+/// What a component runs at each point of its life on a node (PLAN-ecs §2,
+/// Bevy's component hooks), declared on the derive or on a hand-written
+/// definition. Every write through the registry runs them, a script's, a
+/// scene's and Rust's alike.
+///
+/// A call never refuses: judging a write is `after_write`'s, which runs
+/// first. It never calls a script either: what a script should hear goes
+/// through `events::announce`. Each `on_replace` is followed by an
+/// `on_insert` or an `on_remove`, a refused write's included, whose `on_insert`
+/// sees the values put back.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Lifecycle {
+    /// It went onto the node, its first values in place.
+    pub on_add: Option<LifecycleFn>,
+    /// A write landed, whole or one property, the first one included.
+    pub on_insert: Option<LifecycleFn>,
+    /// What it holds is about to be written over or taken off, still there
+    /// to read.
+    pub on_replace: Option<LifecycleFn>,
+    /// It is about to come off the node, still there to read.
+    pub on_remove: Option<LifecycleFn>,
+    /// Its node is being freed: before any of the node's `on_replace` and
+    /// `on_remove`.
+    pub on_despawn: Option<LifecycleFn>,
+}
+
+impl Lifecycle {
+    /// Nothing at any point.
+    pub const NONE: Self = Self {
+        on_add: None,
+        on_insert: None,
+        on_replace: None,
+        on_remove: None,
+        on_despawn: None,
+    };
 }
 
 /// What a component does once it is written, beyond holding the values: a
@@ -61,13 +108,13 @@ pub trait Component: Fields + Send + Sync + 'static {
 /// alone cannot judge.
 pub type AfterWriteFn = fn(&Engine, Entity, Written) -> Result<()>;
 
-/// What a write did: gave the node the component, changed the one it had
-/// whole, or changed one property of it, by its index, so a hook can redo
-/// only what that property feeds.
+/// What a write did: wrote the component whole, the first write included, or
+/// one property of it, by its index, so a hook can redo only what that
+/// property feeds. Going onto the node is the component's `on_add`
+/// ([`Lifecycle`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Written {
-    Added,
-    Changed,
+    Whole,
     Property(usize),
 }
 
@@ -509,6 +556,7 @@ impl ComponentDef {
             expects: &[],
             events: &[],
             warnings: None,
+            lifecycle: C::LIFECYCLE,
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
                 // What the node held, to put back if the hook refuses: the
@@ -532,12 +580,7 @@ impl ComponentDef {
                 let Some(after) = after_write else {
                     return Ok(());
                 };
-                let written = if before.is_some() {
-                    Written::Changed
-                } else {
-                    Written::Added
-                };
-                after(eng, entity, written).inspect_err(|_| {
+                after(eng, entity, Written::Whole).inspect_err(|_| {
                     let mut world = eng.world_mut();
                     match before {
                         Some(before) => {

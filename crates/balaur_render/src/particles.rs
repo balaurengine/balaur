@@ -18,7 +18,7 @@ use balaur_plugin::Registry;
 /// A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
 // The backend draws it from the [`Particles`] each write leaves beside it.
 #[derive(Component)]
-#[component(name = "particles2d")]
+#[component(name = "particles2d", on_remove = particles2d_removed)]
 pub struct Particles2d {
     /// Whether new particles are born; live ones finish either way
     #[property(default = true)]
@@ -308,6 +308,11 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// What a removed `Particles2d` leaves behind, taken with it.
+fn particles2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Particles>(entity);
+}
+
 /// The `particles2d` component. Writes a [`Particles`] on the node; the kiss3d
 /// backend keeps the live particles and draws them as instances of one quad.
 pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
@@ -319,11 +324,6 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                 crate::vocabulary::words::ORTHOGRAPHIC,
                 balaur_core::components::tag::RENDER,
             ],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Particles2d>(entity);
-                let _ = eng.remove_one::<Particles>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Particles2d>(Some(after_write))
         },
     );

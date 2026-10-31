@@ -79,7 +79,7 @@ impl Light2d {
 
 /// The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.
 #[derive(Component)]
-#[component(name = "occluder2d")]
+#[component(name = "occluder2d", on_remove = occluder2d_removed)]
 pub struct Occluder2d {
     /// Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape
     #[property(asset = "mesh")]
@@ -292,6 +292,11 @@ fn occluder_written(eng: &Engine, entity: Entity, _written: Written) -> Result<(
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// What a removed `Occluder2d` leaves behind, taken with it.
+fn occluder2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Outline2d>(entity);
+}
+
 /// The `occluder2d` component. An outline with no `mesh` is derived every
 /// tick by [`resolve_occluders_system`], so a collider added after the
 /// occluder still fills it in.
@@ -300,11 +305,6 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
         Occluder2d::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Occluder2d>(entity);
-                let _ = eng.remove_one::<Outline2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Occluder2d>(Some(occluder_written))
         },
     );

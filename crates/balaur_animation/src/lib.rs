@@ -160,9 +160,16 @@ impl balaur_plugin::Plugin for AnimationPlugin {
     }
 }
 
+/// What a removed `Animation` leaves behind, taken with it.
+fn animation_removed(eng: &Engine, entity: Entity) {
+    if let Some(state) = eng.try_resource::<AnimationState>() {
+        state.borrow_mut().players.shift_remove(&entity);
+    }
+}
+
 /// Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.
 #[derive(Clone, Debug, Component)]
-#[component(name = "animation")]
+#[component(name = "animation", on_remove = animation_removed)]
 pub struct Animation {
     /// The clip library this node plays from
     #[property(asset = "animation_library")]
@@ -194,13 +201,6 @@ fn register_animation_component(reg: &mut Registry<'_>) {
                 (system::FINISHED_EVENT, "the clip's name"),
             ],
             tags: &[balaur_core::components::tag::ANIMATION],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Animation>(entity);
-                if let Some(state) = eng.try_resource::<AnimationState>() {
-                    state.borrow_mut().players.shift_remove(&entity);
-                }
-                Ok(())
-            }),
             ..ComponentDef::of::<Animation>(Some(animation_written))
         },
     );

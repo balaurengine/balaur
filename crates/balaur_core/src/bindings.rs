@@ -342,7 +342,7 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
 // `Bindings` beside it.
 /// Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.
 #[derive(Clone, Debug, PartialEq, Component)]
-#[component(name = "bindings")]
+#[component(name = "bindings", on_remove = binding_rows_removed)]
 pub struct BindingRows {
     /// The binding rows, each `{ event, when, action, target, value }`
     pub rows: Vec<BindingRow>,
@@ -417,18 +417,19 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// What a removed `BindingRows` leaves behind, taken with it.
+fn binding_rows_removed(eng: &Engine, entity: Entity) {
+    let mut world = eng.world_mut();
+    let _ = world.remove_one::<BindingRows>(entity);
+    let _ = world.remove_one::<Bindings>(entity);
+}
+
 /// The `bindings` component: the rows as written, and [`Bindings`] parsed.
 pub fn register_bindings_component(app: &mut App) {
     app.register_component(
         <BindingRows as Component>::NAME,
         ComponentDef {
             tags: &["interaction"],
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<BindingRows>(entity);
-                let _ = world.remove_one::<Bindings>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<BindingRows>(Some(after_write))
         },
     );

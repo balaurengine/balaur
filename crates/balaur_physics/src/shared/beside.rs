@@ -86,7 +86,7 @@ pub(crate) fn register<C: Beside>(
                 let held = eng.remove_one::<C>(entity).is_ok();
                 let main = <C::Main as Component>::NAME;
                 if held && balaur_core::components::has(eng, entity, main) {
-                    rebuild(eng, entity, Written::Changed)?;
+                    rebuild(eng, entity, Written::Whole)?;
                 }
                 Ok(())
             }),

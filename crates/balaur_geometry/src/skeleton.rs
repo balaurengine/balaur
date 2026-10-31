@@ -436,7 +436,7 @@ pub fn skin_positions(
 
 /// Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone2d")]
+#[component(name = "bone2d", on_remove = bone2d_removed)]
 pub struct Bone2d {
     /// Local rest translation
     pub rest_position: [f32; 2],
@@ -451,7 +451,7 @@ pub struct Bone2d {
 
 /// Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone3d")]
+#[component(name = "bone3d", on_remove = bone3d_removed)]
 pub struct Bone3d {
     /// Local rest translation
     pub rest_position: Vec3,
@@ -512,6 +512,11 @@ fn bone3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
     Ok(())
 }
 
+/// What a removed `Bone2d` leaves behind, taken with it.
+fn bone2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Bone>(entity);
+}
+
 /// The `bone2d` component: the asked-for struct, and the [`Bone`] it fills.
 pub fn register_bone2d_component(app: &mut App) {
     app.register_component(
@@ -522,14 +527,14 @@ pub fn register_bone2d_component(app: &mut App) {
                 balaur_core::components::tag::ANIMATION,
             ],
             expects: &[balaur_core::transform::COMPONENT],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Bone2d>(entity);
-                let _ = eng.remove_one::<Bone>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Bone2d>(Some(bone2d_written))
         },
     );
+}
+
+/// What a removed `Bone3d` leaves behind, taken with it.
+fn bone3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Bone>(entity);
 }
 
 /// The `bone3d` component: the asked-for struct, and the [`Bone`] it fills.
@@ -542,11 +547,6 @@ pub fn register_bone3d_component(app: &mut App) {
                 balaur_core::components::tag::ANIMATION,
             ],
             expects: &[balaur_core::transform::COMPONENT],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Bone3d>(entity);
-                let _ = eng.remove_one::<Bone>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Bone3d>(Some(bone3d_written))
         },
     );

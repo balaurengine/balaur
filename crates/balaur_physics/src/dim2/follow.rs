@@ -16,7 +16,7 @@ use crate::vocabulary::component as c;
 
 /// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
 #[derive(Clone, Component)]
-#[component(name = "follow2d")]
+#[component(name = "follow2d", on_remove = follow2d_removed)]
 pub struct Follow2d {
     /// The node whose pose the body is pulled to; empty pulls nothing
     #[property(node)]
@@ -107,6 +107,12 @@ impl FollowRef2d {
     }
 }
 
+/// What a removed `Follow2d` leaves behind, taken with it.
+fn follow2d_removed(eng: &Engine, entity: Entity) {
+    let state = eng.resource::<PhysicsState2d>();
+    state.borrow_mut().follows.swap_remove(&entity);
+}
+
 /// The system, before the step it feeds, and the component.
 pub(crate) fn build(reg: &mut Registry<'_>) {
     reg.add_system(Stage::FixedUpdate, follow_system);
@@ -169,12 +175,6 @@ fn register_follow2d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::BODY_2D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Follow2d>(entity);
-                let state = eng.resource::<PhysicsState2d>();
-                state.borrow_mut().follows.swap_remove(&entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Follow2d>(None)
         },
     );

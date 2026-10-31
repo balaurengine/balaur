@@ -113,7 +113,17 @@ fn derived_write(
     let (Some(write), Some(at)) = (&def.write, at) else {
         return false;
     };
-    matches!(write(eng, entity, at, value), Ok(true))
+    let lifecycle = def.lifecycle;
+    let had = super::attached_of(eng, entity).has(index);
+    if had {
+        super::call(lifecycle.on_replace, eng, entity);
+    }
+    let written = matches!(write(eng, entity, at, value), Ok(true));
+    // A refused value leaves what the field held, which is written as much.
+    if had {
+        super::call(lifecycle.on_insert, eng, entity);
+    }
+    written
 }
 
 /// One property by the component's own read by index, where it has one.

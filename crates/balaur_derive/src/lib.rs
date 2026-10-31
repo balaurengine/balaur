@@ -221,9 +221,20 @@ fn property_attrs(field: &syn::Field) -> syn::Result<PropertyAttrs> {
     Ok(found)
 }
 
-/// `#[component(name = "...")]`, read.
-fn component_name(input: &DeriveInput) -> syn::Result<String> {
+/// The lifecycle points `#[component(..)]` may name a function for.
+const LIFECYCLE_POINTS: [&str; 5] = [
+    "on_add",
+    "on_insert",
+    "on_replace",
+    "on_remove",
+    "on_despawn",
+];
+
+/// `#[component(name = "...", on_add = path, ..)]`, read: the name, and each
+/// lifecycle point named with its function.
+fn component_attrs(input: &DeriveInput) -> syn::Result<(String, Vec<(syn::Ident, syn::Path)>)> {
     let mut name = None;
+    let mut lifecycle = Vec::new();
     for attr in &input.attrs {
         if !attr.path().is_ident("component") {
             continue;
@@ -233,17 +244,47 @@ fn component_name(input: &DeriveInput) -> syn::Result<String> {
                 let text: syn::LitStr = meta.value()?.parse()?;
                 name = Some(text.value());
                 Ok(())
+            } else if let Some(point) = LIFECYCLE_POINTS
+                .iter()
+                .find(|point| meta.path.is_ident(point))
+            {
+                let call: syn::Path = meta.value()?.parse()?;
+                lifecycle.push((syn::Ident::new(point, meta.path.span()), call));
+                Ok(())
             } else {
-                Err(meta.error("`component` takes `name`"))
+                Err(meta.error(
+                    "`component` takes `name`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
+                ))
             }
         })?;
     }
-    name.ok_or_else(|| {
+    let name = name.ok_or_else(|| {
         syn::Error::new(
             input.ident.span(),
             "a component names itself: #[component(name = \"...\")]",
         )
-    })
+    })?;
+    Ok((name, lifecycle))
+}
+
+/// `const LIFECYCLE` naming each point the attribute named, nothing when it
+/// named none, so the trait's empty default stands.
+fn lifecycle_const(derived: &Tokens, lifecycle: &[(syn::Ident, syn::Path)]) -> Tokens {
+    if lifecycle.is_empty() {
+        return quote! {};
+    }
+    let points = lifecycle.iter().map(|(point, call)| {
+        quote! { #point: ::core::option::Option::Some(#call), }
+    });
+    // Every point named leaves nothing for the empty default to fill.
+    let rest =
+        (lifecycle.len() < LIFECYCLE_POINTS.len()).then(|| quote! { ..#derived::Lifecycle::NONE });
+    quote! {
+        const LIFECYCLE: #derived::Lifecycle = #derived::Lifecycle {
+            #(#points)*
+            #rest
+        };
+    }
 }
 
 /// What one field adds to each generated item.
@@ -377,12 +418,14 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     };
 
     let kind_impl = if component {
-        let name = component_name(input)?;
+        let (name, lifecycle) = component_attrs(input)?;
         let doc = doc_of(&input.attrs);
+        let lifecycle = lifecycle_const(&derived, &lifecycle);
         quote! {
             impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
                 const NAME: &'static str = #name;
                 const DOC: &'static str = #doc;
+                #lifecycle
             }
         }
     } else {

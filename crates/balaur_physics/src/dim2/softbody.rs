@@ -41,7 +41,7 @@ mod draw;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "softbody2d")]
+#[component(name = "softbody2d", on_remove = softbody2d_removed)]
 pub struct Softbody2d {
     /// How the body's particles and elements are laid out
     #[property(default = SoftKind2d::Grid)]
@@ -964,6 +964,13 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     apply_softbody_2d(eng, entity, &params)
 }
 
+/// What a removed `Softbody2d` leaves behind, taken with it.
+fn softbody2d_removed(eng: &Engine, entity: Entity) {
+    remove_softbody_2d(eng, entity);
+    let _ = eng.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
+    let _ = eng.remove_one::<draw::SkinTriangles>(entity);
+}
+
 /// `softbody2d`: what was asked, held on the node; the body and the table it
 /// was built from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
@@ -992,13 +999,6 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
                 balaur_core::components::tag::RENDER,
             ],
-            remove: Box::new(|eng, entity| {
-                remove_softbody_2d(eng, entity);
-                let _ = eng.remove_one::<Softbody2d>(entity);
-                let _ = eng.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
-                let _ = eng.remove_one::<draw::SkinTriangles>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Softbody2d>(Some(after_write))
         },
     );

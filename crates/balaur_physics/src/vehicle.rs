@@ -30,7 +30,7 @@ use balaur_core::layers::Layer;
 
 /// Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 #[derive(Clone, Component)]
-#[component(name = "vehicle3d")]
+#[component(name = "vehicle3d", on_remove = vehicle3d_removed)]
 pub struct Vehicle3d {
     /// Which of the chassis's own axes points forward, either way along it: a negative axis drives and steers the other way round, and reads speed the other way
     #[property(default = ChassisAxis::Z)]
@@ -48,7 +48,7 @@ pub struct Vehicle3d {
 
 /// One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.
 #[derive(Clone, Component)]
-#[component(name = "wheel3d")]
+#[component(name = "wheel3d", on_remove = wheel3d_removed)]
 pub struct Wheel3d {
     /// The wheel's radius, which is how far off the ground it holds the ray's end
     #[property(default = 0.4, min = 0.01)]
@@ -472,6 +472,18 @@ fn axis_of(axis: ChassisAxis) -> (usize, Real) {
     }
 }
 
+/// What a removed `Vehicle3d` leaves behind, taken with it.
+fn vehicle3d_removed(eng: &Engine, entity: Entity) {
+    let state = eng.resource::<PhysicsState3d>();
+    state.borrow_mut().vehicles.swap_remove(&entity);
+}
+
+/// What a removed `Wheel3d` leaves behind, taken with it.
+fn wheel3d_removed(eng: &Engine, entity: Entity) {
+    let state = eng.resource::<PhysicsState3d>();
+    state.borrow_mut().wheel_inputs.swap_remove(&entity);
+}
+
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     // What was asked, held on the chassis; the controller a step keeps is in
     // `PhysicsState3d::vehicles`.
@@ -483,12 +495,6 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::BODY_3D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Vehicle3d>(entity);
-                let state = eng.resource::<PhysicsState3d>();
-                state.borrow_mut().vehicles.swap_remove(&entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Vehicle3d>(None)
         },
     );
@@ -502,12 +508,6 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::VEHICLE_3D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Wheel3d>(entity);
-                let state = eng.resource::<PhysicsState3d>();
-                state.borrow_mut().wheel_inputs.swap_remove(&entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Wheel3d>(None)
         },
     );

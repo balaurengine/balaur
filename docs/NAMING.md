@@ -656,6 +656,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A component written by hand, not derived | `ComponentDef::by_hand(schema, apply, remove, get)` | none |
 | A component as a save writes it | `components::written`, `written_of`; `node.authored` | none |
 | The counter writes are stamped with, apart from the simulation's `tick` | `Engine::change_tick`, `advance_change_tick`; `engine.change_tick` | Bevy's change ticks |
+| What a component runs at each point of its life on a node | `Lifecycle` (`on_add`, `on_insert`, `on_replace`, `on_remove`, `on_despawn`), declared as `#[component(on_add = f)]` | Bevy's component hooks |
 | What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |

@@ -52,7 +52,7 @@ pub enum FillRule2d {
 
 /// Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.
 #[derive(Component)]
-#[component(name = "boolean3d")]
+#[component(name = "boolean3d", on_remove = boolean3d_removed)]
 pub struct Boolean3d {
     /// How the children are combined, in the order they are declared
     #[property(default = Operation3d::Union)]
@@ -85,7 +85,7 @@ pub struct Boolean3d {
 
 /// Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.
 #[derive(Component)]
-#[component(name = "boolean2d")]
+#[component(name = "boolean2d", on_remove = boolean2d_removed)]
 pub struct Boolean2d {
     /// How the children are combined, in the order they are declared
     #[property(default = Operation2d::Union)]
@@ -229,6 +229,12 @@ fn boolean3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// What a removed `Boolean3d` leaves behind, taken with it.
+fn boolean3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Combined3d>(entity);
+    let _ = eng.remove_one::<Renderable3d>(entity);
+}
+
 /// The `boolean3d` component: writes [`Combined3d`], and a `Renderable3d`
 /// whose shape is built rather than authored.
 pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
@@ -236,12 +242,6 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
         Boolean3d::NAME,
         ComponentDef {
             tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Boolean3d>(entity);
-                let _ = eng.remove_one::<Combined3d>(entity);
-                let _ = eng.remove_one::<Renderable3d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Boolean3d>(Some(boolean3d_written))
         },
     );
@@ -272,18 +272,18 @@ fn boolean2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<
     dress_2d(eng, entity)
 }
 
+/// What a removed `Boolean2d` leaves behind, taken with it.
+fn boolean2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Combined2d>(entity);
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
 /// The `boolean2d` component: the same over filled outlines.
 pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Boolean2d::NAME,
         ComponentDef {
             tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Boolean2d>(entity);
-                let _ = eng.remove_one::<Combined2d>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Boolean2d>(Some(boolean2d_written))
         },
     );

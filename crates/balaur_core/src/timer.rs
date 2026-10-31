@@ -21,7 +21,7 @@ pub const TIMEOUT: &str = "timeout";
 
 /// Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.
 #[derive(Component)]
-#[component(name = "timer")]
+#[component(name = "timer", on_add = added)]
 pub struct Timer {
     /// Seconds from starting to `timeout`
     #[property(name = "wait_time", default = 1.0, min = 0.001)]
@@ -45,26 +45,34 @@ impl Timer {
 }
 
 /// Starting counts from the full wait and stopping clears what was left, so a
-/// timer already running keeps its count when `wait_time` is patched. One
-/// added with `autostart` starts.
+/// timer already running keeps its count when `wait_time` is patched.
 #[allow(
     clippy::unnecessary_wraps,
     reason = "an after-write hook may refuse a write; this one never does"
 )]
-fn after_write(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
+fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     let world = eng.world();
     let Ok(mut timer) = world.get::<&mut Timer>(entity) else {
         return Ok(());
     };
-    if written == Written::Added && timer.autostart {
-        timer.running = true;
-    }
     if !timer.running {
         timer.left = 0.0;
     } else if timer.left <= 0.0 {
         timer.left = timer.wait_seconds();
     }
     Ok(())
+}
+
+/// One put on a node with `autostart` starts, from the full wait.
+fn added(eng: &Engine, entity: Entity) {
+    let world = eng.world();
+    if let Ok(mut timer) = world.get::<&mut Timer>(entity)
+        && timer.autostart
+        && !timer.running
+    {
+        timer.running = true;
+        timer.left = timer.wait_seconds();
+    }
 }
 
 /// One fixed step of every running timer, emitting `timeout` from each one

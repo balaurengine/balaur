@@ -30,7 +30,7 @@ pub const MULTIMESH_ASSET_TYPE: &str = "multimesh";
 
 /// Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 #[derive(Clone, Component)]
-#[component(name = "multimesh3d")]
+#[component(name = "multimesh3d", on_remove = multimesh3d_removed)]
 pub struct MultiMesh3d {
     /// The multimesh asset: the mesh and the instances it is drawn at
     #[property(asset = "multimesh")]
@@ -63,7 +63,7 @@ pub struct MultiMesh3d {
 
 /// Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 #[derive(Clone, Component)]
-#[component(name = "multimesh2d")]
+#[component(name = "multimesh2d", on_remove = multimesh2d_removed)]
 pub struct MultiMesh2d {
     /// The multimesh asset: the mesh and the instances it is drawn at
     #[property(asset = "multimesh")]
@@ -739,6 +739,18 @@ fn multimesh2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     crate::material::set_material_2d(eng, entity, &asked.material)
 }
 
+/// What a removed `MultiMesh3d` leaves behind, taken with it.
+fn multimesh3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<MultiMesh>(entity);
+    let _ = eng.remove_one::<Renderable3d>(entity);
+}
+
+/// What a removed `MultiMesh2d` leaves behind, taken with it.
+fn multimesh2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<MultiMesh>(entity);
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
 /// The asset type and both components.
 pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
     reg.register_asset_type(
@@ -754,12 +766,6 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         MULTIMESH_3D,
         ComponentDef {
             tags: &[words::PERSPECTIVE, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<MultiMesh3d>(entity);
-                let _ = eng.remove_one::<MultiMesh>(entity);
-                let _ = eng.remove_one::<Renderable3d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<MultiMesh3d>(Some(multimesh3d_written))
         },
     );
@@ -767,12 +773,6 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         MULTIMESH_2D,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<MultiMesh2d>(entity);
-                let _ = eng.remove_one::<MultiMesh>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<MultiMesh2d>(Some(multimesh2d_written))
         },
     );

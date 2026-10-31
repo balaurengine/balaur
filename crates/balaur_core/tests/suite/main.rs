@@ -19,6 +19,7 @@ mod frozen;
 mod interpolation;
 mod kept_changes;
 mod kernel_manifest;
+mod lifecycle;
 mod node_api;
 mod observability;
 mod packs;

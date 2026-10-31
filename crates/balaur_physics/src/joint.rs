@@ -210,7 +210,7 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
 
 /// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
 #[derive(Clone, Component)]
-#[component(name = "joint3d")]
+#[component(name = "joint3d", on_remove = joint3d_removed)]
 pub struct Joint3d {
     /// How the two bodies may move relative to each other
     #[property(default = JointKind3d::Fixed)]
@@ -743,6 +743,11 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     apply_joint(eng, entity, &params)
 }
 
+/// What a removed `Joint3d` leaves behind, taken with it.
+fn joint3d_removed(eng: &Engine, entity: Entity) {
+    remove_joint(eng, entity);
+}
+
 /// `joint3d`: what was asked, held on the node; the joint and the table it was
 /// made from are in [`crate::PhysicsState3d`].
 pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
@@ -766,11 +771,6 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::BODY_3D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Joint3d>(entity);
-                remove_joint(eng, entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Joint3d>(Some(after_write))
         },
     );

@@ -25,7 +25,7 @@ use crate::{Renderable2d, set_color, set_polygon};
 // The node draws the [`PolygonMesh`] each write resolves into its
 // [`Renderable2d`].
 #[derive(Clone, Component)]
-#[component(name = "polygon")]
+#[component(name = "polygon", on_remove = polygon_removed)]
 pub struct Polygon {
     /// Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space
     #[property(asset = "mesh")]
@@ -79,6 +79,11 @@ impl PolygonMesh {
     }
 }
 
+/// What a removed `Polygon` leaves behind, taken with it.
+fn polygon_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
 /// into `Renderable2d`.
 pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
@@ -87,11 +92,6 @@ pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
         Polygon::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render", "animation"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Polygon>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Polygon>(Some(polygon_written))
         },
     );

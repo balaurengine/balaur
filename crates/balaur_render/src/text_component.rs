@@ -42,7 +42,7 @@ pub enum TruncateAt {
 
 /// A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
 #[derive(Component)]
-#[component(name = "text2d")]
+#[component(name = "text2d", on_remove = text2d_removed)]
 pub struct Text2d {
     /// The text drawn; `text_key` wins over it
     pub text: String,
@@ -288,17 +288,17 @@ fn text3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
     set_text(eng, entity, next)
 }
 
+/// What a removed `Text2d` leaves behind, taken with it.
+fn text2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TextRenderable>(entity);
+}
+
 /// `text2d`: a block of text in the 2D pass, sized like a sprite.
 pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Text2d::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Text2d>(entity);
-                let _ = eng.remove_one::<TextRenderable>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Text2d>(Some(text2d_written))
         },
     );

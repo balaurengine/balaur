@@ -5,9 +5,9 @@
 //! project's `[window]` size in a run with none: what is on screen depends on
 //! the window, as it does for the player.
 
-use anyhow::{Result, anyhow};
+use anyhow::anyhow;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Written};
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalAppearance, GlobalTransform};
 use balaur_plugin::Registry;
@@ -20,7 +20,7 @@ pub(crate) const SCREEN_EXIT_EVENT: &str = "screen_exit";
 
 /// A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
 #[derive(Component)]
-#[component(name = "screen_notifier2d")]
+#[component(name = "screen_notifier2d", on_add = added, on_remove = removed)]
 pub struct ScreenNotifier2d {
     /// The box's width and height, in the node's own units: scaled and turned with it
     #[property(default = [1.0, 1.0])]
@@ -37,12 +37,13 @@ pub(crate) struct OnScreen {
 }
 
 /// A notifier starts off screen; a written one keeps what it last saw.
-fn after_write(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
-    if written == Written::Added {
-        eng.insert_one(entity, OnScreen { on_screen: false })
-            .map_err(|_| anyhow!("node is dead"))?;
-    }
-    Ok(())
+fn added(eng: &Engine, entity: Entity) {
+    let _ = eng.insert_one(entity, OnScreen { on_screen: false });
+}
+
+/// What it last saw goes with it.
+fn removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<OnScreen>(entity);
 }
 
 pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
@@ -57,12 +58,7 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<ScreenNotifier2d>(entity);
-                let _ = eng.remove_one::<OnScreen>(entity);
-                Ok(())
-            }),
-            ..ComponentDef::of::<ScreenNotifier2d>(Some(after_write))
+            ..ComponentDef::of::<ScreenNotifier2d>(None)
         },
     );
 }

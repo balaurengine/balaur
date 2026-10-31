@@ -31,7 +31,7 @@ use crate::{PhysicsState3d, node_pose};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "collider3d")]
+#[component(name = "collider3d", on_remove = collider3d_removed)]
 pub struct Collider3d {
     /// The collision shape, and the dimensions or the source that kind reads
     pub shape: ColliderShape3d,
@@ -749,6 +749,11 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     apply_collider(eng, entity, &params)
 }
 
+/// What a removed `Collider3d` leaves behind, taken with it.
+fn collider3d_removed(eng: &Engine, entity: Entity) {
+    remove_colliders(eng, entity);
+}
+
 /// `collider3d`: the asked-for struct on the node, the collider itself in
 /// [`crate::PhysicsState3d`].
 pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
@@ -767,11 +772,6 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::PHYSICS,
             ],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Collider3d>(entity);
-                remove_colliders(eng, entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Collider3d>(Some(after_write))
         },
     );
@@ -791,7 +791,7 @@ fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
     let asked: Collider3d = crate::properties::asked_of(eng, params)?;
     eng.insert_one(entity, asked)
         .map_err(|_| anyhow!("node is dead"))?;
-    after_write(eng, entity, Written::Changed)
+    after_write(eng, entity, Written::Whole)
 }
 
 /// Collider calls that are not about creating one: replacing the shape, and

@@ -56,7 +56,7 @@ pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
 // The node draws the [`TileLayout`] each write lays out beside it; a script's
 // painting writes what it painted back here, so a save keeps it.
 #[derive(Clone, Component)]
-#[component(name = "tilemap")]
+#[component(name = "tilemap", on_remove = tilemap_removed)]
 pub struct Tilemap {
     /// The tileset naming the texture and tile grid
     #[property(asset = "tileset")]
@@ -667,6 +667,12 @@ fn tilemap_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     Ok(())
 }
 
+/// What a removed `Tilemap` leaves behind, taken with it.
+fn tilemap_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TileLayout>(entity);
+    let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
+}
+
 /// The `tilemap` component. Writes a [`TileLayout`] on the node; the kiss3d
 /// backend mirrors it as one atlas-textured mesh, rebuilt only when
 /// [`TileLayout::version`] moves — a tilemap is static between edits.
@@ -675,12 +681,6 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
         Tilemap::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Tilemap>(entity);
-                let _ = eng.remove_one::<TileLayout>(entity);
-                let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Tilemap>(Some(tilemap_written))
         },
     );

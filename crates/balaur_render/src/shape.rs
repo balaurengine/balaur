@@ -317,7 +317,7 @@ pub enum LineCap {
 // The `shape3d` component; the node draws the [`Renderable3d`] each write
 // leaves beside it.
 #[derive(Component)]
-#[component(name = "shape3d")]
+#[component(name = "shape3d", on_remove = shape3d_removed)]
 pub struct Primitive3d {
     /// The primitive drawn, and its dimensions
     pub shape: SolidShape,
@@ -351,7 +351,7 @@ pub struct Primitive3d {
 // The `shape2d` component; the node draws the [`Renderable2d`] each write
 // leaves beside it.
 #[derive(Component)]
-#[component(name = "shape2d")]
+#[component(name = "shape2d", on_remove = shape2d_removed)]
 pub struct Primitive2d {
     /// The shape drawn, and its dimensions
     pub shape: FlatShape,
@@ -370,7 +370,7 @@ pub struct Primitive2d {
 // The node draws the [`Renderable2d`] each write leaves beside it, as a
 // `shape2d` does.
 #[derive(Component)]
-#[component(name = "line2d")]
+#[component(name = "line2d", on_remove = line2d_removed)]
 pub struct Line2d {
     /// Where the line's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve
     #[property(asset = "mesh")]
@@ -447,16 +447,16 @@ fn shape3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     crate::material::set_material_3d(eng, entity, &material)
 }
 
+/// What a removed `Primitive3d` leaves behind, taken with it.
+fn shape3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable3d>(entity);
+}
+
 pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Primitive3d::NAME,
         ComponentDef {
             tags: &[words::PERSPECTIVE, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Primitive3d>(entity);
-                let _ = eng.remove_one::<Renderable3d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Primitive3d>(Some(shape3d_written))
         },
     );
@@ -530,20 +530,25 @@ fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     crate::material::set_material_2d(eng, entity, &material)
 }
 
+/// What a removed `Primitive2d` leaves behind, taken with it.
+fn shape2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
 /// The `shape2d` component: 2D primitives.
 pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Primitive2d::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Primitive2d>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Primitive2d>(Some(shape2d_written))
         },
     );
+}
+
+/// What a removed `Line2d` leaves behind, taken with it.
+fn line2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
 }
 
 /// The `line2d` component: a stroked line through an asset's points.
@@ -552,11 +557,6 @@ pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
         Line2d::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Line2d>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Line2d>(Some(line2d_written))
         },
     );

@@ -20,7 +20,7 @@ use crate::{
     reason = "each is a scene key of its own"
 )]
 #[derive(Clone, Debug, Component)]
-#[component(name = "sound")]
+#[component(name = "sound", on_remove = sound_removed)]
 pub struct Sound {
     /// Audio file, project-relative; required to play
     pub file: String,
@@ -90,6 +90,18 @@ pub struct Sound {
     pub crossfade_time: f32,
 }
 
+/// What a removed `Sound` leaves behind, taken with it.
+fn sound_removed(eng: &Engine, entity: Entity) {
+    let Some(state) = eng.try_resource::<AudioState>() else {
+        return;
+    };
+    let mut state = state.borrow_mut();
+    let removed = state.nodes.shift_remove(&entity);
+    if let Some(handle) = removed.and_then(|voice| voice.handle) {
+        state.stop(handle);
+    }
+}
+
 /// The `sound` scene key: the one an editor-saved `[nodes.sound]` writes.
 ///
 /// The node holds a [`Sound`]; its [`Voice`](crate::Voice) in
@@ -104,18 +116,6 @@ pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
         ComponentDef {
             events: &[(FINISHED_EVENT, "the handle that played out")],
             tags: &[balaur_core::components::tag::AUDIO],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Sound>(entity);
-                let Some(state) = eng.try_resource::<AudioState>() else {
-                    return Ok(());
-                };
-                let mut state = state.borrow_mut();
-                let removed = state.nodes.shift_remove(&entity);
-                if let Some(handle) = removed.and_then(|voice| voice.handle) {
-                    state.stop(handle);
-                }
-                Ok(())
-            }),
             ..ComponentDef::of::<Sound>(Some(written))
         },
     );

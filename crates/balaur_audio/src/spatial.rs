@@ -37,7 +37,7 @@ const MIN_DISTANCE: f32 = 0.001;
 
 /// The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.
 #[derive(Clone, Copy, Debug, Component)]
-#[component(name = "listener")]
+#[component(name = "listener", on_remove = listener_removed)]
 pub struct Listener {
     /// Whether the mix is heard from this node; the last current one wins
     #[property(default = true)]
@@ -352,6 +352,13 @@ fn place_live(state: &mut AudioState, buses: &Buses, dt: f32) {
     }
 }
 
+/// What a removed `Listener` leaves behind, taken with it.
+fn listener_removed(eng: &Engine, entity: Entity) {
+    if let Some(state) = eng.try_resource::<AudioState>() {
+        state.borrow_mut().listeners.shift_remove(&entity);
+    }
+}
+
 /// The `listener` scene key. The node holds a [`Listener`], and a copy of it
 /// waits in `AudioState` beside the `sound` voices, in the order they were
 /// written: finding the current one costs no query, and the last current one
@@ -364,13 +371,6 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
         <Listener as Component>::NAME,
         ComponentDef {
             tags: &[balaur_core::components::tag::AUDIO],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Listener>(entity);
-                if let Some(state) = eng.try_resource::<AudioState>() {
-                    state.borrow_mut().listeners.shift_remove(&entity);
-                }
-                Ok(())
-            }),
             ..ComponentDef::of::<Listener>(Some(listener_written))
         },
     );

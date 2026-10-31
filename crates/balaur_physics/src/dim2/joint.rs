@@ -151,7 +151,7 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
 
 /// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
 #[derive(Clone, Component)]
-#[component(name = "joint2d")]
+#[component(name = "joint2d", on_remove = joint2d_removed)]
 pub struct Joint2d {
     /// How the two bodies may move relative to each other
     #[property(default = JointKind2d::Fixed)]
@@ -661,6 +661,11 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     apply_joint(eng, entity, &params)
 }
 
+/// What a removed `Joint2d` leaves behind, taken with it.
+fn joint2d_removed(eng: &Engine, entity: Entity) {
+    remove_joint(eng, entity);
+}
+
 /// `joint2d`: what was asked, held on the node; the joint and the table it was
 /// made from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
@@ -684,11 +689,6 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
             ],
             expects: &[c::BODY_2D],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Joint2d>(entity);
-                remove_joint(eng, entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Joint2d>(Some(after_write))
         },
     );

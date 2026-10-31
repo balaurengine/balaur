@@ -89,7 +89,7 @@ impl Visibility {
 
 /// An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.
 #[derive(Component)]
-#[component(name = "touch_button")]
+#[component(name = "touch_button", on_remove = touch_button_properties_removed)]
 pub struct TouchButtonProperties {
     /// The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding
     pub action: String,
@@ -124,7 +124,7 @@ pub struct TouchButtonProperties {
 
 /// An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.
 #[derive(Component)]
-#[component(name = "touch_stick")]
+#[component(name = "touch_stick", on_remove = touch_stick_properties_removed)]
 pub struct TouchStickProperties {
     /// The action the stick's left and right feed, -1 at the left of its throw
     pub action_x: String,
@@ -554,6 +554,11 @@ fn stick_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> 
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// What a removed `TouchButtonProperties` leaves behind, taken with it.
+fn touch_button_properties_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TouchButton>(entity);
+}
+
 /// The `touch_button` component.
 pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
     reg.register_component(
@@ -563,14 +568,14 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::UI,
             ],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<TouchButtonProperties>(entity);
-                let _ = eng.remove_one::<TouchButton>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<TouchButtonProperties>(Some(button_written))
         },
     );
+}
+
+/// What a removed `TouchStickProperties` leaves behind, taken with it.
+fn touch_stick_properties_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TouchStick>(entity);
 }
 
 /// The `touch_stick` component.
@@ -582,11 +587,6 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::UI,
             ],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<TouchStickProperties>(entity);
-                let _ = eng.remove_one::<TouchStick>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<TouchStickProperties>(Some(stick_written))
         },
     );

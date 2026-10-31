@@ -13,7 +13,7 @@ use crate::{Renderable2d, SpriteSheet2d, SpriteTexture, set_sprite};
 // The node draws the [`SpriteTexture`] each write leaves in its
 // [`Renderable2d`].
 #[derive(Clone, Component)]
-#[component(name = "sprite")]
+#[component(name = "sprite", on_remove = sprite_removed)]
 pub struct Sprite {
     /// Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing
     #[property(asset = "texture")]
@@ -134,16 +134,16 @@ fn sprite_laid_out(eng: &balaur_core::Engine, entity: Entity) -> anyhow::Result<
     crate::material::set_material_2d(eng, entity, &asked.material)
 }
 
+/// What a removed `Sprite` leaves behind, taken with it.
+fn sprite_removed(eng: &balaur_core::Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Sprite::NAME,
         ComponentDef {
             tags: &[words::ORTHOGRAPHIC, "render"],
-            remove: Box::new(|eng, entity| {
-                let _ = eng.remove_one::<Sprite>(entity);
-                let _ = eng.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
             ..ComponentDef::of::<Sprite>(Some(sprite_written))
         },
     );

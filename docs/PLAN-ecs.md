@@ -5,7 +5,11 @@
 > code and tests. Step 3 built 2026-10-31: `Engine::change_tick`, stamps in
 > `components::ticks` fed by the calls that feed the change log, and
 > `scene.added_since`, `changed_since`, `removed_since` for scripts. Two
-> calls differ from §2 below, each with its reason there. Steps 9 to 11 of
+> calls differ from §2 below, each with its reason there. Step 4 built
+> 2026-10-31: `Lifecycle` on every definition, declared on the derive, run by
+> the registry's three write paths and a freed node; `Written::Added` gone
+> (the timer and the notifier moved to `on_add`), and 36 hand `remove`
+> closures that only tore down beside-state moved to `on_remove`. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -57,10 +61,18 @@ something else in this engine.
   and a freed node's components), not the log from the stamps: the log
   carries which properties moved and what they held, which a stamp cannot
   say.
-- **Lifecycle calls** *(name)*. Bevy's component hooks: code run on add,
-  insert, replace, remove and despawn, declared on the derive. They get a
-  command queue and read access. They never call a script: anything a script
-  should hear goes through `events::announce`'s queue.
+- **Lifecycle calls**. Bevy's component hooks: `on_add`, `on_insert`,
+  `on_replace`, `on_remove` and `on_despawn`, plain `fn(&Engine, Entity)`,
+  declared on the derive (`#[component(on_add = f)]`) or on a hand
+  definition's `lifecycle`. The registry runs them: a whole write, a write of
+  one property, a removal, a freed node (every `on_despawn` first). A call
+  never refuses; `after_write`, which can, runs before them, and a refused
+  write's `on_replace` is followed by an `on_insert` on the values put back.
+  Writes made around the registry (the door's `insert_one` of a mirror
+  component) run none: those are the engine's own bookkeeping. They never
+  call a script: anything a script should hear goes through
+  `events::announce`'s queue. The command queue they were to get arrives
+  with step 5.
 - **Observers.** A Rust function run at once when an event is announced on
   one node or on any, carried up the tree when the event says so. Script
   listeners keep their delivery at the top of the next `Update`
@@ -114,7 +126,7 @@ something else in this engine.
 2. **The migration**, a crate a commit, render last as the largest.
 3. **Ticks and change detection**, fed by the change log's calls. *Built.*
 4. **Lifecycle calls**, and `after_write`'s added and changed cases moved
-   onto them.
+   onto them. *Built*: `Written` is `Whole` or `Property`.
 5. **Commands.**
 6. **Messages.**
 7. **Observers**, inside `events::announce`.
