@@ -526,6 +526,25 @@ how maps are built, not how they are read. One edit in the editor
 (`scripts/edit_cost.sh`, M instructions) went from 5.1 to 4.9 (text), 5.3 to
 5.1 (colour), 3.4 to 3.0 (position) and 5.0 to 4.3 (engine text).
 
+Measured again 2026-10-31, per engine call from a script on wasmtime, the
+dev build: instructions retired over 200 frames of a thousand calls, less a
+loop of the same length that calls nothing. Before is the morning; after
+is an argument lent rather than cloned, a struct's names inline, and a
+word of module memory read without a `Vec`:
+
+| a call | before | after |
+| --- | ---: | ---: |
+| `self.node.transform.position = vec3(..)` | 10,135 | 6,194 |
+| `let at = self.node.transform.position` | 7,153 | 5,633 |
+| `patch_component("transform", { "position": .. })` | 34,027 | 21,211 |
+| `patch_component("widget", { "text": .. })` | 27,304 | 19,285 |
+| `get_component("transform", "position")` | 36,845 | 35,416 |
+
+The write is still forty times the target. What is left of it is the engine
+side, a property set as a `toml::Value` and the change log and registry
+looked up by type on each write, and the any map's walk through module
+memory for a patch.
+
 ## Open questions
 
 1. **Integer overflow.** It wraps; Rune traps. A trap costs a compare per

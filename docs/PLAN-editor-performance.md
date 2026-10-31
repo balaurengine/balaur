@@ -1051,6 +1051,18 @@ the two runs alternated:
 | the Inspector writes `transform.position` | 4.5 M | 2.8 M |
 | the engine writes `text2d.text`, the Inspector's rows following | 5.6 M | 3.8 M |
 
+Measured again 2026-10-31, after the layout pushed a pass's written slots
+into taffy once rather than once per root it solved, and walked a
+self-placing subtree only when its own root was written. Three runs each;
+position moves the most between runs:
+
+| one edit a frame | before | after |
+| --- | ---: | ---: |
+| the Inspector writes `text2d.text` | 5.2 M | 3.4 to 3.5 M |
+| the Inspector writes `text2d.color` | 5.4 M | 3.5 to 3.6 M |
+| the Inspector writes `transform.position` | 3.9 M | 1.8 to 2.4 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 4.6 M | 2.8 to 3.0 M |
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind
