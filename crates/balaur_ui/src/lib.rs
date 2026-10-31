@@ -10,6 +10,7 @@
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
+mod access;
 mod api;
 mod bridge;
 mod chord;
@@ -30,6 +31,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use std::collections::HashMap;
 
+pub use access::{AccessTree, act, enable_access, take_access_update};
 pub use loading::Loading;
 pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
@@ -297,6 +299,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(widget::pool::PoolState::default());
         reg.insert_resource(widget::inspector::InspectorState::default());
         reg.insert_resource(UiFocus::default());
+        reg.insert_resource(AccessTree::default());
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
         balaur_text::glyph::install(reg);

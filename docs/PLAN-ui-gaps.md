@@ -3,8 +3,9 @@
 > gradients and stops past two on 2026-10-31. The `widget` split it waited
 > on is done (2026-10-31: `widget_field` holds the text kinds' rows), so
 > wiring §1 into the text kinds is next, and §4 is built whole
-> (2026-10-31); §2 and §3 are step 12 of PLAN-foundations, after the ECS
-> work for the parts that read ticks.
+> (2026-10-31); §3's tree, actions and colour check are built (2026-10-31),
+> its platform adapter waiting on a push to the kiss3d fork; §2 is step 12
+> of PLAN-foundations.
 
 # Plan: the UI's gaps
 
@@ -87,6 +88,30 @@ The ROADMAP's 0.6 row says "no plan"; this is it.
   checked against colour-blind palettes.
 
 Done when VoiceOver reads and drives the Polyglot app's seven screens.
+
+Built 2026-10-31, `crates/balaur_ui/src/access.rs`: while a reader listens
+(`balaur_ui::enable_access`, which the window layer calls once the platform
+asks), each pass builds a node per drawn widget under a window root, with
+its role (a button, a check box, a slider, a text input, a list, a dialog
+and the rest), its name (its caption, or an image's `alt_text`), its
+tooltip as a description, its value (a field's text unless `secret`, a
+dropdown's pick, a slider's or number field's number with its range and
+step), its states (disabled, toggled, expanded) and its actions (focus,
+click, set a value, step it, open or shut a fold); and focus. A node goes
+into the update only where it differs from what the reader holds, so a pass
+that changed nothing hands nothing over; nodes are compared rather than
+ticks read, since a box can move without a write. `take_access_update`
+answers the update for the platform adapter, and `balaur_ui::act` applies a
+reader's request: focus and click through focus, a value through the same
+edit a reader's typing makes. Text already follows the platform's text size
+(`[ui] system_text_size`). `ui.colors_apart` measures how far a theme's
+saying colours (`primary`, `success`, `warning`, `danger`) stand apart in
+CIELAB for typical, protan, deutan and tritan vision; Balaur's own halves
+keep every pair 10 apart (its light half's success is stated for that), and
+the imported palettes, which lean on hue, are reported, not changed. Not
+built: the platform adapter. The window comes from the kiss3d fork
+(`Ughuuu/kiss3d`), which owns winit's event loop, so `accesskit_winit`
+goes there, a push to that fork; until then nothing reaches VoiceOver.
 
 ## 4. Directional focus
 

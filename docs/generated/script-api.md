@@ -54,7 +54,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 39 | 66 |
+| [`ui`](#ui) | 40 | 66 |
 | [`websocket`](#websocket) | 4 | 9 |
 | [`window`](#window) | 8 | 0 |
 
@@ -1533,6 +1533,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `activate_focused` | `()` |
 | `clear_focus` | `()` |
 | `click` | `(Node, any) -> bool` |
+| `colors_apart` | `(any) -> [ui::ColorsApart]` |
 | `complete_theme` | `(any) -> any` |
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |

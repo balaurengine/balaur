@@ -162,6 +162,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         toasts.drew(&placed[root]);
     }
     settle(eng, ctx);
+    crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));

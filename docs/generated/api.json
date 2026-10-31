@@ -6356,6 +6356,10 @@
         "least": 1,
         "signature": "(Node, any) -> bool"
       },
+      "ui::colors_apart": {
+        "least": 0,
+        "signature": "(any) -> [ui::ColorsApart]"
+      },
       "ui::complete_theme": {
         "least": 0,
         "signature": "(any) -> any"
@@ -6829,6 +6833,12 @@
         "path": "str",
         "scope": "str",
         "spec": "any"
+      },
+      "ui::ColorsApart": {
+        "distance": "float",
+        "first": "str",
+        "second": "str",
+        "vision": "str"
       },
       "ui::ContrastPair": {
         "fill": "str",
@@ -26759,6 +26769,7 @@
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+        "colors_apart": "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
@@ -26800,6 +26811,7 @@
         "activate_focused",
         "clear_focus",
         "click",
+        "colors_apart",
         "complete_theme",
         "contrast",
         "contrast_pairs",
@@ -26842,6 +26854,7 @@
         "activate_focused": "()",
         "clear_focus": "()",
         "click": "(Node, any) -> bool",
+        "colors_apart": "(any) -> [ui::ColorsApart]",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",

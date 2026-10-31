@@ -15,7 +15,7 @@ use crate::widget::node::{Move, UiFocus, Widget};
 /// Derived rather than declared: focus exists to activate something, so a
 /// widget with nothing to activate is never a stop on the way to one. The
 /// `focusable` flag can only take a candidate out, never put one in.
-fn takes_focus(widget: &Widget) -> bool {
+pub(crate) fn takes_focus(widget: &Widget) -> bool {
     widget.visible
         && widget.focusable
         && (matches!(

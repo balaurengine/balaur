@@ -522,6 +522,11 @@ pub(crate) mod keys {
     pub(crate) const INK: &str = "ink";
     pub(crate) const RATIO: &str = "ratio";
     pub(crate) const NEED: &str = "need";
+    /// What `ui::colors_apart` answers per pair.
+    pub(crate) const FIRST: &str = "first";
+    pub(crate) const SECOND: &str = "second";
+    pub(crate) const DISTANCE: &str = "distance";
+    pub(crate) const VISION: &str = "vision";
     pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";
     pub(crate) const MULTI_SELECT: &str = "multi_select";

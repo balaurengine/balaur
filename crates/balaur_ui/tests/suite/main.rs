@@ -6,6 +6,7 @@
 
 mod support;
 
+mod access;
 mod constants;
 mod fonts;
 mod glyph_mesh;
