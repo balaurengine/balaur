@@ -51,6 +51,11 @@ const SYSTEM_FACES: &[&str] = &[
     "/usr/share/fonts/noto/NotoColorEmoji.ttf",
 ];
 
+/// A face file's bytes, shared by every holder: the shaper's database and
+/// egui take the same allocation, so neither copies a file and egui compares
+/// a face it already holds by pointer. An operating system's face is mapped.
+pub type FaceBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
+
 /// One face file a project draws in.
 #[derive(Clone)]
 pub struct FontFace {
@@ -61,7 +66,7 @@ pub struct FontFace {
     pub path: String,
     /// One of the operating system's: drawn as a fallback, never measured.
     pub system: bool,
-    pub bytes: Arc<Vec<u8>>,
+    pub bytes: FaceBytes,
     /// What the face's import settings adjust wherever it draws: egui's own
     /// text and everything this crate shapes.
     pub tweak: FaceTweak,
@@ -111,22 +116,21 @@ impl FaceTweak {
 /// The faces the operating system ships, whichever of them are present,
 /// read once for the life of the process.
 ///
-/// These are the largest files on the machine — one CJK collection runs to
-/// tens of megabytes — and a project's faces are read again whenever a file
-/// under its `fonts/` moves, so reading these per read meant a fresh copy of
-/// all of it each time. Cloning a face clones an `Arc`.
+/// These are the largest files on the machine — the emoji collection alone
+/// runs to two hundred megabytes — so they are mapped, not read: a page is
+/// loaded when a glyph on it is drawn, and a run that draws no emoji loads
+/// none of that file. Cloning a face clones an `Arc`.
 fn system_cache() -> &'static [FontFace] {
     static LOADED: std::sync::OnceLock<Vec<FontFace>> = std::sync::OnceLock::new();
     LOADED.get_or_init(|| {
         SYSTEM_FACES
             .iter()
             .filter_map(|path| {
-                let bytes = std::fs::read(path).ok()?; // os files: the system's own faces
                 Some(FontFace {
                     name: format!("system:{path}"),
                     path: String::new(),
                     system: true,
-                    bytes: Arc::new(bytes),
+                    bytes: mapped(path)?,
                     tweak: FaceTweak::default(),
                 })
             })
@@ -134,27 +138,36 @@ fn system_cache() -> &'static [FontFace] {
     })
 }
 
+/// An operating system's face file, mapped for the life of the process.
+#[cfg(not(target_family = "wasm"))]
+fn mapped(path: &str) -> Option<FaceBytes> {
+    let file = std::fs::File::open(path).ok()?; // os files: the system's own faces
+    // SAFETY: the operating system's own face, under its fonts directory,
+    // which nothing rewrites while a process holds it open.
+    let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
+    Some(Arc::new(map))
+}
+
+/// A browser has no face files to map.
+#[cfg(target_family = "wasm")]
+fn mapped(_: &str) -> Option<FaceBytes> {
+    None
+}
+
 /// The faces the operating system ships, whichever of them are present.
 pub fn system_faces() -> Vec<FontFace> {
     system_cache().to_vec()
-}
-
-/// The cached bytes for an OS face. Borrowed for the life of the process, so
-/// egui holds them without a copy of its own.
-pub fn system_static_bytes(name: &str) -> Option<&'static [u8]> {
-    system_cache()
-        .iter()
-        .find(|face| face.name == name)
-        .map(|face| face.bytes.as_slice())
 }
 
 /// The face every build carries: the default font where a project's theme
 /// names none, and what the shaper falls back to when nothing else draws.
 #[must_use]
 pub fn bundled_face() -> FontFace {
-    static LOADED: std::sync::OnceLock<Arc<Vec<u8>>> = std::sync::OnceLock::new();
+    static LOADED: std::sync::OnceLock<FaceBytes> = std::sync::OnceLock::new();
     let bytes = LOADED.get_or_init(|| {
-        Arc::new(include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec())
+        let bundled: &'static [u8] =
+            include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf");
+        Arc::new(bundled)
     });
     FontFace {
         name: "SourceSans3-Regular".into(),
@@ -709,7 +722,7 @@ impl ProjectFonts {
         let ids = self
             .drawing
             .db_mut()
-            .load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
+            .load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
         if ids.is_empty() {
             anyhow::bail!("'{path}' is not a face");
         }
@@ -721,7 +734,7 @@ impl ProjectFonts {
         if let Some((strict, tweaks)) = self.strict.as_mut() {
             let ids = strict
                 .db_mut()
-                .load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
+                .load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
             tweaks.add(&ids, face.tweak);
         }
         self.faces.push(face);
@@ -746,12 +759,6 @@ impl ProjectFonts {
             bitmap: None,
         })
     }
-}
-
-/// A face's bytes as fontdb takes them, shared rather than copied.
-fn shared(bytes: &Arc<Vec<u8>>) -> Arc<dyn AsRef<[u8]> + Send + Sync> {
-    let shared: Arc<Vec<u8>> = Arc::clone(bytes);
-    shared
 }
 
 /// The faces, in order, as the fallback list: what the engine means by "the
@@ -783,7 +790,7 @@ fn system_of(faces: &[FontFace], locale: &str) -> (FontSystem, Tweaks, HashMap<f
     let mut face_of_id = HashMap::new();
     let mut tweaks = Tweaks::default();
     for (index, face) in faces.iter().enumerate() {
-        let ids = db.load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
+        let ids = db.load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
         tweaks.add(&ids, face.tweak);
         for id in ids {
             face_of_id.insert(id, index);

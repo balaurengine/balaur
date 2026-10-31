@@ -34,6 +34,8 @@ swash = "0.2.10"
 # cosmic-text's, so this only adds the features.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
+# The operating system's faces, mapped for the shaper and egui alike.
+memmap2 = "0.9"
 
 [lints]
 workspace = true

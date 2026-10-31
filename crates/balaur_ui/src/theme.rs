@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use crate::vocabulary::{keys as k, tokens as t};
 use balaur_text::FontProject;
-use balaur_text::fonts::{FontFace, system_static_bytes};
+use balaur_text::fonts::FontFace;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 use std::collections::HashSet;
 
@@ -322,18 +322,17 @@ pub(crate) fn take_fonts(eng: &balaur_core::Engine, ctx: &egui::Context) {
 /// settings as egui's tweak.
 fn face_data(fonts: &mut egui::FontDefinitions, project: FontProject, faces: &[FontFace]) {
     for face in faces {
-        // An OS face is cached for the process, so egui borrows those bytes;
-        // a project's own are small and reload, so they keep a copy.
-        let data = match system_static_bytes(&face.name) {
-            Some(bytes) => egui::FontData::from_static(bytes),
-            None => egui::FontData::from_owned((*face.bytes).clone()),
-        }
-        .tweak(egui::FontTweak {
-            scale: face.tweak.scale,
-            y_offset_factor: face.tweak.y_offset,
-            hinting: face.tweak.hinting,
-            ..egui::FontTweak::default()
-        });
+        // The face's own bytes, the same allocation every pass: egui compares
+        // a new definition with the last by pointer first, so a face it holds
+        // already is not read again, and nothing is copied.
+        let data = egui::FontData::from_blob(std::sync::Arc::clone(&face.bytes), 0).tweak(
+            egui::FontTweak {
+                scale: face.tweak.scale,
+                y_offset_factor: face.tweak.y_offset,
+                hinting: face.tweak.hinting,
+                ..egui::FontTweak::default()
+            },
+        );
         fonts
             .font_data
             .insert(face_name(project, face), std::sync::Arc::new(data));
