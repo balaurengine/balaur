@@ -17,7 +17,7 @@ default = ["compile"]
 compile = ["dep:wesl"]
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-window = ["dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
+window = ["dep:naga", "dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
@@ -58,6 +58,9 @@ aseprite-loader = { version = "0.4", optional = true }
 # asserts on a `@const` function — before naga and without a GPU, which is what
 # lets a headless test catch a shader that will not link.
 wesl = { version = "0.6", features = ["eval"], optional = true }
+# The dev-dependency's features, on the naga wgpu already links: a test build
+# would otherwise give naga, wgpu and every crate above them a second copy.
+naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"], optional = true }
 
 # A hidden tab gets no animation frames, so the simulation is stepped on a
 # timer there instead; the page's clock and visibility come from web-sys.

@@ -115,10 +115,10 @@ host_stream() {
     # nextest gives each test its own process and runs them in parallel. It
     # has no doctest runner, so those stay with cargo.
     if command -v cargo-nextest >/dev/null 2>&1; then
-      step 'tests' cargo nextest run --workspace --no-fail-fast || bad=1
-      step 'doctests' cargo test --workspace --doc || bad=1
+      step 'tests' cargo suite --no-fail-fast || bad=1
+      step 'doctests' cargo test --workspace --features balaur_cli/window --doc || bad=1
     else
-      step 'tests' cargo test --workspace || bad=1
+      step 'tests' cargo test --workspace --features balaur_cli/window || bad=1
     fi
     # docs.yml denies rustdoc's warnings, which is how a dead intra-doc link
     # is caught; without the flag this passed locally and failed on push.

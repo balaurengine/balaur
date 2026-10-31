@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 if [ -n "${BALAUR_BIN:-}" ]; then
   bin=$BALAUR_BIN
 else
-  cargo build -q -p balaur_cli
+  cargo editor -q
   bin="${CARGO_TARGET_DIR:-target}/debug/balaur"
 fi
 

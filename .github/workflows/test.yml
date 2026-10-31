@@ -79,8 +79,8 @@ jobs:
         env:
           BALAUR_E2E_GAMEND: ${{ runner.os == 'Windows' && '0' || '1' }}
         run: |
-          cargo nextest run --workspace --no-fail-fast
-          cargo test --workspace --doc
+          cargo suite --no-fail-fast
+          cargo test --workspace --features balaur_cli/window --doc
       # A 500 from the server says only that something raised; its log says what.
       - name: The Gamend server's log, when the tests failed
         if: failure() && steps.gamend.outcome == 'success'

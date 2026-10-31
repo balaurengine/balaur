@@ -23,7 +23,7 @@ mkdir -p "$out_dir"
 if [ -n "${BALAUR_BIN:-}" ]; then
   built=${BALAUR_BIN%.exe}
 else
-  cargo build -q -p balaur_cli --features window --bin balaur
+  cargo editor -q
   built=${CARGO_TARGET_DIR:-target}/debug/balaur
 fi
 # A copy of its own: another build writing target/debug/balaur mid-run would

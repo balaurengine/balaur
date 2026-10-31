@@ -20,8 +20,8 @@ hecs.workspace = true
 anyhow.workspace = true
 tempfile = "3"
 toml.workspace = true
-
-[dev-dependencies]
+# A dependency, not a dev-dependency: its `regex` reaches tracing-subscriber,
+# and a test build alone turning that on would compile the engine twice.
 criterion = "0.8"
 
 [[bench]]

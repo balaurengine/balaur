@@ -169,8 +169,13 @@ three desktop platforms. Beyond `cargo test --workspace`:
   to a local Gamend on port 4000 (`GAMEND_URL` overrides): CI starts one with
   Gamend's `setup-gamend` action, and locally `gamend daemon` serves one.
 
-What keeps a run short: a dev build carries no debug info, so no link goes
-through `dsymutil` (`--profile debugging` for a debugger); a long test does
+What keeps a run short: the editor and the tests build on one feature set,
+`cargo editor` and `cargo suite` (`.cargo/config.toml`), so an edit compiles
+each crate once for both, where `-p balaur_cli` compiles every engine crate a
+second time; a target whose sources hold no unit tests says `test = false`
+(a house lint holds it), so no empty test binary is compiled and linked; a
+dev build carries no debug info, so no link goes through `dsymutil`
+(`--profile debugging` for a debugger); a long test does
 its work on every core (the corpus, the export of every target) and nextest
 starts it first (`.config/nextest.toml`); and a generic from a dependency
 that does heavy work is called through a concrete type the dependency
