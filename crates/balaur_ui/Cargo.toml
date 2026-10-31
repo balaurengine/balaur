@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[build-dependencies]
+balaur_cfg.workspace = true
+
 [features]
 # egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
 # emoji fonts.
@@ -34,9 +37,9 @@ image = { version = "0.25", default-features = false, features = ["png", "webp"]
 # The wave in marked-up text is drawn with a sine that must not vary by OS.
 libm.workspace = true
 
-# The desktop's clipboard, which the window layer under egui does not open:
-# copied text goes out, and a paste reads text or an image back.
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
+# The desktop's clipboard (`balaur_cfg`'s `desktop`, which a manifest key
+# cannot name): the window layer under egui opens none, nor arboard a phone's.
+[target.'cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))'.dependencies]
 arboard = "3"
 
 [dev-dependencies]

@@ -8,7 +8,7 @@
 /// pass that saw it ends before the script that hears of it runs.
 pub(crate) type Image = std::sync::Arc<egui::ColorImage>;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(desktop)]
 mod desktop {
     use std::cell::RefCell;
 
@@ -31,7 +31,7 @@ mod desktop {
 /// Before the widgets draw: a paste chord the window layer said only as a
 /// key becomes egui's paste of what the clipboard holds.
 pub(crate) fn read_paste(ctx: &egui::Context) {
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(desktop)]
     {
         let asked = ctx.input(|i| {
             let chord = i.events.iter().any(|event| {
@@ -65,14 +65,14 @@ pub(crate) fn read_paste(ctx: &egui::Context) {
             ctx.input_mut(|i| i.events.push(event));
         }
     }
-    #[cfg(target_family = "wasm")]
+    #[cfg(not(desktop))]
     let _ = ctx;
 }
 
 /// After the widgets drew: the text a field or a script copied, onto the
 /// clipboard.
 pub(crate) fn write_copies(ctx: &egui::Context) {
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(desktop)]
     {
         let copied = ctx.output(|o| {
             o.commands.iter().rev().find_map(|command| match command {
@@ -84,7 +84,7 @@ pub(crate) fn write_copies(ctx: &egui::Context) {
             desktop::with(|board| board.set_text(text).ok());
         }
     }
-    #[cfg(target_family = "wasm")]
+    #[cfg(not(desktop))]
     let _ = ctx;
 }
 

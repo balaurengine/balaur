@@ -225,8 +225,11 @@ mobile_stream() {
     export CC_aarch64_linux_android="$bin/aarch64-linux-android26-clang"
     export CXX_aarch64_linux_android="$bin/aarch64-linux-android26-clang++"
     export AR_aarch64_linux_android="$bin/llvm-ar"
+    # Clippy calls every thread_local! on Android one that could be `const`,
+    # one that is too: std keeps no native thread locals there (1.98).
     step 'clippy android' shape android clippy --workspace --all-targets \
-      --target aarch64-linux-android -- -D warnings || bad=1
+      --target aarch64-linux-android -- -D warnings \
+      -A clippy::missing_const_for_thread_local || bad=1
   else
     printf 'no Android NDK or aarch64-linux-android target, clippy android skipped\n'
   fi
