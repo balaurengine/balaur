@@ -85,7 +85,14 @@ something else in this engine.
   call per write (`changes::component`, `property`, `attached`, `removed`,
   and a freed node's components), not the log from the stamps: the log
   carries which properties moved and what they held, which a stamp cannot
-  say.
+  say. A system's own writes are seen through `Tracked<T>` in a typed query,
+  built 2026-10-31: its item, `Mut<'_, T>`, notes the write on its first
+  `DerefMut`, on the writing thread (a batch on the pool hands its notes
+  over when it ends), and the schedule stamps them all in one pass with the
+  system's change tick when the system ends. They stamp, they do not log:
+  undo and the editor hear the registry's writes. A plain `&mut T` stays
+  free and unseen. A tracked write costs 10 ns, bevy's 0.65: bevy keeps a
+  tick column beside each component, which is the step past this one.
 - **Lifecycle calls**. Bevy's component hooks: `on_add`, `on_insert`,
   `on_replace`, `on_remove` and `on_despawn`, plain `fn(&Engine, Entity)`,
   declared on the derive (`#[component(on_add = f)]`) or on a hand

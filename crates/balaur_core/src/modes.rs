@@ -244,6 +244,7 @@ fn run<M: Mode>(
         if *at == value {
             eng.advance_change_tick();
             system(eng, 0.0);
+            crate::components::ticks::drain_written(eng);
             eng.advance_change_tick();
         }
     }

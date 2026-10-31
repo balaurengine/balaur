@@ -228,7 +228,12 @@ impl<Q: hecs::Query> Query<'_, Q> {
     {
         let mut borrowed = self.world.query::<Q>();
         let batches: Vec<hecs::Batch<'_, Q>> = borrowed.iter_batched(batch.max(1)).collect();
-        let each_batch = |batch: hecs::Batch<'_, Q>| batch.fold(start(), &fold);
+        let each_batch = |batch: hecs::Batch<'_, Q>| {
+            let out = batch.fold(start(), &fold);
+            // A tracked write noted on a pool thread reaches the drain.
+            crate::components::ticks::hand_over();
+            out
+        };
         #[cfg(not(target_family = "wasm"))]
         let partials: Vec<R> = {
             use rayon::prelude::*;
@@ -259,6 +264,113 @@ impl<Q: hecs::Query + 'static> SystemParam for Query<'_, Q> {
         Query {
             world,
             marker: std::marker::PhantomData,
+        }
+    }
+}
+
+/// A query term that writes a component and is seen doing it:
+/// `Query<'_, (Tracked<Pos>, &Vel)>`. Its item, [`Mut`], notes the write the
+/// first time it is written through, and the write is stamped with the
+/// system's change tick when the system ends, so [`Changed`] and
+/// `scene.changed_since` hear it. A plain `&mut T` is free and unseen.
+pub struct Tracked<T>(std::marker::PhantomData<fn() -> T>);
+
+/// A tracked query's component, borrowed: read freely, noted when written.
+pub struct Mut<'a, T: 'static> {
+    value: &'a mut T,
+    node: Entity,
+    noted: bool,
+}
+
+impl<T> Mut<'_, T> {
+    /// The node the component sits on.
+    #[must_use]
+    pub fn node(&self) -> Entity {
+        self.node
+    }
+}
+
+impl<T> Deref for Mut<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.value
+    }
+}
+
+impl<T> DerefMut for Mut<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        if !self.noted {
+            self.noted = true;
+            crate::components::ticks::note_written(std::any::TypeId::of::<T>(), self.node);
+        }
+        self.value
+    }
+}
+
+/// [`Tracked`]'s fetch: hecs's own for `&mut T` and for the entity, side by
+/// side.
+pub struct FetchTracked<T: hecs::Component> {
+    write: <&'static mut T as hecs::Query>::Fetch,
+    node: <Entity as hecs::Query>::Fetch,
+}
+
+impl<T: hecs::Component> Clone for FetchTracked<T> {
+    fn clone(&self) -> Self {
+        Self {
+            write: self.write.clone(),
+            node: self.node.clone(),
+        }
+    }
+}
+
+// SAFETY: every call is hecs's own `&mut T` and `Entity` fetches', whose
+// contracts this keeps by passing each through unchanged.
+unsafe impl<T: hecs::Component> hecs::Fetch for FetchTracked<T> {
+    type State = <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::State;
+
+    fn dangling() -> Self {
+        Self {
+            write: hecs::Fetch::dangling(),
+            node: hecs::Fetch::dangling(),
+        }
+    }
+    fn access(archetype: &hecs::Archetype) -> Option<hecs::Access> {
+        <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::access(archetype)
+    }
+    fn borrow(archetype: &hecs::Archetype, state: Self::State) {
+        <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::borrow(archetype, state);
+    }
+    fn prepare(archetype: &hecs::Archetype) -> Option<Self::State> {
+        <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::prepare(archetype)
+    }
+    fn execute(archetype: &hecs::Archetype, state: Self::State) -> Self {
+        Self {
+            write: <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::execute(
+                archetype, state,
+            ),
+            node: <<Entity as hecs::Query>::Fetch as hecs::Fetch>::execute(archetype, ()),
+        }
+    }
+    fn release(archetype: &hecs::Archetype, state: Self::State) {
+        <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::release(archetype, state);
+    }
+    fn for_each_borrow(f: impl FnMut(std::any::TypeId, bool)) {
+        <<&'static mut T as hecs::Query>::Fetch as hecs::Fetch>::for_each_borrow(f);
+    }
+}
+
+impl<T: hecs::Component> hecs::Query for Tracked<T> {
+    type Item<'q> = Mut<'q, T>;
+    type Fetch = FetchTracked<T>;
+
+    unsafe fn get<'q>(meta: &[hecs::EntityMeta], fetch: &Self::Fetch, n: usize) -> Mut<'q, T> {
+        // SAFETY: hecs's own two gets, under the contract this one was called on.
+        unsafe {
+            Mut {
+                value: <&'q mut T as hecs::Query>::get(meta, &fetch.write, n),
+                node: <Entity as hecs::Query>::get(meta, &fetch.node, n),
+                noted: false,
+            }
         }
     }
 }

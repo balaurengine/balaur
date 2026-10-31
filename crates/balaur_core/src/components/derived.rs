@@ -562,6 +562,7 @@ impl ComponentDef {
             warnings: None,
             lifecycle: C::LIFECYCLE,
             requires: C::REQUIRES,
+            type_id: Some(std::any::TypeId::of::<C>()),
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
                 // What the node held, to put back if the hook refuses: the

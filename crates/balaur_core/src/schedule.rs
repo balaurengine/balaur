@@ -183,6 +183,8 @@ impl Schedule {
             }
             eng.advance_change_tick();
             (system.run)(eng, dt);
+            // What it wrote through a tracked query, stamped with its tick.
+            crate::components::ticks::drain_written(eng);
             eng.advance_change_tick();
         }
         self.order = Some(order);

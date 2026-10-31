@@ -5,9 +5,10 @@
 //! Stamped from the calls that feed the change log, which every write of a
 //! registered component makes (`changes::component`, `property`, `attached`,
 //! `removed`) and a freed node's components, so the log and the ticks are
-//! one source.
+//! one source; and from a system's writes through a tracked query
+//! (`system_param::Tracked`), noted on the writing thread and stamped in one
+//! pass when the system ends.
 
-use crate::collections::DetHashMap;
 use crate::engine::Engine;
 use crate::hecs::Entity;
 
@@ -19,10 +20,12 @@ pub struct Stamp {
     pub changed: u64,
 }
 
-/// Every stamp, and the components that came off.
+/// Every stamp, and the components that came off. The stamps are an ordered
+/// map, whose dense entries a "changed since" walks faster than a plain
+/// map's table; every reader sorts what it finds by node.
 #[derive(Default)]
 pub struct Ticks {
-    stamps: DetHashMap<(Entity, usize), Stamp>,
+    stamps: crate::collections::DetHashMap<(Entity, usize), Stamp>,
     /// What came off, with the tick it came off at; kept for the frame it
     /// came off in and the next, so a reader that runs every frame hears it.
     removed: Vec<(Entity, usize, u64)>,
@@ -183,6 +186,81 @@ fn matching(eng: &Engine, index: usize, since: u64, of: impl Fn(&Stamp) -> u64) 
     };
     found.sort_unstable_by_key(|node| node.to_bits());
     found
+}
+
+/// A write a system made through a tracked query: the component's Rust type
+/// and the node.
+type Written = (std::any::TypeId, Entity);
+
+thread_local! {
+    /// This thread's writes since it last handed them over.
+    static WRITTEN: std::cell::RefCell<Vec<Written>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What the pool's threads handed over, for the drain on the engine's thread.
+static HANDED: std::sync::Mutex<Vec<Written>> = std::sync::Mutex::new(Vec::new());
+
+/// A tracked query's item was written through: noted on this thread now,
+/// stamped when the system that wrote it ends ([`drain_written`]).
+pub(crate) fn note_written(type_id: std::any::TypeId, node: Entity) {
+    WRITTEN.with(|written| written.borrow_mut().push((type_id, node)));
+}
+
+/// Hand this thread's notes to the engine's thread: what a batch run on the
+/// pool does when it ends, once rather than a lock a write.
+pub(crate) fn hand_over() {
+    let mine = WRITTEN.with(|written| std::mem::take(&mut *written.borrow_mut()));
+    if !mine.is_empty() {
+        HANDED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend(mine);
+    }
+}
+
+/// Stamp every write noted since the last drain with the change tick now, a
+/// component the registry does not know left alone: what a system's tracked
+/// writes become, at the end of its run.
+pub(crate) fn drain_written(eng: &Engine) {
+    let mut noted = WRITTEN.with(|written| std::mem::take(&mut *written.borrow_mut()));
+    noted.extend(std::mem::take(
+        &mut *HANDED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    ));
+    if noted.is_empty() {
+        return;
+    }
+    let Some(registry) = eng.try_resource::<super::ComponentRegistry>() else {
+        return;
+    };
+    let Some(ticks) = eng.try_resource::<Ticks>() else {
+        return;
+    };
+    let now = eng.change_tick();
+    let registry = registry.borrow();
+    let mut ticks = ticks.borrow_mut();
+    // Looked up once a type: a system writes one or two kinds a run.
+    let mut places: Vec<(std::any::TypeId, Option<usize>)> = Vec::new();
+    for (type_id, node) in noted {
+        let index = if let Some((_, index)) = places.iter().find(|(held, _)| *held == type_id) {
+            *index
+        } else {
+            let index = registry.index_of_type(type_id);
+            places.push((type_id, index));
+            index
+        };
+        if let Some(index) = index {
+            ticks
+                .stamps
+                .entry((node, index))
+                .and_modify(|stamp| stamp.changed = now)
+                .or_insert(Stamp {
+                    added: now,
+                    changed: now,
+                });
+        }
+    }
 }
 
 /// What a system keeps between its runs: the change tick it last read at.

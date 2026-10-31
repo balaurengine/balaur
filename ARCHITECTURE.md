@@ -107,6 +107,8 @@ a `Builtins`; a bare app gets the kernel's own.
   | 50 empty systems × 10k frames | 0.52 ms | 1.23 ms | 6.22 ms |
   | The same, typed systems reading a resource | — | 2.18 ms | — |
   | 1% of 100k written, then the written found | — | 207 µs | 107 µs |
+  | 100k written from a system, untracked | 41 µs | 41 µs | — |
+  | 100k written from a system, tracked | — | 1.0 ms | 64 µs |
 
   The door, a query and a get are hecs's own, so they run at its speed (the
   differences in those rows are where each world sits in memory). A
@@ -114,9 +116,11 @@ a `Builtins`; a bare app gets the kernel's own.
   schedule costs 12. A tracked write is the one place balaur pays: a
   property written through the registry, as a script, a scene or the editor
   writes it, is 117 ns with its change stamp and its log entry, where bevy
-  stamps a column in 7.5. A Rust system writing through a query's `&mut`
-  pays nothing and is not seen by change detection, where bevy stamps every
-  `&mut` it hands out (PLAN-ecs §2, *Change detection*).
+  stamps a column in 7.5. A Rust system's write through a typed query's
+  `Tracked<T>` is seen by change detection and costs 10 ns (noted on its
+  thread, stamped in one pass when the system ends); a plain `&mut T` costs
+  nothing and is not seen. Bevy stamps every `&mut` it hands out, at 0.65 ns,
+  in a tick column beside the component (PLAN-ecs §2, *Change detection*).
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
   `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
   component, `[nodes.transform]` in a file, and a node without one sits at its

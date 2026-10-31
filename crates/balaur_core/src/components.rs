@@ -333,6 +333,9 @@ pub struct ComponentDef {
     pub warnings: WarningsFn,
     /// What it runs as it goes on, is written and comes off.
     pub lifecycle: Lifecycle,
+    /// The Rust type a derived component is, so a write a system makes through
+    /// a tracked query finds its place here; none for one written by hand.
+    pub type_id: Option<std::any::TypeId>,
 }
 
 impl ComponentDef {
@@ -357,6 +360,7 @@ impl ComponentDef {
             write: None,
             warnings: None,
             lifecycle: Lifecycle::NONE,
+            type_id: None,
         }
     }
 }
@@ -562,6 +566,14 @@ impl ComponentRegistry {
     #[must_use]
     pub fn at(&self, index: usize) -> Option<(&SmolStr, &ComponentDef)> {
         self.defs.get_index(index)
+    }
+
+    /// Where the derived component of Rust type `type_id` is registered.
+    #[must_use]
+    pub fn index_of_type(&self, type_id: std::any::TypeId) -> Option<usize> {
+        self.defs
+            .values()
+            .position(|def| def.type_id == Some(type_id))
     }
 
     /// What the schema at `index` says, worked out once at registration.

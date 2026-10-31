@@ -8,9 +8,11 @@
 use balaur_core::schedule::System;
 use balaur_core::system_param::{
     Added, Changed, Commands, Local, MessageReader, MessageWriter, Query, Res, ResMut, Step,
+    Tracked,
 };
 use balaur_core::timer::Timer;
 use balaur_core::{App, AppConfig, Name, Stage, fixed_dt};
+use std::hint::black_box;
 
 #[derive(Default)]
 struct Score(u32);
@@ -205,4 +207,60 @@ fn batches_work_every_match_and_fold_the_same_every_run() {
     for _ in 0..5 {
         assert_eq!(run().to_bits(), first.to_bits(), "the same bits every run");
     }
+}
+
+/// Which pass of the tracked tests runs: what each system writes.
+#[derive(Default)]
+struct Pass(u32);
+
+fn write_timers(mut timers: Query<'_, Tracked<Timer>>, pass: Res<'_, Pass>) {
+    timers.for_each(|mut timer| match pass.0 {
+        // Read through the item only: nothing is written.
+        0 => {
+            black_box(timer.wait);
+        }
+        1 => timer.wait += 1.0,
+        _ => {}
+    });
+}
+
+fn write_untracked(mut timers: Query<'_, &mut Timer>, pass: Res<'_, Pass>) {
+    if pass.0 == 2 {
+        timers.for_each(|timer| timer.wait += 1.0);
+    }
+}
+
+fn write_in_batches(mut timers: Query<'_, Tracked<Timer>>, pass: Res<'_, Pass>) {
+    if pass.0 == 3 {
+        timers.par_for_each(2, |mut timer| timer.wait += 1.0);
+    }
+}
+
+fn heard(changed: Changed<Timer>, mut heard: ResMut<'_, Heard>) {
+    heard.0.push(u32::try_from(changed.len()).unwrap());
+}
+
+#[test]
+fn a_tracked_query_s_writes_are_changes_and_a_plain_one_s_are_not() {
+    let mut app = app();
+    app.engine.insert_resource(Pass(9));
+    let root = app.engine.root();
+    for i in 0..5 {
+        let node = app.engine.spawn_node(&format!("t{i}"), root);
+        balaur_core::components::add(&app.engine, node, "timer", None).unwrap();
+    }
+    app.add_typed(Stage::Update, write_timers);
+    app.add_typed(Stage::Update, write_untracked);
+    app.add_typed(Stage::Update, write_in_batches);
+    app.add_typed(Stage::PostUpdate, heard);
+    app.tick(0.0);
+    for pass in 0..4 {
+        app.engine.resource::<Pass>().borrow_mut().0 = pass;
+        app.tick(0.0);
+    }
+    assert_eq!(
+        app.engine.resource::<Heard>().borrow().0,
+        vec![5, 0, 5, 0, 5],
+        "the adds, a read, a tracked write, a plain one, a batched one"
+    );
 }
