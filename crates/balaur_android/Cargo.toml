@@ -10,6 +10,7 @@ publish = false
 # Android's NativeActivity dlopens `libmain.so` and calls `android_main` in it,
 # so the Android template is a shared library rather than an executable.
 [lib]
+test = false
 name = "main"
 crate-type = ["cdylib"]
 path = "src/lib.rs"

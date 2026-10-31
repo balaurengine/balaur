@@ -943,6 +943,55 @@ def check_template_features() -> list[Finding]:
                     f"adds {extra}", "ERROR")]
 
 
+UNIT_TEST = re.compile(r"#\[(?:[a-z_]+::)?test\]|#\[cfg\(test\)\]")
+
+
+def target_sources(root: Path, entry: Path) -> list[Path]:
+    """The files a target compiles: its entry and every `mod` reached from it."""
+    seen: list[Path] = []
+    todo = [entry]
+    while todo:
+        path = todo.pop()
+        if path in seen or not path.exists():
+            continue
+        seen.append(path)
+        here = path.parent if path.name in ("lib.rs", "main.rs", "mod.rs") else path.with_suffix("")
+        for m in re.finditer(r"^\s*(?:pub(?:\([a-z]+\))?\s+)?mod\s+([a-z0-9_]+)\s*;",
+                             path.read_text(), re.M):
+            todo += [here / f"{m.group(1)}.rs", here / m.group(1) / "mod.rs"]
+    return seen
+
+
+def check_unit_test_targets() -> list[Finding]:
+    """A lib or bin with no tests in its sources says `test = false`: nextest
+    otherwise compiles the crate a second time, under cfg(test), and links an
+    empty binary on every run. One that says it while holding tests skips them."""
+    import tomllib
+    out: list[Finding] = []
+    for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
+        crate = manifest.parent
+        text = manifest.read_text()
+        toml = tomllib.loads(text)
+        targets = []
+        lib = toml.get("lib", {})
+        if (crate / lib.get("path", "src/lib.rs")).exists():
+            targets.append(("[lib]", lib, crate / lib.get("path", "src/lib.rs")))
+        for b in toml.get("bin", []):
+            targets.append((f"[[bin]] {b['name']}", b, crate / b.get("path", "src/main.rs")))
+        for label, table, entry in targets:
+            tested = any(UNIT_TEST.search(f.read_text()) for f in target_sources(crate, entry))
+            off = table.get("test") is False
+            rel = manifest.relative_to(ROOT)
+            if off and tested:
+                out.append(Finding(rel, 1, "unit-test-target",
+                                   f"{label} says test = false, so its unit tests never run", "ERROR"))
+            elif not off and not tested:
+                out.append(Finding(rel, 1, "unit-test-target",
+                                   f"{label} holds no unit tests: set test = false, or every "
+                                   "test run compiles it twice and links an empty binary", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -963,6 +1012,7 @@ def main() -> int:
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())
     findings.extend(check_template_features())
+    findings.extend(check_unit_test_targets())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

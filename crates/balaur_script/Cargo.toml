@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 description = "Language-neutral scripting seam: traits only, no backend."
 
+[lib]
+test = false
+
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true

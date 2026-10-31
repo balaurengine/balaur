@@ -12,6 +12,7 @@ workspace = true
 [[bin]]
 name = "balaur-port"
 path = "src/main.rs"
+test = false
 
 [dependencies]
 # Only the parser: no VM, no compiler.
