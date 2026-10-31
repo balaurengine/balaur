@@ -24,6 +24,7 @@ mod lifecycle;
 mod messages;
 mod node_api;
 mod observability;
+mod observers;
 mod packs;
 mod patch;
 mod pause;

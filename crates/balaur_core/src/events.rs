@@ -30,6 +30,9 @@ use crate::collections::DetHashMap;
 use crate::engine::Engine;
 use crate::hecs::Entity;
 
+mod observers;
+pub use observers::{Observed, ObserverFn, ObserverId, Observers, bubble, observe, unobserve};
+
 /// A subscriber, and where it falls in subscription order.
 ///
 /// The counter is handed out across every bucket rather than within one, so
@@ -207,14 +210,16 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
     crate::wake::wake();
 }
 
-/// An engine event on a node, heard every way at once: the node's rows and
-/// its own `on_<name>(payload)` now, its subscribers and awaiters at the next
-/// pump.
+/// An engine event on a node, heard every way at once: its Rust observers
+/// ([`observe`]), the node's rows and its own `on_<name>(payload)` now, its
+/// subscribers and awaiters at the next pump.
 ///
 /// A name in [`crate::hooks::BINDABLE`] runs the rows spelled with that name;
-/// any other runs the `emitted:<name>` rows. Rows run before the hook, as they
-/// do for a pointer event, so the script sees the world the rows left.
+/// any other runs the `emitted:<name>` rows. Observers run first, then rows,
+/// then the hook, as they do for a pointer event, so each sees the world the
+/// one before left.
 pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
+    observers::run(eng, entity, name, &payload);
     // Most nodes carry no rows, and spelling the row's event costs an allocation.
     if eng
         .world()
@@ -495,6 +500,7 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
 /// would grow one bucket per emitter it outlived. Sweeping here costs a walk
 /// of a map that is normally tiny, on frames that are delivering anyway.
 fn sweep(eng: &Engine) {
+    observers::sweep(eng);
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
     let world = eng.world();

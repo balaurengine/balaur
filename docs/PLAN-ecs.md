@@ -14,7 +14,9 @@
 > `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`,
 > made at each stage's end and each fixed step's; `Command` is gone, and a
 > free is `defer_free`, still the frame's batch. Step 6 built 2026-10-31:
-> `App::add_messages`, `Engine::send`, `MessageCursor` (`messages`). Steps 9 to 11 of
+> `App::add_messages`, `Engine::send`, `MessageCursor` (`messages`). Step 7
+> built 2026-10-31: `events::observe`, `unobserve`, `bubble`, run first in
+> `events::announce`. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -81,7 +83,13 @@ something else in this engine.
 - **Observers.** A Rust function run at once when an event is announced on
   one node or on any, carried up the tree when the event says so. Script
   listeners keep their delivery at the top of the next `Update`
-  (PLAN-events).
+  (PLAN-events). `events::observe(eng, name, Some(node) | None, f)` answers
+  an `ObserverId` for `unobserve`; `events::bubble(eng, name)` declares a
+  name that climbs. Observers run before the node's rows and hook, the
+  node's own, then each ancestor's until one calls `Observed::stop`, then
+  any node's once. Everything that will hear an event is taken before the
+  first runs, so one added meanwhile hears the next. A freed node's go with
+  the pump's sweep of listeners.
 - **Messages.** A typed Rust event, written by one system and read by others
   with a cursor each, kept two frames, beside the string events scripts use.
   Declared with `App::add_messages::<T>()`, sent with `Engine::send`, read
@@ -143,7 +151,7 @@ something else in this engine.
    onto them. *Built*: `Written` is `Whole` or `Property`.
 5. **Commands.** *Built.*
 6. **Messages.** *Built.*
-7. **Observers**, inside `events::announce`.
+7. **Observers**, inside `events::announce`. *Built.*
 8. **Relationships**, then the scene tree on them. The digest walks children
    in the same order, so no recording moves; a test proves it.
 9. **Required components.**
