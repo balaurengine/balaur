@@ -9,7 +9,7 @@ use crate::time::Instant;
 use anyhow::{Context, Result, bail};
 use serde::Deserialize as _;
 
-use crate::engine::{Command, Engine};
+use crate::engine::Engine;
 use crate::pack::Pack;
 use crate::plugins::{PluginInfo, PluginRegistry};
 use crate::project::{self, ProjectManifest, ProjectRoot, SceneKeyRegistry};
@@ -469,23 +469,18 @@ impl App {
         });
         app.add_system(Stage::Last, |eng, _| {
             // Every free of the frame in one batch: see `scene::free_nodes`.
-            let mut freed = Vec::new();
-            for cmd in eng.take_commands() {
-                match cmd {
-                    Command::Free(entity) => {
-                        // Most ticks record nothing; the label is only built
-                        // for one that does.
-                        if crate::replay::wants_events(eng) {
-                            let label = crate::digest::node_label(&eng.world(), entity);
-                            crate::replay::event(
-                                eng,
-                                "scene.free",
-                                format!("freed {label}"),
-                                Some(serde_json::json!({ "node": label })),
-                            );
-                        }
-                        freed.push(entity);
-                    }
+            let freed = eng.take_frees();
+            // Most ticks record nothing; the labels are only built for one
+            // that does.
+            if crate::replay::wants_events(eng) {
+                for &entity in &freed {
+                    let label = crate::digest::node_label(&eng.world(), entity);
+                    crate::replay::event(
+                        eng,
+                        "scene.free",
+                        format!("freed {label}"),
+                        Some(serde_json::json!({ "node": label })),
+                    );
                 }
             }
             if !freed.is_empty() {
@@ -1047,6 +1042,7 @@ impl App {
                     system(&self.engine, dt);
                     self.engine.advance_change_tick();
                 }
+                self.engine.apply_deferred();
             }
             *elapsed = started.elapsed();
         }
@@ -1084,6 +1080,7 @@ impl App {
                 system(&self.engine, step);
                 self.engine.advance_change_tick();
             }
+            self.engine.apply_deferred();
             // After the step, so the pair kept is the pose this step left and
             // the one before it: what a frame between the two blends.
             crate::interpolate::capture(&self.engine);

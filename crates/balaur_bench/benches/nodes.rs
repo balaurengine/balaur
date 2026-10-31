@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use balaur_bench::{Backend, Project, app as app_fn, attach_many, script};
 use balaur_core::node_api::NODE_OPS;
-use balaur_core::{Command, Engine, components, scene};
+use balaur_core::{Engine, components, scene};
 use balaur_script::{Bindings, BindingsExt, Value};
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
@@ -140,7 +140,7 @@ fn drain_side(c: &mut Criterion) {
             for _ in 0..iters {
                 let made = spawn_batch(&app.engine);
                 for &e in &made {
-                    app.engine.push_command(Command::Free(e));
+                    app.engine.defer_free(e);
                 }
                 let start = Instant::now();
                 app.tick(dt);
@@ -256,7 +256,7 @@ fn script_side(c: &mut Criterion) {
             // a command per call for the whole run.
             b.iter(|| {
                 host.update(1.0 / 60.0);
-                drop(app.engine.take_commands());
+                drop(app.engine.take_frees());
             });
         });
     }

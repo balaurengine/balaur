@@ -176,7 +176,7 @@ pub(super) fn detach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 pub(super) fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
-    eng.push_command(Command::Free(node(args)?));
+    eng.defer_free(node(args)?);
     Ok(Value::Nil)
 }
 

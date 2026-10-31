@@ -504,6 +504,29 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
     spawn_node_with_id(world, name, parent, id)
 }
 
+/// A node named `name` under `parent` on `entity`, which [`hecs::World::reserve_entity`]
+/// handed out earlier: what a deferred spawn makes.
+pub(crate) fn spawn_node_into(world: &mut World, entity: Entity, name: &str, parent: Entity) {
+    let id = crate::ids::mint_under(world, parent);
+    if world
+        .insert(
+            entity,
+            node_bundle!(
+                name,
+                Parent(parent),
+                Transform::identity(),
+                crate::components::Attached::with_transform(),
+                crate::components::StableId(id)
+            ),
+        )
+        .is_err()
+    {
+        tracing::warn!(?entity, name, "a deferred node's entity is gone");
+        return;
+    }
+    attach(world, parent, name, entity);
+}
+
 /// A node with the id a scene file gave it, and no local `Transform`: one that
 /// only groups or only draws.
 ///

@@ -8,6 +8,7 @@ mod asset_ids;
 mod assets;
 mod change_ticks;
 mod classes;
+mod commands;
 mod components;
 mod dependencies;
 mod derive;

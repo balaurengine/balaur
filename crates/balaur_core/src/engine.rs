@@ -3,13 +3,6 @@ use std::rc::Rc;
 
 use crate::resources::Resources;
 
-/// Deferred structural change, applied at the end of the frame so scripts can
-/// freely request them mid-update without invalidating iteration.
-pub enum Command {
-    /// Recursively despawn a node and its subtree.
-    Free(hecs::Entity),
-}
-
 /// Cheap-to-clone handle to the whole engine state. The engine is
 /// single-threaded by design (the data plane can go parallel later behind
 /// this same facade); interior mutability keeps borrows short and explicit.
@@ -18,7 +11,7 @@ pub enum Command {
 /// closures capture, so both sides of the FFI see the exact same state.
 #[derive(Clone)]
 pub struct Engine {
-    inner: Rc<EngineInner>,
+    pub(crate) inner: Rc<EngineInner>,
 }
 
 pub(crate) struct EngineInner {
@@ -28,7 +21,10 @@ pub(crate) struct EngineInner {
     // an Engine clone for its binding closures). This is a deliberate Rc cycle:
     // the engine is a live-forever singleton.
     pub(crate) script_host: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
-    pub(crate) commands: RefCell<Vec<Command>>,
+    /// Writes made at the end of the stage (`commands`).
+    pub(crate) deferred: RefCell<Vec<crate::commands::Deferred>>,
+    /// Nodes freed with the frame's batch, in `Last`.
+    pub(crate) frees: RefCell<Vec<hecs::Entity>>,
     pub(crate) root: Cell<hecs::Entity>,
     pub(crate) time: Cell<f64>,
     pub(crate) delta: Cell<f32>,
@@ -74,7 +70,8 @@ impl Engine {
                 world: RefCell::new(world),
                 resources: RefCell::new(Resources::default()),
                 script_host: RefCell::new(None),
-                commands: RefCell::new(Vec::new()),
+                deferred: RefCell::new(Vec::new()),
+                frees: RefCell::new(Vec::new()),
                 root: Cell::new(root),
                 time: Cell::new(0.0),
                 delta: Cell::new(0.0),
@@ -246,14 +243,6 @@ impl Engine {
 
     pub fn set_script_host(&self, host: Rc<dyn balaur_script::ScriptHost<Engine>>) {
         *self.inner.script_host.borrow_mut() = Some(host);
-    }
-
-    pub fn push_command(&self, cmd: Command) {
-        self.inner.commands.borrow_mut().push(cmd);
-    }
-
-    pub fn take_commands(&self) -> Vec<Command> {
-        std::mem::take(&mut self.inner.commands.borrow_mut())
     }
 
     pub fn root(&self) -> hecs::Entity {

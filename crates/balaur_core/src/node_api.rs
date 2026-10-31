@@ -14,7 +14,7 @@ use balaur_script::{Bindings, Value};
 use glamx::{EulerRot, Vec3};
 use hecs::Entity;
 
-use crate::engine::{Command, Engine};
+use crate::engine::Engine;
 use crate::scene::{
     self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags, Transform,
 };

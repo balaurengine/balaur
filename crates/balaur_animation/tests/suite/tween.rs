@@ -248,7 +248,7 @@ fn a_tween_dies_with_the_node_it_was_made_on() {
     tick(&mut app, 5);
     assert!(tween::is_running(&app.engine, id));
 
-    app.engine.push_command(balaur_core::Command::Free(entity));
+    app.engine.defer_free(entity);
     // `queue_free` defers to `Stage::Last`, so the node survives this frame
     // and the tween notices on the next one.
     tick(&mut app, 3);

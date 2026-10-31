@@ -9,7 +9,11 @@
 > 2026-10-31: `Lifecycle` on every definition, declared on the derive, run by
 > the registry's three write paths and a freed node; `Written::Added` gone
 > (the timer and the notifier moved to `on_add`), and 36 hand `remove`
-> closures that only tore down beside-state moved to `on_remove`. Steps 9 to 11 of
+> closures that only tore down beside-state moved to `on_remove`. Step 5
+> built 2026-10-31: `Engine::defer` and `defer_spawn_node`, `defer_spawn`,
+> `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`,
+> made at each stage's end and each fixed step's; `Command` is gone, and a
+> free is `defer_free`, still the frame's batch. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -80,7 +84,12 @@ something else in this engine.
 - **Messages.** A typed Rust event, written by one system and read by others
   with a cursor each, kept two frames, beside the string events scripts use.
 - **Commands.** Spawn, insert, remove, despawn and a closure over `Engine`,
-  queued and applied in order at the end of each stage.
+  queued and applied in order at the end of each stage, and after each fixed
+  step; one a command queues runs in the same pass. A spawn reserves its
+  entity at once (`World::reserve_entity` takes a shared borrow), so a
+  system iterating a query can spawn and then name what it spawned. Freeing
+  a node stays the frame's: `defer_free` queues it for the one batch in
+  `Last`, what a script's `queue_free` has always said.
 - **Relationships.** A pair of components the lifecycle calls keep
   consistent: set the one side, the other follows, and despawning a target
   can take its sources with it. The scene tree is the first: `Parent` and
@@ -127,7 +136,7 @@ something else in this engine.
 3. **Ticks and change detection**, fed by the change log's calls. *Built.*
 4. **Lifecycle calls**, and `after_write`'s added and changed cases moved
    onto them. *Built*: `Written` is `Whole` or `Property`.
-5. **Commands.**
+5. **Commands.** *Built.*
 6. **Messages.**
 7. **Observers**, inside `events::announce`.
 8. **Relationships**, then the scene tree on them. The digest walks children
