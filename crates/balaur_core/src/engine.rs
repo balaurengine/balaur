@@ -95,8 +95,72 @@ impl Engine {
         self.inner.world.borrow()
     }
 
+    /// The whole world, writable. The kernel's: outside it a structural write
+    /// goes through the door below, so what hangs off a write runs every time
+    /// (PLAN-ecs §1). `scripts/house_lints.py` reports every other caller
+    /// (`world-write`) until the migration is through.
     pub fn world_mut(&self) -> RefMut<'_, hecs::World> {
         self.inner.world.borrow_mut()
+    }
+
+    /// A new entity holding `components`.
+    pub fn spawn(&self, components: impl hecs::DynamicBundle) -> hecs::Entity {
+        self.inner.world.borrow_mut().spawn(components)
+    }
+
+    /// Put `components` on `entity`, replacing any it already holds.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn insert(
+        &self,
+        entity: hecs::Entity,
+        components: impl hecs::DynamicBundle,
+    ) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().insert(entity, components)
+    }
+
+    /// Put one component on `entity`, replacing the one of its type it holds.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn insert_one<T: hecs::Component>(
+        &self,
+        entity: hecs::Entity,
+        component: T,
+    ) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().insert_one(entity, component)
+    }
+
+    /// Take one component off `entity`, answering it.
+    ///
+    /// # Errors
+    /// If `entity` is gone or holds no `T`.
+    pub fn remove_one<T: hecs::Component>(
+        &self,
+        entity: hecs::Entity,
+    ) -> Result<T, hecs::ComponentError> {
+        self.inner.world.borrow_mut().remove_one::<T>(entity)
+    }
+
+    /// Take a bundle of components off `entity`, answering them.
+    ///
+    /// # Errors
+    /// If `entity` is gone or lacks one of them.
+    pub fn remove<T: hecs::Bundle + 'static>(
+        &self,
+        entity: hecs::Entity,
+    ) -> Result<T, hecs::ComponentError> {
+        self.inner.world.borrow_mut().remove::<T>(entity)
+    }
+
+    /// Destroy `entity` and everything it holds. A node's subtree is
+    /// `scene::free_subtree`'s.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn despawn(&self, entity: hecs::Entity) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().despawn(entity)
     }
 
     pub fn insert_resource<T: 'static>(&self, value: T) {
