@@ -6350,7 +6350,7 @@
       },
       "ui::click": {
         "least": 1,
-        "signature": "(Node, any) -> bool"
+        "signature": "(Node, ui::ClickOptions?) -> bool"
       },
       "ui::complete_theme": {
         "least": 0,
@@ -6370,11 +6370,11 @@
       },
       "ui::fill_rows": {
         "least": 4,
-        "signature": "(str, any, any, bool) -> bool"
+        "signature": "(str, [ui::Row], any, bool) -> bool"
       },
       "ui::fill_strip": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
+        "least": 2,
+        "signature": "(str, [ui::Control]) -> bool"
       },
       "ui::finish_loading": {
         "least": 0,
@@ -6402,7 +6402,7 @@
       },
       "ui::request_repaint": {
         "least": 0,
-        "signature": "(any)"
+        "signature": "(ui::RepaintOptions?)"
       },
       "ui::reread": {
         "least": 1,
@@ -6810,6 +6810,9 @@
         "scope": "str",
         "spec": "any"
       },
+      "ui::ClickOptions": {
+        "hidden": "bool?"
+      },
       "ui::ContrastPair": {
         "fill": "str",
         "ink": "str",
@@ -6817,11 +6820,85 @@
         "ratio": "float",
         "role": "str"
       },
+      "ui::Control": {
+        "absolute": "bool?",
+        "align_items": "str?",
+        "anchor": "str?",
+        "arrows": "bool?",
+        "checked": "bool?",
+        "component": "str?",
+        "controls": "[ui::Control]?",
+        "corner_radius": "float?",
+        "data": "any",
+        "decimals": "int?",
+        "drag_speed": "float?",
+        "enabled": "bool?",
+        "fill": "str?",
+        "fit": "str?",
+        "font": "str?",
+        "font_size": "float?",
+        "font_weight": "int?",
+        "gap": "any",
+        "grow": "float?",
+        "height": "float?",
+        "icon": "str?",
+        "icon_color": "str?",
+        "icon_size": "float?",
+        "image": "str?",
+        "inset": "any",
+        "interactive": "bool?",
+        "justify": "str?",
+        "keep_open": "bool?",
+        "kind": "str?",
+        "label_width": "float?",
+        "margin": "any",
+        "max": "float?",
+        "min": "float?",
+        "min_width": "float?",
+        "on": "str?",
+        "on_submit": "str?",
+        "options": "[str]?",
+        "padding": "any",
+        "picked_color": "any",
+        "placeholder": "str?",
+        "prefix": "str?",
+        "relative_to": "str?",
+        "role": "str?",
+        "row_height": "float?",
+        "secret": "bool?",
+        "step": "float?",
+        "stroke": "str?",
+        "target": "str?",
+        "text": "str?",
+        "text_align": "str?",
+        "text_color": "any",
+        "tooltip": "str?",
+        "trailing": "str?",
+        "truncate": "bool?",
+        "value": "any",
+        "visible": "bool?",
+        "width": "float?",
+        "wrap": "bool?",
+        "x": "float?",
+        "y": "float?"
+      },
       "ui::Rect": {
         "height": "float",
         "width": "float",
         "x": "float",
         "y": "float"
+      },
+      "ui::RepaintOptions": {
+        "after": "float?"
+      },
+      "ui::Row": {
+        "controls": "[ui::Control]",
+        "full": "bool?",
+        "height": "float?",
+        "label": "str?",
+        "label_role": "str?",
+        "slot_role": "str?",
+        "tooltip": "str?"
       }
     },
     "unread": []
@@ -26722,7 +26799,7 @@
         "focused_widget": "The widget node focus is on, or nil.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
-        "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead.",
+        "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "reread": "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
@@ -26782,20 +26859,20 @@
       "name": "ui",
       "signatures": {
         "activate_focused": "()",
-        "click": "(Node, any) -> bool",
+        "click": "(Node, ui::ClickOptions?) -> bool",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
         "edit": "(Node, any) -> bool",
-        "fill_rows": "(str, any, any, bool) -> bool",
-        "fill_strip": "(str, any) -> bool",
+        "fill_rows": "(str, [ui::Row], any, bool) -> bool",
+        "fill_strip": "(str, [ui::Control]) -> bool",
         "finish_loading": "()",
         "focus_next": "()",
         "focus_previous": "()",
         "focused_widget": "() -> Node",
         "height_class": "() -> str",
         "pasted_text": "() -> str",
-        "request_repaint": "(any)",
+        "request_repaint": "(ui::RepaintOptions?)",
         "reread": "(Node, str?, any) -> bool",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",

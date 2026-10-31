@@ -1531,20 +1531,20 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | Function | Signature |
 | --- | --- |
 | `activate_focused` | `()` |
-| `click` | `(Node, any) -> bool` |
+| `click` | `(Node, ui::ClickOptions?) -> bool` |
 | `complete_theme` | `(any) -> any` |
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
 | `edit` | `(Node, any) -> bool` |
-| `fill_rows` | `(str, any, any, bool) -> bool` |
-| `fill_strip` | `(str, any) -> bool` |
+| `fill_rows` | `(str, [ui::Row], any, bool) -> bool` |
+| `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
 | `focus_next` | `()` |
 | `focus_previous` | `()` |
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
-| `request_repaint` | `(any)` |
+| `request_repaint` | `(ui::RepaintOptions?)` |
 | `reread` | `(Node, str?, any) -> bool` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |

@@ -752,10 +752,8 @@ impl<'a> FnGen<'a> {
             self.e(I::I32Const(1));
             return Ok(());
         }
-        // `[]` where an `any` goes: an empty list of anys.
-        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want)
-            && items.is_empty()
-        {
+        // `[..]` where an `any` goes: a list of anys, each item boxed.
+        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want) {
             let list = Ty::Array(Box::new(Ty::Any));
             self.array_lit(items, Some(&Ty::Any), e.pos)?;
             return self.coerce(&list, want, e.pos);
@@ -770,6 +768,9 @@ impl<'a> FnGen<'a> {
         }
         if self.script_as(e, want)? {
             return Ok(());
+        }
+        if let (ExprKind::MapLit(entries), Ty::Any) = (&e.kind, want) {
+            return self.any_map(entries, e.pos);
         }
         if let ExprKind::MapLit(entries) = &e.kind
             && let Some(class) = map_wanted(want)

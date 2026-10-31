@@ -36,9 +36,11 @@ pub(crate) fn to_neutral(v: &L) -> N {
                 "Vec2" => N::Vec2([f(0), f(1)]),
                 "Vec3" => N::Vec3([f(0), f(1), f(2)]),
                 "Color" => N::Color([f(0), f(1), f(2), f(3)]),
+                // A record's nil field is one it leaves out, as a table would.
                 _ => N::Map(
                     fields
                         .iter()
+                        .filter(|(_, v)| !matches!(v, L::Void))
                         .map(|(k, v)| (k.clone(), to_neutral(v)))
                         .collect(),
                 ),

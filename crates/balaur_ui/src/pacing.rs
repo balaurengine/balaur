@@ -234,8 +234,13 @@ fn later(seconds: f64) -> Instant {
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_lazy", &[], "", "Run the UI pass only when something asks for it (input, a widget node written, `request_repaint`, a log line, an asset reload or an egui animation) and re-present the last pass in between: nothing is polled, so state that moves without any of those has to write a widget or ask. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
-        ("request_repaint", &[], "(opts: map?)", "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead."),
+        ("request_repaint", &[], "(opts: RepaintOptions?)", "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead."),
     ]);
+    m.records(&[(
+        "RepaintOptions",
+        "{ after: float? }",
+        "When `request_repaint` asks: `after` seconds ahead, else this frame.",
+    )]);
     m.function("set_lazy", |eng: &Engine, on: bool| {
         eng.resource::<Pacing>().borrow_mut().lazy = on;
         Ok(())

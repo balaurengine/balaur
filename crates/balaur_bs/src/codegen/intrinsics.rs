@@ -158,6 +158,26 @@ impl FnGen<'_> {
         Ok(Ty::Any)
     }
 
+    /// `{ "k": v, .. }` where an `any` goes: an any map of those entries in
+    /// that order, each value boxed. A key written twice is refused.
+    pub(crate) fn any_map(&mut self, entries: &[(Expr, Expr)], pos: Pos) -> R<()> {
+        let mut seen = std::collections::BTreeSet::new();
+        for (key, _) in entries {
+            if let crate::ast::ExprKind::Str(text) = &key.kind
+                && !seen.insert(text.as_str())
+            {
+                return err(key.pos, format!("the key \"{text}\" is given twice"));
+            }
+        }
+        let list = |items: Vec<Expr>| Expr {
+            kind: crate::ast::ExprKind::ArrayLit(items),
+            pos,
+        };
+        let (keys, values): (Vec<Expr>, Vec<Expr>) = entries.iter().cloned().unzip();
+        self.map_of(&[list(keys), list(values)], pos)?;
+        Ok(())
+    }
+
     // `__hash(key)`: where a map's key starts its probe, never negative. A
     // string's is the prelude's; an int's is mixed here as a string's is.
     fn hash(&mut self, args: &[Expr], pos: Pos) -> R<Ty> {

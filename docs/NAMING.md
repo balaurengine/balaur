@@ -689,6 +689,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A node's named look | `node.states.set_state` | none |
 | Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible`, `toast` | none |
 | A boolean beside the value | an options key: `set_z_index(z, #{ z_as_relative: false })`, `release.install(channel, tag, #{ allow_downgrade: true })` | N9 |
+| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control`, a form's row `ui::Row` | none |
 
 ### Lifecycle and events
 
