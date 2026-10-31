@@ -673,6 +673,19 @@ impl App {
         self
     }
 
+    /// A typed system in `stage`: a function of
+    /// [`SystemParam`](crate::system_param::SystemParam)s, named by its path.
+    pub fn add_typed<M, F: crate::system_param::TypedSystem<M>>(
+        &mut self,
+        stage: Stage,
+        system: F,
+    ) -> &mut Self {
+        let name = std::any::type_name::<F>().to_owned();
+        let run = system.into_run(name.clone());
+        self.systems[stage as usize].add(crate::schedule::System::boxed(name, run));
+        self
+    }
+
     /// A system in `stage` with a name, sets, an order and conditions.
     pub fn add_scheduled(&mut self, stage: Stage, system: crate::schedule::System) -> &mut Self {
         self.systems[stage as usize].add(system);

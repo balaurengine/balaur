@@ -44,6 +44,17 @@ impl<'a> Registry<'a> {
         self.app.add_system(stage, frame_system);
     }
 
+    /// A typed system: a function of
+    /// [`SystemParam`](balaur_core::system_param::SystemParam)s, named by its
+    /// path.
+    pub fn add_typed<M, F: balaur_core::system_param::TypedSystem<M>>(
+        &mut self,
+        stage: Stage,
+        system: F,
+    ) {
+        self.app.add_typed(stage, system);
+    }
+
     /// A system with a name, sets, an order and conditions.
     pub fn add_scheduled(&mut self, stage: Stage, system: balaur_core::schedule::System) {
         self.app.add_scheduled(stage, system);

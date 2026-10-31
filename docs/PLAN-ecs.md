@@ -25,7 +25,11 @@
 > `App::add_scheduled`, `configure_set`, `check_schedules`; a plain
 > `add_system` is named by its function's path. Step 11 built 2026-10-31:
 > `modes` (`App::add_mode`, `add_sub_mode`, `add_computed_mode`,
-> `on_enter`, `on_exit`; `Engine::mode`, `set_mode`; `in_mode`). Steps 9 to 11 of
+> `on_enter`, `on_exit`; `Engine::mode`, `set_mode`; `in_mode`). Step 12
+> built 2026-10-31: `system_param` (`Res`, `ResMut`, their `Option`s,
+> `Query`, `Commands`, `Local`, `Step`, `MessageReader`, `MessageWriter`,
+> `Changed`, `Added`), `App::add_typed`, `Registry::add_typed`,
+> `System::typed`; render's debug-line clear moved over. Steps 9 to 11 of
 > PLAN-foundations: after the derive is finished and the core is split.
 
 # Plan: the ECS on hecs
@@ -153,7 +157,15 @@ something else in this engine.
   writes: a query with filters, a resource, `ResMut`, commands, a message
   reader or writer, a local. Borrowed through the engine's `RefCell`s, and a
   clash panics naming the system and the parameter. A plain
-  `FnMut(&Engine, f32)` stays a system.
+  `FnMut(&Engine, f32)` stays a system. Up to eight parameters, registered
+  with `add_typed` (a separate call, so a plain closure keeps its argument
+  types inferred). A query's filters are `Changed<C>` and `Added<C>`, the
+  nodes a registered component moved on since the system last ran, beside
+  the query rather than inside it, since change ticks are kept by registry
+  index. `Step` is the seconds the stage handed. Most systems in the tree
+  stay plain: they reach the engine through helpers (`node_at`, `announce`)
+  that take `&Engine`, and moving them would only hide that behind a
+  parameter.
 - **Parallel work inside a system.** Native only, over hecs's
   `iter_batched`: each entity's work alone, and any sum combined in batch
   order so the result is the same on every run. Serial on the web.
@@ -191,6 +203,7 @@ something else in this engine.
 10. **Schedules**: sets, order, run conditions, cycle errors. *Built.*
 11. **App modes.** *Built.*
 12. **Typed systems**, and the systems that read better with them moved over.
+    *Built.*
 13. **Parallel work inside a system**, for what measures as hot: the render
     mirror's sync is the first candidate.
 

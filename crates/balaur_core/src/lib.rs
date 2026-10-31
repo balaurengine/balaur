@@ -71,6 +71,7 @@ pub mod snapshot;
 pub mod standalone;
 pub mod states;
 pub mod strings;
+pub mod system_param;
 pub mod tags;
 pub mod task;
 pub mod time;

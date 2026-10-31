@@ -10,6 +10,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
+use balaur_core::system_param::{Res, ResMut};
 use balaur_core::{Engine, Stage};
 pub use balaur_geometry::primitive::{Flat, Solid};
 use balaur_plugin::Registry;
@@ -1036,7 +1037,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Before the buffers are drained or cleared: a kept group is part of
         // the frame being drawn.
         reg.add_system(Stage::Render, retained::replay_system);
-        reg.add_system(Stage::Render, clear_debug_lines_system);
+        reg.add_typed(Stage::Render, clear_debug_lines_system);
         reg.add_system(Stage::Last, unserved_screenshot_system);
 
         Ok(())
@@ -1051,21 +1052,31 @@ impl balaur_plugin::Plugin for RenderPlugin {
 /// Without it a headless run — `--headless`, CI, tests, the editor's
 /// screenshot mode — grows both `Vec`s forever, one push per
 /// `render.draw_line` per frame.
-fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
-    if eng.try_resource::<WindowedBackend>().is_some() {
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "a typed system takes its parameters by value, as the engine hands them"
+)]
+fn clear_debug_lines_system(
+    window: Option<Res<'_, WindowedBackend>>,
+    lines_3d: Option<ResMut<'_, DebugLineBuffer3d>>,
+    lines_2d: Option<ResMut<'_, DebugLineBuffer2d>>,
+    shapes: Option<ResMut<'_, DrawBuffer2d>>,
+    text: Option<ResMut<'_, world_text::TextDrawBuffer>>,
+) {
+    if window.is_some() {
         return;
     }
-    if let Some(lines) = eng.try_resource::<DebugLineBuffer3d>() {
-        lines.borrow_mut().lines.clear();
+    if let Some(mut lines) = lines_3d {
+        lines.lines.clear();
     }
-    if let Some(lines) = eng.try_resource::<DebugLineBuffer2d>() {
-        lines.borrow_mut().lines.clear();
+    if let Some(mut lines) = lines_2d {
+        lines.lines.clear();
     }
-    if let Some(shapes) = eng.try_resource::<DrawBuffer2d>() {
-        shapes.borrow_mut().shapes.clear();
+    if let Some(mut shapes) = shapes {
+        shapes.shapes.clear();
     }
-    if let Some(text) = eng.try_resource::<world_text::TextDrawBuffer>() {
-        text.borrow_mut().items.clear();
+    if let Some(mut text) = text {
+        text.items.clear();
     }
 }
 

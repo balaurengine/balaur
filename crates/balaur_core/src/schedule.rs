@@ -34,6 +34,12 @@ impl System {
         Self::boxed(name.to_owned(), Box::new(run))
     }
 
+    /// A typed system named `name`: a function of
+    /// [`SystemParam`](crate::system_param::SystemParam)s.
+    pub fn typed<M>(name: &str, run: impl crate::system_param::TypedSystem<M>) -> Self {
+        Self::boxed(name.to_owned(), run.into_run(name.to_owned()))
+    }
+
     pub(crate) fn boxed(name: String, run: SystemFn) -> Self {
         Self {
             name,
