@@ -82,9 +82,9 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
         ]
     } else {
         [
-            shape("solid", "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which a soft_volumetric3d beside it sets. The mesh has to be closed", map().with("kind", "volumetric").with("skin", false)),
-            shape("skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", map().with("kind", "volumetric").with("skin", true)),
-            shape("surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", map().with("kind", "triangle_mesh").with("skin", false)),
+            shape_beside("solid", "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which a soft_volumetric3d beside it sets. The mesh has to be closed", map().with("kind", "volumetric"), map().with("soft_skin3d", map().with("skin", false))),
+            shape_beside("skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", map().with("kind", "volumetric"), map().with("soft_skin3d", map().with("skin", true))),
+            shape("surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", map().with("kind", "triangle_mesh")),
         ]
     }
 }
@@ -95,6 +95,12 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
 pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { "collider2d" } else { "collider3d" };
     model::set_component_properties_each(state, name, with_shape_of, map().with("two_d", two_d).with("props", properties));
+    patch_beside(state, two_d, beside);
+}
+
+// The components beside the main one, patched on every selected node that
+// draws a mesh.
+fn patch_beside(state: &mut editor::State, two_d: bool, beside: any) {
     for row in selection::all(state) {
         let found = model::node(state, row);
         if !found.is_valid() || drawn_mesh(found, two_d).is_nil() {
@@ -130,8 +136,11 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     parameters
 }
 
-/// One soft body action: each selected node is filled from its own mesh.
-pub fn make_soft_body(state: &mut editor::State, two_d: bool, properties: any) {
+/// One soft body action: each selected node is filled from its own mesh,
+/// and `beside` patches the components beside the body as `make_collider`'s
+/// does.
+pub fn make_soft_body(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { "softbody2d" } else { "softbody3d" };
     model::set_component_properties_each(state, name, with_mesh_of, map().with("two_d", two_d).with("props", properties));
+    patch_beside(state, two_d, beside);
 }

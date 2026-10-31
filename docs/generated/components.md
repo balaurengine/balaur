@@ -848,6 +848,20 @@ Where a `softbody2d` laid out as a rope runs, and how many particles it is made 
 </tbody>
 </table>
 
+### `soft_skin2d`
+
+`2d` · `physics` · 2 properties
+
+The `mesh` a `softbody2d` with cells carries as its skin: a grid, a volumetric body or a custom one with cells, whose particles are not the mesh's own.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>skin</code></td><td>bool</td><td><code>true</code></td><td>Keep the mesh asset&#x27;s outline as what the cells carry and the node draws</td></tr>
+<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
+</tbody>
+</table>
+
 ### `soft_volumetric2d`
 
 `2d` · `physics` · 2 properties
@@ -864,7 +878,7 @@ How a volumetric `softbody2d` fills its mesh's outline with triangles.
 
 ### `softbody2d`
 
-`2d` · `physics` · `render` · 38 properties · 45 methods
+`2d` · `physics` · `render` · 36 properties · 45 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -878,8 +892,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>soft_material</code></td><td>asset · <code>soft_material</code></td><td>—</td><td>What the body is made of: its cells, springs, volume, yield and tearing; empty takes a soft_material at its defaults</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries: the same asset a polygon draws</td></tr>
-<tr><td><code>skin</code></td><td>bool</td><td><code>true</code></td><td>Keep the mesh asset&#x27;s outline as what the cells carry and the node draws; any kind with cells and a mesh takes it except triangle_mesh, whose particles are the mesh&#x27;s</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries unless its soft_skin2d says otherwise: the same asset a polygon draws</td></tr>
 <tr><td><code>seams</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>Structural edges added between particles the layout left apart, each as long as its two particles stand at the start</td></tr>
 <tr><td><code>pinned_particles</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
@@ -890,7 +903,6 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>self_collision</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
-<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
@@ -1050,7 +1062,7 @@ A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world 
 
 ### `tile_collision`
 
-`2d` · `physics` · 23 properties
+`2d` · `physics` · 21 properties
 
 Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.
 
@@ -1060,8 +1072,6 @@ Collision for the node's `tilemap` cells: every tile the tileset marks solid, on
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
-<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>What a shaped tile&#x27;s polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>, <code>convex_decomposition</code>.</td></tr>
-<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds each shaped tile&#x27;s polygon by this radius; full cells have no border to round At least 0.0.</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
@@ -1094,11 +1104,25 @@ Announced from a node carrying `tile_collision`:
 </tbody>
 </table>
 
+### `tile_shapes`
+
+`2d` · `physics` · 2 properties
+
+How the node's `tile_collision` builds the tiles whose collision is polygons, the ones a tileset gives `collision = [[[x, y], ...]]`: what each polygon becomes and how far it is rounded. Whole cells read none of it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>What a shaped tile&#x27;s polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>, <code>convex_decomposition</code>.</td></tr>
+<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds each shaped tile&#x27;s polygon by this radius At least 0.0.</td></tr>
+</tbody>
+</table>
+
 ### `tilemap`
 
 `2d` · `render` · 9 properties · 5 methods
 
-A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.
+A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1106,9 +1130,9 @@ A grid of tiles from one `tileset` asset, centred on the node. `cells` holds row
 <tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint over every tile, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material the whole map draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene</td></tr>
-<tr><td><code>terrain</code></td><td>string</td><td>—</td><td>What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset&#x27;s rules</td></tr>
-<tr><td><code>flags</code></td><td>string</td><td>—</td><td>How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal</td></tr>
+<tr><td><code>cells</code></td><td>variant</td><td><code>{&quot;kind&quot;: &quot;inline&quot;, &quot;rows&quot;: []}</code></td><td>The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene <code>kind</code> is one of: <code>file</code> (path); <code>inline</code> (rows).</td></tr>
+<tr><td><code>terrain</code></td><td>list of list of int</td><td><code>[]</code></td><td>What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset&#x27;s rules</td></tr>
+<tr><td><code>flags</code></td><td>list of list of int</td><td><code>[]</code></td><td>How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal</td></tr>
 <tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time At least 0.</td></tr>
 <tr><td><code>origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Tile-texture pixels per world unit At least 0.01.</td></tr>
@@ -1970,6 +1994,20 @@ Where a `softbody3d` laid out as a rope runs, and how many particles it is made 
 </tbody>
 </table>
 
+### `soft_skin3d`
+
+`3d` · `physics` · 2 properties
+
+The `mesh` a `softbody3d` with cells carries as its skin: a box, a volumetric body or a custom one with cells, whose particles are not the mesh's own.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives</td></tr>
+<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
+</tbody>
+</table>
+
 ### `soft_sphere3d`
 
 `3d` · `physics` · 2 properties
@@ -2003,7 +2041,7 @@ How a volumetric `softbody3d` fills its mesh with tetrahedra.
 
 ### `softbody3d`
 
-`3d` · `physics` · `render` · 38 properties · 47 methods
+`3d` · `physics` · `render` · 36 properties · 47 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -2017,8 +2055,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>soft_material</code></td><td>asset · <code>soft_material</code></td><td>—</td><td>What the body is made of: its cells, springs, volume, yield and tearing; empty takes a soft_material at its defaults</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when skin is on</td></tr>
-<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when its soft_skin3d asks for one</td></tr>
 <tr><td><code>seams</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>Structural edges added between particles the layout left apart, each as long as its two particles stand at the start</td></tr>
 <tr><td><code>pinned_particles</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
@@ -2029,7 +2066,6 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>self_collision</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
-<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>

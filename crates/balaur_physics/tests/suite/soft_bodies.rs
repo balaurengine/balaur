@@ -612,7 +612,7 @@ fn a_skinned_body_can_collide_through_its_skin() {
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.set_component("soft_volumetric3d", map().with("cell_size", 0.2)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#wedge").with("skin", true).with("skin_collision", true));
+        self.node.set_component("soft_volumetric3d", map().with("cell_size", 0.2)); self.node.set_component("soft_skin3d", map().with("skin", true).with("skin_collision", true)); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#wedge"));
         if self.node.softbody3d.softbody_particles() <= 0 { log::error("the skinned body has no particles"); }
     }
 }
@@ -934,7 +934,7 @@ impl Scenario {
         self.node.set_component("soft_grid3d", map().with("cells", [4.0, 4.0, 1.0])); self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_CLOTH).with("soft_material", map().with("warp_hz", 80.0).with("weft_hz", 10.0)));
         if self.node.softbody3d.softbody_particles() != 25 { log::error("a woven 4x4 cloth is not 5x5 particles"); }
         let flat = self.node.get_node("Blob2d");
-        flat.set_component("soft_volumetric2d", map().with("cell_size", 0.2)); flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square").with("skin_collision", true));
+        flat.set_component("soft_volumetric2d", map().with("cell_size", 0.2)); flat.set_component("soft_skin2d", map().with("skin_collision", true)); flat.softbody2d.set_softbody(map().with("kind", physics2d::SOFT_VOLUMETRIC).with("mesh", "#square"));
         if flat.softbody2d.softbody_particles() <= 4 { log::error("the skinned 2D body has no cells"); }
         log::error("checked: woven");
     }

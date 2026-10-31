@@ -91,9 +91,15 @@ is rewritten in the same commit).
      `link_damping`/`armature`/`friction` are its own `link_axes` records,
      done 2026-10-31; a soft body's collision mesh is `soft_collision2d`/`3d`
      beside it, its binding a variant whose `nearest` holds the distance
-     (a variant kind may hold nothing). Open, on the main ones: `skin` and
-     `skin_collision` with cells, `tile_collision`'s `fit`.
-   - `tilemap` cells/terrain/flags are string-encoded grids.
+     (a variant kind may hold nothing). A soft body's `skin` and
+     `skin_collision` are `soft_skin2d`/`3d` beside it, read by the kinds
+     with cells (grid or box, volumetric, custom), and `tile_collision`'s
+     `fit` and `edge_radius`, read by polygon tiles alone, are
+     `tile_shapes`, done 2026-10-31.
+   - `tilemap`: done 2026-10-31. `cells` is a variant, `inline` holding
+     `rows` or `file` holding the `.cells` file's `path`; `terrain` and
+     `flags` are rows of whole numbers. A record or variant value that is
+     no table is refused by the component's read, not filled empty.
 3. **One source for a widget's values**: done. `input.rs` writes
    `WidgetProperties` and `schema::follow` brings the `Widget` after it,
    field by field from the `cache_fields!` table.

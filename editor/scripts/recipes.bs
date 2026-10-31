@@ -627,7 +627,7 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
 fn soft_parts_3d(node: any) -> any {
     let source = mesh_source(node);
     if !source.is_nil() {
-        return map().with("softbody3d", map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", source).with("skin", true));
+        return map().with("softbody3d", map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", source)).with("soft_skin3d", map().with("skin", true));
     }
     let shape = node.shape3d;
     let color = shape.get(COLOR);

@@ -29,10 +29,10 @@ script = { source = "scripts/scenario.bs" }
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = [
+cells = { kind = "inline", rows = [
   [ 1,  1],
   [ 1, -1],
-]
+] }
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
@@ -172,7 +172,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#slopes"
-cells = [[1, 1]]
+cells = { kind = "inline", rows = [[1, 1]] }
 flags = [[0, 1]]
 pixels_per_unit = 16.0
 

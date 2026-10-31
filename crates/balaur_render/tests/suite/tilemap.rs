@@ -19,10 +19,10 @@ fn node(app: &App) -> balaur_core::hecs::Entity {
 /// table, `cells` a two-row map.
 fn tilemap_table() -> toml::Value {
     toml::from_str(
-        r#"cells = [
+        r#"cells = { kind = "inline", rows = [
   [-1,  0],
   [ 1, 10],
-]
+] }
 pixels_per_unit = 50.0
 
 [tileset]
@@ -41,8 +41,7 @@ fn a_tilemap_parses_cells_and_round_trips() {
     components::add(&app.engine, entity, "tilemap", Some(&tilemap_table()))
         .expect("a valid tilemap applies");
 
-    // Control that apply really parsed: row 0 is the text's top line, `.` is
-    // empty, digits then letters index the tileset.
+    // Control that apply really parsed: row 0 is the top row, -1 is empty.
     {
         let world = app.engine.world();
         let map = world
@@ -51,13 +50,14 @@ fn a_tilemap_parses_cells_and_round_trips() {
         assert_eq!(
             map.grid,
             vec![vec![None, Some(0)], vec![Some(1), Some(10)]],
-            "the cells text did not parse into the expected grid"
+            "the rows did not lay out into the expected grid"
         );
     }
 
     let saved = components::get(&app.engine, entity, "tilemap").expect("the tilemap reads back");
     let table = saved.as_table().expect("get returns a property table");
-    let rows = table["cells"]
+    assert_eq!(table["cells"]["kind"].as_str(), Some("inline"));
+    let rows = table["cells"]["rows"]
         .as_array()
         .expect("cells reads back as rows of tile ids");
     let ids: Vec<Vec<i64>> = rows
@@ -109,15 +109,15 @@ fn a_tilemap_parses_cells_and_round_trips() {
         assert_eq!(a.grid, b.grid);
     }
 
-    // Cells are rows of ids: a string that is not a `.cells` file is refused,
-    // and the error says what the property takes.
-    let bad: toml::Value = toml::from_str("cells = \".X\"").expect("valid TOML");
+    // Bare rows say neither where the cells are kept nor how: refused, and
+    // the error names what the property takes.
+    let bad: toml::Value = toml::from_str("cells = [[0, 1]]").expect("valid TOML");
     let entity = node(&app);
     let err = components::add(&app.engine, entity, "tilemap", Some(&bad))
-        .expect_err("a string that names no `.cells` file must be rejected");
+        .expect_err("rows outside an inline table must be rejected");
     assert!(
-        format!("{err:#}").contains(".cells"),
-        "the error should name the file form: {err:#}"
+        format!("{err:#}").contains("inline"),
+        "the error should name the kinds: {err:#}"
     );
 }
 
@@ -148,10 +148,8 @@ fn reapplying_the_same_tilemap_does_not_bump_the_version() {
     let mut changed = tilemap_table();
     changed.as_table_mut().expect("params are a table").insert(
         "cells".into(),
-        toml::Value::Array(vec![toml::Value::Array(vec![
-            toml::Value::Integer(2),
-            toml::Value::Integer(2),
-        ])]),
+        toml::from_str::<toml::Value>("v = { kind = \"inline\", rows = [[2, 2]] }").unwrap()["v"]
+            .clone(),
     );
     components::add(&app.engine, entity, "tilemap", Some(&changed))
         .expect("a changed tilemap applies");
@@ -172,7 +170,7 @@ fn a_tileset_that_declares_no_grid_is_refused() {
     let entity = node(&app);
     // Well-formed component, ill-formed asset: `columns` is missing.
     let params: toml::Value = toml::from_str(
-        r#"cells = [[0]]
+        r#"cells = { kind = "inline", rows = [[0]] }
 
 [tileset]
 texture = "tests/fixtures/sprite_200x100.png"
@@ -203,7 +201,9 @@ fn cells_as_rows_of_ids_reach_past_the_thirty_sixth_tile() {
     let mut table = tilemap_table();
     table.as_table_mut().unwrap().insert(
         "cells".into(),
-        toml::from_str::<toml::Value>("v = [[40, -1], [0, 99]]").unwrap()["v"].clone(),
+        toml::from_str::<toml::Value>("v = { kind = \"inline\", rows = [[40, -1], [0, 99]] }")
+            .unwrap()["v"]
+            .clone(),
     );
     components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
     let world = app.engine.world();
@@ -250,7 +250,7 @@ fn a_map_may_keep_its_cells_in_a_file() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[assets]]\nid = \"set\"\ntype = \"tileset\"\ntexture = \"tests/fixtures/sprite_200x100.png\"\ntile_size = 50\ncolumns = 4\n\n[[nodes]]\nid = \"n\"\nname = \"Map\"\n\n[nodes.tilemap]\ntileset = \"#set\"\ncells = \"levels/cave.cells\"\n",
+        "[[assets]]\nid = \"set\"\ntype = \"tileset\"\ntexture = \"tests/fixtures/sprite_200x100.png\"\ntile_size = 50\ncolumns = 4\n\n[[nodes]]\nid = \"n\"\nname = \"Map\"\n\n[nodes.tilemap]\ntileset = \"#set\"\ncells = { kind = \"file\", path = \"levels/cave.cells\" }\n",
     )
     .unwrap();
     let mut app = balaur::standard_app(balaur::AppConfig::dev(
@@ -269,5 +269,13 @@ fn a_map_may_keep_its_cells_in_a_file() {
         map.grid[0],
         vec![Some(0), Some(1), None],
         "-1 is an empty cell"
+    );
+    drop(map);
+    drop(world);
+    let held = components::get(&app.engine, node, "tilemap").unwrap();
+    assert_eq!(
+        held["cells"]["path"].as_str(),
+        Some("levels/cave.cells"),
+        "a laid-out map still names its file"
     );
 }

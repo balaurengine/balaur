@@ -295,8 +295,8 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with
 #[test]
 fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
     let (app, errors, lines) = run_logged(
-        r#"let cells: [any] = [[-1, -1]];
-self.node.set_component("tilemap", map().with("cells", cells));
+        r#"let rows: [any] = [[-1, -1]];
+self.node.set_component("tilemap", map().with("cells", map().with("kind", "inline").with("rows", rows)));
 self.node.tilemap.set_cell(3, 1, 7);
 log::info("cell {self.node.tilemap.cell(3, 1)} {self.node.tilemap.cell(0, 0)} {self.node.tilemap.cell(9, 9)}");"#,
     );

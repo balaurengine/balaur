@@ -66,7 +66,7 @@ pub struct PhysicsState2d {
     /// What each `tile_collision` was authored from, what it was last built
     /// from, and the colliders it made — so a rebuild drops its own and
     /// leaves the ones the node authored.
-    pub(crate) tile_params: DetHashMap<Entity, tiles::TileCollision>,
+    pub(crate) tile_params: DetHashMap<Entity, tiles::TileAsked>,
     pub(crate) tile_built: DetHashMap<Entity, tiles::Built>,
     pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     pub joint_params: DetHashMap<Entity, joint::JointAsk2d>,
@@ -469,6 +469,8 @@ const CARRIED: &[crate::shared::beside::Carried] = &[
     crate::shared::beside::carried::<softbody::SoftVolumetric2d>(),
     crate::shared::beside::carried::<softbody::SoftCustom2d>(),
     crate::shared::beside::carried::<softbody::SoftCollision2d>(),
+    crate::shared::beside::carried::<softbody::SoftSkin2d>(),
+    crate::shared::beside::carried::<tiles::TileShapes>(),
     crate::shared::beside::carried::<joint::RopeJoint2d>(),
     crate::shared::beside::carried::<joint::SpringJoint2d>(),
     crate::shared::beside::carried::<joint::GenericJoint2d>(),
@@ -514,9 +516,9 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
             &state
                 .tile_params
                 .iter()
-                .map(|(entity, asked)| (*entity, balaur_core::components::derived::to_table(asked)))
+                .map(|(entity, asked)| (*entity, asked.to_table()))
                 .collect(),
-            &[c::TILE_COLLISION],
+            tiles::PARAMS,
         ),
         tile_built: crate::keyed(&world, &state.tile_built),
         tile_colliders: crate::keyed(&world, &state.tile_colliders),
@@ -560,10 +562,7 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
         eng,
         crate::filled(eng, frame.collider_params, collider::PARAMS),
     );
-    let tile_params = crate::resolved(
-        eng,
-        crate::filled(eng, frame.tile_params, &[c::TILE_COLLISION]),
-    );
+    let tile_params = crate::resolved(eng, crate::filled(eng, frame.tile_params, tiles::PARAMS));
     let tile_built = crate::resolved(eng, frame.tile_built);
     let tile_colliders = crate::resolved(eng, frame.tile_colliders);
     let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, joint::PARAMS));
@@ -612,15 +611,15 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
         .collect();
     state.tile_params = tile_params
         .iter()
-        .filter_map(|(entity, params)| {
-            match balaur_core::components::derived::from_table::<tiles::TileCollision>(params) {
+        .filter_map(
+            |(entity, params)| match tiles::TileAsked::from_table(params) {
                 Ok(asked) => Some((*entity, asked)),
                 Err(why) => {
                     tracing::error!("restoring a tile_collision: {why:#}");
                     None
                 }
-            }
-        })
+            },
+        )
         .collect();
     state.tile_built = tile_built;
     state.tile_colliders = tile_colliders;

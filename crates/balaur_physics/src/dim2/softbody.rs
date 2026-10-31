@@ -64,12 +64,9 @@ pub struct Softbody2d {
     /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
     #[property(asset = "physics_material")]
     pub physics_material: String,
-    /// Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries: the same asset a polygon draws
+    /// Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries unless its soft_skin2d says otherwise: the same asset a polygon draws
     #[property(asset = "mesh", group = "shape")]
     pub mesh: String,
-    /// Keep the mesh asset's outline as what the cells carry and the node draws; any kind with cells and a mesh takes it except triangle_mesh, whose particles are the mesh's
-    #[property(default = true, group = "shape")]
-    pub skin: bool,
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
     pub seams: Vec<ParticlePair>,
@@ -100,9 +97,6 @@ pub struct Softbody2d {
     /// How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed
     #[property(default = Orientation::Auto, group = "collision")]
     pub orientation: Orientation,
-    /// Meet the world through the skin rather than the cells' boundary
-    #[property(group = "collision")]
-    pub skin_collision: bool,
     /// The layers this collider is on
     #[property(flags, default = vec![Layer(1)], group = "filtering")]
     pub collision_layer: Vec<Layer>,
@@ -177,6 +171,28 @@ impl Beside for SoftCollision2d {
 
     fn reads(_: &Softbody2d) -> bool {
         true
+    }
+}
+
+/// The `mesh` a `softbody2d` with cells carries as its skin: a grid, a volumetric body or a custom one with cells, whose particles are not the mesh's own.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_skin2d")]
+pub struct SoftSkin2d {
+    /// Keep the mesh asset's outline as what the cells carry and the node draws
+    #[property(default = true)]
+    pub skin: bool,
+    /// Meet the world through the skin rather than the cells' boundary
+    pub skin_collision: bool,
+}
+
+impl Beside for SoftSkin2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        matches!(
+            main.kind,
+            SoftKind2d::Grid | SoftKind2d::Volumetric | SoftKind2d::Custom
+        )
     }
 }
 
@@ -332,6 +348,7 @@ pub(crate) const PARAMS: &[&str] = &[
     <SoftVolumetric2d as Component>::NAME,
     <SoftCustom2d as Component>::NAME,
     <SoftCollision2d as Component>::NAME,
+    <SoftSkin2d as Component>::NAME,
 ];
 
 /// What a node's soft body is built from: the component, and the
@@ -347,6 +364,7 @@ pub struct SoftAsked2d {
     pub volumetric: SoftVolumetric2d,
     pub custom: SoftCustom2d,
     pub collision: SoftCollision2d,
+    pub skin: SoftSkin2d,
 }
 
 impl SoftAsked2d {
@@ -367,6 +385,7 @@ impl SoftAsked2d {
             volumetric: beside::held(world, entity, &body),
             custom: beside::held(world, entity, &body),
             collision: beside::held(world, entity, &body),
+            skin: beside::held(world, entity, &body),
             body,
         }
     }
@@ -384,6 +403,7 @@ impl SoftAsked2d {
         beside::table_in(&mut table, &self.volumetric, SoftVolumetric2d::reads(body));
         beside::table_in(&mut table, &self.custom, SoftCustom2d::reads(body));
         beside::table_in(&mut table, &self.collision, SoftCollision2d::reads(body));
+        beside::table_in(&mut table, &self.skin, SoftSkin2d::reads(body));
         table
     }
 
@@ -399,6 +419,7 @@ impl SoftAsked2d {
             volumetric: beside::from_table(params, &body)?,
             custom: beside::from_table(params, &body)?,
             collision: beside::from_table(params, &body)?,
+            skin: beside::from_table(params, &body)?,
             body,
         })
     }
@@ -589,7 +610,7 @@ fn build_layout(
         }
     };
     cap::refuse_past_cap(builder.positions.len() as f64, fewer(kind))?;
-    let builder = skinned(eng, &asked.body, pose, builder)?;
+    let builder = skinned(eng, asked, pose, builder)?;
     with_settings(builder, asked, materials)
 }
 
@@ -624,18 +645,19 @@ fn custom(listed: &SoftCustom2d, pose: scalar::Pose2) -> Result<SoftBodyBuilder2
 }
 
 /// The `mesh` asset's outline held by the cells as the body's skin, when
-/// `skin` asks for one, the body has cells, and its particles are not the
-/// mesh's own.
+/// its kind reads a `soft_skin2d`, that asks for one, and the layout made
+/// cells.
 fn skinned(
     eng: &Engine,
-    body: &Softbody2d,
+    asked: &SoftAsked2d,
     pose: scalar::Pose2,
     builder: SoftBodyBuilder2,
 ) -> Result<SoftBodyBuilder2> {
-    if !body.skin
+    let body = &asked.body;
+    if !SoftSkin2d::reads(body)
+        || !asked.skin.skin
         || body.mesh.is_empty()
         || builder.cells.is_empty()
-        || body.kind == SoftKind2d::TriangleMesh
     {
         return Ok(builder);
     }
@@ -727,7 +749,7 @@ fn with_settings(
         .additional_pgs_iterations(cap::iterations(body.solver_iterations))
         .can_sleep(body.can_sleep)
         .solver(solver_of_2d(body.solver))
-        .skin_collision(body.skin_collision)
+        .skin_collision(asked.skin.skin_collision)
         .surface_collider(surface_collider(body, &materials.surface));
     if body.mass > 0.0 {
         builder = builder.mass(scalar::real(body.mass));
@@ -1066,6 +1088,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
     beside::register::<SoftVolumetric2d>(reg, main, tags, after_write);
     beside::register::<SoftCustom2d>(reg, main, tags, after_write);
     beside::register::<SoftCollision2d>(reg, main, tags, after_write);
+    beside::register::<SoftSkin2d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
     reg.register_component(
         Softbody2d::NAME,

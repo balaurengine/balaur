@@ -401,7 +401,7 @@ impl Scenario {
         n.set_component("soft_volumetric3d", map().with("cell_size", 0.2).with("fill", physics3d::FILL_SURFACE)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_VOLUMETRIC).with("mesh", "#cube"));
         let crust = n.softbody3d.softbody_particles();
         if crust >= solid { log::error("the crust held {crust} particles against the fill's {solid}"); }
-        n.set_component("soft_grid3d", map().with("cells", [1.0, 1.0, 1.0])); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("mesh", "#cube").with("skin", true));
+        n.set_component("soft_grid3d", map().with("cells", [1.0, 1.0, 1.0])); n.set_component("soft_skin3d", map().with("skin", true)); n.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_BOX).with("mesh", "#cube"));
         if n.softbody3d.softbody_particles() != 8 { log::error("the skin changed the box's particles"); }
         log::error("checked: fills");
     }

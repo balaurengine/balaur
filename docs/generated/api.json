@@ -6904,6 +6904,8 @@
     "soft_polyline2d": "Which segments of its mesh a `softbody2d` laid out as a polyline joins.",
     "soft_rope2d": "Where a `softbody2d` laid out as a rope runs, and how many particles it is made of.",
     "soft_rope3d": "Where a `softbody3d` laid out as a rope runs, and how many particles it is made of.",
+    "soft_skin2d": "The `mesh` a `softbody2d` with cells carries as its skin: a grid, a volumetric body or a custom one with cells, whose particles are not the mesh's own.",
+    "soft_skin3d": "The `mesh` a `softbody3d` with cells carries as its skin: a box, a volumetric body or a custom one with cells, whose particles are not the mesh's own.",
     "soft_sphere3d": "The size of a `softbody3d` laid out as a sphere: a refined icosahedron of particles.",
     "soft_volumetric2d": "How a volumetric `softbody2d` fills its mesh's outline with triangles.",
     "soft_volumetric3d": "How a volumetric `softbody3d` fills its mesh with tetrahedra.",
@@ -6918,7 +6920,8 @@
     "text2d": "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
     "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
     "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.",
-    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
+    "tile_shapes": "How the node's `tile_collision` builds the tiles whose collision is polygons, the ones a tileset gives `collision = [[[x, y], ...]]`: what each polygon becomes and how far it is rounded. Whole cells read none of it.",
+    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.",
     "timer": "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
     "touch_button": "An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.",
     "touch_stick": "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.",
@@ -7887,6 +7890,14 @@
       "a",
       "b"
     ],
+    "soft_skin2d": [
+      "skin",
+      "skin_collision"
+    ],
+    "soft_skin3d": [
+      "skin",
+      "skin_collision"
+    ],
     "soft_sphere3d": [
       "radius",
       "subdivisions"
@@ -7911,7 +7922,6 @@
       "soft_material",
       "physics_material",
       "mesh",
-      "skin",
       "seams",
       "pinned_particles",
       "masses",
@@ -7922,7 +7932,6 @@
       "self_collision",
       "particle_radius",
       "orientation",
-      "skin_collision",
       "collision_layer",
       "collision_mask",
       "solver_layer",
@@ -7951,7 +7960,6 @@
       "soft_material",
       "physics_material",
       "mesh",
-      "skin",
       "seams",
       "pinned_particles",
       "masses",
@@ -7962,7 +7970,6 @@
       "self_collision",
       "particle_radius",
       "orientation",
-      "skin_collision",
       "collision_layer",
       "collision_mask",
       "solver_layer",
@@ -8091,8 +8098,6 @@
       "enabled",
       "sensor",
       "physics_material",
-      "fit",
-      "edge_radius",
       "collision_layer",
       "collision_mask",
       "collision_test",
@@ -8111,6 +8116,10 @@
       "inertia",
       "events",
       "contact_force_threshold"
+    ],
+    "tile_shapes": [
+      "fit",
+      "edge_radius"
     ],
     "tilemap": [
       "tileset",
@@ -8670,6 +8679,14 @@
       "3d",
       "physics"
     ],
+    "soft_skin2d": [
+      "2d",
+      "physics"
+    ],
+    "soft_skin3d": [
+      "3d",
+      "physics"
+    ],
     "soft_sphere3d": [
       "3d",
       "physics"
@@ -8722,6 +8739,10 @@
       "render"
     ],
     "tile_collision": [
+      "2d",
+      "physics"
+    ],
+    "tile_shapes": [
       "2d",
       "physics"
     ],
@@ -15180,6 +15201,30 @@
         "type": "int"
       }
     },
+    "soft_skin2d": {
+      "skin": {
+        "default": true,
+        "description": "Keep the mesh asset's outline as what the cells carry and the node draws",
+        "type": "bool"
+      },
+      "skin_collision": {
+        "default": false,
+        "description": "Meet the world through the skin rather than the cells' boundary",
+        "type": "bool"
+      }
+    },
+    "soft_skin3d": {
+      "skin": {
+        "default": false,
+        "description": "Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives",
+        "type": "bool"
+      },
+      "skin_collision": {
+        "default": false,
+        "description": "Meet the world through the skin rather than the cells' boundary",
+        "type": "bool"
+      }
+    },
     "soft_sphere3d": {
       "radius": {
         "default": 0.5,
@@ -15487,7 +15532,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries: the same asset a polygon draws",
+        "description": "Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries unless its soft_skin2d says otherwise: the same asset a polygon draws",
         "group": "shape",
         "type": "asset"
       },
@@ -15616,18 +15661,6 @@
       "sensor": {
         "default": false,
         "description": "Report contacts and push nothing: the body passes through what it touches",
-        "group": "collision",
-        "type": "bool"
-      },
-      "skin": {
-        "default": true,
-        "description": "Keep the mesh asset's outline as what the cells carry and the node draws; any kind with cells and a mesh takes it except triangle_mesh, whose particles are the mesh's",
-        "group": "shape",
-        "type": "bool"
-      },
-      "skin_collision": {
-        "default": false,
-        "description": "Meet the world through the skin rather than the cells' boundary",
         "group": "collision",
         "type": "bool"
       },
@@ -16047,7 +16080,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when skin is on",
+        "description": "Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when its soft_skin3d asks for one",
         "group": "shape",
         "type": "asset"
       },
@@ -16176,18 +16209,6 @@
       "sensor": {
         "default": false,
         "description": "Report contacts and push nothing: the body passes through what it touches",
-        "group": "collision",
-        "type": "bool"
-      },
-      "skin": {
-        "default": false,
-        "description": "Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it",
-        "group": "shape",
-        "type": "bool"
-      },
-      "skin_collision": {
-        "default": false,
-        "description": "Meet the world through the skin rather than the cells' boundary",
         "group": "collision",
         "type": "bool"
       },
@@ -17233,13 +17254,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "edge_radius": {
-        "default": 0.0,
-        "description": "Rounds each shaped tile's polygon by this radius; full cells have no border to round",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
       "enabled": {
         "default": true,
         "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
@@ -17254,18 +17268,6 @@
           "contact_force"
         ],
         "type": "flags"
-      },
-      "fit": {
-        "default": "convex_hull",
-        "description": "What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline",
-        "group": "shape",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb",
-          "convex_decomposition"
-        ],
-        "type": "enum"
       },
       "inertia": {
         "default": 0.0,
@@ -17418,12 +17420,66 @@
         "type": "vec2"
       }
     },
+    "tile_shapes": {
+      "edge_radius": {
+        "default": 0.0,
+        "description": "Rounds each shaped tile's polygon by this radius",
+        "min": 0.0,
+        "type": "float"
+      },
+      "fit": {
+        "default": "convex_hull",
+        "description": "What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline",
+        "options": [
+          "convex_hull",
+          "aabb",
+          "obb",
+          "convex_decomposition"
+        ],
+        "type": "enum"
+      }
+    },
     "tilemap": {
       "cells": {
-        "default": "",
-        "description": "Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene",
+        "default": {
+          "kind": "inline",
+          "rows": []
+        },
+        "description": "The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene",
         "group": "cells",
-        "type": "string"
+        "type": "variant",
+        "variants": {
+          "file": {
+            "description": "In a `.cells` file of their own",
+            "fields": {
+              "path": {
+                "default": "",
+                "description": "The `.cells` file: one row a line, ids apart by spaces, -1 for an empty cell",
+                "type": "string"
+              }
+            },
+            "type": "record"
+          },
+          "inline": {
+            "description": "In the scene, as rows",
+            "fields": {
+              "rows": {
+                "default": [],
+                "description": "Rows of tile ids, the top row first; -1 is an empty cell",
+                "of": {
+                  "default": [],
+                  "of": {
+                    "default": 0,
+                    "type": "int"
+                  },
+                  "type": "list"
+                },
+                "type": "list"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "color": {
         "default": [
@@ -17436,10 +17492,18 @@
         "type": "color"
       },
       "flags": {
-        "default": "",
-        "description": "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal",
+        "default": [],
+        "description": "How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal",
         "group": "cells",
-        "type": "string"
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
       },
       "material": {
         "asset": "material",
@@ -17471,10 +17535,18 @@
         "type": "int"
       },
       "terrain": {
-        "default": "",
-        "description": "What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset's rules",
+        "default": [],
+        "description": "What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset's rules",
         "group": "cells",
-        "type": "string"
+        "of": {
+          "default": [],
+          "of": {
+            "default": 0,
+            "type": "int"
+          },
+          "type": "list"
+        },
+        "type": "list"
       },
       "tileset": {
         "asset": "tileset",

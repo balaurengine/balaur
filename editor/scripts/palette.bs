@@ -262,7 +262,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
             list.push(entry);
         }
         for shape in physics::soft_shapes(two_d) {
-            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.properties));
+            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.properties).with("beside", shape.beside));
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -275,7 +275,7 @@ fn run_collide(state: &mut editor::State, data: any) {
 }
 
 fn run_deform(state: &mut editor::State, data: any) {
-    physics::make_soft_body(state, data.two_d.as_bool(), data.props);
+    physics::make_soft_body(state, data.two_d.as_bool(), data.props, data.beside);
 }
 
 // The built-in verbs, by the name each command carries.
