@@ -175,9 +175,8 @@ impl Default for UiConfig {
 }
 
 /// The plugin's own cache, all of it derived from what it has already drawn:
-/// whether fonts are bound to the egui context yet, the persistent text-edit
-/// buffers behind `ui.text_field` and `ui.code_editor`, which of them have
-/// taken focus once, and the textures `ui.image` has uploaded.
+/// whether fonts are bound to the egui context yet, what each field holds
+/// while it is typed into, and the textures `ui.image` has uploaded.
 ///
 /// Split from [`UiConfig`] by ownership: nothing outside this crate writes
 /// any of it, whereas every field of `UiConfig` comes from a script.
@@ -189,19 +188,9 @@ pub struct UiState {
     fonts_taken_at: u64,
     /// The asset generation the widgets' text styles were last read under.
     text_styles_read_at: u64,
-    pub text_buffers: HashMap<String, String>,
-    /// The value each seeded field was last filled from, so a field re-seeds
-    /// when its source changes but not while someone is typing into it.
-    pub text_seeds: HashMap<String, String>,
-    /// Per `code` node, the galley it last laid out and the hash of the text
-    /// and colours behind it. Highlighting a file is proportional to its
-    /// length, and nothing about it changes on a frame that only moved a
-    /// pointer.
-    pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
-    /// What those galleys were laid out against. egui rebuilds the glyph atlas
-    /// at the same size when it fills or the text options change (a light
-    /// theme does), and a galley from the old atlas draws the wrong glyphs.
-    pub font_atlas: Option<FontAtlas>,
+    /// Each `text_field`, `text_area`, `code` node and number being typed:
+    /// its text, caret, undo and layout, by its egui id.
+    pub(crate) fields: HashMap<egui::Id, widget::typing::Field>,
     /// Text `ui::set_clipboard` asked for, handed to the platform by the next
     /// pass: a script runs between passes, and only a pass holds the context.
     pub clipboard: Option<String>,
@@ -264,9 +253,7 @@ pub fn forget_scene(eng: &Engine) {
     };
     let mut state = state.borrow_mut();
     state.textures.clear();
-    state.text_buffers.clear();
-    state.text_seeds.clear();
-    state.code_galleys.clear();
+    state.fields.clear();
     state.forget_egui = true;
 }
 
@@ -400,14 +387,6 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             // respawned node inherits the index the freed one had.
             ctx.memory_mut(|memory| memory.data.clear());
         }
-        let now = FontAtlas::of(ctx);
-        if state
-            .font_atlas
-            .as_ref()
-            .is_some_and(|was| was.rebuilt_by(&now))
-        {
-            state.code_galleys.clear();
-        }
     }
     // A second lookup and borrow, deliberately: the pending theme is the
     // script's to set and this crate's cache is not, so they are two entries.
@@ -455,33 +434,4 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     widget::input::hear_pasted_image(eng, ctx);
     routing::pass_drew(eng, ctx);
     bridge::leave_pass();
-    state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));
-}
-
-/// The glyph atlas as a cached galley depends on it.
-pub struct FontAtlas {
-    pixels_per_point: f32,
-    fill: f32,
-    options: egui::epaint::text::TextOptions,
-}
-
-impl FontAtlas {
-    fn of(ctx: &egui::Context) -> Self {
-        // Read apart: a context call inside `fonts` locks it twice.
-        let pixels_per_point = ctx.pixels_per_point();
-        let (fill, options) = ctx.fonts(|fonts| (fonts.font_atlas_fill_ratio(), *fonts.options()));
-        Self {
-            pixels_per_point,
-            fill,
-            options,
-        }
-    }
-
-    /// Whether `now` is a different atlas: the fill only falls when egui
-    /// starts over, and new options always start over.
-    fn rebuilt_by(&self, now: &Self) -> bool {
-        self.options != now.options
-            || now.fill < self.fill
-            || (self.pixels_per_point - now.pixels_per_point).abs() > f32::EPSILON
-    }
 }

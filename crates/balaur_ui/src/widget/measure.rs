@@ -127,6 +127,12 @@ impl<'a> Measure<'a> {
             // or a header sits inside it.
             w::BUTTON => self.button(index, widget, theme),
             w::MENU if !bare => self.button(index, widget, theme),
+            w::TEXT_FIELD | w::TEXT_AREA => self.field(index, theme),
+            w::CODE => self.code(index, theme),
+            w::NUMBER_FIELD => {
+                let look = crate::widget::arena::look_of(self.arena, index, theme);
+                crate::widget::numbers::number_size(self.painter.ctx(), widget, &look.font)
+            }
             w::FOLD => self.fold(index, theme),
             w::STACK => self.stack(index, theme),
             w::GRID => self.grid(index, theme),
@@ -165,12 +171,6 @@ impl<'a> Measure<'a> {
                             )
                         },
                     )
-            }
-            // Room for a dozen wide letters: what a field takes before a
-            // container or a `width` says otherwise.
-            w::TEXT_FIELD => {
-                let line = self.galley(index, "MMMMMMMMMMMM", widget, theme);
-                line + self.padding
             }
             w::TABS => {
                 let strip = self.strip(index, theme);
@@ -219,6 +219,35 @@ impl<'a> Measure<'a> {
             // one whose rows are nodes is drawn as a button, and measured as one.
             _ => self.text(index, widget, theme),
         }
+    }
+
+    /// A field's box as its draw sizes it: its text's room, its affixes and
+    /// its margin, from [`crate::widget::field::Face::natural`].
+    fn field(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let placed = &self.arena[index];
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        let ctx = self.painter.ctx().clone();
+        crate::widget::field::Face {
+            eng: self.eng,
+            ctx: &ctx,
+            widget: &placed.widget,
+            project: placed.project,
+            font: &look.font,
+            style: &look.style,
+        }
+        .natural(placed.widget.kind == w::TEXT_AREA)
+    }
+
+    /// A `code` node's box: its gutter and its lines, laid out as the draw
+    /// lays them out.
+    fn code(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let placed = &self.arena[index];
+        let look = crate::widget::code::CodeLook {
+            widget: &placed.widget,
+            theme,
+            project: placed.project,
+        };
+        crate::widget::code::natural(self.eng, &self.painter.ctx().clone(), placed.entity, &look)
     }
 
     /// A window: its title bar over its children, or the bar alone while it

@@ -1,16 +1,23 @@
 //! The `code` kind's editor: syntax tables for Rune, Balaur Script and WESL,
 //! the highlighter, the gutter with its diagnostics, and the caret the node
-//! says it moved.
+//! says it moved. The text is typed through [`crate::widget::typing`], laid
+//! out a line at a time by the shaper.
 
 use balaur_core::Engine;
-use egui::{Align2, Color32, CornerRadius, FontId, Sense, pos2, vec2};
+use balaur_core::hecs::Entity;
+use egui::{Align2, Color32, CornerRadius, FontId, Rect, Sense, pos2, vec2};
 
 use crate::UiState;
 use crate::theme;
 use crate::vocabulary::{keys as k, tokens as t};
+use crate::widget::arrange::Pad;
 use crate::widget::node::Widget;
 use crate::widget::paint::Brush;
 use crate::widget::theme::WidgetTheme;
+use crate::widget::typing::{Field, Typesetter, Typing};
+
+/// The room between the gutter and the code.
+const GUTTER_GAP: f32 = 12.0;
 
 /// A `code` node and the theme it is drawn under: what the editor reads.
 pub(crate) struct CodeLook<'a> {
@@ -36,18 +43,40 @@ impl CodeLook<'_> {
 
     /// What the code draws in: the widget's own font, else the theme's
     /// `mono`, else its default.
-    fn family(&self) -> egui::FontFamily {
-        let font = if self.widget.font.is_empty() {
-            let mono = self.theme.font(t::FONT_MONO);
-            if mono.is_empty() {
-                self.theme.font(t::FONT_DEFAULT)
-            } else {
-                mono
-            }
+    fn font(&self) -> &str {
+        if !self.widget.font.is_empty() {
+            return self.widget.font.as_str();
+        }
+        let mono = self.theme.font(t::FONT_MONO);
+        if mono.is_empty() {
+            self.theme.font(t::FONT_DEFAULT)
         } else {
-            self.widget.font.as_str()
-        };
-        theme::weighted(self.project, font, 400.0, false)
+            mono
+        }
+    }
+
+    /// The gutter's numbers' family, in that font.
+    fn family(&self) -> egui::FontFamily {
+        theme::weighted(self.project, self.font(), 400.0, false)
+    }
+
+    /// What a line of the code is shaped from.
+    fn request(&self) -> balaur_text::RequestRef<'_> {
+        balaur_text::RequestRef {
+            text: "",
+            size: self.size(),
+            weight: 400,
+            slant: balaur_text::Slant::Normal,
+            width: None,
+            truncate: false,
+            align: balaur_text::Align::Start,
+            markup: false,
+            font: self.font(),
+            project: self.project,
+            line_height: 0.0,
+            letter_spacing: 0.0,
+            options: &balaur_text::PLAIN,
+        }
     }
 }
 
@@ -288,90 +317,69 @@ impl Marks {
     }
 }
 
-/// Line-based highlighting into a LayoutJob (used by the editable code
-/// editor's layouter; mirrors the design handoff's tokenizer rules).
-pub(crate) fn highlight(
-    text_src: &str,
-    syntax: &Syntax,
-    font: &FontId,
-    colors: &SyntaxColors,
-    marks: &Marks,
-) -> egui::text::LayoutJob {
-    let mut job = egui::text::LayoutJob::default();
-    let fmt = |color: Color32, underline: egui::Stroke| egui::TextFormat {
-        font_id: font.clone(),
-        color,
-        underline,
-        ..Default::default()
-    };
-    for (i, line) in text_src.split('\n').enumerate() {
-        if i > 0 {
-            job.append("\n", 0.0, fmt(colors.punct, egui::Stroke::NONE));
-        }
-        let underline = marks
-            .color(i + 1)
-            .map_or(egui::Stroke::NONE, |color| egui::Stroke::new(1.0, color));
-        if line.trim_start().starts_with(syntax.line_comment) {
-            job.append(line, 0.0, fmt(colors.comment, underline));
-            continue;
-        }
-        let bytes = line.as_bytes();
-        let mut pos = 0;
-        while pos < bytes.len() {
-            let rest = &line[pos..];
-            // pos < bytes.len(), so rest is non-empty.
-            let c = rest.chars().next().unwrap();
-            let (token_len, color) = if c.is_whitespace() {
-                (
-                    rest.chars()
-                        .take_while(|c| c.is_whitespace())
-                        .map(char::len_utf8)
-                        .sum(),
-                    colors.ident,
-                )
-            } else if c == '"' || c == '\'' {
-                let quote = c;
-                let mut len = c.len_utf8();
-                for ch in rest[len..].chars() {
-                    len += ch.len_utf8();
-                    if ch == quote {
-                        break;
-                    }
-                }
-                (len, colors.string)
-            } else if c.is_ascii_digit() {
-                (
-                    rest.chars()
-                        .take_while(|c| c.is_ascii_digit() || *c == '.')
-                        .map(char::len_utf8)
-                        .sum(),
-                    colors.number,
-                )
-            } else if c.is_alphabetic() || c == '_' {
-                let len: usize = rest
-                    .chars()
-                    .take_while(|c| c.is_alphanumeric() || *c == '_')
-                    .map(char::len_utf8)
-                    .sum();
-                let word = &rest[..len];
-                let color = if syntax.keywords.contains(&word) {
-                    colors.key
-                } else if syntax.builtins.contains(&word)
-                    || word.chars().next().is_some_and(char::is_uppercase)
-                {
-                    colors.builtin
-                } else {
-                    colors.ident
-                };
-                (len, color)
-            } else {
-                (c.len_utf8(), colors.punct)
-            };
-            job.append(&rest[..token_len], 0.0, fmt(color, underline));
-            pos += token_len;
-        }
+/// One line's colours, by the byte each starts at: the design handoff's
+/// tokenizer rules.
+pub(crate) fn spans(line: &str, syntax: &Syntax, colors: &SyntaxColors) -> Vec<(u32, Color32)> {
+    let at = |pos: usize| u32::try_from(pos).unwrap_or(u32::MAX);
+    if line.trim_start().starts_with(syntax.line_comment) {
+        return vec![(0, colors.comment)];
     }
-    job
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while pos < line.len() {
+        let rest = &line[pos..];
+        let Some(c) = rest.chars().next() else {
+            break;
+        };
+        let (token_len, color) = if c.is_whitespace() {
+            (
+                rest.chars()
+                    .take_while(|c| c.is_whitespace())
+                    .map(char::len_utf8)
+                    .sum(),
+                colors.ident,
+            )
+        } else if c == '"' || c == '\'' {
+            let mut len = c.len_utf8();
+            for ch in rest[len..].chars() {
+                len += ch.len_utf8();
+                if ch == c {
+                    break;
+                }
+            }
+            (len, colors.string)
+        } else if c.is_ascii_digit() {
+            (
+                rest.chars()
+                    .take_while(|c| c.is_ascii_digit() || *c == '.')
+                    .map(char::len_utf8)
+                    .sum(),
+                colors.number,
+            )
+        } else if c.is_alphabetic() || c == '_' {
+            let len: usize = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .map(char::len_utf8)
+                .sum();
+            let word = &rest[..len];
+            let color = if syntax.keywords.contains(&word) {
+                colors.key
+            } else if syntax.builtins.contains(&word)
+                || word.chars().next().is_some_and(char::is_uppercase)
+            {
+                colors.builtin
+            } else {
+                colors.ident
+            };
+            (len, color)
+        } else {
+            (c.len_utf8(), colors.punct)
+        };
+        out.push((at(pos), color));
+        pos += token_len;
+    }
+    out
 }
 
 /// The column beside the code: line numbers, breakpoint dots, and the row
@@ -392,11 +400,7 @@ impl Gutter {
     fn of(look: &CodeLook<'_>, size: f32) -> Self {
         let widget = look.widget;
         Self {
-            width: if widget.gutter_width > 0.0 {
-                widget.gutter_width
-            } else {
-                34.0
-            },
+            width: gutter_width(widget),
             color: look.color(k::GUTTER_COLOR, theme::color(t::TEXT_SUBTLE)),
             size,
             family: look.family(),
@@ -411,10 +415,10 @@ impl Gutter {
         }
     }
 
-    /// Paint `n_lines` rows; returns the row clicked this frame, if any.
-    fn paint(&self, ui: &mut egui::Ui, n_lines: usize, row_h: f32) -> Option<i64> {
-        let (rect, response) =
-            ui.allocate_exact_size(vec2(self.width, row_h * n_lines as f32), Sense::click());
+    /// Paint `n_lines` rows from the top of `rect`; returns the row clicked
+    /// this frame, if any.
+    fn paint(&self, ui: &mut egui::Ui, rect: Rect, n_lines: usize, row_h: f32) -> Option<i64> {
+        let response = ui.interact(rect, ui.scope_id().with("gutter"), Sense::click());
         let clicked = response
             .interact_pointer_pos()
             .filter(|_| response.clicked())
@@ -430,7 +434,10 @@ impl Gutter {
             Brush::of(ui).fill(row, CornerRadius::ZERO, self.current_fill);
         }
         let font = FontId::new((self.size - 1.5).max(8.0), self.family.clone());
-        for i in 0..n_lines {
+        let clip = ui.clip_rect();
+        let first = (((clip.top() - rect.min.y) / row_h).floor().max(0.0) as usize).min(n_lines);
+        let last = (((clip.bottom() - rect.min.y) / row_h).ceil().max(0.0) as usize).min(n_lines);
+        for i in first..last {
             let center_y = rect.min.y + row_h * (i as f32 + 0.5);
             if self.breakpoints.contains(&(i + 1)) {
                 Brush::of(ui).disc(pos2(rect.min.x + 7.0, center_y), 4.0, self.breakpoint_color);
@@ -467,151 +474,163 @@ pub(crate) struct Caret {
     pub(crate) index: usize,
 }
 
-/// An editable, syntax-highlighted code editor with a line-number gutter. The
-/// buffer persists per `id` in `UiState`.
-///
-/// Returns the buffer, whether it changed, the gutter line clicked this frame
-/// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
-/// one.
+/// What one pass of the editor did.
+pub(crate) struct Coded {
+    /// The text, when the reader changed it.
+    pub(crate) typed: Option<String>,
+    /// The gutter row clicked, counted from 1.
+    pub(crate) gutter: Option<i64>,
+    /// The caret, when it moved.
+    pub(crate) caret: Option<Caret>,
+    /// The box it drew in.
+    pub(crate) used: egui::Vec2,
+}
+
+thread_local! {
+    /// Where each `code` widget's caret was last said to be, by byte, so
+    /// `caret` is emitted when it moves rather than every pass it is drawn.
+    static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
+        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+}
+
+fn moved_caret(entity: Entity, byte: usize) -> bool {
+    CARETS.with(|carets| carets.borrow_mut().insert(entity.to_bits().get(), byte) != Some(byte))
+}
+
+/// How wide the column of line numbers is.
+fn gutter_width(widget: &Widget) -> f32 {
+    if widget.gutter_width > 0.0 {
+        widget.gutter_width
+    } else {
+        34.0
+    }
+}
+
+/// The field a `code` node keeps, refilled from its `text`.
+fn field_of(eng: &Engine, id: egui::Id, widget: &Widget) -> Field {
+    let mut field = eng
+        .resource::<UiState>()
+        .borrow_mut()
+        .fields
+        .remove(&id)
+        .unwrap_or_else(|| Field::new(&widget.text, true, widget.egui.caret_at_end));
+    field.refill(&widget.text);
+    field
+}
+
+fn code_id(entity: Entity) -> egui::Id {
+    egui::Id::unique(("balaur-code", entity))
+}
+
+/// The box a `code` node asks for: its gutter, the gap after it, and its
+/// lines laid out as the draw lays them out, in its padding.
+pub(crate) fn natural(
+    eng: &Engine,
+    ctx: &egui::Context,
+    entity: Entity,
+    look: &CodeLook<'_>,
+) -> egui::Vec2 {
+    let id = code_id(entity);
+    let mut field = field_of(eng, id, look.widget);
+    let shown = field.editing.shown(false);
+    let typeset = Typesetter::Lines(look.request()).set(eng, ctx, &shown.text, &mut field.kept);
+    eng.resource::<UiState>()
+        .borrow_mut()
+        .fields
+        .insert(id, field);
+    let margin = code_margin(look.widget.padding).taken();
+    vec2(
+        gutter_width(look.widget) + GUTTER_GAP + typeset.size.x + margin.x,
+        typeset.size.y + margin.y,
+    )
+}
+
+/// An editable, syntax-highlighted code editor with a line-number gutter, at
+/// the top-left of `ui`'s box and as wide as it at least. What it holds is
+/// kept per node in `UiState`; a script writing a new `text` refills it.
 pub(crate) fn code_editor(
     eng: &Engine,
     ui: &mut egui::Ui,
-    id: &str,
+    entity: Entity,
     look: &CodeLook<'_>,
-) -> (String, bool, Option<i64>, Option<Caret>) {
+) -> Coded {
     let widget = look.widget;
-    let language = widget.source.as_str();
-    let syntax = syntax_for(language);
-    let state = eng.resource::<UiState>();
-    // Taken rather than copied: the buffer holds the whole open file, and it
-    // goes back below whether or not the pass drew.
-    let mut buffer = state
-        .borrow_mut()
-        .text_buffers
-        .remove(id)
-        .unwrap_or_else(|| widget.text.to_string());
-    let size = look.size();
-    let gutter = Gutter::of(look, size);
+    let syntax = syntax_for(widget.source.as_str());
+    let gutter = Gutter::of(look, look.size());
     let colors = SyntaxColors::of(look);
     let marks = Marks::of(look);
-    let font = FontId::new(size, look.family());
+    let id = code_id(entity);
+    let state = eng.resource::<UiState>();
+    let mut field = field_of(eng, id, widget);
+    let setter = Typesetter::Lines(look.request());
+    let shown = field.editing.shown(false);
+    let typeset = setter.set(eng, ui.ctx(), &shown.text, &mut field.kept);
+    let row = typeset
+        .clusters
+        .lines
+        .first()
+        .map_or(0.0, |line| line.height);
+    let lines = typeset.blocks.len().max(1);
     let margin = code_margin(widget.padding);
-    let (changed, clicked, caret) = {
-        let font = font.clone();
-        let row_h = Brush::of(ui)
-            .line_of("0".into(), font.clone(), gutter.color)
-            .size()
-            .y;
-        let mut changed = false;
-        let mut clicked = None;
-        let mut caret = None;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            let n_lines = buffer.split('\n').count().max(1);
-            clicked = gutter.paint(ui, n_lines, row_h);
-            ui.add_space(12.0);
-            // Tokenising a whole file into a `LayoutJob` and hashing every
-            // section of it, once a frame, was the dearest thing the editor
-            // did; the galley only changes when the text or the look does.
-            let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
-                let want = look_key(buf.as_str(), &font, &colors, &marks, language);
-                if let Some(hit) = state
-                    .borrow()
-                    .code_galleys
-                    .get(id)
-                    .and_then(|(had, galley)| (*had == want).then(|| std::sync::Arc::clone(galley)))
-                {
-                    return hit;
-                }
-                let mut job = highlight(buf.as_str(), syntax, &font, &colors, &marks);
-                job.wrap.max_width = f32::INFINITY;
-                let galley = ui.fonts_mut(|f| f.layout_job(job));
-                state
-                    .borrow_mut()
-                    .code_galleys
-                    .insert(id.to_string(), (want, std::sync::Arc::clone(&galley)));
-                galley
-            };
-            // `show` rather than `add`: a popup has to open under the caret,
-            // and only the output carries the galley it sits in.
-            let mut edit = egui::TextEdit::multiline(&mut buffer)
-                .id(egui::Id::unique(id.to_string()))
-                .frame(egui::Frame::NONE)
-                .desired_width(ui.available_width())
-                .interactive(widget.egui.editable)
-                .lock_focus(widget.egui.tab_inserts)
-                .cursor_at_end(widget.egui.caret_at_end)
-                .layouter(&mut layouter);
-            if let Some(margin) = margin {
-                edit = edit.margin(margin);
-            }
-            let output = edit.show(ui);
-            changed = output.response.changed();
-            if let Some(range) = output.cursor_range {
-                let at = range.primary;
-                let rect = output.galley.pos_from_cursor(at);
-                caret = Some(Caret {
-                    x: output.galley_pos.x + rect.left(),
-                    y: output.galley_pos.y + rect.bottom(),
-                    index: at.index.into(),
-                });
-            }
+    let origin = ui.max_rect().min;
+    let rows = Rect::from_min_size(
+        origin + vec2(0.0, margin.top),
+        vec2(gutter.width, row * lines as f32),
+    );
+    let gutter_hit = gutter.paint(ui, rows, lines, row);
+    let left = origin.x + gutter.width + GUTTER_GAP;
+    let size = vec2(
+        (ui.max_rect().right() - left).max(typeset.size.x + margin.taken().x),
+        typeset.size.y + margin.taken().y,
+    );
+    let rect = Rect::from_min_size(pos2(left, origin.y), size);
+    let paint_line = |line: &str| spans(line, syntax, &colors);
+    let underline = |line: usize| marks.color(line);
+    let typed = Typing {
+        id,
+        multiline: true,
+        secret: false,
+        editable: widget.egui.editable,
+        clip: false,
+        frame: false,
+        tab_inserts: widget.egui.tab_inserts,
+        numeric: false,
+        max_chars: 0,
+        submit: None,
+        align: egui::Align::Min,
+        margin,
+        color: colors.ident,
+        placeholder: None,
+        prefix: None,
+        suffix: None,
+        colors: Some(&paint_line),
+        underline: Some(&underline),
+    }
+    .show(ui, eng, rect, &mut field, &setter);
+    let used = vec2(rect.right() - origin.x, rect.height().max(rows.height()));
+    ui.advance_cursor_after_rect(Rect::from_min_size(origin, used));
+    let caret = typed
+        .caret
+        .filter(|(_, byte)| moved_caret(entity, *byte))
+        .map(|(at, byte)| Caret {
+            x: at.left(),
+            y: at.bottom(),
+            index: field.editing.text()[..byte].chars().count(),
         });
-        (changed, clicked, caret)
+    let coded = Coded {
+        typed: typed.changed.then(|| field.editing.text().to_string()),
+        gutter: gutter_hit,
+        caret,
+        used,
     };
-    state
-        .borrow_mut()
-        .text_buffers
-        .insert(id.to_string(), buffer.clone());
-    (buffer, changed, clicked, caret)
+    state.borrow_mut().fields.insert(id, field);
+    coded
 }
 
 /// The margin round the code, from `padding`: left, top, right and bottom,
-/// where a side under zero is unset; `None` when none is set leaves egui's.
-fn code_margin(padding: [f32; 4]) -> Option<egui::Margin> {
-    if padding.iter().all(|side| *side < 0.0) {
-        return None;
-    }
-    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
-    let [left, top, right, bottom] = padding;
-    Some(egui::Margin {
-        left: side(left),
-        right: side(right),
-        top: side(top),
-        bottom: side(bottom),
-    })
-}
-
-/// What the code editor's galley was laid out from: the text and everything
-/// about its look. A hit means re-highlighting would produce the same picture.
-fn look_key(
-    text: &str,
-    font: &FontId,
-    colors: &SyntaxColors,
-    marks: &Marks,
-    language: &str,
-) -> u64 {
-    use std::hash::{Hash as _, Hasher as _};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    text.hash(&mut hasher);
-    language.hash(&mut hasher);
-    font.size.to_bits().hash(&mut hasher);
-    for color in [
-        colors.key,
-        colors.string,
-        colors.number,
-        colors.comment,
-        colors.ident,
-        colors.builtin,
-        colors.punct,
-        marks.error_color,
-        marks.warning_color,
-    ] {
-        color.to_array().hash(&mut hasher);
-    }
-    marks.errors.hash(&mut hasher);
-    marks.warnings.hash(&mut hasher);
-    hasher.finish()
+/// where a side under zero is none.
+fn code_margin(padding: [f32; 4]) -> Pad {
+    Pad::of(padding.map(|side| side.max(0.0)))
 }
 
 #[cfg(test)]

@@ -204,7 +204,7 @@ pub(crate) struct Pad {
 }
 
 impl Pad {
-    const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
+    pub(crate) const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
         Self {
             left,
             top,

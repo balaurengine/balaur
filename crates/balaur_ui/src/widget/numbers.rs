@@ -45,6 +45,16 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let decimals = usize::try_from(o.decimals).ok();
     let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
     let mut number = f64::from(value);
+    let look = at.look(index);
+    let ctx = ui.ctx().clone();
+    let face = crate::widget::field::Face {
+        eng: at.eng,
+        ctx: &ctx,
+        widget,
+        project: placed.project,
+        font: &look.font,
+        style: &look.style,
+    };
     let response = Slide {
         value: &mut number,
         range: f64::from(low)..=f64::from(high),
@@ -86,6 +96,8 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             }
         },
         update_while_editing: o.update_while_editing,
+        eng: at.eng,
+        setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     }
     .show(ui);
     value = number as f32;
@@ -133,6 +145,36 @@ pub(crate) fn value_room(painter: &Brush, widget: &crate::widget::node::Widget) 
     (widest + spacing.button_padding.x * 2.0).max(spacing.interact_size.x) + spacing.item_spacing.x
 }
 
+/// The box a `number_field` asks for: its number at rest, the way the draw
+/// lays it out, and room for its arrows.
+pub(crate) fn number_size(
+    ctx: &egui::Context,
+    widget: &crate::widget::node::Widget,
+    font: &egui::FontId,
+) -> egui::Vec2 {
+    let o = &widget.egui;
+    let mut style = (*ctx.global_style()).clone();
+    style.override_font_id = Some(font.clone());
+    let decimals = usize::try_from(o.decimals).ok();
+    let speed = if o.drag_speed > 0.0 {
+        f64::from(o.drag_speed)
+    } else {
+        1.0
+    };
+    let aim = f64::from(ctx.input(egui::InputState::aim_radius));
+    let (auto, most) =
+        crate::widget::drag::decimals(aim, speed, false, (decimals.unwrap_or(0), decimals));
+    let shown = Spelling::of(&o.number_format).format(&style, f64::from(widget.value), auto..=most);
+    let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
+    let pieces = crate::widget::drag::faces(ctx, &style, (&prefix, &shown, &suffix));
+    let face = crate::widget::drag::face_size(&style.spacing, &pieces);
+    if widget.arrows {
+        vec2(face.x + ARROWS, face.y)
+    } else {
+        face
+    }
+}
+
 /// A number dragged sideways, or typed into after a click. `SpinBox` in a
 /// Godot scene; the control an inspector row is mostly made of.
 ///
@@ -157,6 +199,16 @@ pub(crate) fn drag_value(
     let decimals = usize::try_from(o.decimals).ok();
     let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
     let mut number = f64::from(value);
+    let look = at.look(index);
+    let ctx = ui.ctx().clone();
+    let face = crate::widget::field::Face {
+        eng: at.eng,
+        ctx: &ctx,
+        widget,
+        project: placed.project,
+        font,
+        style: &look.style,
+    };
     let drag = DragNumber {
         value: &mut number,
         speed: if o.drag_speed > 0.0 {
@@ -176,6 +228,8 @@ pub(crate) fn drag_value(
         max_decimals: decimals,
         spelling: Spelling::of(&o.number_format),
         update_while_editing: o.update_while_editing,
+        eng: at.eng,
+        setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     };
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
     if want.x > 0.0 {
@@ -188,7 +242,6 @@ pub(crate) fn drag_value(
         };
     }
     let mut stepped = None;
-    let look = at.look(index);
     let response = ui.scope(|ui| {
         ui.style_mut().override_font_id = Some(font.clone());
         crate::widget::theme::dress(ui, &look.style, color);
@@ -303,7 +356,7 @@ fn paint_bar(
 }
 
 /// The words before and after the number, a space between each and it.
-fn affixes(prefix: &str, suffix: &str) -> (String, String) {
+pub(crate) fn affixes(prefix: &str, suffix: &str) -> (String, String) {
     let before = if prefix.is_empty() {
         String::new()
     } else {

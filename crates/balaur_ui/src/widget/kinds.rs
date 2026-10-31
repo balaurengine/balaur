@@ -318,7 +318,6 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
-    let id = format!("balaur-code-{}", entity.to_bits());
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -339,34 +338,21 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         theme: &at.theme,
         project: at.arena[index].project,
     };
-    let (text, changed, hit, caret) =
-        crate::widget::code::code_editor(at.eng, &mut inner, &id, &look);
-    if changed {
+    let coded = crate::widget::code::code_editor(at.eng, &mut inner, entity, &look);
+    if let Some(text) = coded.typed {
         at.edits.push((entity, Edit::Text(text)));
     }
-    if let Some(caret) = caret.filter(|c| moved_caret(entity, c.index)) {
+    if let Some(caret) = coded.caret {
         at.edits
             .push((entity, Edit::Caret(caret.x, caret.y, caret.index)));
     }
     // The line alone: what a click on the gutter means is the script's to
     // decide, as a breakpoint in one editor and a value in another.
-    if let Some(line) = hit {
+    if let Some(line) = coded.gutter {
         at.edits.push((entity, Edit::Gutter(line)));
     }
-    let used = inner.min_rect().size();
-    record_measure(entity, used);
-    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
-}
-
-thread_local! {
-    /// Where each `code` widget's caret was last said to be, so `caret` is
-    /// emitted when it moves rather than every pass it is drawn.
-    static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
-        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
-}
-
-fn moved_caret(entity: balaur_core::hecs::Entity, index: usize) -> bool {
-    CARETS.with(|carets| carets.borrow_mut().insert(entity.to_bits().get(), index) != Some(index))
+    record_measure(entity, coded.used);
+    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, coded.used));
 }
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same

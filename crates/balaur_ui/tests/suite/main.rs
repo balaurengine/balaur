@@ -32,4 +32,5 @@ mod widget_rows;
 mod widget_scale;
 mod widget_text;
 mod widget_tree;
+mod widget_typing;
 mod widget_window;

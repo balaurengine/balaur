@@ -142,9 +142,6 @@ pub(crate) fn gradient(
 /// A shape built here and painted by a [`Brush`], or kept to paint later.
 pub(crate) type Shape = egui::Shape;
 
-/// The character a password field shows in place of each one typed.
-pub(crate) const PASSWORD_CHAR: char = egui::epaint::text::PASSWORD_REPLACEMENT_CHAR;
-
 /// Where the layer paints: a `Ui`'s layer and clip, or a layer of its own.
 #[derive(Clone)]
 pub(crate) struct Brush(egui::Painter);
@@ -192,6 +189,38 @@ impl Brush {
         balaur_text::paint(
             &self.0, texture, shaped, origin, tint, linked, effects, time,
         );
+    }
+
+    /// A shaped block in one colour, with no outline, shadow or link.
+    pub(crate) fn shaped(
+        &self,
+        texture: Option<TextureId>,
+        shaped: &balaur_text::Shaped,
+        origin: Pos2,
+        tint: Color32,
+    ) {
+        balaur_text::paint(
+            &self.0,
+            texture,
+            shaped,
+            origin,
+            tint,
+            None,
+            &balaur_text::Effects::default(),
+            0.0,
+        );
+    }
+
+    /// A shaped block coloured by `spans`, a line of code.
+    pub(crate) fn spans(
+        &self,
+        texture: Option<TextureId>,
+        shaped: &balaur_text::Shaped,
+        origin: Pos2,
+        tint: Color32,
+        spans: &[(u32, Color32)],
+    ) {
+        balaur_text::paint_spans(&self.0, texture, shaped, origin, tint, spans);
     }
 
     pub(crate) fn slot(&self) -> Slot {
