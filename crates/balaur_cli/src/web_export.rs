@@ -100,11 +100,16 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
             "What one file becomes in a target's pack.",
         ),
+        (
+            "StartOptions",
+            "{ download: bool?, sign: string?, output: string? }",
+            "How `start` exports: `download` fetches a missing template, `sign` names an identity, `output` overrides where it lands.",
+        ),
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
+        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
+        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "The file name an export for this target produces."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),

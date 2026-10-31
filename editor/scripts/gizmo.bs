@@ -876,18 +876,19 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
 /// it away once the drag is over. After the pointer did something.
 pub fn fill_marquee(state: editor::State) {
     if state.gizmo.marquee.is_none() {
-        util::fill(MARQUEE, map().with("visible", false));
+        util::fill(MARQUEE, { "visible": false });
         return;
     }
     let marquee: Marquee = state.gizmo.marquee.unwrap();
     let width = util::abs(marquee.end_x - marquee.start_x);
     let height = util::abs(marquee.end_y - marquee.start_y);
-    util::fill(MARQUEE, map()
-        .with("visible", state.viewport_live && (width >= 2.0 || height >= 2.0))
-        .with("x", util::min(marquee.start_x, marquee.end_x))
-        .with("y", util::min(marquee.start_y, marquee.end_y))
-        .with("width", width)
-        .with("height", height));
+    util::fill(MARQUEE, {
+        "visible": state.viewport_live && (width >= 2.0 || height >= 2.0),
+        "x": util::min(marquee.start_x, marquee.end_x),
+        "y": util::min(marquee.start_y, marquee.end_y),
+        "width": width,
+        "height": height,
+    });
 }
 
 const MARQUEE: str = "Editor/Marquee";
@@ -1072,7 +1073,7 @@ pub fn update(state: &mut editor::State) {
                 } else {
                     // Nothing under the pointer starts a marquee; the
                     // selection only changes when the drag is released.
-                    state.gizmo.marquee = map().with("start_x", pointer_x).with("start_y", pointer_y).with("end_x", pointer_x).with("end_y", pointer_y);
+                    state.gizmo.marquee = { "start_x": pointer_x, "start_y": pointer_y, "end_x": pointer_x, "end_y": pointer_y };
                 }
             }
         }

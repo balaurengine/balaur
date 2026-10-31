@@ -25,11 +25,6 @@ pub class SessionState {
     demo: selftest::Demo?,
 }
 
-pub struct Options {
-    scripts: str,
-    digest: bool,
-}
-
 pub struct Row {
     name: str,
     started: str,
@@ -108,7 +103,7 @@ pub fn fingerprint(state: editor::State) -> str {
 // recording, and one that takes an await token has to take the recorded id.
 pub fn start(state: &mut editor::State) {
     let path = directory(state) + "/" + replay::recording_name() + ".blr";
-    let options = Options { scripts: fingerprint(state), digest: state.session.verify };
+    let options = replay::RecordOptions { scripts: fingerprint(state), digest: state.session.verify };
     let why = replay::record(path, options);
     let ok = true;
     if ok {
@@ -277,8 +272,8 @@ pub fn open(state: &mut editor::State, name: str) {
     // Loading puts the clock back to where the session started, so every
     // cache that ages against `engine::unix_time()` now thinks it is fresh until
     // the clock catches up.
-    state.sources = map();
-    state.listings = map();
+    state.sources = {};
+    state.listings = {};
     state.session.listed_at = -1.0;
     signals::changed(state, "recordings");
     state.lint.at = -1.0;

@@ -163,7 +163,8 @@ impl FnGen<'_> {
     }
 
     // What a literal of struct `s` gives field `f` of type `t`: what it
-    // names, else the field's declared default, else nil for an optional.
+    // names, else the field's declared default, else nil for an optional or
+    // an `any`.
     fn field_value(
         &self,
         s: &str,
@@ -182,7 +183,7 @@ impl FnGen<'_> {
             .and_then(|defaults| defaults.iter().find(|(n, _)| n == f));
         match declared {
             Some((_, default)) => Ok(default.clone()),
-            None if matches!(t, Ty::Optional(_)) => Ok(Expr {
+            None if matches!(t, Ty::Optional(_) | Ty::Any) => Ok(Expr {
                 kind: ExprKind::Nil,
                 pos,
             }),
@@ -202,7 +203,11 @@ impl FnGen<'_> {
             .iter()
             .find(|(f, _)| !decl.iter().any(|(n, _)| n == f))
         {
-            return err(pos, format!("struct {s} has no field `{f}`"));
+            let names: Vec<String> = decl.iter().map(|(n, _)| format!("`{n}`")).collect();
+            return err(
+                pos,
+                format!("struct {s} has no field `{f}`; it has {}", names.join(", ")),
+            );
         }
         let ty = Ty::Struct(s.to_string());
         // A class's fields go into a new object, counted once for its holder.
@@ -344,11 +349,25 @@ impl FnGen<'_> {
     pub(crate) fn array_lit(&mut self, items: &[Expr], want: Option<&Ty>, pos: Pos) -> R<Ty> {
         let et = match (items.first(), want) {
             (_, Some(t)) => t.clone(),
-            (Some(first), None) => {
-                let first = self.type_of(first)?;
+            (Some(_), None) => {
+                // A map literal is typed by the other elements, and an `any`
+                // beside elements of another kind.
+                let typed: Vec<&Expr> = items
+                    .iter()
+                    .filter(|item| !matches!(item.kind, ExprKind::MapLit(_)))
+                    .collect();
+                let Some(first) = typed.first() else {
+                    return self.type_of(&items[0]);
+                };
+                let mut et = self.type_of(first)?;
+                if typed.len() < items.len()
+                    && !matches!(et, Ty::Any)
+                    && self.map_class(first).is_none()
+                {
+                    et = Ty::Any;
+                }
                 // Elements of more than one kind make a list of anys.
-                let mut et = first;
-                for item in &items[1..] {
+                for item in &typed[1..] {
                     let t = self.type_of(item)?;
                     if t != et && !matches!((&et, &t), (Ty::Float, Ty::Int)) {
                         et = if matches!((&et, &t), (Ty::Int, Ty::Float)) {
@@ -474,8 +493,8 @@ impl FnGen<'_> {
     }
 
     fn if_expr(&mut self, c: &Expr, then: &Block, els: Option<&Block>, pos: Pos) -> R<Ty> {
-        // `if c { x } else { nil }` or `{ [] }`: the other branch says what
-        // `nil` or `[]` stands for.
+        // `if c { x } else { nil }`, `{ [] }` or `{ { "k": v } }`: the other
+        // branch says what `nil`, `[]` or the map stands for.
         if let Some(e) = els
             && is_open(then) != is_open(e)
         {
@@ -497,6 +516,7 @@ impl FnGen<'_> {
             let want = match t {
                 Ty::Any | Ty::Optional(_) => t,
                 Ty::Array(_) if !is_nil(open) => t,
+                t if is_map_lit(open) => t,
                 t => Ty::Optional(Box::new(t)),
             };
             self.if_as(c, then, els, &want, pos)?;
@@ -799,4 +819,14 @@ fn is_open(b: &Block) -> bool {
     is_nil(b)
         || (b.stmts.is_empty()
             && matches!(b.tail.as_deref().map(|e| &e.kind), Some(ExprKind::ArrayLit(items)) if items.is_empty()))
+        || is_map_lit(b)
+}
+
+// A branch that is a map literal, which the other branch types.
+fn is_map_lit(b: &Block) -> bool {
+    b.stmts.is_empty()
+        && matches!(
+            b.tail.as_deref().map(|e| &e.kind),
+            Some(ExprKind::MapLit(_))
+        )
 }

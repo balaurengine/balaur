@@ -18,25 +18,8 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
     let from = if into { ty.clone() } else { Ty::Any };
     let body = match (ty, into) {
         (Ty::Struct(class), _) if crate::maps::is_map(class) => map_body(class, into, fields),
-        (Ty::Struct(_), true) => tail(call(
-            "__map",
-            vec![
-                list(fields.iter().map(|(name, _)| text(name)).collect()),
-                list(
-                    fields
-                        .iter()
-                        .map(|(name, _)| field(var("value"), name))
-                        .collect(),
-                ),
-            ],
-        )),
-        (Ty::Struct(struct_name), false) => tail(expr(ExprKind::StructLit(
-            struct_name.clone(),
-            fields
-                .iter()
-                .map(|(name, _)| (name.clone(), method(var("cell"), "get", vec![text(name)])))
-                .collect(),
-        ))),
+        (Ty::Struct(_), true) => struct_into(fields),
+        (Ty::Struct(struct_name), false) => struct_from(struct_name, fields),
         (Ty::Array(_), true) => each_into("value", Ty::Array(Box::new(Ty::Any)), "out", true),
         (Ty::Array(_), false) => each_into("cell", ty.clone(), "out", false),
         (Ty::Optional(_), true) => tail(expr(ExprKind::If(
@@ -76,6 +59,95 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
         body,
         pos: Pos::default(),
     }
+}
+
+// A struct read back from a map, a field the map lacks its type's zero. A
+// vector or a colour may be a list of its numbers, as a literal may.
+fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
+    let by_key = expr(ExprKind::StructLit(
+        struct_name.to_string(),
+        fields
+            .iter()
+            .map(|(name, _)| (name.clone(), method(var("cell"), "get", vec![text(name)])))
+            .collect(),
+    ));
+    if !matches!(struct_name, "Vec2" | "Vec3" | "Color") {
+        return tail(by_key);
+    }
+    let by_place = expr(ExprKind::StructLit(
+        struct_name.to_string(),
+        fields
+            .iter()
+            .zip(0i64..)
+            .map(|((name, _), at)| {
+                let index = expr(ExprKind::Int(at));
+                (name.clone(), method(var("cell"), "at", vec![index]))
+            })
+            .collect(),
+    ));
+    let listed = expr(ExprKind::Bin(
+        crate::ast::BinOp::Eq,
+        Box::new(method(var("cell"), "kind", vec![])),
+        Box::new(text("list")),
+    ));
+    tail(expr(ExprKind::If(
+        Box::new(listed),
+        tail(by_place),
+        Some(tail(by_key)),
+    )))
+}
+
+// A struct as a map of its fields, each boxed; a `T?` field that is nil is
+// left out, as a table that never set it.
+fn struct_into(fields: &[(String, Ty)]) -> Block {
+    if !fields.iter().any(|(_, ty)| matches!(ty, Ty::Optional(_))) {
+        let names = fields.iter().map(|(name, _)| text(name)).collect();
+        let values = fields
+            .iter()
+            .map(|(name, _)| field(var("value"), name))
+            .collect();
+        return tail(call("__map", vec![list(names), list(values)]));
+    }
+    let mut stmts = vec![
+        bind(
+            "keys",
+            Ty::Array(Box::new(Ty::Str)),
+            expr(ExprKind::ArrayLit(vec![])),
+        ),
+        bind(
+            "values",
+            Ty::Array(Box::new(Ty::Any)),
+            expr(ExprKind::ArrayLit(vec![])),
+        ),
+    ];
+    for (name, ty) in fields {
+        let put = vec![
+            stmt(StmtKind::Expr(method(
+                var("keys"),
+                "push",
+                vec![text(name)],
+            ))),
+            stmt(StmtKind::Expr(method(
+                var("values"),
+                "push",
+                vec![field(var("value"), name)],
+            ))),
+        ];
+        if !matches!(ty, Ty::Optional(_)) {
+            stmts.extend(put);
+            continue;
+        }
+        let held = method(field(var("value"), name), "is_some", vec![]);
+        stmts.push(stmt(StmtKind::Expr(expr(ExprKind::If(
+            Box::new(held),
+            Block {
+                stmts: put,
+                tail: None,
+            },
+            None,
+        )))));
+    }
+    block(stmts, call("__map", vec![var("keys"), var("values")]))
 }
 
 // A `{ str: V }` as an `any` map, its values each boxed, or back: each value

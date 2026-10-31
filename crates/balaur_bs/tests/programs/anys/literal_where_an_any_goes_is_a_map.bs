@@ -1,0 +1,18 @@
+// A map literal where an `any` goes is an any map, its values boxed in the
+// order they are written; a struct inside one is a map of its fields.
+
+struct Point { x: int, y: int }
+
+fn spec(name: str) -> any {
+    { "name": name, "size": 2.5, "tags": ["a", "b"], "at": Point { x: 1, y: 2 } }
+}
+
+pub fn built() -> str {
+    let empty: any = {};
+    let rows: [any] = [spec("one"), { "name": "two", "open": true }];
+    rows.push({ "nested": { "deep": 1 } });
+    empty.set("late", 3);
+    "{rows} {empty} {rows[0].tags.len()} {rows[2].nested.deep}"
+}
+
+// expect: built() == "[{\"name\": \"one\", \"size\": 2.5, \"tags\": [\"a\", \"b\"], \"at\": {\"x\": 1, \"y\": 2}}, {\"name\": \"two\", \"open\": true}, {\"nested\": {\"deep\": 1}}] {\"late\": 3} 2 1"

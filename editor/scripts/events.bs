@@ -43,7 +43,7 @@ fn write(state: &mut editor::State, rows: any, label: str) {
             found.remove_component(COMPONENT);
         }
     } else {
-        found.set_component(COMPONENT, map().with("rows", rows));
+        found.set_component(COMPONENT, { "rows": rows });
     }
     history::commit(state);
 }
@@ -61,7 +61,7 @@ const HOOK_PREFIX: str = "on_";
 
 pub fn add_row(state: &mut editor::State) {
     let rows = editable(state);
-    rows.push(map().with("event", DEFAULT_EVENT).with("action", "set_state").with("target", "").with("value", ""));
+    rows.push({ "event": DEFAULT_EVENT, "action": "set_state", "target": "", "value": "" });
     write(state, rows, "add binding");
 }
 
@@ -128,14 +128,15 @@ fn targets_a_variable(action: str) -> bool {
 
 // A dropdown over one of a row's fields.
 fn pick(state: editor::State, at: int, key: str, current: str, choices: [str], width: float) -> any {
-    map()
-        .with("kind", "dropdown")
-        .with("role", "choice_form")
-        .with("width", width)
-        .with("text", current)
-        .with("options", choices)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_field_picked).with("at", at).with("key", key))
+    {
+        "kind": "dropdown",
+        "role": "choice_form",
+        "width": width,
+        "text": current,
+        "options": choices,
+        "on": "handle",
+        "data": { "fn": on_field_picked, "at": at, "key": key },
+    }
 }
 
 fn on_field_picked(state: &mut editor::State, data: any, picked: any) {
@@ -144,14 +145,15 @@ fn on_field_picked(state: &mut editor::State, data: any, picked: any) {
 
 // A field over one of a row's fields, written on Enter rather than per key.
 fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str, width: float) -> any {
-    map()
-        .with("kind", "text_field")
-        .with("role", "input_form")
-        .with("width", width)
-        .with("text", current)
-        .with("placeholder", placeholder)
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("submit", on_field_typed).with("current", current).with("at", at).with("key", key))
+    {
+        "kind": "text_field",
+        "role": "input_form",
+        "width": width,
+        "text": current,
+        "placeholder": placeholder,
+        "on_submit": "handle_submit",
+        "data": { "submit": on_field_typed, "current": current, "at": at, "key": key },
+    }
 }
 
 fn on_field_typed(state: &mut editor::State, data: any, text: any) {
@@ -171,34 +173,36 @@ fn row_spec(state: editor::State, at: int, row: any) -> any {
     let event = event_of(row);
     let action = action_of(row);
     let target = row.target.as_str();
-    let controls = [
-        map().with("kind", "label").with("role", "text_caption").with("width", 18).with("text", "{at + 1}"),
+    let controls: [any] = [
+        { "kind": "label", "role": "text_caption", "width": 18, "text": "{at + 1}" },
         pick(state, at, "event", event, offered(state), 150.0),
         typed(state, at, "when", row.when.as_str(), "always", 130.0),
-        map().with("kind", "label").with("role", "text_caption").with("text", "→"),
+        { "kind": "label", "role": "text_caption", "text": "→" },
         pick(state, at, "action", action, scene::binding_actions(), 130.0),
     ];
     if targets_a_variable(action) {
         controls.push(pick(state, at, "target", if target == "" { "—" } else { target }, variable_names(state), 120.0));
     } else {
-        controls.push(map()
-            .with("kind", "dropdown")
-            .with("role", "choice_form")
-            .with("width", 140)
-            .with("text", if target == "" { "(this node)" } else { target })
-            .with("options", target_paths(state))
-            .with("on", "handle")
-            .with("data", map().with("fn", on_target_picked).with("at", at)));
+        controls.push({
+            "kind": "dropdown",
+            "role": "choice_form",
+            "width": 140,
+            "text": if target == "" { "(this node)" } else { target },
+            "options": target_paths(state),
+            "on": "handle",
+            "data": { "fn": on_target_picked, "at": at },
+        });
     }
     controls.push(typed(state, at, "value", as_text(row.value), "value", 110.0));
-    controls.push(map()
-        .with("kind", "button")
-        .with("role", "chip_quiet")
-        .with("text", icons::ui("close"))
-        .with("tooltip", "Remove this binding")
-        .with("on", "handle")
-        .with("data", map().with("fn", on_remove_clicked).with("at", at)));
-    map().with("full", true).with("height", ROW_HEIGHT).with("slot_role", "layout_actions").with("controls", controls)
+    controls.push({
+        "kind": "button",
+        "role": "chip_quiet",
+        "text": icons::ui("close"),
+        "tooltip": "Remove this binding",
+        "on": "handle",
+        "data": { "fn": on_remove_clicked, "at": at },
+    });
+    { "full": true, "height": ROW_HEIGHT, "slot_role": "layout_actions", "controls": controls }
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -236,7 +240,7 @@ fn script_path(state: editor::State) -> str {
 
 /// The same, for any list of rows, as the class `class_name`.
 pub fn script_of(class_name: str, rows: any) -> str {
-    let byhook = map();
+    let byhook: any = {};
     // An `emitted:<name>` row hears the node's own event, which a script only
     // hears once it subscribes to it.
     let heard: [str] = [];
@@ -366,7 +370,7 @@ fn as_call(row: any) -> str {
     } else if action == "free" {
         "{node}.queue_free();"
     } else if action == "switch" {
-        "scene::switch(\"{value}\", map());"
+        "scene::switch(\"{value}\", nil);"
     } else if action == "open_url" {
         "engine::open_url(\"{value}\");"
     } else if action == "emit" {
@@ -418,7 +422,7 @@ pub fn convert_to_script(state: &mut editor::State) {
     fs::write(state.game_root + "/" + rel, as_script(state));
     model::forget(state, nil);
     history::record(state, "convert bindings to a script", nil);
-    found.set_script(rel, map());
+    found.set_script(rel, {});
     history::commit(state);
     state.shader_rel = "";
     signals::inspector(state);
@@ -439,25 +443,27 @@ pub fn rows_host() -> str {
 /// the tab moved.
 pub fn fill(state: &mut editor::State) {
     let up = state.doc_open && state.doctab == "events";
-    util::fill(PANEL, map().with("visible", up));
+    util::fill(PANEL, { "visible": up });
     if !up {
         return;
     }
     let node = model::selected_node(state);
     pool::strip(state, PANEL + "/DocHead", [
-        map().with("kind", "label").with("role", "text_heading").with("grow", 1).with("text", "EVENT BINDINGS · {node.name()}"),
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_secondary")
-            .with("text", "‹›  Convert to script")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_convert_clicked)),
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_primary")
-            .with("text", icons::ui("add") + "  Add row")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_add_row_clicked)),
+        { "kind": "label", "role": "text_heading", "grow": 1, "text": "EVENT BINDINGS · {node.name()}" },
+        {
+            "kind": "button",
+            "role": "action_form_secondary",
+            "text": "‹›  Convert to script",
+            "on": "handle",
+            "data": { "fn": on_convert_clicked },
+        },
+        {
+            "kind": "button",
+            "role": "action_form_primary",
+            "text": icons::ui("add") + "  Add row",
+            "on": "handle",
+            "data": { "fn": on_add_row_clicked },
+        },
     ]);
     let specs: [any] = [];
     let held = rows(state);
@@ -481,30 +487,34 @@ fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn note(text: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_caption")
-                .with("grow", 1)
-                .with("wrap", true)
-                .with("text", text),
-        ])
+    {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_caption",
+                "grow": 1,
+                "wrap": true,
+                "text": text,
+            },
+        ],
+    }
 }
 
 fn head(text: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 26)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_heading")
-                .with("grow", 1)
-                .with("text", text.to_upper()),
-        ])
+    {
+        "full": true,
+        "height": 26,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_heading",
+                "grow": 1,
+                "text": text.to_upper(),
+            },
+        ],
+    }
 }
 
 /// What the scene declares, so a `when` has something to name. Read-only: a
@@ -517,16 +527,17 @@ fn variable_specs(state: editor::State, out: [any]) {
         return;
     }
     for entry in declared {
-        out.push(map()
-            .with("full", true)
-            .with("height", 24)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map().with("kind", "label").with("role", "text_code").with("text", entry.name),
-                map().with("kind", "label").with("role", "text_caption").with("text", entry.type),
-                map().with("kind", "row").with("grow", 1),
-                map().with("kind", "label").with("role", "text_code_success").with("text", "{entry.value}"),
-            ]));
+        out.push({
+            "full": true,
+            "height": 24,
+            "slot_role": "layout_actions",
+            "controls": [
+                { "kind": "label", "role": "text_code", "text": entry.name },
+                { "kind": "label", "role": "text_caption", "text": entry.type },
+                { "kind": "row", "grow": 1 },
+                { "kind": "label", "role": "text_code_success", "text": "{entry.value}" },
+            ],
+        });
     }
 }
 
@@ -543,22 +554,25 @@ fn hook_specs(state: &mut editor::State, out: [any]) {
     for hook in model::hooks(state, script) {
         let name = hook.name.as_str();
         let lifecycle = name == "init" || name == "update";
-        out.push(map()
-            .with("full", true)
-            .with("height", 28)
-            .with("controls", [
-                map()
-                    .with("kind", "row")
-                    .with("role", "sheet_hook")
-                    .with("controls", [
-                        map()
-                            .with("kind", "label")
-                            .with("text", "•")
-                            .with("role", if lifecycle { "text_mark_primary" } else { "text_mark_secondary" }),
-                        map().with("kind", "label").with("text", "{node.name()}.{name}()").with("role", "text_code"),
-                        map().with("kind", "row").with("grow", 1),
-                        map().with("kind", "label").with("text", "{script}:{hook.line}").with("role", "text_caption"),
-                    ]),
-            ]));
+        out.push({
+            "full": true,
+            "height": 28,
+            "controls": [
+                {
+                    "kind": "row",
+                    "role": "sheet_hook",
+                    "controls": [
+                        {
+                            "kind": "label",
+                            "text": "•",
+                            "role": if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
+                        },
+                        { "kind": "label", "text": "{node.name()}.{name}()", "role": "text_code" },
+                        { "kind": "row", "grow": 1 },
+                        { "kind": "label", "text": "{script}:{hook.line}", "role": "text_caption" },
+                    ],
+                },
+            ],
+        });
     }
 }

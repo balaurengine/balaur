@@ -94,15 +94,40 @@ fn mesh_value(points: &[Vector], indices: &[[u32; 3]]) -> Value {
     ])
 }
 
+/// The tables this module's mesh operations take and give.
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "DecompositionOptions",
+        "{ resolution: int?, max_concavity: float?, max_convex_hulls: int? }",
+        "How V-HACD cuts a mesh: the voxel resolution it works at, the concavity a piece may keep, and the most pieces it makes.",
+    ),
+    (
+        "VoxelizeOptions",
+        "{ resolution: int?, fill: string? }",
+        "How finely `voxelize` cuts a mesh, and `fill`: `surface` for its shell alone.",
+    ),
+    (
+        "Voxels",
+        "{ size: vec3, cells: [[int]] }",
+        "A voxel grid: one cell's size, and every filled cell as its column, row and layer.",
+    ),
+    (
+        "Plane",
+        "{ point: vec3?, normal: vec3? }",
+        "A plane through a point, facing along a normal.",
+    ),
+];
+
 pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
     );
     m.describe(&[
         ("convex_hull", &[], "(mesh: any) -> map", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
-        ("convex_decomposition", &[], "(mesh: any, opts: table?) -> [map]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
-        ("voxelize", &[], "(mesh: any, opts: table?) -> map", "The mesh as a voxel grid (`#{ size, cells }`, ready to be a `voxels` asset) so a model can become destructible terrain."),
+        ("convex_decomposition", &[], "(mesh: any, opts: DecompositionOptions?) -> [map]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
+        ("voxelize", &[], "(mesh: any, opts: VoxelizeOptions?) -> Voxels", "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."),
     ]);
+    m.records(RECORDS);
     m.function("convex_hull", |eng: &Engine, mesh: Value| {
         let (points, _) = mesh_of(eng, Some(&mesh))?;
         let (hull_points, hull_indices) =
@@ -194,7 +219,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("split", &[], "(mesh: any, opts: table) -> [map?]", "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`."),
+        ("split", &[], "(mesh: any, plane: Plane) -> [any]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
         ("intersect", &[], "(a: any, b: any) -> map?", "The mesh both meshes have in common, or nothing when they do not overlap."),
         ("pieces", &[], "(mesh: any) -> [map]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
     ]);

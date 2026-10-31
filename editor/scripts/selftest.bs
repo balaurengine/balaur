@@ -356,7 +356,7 @@ pub fn node_picker(state: &mut editor::State) {
     let rows = newnode::catalogue(state);
     check(rows.len() > 0, "the picker offers something ({rows.len()} rows)");
     // Every row lands in a group, and a dimensioned one lands in its own.
-    let groups = map();
+    let groups: any = {};
     let placed = 0;
     for row in rows {
         if row.group != "" {
@@ -399,7 +399,7 @@ pub fn node_picker(state: &mut editor::State) {
         check(false, "no preset to pick");
     }
     // One row a name: a component a preset is named for is the preset's row.
-    let seen = map();
+    let seen: any = {};
     let twice: [str] = [];
     for row in rows {
         if seen.has(row.name) {
@@ -1319,11 +1319,11 @@ pub fn physics_panel(state: &mut editor::State) {
     } else {
         model::node(state, target).authored("mesh").get("source")
     };
-    model::set_component_properties(state, collider, map().with("shape", map().with("kind", "convex_decomposition").with("mesh", source)));
+    model::set_component_properties(state, collider, { "shape": { "kind": "convex_decomposition", "mesh": source } });
     let written = util::map_or_empty(util::map_or_empty(model::node(state, target).authored(collider)).shape);
     check(written.get("kind").as_str() == "convex_decomposition", "the decomposition action wrote the collider's kind");
     // The tetrahedrization, and every property it declares drawable.
-    model::set_component_properties(state, soft, map().with("kind", "volumetric").with("mesh", source));
+    model::set_component_properties(state, soft, { "kind": "volumetric", "mesh": source });
     let schema = model::schema(state, soft);
     let missing: [str] = [];
     for property in util::keys_sorted(schema) {
@@ -1359,7 +1359,7 @@ fn each_from_its_own_mesh(state: &mut editor::State, two_d: bool, collider: str)
     let pair = [meshed[0], meshed[1]];
     selection::set(state, pair);
     let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
-    physics::make_collider(state, two_d, map().with("kind", hull), map());
+    physics::make_collider(state, two_d, { "kind": hull }, {});
     for index in pair {
         let wrote = util::map_or_empty(util::map_or_empty(model::node(state, index).authored(collider)).shape).get("mesh");
         let own = physics::drawn_mesh(model::node(state, index), two_d);
@@ -1387,7 +1387,7 @@ pub fn bonemap_panel(state: &mut editor::State) {
     bonemap::autofill(state);
     // Every filled row must name a bone that is actually on the rig: a guess
     // that invents a path would write a map the engine silently ignores.
-    let paths = map();
+    let paths: any = {};
     for bone in skeleton::bones(model::node(state, rig_index)) {
         paths.set(bone.path(), true);
     }
@@ -1667,7 +1667,7 @@ pub fn pick_check_step(state: &mut editor::State) {
     if pick_check.stage == 1 {
         pick_check.sprite = scale_a_sprite(state);
         pick_check.turned = turn_a_box(state);
-        pick_check.text = model::spawn(state, state.scene_root.unwrap(), "Picked text", map().with("transform", map().with("position", [0.0, 0.0, 0.0])).with("text2d", map().with("text", "Picked").with("text_align", "start")));
+        pick_check.text = model::spawn(state, state.scene_root.unwrap(), "Picked text", { "transform": { "position": [0.0, 0.0, 0.0] }, "text2d": { "text": "Picked", "text_align": "start" } });
     } else if pick_check.stage == 3 {
         state.pick_check = nil;
         if pick_check.sprite.is_some() {
@@ -1932,7 +1932,7 @@ fn collider_to_edit(state: &mut editor::State) -> any {
             if !found.has_component(component) {
                 continue;
             }
-            let at = map().with("at", index).with("comp", component);
+            let at: any = { "at": index, "comp": component };
             let named = found.get_component(component, "physics_material").as_str();
             if named != "" && !named.starts_with("#") {
                 return at;
@@ -2021,7 +2021,7 @@ fn answer(state: &mut editor::State, purpose: str, extra: any) -> bool {
     if !check(!id.is_nil(), "the catalogue asked for its {purpose}") {
         return false;
     }
-    let reply = map().with("kind", http::EVENT_RESPONSE).with("request", id).with("status", 200);
+    let reply: any = { "kind": http::EVENT_RESPONSE, "request": id, "status": 200 };
     for key in extra.keys() {
         reply.set(key, extra.get(key));
     }
@@ -2038,21 +2038,21 @@ pub fn font_catalogue(state: &mut editor::State) {
     let node = model::node(state, state.selected);
     fonts::open(state, inspector::at_top("text2d", "font", ""));
     let listing = "[{{\"id\":\"probe\",\"family\":\"Probe Sans\",\"category\":\"sans-serif\",\"licence\":\"OFL-1.1\"}}]";
-    if !answer(state, "families", map().with("body", listing)) {
+    if !answer(state, "families", { "body": listing }) {
         return;
     }
     check(util::list_or_empty(state.font_families).len() == 1, "the families are read ({state.font_families})");
     fonts::take(state, util::list_or_empty(state.font_families)[0]);
     check(!fonts::finding(state), "a pick closes the catalogue");
     let faces = "{{\"files\":[{{\"file\":\"Probe-Bold.ttf\",\"style\":\"normal\",\"weight\":700}},{{\"file\":\"Probe-Regular.ttf\",\"style\":\"normal\",\"weight\":400}}],\"licence\":\"OFL.txt\"}}";
-    if !answer(state, "faces", map().with("body", faces)) {
+    if !answer(state, "faces", { "body": faces }) {
         return;
     }
     // The download lands under the user directory, as `save_to` puts it.
     let saved = engine::user_data_directory() + "/fonts/Probe-Regular.ttf";
     fs::copy("fonts/SourceSans3-Regular.ttf", saved);
-    answer(state, "face", map().with("path", saved).with("body", ""));
-    answer(state, "licence", map().with("body", "SIL Open Font License"));
+    answer(state, "face", { "path": saved, "body": "" });
+    answer(state, "licence", { "body": "SIL Open Font License" });
     // The live node holds the mirror's absolute path; the document, the
     // project's own.
     let named = model::relative_file(state, node.get_component("text2d", "font").as_str()).as_str();
@@ -2237,7 +2237,7 @@ pub fn instances(state: &mut editor::State) {
 fn entry_of(state: editor::State, owner: Node, place: str) -> any {
     let written = util::list_or_empty(toml::parse(model::node_text(state, owner)).nodes);
     if written.len() == 0 {
-        return map();
+        return {};
     }
     util::map_or_empty(util::map_or_empty(written[0].overrides).get(place))
 }
@@ -2384,18 +2384,18 @@ fn versions_half(state: &mut editor::State) {
     // What a check reports, handed in as the feed would: the newest release on
     // a line decides what the screen says about it.
     let saved: [any] = state.manager.releases;
-    let rows = [
-        map().with("tag", "v9.0.0").with("id", "v9.0.0").with("channel", "stable").with("order", "newer").with("current", false),
-        map().with("tag", "v0.0.1").with("id", "v0.0.1").with("channel", "alpha").with("order", "older").with("current", false),
+    let rows: [any] = [
+        { "tag": "v9.0.0", "id": "v9.0.0", "channel": "stable", "order": "newer", "current": false },
+        { "tag": "v0.0.1", "id": "v0.0.1", "channel": "alpha", "order": "older", "current": false },
     ];
-    manager::heard(state, map().with("kind", "listed").with("rows", rows));
+    manager::heard(state, { "kind": "listed", "rows": rows });
     let ahead = manager::standing(state, "stable");
     check(ahead == "v9.0.0 is newer", "a newer release reads as one ({ahead})");
     let behind = manager::standing(state, "alpha");
     check(behind.contains("older"), "an older one is not called newer ({behind})");
     let none = manager::standing(state, "rc");
     check(none == "no release on this line", "an empty line says so ({none})");
-    manager::heard(state, map().with("kind", "failed").with("job", "check").with("message", "offline"));
+    manager::heard(state, { "kind": "failed", "job": "check", "message": "offline" });
     check(!state.manager.reading && state.manager.failed == "offline", "a failed read stops reading and says why");
     state.manager.releases = saved;
     state.manager.failed = "";
@@ -2738,31 +2738,35 @@ pub fn font_sheet(state: editor::State) {
     for script in scripts() {
         let name = script.name;
         let sample = script.sample;
-        controls.push(map()
-            .with("kind", "row")
-            .with("height", 24)
-            .with("align_items", "center")
-            .with("controls", [
-                map().with("kind", "label").with("role", "text_caption").with("text", name).with("width", 92),
+        controls.push({
+            "kind": "row",
+            "height": 24,
+            "align_items": "center",
+            "controls": [
+                { "kind": "label", "role": "text_caption", "text": name, "width": 92 },
                 big("text_body", sample),
-            ]));
+            ],
+        });
     }
     controls.push(heading("FACES"));
-    controls.push(map()
-        .with("kind", "label")
-        .with("role", "text_body")
-        .with("text", "heading  Source Sans 3 Semibold")
-        .with("font_size", style::EXTRA_LARGE)
-        .with("font", "fonts/SourceSans3-Semibold.ttf"));
-    controls.push(map()
-        .with("kind", "label")
-        .with("role", "text_body")
-        .with("text", "ui  Source Sans 3 Regular")
-        .with("font_size", style::LARGE));
-    controls.push(map()
-        .with("kind", "label")
-        .with("role", "text_code")
-        .with("text", "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃"));
+    controls.push({
+        "kind": "label",
+        "role": "text_body",
+        "text": "heading  Source Sans 3 Semibold",
+        "font_size": style::EXTRA_LARGE,
+        "font": "fonts/SourceSans3-Semibold.ttf",
+    });
+    controls.push({
+        "kind": "label",
+        "role": "text_body",
+        "text": "ui  Source Sans 3 Regular",
+        "font_size": style::LARGE,
+    });
+    controls.push({
+        "kind": "label",
+        "role": "text_code",
+        "text": "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃",
+    });
     controls.push(heading("ICONS"));
     let tools: [any] = [];
     for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
@@ -2771,7 +2775,7 @@ pub fn font_sheet(state: editor::State) {
     for workspace in defs::workspaces() {
         tools.push(big("text_caption_primary", icons::workspace(workspace.id)));
     }
-    controls.push(map().with("kind", "row").with("height", 24).with("controls", tools).with("gap", [8, 0]));
+    controls.push({ "kind": "row", "height": 24, "controls": tools, "gap": [8, 0] });
     let panels: [any] = [];
     for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
         panels.push(big("text_body", icons::panel(id)));
@@ -2779,20 +2783,21 @@ pub fn font_sheet(state: editor::State) {
     for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
         panels.push(big("text_caption", icons::ui(id)));
     }
-    controls.push(map().with("kind", "row").with("height", 24).with("controls", panels).with("gap", [8, 0]));
-    util::fill(FONT_SHEET, map().with("visible", true).with("x", stage.x).with("y", stage.y).with("width", stage.width).with("height", stage.height));
+    controls.push({ "kind": "row", "height": 24, "controls": panels, "gap": [8, 0] });
+    util::fill(FONT_SHEET, { "visible": true, "x": stage.x, "y": stage.y, "width": stage.width, "height": stage.height });
     pool::strip(state, FONT_SHEET, controls);
 }
 
 fn heading(text: str) -> any {
-    map()
-        .with("kind", "label")
-        .with("role", "text_heading")
-        .with("text", text)
+    {
+        "kind": "label",
+        "role": "text_heading",
+        "text": text,
+    }
 }
 
 fn big(role: str, text: str) -> any {
-    map().with("kind", "label").with("role", role).with("font_size", style::EXTRA_LARGE).with("text", text)
+    { "kind": "label", "role": role, "font_size": style::EXTRA_LARGE, "text": text }
 }
 
 const FONT_SHEET: str = "Editor/FontSheet";
@@ -3013,7 +3018,7 @@ const PROBE_FILE: str = "kitprobe.toml";
 // place outside it that writes those keys, so the test sees a file's rows.
 fn open_user_files(state: &mut editor::State) {
     if state.kit_state.is_nil() {
-        state.kit_state = map();
+        state.kit_state = {};
     }
     fs::write(kit::game_data(state) + "/" + PROBE_FILE, "alpha = 1\nbeta = \"two\"\n");
     state.kit_state.set("file:userdata:" + PROBE_FILE, true);
@@ -3161,7 +3166,7 @@ pub fn focusing(state: &mut editor::State) {
     for id in ["outline", "inspector", "output"] {
         docks::show(state, id);
     }
-    let was = map();
+    let was: any = {};
     for side in docks::sides() {
         was.set(side, state.docks.get(side).get("shut"));
     }
@@ -3430,13 +3435,13 @@ pub fn sheet_close_step(state: &mut editor::State) {
     let at = state.window.demo;
     if at == 3 {
         check(window::showing(state, "about"), "the sheet stays up while nothing shuts it");
-        util::fill("Editor/Sheet", map().with("open", false));
+        util::fill("Editor/Sheet", { "open": false });
     } else if at == 5 {
         check(!window::showing(state, "about"), "and goes when its dialog is shut from outside");
         shell::open_palette(state, "");
     } else if at == 8 {
         check(state.palette, "the palette stays up while nothing shuts it");
-        util::fill("Editor/Picker", map().with("open", false));
+        util::fill("Editor/Picker", { "open": false });
     } else if at == 10 {
         state.window.demo = -1;
         check(!state.palette, "and goes when its dialog is shut from outside");
@@ -3489,7 +3494,7 @@ fn doc_x(state: editor::State, index: int) -> float {
 // The Snap chip a drag reads is the one the strip toggles.
 fn snap_chip(state: &mut editor::State) {
     if !state.chip_state.has(defs::WORKSPACE_SCENE) {
-        state.chip_state.set(defs::WORKSPACE_SCENE, map());
+        state.chip_state.set(defs::WORKSPACE_SCENE, {});
     }
     let chips = state.chip_state.get(defs::WORKSPACE_SCENE);
     let was = chips.get(defs::CHIP_SNAP);
@@ -3701,7 +3706,7 @@ pub fn eventviews(state: &mut editor::State) {
     check(!written.contains("self.get_node") && !written.contains("self.queue_free"), "a row's call goes through the node, not the script's own fields");
     let problems = errors_in(written);
     check(problems.len() == 0, "and the script it writes compiles: {problems}");
-    let own = events::script_of("DoorEvents", [map().with("event", events::EMITTED + "died").with("action", "free")]);
+    let own = events::script_of("DoorEvents", [{ "event": events::EMITTED + "died", "action": "free" }]);
     check(own.contains("pub fn on_died(payload: any)") && own.contains("events::listen(self.node, \"died\", self.node)"), "a row on the node's own event hears it by subscribing: {own}");
     let own_problems = errors_in(own);
     check(own_problems.len() == 0, "and compiles: {own_problems}");
@@ -3897,7 +3902,7 @@ pub fn import_step(state: &mut editor::State) {
         clear_import(state);
         // Again, stopped as it starts. A thread may write all three files
         // before the press lands, so either end is right if the two agree.
-        state.jobs = map();
+        state.jobs = {};
         state.import_waited = 0;
         state.import_demo = 2;
         dropin::take(state, DROPPED_MODEL);
@@ -4139,7 +4144,7 @@ pub fn pool_kinds(state: &mut editor::State) {
         log::info("selftest pool: no shell in this run, skipped");
         return;
     }
-    root.add_child(POOL_CHECK).set_component("widget", map().with("kind", ui::WIDGET_ROW));
+    root.add_child(POOL_CHECK).set_component("widget", { "kind": ui::WIDGET_ROW });
     state.pool_check = PoolCheck { stage: 0, heard: [] };
     stepping(state, "pool_check");
 }
@@ -4153,13 +4158,13 @@ pub fn pool_check_step(state: &mut editor::State) {
     let pool_check = state.pool_check.unwrap();
     let path = POOL_HOST + "/" + POOL_CHECK;
     let heard = pool_check.heard;
-    let pick = pool::on(map().with("kind", "dropdown").with("text", "pick").with("options", ["a", "b"]), pool_heard, map());
+    let pick = pool::on({ "kind": "dropdown", "text": "pick", "options": ["a", "b"] }, pool_heard, {});
     let stage = pool_check.stage;
     pool_check.stage = stage + 1;
     if stage == 0 || stage == 2 || stage == 4 {
         pool::strip(state, path, [pick]);
     } else if stage == 1 {
-        pool::strip(state, path, [map().with("kind", "label").with("text", "0.20 0.22 0.26 1.00")]);
+        pool::strip(state, path, [{ "kind": "label", "text": "0.20 0.22 0.26 1.00" }]);
     } else if stage == 3 {
         check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
         // The control: a pick on a slot that stayed a dropdown still reaches `on`.
@@ -4260,7 +4265,7 @@ fn rows_drawn(state: editor::State, widget: any, rows: any) {
     check(lit.len() == selection::count(state), "every selected node is lit ({lit.len()} of {selection::count(state)})");
     check(widget.get("text").as_str() == "", "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
     // The node knows a row by its string: two alike light and pick as one.
-    let seen = map();
+    let seen: any = {};
     let alike = 0;
     for row in rows {
         if seen.has(row.as_str()) {
@@ -4312,12 +4317,13 @@ fn rows_narrowed(state: editor::State, rows: any) {
 
 pub fn librarydemo(state: &mut editor::State) {
     let root = state.game_root + "/";
-    let metal = map()
-        .with("id", "pbr_metal")
-        .with("kind", "material")
-        .with("name", "Brushed metal")
-        .with("file", "materials/metal.toml")
-        .with("needs", ["shaders/pbr_surface.wesl"]);
+    let metal: any = {
+        "id": "pbr_metal",
+        "kind": "material",
+        "name": "Brushed metal",
+        "file": "materials/metal.toml",
+        "needs": ["shaders/pbr_surface.wesl"],
+    };
     // A node with a 3D shape, so the material has somewhere to land.
     let target: int? = nil;
     for index in 0..state.nodes.len() {
@@ -4347,11 +4353,12 @@ pub fn librarydemo(state: &mut editor::State) {
     // A lighting setup is a scene, so placing one instances it.
     let scenes_before = named_under(state, "scenes");
     let was = state.nodes.len();
-    library::place(state, map()
-        .with("id", "studio_light")
-        .with("kind", "scene")
-        .with("name", "Studio lights")
-        .with("file", "scenes/studio.toml"));
+    library::place(state, {
+        "id": "studio_light",
+        "kind": "scene",
+        "name": "Studio lights",
+        "file": "scenes/studio.toml",
+    });
     check(named_under(state, "scenes").len() == scenes_before.len() + 1, "placing a setup adds a scene");
     // One row for the instance and one per node inside it: expanding a
     // prefab puts its own rows in the document too.
@@ -4421,11 +4428,12 @@ pub fn librarydemo(state: &mut editor::State) {
     // A sky is copied under skies/ and then only named, since the drop that
     // would have copied it already happened.
     let skies_before = named_under(state, "skies");
-    library::place(state, map()
-        .with("id", "sky_dusk")
-        .with("kind", "sky")
-        .with("name", "Dusk")
-        .with("file", "skies/dusk.png"));
+    library::place(state, {
+        "id": "sky_dusk",
+        "kind": "sky",
+        "name": "Dusk",
+        "file": "skies/dusk.png",
+    });
     check(named_under(state, "skies").len() == skies_before.len() + 1, "placing a sky adds an image");
     let on_environment = false;
     for node in state.nodes {
@@ -4438,11 +4446,12 @@ pub fn librarydemo(state: &mut editor::State) {
     // A model is a prefab of primitives, so placing one instances it.
     let models_before = named_under(state, "models");
     let had = state.nodes.len();
-    library::place(state, map()
-        .with("id", "model_tree")
-        .with("kind", "model")
-        .with("name", "Tree")
-        .with("file", "models/tree.toml"));
+    library::place(state, {
+        "id": "model_tree",
+        "kind": "model",
+        "name": "Tree",
+        "file": "models/tree.toml",
+    });
     check(named_under(state, "models").len() == models_before.len() + 1, "placing a model adds a scene file");
     check(state.nodes.len() > had + 1, "and instances it as a prefab");
     shell::undo(state);

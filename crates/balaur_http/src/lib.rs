@@ -562,8 +562,13 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
         "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[(
+        "RequestOptions",
+        "{ method: string?, headers: any, body: any, timeout_seconds: float?, save_to: string?, on_response: string?, on_progress: string? }",
+        "One request: its `method`, `headers` and `body`, how long it may take, the file under the user directory a download is written to, and the methods that hear its reply and its progress.",
+    )]);
     m.describe(&[
-        ("request", &[], "-> int", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
+        ("request", &[], "(target: any, url: any, opts: RequestOptions?) -> int", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
         ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished."),
     ]);
     m.function("cancel", |eng: &Engine, request: i64| {

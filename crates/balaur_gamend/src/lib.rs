@@ -742,12 +742,17 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
         "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[(
+        "Credentials",
+        "{ device_id: string?, email: string?, password: string?, username: string? }",
+        "Who signs in: a `device_id`, or an `email` and a `password`; `register` takes a `username` too, generated when left out.",
+    )]);
     m.describe(&[
         ("configure", &[], "(url: string?) -> string", "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs."),
-        ("login", &[], "-> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
-        ("register", &[], "(node: node?, account: map) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
+        ("login", &[], "(node: any, credentials: Credentials, opts: events::ListenOptions?) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
+        ("register", &[], "(node: any, account: Credentials, opts: events::ListenOptions?) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
-        ("connect", &[], "-> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
+        ("connect", &[], "(node: any, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
     // `gamend.configure(url)` — where the server lives. Everything else
     // errors until this is called.

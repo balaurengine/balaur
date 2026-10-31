@@ -973,8 +973,8 @@ order, each in the doc that owns it:
 5. A stricter language and one instance per project (§9 steps 4 and 5,
    PLAN-bs-linking). Built 2026-10-28: the one instance, typed maps and
    struct literals with defaults. The engine's records and `map()`'s
-   retirement follow step 7, since the editor code they change is the code
-   steps 6 and 7 rewrite.
+   retirement built 2026-10-31 (PLAN-balaur-script §9 step 5); the pool's
+   specs are still any literals.
 6. The live scene as the document (PLAN-editor-as-scene §10). Built
    2026-10-28: the engine writes the scene back and keeps what each write
    replaced; `S.doc`, its revision and the mirror rebuild are gone, undo is

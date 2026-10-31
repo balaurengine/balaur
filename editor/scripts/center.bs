@@ -240,20 +240,20 @@ pub fn fill_rail(state: editor::State) {
     for mark in rail_marks(state) {
         column.push(rail_mark(state, mark, grid.diameter));
         if column.len().as_float() >= grid.rows {
-            columns.push(map().with("kind", "column").with("gap", [grid.gap, grid.gap]).with("controls", column));
+            columns.push({ "kind": "column", "gap": [grid.gap, grid.gap], "controls": column });
             column = [];
         }
     }
     if column.len() > 0 {
-        columns.push(map().with("kind", "column").with("gap", [grid.gap, grid.gap]).with("controls", column));
+        columns.push({ "kind": "column", "gap": [grid.gap, grid.gap], "controls": column });
     }
-    util::fill(RAIL, map().with("padding", grid.padding).with("gap", [grid.gap, grid.gap]));
+    util::fill(RAIL, { "padding": grid.padding, "gap": [grid.gap, grid.gap] });
     pool::strip(state, RAIL, columns);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
 fn rail_mark(state: editor::State, mark: str, diameter: float) -> any {
-    let round = map().with("kind", "button").with("role", "icon_action").with("text", "").with("width", diameter).with("height", diameter).with("padding", 0).with("corner_radius", diameter / 2.0);
+    let round: any = { "kind": "button", "role": "icon_action", "text": "", "width": diameter, "height": diameter, "padding": 0, "corner_radius": diameter / 2.0 };
     if mark == "restore" {
         round.set("icon", icons::ui("restore"));
         round.set("tooltip", "Show the tools");
@@ -265,7 +265,7 @@ fn rail_mark(state: editor::State, mark: str, diameter: float) -> any {
         round.set("tooltip", defs::tool_name(mark));
         round.set("checked", state.tool == mark);
     }
-    pool::on(round, rail_marked, map().with("mark", mark))
+    pool::on(round, rail_marked, { "mark": mark })
 }
 
 fn rail_marked(state: &mut editor::State, data: any, _value: any) {
@@ -371,7 +371,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
     if state.tool == "polygon" {
-        out.push(map().with("kind", "row").with("width", 2));
+        out.push({ "kind": "row", "width": 2 });
         for spec in polygon::mode_specs(state) {
             out.push(spec);
         }
@@ -380,27 +380,27 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
         }
     }
     if state.workspace == defs::WORKSPACE_SCENE {
-        out.push(map().with("kind", "row").with("width", 2));
+        out.push({ "kind": "row", "width": 2 });
         out.push(view_chip(state));
         // The camera slots are the first thing a small window drops: four
         // numbered pills for what ⌥1-4 already does.
         if !state.compact {
-            out.push(map().with("kind", "row").with("width", 0));
+            out.push({ "kind": "row", "width": 0 });
             for spec in bookmark_chips(state) {
                 out.push(spec);
             }
         }
     }
     pool::strip(state, CHIPS, out);
-    util::fill(CHIPS, map().with("height", hud_height(state)));
+    util::fill(CHIPS, { "height": hud_height(state) });
     // Clear of the folded left dock's handle, which shares this row.
-    util::fill(CHIPS_BOX, map().with("inset", [docks::fold_inset(state), 0.0, 0.0, -1.0]).with("height", hud_height(state)));
+    util::fill(CHIPS_BOX, { "inset": [docks::fold_inset(state), 0.0, 0.0, -1.0], "height": hud_height(state) });
     true
 }
 
 fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near: bool) -> any {
     if !state.chip_state.has(state.workspace) {
-        state.chip_state.set(state.workspace, map());
+        state.chip_state.set(state.workspace, {});
     }
     let chips = state.chip_state.get(state.workspace);
     // Engine-backed chips (no declared default, see defs::chips) read their
@@ -410,12 +410,13 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
         chips.set(key, default_on.is_some() && default_on.unwrap());
     }
     let on = if live.is_some() { live.unwrap() } else { chips.get(key).as_bool() };
-    let button = map()
-        .with("kind", "button")
-        .with("text", label)
-        .with("role", if near { "chip" } else { "chip_quiet" })
-        .with("checked", on);
-    pool::on(button, chip_pressed, map().with("live", live.is_some()).with("workspace", state.workspace).with("key", key).with("on", on))
+    let button: any = {
+        "kind": "button",
+        "text": label,
+        "role": if near { "chip" } else { "chip_quiet" },
+        "checked": on,
+    };
+    pool::on(button, chip_pressed, { "live": live.is_some(), "workspace": state.workspace, "key": key, "on": on })
 }
 
 fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -452,13 +453,14 @@ fn view_chip(state: editor::State) -> ViewChip {
         }
         // Bound afresh: a closure made in a loop captures the binding.
         let name = mode[0];
-        rows.push(map()
-            .with("kind", "button")
-            .with("role", "item_menu")
-            .with("text", mode[1])
-            .with("text_color", if name == current { tokens.get("primary_text") } else { tokens.get("text_default") })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_view_mode_picked).with("name", name)));
+        rows.push({
+            "kind": "button",
+            "role": "item_menu",
+            "text": mode[1],
+            "text_color": if name == current { tokens.get("primary_text") } else { tokens.get("text_default") },
+            "on": "handle",
+            "data": { "fn": on_view_mode_picked, "name": name },
+        });
     }
     ViewChip {
         kind: "menu",
@@ -483,18 +485,19 @@ fn bookmark_chips(state: editor::State) -> [any] {
     for slot in 1..5 {
         let key = "{slot}";
         let held = !state.bookmarks.get(key).is_nil();
-        out.push(map()
-            .with("kind", "button")
-            .with("text", key)
-            .with("height", 20)
-            .with("font_size", style::SMALL)
-            .with("min_width", 20)
-            .with("corner_radius", 4)
-            .with("fill", if held { tokens.get("primary_bg") } else { tokens.get("bg_control") })
-            .with("text_color", if held { tokens.get("primary_text") } else { tokens.get("text_subtle") })
-            .with("tooltip", if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" })
-            .with("on", "handle")
-            .with("data", map().with("fn", on_bookmark_pressed).with("key", key)));
+        out.push({
+            "kind": "button",
+            "text": key,
+            "height": 20,
+            "font_size": style::SMALL,
+            "min_width": 20,
+            "corner_radius": 4,
+            "fill": if held { tokens.get("primary_bg") } else { tokens.get("bg_control") },
+            "text_color": if held { tokens.get("primary_text") } else { tokens.get("text_subtle") },
+            "tooltip": if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
+            "on": "handle",
+            "data": { "fn": on_bookmark_pressed, "key": key },
+        });
     }
     out
 }
@@ -748,7 +751,7 @@ const HOOKS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Ho
 pub fn fill_hooks(state: &mut editor::State) {
     let tokens = state.theme;
     let file = open_file(state);
-    util::fill(HOOKS + "/Title", map().with("text", if file.shading { "SHADER" } else { "HOOKS IN FILE" }));
+    util::fill(HOOKS + "/Title", { "text": if file.shading { "SHADER" } else { "HOOKS IN FILE" } });
     let pills: [any] = [];
     if !file.shading && file.relative_path != "" {
         // The file as it is open, buffer or disk: what the list was read off
@@ -759,24 +762,26 @@ pub fn fill_hooks(state: &mut editor::State) {
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
             let lifecycle = hook.name == "init" || hook.name == "update";
-            pills.push(map()
-                .with("kind", "panel")
-                .with("fill", tokens.get("bg_control"))
-                .with("corner_radius", 15)
-                .with("padding", [11, 6, 11, 6])
-                .with("controls", [
-                    map()
-                        .with("kind", "row")
-                        .with("gap", [4, 4])
-                        .with("align_items", "center")
-                        .with("controls", [
-                            map().with("kind", "row").with("width", 6).with("height", 6).with("corner_radius", 3).with("fill", if lifecycle { tokens.get("primary_text") } else { tokens.get("secondary_text") }),
-                            map().with("kind", "label").with("role", "text_code").with("text", hook.name),
-                        ]),
-                ]));
+            pills.push({
+                "kind": "panel",
+                "fill": tokens.get("bg_control"),
+                "corner_radius": 15,
+                "padding": [11, 6, 11, 6],
+                "controls": [
+                    {
+                        "kind": "row",
+                        "gap": [4, 4],
+                        "align_items": "center",
+                        "controls": [
+                            { "kind": "row", "width": 6, "height": 6, "corner_radius": 3, "fill": if lifecycle { tokens.get("primary_text") } else { tokens.get("secondary_text") } },
+                            { "kind": "label", "role": "text_code", "text": hook.name },
+                        ],
+                    },
+                ],
+            });
         }
     }
     pool::strip(state, HOOKS + "/Pills", pills);
     let dirty = file.relative_path != "" && state.script_dirty.has(state.game_root + "/" + file.relative_path);
-    util::fill(HOOKS + "/Unsaved", map().with("visible", dirty));
+    util::fill(HOOKS + "/Unsaved", { "visible": dirty });
 }

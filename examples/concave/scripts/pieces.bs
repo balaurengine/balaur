@@ -73,7 +73,7 @@ fn table_at(at: [float]) -> [[float]] {
 }
 
 fn draw_pieces(at: [float], overlap: float) -> int {
-    let cut = geometry2d::convex_decomposition(table_at(at), map().with("overlap", overlap));
+    let cut = geometry2d::convex_decomposition(table_at(at), geometry2d::DecompositionOptions { overlap: overlap });
     let which = 0;
     for piece in cut {
         render::draw_polygon_2d(piece, TINTS()[which % TINTS().len()]);
@@ -84,7 +84,7 @@ fn draw_pieces(at: [float], overlap: float) -> int {
 }
 
 fn label(x: float, y: float, text: str, size: float, color: [float]) {
-    render::draw_text_2d(x, y, text, map().with("font_size", size).with("color", color).with("text_align", "center"));
+    render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: "center" });
 }
 
 impl Pieces {

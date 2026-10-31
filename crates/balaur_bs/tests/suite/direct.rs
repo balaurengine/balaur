@@ -13,7 +13,7 @@ pub fn calls(n: int) -> int { let t = 0; for i in 0..n { t = bump(t); } t }
 pub fn vec(k: float) -> float { let v = spot(k); v.x + v.y * 10.0 + v.z * 100.0 }
 pub fn text(s: str) -> str { shout("{s}! {12} {2.5}") }
 pub fn math(x: float) -> float { sin(x) + pow(x, 2.0) + floor(x) }
-pub fn anys() -> str { let m = map().with("a", 1); m.set("b", "x"); "{m.text()} {m["a"].as_int()}" }
+pub fn anys() -> str { let m: any = { "a": 1 }; m.set("b", "x"); "{m.text()} {m["a"].as_int()}" }
 pub async fn wait() -> int { let a = await later(0.5); a + 1 }
 "#;
 

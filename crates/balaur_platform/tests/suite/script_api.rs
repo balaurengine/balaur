@@ -22,7 +22,7 @@ impl Scenario {
         let r = await task::wait(platform::sign_in().as_int());
         let kind = r.get("kind");
         log::info("platform-await {store} {kind}");
-        self.request = platform::unlock(self.node, "first_blood", map().with("on_event", "on_store")).as_int();
+        self.request = platform::unlock(self.node, "first_blood", { "on_event": "on_store" }).as_int();
     }
 
     pub fn on_store(e: any) {

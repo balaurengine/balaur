@@ -178,8 +178,9 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
 }
 
 thread_local! {
-    /// The objects being read, outermost first: scripts that hold each other
-    /// make a cycle, and an object met again inside itself reads as nil.
+    /// The objects and `any` cells being read, outermost first: scripts that
+    /// hold each other, or a map holding itself, make a cycle, and one met
+    /// again inside itself reads as nil.
     static READING: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(vec![]) };
 }
 
@@ -224,10 +225,18 @@ pub(crate) fn read_any(meta: &Meta, m: &(impl Reader + ?Sized), p: usize) -> Val
         NODE => Value::Node(rd64(m, at) as i64),
         FLOAT => Value::Float(float(rd64(m, at))),
         STR => read_str(m, rd32(m, at) as usize),
-        LIST => read_array(meta, m, &Ty::Any, rd32(m, at) as usize),
+        LIST | MAP if READING.with(|reading| reading.borrow().contains(&p)) => Value::Void,
+        LIST => {
+            READING.with(|reading| reading.borrow_mut().push(p));
+            let items = read_array(meta, m, &Ty::Any, rd32(m, at) as usize);
+            READING.with(|reading| reading.borrow_mut().pop());
+            items
+        }
         MAP => {
+            READING.with(|reading| reading.borrow_mut().push(p));
             let keys = read_array(meta, m, &Ty::Str, rd32(m, at) as usize);
             let values = read_array(meta, m, &Ty::Any, rd32(m, at + 4) as usize);
+            READING.with(|reading| reading.borrow_mut().pop());
             match (keys, values) {
                 (Value::Array(k), Value::Array(v)) => Value::Map(
                     k.into_iter()

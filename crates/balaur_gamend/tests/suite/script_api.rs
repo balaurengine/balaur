@@ -57,13 +57,13 @@ impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
         // A stock Gamend takes ten sign-ins a minute from one address.
-        let login = await task::wait(gamend::login(nil(), map().with("device_id", "{device}")));
+        let login = await task::wait(gamend::login(nil(), gamend::Credentials {{ device_id: "{device}" }}));
         while login.has("error") && login.get("error").as_str().contains("(429)") {{
             let until = engine::unix_time() + 15.0;
             while engine::unix_time() < until {{
                 await task::frames(1);
             }}
-            let again = await task::wait(gamend::login(nil(), map().with("device_id", "{device}")));
+            let again = await task::wait(gamend::login(nil(), gamend::Credentials {{ device_id: "{device}" }}));
             login = again;
         }}
         if login.has("error") {{

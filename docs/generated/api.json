@@ -1738,7 +1738,7 @@
       },
       "animation::play": {
         "least": 2,
-        "signature": "(Node, str, any)"
+        "signature": "(Node, str, animation::PlayOptions?)"
       },
       "animation::queue": {
         "least": 2,
@@ -1769,8 +1769,8 @@
         "signature": "(Node, str)"
       },
       "animation::tween": {
-        "least": 1,
-        "signature": "(Node, any) -> int"
+        "least": 2,
+        "signature": "(Node, animation::Tween) -> int"
       },
       "animation::tween_value": {
         "least": 3,
@@ -1814,7 +1814,7 @@
       },
       "apple::listen": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "(any, events::ListenOptions?) -> any"
       },
       "apple::listen_for_cloud_changes": {
         "least": 0,
@@ -1966,7 +1966,7 @@
       },
       "audio::play_cue": {
         "least": 1,
-        "signature": "(str, any) -> int?"
+        "signature": "(str, audio::CueOptions?) -> int?"
       },
       "audio::seek": {
         "least": 2,
@@ -2014,7 +2014,7 @@
       },
       "browser::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "browser::location": {
         "least": 0,
@@ -2254,7 +2254,7 @@
       },
       "export::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "export::output": {
         "least": 1,
@@ -2270,7 +2270,7 @@
       },
       "export::start": {
         "least": 1,
-        "signature": "(str, any) -> bool"
+        "signature": "(str, export::StartOptions?) -> bool"
       },
       "export::targets": {
         "least": 0,
@@ -2290,7 +2290,7 @@
       },
       "forge::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "forge::search": {
         "least": 2,
@@ -2358,7 +2358,7 @@
       },
       "gamend::connect": {
         "least": 0,
-        "signature": "(any, any) -> int"
+        "signature": "(any, events::ListenOptions?) -> int"
       },
       "gamend::connection": {
         "least": 0,
@@ -2377,16 +2377,16 @@
         "signature": "(int, str) -> int"
       },
       "gamend::login": {
-        "least": 0,
-        "signature": "(any, any, any) -> int"
+        "least": 2,
+        "signature": "(any, gamend::Credentials, events::ListenOptions?) -> int"
       },
       "gamend::push": {
         "least": 3,
         "signature": "(int, str, str, any) -> int"
       },
       "gamend::register": {
-        "least": 0,
-        "signature": "(any, any, any) -> int"
+        "least": 2,
+        "signature": "(any, gamend::Credentials, events::ListenOptions?) -> int"
       },
       "gamend::reply": {
         "least": 1,
@@ -2398,7 +2398,7 @@
       },
       "gamend::restore": {
         "least": 0,
-        "signature": "(any) -> bool"
+        "signature": "(gamend::Session?) -> bool"
       },
       "gamend::run_id": {
         "least": 0,
@@ -2422,7 +2422,7 @@
       },
       "geometry2d::convex_decomposition": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "(any, geometry2d::DecompositionOptions?) -> any"
       },
       "geometry2d::convex_hull": {
         "least": 0,
@@ -2430,11 +2430,11 @@
       },
       "geometry2d::difference": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry2d::intersection": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry2d::is_clockwise": {
         "least": 0,
@@ -2442,7 +2442,7 @@
       },
       "geometry2d::reverse_difference": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry2d::segments_intersect": {
         "least": 0,
@@ -2450,7 +2450,7 @@
       },
       "geometry2d::symmetric_difference": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry2d::triangulate": {
         "least": 0,
@@ -2458,11 +2458,11 @@
       },
       "geometry2d::union": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry3d::convex_decomposition": {
         "least": 0,
-        "signature": "(any, any) -> [any]"
+        "signature": "(any, geometry3d::DecompositionOptions?) -> [any]"
       },
       "geometry3d::convex_hull": {
         "least": 0,
@@ -2477,12 +2477,12 @@
         "signature": "(any) -> [any]"
       },
       "geometry3d::split": {
-        "least": 0,
-        "signature": "(any, any) -> [any]"
+        "least": 2,
+        "signature": "(any, geometry3d::Plane) -> [any]"
       },
       "geometry3d::voxelize": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "(any, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels"
       },
       "hash::sha256": {
         "least": 1,
@@ -2498,7 +2498,7 @@
       },
       "http::request": {
         "least": 0,
-        "signature": "(any, any, any) -> int"
+        "signature": "(any, any, http::RequestOptions?) -> int"
       },
       "import::cancel": {
         "least": 0,
@@ -2518,7 +2518,7 @@
       },
       "import::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "import::running_count": {
         "least": 0,
@@ -2642,7 +2642,7 @@
       },
       "input::gamepad_rumble": {
         "least": 1,
-        "signature": "(int, any) -> bool"
+        "signature": "(int, input::RumbleOptions?) -> bool"
       },
       "input::gamepad_set_listener": {
         "least": 1,
@@ -2882,11 +2882,11 @@
       },
       "multiplayer::host": {
         "least": 0,
-        "signature": "(any) -> any"
+        "signature": "(multiplayer::HostOptions?) -> multiplayer::Hosted"
       },
       "multiplayer::join": {
         "least": 1,
-        "signature": "(str, any)"
+        "signature": "(str, multiplayer::JoinOptions?)"
       },
       "multiplayer::leave": {
         "least": 0,
@@ -2898,7 +2898,7 @@
       },
       "multiplayer::players": {
         "least": 0,
-        "signature": "() -> [any]"
+        "signature": "() -> [multiplayer::Player]"
       },
       "multiplayer::role": {
         "least": 0,
@@ -2926,7 +2926,7 @@
       },
       "multiplayer::stats": {
         "least": 1,
-        "signature": "(int) -> any"
+        "signature": "(int) -> multiplayer::Stats?"
       },
       "multiplayer::tick": {
         "least": 0,
@@ -2962,7 +2962,7 @@
       },
       "node.animation.play": {
         "least": 2,
-        "signature": "(Node, str, any)"
+        "signature": "(Node, str, animation::PlayOptions?)"
       },
       "node.animation.queue": {
         "least": 2,
@@ -3114,7 +3114,7 @@
       },
       "node.body2d.teleport": {
         "least": 3,
-        "signature": "(Node, float, float, any)"
+        "signature": "(Node, float, float, physics2d::TeleportOptions?)"
       },
       "node.body2d.time_since_can_sleep": {
         "least": 1,
@@ -3262,7 +3262,7 @@
       },
       "node.body3d.teleport": {
         "least": 4,
-        "signature": "(Node, float, float, float, any)"
+        "signature": "(Node, float, float, float, physics3d::TeleportOptions?)"
       },
       "node.body3d.time_since_can_sleep": {
         "least": 1,
@@ -3602,7 +3602,7 @@
       },
       "node.joint2d.solve_ik": {
         "least": 3,
-        "signature": "(Node, float, float, any)"
+        "signature": "(Node, float, float, physics2d::IkOptions?)"
       },
       "node.joint3d.joint_force": {
         "least": 1,
@@ -3630,7 +3630,7 @@
       },
       "node.joint3d.solve_ik": {
         "least": 4,
-        "signature": "(Node, float, float, float, any)"
+        "signature": "(Node, float, float, float, physics3d::IkOptions?)"
       },
       "node.material": {
         "least": 1,
@@ -3669,8 +3669,8 @@
         "signature": "(Node) -> any"
       },
       "node.multimesh3d.populate": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
+        "least": 2,
+        "signature": "(Node, render::PopulateOptions) -> any"
       },
       "node.multimesh3d.set_buffer": {
         "least": 1,
@@ -4417,8 +4417,8 @@
         "signature": "(Node) -> [float]"
       },
       "physics2d::closest_point": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics2d::PointQuery) -> physics2d::Closest?"
       },
       "physics2d::closest_points": {
         "least": 2,
@@ -4557,16 +4557,16 @@
         "signature": "(Node) -> any"
       },
       "physics2d::overlap_aabb": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics2d::BoxQuery) -> [Node]"
       },
       "physics2d::overlap_point": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics2d::PointQuery) -> [Node]"
       },
       "physics2d::overlap_shape": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics2d::ShapeQuery) -> [Node]"
       },
       "physics2d::overlaps": {
         "least": 1,
@@ -4594,15 +4594,15 @@
       },
       "physics2d::ragdoll": {
         "least": 1,
-        "signature": "(Node, any) -> any"
+        "signature": "(Node, physics2d::RagdollOptions?) -> [Node]"
       },
       "physics2d::raycast": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics2d::RayQuery) -> physics2d::Hit?"
       },
       "physics2d::raycast_all": {
-        "least": 0,
-        "signature": "(any) -> [any]"
+        "least": 1,
+        "signature": "(physics2d::RayQuery) -> [physics2d::Hit]"
       },
       "physics2d::remove_joint": {
         "least": 1,
@@ -4697,8 +4697,8 @@
         "signature": "(Node, float, float)"
       },
       "physics2d::shapecast": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics2d::ShapeQuery) -> physics2d::Hit?"
       },
       "physics2d::sleep": {
         "least": 1,
@@ -4786,7 +4786,7 @@
       },
       "physics2d::solve_ik": {
         "least": 3,
-        "signature": "(Node, float, float, any)"
+        "signature": "(Node, float, float, physics2d::IkOptions?)"
       },
       "physics2d::swept_aabb": {
         "least": 1,
@@ -4806,11 +4806,11 @@
       },
       "physics2d::teleport": {
         "least": 3,
-        "signature": "(Node, float, float, any)"
+        "signature": "(Node, float, float, physics2d::TeleportOptions?)"
       },
       "physics2d::time_of_impact": {
-        "least": 2,
-        "signature": "(Node, Node, any) -> any"
+        "least": 3,
+        "signature": "(Node, Node, physics2d::ImpactOptions) -> any"
       },
       "physics2d::time_since_can_sleep": {
         "least": 1,
@@ -4945,8 +4945,8 @@
         "signature": "(Node) -> [float]"
       },
       "physics3d::closest_point": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics3d::PointQuery) -> physics3d::Closest?"
       },
       "physics3d::closest_points": {
         "least": 2,
@@ -5085,16 +5085,16 @@
         "signature": "(Node) -> any"
       },
       "physics3d::overlap_aabb": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics3d::BoxQuery) -> [Node]"
       },
       "physics3d::overlap_point": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics3d::PointQuery) -> [Node]"
       },
       "physics3d::overlap_shape": {
-        "least": 0,
-        "signature": "(any) -> [Node]"
+        "least": 1,
+        "signature": "(physics3d::ShapeQuery) -> [Node]"
       },
       "physics3d::overlaps": {
         "least": 1,
@@ -5122,15 +5122,15 @@
       },
       "physics3d::ragdoll": {
         "least": 1,
-        "signature": "(Node, any) -> any"
+        "signature": "(Node, physics3d::RagdollOptions?) -> [Node]"
       },
       "physics3d::raycast": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics3d::RayQuery) -> physics3d::Hit?"
       },
       "physics3d::raycast_all": {
-        "least": 0,
-        "signature": "(any) -> [any]"
+        "least": 1,
+        "signature": "(physics3d::RayQuery) -> [physics3d::Hit]"
       },
       "physics3d::remove_joint": {
         "least": 1,
@@ -5241,8 +5241,8 @@
         "signature": "(Node, float)"
       },
       "physics3d::shapecast": {
-        "least": 0,
-        "signature": "(any) -> any"
+        "least": 1,
+        "signature": "(physics3d::ShapeQuery) -> physics3d::Hit?"
       },
       "physics3d::sleep": {
         "least": 1,
@@ -5338,7 +5338,7 @@
       },
       "physics3d::solve_ik": {
         "least": 4,
-        "signature": "(Node, float, float, float, any)"
+        "signature": "(Node, float, float, float, physics3d::IkOptions?)"
       },
       "physics3d::speed": {
         "least": 1,
@@ -5362,11 +5362,11 @@
       },
       "physics3d::teleport": {
         "least": 4,
-        "signature": "(Node, float, float, float, any)"
+        "signature": "(Node, float, float, float, physics3d::TeleportOptions?)"
       },
       "physics3d::time_of_impact": {
-        "least": 2,
-        "signature": "(Node, Node, any) -> any"
+        "least": 3,
+        "signature": "(Node, Node, physics3d::ImpactOptions) -> any"
       },
       "physics3d::time_since_can_sleep": {
         "least": 1,
@@ -5486,7 +5486,7 @@
       },
       "picture::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "picture::write": {
         "least": 2,
@@ -5634,11 +5634,11 @@
       },
       "regex::search": {
         "least": 2,
-        "signature": "(str, str) -> any"
+        "signature": "(str, str) -> regex::Match?"
       },
       "regex::search_all": {
         "least": 2,
-        "signature": "(str, str) -> [any]"
+        "signature": "(str, str) -> [regex::Match]"
       },
       "regex::split": {
         "least": 2,
@@ -5654,7 +5654,7 @@
       },
       "release::install": {
         "least": 2,
-        "signature": "(str, str, any) -> bool"
+        "signature": "(str, str, release::InstallOptions?) -> bool"
       },
       "release::installed": {
         "least": 0,
@@ -5662,7 +5662,7 @@
       },
       "release::listen": {
         "least": 1,
-        "signature": "(Node, any)"
+        "signature": "(Node, events::ListenOptions?)"
       },
       "render::begin_retained": {
         "least": 1,
@@ -5714,7 +5714,7 @@
       },
       "render::draw_arc_2d": {
         "least": 5,
-        "signature": "(float, float, float, float, float, float?, any, any)"
+        "signature": "(float, float, float, float, float, float?, any, render::DrawOptions?)"
       },
       "render::draw_box": {
         "least": 6,
@@ -5726,11 +5726,11 @@
       },
       "render::draw_circle_2d": {
         "least": 3,
-        "signature": "(float, float, float, any, any)"
+        "signature": "(float, float, float, any, render::DrawOptions?)"
       },
       "render::draw_line_2d": {
         "least": 7,
-        "signature": "(float, float, float, float, float, float, float, float?, any)"
+        "signature": "(float, float, float, float, float, float, float, float?, render::DrawOptions?)"
       },
       "render::draw_line_3d": {
         "least": 9,
@@ -5742,15 +5742,15 @@
       },
       "render::draw_polygon_2d": {
         "least": 0,
-        "signature": "(any, any, any)"
+        "signature": "(any, any, render::DrawOptions?)"
       },
       "render::draw_polyline_2d": {
         "least": 0,
-        "signature": "(any, float?, any, any)"
+        "signature": "(any, float?, any, render::DrawOptions?)"
       },
       "render::draw_rect_2d": {
         "least": 4,
-        "signature": "(float, float, float, float, any, any)"
+        "signature": "(float, float, float, float, any, render::DrawOptions?)"
       },
       "render::draw_sphere": {
         "least": 4,
@@ -5758,15 +5758,15 @@
       },
       "render::draw_text_2d": {
         "least": 3,
-        "signature": "(float, float, str, any)"
+        "signature": "(float, float, str, render::TextOptions?)"
       },
       "render::draw_text_3d": {
         "least": 4,
-        "signature": "(float, float, float, str, any)"
+        "signature": "(float, float, float, str, render::TextOptions?)"
       },
       "render::draw_texture_2d": {
         "least": 5,
-        "signature": "(str, float, float, float, float, any, any)"
+        "signature": "(str, float, float, float, float, any, render::TextureOptions?)"
       },
       "render::end_retained": {
         "least": 0,
@@ -5829,8 +5829,8 @@
         "signature": "(float, float, float, float, float, float) -> render::Hit?"
       },
       "render::populate": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
+        "least": 2,
+        "signature": "(Node, render::PopulateOptions) -> any"
       },
       "render::screenshot": {
         "least": 1,
@@ -5938,7 +5938,7 @@
       },
       "render::text_size": {
         "least": 1,
-        "signature": "(str, any) -> Vec2"
+        "signature": "(str, render::TextOptions?) -> Vec2"
       },
       "render::texture_pixels_per_unit": {
         "least": 1,
@@ -5954,7 +5954,7 @@
       },
       "render::trace_texture": {
         "least": 1,
-        "signature": "(str, any) -> [[Vec2]]"
+        "signature": "(str, render::TraceOptions?) -> [[Vec2]]"
       },
       "render::visible_instance_count": {
         "least": 1,
@@ -6002,7 +6002,7 @@
       },
       "replay::record": {
         "least": 1,
-        "signature": "(str, any) -> str"
+        "signature": "(str, replay::RecordOptions?) -> str"
       },
       "replay::recording": {
         "least": 0,
@@ -6114,7 +6114,7 @@
       },
       "scene::instantiate": {
         "least": 1,
-        "signature": "(str, Node?, any)"
+        "signature": "(str, Node?, scene::InstantiateOptions?)"
       },
       "scene::keep_changes": {
         "least": 0,
@@ -6150,7 +6150,7 @@
       },
       "scene::switch": {
         "least": 1,
-        "signature": "(str, any)"
+        "signature": "(str, scene::SwitchOptions?)"
       },
       "scene::tagged": {
         "least": 1,
@@ -6158,11 +6158,11 @@
       },
       "scene::take_changes": {
         "least": 0,
-        "signature": "() -> [any]"
+        "signature": "() -> [scene::Change]"
       },
       "scene::to_toml": {
         "least": 1,
-        "signature": "(Node, any) -> str"
+        "signature": "(Node, scene::ToTomlOptions?) -> str"
       },
       "scene::variable": {
         "least": 1,
@@ -6354,7 +6354,7 @@
       },
       "ui::click": {
         "least": 1,
-        "signature": "(Node, any) -> bool"
+        "signature": "(Node, ui::ClickOptions?) -> bool"
       },
       "ui::colors_apart": {
         "least": 0,
@@ -6378,11 +6378,11 @@
       },
       "ui::fill_rows": {
         "least": 4,
-        "signature": "(str, any, any, bool) -> bool"
+        "signature": "(str, [ui::Row], any, bool) -> bool"
       },
       "ui::fill_strip": {
-        "least": 1,
-        "signature": "(str, any) -> bool"
+        "least": 2,
+        "signature": "(str, [ui::Control]) -> bool"
       },
       "ui::finish_loading": {
         "least": 0,
@@ -6426,7 +6426,7 @@
       },
       "ui::request_repaint": {
         "least": 0,
-        "signature": "(any)"
+        "signature": "(ui::RepaintOptions?)"
       },
       "ui::reread": {
         "least": 1,
@@ -6510,7 +6510,7 @@
       },
       "websocket::connect": {
         "least": 2,
-        "signature": "(any, str, any) -> any"
+        "signature": "(any, str, websocket::ConnectOptions?) -> int"
       },
       "websocket::send": {
         "least": 1,
@@ -6526,11 +6526,11 @@
       },
       "window::safe_area": {
         "least": 0,
-        "signature": "() -> any"
+        "signature": "() -> window::SafeArea"
       },
       "window::set_app_icon": {
         "least": 1,
-        "signature": "(str, any)"
+        "signature": "(str, window::AppIconOptions?)"
       },
       "window::set_cursor_grab": {
         "least": 1,
@@ -6554,6 +6554,35 @@
       }
     },
     "structs": {
+      "animation::PlayOptions": {
+        "blend_time": "float?",
+        "ease": "str?",
+        "from_start": "bool?",
+        "retarget": "str?",
+        "speed_scale": "float?"
+      },
+      "animation::Step": {
+        "by": "any",
+        "call": "any",
+        "duration": "float?",
+        "ease": "str?",
+        "from": "any",
+        "interval": "float?",
+        "parallel": "bool?",
+        "property": "str?",
+        "target": "str?",
+        "to": "any"
+      },
+      "animation::Tween": {
+        "delay": "float?",
+        "loops": "int?",
+        "speed_scale": "float?",
+        "steps": "[animation::Step]",
+        "then": "int?"
+      },
+      "audio::CueOptions": {
+        "position": "any"
+      },
       "engine::FunctionCost": {
         "calls": "int",
         "function": "str",
@@ -6589,6 +6618,9 @@
         "stages": "engine::Stages",
         "wall": "float"
       },
+      "events::ListenOptions": {
+        "on_event": "str?"
+      },
       "export::Preview": {
         "after": "int",
         "before": "int",
@@ -6598,6 +6630,11 @@
         "height": "int",
         "source": "str",
         "width": "int"
+      },
+      "export::StartOptions": {
+        "download": "bool?",
+        "output": "str?",
+        "sign": "str?"
       },
       "export::Target": {
         "bundle": "bool",
@@ -6615,6 +6652,12 @@
         "sockets": "[gamend::Socket]",
         "url": "str",
         "user_id": "str?",
+        "username": "str?"
+      },
+      "gamend::Credentials": {
+        "device_id": "str?",
+        "email": "str?",
+        "password": "str?",
         "username": "str?"
       },
       "gamend::Entry": {
@@ -6649,6 +6692,41 @@
         "socket": "int",
         "topics": "[str]"
       },
+      "geometry2d::BooleanOptions": {
+        "clean_result": "bool?",
+        "fill_rule": "str?",
+        "keep_collinear": "bool?",
+        "min_area": "float?"
+      },
+      "geometry2d::DecompositionOptions": {
+        "overlap": "float?"
+      },
+      "geometry3d::DecompositionOptions": {
+        "max_concavity": "float?",
+        "max_convex_hulls": "int?",
+        "resolution": "int?"
+      },
+      "geometry3d::Plane": {
+        "normal": "Vec3?",
+        "point": "Vec3?"
+      },
+      "geometry3d::VoxelizeOptions": {
+        "fill": "str?",
+        "resolution": "int?"
+      },
+      "geometry3d::Voxels": {
+        "cells": "[[int]]",
+        "size": "Vec3"
+      },
+      "http::RequestOptions": {
+        "body": "any",
+        "headers": "any",
+        "method": "str?",
+        "on_progress": "str?",
+        "on_response": "str?",
+        "save_to": "str?",
+        "timeout_seconds": "float?"
+      },
       "input::Pan": {
         "x": "float",
         "y": "float"
@@ -6657,6 +6735,23 @@
         "scale": "float?",
         "x": "float?",
         "y": "float?"
+      },
+      "input::RumbleOptions": {
+        "attack": "float?",
+        "attack_level": "float?",
+        "delay": "float?",
+        "duration": "float?",
+        "fade": "float?",
+        "fade_level": "float?",
+        "falloff": "str?",
+        "gap": "float?",
+        "max_distance": "float?",
+        "min_distance": "float?",
+        "position": "any",
+        "pulse": "float?",
+        "rolloff": "float?",
+        "strong": "float?",
+        "weak": "float?"
       },
       "log::Batch": {
         "cursor": "int",
@@ -6674,6 +6769,212 @@
       "log::Field": {
         "name": "str",
         "value": "str"
+      },
+      "multiplayer::HostOptions": {
+        "address": "str?",
+        "depth": "int?",
+        "name": "str?",
+        "players": "int?",
+        "scene": "str?",
+        "timeout_seconds": "float?",
+        "token": "str?",
+        "transport": "str?"
+      },
+      "multiplayer::Hosted": {
+        "cert_hash": "str?",
+        "transport": "str",
+        "url": "str"
+      },
+      "multiplayer::JoinOptions": {
+        "cert_hash": "str?",
+        "name": "str?",
+        "timeout_seconds": "float?",
+        "token": "str?"
+      },
+      "multiplayer::Player": {
+        "bot": "bool",
+        "local": "bool",
+        "name": "str",
+        "slot": "int",
+        "status": "str"
+      },
+      "multiplayer::Stats": {
+        "bytes_in": "int",
+        "bytes_out": "int",
+        "loss": "float",
+        "rtt_ms": "float"
+      },
+      "physics2d::BoxQuery": {
+        "filter": "physics2d::QueryFilter?",
+        "max": "Vec2?",
+        "min": "Vec2?"
+      },
+      "physics2d::Closest": {
+        "distance": "float",
+        "inside": "bool",
+        "node": "Node",
+        "point": "Vec2"
+      },
+      "physics2d::Hit": {
+        "distance": "float",
+        "node": "Node",
+        "normal": "Vec2",
+        "point": "Vec2"
+      },
+      "physics2d::IkOptions": {
+        "constrain": "[str]?",
+        "damping": "float?",
+        "iterations": "int?",
+        "rotation": "float?",
+        "tolerance": "float?"
+      },
+      "physics2d::ImpactOptions": {
+        "max_time": "float?",
+        "stop_at_penetration": "bool?",
+        "velocity_a": "any",
+        "velocity_b": "any"
+      },
+      "physics2d::PointQuery": {
+        "filter": "physics2d::QueryFilter?",
+        "hit_from_inside": "bool?",
+        "max_distance": "float?",
+        "point": "Vec2?"
+      },
+      "physics2d::QueryFilter": {
+        "collision_mask": "[int]?",
+        "exclude": "Node?",
+        "exclude_body": "Node?",
+        "hit_sensors": "bool?",
+        "hit_solids": "bool?",
+        "only": "str?",
+        "predicate": "any"
+      },
+      "physics2d::RagdollOptions": {
+        "angular_damping": "float?",
+        "articulation": "bool?",
+        "axes": "any",
+        "collide_connected": "bool?",
+        "collision_layer": "any",
+        "collision_mask": "any",
+        "continuous_collision": "bool?",
+        "damping": "float?",
+        "density": "float?",
+        "drive": "str?",
+        "follow": "any",
+        "friction": "float?",
+        "gravity_scale": "float?",
+        "influence": "float?",
+        "linear_damping": "float?",
+        "parent": "Node?",
+        "restitution": "float?",
+        "shape": "str?",
+        "stiffness": "float?",
+        "thickness": "float?"
+      },
+      "physics2d::RayQuery": {
+        "direction": "Vec2?",
+        "filter": "physics2d::QueryFilter?",
+        "hit_from_inside": "bool?",
+        "max_distance": "float?",
+        "origin": "Vec2?"
+      },
+      "physics2d::ShapeQuery": {
+        "at": "Vec2?",
+        "direction": "Vec2?",
+        "filter": "physics2d::QueryFilter?",
+        "max_distance": "float?",
+        "origin": "Vec2?",
+        "shape": "any",
+        "stop_at_penetration": "bool?"
+      },
+      "physics2d::TeleportOptions": {
+        "rotation": "float?"
+      },
+      "physics3d::BoxQuery": {
+        "filter": "physics3d::QueryFilter?",
+        "max": "Vec3?",
+        "min": "Vec3?"
+      },
+      "physics3d::Closest": {
+        "distance": "float",
+        "inside": "bool",
+        "node": "Node",
+        "point": "Vec3"
+      },
+      "physics3d::Hit": {
+        "distance": "float",
+        "node": "Node",
+        "normal": "Vec3",
+        "point": "Vec3"
+      },
+      "physics3d::IkOptions": {
+        "constrain": "[str]?",
+        "damping": "float?",
+        "iterations": "int?",
+        "rotation": "any",
+        "tolerance": "float?"
+      },
+      "physics3d::ImpactOptions": {
+        "max_time": "float?",
+        "stop_at_penetration": "bool?",
+        "velocity_a": "any",
+        "velocity_b": "any"
+      },
+      "physics3d::PointQuery": {
+        "filter": "physics3d::QueryFilter?",
+        "hit_from_inside": "bool?",
+        "max_distance": "float?",
+        "point": "Vec3?"
+      },
+      "physics3d::QueryFilter": {
+        "collision_mask": "[int]?",
+        "exclude": "Node?",
+        "exclude_body": "Node?",
+        "hit_sensors": "bool?",
+        "hit_solids": "bool?",
+        "only": "str?",
+        "predicate": "any"
+      },
+      "physics3d::RagdollOptions": {
+        "angular_damping": "float?",
+        "articulation": "bool?",
+        "axes": "any",
+        "collide_connected": "bool?",
+        "collision_layer": "any",
+        "collision_mask": "any",
+        "continuous_collision": "bool?",
+        "damping": "float?",
+        "density": "float?",
+        "drive": "str?",
+        "follow": "any",
+        "friction": "float?",
+        "gravity_scale": "float?",
+        "influence": "float?",
+        "linear_damping": "float?",
+        "parent": "Node?",
+        "restitution": "float?",
+        "shape": "str?",
+        "stiffness": "float?",
+        "thickness": "float?"
+      },
+      "physics3d::RayQuery": {
+        "direction": "Vec3?",
+        "filter": "physics3d::QueryFilter?",
+        "hit_from_inside": "bool?",
+        "max_distance": "float?",
+        "origin": "Vec3?"
+      },
+      "physics3d::ShapeQuery": {
+        "at": "Vec3?",
+        "direction": "Vec3?",
+        "filter": "physics3d::QueryFilter?",
+        "max_distance": "float?",
+        "origin": "Vec3?",
+        "shape": "any",
+        "stop_at_penetration": "bool?"
+      },
+      "physics3d::TeleportOptions": {
+        "rotation": "any"
       },
       "project::Example": {
         "cover": "str",
@@ -6707,6 +7008,12 @@
         "id": "str",
         "note": "str"
       },
+      "regex::Match": {
+        "end": "int",
+        "groups": "[any]",
+        "start": "int",
+        "text": "str"
+      },
       "release::Build": {
         "channel": "str",
         "held": "str",
@@ -6714,6 +7021,12 @@
         "source": "bool",
         "tag": "str",
         "version": "str"
+      },
+      "release::InstallOptions": {
+        "allow_downgrade": "bool?"
+      },
+      "render::DrawOptions": {
+        "z_index": "int?"
       },
       "render::Hit": {
         "at": "float",
@@ -6731,12 +7044,56 @@
         "type": "str",
         "value": "any"
       },
+      "render::PopulateOptions": {
+        "count": "int?",
+        "counts": "any",
+        "kind": "str",
+        "radius": "float?",
+        "random_scale": "float?",
+        "rotation": "float?",
+        "scale": "float?",
+        "seed": "int?",
+        "step": "any",
+        "surface": "Node?",
+        "tilt": "float?"
+      },
       "render::Stats": {
         "draws": "float",
         "nodes": "[render::NodeCost]",
         "texture_bytes": "float",
         "textures": "float",
         "triangles": "float"
+      },
+      "render::TextOptions": {
+        "alpha_cutoff": "float?",
+        "color": "any",
+        "font": "any",
+        "font_size": "float?",
+        "font_style": "str?",
+        "font_weight": "int?",
+        "line_break": "str?",
+        "markup": "bool?",
+        "max_height": "float?",
+        "max_lines": "int?",
+        "max_width": "float?",
+        "pixels_per_unit": "float?",
+        "tab_width": "int?",
+        "text_align": "str?",
+        "text_style": "any",
+        "truncate": "bool?",
+        "truncate_at": "str?",
+        "z_index": "int?"
+      },
+      "render::TextureOptions": {
+        "region_origin": "Vec2?",
+        "region_size": "Vec2?",
+        "z_index": "int?"
+      },
+      "render::TraceOptions": {
+        "holes": "bool?",
+        "pixels_per_unit": "float?",
+        "threshold": "float?",
+        "tolerance": "float?"
       },
       "replay::Divergence": {
         "recorded": "str",
@@ -6767,11 +7124,36 @@
         "tick": "int",
         "values": "[any]"
       },
+      "replay::RecordOptions": {
+        "digest": "bool?",
+        "project": "str?",
+        "scripts": "str?"
+      },
+      "scene::Change": {
+        "component": "str?",
+        "id": "str",
+        "kind": "str",
+        "node": "Node",
+        "parent": "str?",
+        "place": "int?",
+        "properties": "any",
+        "was": "any"
+      },
+      "scene::InstantiateOptions": {
+        "root": "str?",
+        "scripts": "bool?"
+      },
       "scene::Preset": {
         "components": "[str]",
         "description": "str",
         "parts": "any",
         "tags": "[str]"
+      },
+      "scene::SwitchOptions": {
+        "fade": "float?"
+      },
+      "scene::ToTomlOptions": {
+        "root": "str?"
       },
       "scene::Variable": {
         "name": "str",
@@ -6834,6 +7216,9 @@
         "scope": "str",
         "spec": "any"
       },
+      "ui::ClickOptions": {
+        "hidden": "bool?"
+      },
       "ui::ColorsApart": {
         "distance": "float",
         "first": "str",
@@ -6847,11 +7232,99 @@
         "ratio": "float",
         "role": "str"
       },
+      "ui::Control": {
+        "absolute": "bool?",
+        "align_items": "str?",
+        "anchor": "str?",
+        "arrows": "bool?",
+        "checked": "bool?",
+        "component": "str?",
+        "controls": "[ui::Control]?",
+        "corner_radius": "float?",
+        "data": "any",
+        "decimals": "int?",
+        "drag_speed": "float?",
+        "enabled": "bool?",
+        "fill": "str?",
+        "fit": "str?",
+        "font": "str?",
+        "font_size": "float?",
+        "font_weight": "int?",
+        "gap": "any",
+        "grow": "float?",
+        "height": "float?",
+        "icon": "str?",
+        "icon_color": "str?",
+        "icon_size": "float?",
+        "image": "str?",
+        "inset": "any",
+        "interactive": "bool?",
+        "justify": "str?",
+        "keep_open": "bool?",
+        "kind": "str?",
+        "label_width": "float?",
+        "margin": "any",
+        "max": "float?",
+        "min": "float?",
+        "min_width": "float?",
+        "on": "str?",
+        "on_submit": "str?",
+        "options": "[str]?",
+        "padding": "any",
+        "picked_color": "any",
+        "placeholder": "str?",
+        "prefix": "str?",
+        "relative_to": "str?",
+        "role": "str?",
+        "row_height": "float?",
+        "secret": "bool?",
+        "step": "float?",
+        "stroke": "str?",
+        "target": "str?",
+        "text": "str?",
+        "text_align": "str?",
+        "text_color": "any",
+        "tooltip": "str?",
+        "trailing": "str?",
+        "truncate": "bool?",
+        "value": "any",
+        "visible": "bool?",
+        "width": "float?",
+        "wrap": "bool?",
+        "x": "float?",
+        "y": "float?"
+      },
       "ui::Rect": {
         "height": "float",
         "width": "float",
         "x": "float",
         "y": "float"
+      },
+      "ui::RepaintOptions": {
+        "after": "float?"
+      },
+      "ui::Row": {
+        "controls": "[ui::Control]",
+        "full": "bool?",
+        "height": "float?",
+        "label": "str?",
+        "label_role": "str?",
+        "slot_role": "str?",
+        "tooltip": "str?"
+      },
+      "websocket::ConnectOptions": {
+        "compression": "bool?",
+        "headers": "any",
+        "on_event": "str?"
+      },
+      "window::AppIconOptions": {
+        "plate": "any"
+      },
+      "window::SafeArea": {
+        "bottom": "float",
+        "left": "float",
+        "right": "float",
+        "top": "float"
       }
     },
     "unread": []
@@ -6861,7 +7334,6 @@
     "ceil": "fn ceil(x: float) -> float",
     "color": "fn color(r: float, g: float, b: float, a: float) -> Color",
     "floor": "fn floor(x: float) -> float",
-    "map": "fn map() -> any",
     "max": "fn max(a: float, b: float) -> float",
     "min": "fn min(a: float, b: float) -> float",
     "nil": "fn nil() -> any",
@@ -20277,7 +20749,7 @@
         "jump": "(Node, str)",
         "just_finished": "(Node) -> str?",
         "pause": "(Node)",
-        "play": "(Node, str, any)",
+        "play": "(Node, str, animation::PlayOptions?)",
         "queue": "(Node, str)",
         "resume": "(Node)",
         "seek": "(Node, float)",
@@ -20285,7 +20757,7 @@
         "stop": "(any)",
         "time": "(Node) -> float",
         "travel": "(Node, str)",
-        "tween": "(Node, any) -> int",
+        "tween": "(Node, animation::Tween) -> int",
         "tween_value": "(any, any, float, str?) -> int",
         "tween_value_of": "(any) -> float"
       }
@@ -20450,7 +20922,7 @@
         "entitlements": "(any, any) -> any",
         "finish_purchase": "(any, any, any) -> any",
         "identity": "(any, any) -> any",
-        "listen": "(any, any) -> any",
+        "listen": "(any, events::ListenOptions?) -> any",
         "listen_for_cloud_changes": "() -> any",
         "listen_for_invites": "() -> any",
         "listen_for_urls": "() -> any",
@@ -20608,7 +21080,7 @@
         "listener_position": "() -> Vec3",
         "pan": "(int) -> float?",
         "play": "(Node) -> int",
-        "play_cue": "(str, any) -> int?",
+        "play_cue": "(str, audio::CueOptions?) -> int?",
         "seek": "(Node, float)",
         "set_bus_volume_linear": "(str, float)",
         "set_emitter_position": "(int, any, any, any)",
@@ -20649,7 +21121,7 @@
       "name": "browser",
       "signatures": {
         "hardware_concurrency": "() -> int?",
-        "listen": "(Node, any)",
+        "listen": "(Node, events::ListenOptions?)",
         "location": "() -> str?",
         "messages": "() -> [any]",
         "post_message": "(any) -> bool",
@@ -20922,11 +21394,11 @@
       ],
       "name": "export",
       "signatures": {
-        "listen": "(Node, any)",
+        "listen": "(Node, events::ListenOptions?)",
         "output": "(str) -> str",
         "preview": "(str, str) -> export::Preview?",
         "running_count": "() -> int",
-        "start": "(str, any) -> bool",
+        "start": "(str, export::StartOptions?) -> bool",
         "targets": "() -> [export::Target]"
       }
     },
@@ -20956,7 +21428,7 @@
         "add": "(str, str) -> bool",
         "copy": "(str, str) -> bool",
         "fetch": "(str, bool) -> bool",
-        "listen": "(Node, any)",
+        "listen": "(Node, events::ListenOptions?)",
         "search": "(str, str) -> bool",
         "url": "() -> str"
       }
@@ -21092,17 +21564,17 @@
         "clear_activity": "()",
         "close": "(int) -> bool",
         "configure": "(str?) -> str",
-        "connect": "(any, any) -> int",
+        "connect": "(any, events::ListenOptions?) -> int",
         "connection": "() -> gamend::Connection",
         "interrupt": "(int) -> bool",
         "join": "(int, str, any) -> int",
         "leave": "(int, str) -> int",
-        "login": "(any, any, any) -> int",
+        "login": "(any, gamend::Credentials, events::ListenOptions?) -> int",
         "push": "(int, str, str, any) -> int",
-        "register": "(any, any, any) -> int",
+        "register": "(any, gamend::Credentials, events::ListenOptions?) -> int",
         "reply": "(int) -> any",
         "rest": "(any, str, str, any) -> any",
-        "restore": "(any) -> bool",
+        "restore": "(gamend::Session?) -> bool",
         "run_id": "() -> str",
         "server": "() -> gamend::Server",
         "session": "() -> gamend::Session?"
@@ -21145,16 +21617,16 @@
       "signatures": {
         "area": "(any) -> float",
         "contains": "(any, any) -> bool",
-        "convex_decomposition": "(any, any) -> any",
+        "convex_decomposition": "(any, geometry2d::DecompositionOptions?) -> any",
         "convex_hull": "(any) -> any",
-        "difference": "(any, any, any) -> any",
-        "intersection": "(any, any, any) -> any",
+        "difference": "(any, any, geometry2d::BooleanOptions?) -> any",
+        "intersection": "(any, any, geometry2d::BooleanOptions?) -> any",
         "is_clockwise": "(any) -> bool",
-        "reverse_difference": "(any, any, any) -> any",
+        "reverse_difference": "(any, any, geometry2d::BooleanOptions?) -> any",
         "segments_intersect": "(any, any, any, any) -> Vec2",
-        "symmetric_difference": "(any, any, any) -> any",
+        "symmetric_difference": "(any, any, geometry2d::BooleanOptions?) -> any",
         "triangulate": "(any) -> [[int]]",
-        "union": "(any, any, any) -> any"
+        "union": "(any, any, geometry2d::BooleanOptions?) -> any"
       }
     },
     {
@@ -21167,8 +21639,8 @@
         "convex_hull": "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave.",
         "intersect": "The mesh both meshes have in common, or nothing when they do not overlap.",
         "pieces": "The mesh's separate parts, one mesh each: what a model that was already broken is made of.",
-        "split": "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`.",
-        "voxelize": "The mesh as a voxel grid (`#{ size, cells }`, ready to be a `voxels` asset) so a model can become destructible terrain."
+        "split": "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it.",
+        "voxelize": "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."
       },
       "functions": [
         "convex_decomposition",
@@ -21180,12 +21652,12 @@
       ],
       "name": "geometry3d",
       "signatures": {
-        "convex_decomposition": "(any, any) -> [any]",
+        "convex_decomposition": "(any, geometry3d::DecompositionOptions?) -> [any]",
         "convex_hull": "(any) -> any",
         "intersect": "(any, any) -> any",
         "pieces": "(any) -> [any]",
-        "split": "(any, any) -> [any]",
-        "voxelize": "(any, any) -> any"
+        "split": "(any, geometry3d::Plane) -> [any]",
+        "voxelize": "(any, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels"
       }
     },
     {
@@ -21244,7 +21716,7 @@
       "name": "http",
       "signatures": {
         "cancel": "(int) -> any",
-        "request": "(any, any, any) -> int"
+        "request": "(any, any, http::RequestOptions?) -> int"
       }
     },
     {
@@ -21276,7 +21748,7 @@
         "choose": "() -> bool",
         "file": "(str) -> any",
         "handles": "(str) -> bool",
-        "listen": "(Node, any)",
+        "listen": "(Node, events::ListenOptions?)",
         "running_count": "() -> int",
         "start": "(str, str?) -> bool"
       }
@@ -22179,7 +22651,7 @@
         "gamepad_power": "(int) -> any",
         "gamepad_pressure": "(int, str) -> float",
         "gamepad_repeated": "(int, str) -> bool",
-        "gamepad_rumble": "(int, any) -> bool",
+        "gamepad_rumble": "(int, input::RumbleOptions?) -> bool",
         "gamepad_set_listener": "(int, any)",
         "gamepad_stop_rumble": "(int)",
         "gamepad_touches": "(int) -> any",
@@ -22473,18 +22945,18 @@
       "name": "multiplayer",
       "signatures": {
         "add_bot": "(str?) -> int?",
-        "host": "(any) -> any",
-        "join": "(str, any)",
+        "host": "(multiplayer::HostOptions?) -> multiplayer::Hosted",
+        "join": "(str, multiplayer::JoinOptions?)",
         "leave": "()",
         "local_player": "() -> int?",
-        "players": "() -> [any]",
+        "players": "() -> [multiplayer::Player]",
         "role": "() -> str?",
         "set_input": "(any)",
         "set_input_for": "(int, any)",
         "settled_tick": "() -> int",
         "start": "() -> bool",
         "state": "() -> str",
-        "stats": "(int) -> any",
+        "stats": "(int) -> multiplayer::Stats?",
         "tick": "() -> int"
       }
     },
@@ -23651,7 +24123,7 @@
         "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a shape per bone, hinged to its parent's with the hinge's zero at the pose the rig is in. Options as in 3D, with `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. Answers the body nodes it made.",
-        "raycast": "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
+        "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_follow": "Forget what a `pid` follow summed, so it pulls from now as if it had just started.",
@@ -23703,8 +24175,8 @@
         "tear_cell": "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.",
         "tear_edge": "Tear one edge at the end of the next step.",
         "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
-        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. `#{ rotation = angle }` turns it too, in radians.",
-        "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do.",
+        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in radians.",
+        "time_of_impact": "When two moving colliders would meet, given each one's velocity. Nothing when they never do.",
         "time_since_can_sleep": "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
         "total_inertia": "The body's resistance to spin, colliders included.",
         "total_mass": "The body's total mass: its `mass` when it states one, or what its colliders weigh.",
@@ -23875,7 +24347,7 @@
         "attach_particle": "(Node, int, Node)",
         "bodies": "() -> [Node]",
         "broad_phase_aabb": "(Node) -> [float]",
-        "closest_point": "(any) -> any",
+        "closest_point": "(physics2d::PointQuery) -> physics2d::Closest?",
         "closest_points": "(Node, Node) -> any",
         "collider_mass": "(Node) -> float",
         "collider_mass_properties": "(Node) -> any",
@@ -23910,18 +24382,18 @@
         "max_contact_impulse": "(Node) -> float",
         "move_character": "(Node, float, float) -> any",
         "next_position": "(Node) -> any",
-        "overlap_aabb": "(any) -> [Node]",
-        "overlap_point": "(any) -> [Node]",
-        "overlap_shape": "(any) -> [Node]",
+        "overlap_aabb": "(physics2d::BoxQuery) -> [Node]",
+        "overlap_point": "(physics2d::PointQuery) -> [Node]",
+        "overlap_shape": "(physics2d::ShapeQuery) -> [Node]",
         "overlaps": "(Node) -> [Node]",
         "pin_particle": "(Node, int)",
         "pose_in_body": "(Node) -> any",
         "potential_energy": "(Node) -> float",
         "predict_position": "(Node, float) -> any",
         "predict_position_with_forces": "(Node, float) -> any",
-        "ragdoll": "(Node, any) -> any",
-        "raycast": "(any) -> any",
-        "raycast_all": "(any) -> [any]",
+        "ragdoll": "(Node, physics2d::RagdollOptions?) -> [Node]",
+        "raycast": "(physics2d::RayQuery) -> physics2d::Hit?",
+        "raycast_all": "(physics2d::RayQuery) -> [physics2d::Hit]",
         "remove_joint": "(Node)",
         "reset_follow": "(Node)",
         "reset_plasticity": "(Node)",
@@ -23945,7 +24417,7 @@
         "set_softbody": "(Node, any)",
         "set_voxel": "(Node, int, int, bool)",
         "set_voxel_size": "(Node, float, float)",
-        "shapecast": "(any) -> any",
+        "shapecast": "(physics2d::ShapeQuery) -> physics2d::Hit?",
         "sleep": "(Node)",
         "softbody_area": "(Node) -> float",
         "softbody_attachments": "(Node) -> any",
@@ -23967,13 +24439,13 @@
         "softbody_stress": "(Node) -> [float]",
         "softbody_velocity": "(Node, int) -> Vec2",
         "softbody_volume_pieces": "(Node) -> [any]",
-        "solve_ik": "(Node, float, float, any)",
+        "solve_ik": "(Node, float, float, physics2d::IkOptions?)",
         "swept_aabb": "(Node) -> [float]",
         "tear_cell": "(Node, int)",
         "tear_edge": "(Node, int)",
         "tear_softbody": "(Node, any, any) -> any",
-        "teleport": "(Node, float, float, any)",
-        "time_of_impact": "(Node, Node, any) -> any",
+        "teleport": "(Node, float, float, physics2d::TeleportOptions?)",
+        "time_of_impact": "(Node, Node, physics2d::ImpactOptions) -> any",
         "time_since_can_sleep": "(Node) -> float",
         "total_inertia": "(Node) -> float",
         "total_mass": "(Node) -> float",
@@ -24926,7 +25398,7 @@
         "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "ragdoll": "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` (`capsule`, `box` or `sphere`), `thickness` (the capsule's radius and the box's half width, as a fraction of bone length), `density`, `friction`, `restitution`, `collision_layer` and `collision_mask` (layer numbers) for the shapes; `linear_damping`, `angular_damping`, `gravity_scale` and `continuous_collision` for the bodies; `axes` (joint3d `axes` records, on `rotation_x`, `rotation_y`, `rotation_z`: twist and swing limits), `articulation` and `collide_connected` for the joints; `drive` (`none`, or `motors`: a position motor on every turn towards the built pose, of `stiffness` 100 and `damping` 20 unless given; or `follow`: a `follow3d` on every body towards its bone, so the bodies chase the clip, its keys in a `follow` table); `influence`; and `parent`, the node the bodies' container is kept under, the root unless given. Answers the body nodes it made.",
-        "raycast": "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
+        "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_follow": "Forget what a `pid` follow summed, so it pulls from now as if it had just started.",
@@ -24985,8 +25457,8 @@
         "tear_cell": "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.",
         "tear_edge": "Tear one edge at the end of the next step.",
         "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
-        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. `#{ rotation = [x, y, z] }` turns it too, in Euler radians.",
-        "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do.",
+        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians.",
+        "time_of_impact": "When two moving colliders would meet, given each one's velocity. Nothing when they never do.",
         "time_since_can_sleep": "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
         "total_inertia": "The body's resistance to spin about each of its principal axes, colliders included.",
         "total_inertia_rotation": "How those principal axes are turned in the body's own space, as Euler radians, x first.",
@@ -25170,7 +25642,7 @@
         "attach_particle": "(Node, int, Node)",
         "bodies": "() -> [Node]",
         "broad_phase_aabb": "(Node) -> [float]",
-        "closest_point": "(any) -> any",
+        "closest_point": "(physics3d::PointQuery) -> physics3d::Closest?",
         "closest_points": "(Node, Node) -> any",
         "collider_mass": "(Node) -> float",
         "collider_mass_properties": "(Node) -> any",
@@ -25205,18 +25677,18 @@
         "max_contact_impulse": "(Node) -> float",
         "move_character": "(Node, float, float, float) -> any",
         "next_position": "(Node) -> any",
-        "overlap_aabb": "(any) -> [Node]",
-        "overlap_point": "(any) -> [Node]",
-        "overlap_shape": "(any) -> [Node]",
+        "overlap_aabb": "(physics3d::BoxQuery) -> [Node]",
+        "overlap_point": "(physics3d::PointQuery) -> [Node]",
+        "overlap_shape": "(physics3d::ShapeQuery) -> [Node]",
         "overlaps": "(Node) -> [Node]",
         "pin_particle": "(Node, int)",
         "pose_in_body": "(Node) -> any",
         "potential_energy": "(Node) -> float",
         "predict_position": "(Node, float) -> any",
         "predict_position_with_forces": "(Node, float) -> any",
-        "ragdoll": "(Node, any) -> any",
-        "raycast": "(any) -> any",
-        "raycast_all": "(any) -> [any]",
+        "ragdoll": "(Node, physics3d::RagdollOptions?) -> [Node]",
+        "raycast": "(physics3d::RayQuery) -> physics3d::Hit?",
+        "raycast_all": "(physics3d::RayQuery) -> [physics3d::Hit]",
         "remove_joint": "(Node)",
         "reset_follow": "(Node)",
         "reset_plasticity": "(Node)",
@@ -25244,7 +25716,7 @@
         "set_voxel": "(Node, int, int, int, bool)",
         "set_voxel_size": "(Node, float, float, float)",
         "set_wheel_rotation": "(Node, float)",
-        "shapecast": "(any) -> any",
+        "shapecast": "(physics3d::ShapeQuery) -> physics3d::Hit?",
         "sleep": "(Node)",
         "softbody_attachments": "(Node) -> any",
         "softbody_boundary": "(Node) -> [[int]]",
@@ -25268,14 +25740,14 @@
         "softbody_velocity": "(Node, int) -> Vec3",
         "softbody_volume": "(Node) -> float",
         "softbody_volume_pieces": "(Node) -> [any]",
-        "solve_ik": "(Node, float, float, float, any)",
+        "solve_ik": "(Node, float, float, float, physics3d::IkOptions?)",
         "speed": "(Node) -> float",
         "swept_aabb": "(Node) -> [float]",
         "tear_cell": "(Node, int)",
         "tear_edge": "(Node, int)",
         "tear_softbody": "(Node, any, any) -> any",
-        "teleport": "(Node, float, float, float, any)",
-        "time_of_impact": "(Node, Node, any) -> any",
+        "teleport": "(Node, float, float, float, physics3d::TeleportOptions?)",
+        "time_of_impact": "(Node, Node, physics3d::ImpactOptions) -> any",
         "time_since_can_sleep": "(Node) -> float",
         "total_inertia": "(Node) -> any",
         "total_inertia_rotation": "(Node) -> any",
@@ -25308,7 +25780,7 @@
       ],
       "name": "picture",
       "signatures": {
-        "listen": "(Node, any)",
+        "listen": "(Node, events::ListenOptions?)",
         "write": "(str, str) -> str?"
       }
     },
@@ -25480,7 +25952,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.",
+      "doc": "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is a `Match`, with byte offsets and one string per capture group, nil for a group that took no part.",
       "docs": {
         "escape": "`text` with every metacharacter escaped, so it matches itself.",
         "matches": "Whether the pattern matches anywhere in `text`.",
@@ -25502,8 +25974,8 @@
         "escape": "(str) -> str",
         "matches": "(str, str) -> bool",
         "replace": "(str, str, str, bool?) -> str",
-        "search": "(str, str) -> any",
-        "search_all": "(str, str) -> [any]",
+        "search": "(str, str) -> regex::Match?",
+        "search_all": "(str, str) -> [regex::Match]",
         "split": "(str, str) -> [str]"
       }
     },
@@ -25530,9 +26002,9 @@
       "signatures": {
         "channels": "() -> [str]",
         "check": "() -> bool",
-        "install": "(str, str, any) -> bool",
+        "install": "(str, str, release::InstallOptions?) -> bool",
         "installed": "() -> release::Build",
-        "listen": "(Node, any)"
+        "listen": "(Node, events::ListenOptions?)"
       }
     },
     {
@@ -25996,20 +26468,20 @@
         "clear_retained": "(str)",
         "debug_view": "() -> str",
         "debug_views": "() -> [str]",
-        "draw_arc_2d": "(float, float, float, float, float, float?, any, any)",
+        "draw_arc_2d": "(float, float, float, float, float, float?, any, render::DrawOptions?)",
         "draw_box": "(float, float, float, float, float, float, any)",
         "draw_capsule": "(float, float, float, float, float, any)",
-        "draw_circle_2d": "(float, float, float, any, any)",
-        "draw_line_2d": "(float, float, float, float, float, float, float, float?, any)",
+        "draw_circle_2d": "(float, float, float, any, render::DrawOptions?)",
+        "draw_line_2d": "(float, float, float, float, float, float, float, float?, render::DrawOptions?)",
         "draw_line_3d": "(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)",
         "draw_lines": "(any)",
-        "draw_polygon_2d": "(any, any, any)",
-        "draw_polyline_2d": "(any, float?, any, any)",
-        "draw_rect_2d": "(float, float, float, float, any, any)",
+        "draw_polygon_2d": "(any, any, render::DrawOptions?)",
+        "draw_polyline_2d": "(any, float?, any, render::DrawOptions?)",
+        "draw_rect_2d": "(float, float, float, float, any, render::DrawOptions?)",
         "draw_sphere": "(float, float, float, float, any)",
-        "draw_text_2d": "(float, float, str, any)",
-        "draw_text_3d": "(float, float, float, str, any)",
-        "draw_texture_2d": "(str, float, float, float, float, any, any)",
+        "draw_text_2d": "(float, float, str, render::TextOptions?)",
+        "draw_text_3d": "(float, float, float, str, render::TextOptions?)",
+        "draw_texture_2d": "(str, float, float, float, float, any, render::TextureOptions?)",
         "end_retained": "()",
         "hold_cameras": "(Node?)",
         "instance_color": "(Node, int) -> any",
@@ -26025,7 +26497,7 @@
         "outline": "(Node) -> [float]",
         "pick_ray": "(float, float, float, float, float, float) -> Node",
         "pick_ray_at": "(float, float, float, float, float, float) -> render::Hit?",
-        "populate": "(Node, any) -> any",
+        "populate": "(Node, render::PopulateOptions) -> any",
         "screenshot": "(str)",
         "set_background": "(float, float, float)",
         "set_box": "(Node, float, float, float)",
@@ -26052,11 +26524,11 @@
         "snap_aov": "(str, str)",
         "stats": "() -> render::Stats",
         "terrain": "(Node, int, int) -> int",
-        "text_size": "(str, any) -> Vec2",
+        "text_size": "(str, render::TextOptions?) -> Vec2",
         "texture_pixels_per_unit": "(str) -> float",
         "texture_size": "(str) -> [int]",
         "tile_data": "(Node, int, int) -> any",
-        "trace_texture": "(str, any) -> [[Vec2]]",
+        "trace_texture": "(str, render::TraceOptions?) -> [[Vec2]]",
         "visible_instance_count": "(Node) -> int"
       }
     },
@@ -26132,7 +26604,7 @@
         "pause": "()",
         "play": "()",
         "position": "() -> int",
-        "record": "(str, any) -> str",
+        "record": "(str, replay::RecordOptions?) -> str",
         "recording": "() -> str?",
         "recording_name": "() -> str",
         "seek": "(int)",
@@ -26199,7 +26671,7 @@
       "docs": {
         "added_since": "The nodes the component went onto after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder.",
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
-        "attach_scripts": "Run every script the nodes under a node name, children first: what starts a scene built with `{ scripts: false }`.",
+        "attach_scripts": "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`.",
         "bindable_events": "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce.",
         "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
         "changed_since": "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder.",
@@ -26210,7 +26682,7 @@
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
         "component_types": "The names of every registered component type, not the components on any node.",
         "get_node": "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches.",
-        "instantiate": "Build a scene document (TOML text, not a path) under a parent. `{ scripts: false }` names each node's script without running it; `{ root: path }` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
+        "instantiate": "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "preset_info": "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered.",
@@ -26222,7 +26694,7 @@
         "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second; reset is a switch to the same file.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "take_changes": "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names.",
-        "to_toml": "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `{ root: path }` writes every path under that project's root as it spells it.",
+        "to_toml": "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it.",
         "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
         "variables": "Every declared variable as `{ name, type, value, persist }`, in name order.",
         "warnings": "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only.",
@@ -26275,7 +26747,7 @@
         "component_tags": "(str) -> [str]?",
         "component_types": "() -> [str]",
         "get_node": "(str) -> Node",
-        "instantiate": "(str, Node?, any)",
+        "instantiate": "(str, Node?, scene::InstantiateOptions?)",
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
         "preset_info": "(str) -> scene::Preset?",
@@ -26284,10 +26756,10 @@
         "root": "() -> Node",
         "set_variable": "(str, any)",
         "source": "(str) -> str?",
-        "switch": "(str, any)",
+        "switch": "(str, scene::SwitchOptions?)",
         "tagged": "(str) -> [Node]",
-        "take_changes": "() -> [any]",
-        "to_toml": "(Node, any) -> str",
+        "take_changes": "() -> [scene::Change]",
+        "to_toml": "(Node, scene::ToTomlOptions?) -> str",
         "variable": "(str) -> any",
         "variables": "() -> [scene::Variable]",
         "warnings": "(Node) -> [scene::Warning]",
@@ -26786,7 +27258,7 @@
         "focused_widget": "The widget node focus is on, or nil.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
-        "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead.",
+        "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "reread": "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
@@ -26853,14 +27325,14 @@
       "signatures": {
         "activate_focused": "()",
         "clear_focus": "()",
-        "click": "(Node, any) -> bool",
+        "click": "(Node, ui::ClickOptions?) -> bool",
         "colors_apart": "(any) -> [ui::ColorsApart]",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
         "edit": "(Node, any) -> bool",
-        "fill_rows": "(str, any, any, bool) -> bool",
-        "fill_strip": "(str, any) -> bool",
+        "fill_rows": "(str, [ui::Row], any, bool) -> bool",
+        "fill_strip": "(str, [ui::Control]) -> bool",
         "finish_loading": "()",
         "focus_down": "()",
         "focus_left": "()",
@@ -26871,7 +27343,7 @@
         "focused_widget": "() -> Node",
         "height_class": "() -> str",
         "pasted_text": "() -> str",
-        "request_repaint": "(any)",
+        "request_repaint": "(ui::RepaintOptions?)",
         "reread": "(Node, str?, any) -> bool",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",
@@ -26950,7 +27422,7 @@
       "name": "websocket",
       "signatures": {
         "close": "(int) -> any",
-        "connect": "(any, str, any) -> any",
+        "connect": "(any, str, websocket::ConnectOptions?) -> int",
         "send": "(int, any) -> any",
         "state": "(int) -> any"
       }
@@ -26983,8 +27455,8 @@
       "name": "window",
       "signatures": {
         "refresh_rate": "() -> float",
-        "safe_area": "() -> any",
-        "set_app_icon": "(str, any)",
+        "safe_area": "() -> window::SafeArea",
+        "set_app_icon": "(str, window::AppIconOptions?)",
         "set_cursor_grab": "(bool)",
         "set_cursor_hidden": "(bool)",
         "set_fullscreen": "(bool)",

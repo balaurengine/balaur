@@ -271,12 +271,14 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
         for (name, entry) in entries {
             let key = format!("{module}::{name}");
             let typed = match (&entry.rust, entry.documented) {
-                // A `Value` result is whatever the docs say it holds: `-> Rect`.
+                // A `Value` is whatever the docs say it holds: `-> Rect`, or
+                // `(node: node, opts: Options?)` for a parameter.
                 (Some((args, ret)), doc) => rust_params(args).zip(rust_ret(ret)).map(|(p, r)| {
                     let named = doc
                         .filter(|_| holds_any(&r))
                         .and_then(|d| doc_types::result(d, &cx));
-                    (p, named.unwrap_or(r))
+                    let documented = doc.and_then(|d| doc_types::signature(d, &cx));
+                    (documented_params(p, documented), named.unwrap_or(r))
                 }),
                 // `node`'s raw operations are typed in `node_ops`, called on a
                 // node; `task`'s in `waits`, awaited.
@@ -343,6 +345,32 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect(),
+    }
+}
+
+// Each `Value` parameter the docs say holds a record, `Options?` or
+// `[Row]`, as that record, when they spell out every parameter.
+fn documented_params(rust: Vec<Ty>, documented: Option<(Vec<Ty>, Ty)>) -> Vec<Ty> {
+    let Some((doc, _)) = documented.filter(|(doc, _)| doc.len() == rust.len()) else {
+        return rust;
+    };
+    rust.into_iter()
+        .zip(doc)
+        .map(|(rust, doc)| {
+            if rust == Ty::Any && names_record(&doc) {
+                doc
+            } else {
+                rust
+            }
+        })
+        .collect()
+}
+
+fn names_record(t: &Ty) -> bool {
+    match t {
+        Ty::Struct(name) => name.contains("::"),
+        Ty::Optional(inner) | Ty::Array(inner) => names_record(inner),
+        _ => false,
     }
 }
 
@@ -489,7 +517,7 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::rust_ret;
+    use super::{documented_params, rust_ret};
     use balaur_bs::Ty;
 
     fn list(t: Ty) -> Ty {
@@ -515,5 +543,29 @@ mod tests {
             Some(Ty::Optional(Box::new(Ty::Float)))
         );
         assert_eq!(rust_ret("()"), Some(Ty::Void), "unit is no tuple");
+    }
+
+    #[test]
+    fn a_value_parameter_is_the_record_its_docs_name() {
+        let options = Ty::Optional(Box::new(Ty::Struct("ui::ClickOptions".into())));
+        let rust = vec![Ty::Node, Ty::Any];
+        assert_eq!(
+            documented_params(
+                rust.clone(),
+                Some((vec![Ty::Str, options.clone()], Ty::Bool))
+            ),
+            vec![Ty::Node, options],
+            "only a `Value` takes the docs' type"
+        );
+        assert_eq!(
+            documented_params(rust.clone(), Some((vec![Ty::Node], Ty::Bool))),
+            rust,
+            "docs of another arity say nothing"
+        );
+        assert_eq!(
+            documented_params(rust.clone(), Some((vec![Ty::Node, Ty::Float], Ty::Bool))),
+            rust,
+            "only a record"
+        );
     }
 }

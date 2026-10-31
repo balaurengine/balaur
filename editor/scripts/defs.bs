@@ -77,10 +77,11 @@ pub fn workspace_docks(id: str) -> any {
 }
 
 fn docks(left: [str], bottom: [str], right: [str]) -> any {
-    map()
-        .with("left", map().with("tabs", left).with("active", left[0]).with("shut", false))
-        .with("bottom", map().with("tabs", bottom).with("active", bottom[0]).with("shut", false))
-        .with("right", map().with("tabs", right).with("active", right[0]).with("shut", false))
+    {
+        "left": { "tabs": left, "active": left[0], "shut": false },
+        "bottom": { "tabs": bottom, "active": bottom[0], "shut": false },
+        "right": { "tabs": right, "active": right[0], "shut": false },
+    }
 }
 
 pub fn workspace_name(id: str) -> str {

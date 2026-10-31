@@ -196,7 +196,7 @@ fn wake_in(seconds: f32) {
 pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected."),
-        ("gamepad_rumble", &[], "(id: int, opts: map?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
+        ("gamepad_rumble", &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
         ("gamepad_stop_rumble", &[], "", "Silence the pad now, without the `on_gamepad_rumble_finished` a rumble's natural end sends."),
         ("gamepad_set_listener", &[], "(id: int, position: vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
         ("vibrate", &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
@@ -216,6 +216,11 @@ pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().pad(id).is_some_and(Pad::can_rumble);
         Ok(v)
     });
+    m.records(&[(
+        "RumbleOptions",
+        "{ strong: float?, weak: float?, duration: float?, delay: float?, pulse: float?, gap: float?, attack: float?, attack_level: float?, fade: float?, fade_level: float?, position: any, min_distance: float?, max_distance: float?, falloff: string?, rolloff: float? }",
+        "One rumble: the two motors, how long and when, its beat and the shape of each pulse, and a `position` that weakens it with distance from `gamepad_set_listener`.",
+    )]);
     m.function(
         "gamepad_rumble",
         |eng: &Engine, (id, opts): (i64, Option<Value>)| {

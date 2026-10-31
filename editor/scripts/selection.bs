@@ -172,7 +172,7 @@ pub fn set_locked(state: &mut editor::State, row: int, locked: bool) {
 }
 
 pub fn unlock_all(state: &mut editor::State) {
-    state.locks = map();
+    state.locks = {};
     signals::outline(state);
 }
 

@@ -35,10 +35,58 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     )
 }
 
+/// The tables this module's queries take and give.
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "QueryFilter",
+        "{ only: string?, hit_sensors: bool?, hit_solids: bool?, collision_mask: [int]?, exclude: node?, exclude_body: node?, predicate: any }",
+        "Which colliders a query sees: `only` dynamic, kinematic or static bodies, sensors and solids or not, the layers of `collision_mask`, a node's colliders or its body's left out, and a `predicate` function that keeps a node or not.",
+    ),
+    (
+        "RayQuery",
+        "{ origin: vec2?, direction: vec2?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A ray: where it starts, which way it goes and how far, and whether a collider it starts inside is hit.",
+    ),
+    (
+        "ShapeQuery",
+        "{ shape: any, origin: vec2?, direction: vec2?, at: vec2?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
+        "A shape, in the collider's vocabulary, swept from `origin` along `direction`, or standing `at` a point.",
+    ),
+    (
+        "PointQuery",
+        "{ point: vec2?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A world point, and how far from it a collider may be.",
+    ),
+    (
+        "BoxQuery",
+        "{ min: vec2?, max: vec2?, filter: QueryFilter? }",
+        "An axis-aligned box from its lowest corner to its highest.",
+    ),
+    (
+        "Hit",
+        "{ node: node, point: vec2, normal: vec2, distance: float }",
+        "What a ray or a swept shape met first: the node, the point and the normal there, and how far along it was.",
+    ),
+    (
+        "Closest",
+        "{ node: node, point: vec2, inside: bool, distance: float }",
+        "The collider nearest a point: its node, the point on it, whether the point was inside, and how far.",
+    ),
+    (
+        "ImpactOptions",
+        "{ velocity_a: any, velocity_b: any, max_time: float?, stop_at_penetration: bool? }",
+        "How two colliders move for `time_of_impact`: each one's velocity, and how far ahead to look.",
+    ),
+];
+
 pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("raycast", &[], "(opts: table) -> map?", "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
-    ]);
+    m.records(RECORDS);
+    m.describe(&[(
+        "raycast",
+        &[],
+        "(opts: RayQuery) -> Hit?",
+        "The first collider a ray meets, or nothing.",
+    )]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
@@ -112,7 +160,7 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "raycast_all",
         &[],
-        "(opts: table) -> [map]",
+        "(opts: RayQuery) -> [Hit]",
         "Every collider a ray meets, nearest first.",
     )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
@@ -163,7 +211,7 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "shapecast",
         &[],
-        "(opts: table) -> map?",
+        "(opts: ShapeQuery) -> Hit?",
         "Sweep a shape along a direction until it hits something: a thick raycast.",
     )]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
@@ -211,25 +259,25 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         (
             "closest_point",
             &[],
-            "(opts: table) -> map?",
+            "(opts: PointQuery) -> Closest?",
             "The closest point on any collider to a world point.",
         ),
         (
             "overlap_point",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: PointQuery) -> [node]",
             "Every collider containing a world point: what a mouse click asks.",
         ),
         (
             "overlap_shape",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: ShapeQuery) -> [node]",
             "Every collider a shape overlaps where it stands.",
         ),
         (
             "overlap_aabb",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: BoxQuery) -> [node]",
             "Every collider whose bounds meet an axis-aligned box.",
         ),
         (
@@ -341,7 +389,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table) -> map?", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {

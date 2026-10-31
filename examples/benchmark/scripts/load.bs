@@ -83,7 +83,7 @@ fn nothing(w: world::World, c: Case) {}
 fn none_at(w: world::World, c: Case, i: int) {}
 
 fn no_extra(w: world::World, c: Case) -> any {
-    map()
+    {}
 }
 
 /// A load case: `count` of whatever `place` makes.

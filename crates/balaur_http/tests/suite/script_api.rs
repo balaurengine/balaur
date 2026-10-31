@@ -74,7 +74,7 @@ fn a_delete_carries_the_body_it_was_given() {
 pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
-        let r = await task::wait(http::request("{url}", map().with("method", "DELETE").with("body", "ids=7")));
+        let r = await task::wait(http::request("{url}", {{ "method": "DELETE", "body": "ids=7" }}));
         let status = r.get("status");
         let body = r.get("body");
         log::info("delete-echo {{status}} {{body}}");
@@ -105,7 +105,7 @@ impl Scenario {{
         let status = r.get("status");
         let body = r.get("body");
         log::info("named-await {{status}} {{body}}");
-        self.request = http::request(self.node, "{handled}", map().with("on_response", "on_login"));
+        self.request = http::request(self.node, "{handled}", http::RequestOptions {{ on_response: "on_login" }});
     }}
 
     pub fn on_login(r: any) {{

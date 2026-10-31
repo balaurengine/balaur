@@ -253,7 +253,7 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
         ("potential_energy", &[c::BODY_2D], "", "The body's gravitational potential energy over one step."),
         ("is_moving", &[c::BODY_2D], "", "Whether the body is awake and actually going somewhere."),
         ("effective_dominance", &[c::BODY_2D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
-        ("teleport", &[c::BODY_2D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. `#{ rotation = angle }` turns it too, in radians."),
+        ("teleport", &[c::BODY_2D], "(node: node, x: float, y: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in radians."),
     ]);
     m.function(
         "velocity_at_point",
@@ -284,6 +284,11 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
             f32::from(body.effective_dominance_group())
         })
     });
+    m.records(&[(
+        "TeleportOptions",
+        "{ rotation: float? }",
+        "How `teleport` turns the body as it moves it, in radians.",
+    )]);
     m.function(
         "teleport",
         |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<balaur_script::Value>)| {

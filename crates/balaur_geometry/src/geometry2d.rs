@@ -612,11 +612,16 @@ const BOOLEAN_DOCS: [(Op2d, &str); 5] = [
 ];
 
 fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
+    m.records(&[(
+        "BooleanOptions",
+        "{ fill_rule: string?, min_area: float?, keep_collinear: bool?, clean_result: bool? }",
+        "How a boolean shapes its answer: the fill rule, the smallest piece kept, and whether collinear points stay and the result is cleaned.",
+    )]);
     for (op, doc) in BOOLEAN_DOCS {
         m.describe(&[(
             op.word(),
             &[],
-            "(a: list, b: list, opts: table) -> list",
+            "(a: list, b: list, opts: BooleanOptions?) -> list",
             doc,
         )]);
         m.function(

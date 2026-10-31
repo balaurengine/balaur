@@ -337,10 +337,15 @@ fn clipped(ring: &[Vector2], from: Vector2, to: Vector2) -> Vec<Vector2> {
 /// `geometry2d.convex_decomposition`: the pieces a script or the editor can
 /// draw, tune, or hand back one at a time as `convex_hull` colliders.
 pub(crate) fn install_decompose_api(m: &mut dyn Bindings<Engine>) {
+    m.records(&[(
+        "DecompositionOptions",
+        "{ overlap: float? }",
+        "How far each convex piece grows across its seams, from 0 to 1.",
+    )]);
     m.describe(&[(
         "convex_decomposition",
         &[],
-        "(polygon: list, opts: table?) -> list",
+        "(polygon: list, opts: DecompositionOptions?) -> list",
         "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
     )]);
     m.function(

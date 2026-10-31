@@ -640,7 +640,7 @@ impl Hitter {
     fn update(dt: float) {
         if !self.done {
             self.done = true;
-            let hit = map().with(\"damage\", 3).with(\"tags\", [\"fire\", \"ice\"]);
+            let hit: any = { \"damage\": 3, \"tags\": [\"fire\", \"ice\"] };
             self.node.get_node(\"Target\").call(\"take\", hit);
         }
     }
@@ -664,7 +664,7 @@ impl Target {
     pub fn take(hit: any) {
         self.damage = hit[\"damage\"].as_int();
         self.first = hit[\"tags\"][0].as_str();
-        let msg = map().with(\"got\", self.damage).with(\"who\", \"target\");
+        let msg: any = { \"got\": self.damage, \"who\": \"target\" };
         self.reply = self.node.get_node(\"../Listener\").call(\"hear\", msg).as_int();
     }
 }
@@ -870,7 +870,7 @@ const ORC_BS: &str = "pub class Orc { node: Node }
 
 impl Orc {
     pub fn info() -> any {
-        map().with(\"hp\", 7).with(\"name\", \"orc\")
+        { \"hp\": 7, \"name\": \"orc\" }
     }
 }
 ";
@@ -1097,10 +1097,10 @@ impl Check {
         let color = util::hex_to_rgb(\"#ff8000\");
         let back = util::rotate_euler([0.1, 0.2, 0.3], 2, 0.0);
         let cells = util::cells([\"a\", \"b\"]);
-        let table = map().with(\"b\", 1).with(\"a\", 2);
+        let table: any = { \"b\": 1, \"a\": 2 };
         let copy = util::deep(table);
         copy.set(\"c\", 3);
-        self.said = \"{util::property_label(\\\"edge_radius\\\")}|{util::property_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
+        self.said = \"{util::property_label(\\\"edge_radius\\\")}|{util::property_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on({}, \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
     }
 }
 ";
@@ -1133,8 +1133,8 @@ impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
         let controls: [any] = [
-            map().with("kind", "text_field").with("text", "").with("on", "typed").with("data", "query"),
-            map().with("kind", "button").with("text", "Go").with("on", "pressed").with("data", 7),
+            { "kind": "text_field", "text": "", "on": "typed", "data": "query" },
+            { "kind": "button", "text": "Go", "on": "pressed", "data": 7 },
         ];
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {

@@ -84,14 +84,19 @@ impl Runner {
         self.tick += 1;
         let pad = 7;
         if self.tick == 1 {
-            input::feed_gamepad(pad, map()
-                .with("name", "Fed Pad").with("os_name", "Fed OS").with("guid", "0300aabb")
-                .with("vendor", 1).with("product", 2)
-                .with("mapping", input::GAMEPAD_MAPPING_SDL).with("rumble", true)
-                .with("buttons", map().with("south", true).with("left_trigger", 0.3))
-                .with("axes", map().with("left_x", 0.1).with("right_x", 1.0))
-                .with("power", map().with("state", input::GAMEPAD_POWER_ON_BATTERY).with("level", 0.5))
-                .with("touches", [map().with("id", 1).with("x", 0.25).with("y", 0.75)]));
+            input::feed_gamepad(pad, {
+                "name": "Fed Pad",
+                "os_name": "Fed OS",
+                "guid": "0300aabb",
+                "vendor": 1,
+                "product": 2,
+                "mapping": input::GAMEPAD_MAPPING_SDL,
+                "rumble": true,
+                "buttons": { "south": true, "left_trigger": 0.3 },
+                "axes": { "left_x": 0.1, "right_x": 1.0 },
+                "power": { "state": input::GAMEPAD_POWER_ON_BATTERY, "level": 0.5 },
+                "touches": [{ "id": 1, "x": 0.25, "y": 0.75 }],
+            });
         } else if self.tick == 2 {
             let pads = input::gamepads();
             self.check(pads.len() == 1 && pads.at(0).as_int() == pad, "the fed pad is listed by its id");
@@ -111,18 +116,18 @@ impl Runner {
             self.check(power.get("state").as_str() == "on_battery" && near(power.get("level").as_float(), 0.5), "power");
             self.check(near(input::gamepad_touches(pad).at(0).get("x").as_float(), 0.25), "touch x");
             self.check(input::gamepad_can_rumble(pad), "can rumble");
-            input::feed_gamepad(pad, map().with("buttons", map().with("south", false)));
+            input::feed_gamepad(pad, { "buttons": { "south": false } });
         } else if self.tick == 3 {
             let south = input::GAMEPAD_BUTTON_SOUTH;
             self.check(input::gamepad_just_released(pad, south) && !input::gamepad_down(pad, south), "south released");
-            input::feed_gamepad(pad, map().with("buttons", map().with("east", true)));
-            input::feed_gamepad(pad, map().with("buttons", map().with("east", false)));
+            input::feed_gamepad(pad, { "buttons": { "east": true } });
+            input::feed_gamepad(pad, { "buttons": { "east": false } });
         } else if self.tick == 4 {
             let east = input::GAMEPAD_BUTTON_EAST;
             self.check(input::gamepad_just_pressed(pad, east), "a tap between frames presses");
             self.check(input::gamepad_just_released(pad, east), "and releases");
             self.check(!input::gamepad_down(pad, east), "east up");
-            input::feed_gamepad(pad, map().with("connected", false));
+            input::feed_gamepad(pad, { "connected": false });
         } else if self.tick == 5 {
             self.check(input::gamepads().len() == 0, "unplugged");
             self.check(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad), "no name, no rumble");
@@ -162,15 +167,21 @@ impl Runner {
     fn update(dt: float) {
         self.tick += 1;
         if self.tick == 1 {
-            input::feed_gamepad(7, map().with("rumble", true));
-            input::feed_gamepad(8, map().with("rumble", false));
+            input::feed_gamepad(7, { "rumble": true });
+            input::feed_gamepad(8, { "rumble": false });
         } else if self.tick == 2 {
-            let shaped = map().with("strong", 0.02).with("weak", 0.5).with("duration", 0.09)
-                .with("attack", 0.03).with("pulse", 0.04).with("gap", 0.01);
+            let shaped: any = {
+                "strong": 0.02,
+                "weak": 0.5,
+                "duration": 0.09,
+                "attack": 0.03,
+                "pulse": 0.04,
+                "gap": 0.01,
+            };
             if input::gamepad_rumble(7, shaped) { self.started = self.tick; }
-            if input::gamepad_rumble(8, map()) { self.refused = 0; }
+            if input::gamepad_rumble(8, nil) { self.refused = 0; }
         } else if self.tick == 20 {
-            input::gamepad_rumble(7, map().with("duration", 1.0).with("position", [3.0, 0.0, 0.0]).with("falloff", "linear"));
+            input::gamepad_rumble(7, input::RumbleOptions { duration: 1.0, position: [3.0, 0.0, 0.0], falloff: "linear" });
             input::gamepad_set_listener(7, [0.0, 0.0, 0.0]);
         } else if self.tick == 21 {
             input::gamepad_stop_rumble(7);
@@ -278,7 +289,7 @@ impl Runner {
     fn fixed_update(dt: float) {
         self.node.transform.translate(input::action_value("move_x") * dt, 0.0, 0.0);
         if input::action_just_pressed("jump") {
-            input::gamepad_rumble(7, map().with("duration", 0.05));
+            input::gamepad_rumble(7, input::RumbleOptions { duration: 0.05 });
         }
     }
 

@@ -76,7 +76,7 @@ pub fn is_nil(value: any) -> bool {
 
 /// `value` when it is a map, else an empty one.
 pub fn map_or_empty(value: any) -> any {
-    if value.kind() == "map" { value } else { map() }
+    if value.kind() == "map" { value } else { {} }
 }
 
 /// `value` when it is a list, else an empty one.
@@ -124,7 +124,7 @@ pub fn hide(id: str) {
     if !found.is_valid() {
         return;
     }
-    found.patch_component("widget", map().with("visible", false));
+    found.patch_component("widget", { "visible": false });
 }
 
 /// One row of a `list` or `tree`: the icon, the label, a trailing note and a
@@ -349,7 +349,7 @@ pub fn repeat(text: str, count: int) -> str {
 /// A shallow copy of a map or a list; anything else is a value already.
 pub fn copy(value: any) -> any {
     if value.kind() == "map" {
-        let out = map();
+        let out: any = {};
         for key in value.keys() {
             out.set(key, value.get(key));
         }
@@ -368,7 +368,7 @@ pub fn copy(value: any) -> any {
 /// A copy all the way down.
 pub fn deep(value: any) -> any {
     if value.kind() == "map" {
-        let out = map();
+        let out: any = {};
         for key in value.keys() {
             out.set(key, deep(value.get(key)));
         }

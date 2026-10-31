@@ -109,7 +109,7 @@ fn KEYS() -> [str] {
 }
 
 pub fn state() -> any {
-    map()
+    {}
 }
 
 fn key_label(key: str) -> str {
@@ -206,16 +206,17 @@ pub fn fill_chips(state: editor::State, names: [any]) {
     let out: [any] = [];
     for name in names {
         let action = name.starts_with(ACTION);
-        out.push(map()
-            .with("kind", "button")
-            .with("text", if action { name.slice(ACTION.len(), name.len()) } else { name })
-            .with("height", 30)
-            .with("font_size", style::MEDIUM)
-            .with("font_weight", 700)
-            .with("interactive", false)
-            .with("fill", (if action { tokens.get("bg_control") } else { tokens.get("primary_fill") }).as_str())
-            .with("stroke", (if action { tokens.get("primary_text") } else { "" }).as_str())
-            .with("text_color", (if action { tokens.get("primary_text") } else { tokens.get("text_on_primary") }).as_str()));
+        out.push({
+            "kind": "button",
+            "text": if action { name.slice(ACTION.len(), name.len()) } else { name },
+            "height": 30,
+            "font_size": style::MEDIUM,
+            "font_weight": 700,
+            "interactive": false,
+            "fill": (if action { tokens.get("bg_control") } else { tokens.get("primary_fill") }).as_str(),
+            "stroke": (if action { tokens.get("primary_text") } else { "" }).as_str(),
+            "text_color": (if action { tokens.get("primary_text") } else { tokens.get("text_on_primary") }).as_str(),
+        });
     }
     pool::strip(state, "Editor/InputView/Chips", out);
 }

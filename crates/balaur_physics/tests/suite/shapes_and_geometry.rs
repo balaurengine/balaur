@@ -103,12 +103,12 @@ fn the_mesh_backed_shapes_build() {
 impl Scenario {
     fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
-            self.node.collider3d.set_collider(map().with("shape", map().with("kind", kind).with("mesh", "#wedge")));
+            self.node.collider3d.set_collider({ "shape": { "kind": kind, "mesh": "#wedge" } });
         }
         for fit in ["aabb", "obb", "convex_hull"] {
-            self.node.collider3d.set_collider(map().with("shape", map().with("kind", "fit").with("mesh", "#wedge").with("fit", fit)));
+            self.node.collider3d.set_collider({ "shape": { "kind": "fit", "mesh": "#wedge", "fit": fit } });
         }
-        self.node.collider3d.set_collider(map().with("shape", map().with("kind", "voxelized_mesh").with("mesh", "#wedge").with("voxel_size", 0.25)));
+        self.node.collider3d.set_collider({ "shape": { "kind": "voxelized_mesh", "mesh": "#wedge", "voxel_size": 0.25 } });
     }
 }
 "##,
@@ -121,7 +121,7 @@ fn the_solver_knobs_are_set_and_read_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics::set_tuning(map().with("solver_iterations", 8).with("length_unit", 64.0).with("ccd_substeps", 2));
+        physics::set_tuning({ "solver_iterations": 8, "length_unit": 64.0, "ccd_substeps": 2 });
         let tuning = physics::tuning().get("3d");
         let iterations = tuning.get("solver_iterations").as_float();
         if iterations != 8.0 { log::error("iterations read back as {iterations}"); }
@@ -152,13 +152,13 @@ impl Scenario {
         let points = hull.get("points").len();
         if points < 4 { log::error("the hull of a tetrahedron has four points, not {points}"); }
 
-        let pieces = geometry3d::convex_decomposition("#wedge", map().with("resolution", 16.0));
+        let pieces = geometry3d::convex_decomposition("#wedge", geometry3d::DecompositionOptions { resolution: 16 });
         if pieces.len() < 1 { log::error("the decomposition found no pieces"); }
 
-        let grid = geometry3d::voxelize("#wedge", map().with("resolution", 8.0));
-        if grid.get("cells").len() <= 0 { log::error("voxelising found no cells"); }
+        let grid = geometry3d::voxelize("#wedge", geometry3d::VoxelizeOptions { resolution: 8 });
+        if grid.cells.len() <= 0 { log::error("voxelising found no cells"); }
 
-        let halves = geometry3d::split("#wedge", map().with("point", [0.25, 0.0, 0.0]).with("normal", [1.0, 0.0, 0.0]));
+        let halves = geometry3d::split("#wedge", geometry3d::Plane { point: [0.25, 0.0, 0.0], normal: [1.0, 0.0, 0.0] });
         if halves.len() != 2 { log::error("a cut gives two halves, not {halves.len()}"); }
     }
 }
@@ -174,7 +174,7 @@ impl Scenario {
     fn init() {
         physics::set_debug_draw(true);
         if !physics::debug_draw().get("enabled").as_bool() { log::error("the switch did not stay on"); }
-        physics::set_debug_draw(map().with("colliders", true).with("impulse_joints", true).with("contacts", false));
+        physics::set_debug_draw({ "colliders": true, "impulse_joints": true, "contacts": false });
         let modes = physics::debug_draw();
         if !(modes.get("colliders").as_bool() && modes.get("impulse_joints").as_bool()) { log::error("the named modes were not kept"); }
         if modes.get("contacts").as_bool() { log::error("a mode that was not named came on"); }

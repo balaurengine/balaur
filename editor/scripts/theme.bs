@@ -127,7 +127,7 @@ pub fn bundled(name: str, half: str) -> any {
 /// `over` written onto `base`, table by table: a key `over` names wins, and a
 /// table both hold is merged rather than replaced.
 pub fn merge(base: any, over: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in base.keys() {
         let value = base.get(key);
         out.set(key, value);
@@ -148,12 +148,12 @@ pub fn merge(base: any, over: any) -> any {
 /// What `doc` says that `base` does not: the keys whose values differ, and
 /// the tables holding at least one.
 pub fn diff(base: any, doc: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in doc.keys() {
         let value = doc.get(key);
         let had = base.has(key);
         if value.kind() == "map" {
-            let below = if had && base.get(key).kind() == "map" { base.get(key) } else { map() };
+            let below: any = if had && base.get(key).kind() == "map" { base.get(key) } else { {} };
             let inner = diff(below, value);
             if inner.len() > 0 {
                 out.set(key, inner);
@@ -185,7 +185,7 @@ pub fn own_half(name: str, half: str) -> any {
         return own;
     }
     let other = read(name, if half == "dark" { "light" } else { "dark" });
-    map().with("base", base_of(other))
+    { "base": base_of(other) }
 }
 
 /// One half of a pair, filled in from its base. A pair that no longer
@@ -208,15 +208,16 @@ pub fn resolve(name: str, half: str) -> Resolve {
 pub fn flat(name: str, half: str, doc: any) -> any {
     let done = ui::complete_theme(doc);
     let fonts = doc.get("fonts");
-    let flattened = map()
-        .with("dark", done.get("dark"))
-        .with("roles", doc.get("roles"))
-        .with("colors", done.get("colors"))
-        .with("sizes", done.get("sizes"))
-        .with("fonts", if fonts.is_nil() { map() } else { fonts })
-        .with("name", name)
-        .with("half", half)
-        .with("doc", doc);
+    let flattened: any = {
+        "dark": done.get("dark"),
+        "roles": doc.get("roles"),
+        "colors": done.get("colors"),
+        "sizes": done.get("sizes"),
+        "fonts": if fonts.is_nil() { {} } else { fonts },
+        "name": name,
+        "half": half,
+        "doc": doc,
+    };
     let colors = done.get("colors");
     for key in colors.keys() {
         let value = colors.get(key);
@@ -261,15 +262,15 @@ fn CODE_COLORS() -> [[str]] {
 // filled in from its tokens. A copy, so the Theme dialog lists what the file
 // says and nothing it does not.
 fn worn(tokens: any) -> any {
-    let doc = map();
+    let doc: any = {};
     let own = tokens.get("doc");
     for key in own.keys() {
         let value = own.get(key);
         doc.set(key, value);
     }
-    let colors = map();
+    let colors: any = {};
     let own_colors = tokens.get("doc").get("colors");
-    let own_color_table = util::map_or_empty(if own_colors.is_nil() { map() } else { own_colors });
+    let own_color_table = util::map_or_empty(if own_colors.is_nil() { {} } else { own_colors });
     for key in own_color_table.keys() {
         let value = own_color_table.get(key);
         colors.set(key, value);
@@ -296,7 +297,7 @@ pub fn apply(state: editor::State) {
     for path in ROOTS() {
         let root = scene::get_node(path);
         if root.is_valid() {
-            root.patch_component("widget", map().with("theme", doc));
+            root.patch_component("widget", { "theme": doc });
         }
     }
     let background = util::hex_to_rgb(tokens.bg_app.as_str());

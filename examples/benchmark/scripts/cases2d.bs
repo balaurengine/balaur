@@ -94,17 +94,18 @@ fn pile_shape(kind: int) -> any {
     if kind == 0 {
         rect(random::range(14.0, 26.0), random::range(14.0, 26.0))
     } else if kind == 1 {
-        map().with("kind", "circle").with("radius", random::range(7.0, 13.0))
+        { "kind": "circle", "radius": random::range(7.0, 13.0) }
     } else if kind == 2 {
         let radius = random::range(6.0, 10.0);
-        map()
-            .with("kind", "capsule")
-            .with("radius", radius)
-            .with("height", random::range(22.0, 34.0) + 2.0 * radius)
+        {
+            "kind": "capsule",
+            "radius": radius,
+            "height": random::range(22.0, 34.0) + 2.0 * radius,
+        }
     } else {
         // A fixed pentagon rather than a sized one: a hull comes from a mesh
         // asset, and the collider has no scale to vary it with.
-        map().with("kind", "convex_hull").with("mesh", "#pentagon")
+        { "kind": "convex_hull", "mesh": "#pentagon" }
     }
 }
 
@@ -130,7 +131,7 @@ fn grid_anchor(w: world::World, c: load::Case) {
 }
 
 fn grid_body(w: world::World, c: load::Case, i: int) {
-    world::body(w, lattice_at(i), map().with("kind", "circle").with("radius", 5.0));
+    world::body(w, lattice_at(i), { "kind": "circle", "radius": 5.0 });
 }
 
 fn grid_link(w: world::World, c: load::Case, i: int) {
@@ -156,7 +157,7 @@ fn grid_extra(w: world::World, c: load::Case) -> any {
             worst = moved;
         }
     }
-    map().with("displacement_max", worst)
+    { "displacement_max": worst }
 }
 
 /// The anchor bar's own origin: a joint anchor is an offset in the other
@@ -195,11 +196,12 @@ fn smash_body(w: world::World, c: load::Case, i: int) {
 fn smash_shot(w: world::World, c: load::Case) {
     let ox = -0.5 * ((SMASH_COLUMNS - 1) as float) * BOX;
     let shot = world::body(w, [ox - 900.0, (SMASH_ROWS as float) * BOX * 0.5, 0.0],
-        map().with("kind", "circle").with("radius", 40.0));
-    shot.patch_component("body2d", map()
-        .with("mass", 800.0)
-        .with("gravity_scale", 0.0)
-        .with("continuous_collision", true));
+        { "kind": "circle", "radius": 40.0 });
+    shot.patch_component("body2d", {
+        "mass": 800.0,
+        "gravity_scale": 0.0,
+        "continuous_collision": true,
+    });
     shot.body2d.set_linear_velocity(4000.0, 0.0);
 }
 
@@ -237,7 +239,7 @@ fn spread(w: world::World, c: load::Case) -> any {
             non_finite += 1;
         }
     }
-    map().with("spread", worst).with("non_finite", non_finite)
+    { "spread": worst, "non_finite": non_finite }
 }
 
 /// Queries against a populated broad phase: 8,000 static and 2,000 moving
@@ -264,14 +266,14 @@ fn storm_body(w: world::World, c: load::Case, i: int) {
             rect(random::range(20.0, 60.0), random::range(20.0, 60.0)));
         node.transform.rotation_euler = [0.0, 0.0, random::range(-3.14159, 3.14159)];
     } else {
-        let node = world::body(w, scatter(), map().with("kind", "circle").with("radius", random::range(10.0, 24.0)));
-        node.patch_component("body2d", map().with("gravity_scale", 0.0));
+        let node = world::body(w, scatter(), { "kind": "circle", "radius": random::range(10.0, 24.0) });
+        node.patch_component("body2d", { "gravity_scale": 0.0 });
         node.body2d.set_linear_velocity(random::range(-60.0, 60.0), random::range(-60.0, 60.0));
     }
 }
 
 fn storm_extra(w: world::World, c: load::Case) -> any {
-    map().with("queries", w.queries).with("hits", w.hits)
+    { "queries": w.queries, "hits": w.hits }
 }
 
 fn scatter() -> Vec3 {
@@ -284,27 +286,30 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let a = phase + 6.28318 * (i as float) / (RAYS as float);
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
-        let hit = physics2d::raycast(map()
-            .with("from", [x, y])
-            .with("dir", [-x, -y])
-            .with("max", FIELD * 2.5));
-        count(w, !hit.is_nil());
+        let hit = physics2d::raycast(physics2d::RayQuery {
+            origin: [x, y],
+            direction: [-x, -y],
+            max_distance: FIELD * 2.5,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..CASTS {
         let a = phase * 1.7 + 6.28318 * (i as float) / (CASTS as float);
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
-        let hit = physics2d::shapecast(map()
-            .with("shape", map().with("kind", "circle").with("radius", 24.0))
-            .with("from", [x, y])
-            .with("dir", [-x, -y])
-            .with("max", 2.0));
-        count(w, !hit.is_nil());
+        let hit = physics2d::shapecast(physics2d::ShapeQuery {
+            shape: { "kind": "circle", "radius": 24.0 },
+            origin: [x, y],
+            direction: [-x, -y],
+            max_distance: 2.0,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as float) / (POINTS as float);
-        let hits = physics2d::overlap_point(map()
-            .with("point", [math::cos(a) * FIELD * 0.6, math::sin(a) * FIELD * 0.6]));
+        let hits = physics2d::overlap_point(physics2d::PointQuery {
+            point: [math::cos(a) * FIELD * 0.6, math::sin(a) * FIELD * 0.6],
+        });
         count(w, hits.len() > 0);
     }
 }
@@ -342,5 +347,5 @@ fn drop_body(w: world::World, c: load::Case, i: int) {
 }
 
 fn rect(w: float, h: float) -> any {
-    map().with("kind", "rectangle").with("size", [w, h])
+    { "kind": "rectangle", "size": [w, h] }
 }

@@ -35,47 +35,48 @@ pub struct Fill {
 // The per-axis keys (`mag_filter`, `repeat_u`, `mipmap_filter` and the rest)
 // are written by hand: a row apiece would double the panel.
 fn ROWS() -> any {
-    map()
-        .with("texture", [
-            map().with("key", "filter").with("kind", "enum").with("options", ["linear", "nearest"]).with("fallback", "linear").with("help", "nearest keeps pixel art crisp when it is magnified"),
-            map().with("key", "repeat").with("kind", "enum").with("options", ["clamp", "repeat", "mirror"]).with("fallback", "clamp").with("help", "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam"),
-            map().with("key", "mipmaps").with("kind", "bool").with("fallback", false).with("help", "smaller copies for a texture drawn small, which stops it shimmering"),
-            map().with("key", "anisotropy").with("kind", "count").with("options", ["1", "2", "4", "8", "16"]).with("fallback", 1).with("help", "samples per fetch on a surface seen edge-on; needs a linear filter"),
-            map().with("key", "premultiply").with("kind", "bool").with("fallback", false).with("help", "color scaled by alpha at upload, so a soft edge blends without a dark fringe"),
-            map().with("key", "srgb").with("kind", "bool").with("fallback", true).with("help", "off for a normal map or a mask, which carry data rather than color"),
-            map().with("key", "bleed").with("kind", "bool").with("fallback", true).with("help", "the edge color spread under transparent texels, so a linear filter reads no fringe"),
-            map().with("key", "normal_map").with("kind", "bool").with("fallback", false).with("help", "a normal map: data rather than color, so srgb is off unless set"),
-            map().with("key", "flip_green").with("kind", "bool").with("fallback", false).with("help", "invert green, for a normal map baked the way DirectX reads one"),
-            map().with("key", "pixels_per_unit").with("kind", "number").with("fallback", 100.0).with("step", 1.0).with("help", "texture pixels to one world unit, for a sprite whose own is 0"),
-            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.25).with("only", "svg").with("help", "pixels per SVG unit; the raster a sprite measures"),
-            map().with("key", "recode").with("kind", "enum").with("options", ["original", "webp", "quantized"]).with("fallback", "export").with("help", "how an export re-encodes this file, over [export] images"),
-            map().with("key", "quality").with("kind", "number").with("fallback", 80.0).with("step", 5.0).with("whole", true).with("help", "the palette's 0 to 100 quality when this file is quantized"),
-        ])
-        .with("audio", [
-            map().with("key", "volume_linear").with("kind", "number").with("fallback", 1.0).with("step", 0.05).with("help", "the file's own level, multiplied into every play of it"),
-            map().with("key", "loop").with("kind", "bool").with("fallback", false).with("help", "loop wherever it is played"),
-            map().with("key", "loop_offset").with("kind", "number").with("fallback", 0.0).with("step", 0.1).with("help", "seconds in that each repeat starts from, past an intro"),
-            map().with("key", "force_mono").with("kind", "bool").with("fallback", false).with("help", "mixed to one channel at export; a WAV only"),
-            map().with("key", "max_rate_hz").with("kind", "count").with("options", ["0", "11025", "22050", "32000", "44100", "48000"]).with("fallback", 0).with("help", "the highest sample rate a WAV ships at, in Hz; 0 keeps its own"),
-            map().with("key", "recode").with("kind", "enum").with("options", ["original", "flac", "vorbis"]).with("fallback", "export").with("help", "how an export re-encodes this file, over [export] audio"),
-        ])
-        .with("font", [
-            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.05).with("help", "how much larger its glyphs draw and advance, in widgets and world text"),
-            map().with("key", "y_offset").with("kind", "number").with("fallback", 0.0).with("step", 0.01).with("help", "a nudge down as a fraction of the size, for a face that sits high"),
-            map().with("key", "hinting").with("kind", "bool").with("fallback", true).with("help", "snap outlines to the pixel grid; off for a smooth face"),
-            map().with("key", "antialias").with("kind", "bool").with("fallback", true).with("help", "smooth glyph edges; off draws every pixel on or off, for a pixel face"),
-        ])
-        .with("model", [
-            map().with("key", "scale").with("kind", "number").with("fallback", 1.0).with("step", 0.01).with("help", "the model's units to the scene's: 0.01 for a file modeled in centimeters"),
-            map().with("key", "lods").with("kind", "count").with("options", ["0", "1", "2", "3", "4", "5", "6"]).with("fallback", 0).with("help", "simpler copies built at load, each half the triangles of the one before"),
-            map().with("key", "lod_distance").with("kind", "number").with("fallback", 20.0).with("step", 1.0).with("help", "camera distance where the first simpler copy takes over; each next at twice it"),
-        ])
+    {
+        "texture": [
+            { "key": "filter", "kind": "enum", "options": ["linear", "nearest"], "fallback": "linear", "help": "nearest keeps pixel art crisp when it is magnified" },
+            { "key": "repeat", "kind": "enum", "options": ["clamp", "repeat", "mirror"], "fallback": "clamp", "help": "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam" },
+            { "key": "mipmaps", "kind": "bool", "fallback": false, "help": "smaller copies for a texture drawn small, which stops it shimmering" },
+            { "key": "anisotropy", "kind": "count", "options": ["1", "2", "4", "8", "16"], "fallback": 1, "help": "samples per fetch on a surface seen edge-on; needs a linear filter" },
+            { "key": "premultiply", "kind": "bool", "fallback": false, "help": "color scaled by alpha at upload, so a soft edge blends without a dark fringe" },
+            { "key": "srgb", "kind": "bool", "fallback": true, "help": "off for a normal map or a mask, which carry data rather than color" },
+            { "key": "bleed", "kind": "bool", "fallback": true, "help": "the edge color spread under transparent texels, so a linear filter reads no fringe" },
+            { "key": "normal_map", "kind": "bool", "fallback": false, "help": "a normal map: data rather than color, so srgb is off unless set" },
+            { "key": "flip_green", "kind": "bool", "fallback": false, "help": "invert green, for a normal map baked the way DirectX reads one" },
+            { "key": "pixels_per_unit", "kind": "number", "fallback": 100.0, "step": 1.0, "help": "texture pixels to one world unit, for a sprite whose own is 0" },
+            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.25, "only": "svg", "help": "pixels per SVG unit; the raster a sprite measures" },
+            { "key": "recode", "kind": "enum", "options": ["original", "webp", "quantized"], "fallback": "export", "help": "how an export re-encodes this file, over [export] images" },
+            { "key": "quality", "kind": "number", "fallback": 80.0, "step": 5.0, "whole": true, "help": "the palette's 0 to 100 quality when this file is quantized" },
+        ],
+        "audio": [
+            { "key": "volume_linear", "kind": "number", "fallback": 1.0, "step": 0.05, "help": "the file's own level, multiplied into every play of it" },
+            { "key": "loop", "kind": "bool", "fallback": false, "help": "loop wherever it is played" },
+            { "key": "loop_offset", "kind": "number", "fallback": 0.0, "step": 0.1, "help": "seconds in that each repeat starts from, past an intro" },
+            { "key": "force_mono", "kind": "bool", "fallback": false, "help": "mixed to one channel at export; a WAV only" },
+            { "key": "max_rate_hz", "kind": "count", "options": ["0", "11025", "22050", "32000", "44100", "48000"], "fallback": 0, "help": "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
+            { "key": "recode", "kind": "enum", "options": ["original", "flac", "vorbis"], "fallback": "export", "help": "how an export re-encodes this file, over [export] audio" },
+        ],
+        "font": [
+            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.05, "help": "how much larger its glyphs draw and advance, in widgets and world text" },
+            { "key": "y_offset", "kind": "number", "fallback": 0.0, "step": 0.01, "help": "a nudge down as a fraction of the size, for a face that sits high" },
+            { "key": "hinting", "kind": "bool", "fallback": true, "help": "snap outlines to the pixel grid; off for a smooth face" },
+            { "key": "antialias", "kind": "bool", "fallback": true, "help": "smooth glyph edges; off draws every pixel on or off, for a pixel face" },
+        ],
+        "model": [
+            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.01, "help": "the model's units to the scene's: 0.01 for a file modeled in centimeters" },
+            { "key": "lods", "kind": "count", "options": ["0", "1", "2", "3", "4", "5", "6"], "fallback": 0, "help": "simpler copies built at load, each half the triangles of the one before" },
+            { "key": "lod_distance", "kind": "number", "fallback": 20.0, "step": 1.0, "help": "camera distance where the first simpler copy takes over; each next at twice it" },
+        ],
+    }
 }
 
 // What each `count` option writes: the sidecar holds a number, and a dropdown
 // hands back the text beside it.
 fn COUNTS() -> any {
-    map().with("0", 0).with("1", 1).with("2", 2).with("3", 3).with("4", 4).with("5", 5).with("6", 6).with("8", 8).with("16", 16).with("11025", 11025).with("22050", 22050).with("32000", 32000).with("44100", 44100).with("48000", 48000)
+    { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "8": 8, "16": 16, "11025": 11025, "22050": 22050, "32000": 32000, "44100": 44100, "48000": 48000 }
 }
 
 // The targets the panel shows a file shipping to; empty is this machine.
@@ -107,16 +108,16 @@ pub fn sidecar(state: editor::State, rel: str) -> any {
 // The settings held in one sidecar file, by absolute path.
 fn table_at(path: str) -> any {
     if !fs::exists(path) {
-        return map();
+        return {};
     }
     let text = fs::read(path);
     if text.is_none() {
-        return map();
+        return {};
     }
     let value = toml::parse(text.unwrap());
     if value.kind() != "map" {
         log::warn("{path} is not a settings file");
-        return map();
+        return {};
     }
     value
 }
@@ -217,57 +218,62 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     }
     let whole = spec.whole.as_bool();
     let kind_of_row = spec.kind.as_str();
-    let control = if kind_of_row == "number" {
-        map()
-            .with("kind", "number_field")
-            .with("grow", 1)
-            .with("tooltip", spec.help)
-            .with("arrows", true)
-            .with("value", shown)
-            .with("step", spec.step)
-            .with("drag_speed", spec.step)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_number_changed).with("rel", rel).with("key", key).with("whole", whole))
+    let control: any = if kind_of_row == "number" {
+        {
+            "kind": "number_field",
+            "grow": 1,
+            "tooltip": spec.help,
+            "arrows": true,
+            "value": shown,
+            "step": spec.step,
+            "drag_speed": spec.step,
+            "on": "handle",
+            "data": { "fn": on_number_changed, "rel": rel, "key": key, "whole": whole },
+        }
     } else if kind_of_row == "bool" {
-        map()
-            .with("kind", "checkbox")
-            .with("text", "")
-            .with("tooltip", spec.help)
-            .with("checked", effective.as_bool())
-            .with("on", "handle")
-            .with("data", map().with("fn", on_flag_toggled).with("rel", rel).with("key", key))
+        {
+            "kind": "checkbox",
+            "text": "",
+            "tooltip": spec.help,
+            "checked": effective.as_bool(),
+            "on": "handle",
+            "data": { "fn": on_flag_toggled, "rel": rel, "key": key },
+        }
     } else if kind_of_row == "count" {
         let count = if effective.kind() == "int" { effective } else { spec.fallback };
-        map()
-            .with("kind", "dropdown")
-            .with("grow", 1)
-            .with("tooltip", spec.help)
-            .with("text", "{count.as_int()}")
-            .with("options", spec.options)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_count_picked).with("rel", rel).with("key", key).with("spec", spec))
+        {
+            "kind": "dropdown",
+            "grow": 1,
+            "tooltip": spec.help,
+            "text": "{count.as_int()}",
+            "options": spec.options,
+            "on": "handle",
+            "data": { "fn": on_count_picked, "rel": rel, "key": key, "spec": spec },
+        }
     } else {
-        map()
-            .with("kind", "dropdown")
-            .with("grow", 1)
-            .with("tooltip", spec.help)
-            .with("text", if effective.kind() == "str" { effective.as_str() } else { spec.fallback.as_str() })
-            .with("options", spec.options)
-            .with("on", "handle")
-            .with("data", map().with("fn", on_choice_picked).with("rel", rel).with("key", key))
+        {
+            "kind": "dropdown",
+            "grow": 1,
+            "tooltip": spec.help,
+            "text": if effective.kind() == "str" { effective.as_str() } else { spec.fallback.as_str() },
+            "options": spec.options,
+            "on": "handle",
+            "data": { "fn": on_choice_picked, "rel": rel, "key": key },
+        }
     };
     // What the value is following, or the way back to following it.
-    let note = if has_own {
-        map()
-            .with("kind", "button")
-            .with("text", "reset")
-            .with("role", "chip")
-            .with("width", 52)
-            .with("tooltip", "Drop this key and follow the project again")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_reset_clicked).with("rel", rel).with("key", key))
+    let note: any = if has_own {
+        {
+            "kind": "button",
+            "text": "reset",
+            "role": "chip",
+            "width": 52,
+            "tooltip": "Drop this key and follow the project again",
+            "on": "handle",
+            "data": { "fn": on_reset_clicked, "rel": rel, "key": key },
+        }
     } else {
-        map().with("kind", "label").with("text", source).with("role", "text_caption").with("width", 52)
+        { "kind": "label", "text": source, "role": "text_caption", "width": 52 }
     };
     inspector::form_row(state, key, [control, note]);
 }
@@ -407,7 +413,7 @@ pub fn fill(state: &mut editor::State) -> Fill {
     }
     if kind == "texture" || kind == "audio" {
         for pair in shipped(state, image) {
-            inspector::form_row(state, pair[0], [map().with("kind", "label").with("text", pair[1]).with("tooltip", pair[2]).with("role", "text_caption").with("grow", 1)]);
+            inspector::form_row(state, pair[0], [{ "kind": "label", "text": pair[1], "tooltip": pair[2], "role": "text_caption", "grow": 1 }]);
         }
     }
     inspector::close_pool_into(state, FORM);

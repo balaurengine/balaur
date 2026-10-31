@@ -24,7 +24,7 @@ pub fn step(state: &mut editor::State) {
     } else if state.bench == "position" {
         model::set_component_property(state, "transform", "position", [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
     } else if state.bench == "engine_text" {
-        found.patch_component("text2d", map().with("text", if flip { "one" } else { "two" }));
+        found.patch_component("text2d", { "text": if flip { "one" } else { "two" } });
     }
     ui::request_repaint();
 }

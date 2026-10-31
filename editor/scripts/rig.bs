@@ -42,13 +42,6 @@ pub struct Was {
     data: any,
 }
 
-pub struct LabelOptions {
-    font_size: float,
-    color: [float],
-    text_align: str,
-    pixels_per_unit: float,
-}
-
 /// The rig tool's own state, hung on `state.rig`. `drag` is the modifier target
 /// handle being moved.
 pub fn state() -> RigState {
@@ -530,7 +523,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
     let base = root.path();
     // Read every rest first: a mirror is a swap, and swapping in place would
     // hand the second bone what the first had already been given.
-    let was = map();
+    let was: any = {};
     for bone in bones {
         let found = bone.as_node();
         let at = model::index_of_node(state, found);
@@ -611,7 +604,7 @@ fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, color
     if state.tool != "bone" && state.rig.hover != row && row != state.selected {
         return;
     }
-    let options = LabelOptions {
+    let options = render::TextOptions {
         font_size: 28.0,
         color: color,
         text_align: "center",
@@ -642,14 +635,15 @@ pub fn add_bone(state: &mut editor::State, parent_index: int, world_x: float, wo
     }
     // A 3D rig has no click to place a bone by, so it grows one unit up.
     let component = if state.mode2d { "bone2d" } else { "bone3d" };
-    let rest = if state.mode2d {
-        map().with("rest_position", [local_x, local_y]).with("rest_rotation", 0.0)
+    let rest: any = if state.mode2d {
+        { "rest_position": [local_x, local_y], "rest_rotation": 0.0 }
     } else {
-        map().with("rest_position", [local_x, local_y, 0.0])
+        { "rest_position": [local_x, local_y, 0.0] }
     };
-    let child = model::spawn(state, parent_node, "Bone", map()
-        .with("transform", map().with("position", [local_x, local_y, 0.0]))
-        .with(component, rest));
+    let child = model::spawn(state, parent_node, "Bone", {
+        "transform": { "position": [local_x, local_y, 0.0] },
+        component: rest,
+    });
     model::reindex(state);
     let at = model::index_of_node(state, child).unwrap_or(0);
     selection::only(state, at);
@@ -742,7 +736,7 @@ pub fn physical_bones(state: &mut editor::State) {
     history::record(state, "create physical skeleton", nil);
     // Kept in the scene, so they land in the tree and in the file; the rig
     // itself gains the `ragdoll` component that drives its bones from them.
-    let options = map().with("parent", state.scene_root.unwrap());
+    let options: any = { "parent": state.scene_root.unwrap() };
     let made = if state.mode2d { physics2d::ragdoll(found, options) } else { physics3d::ragdoll(found, options) };
     model::reindex(state);
     log::info("{util::list_or_empty(made).len()} physical bones built");

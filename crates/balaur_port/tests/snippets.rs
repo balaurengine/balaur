@@ -200,7 +200,7 @@ pub fn fresh() {
     );
     has(&out, "seen: any,");
     has(&out, "S.seen.set(key, value);");
-    has(&out, "State { seen: map() }");
+    has(&out, "State { seen: {} }");
 }
 
 #[test]
@@ -215,7 +215,7 @@ pub fn hide(id) {
     );
     has(
         &out,
-        "found.patch_component(\"widget\", map().with(\"visible\", false).with(\"text\", id));",
+        "found.patch_component(\"widget\", { \"visible\": false, \"text\": id });",
     );
     lacks(&out, "struct");
 }
@@ -510,7 +510,7 @@ pub fn rows(kind) {
     );
     lacks(&out, "struct Rows");
     has(&out, "fn ROWS() -> any {");
-    has(&out, "map()");
+    has(&out, "{ \"texture\": [{ \"key\": \"filter\" }]");
 }
 
 #[test]
@@ -556,11 +556,8 @@ pub fn tabs(S, held) {
 }
 "#,
     );
-    has(&out, ".with(\"on\", \"handle\")");
-    has(
-        &out,
-        ".with(\"data\", map().with(\"fn\", tabs_on_0).with(\"held\", held))",
-    );
+    has(&out, "\"on\": \"handle\"");
+    has(&out, "\"data\": { \"fn\": tabs_on_0, \"held\": held }");
     has(&out, "fn tabs_on_0(S: &mut State, data: any, _0: any) {");
     has(&out, "let held: any = data.held;");
 }

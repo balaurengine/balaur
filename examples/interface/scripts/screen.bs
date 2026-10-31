@@ -61,7 +61,7 @@ impl Screen {
     fn fill(name: str, options: [str]) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.patch_component("widget", map().with("options", options));
+            found.patch_component("widget", { "options": options });
         }
     }
 
@@ -252,7 +252,7 @@ impl Screen {
         let y = here.y + here.height / 2.0 + (end.y + end.height / 2.0 - here.y - here.height / 2.0) * e;
         let cursor = self.node.get_node("Cursor");
         if cursor.is_valid() {
-            cursor.patch_component("widget", map().with("x", x).with("y", y).with("visible", true));
+            cursor.patch_component("widget", { "x": x, "y": y, "visible": true });
         }
     }
 
@@ -268,20 +268,21 @@ impl Screen {
         let back = 1.0 - p;
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
-        node.patch_component("widget", map()
-            .with("x", held.x - d / 2.0)
-            .with("y", held.y - d / 2.0)
-            .with("width", d)
-            .with("height", d)
-            .with("radius", d / 2.0)
-            .with("fill", alpha("#6fa4d8", 0.30 * left))
-            .with("stroke", alpha("#ffffff", left))
-            .with("visible", true));
+        node.patch_component("widget", {
+            "x": held.x - d / 2.0,
+            "y": held.y - d / 2.0,
+            "width": d,
+            "height": d,
+            "radius": d / 2.0,
+            "fill": alpha("#6fa4d8", 0.30 * left),
+            "stroke": alpha("#ffffff", left),
+            "visible": true,
+        });
         held.age += 1;
         self.ring = held;
         if held.age >= RIPPLE {
             self.ring = nil;
-            node.patch_component("widget", map().with("visible", false));
+            node.patch_component("widget", { "visible": false });
         }
     }
 }
@@ -324,7 +325,7 @@ impl Screen {
         }
         let pages = self.node.get_node(PAGES);
         if pages.is_valid() {
-            pages.patch_component("widget", map().with("active", name));
+            pages.patch_component("widget", { "active": name });
         }
     }
 }

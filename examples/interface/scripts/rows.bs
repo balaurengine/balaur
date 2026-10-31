@@ -40,12 +40,13 @@ impl Rows {
         self.cards = screen::cards_in_order();
         // Two rows held at once, which is what `multi` is for; a script reads
         // `selection` back rather than the one row `text` carries.
-        self.fill(LIST, map()
-            .with("options", self.cards)
-            .with("selection", [self.cards[1], self.cards[2]])
-            .with("text", self.cards[2]));
-        self.fill("Sheet/Views/TreeBox/Outline", map().with("options", screen::outline()));
-        self.fill("Sheet/Views/TableBox/Table", map().with("options", screen::table()));
+        self.fill(LIST, {
+            "options": self.cards,
+            "selection": [self.cards[1], self.cards[2]],
+            "text": self.cards[2],
+        });
+        self.fill("Sheet/Views/TreeBox/Outline", { "options": screen::outline() });
+        self.fill("Sheet/Views/TableBox/Table", { "options": screen::table() });
     }
 
     /// A row dropped somewhere else in the list, which the kind reports and this
@@ -69,7 +70,7 @@ impl Rows {
             }
         }
         self.cards = out;
-        self.fill(LIST, map().with("options", out).with("text", moved).with("selection", [moved]));
+        self.fill(LIST, { "options": out, "text": moved, "selection": [moved] });
     }
 
     // Late enough that the layout has settled and the rows are in.

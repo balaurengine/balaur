@@ -63,7 +63,7 @@ impl FirstPerson {
             eye.y + math::sin(pitch) * FAR,
             eye.z - math::cos(yaw) * flat,
         ];
-        self.eye.patch_component("camera3d", map().with("look_at", ahead));
+        self.eye.patch_component("camera3d", { "look_at": ahead });
         self.node.transform.rotation_euler = [0.0, yaw, 0.0];
     }
 

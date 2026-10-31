@@ -466,8 +466,13 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[(
+        "ConnectOptions",
+        "{ on_event: string?, compression: bool?, headers: any }",
+        "How `connect` opens a socket: the method that hears its events, whether frames are compressed, and the upgrade request's `headers`.",
+    )]);
     m.describe(&[
-        ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
+        ("connect", &[], "(node: any, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
         ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
         ("state", &[], "", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),

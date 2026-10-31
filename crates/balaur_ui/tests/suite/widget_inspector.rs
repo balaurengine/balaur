@@ -290,10 +290,16 @@ fn an_inspector_a_script_pools_fills_and_draws_its_rows() {
 impl Root {
     fn update(dt: float) {
         self.path = scene::get_node(\"Root\").path();
-        let inspector = map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"gap\", [2, 2])
-            .with(\"target\", self.path).with(\"component\", \"transform\").with(\"label_width\", 60.0)
-            .with(\"on\", \"edited\");
-        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [inspector])];
+        let inspector: any = {
+            \"kind\": \"inspector\",
+            \"grow\": 1,
+            \"gap\": [2, 2],
+            \"target\": self.path,
+            \"component\": \"transform\",
+            \"label_width\": 60.0,
+            \"on\": \"edited\",
+        };
+        let rows: [any] = [{ \"full\": true, \"height\": 0, \"controls\": [inspector] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn edited(data: any, edit: any) { self.edits += 1.0; }
@@ -352,13 +358,13 @@ fn a_slot_that_stops_being_an_inspector_takes_its_rows_with_it() {
         "pub class Root { node: Node, flipped: bool }
 impl Root {
     fn update(dt: float) {
-        let control = if self.flipped {
-            let labels: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"a\"), map().with(\"kind\", \"label\").with(\"text\", \"b\")];
-            map().with(\"controls\", labels)
+        let control: any = if self.flipped {
+            let labels: [any] = [{ \"kind\": \"label\", \"text\": \"a\" }, { \"kind\": \"label\", \"text\": \"b\" }];
+            { \"controls\": labels }
         } else {
-            map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"target\", \"Root\").with(\"component\", \"transform\")
+            { \"kind\": \"inspector\", \"grow\": 1, \"target\": \"Root\", \"component\": \"transform\" }
         };
-        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [control])];
+        let rows: [any] = [{ \"full\": true, \"height\": 0, \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn flip() { self.flipped = !self.flipped; }

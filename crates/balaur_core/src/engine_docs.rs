@@ -115,6 +115,26 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
             "{ name: string, type: string, value: any, persist: bool }",
             "A scene variable: its name, declared type, current value and whether it is saved.",
         ),
+        (
+            "InstantiateOptions",
+            "{ scripts: bool?, root: string? }",
+            "How `instantiate` builds: `scripts: false` names each node's script without running it, and `root` is the project the text names its files from.",
+        ),
+        (
+            "ToTomlOptions",
+            "{ root: string? }",
+            "The project whose root `to_toml` writes every path under, as it spells it.",
+        ),
+        (
+            "SwitchOptions",
+            "{ fade: float? }",
+            "Seconds of crossover a `switch` fades through.",
+        ),
+        (
+            "Change",
+            "{ node: node, kind: string, id: string, component: string?, properties: any, parent: string?, place: int?, was: any }",
+            "One kept change: the node, its stable id and the `kind` of change, the `component` and `properties` written or the `parent` and `place` moved to, and `was`, what it replaced.",
+        ),
     ]);
     m.describe(&[
         ("root", &[], "() -> node", "The tree's root node."),
@@ -125,11 +145,11 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("changed_since", &[], "(component: string, tick: int) -> [node]", "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder."),
         ("removed_since", &[], "(component: string, tick: int) -> [node]", "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear."),
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
-        ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document (TOML text, not a path) under a parent. `{ scripts: false }` names each node's script without running it; `{ root: path }` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
-        ("to_toml", &[], "(root: node, opts: any?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `{ root: path }` writes every path under that project's root as it spells it."),
-        ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `{ scripts: false }`."),
+        ("instantiate", &[], "(source: string, parent: node?, opts: InstantiateOptions?)", "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
+        ("to_toml", &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
+        ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`."),
         ("keep_changes", &[], "(root: node?)", "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged."),
-        ("take_changes", &[], "() -> [any]", "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names."),
+        ("take_changes", &[], "() -> [Change]", "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names."),
         ("source", &[], "(path: string) -> string?", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "() -> [string]", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string) -> [string]?", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
@@ -144,7 +164,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("variable", &[], "(name: string) -> any", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "() -> [Variable]", "Every declared variable as `{ name, type, value, persist }`, in name order."),
-        ("switch", &[], "(path: string, options: map?)", "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second; reset is a switch to the same file."),
+        ("switch", &[], "(path: string, options: SwitchOptions?)", "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second; reset is a switch to the same file."),
         ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
         ("binding_actions", &[], "() -> [string]", "Every action a binding row may do, in the order an editor offers them."),
     ]);
@@ -184,12 +204,17 @@ pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_regex(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.",
+        "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is a `Match`, with byte offsets and one string per capture group, nil for a group that took no part.",
     );
+    m.records(&[(
+        "Match",
+        "{ start: int, end: int, text: string, groups: [any] }",
+        "One match: its byte offsets, its text and one string per capture group, nil for a group that took no part.",
+    )]);
     m.describe(&[
         ("matches", &[], "(pattern: string, text: string) -> bool", "Whether the pattern matches anywhere in `text`."),
-        ("search", &[], "(pattern: string, text: string) -> table?", "The first match, or nil."),
-        ("search_all", &[], "(pattern: string, text: string) -> [table]", "Every non-overlapping match, in order."),
+        ("search", &[], "(pattern: string, text: string) -> Match?", "The first match, or nil."),
+        ("search_all", &[], "(pattern: string, text: string) -> [Match]", "Every non-overlapping match, in order."),
         ("replace", &[], "(pattern: string, text: string, with: string, all: bool?) -> string", "`text` with the first match replaced, or every match when `all` is true; `$1` and `${name}` in `with` stand for groups."),
         ("split", &[], "(pattern: string, text: string) -> [string]", "The pieces of `text` between matches."),
         ("escape", &[], "(text: string) -> string", "`text` with every metacharacter escaped, so it matches itself."),

@@ -196,7 +196,7 @@ fn a_script_listening_for_saved_hears_a_slot_written() {
     fn update(dt: float) {
         if scene::variable("said").as_str() == "" {
             scene::set_variable("said", "asked;");
-            save::write("probe", map().with("n", 1));
+            save::write("probe", { "n": 1 });
         }
     }
     pub fn on_saved(count: any) { tell("saved"); }

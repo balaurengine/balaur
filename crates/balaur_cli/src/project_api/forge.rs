@@ -135,7 +135,7 @@ fn install_forge_api(m: &mut dyn Bindings<Engine>) {
         (
             "listen",
             &[],
-            "(node: node, opts: map?)",
+            "(node: node, opts: events::ListenOptions?)",
             "Call a method on `node` with every report: `on_forge_event` unless `opts.on_event` names another.",
         ),
     ]);

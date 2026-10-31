@@ -224,23 +224,6 @@ fn copy(a: &A) -> A {
     }
 }
 
-/// A new map: this one's entries copied, with `key` set to a copy of `item`.
-pub(super) fn with(a: &A, key: &str, item: &A) -> A {
-    let mut pairs = match a {
-        A::Map(m) => m
-            .borrow()
-            .iter()
-            .map(|(k, v)| (k.clone(), copy(v)))
-            .collect(),
-        _ => Vec::new(),
-    };
-    match pairs.iter_mut().find(|(k, _)| k == key) {
-        Some(slot) => slot.1 = copy(item),
-        None => pairs.push((key.into(), copy(item))),
-    }
-    map(pairs)
-}
-
 pub(super) fn set(a: &A, key: &str, item: A) -> bool {
     let A::Map(m) = a else { return false };
     let mut m = m.borrow_mut();

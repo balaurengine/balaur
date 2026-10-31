@@ -1,0 +1,3 @@
+pub fn f(a: any) -> any { a.with("k", 1) }
+
+// error: 1:28: an `any` has no `with`: write the map as a literal, `{ "k": v }`, or `set` the key on the map

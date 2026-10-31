@@ -55,16 +55,17 @@ impl Output {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Log").patch_component("widget", map().with("options", view.get("items")));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        self.node.get_node("Log").patch_component("widget", { "options": view.get("items") });
+        self.node.get_node("Nothing").patch_component("widget", {
+            "visible": view.get("says").as_str() != "",
+            "text": view.get("says"),
+        });
         let tools = self.node.get_node("Tools");
         for level in LEVELS() {
             let on = level == self.level;
             // A chip's own lit state: the theme dresses it, nothing here names a
             // colour.
-            tools.get_node(level).patch_component("widget", map().with("checked", on));
+            tools.get_node(level).patch_component("widget", { "checked": on });
         }
     }
 }

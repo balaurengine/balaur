@@ -182,7 +182,7 @@ fn flood(state: editor::State, column: int, row: int) -> [Cell] {
     let start = origin(state);
     let wide = columns(rows);
     let tall = rows.len();
-    let seen = map();
+    let seen: any = {};
     let queue = [Cell { x: column, y: row }];
     let out: [Cell] = [];
     while queue.len() > 0 && out.len() < FILL_LIMIT {
@@ -336,7 +336,7 @@ fn file_backed(edited_component: any) -> bool {
 
 /// Rows of tile ids as the `cells` property holds them in the scene.
 fn inline(rows: [[int]]) -> any {
-    map().with("kind", "inline").with("rows", rows)
+    { "kind": "inline", "rows": rows }
 }
 
 /// The tile set behind the selected map: its texture, tile size and columns.
@@ -852,9 +852,9 @@ fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
         log::warn("the tile set will not load: {definition}");
         return false;
     }
-    let tiles = if definition.tiles.kind() == "map" { definition.tiles } else { map() };
+    let tiles: any = if definition.tiles.kind() == "map" { definition.tiles } else { {} };
     let id = "{state.tiles.tile}";
-    let tile = if tiles.get(id).kind() == "map" { tiles.get(id) } else { map() };
+    let tile: any = if tiles.get(id).kind() == "map" { tiles.get(id) } else { {} };
     if value.is_nil() {
         tile.remove(key);
     } else {
@@ -872,14 +872,14 @@ fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
 fn tile_table(state: editor::State) -> any {
     let relative_path = tileset_file(state);
     if relative_path.is_none() {
-        return map();
+        return {};
     }
     let definition = assets::load(util::engine_path(state.game_root, relative_path.unwrap()));
     if definition.kind() != "map" {
-        return map();
+        return {};
     }
     let found = definition.tiles.get("{state.tiles.tile}");
-    if found.kind() == "map" { found } else { map() }
+    if found.kind() == "map" { found } else { {} }
 }
 
 /// The Set rows: what the selected tile is, written back to the tile set.
@@ -908,7 +908,7 @@ fn set_rows(state: editor::State, out: [[any]]) {
 
 // One of the tile's own flags, written back as it is pressed.
 fn flag_chip(text: str, on: bool, key: str, value: any) -> any {
-    chip(text, on, on_flag_chip_clicked, map().with("key", key).with("value", value))
+    chip(text, on, on_flag_chip_clicked, { "key": key, "value": value })
 }
 
 fn on_flag_chip_clicked(state: &mut editor::State, data: any, _value: any) {
@@ -918,7 +918,7 @@ fn on_flag_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 /// A chip that is on or off, and what pressing it does: `handler` with `data`. The
 /// theme dresses both states; nothing here names a colour.
 fn chip(text: str, on: bool, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    pool::on(map().with("kind", "button").with("text", text).with("role", "chip").with("checked", on), handler, data)
+    pool::on({ "kind": "button", "text": text, "role": "chip", "checked": on }, handler, data)
 }
 
 // The Tiles panel's strip of chips, which the pool makes into nodes.
@@ -965,18 +965,18 @@ pub fn palette(state: &mut editor::State) -> Palette {
 }
 
 fn note(text: str) -> any {
-    map().with("kind", "label").with("role", "text_caption").with("text", text)
+    { "kind": "label", "role": "text_caption", "text": text }
 }
 
 // The row every mode is on: the tools, the two verbs, and which tile is held.
 fn mode_row(state: editor::State, out: [[any]]) {
     let row: [any] = [];
     for id in MODES() {
-        row.push(chip(mode_name(id), state.tiles.mode == id, on_mode_chip_clicked, map().with("id", id)));
+        row.push(chip(mode_name(id), state.tiles.mode == id, on_mode_chip_clicked, { "id": id }));
     }
-    row.push(chip("Add layer", false, on_add_layer_clicked, map()));
-    row.push(chip("Set", state.tiles.editing, on_set_clicked, map()));
-    row.push(map().with("kind", "row").with("grow", 1));
+    row.push(chip("Add layer", false, on_add_layer_clicked, {}));
+    row.push(chip("Set", state.tiles.editing, on_set_clicked, {}));
+    row.push({ "kind": "row", "grow": 1 });
     row.push(note("tile {state.tiles.tile}"));
     out.push(row);
 }
@@ -997,10 +997,10 @@ fn on_set_clicked(state: &mut editor::State, data: any, _value: any) {
 fn stamp_row(state: editor::State, out: [[any]]) {
     let row = [note("block")];
     for wide in [1, 2, 3, 4] {
-        row.push(chip("{wide} wide", state.tiles.stamp.wide == wide, on_stamp_size_clicked, map().with("wide", wide).with("tall", state.tiles.stamp.tall)));
+        row.push(chip("{wide} wide", state.tiles.stamp.wide == wide, on_stamp_size_clicked, { "wide": wide, "tall": state.tiles.stamp.tall }));
     }
     for tall in [1, 2, 3, 4] {
-        row.push(chip("{tall} tall", state.tiles.stamp.tall == tall, on_stamp_size_clicked, map().with("wide", state.tiles.stamp.wide).with("tall", tall)));
+        row.push(chip("{tall} tall", state.tiles.stamp.tall == tall, on_stamp_size_clicked, { "wide": state.tiles.stamp.wide, "tall": tall }));
     }
     out.push(row);
 }
@@ -1017,7 +1017,7 @@ fn terrain_row(state: editor::State, out: [[any]]) {
     }
     let row: [any] = [];
     for entry in named {
-        row.push(chip(entry.name, state.tiles.terrain == entry.value, on_terrain_clicked, map().with("value", entry.value)));
+        row.push(chip(entry.name, state.tiles.terrain == entry.value, on_terrain_clicked, { "value": entry.value }));
     }
     out.push(row);
 }
@@ -1030,7 +1030,7 @@ fn on_terrain_clicked(state: &mut editor::State, data: any, _value: any) {
 fn layer_row(state: editor::State, found: [Layer], out: [[any]]) {
     let row = [note("layers")];
     for layer in found {
-        row.push(chip(layer.name, layer.index == state.selected, on_layer_clicked, map().with("index", layer.index)));
+        row.push(chip(layer.name, layer.index == state.selected, on_layer_clicked, { "index": layer.index }));
     }
     out.push(row);
 }

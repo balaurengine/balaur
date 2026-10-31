@@ -697,11 +697,16 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("teleport", &[c::BODY_3D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. `#{ rotation = [x, y, z] }` turns it too, in Euler radians."),
+        ("teleport", &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
         ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`."),
         ("predict_position_with_forces", &[c::BODY_3D], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
         ("next_position", &[c::BODY_3D], "", "The pose a kinematic body has been told to move to, as `#{ position, rotation }`."),
     ]);
+    m.records(&[(
+        "TeleportOptions",
+        "{ rotation: any }",
+        "How `teleport` turns the body as it moves it: Euler radians, x first.",
+    )]);
     m.function(
         "teleport",
         |eng: &Engine,

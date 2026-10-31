@@ -20,7 +20,7 @@ impl Ball {
         node.body2d.apply_impulse(0.0, 5.0);
     }
     fn update(dt: float) {
-        let hit = physics2d::raycast(nil);
+        let hit = physics2d::raycast(physics2d::RayQuery {});
         self.speed = helper::assist(self.speed);
     }
 }

@@ -1,0 +1,15 @@
+// A struct boxed into an `any` is a map of its fields, less the `T?` ones
+// that are nil, as a table that never set them.
+
+struct Spec { kind: str, text: str?, width: float?, tags: [str]? }
+
+fn keep(a: any) -> any { a }
+
+pub fn boxed() -> str {
+    let bare = keep(Spec { kind: "label" });
+    let full = keep(Spec { kind: "button", text: "go", width: 2.0, tags: ["a"] });
+    let back: Spec = bare;
+    "{bare} {bare.has("text")} {full} {back.text.is_none()}"
+}
+
+// expect: boxed() == "{\"kind\": \"label\"} false {\"kind\": \"button\", \"text\": \"go\", \"width\": 2.0, \"tags\": [\"a\"]} true"

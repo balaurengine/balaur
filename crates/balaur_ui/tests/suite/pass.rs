@@ -305,7 +305,7 @@ fn a_pasted_image_is_said_and_written_out() {
 #[test]
 fn a_theme_can_be_set_from_a_script() {
     run_clean(
-        r##"ui::set_theme(map().with("panel", "#101418").with("text", "#f0f0f0").with("accent", "#d5814e"));"##,
+        r##"ui::set_theme({ "panel": "#101418", "text": "#f0f0f0", "accent": "#d5814e" });"##,
     );
 }
 

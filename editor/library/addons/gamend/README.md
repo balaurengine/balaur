@@ -10,7 +10,7 @@ use addons::gamend::lobbies;
 use addons::gamend::events::lobby;
 
 gamend::configure("https://gamend.org");
-let reply = await task::wait(lobbies::quick_join(self.node, map().with("title", "duel").with("max_users", 2)));
+let reply = await task::wait(lobbies::quick_join(self.node, { "title": "duel", "max_users": 2 }));
 if e.get("kind").as_str() == lobby::MEMBER_JOINED { }
 ```
 

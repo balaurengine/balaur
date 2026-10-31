@@ -135,7 +135,7 @@ fn drop_point(state: &mut editor::State) -> [float] {
 /// Add one node carrying `parts` under the scene's root, at the drop point.
 /// History is the caller's, and so is selecting what was placed.
 fn place(state: &mut editor::State, name: str, parts: any) -> Node {
-    let entry = map().with("transform", map().with("position", drop_point(state)));
+    let entry: any = { "transform": { "position": drop_point(state) } };
     for key in parts.keys() {
         entry.set(key, parts.get(key));
     }
@@ -155,11 +155,12 @@ fn drop_image(state: &mut editor::State, path: str) -> Node {
 fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
     history::record(state, "drop " + rel, nil);
     if model::is_2d(state) {
-        place(state, name, map().with("sprite", map().with("texture", rel)))
+        place(state, name, { "sprite": { "texture": rel } })
     } else {
-        place(state, name, map()
-            .with("shape3d", map().with("shape", map().with("kind", render::SHAPE_BOX).with("size", [1.0, 0.002, 1.0])))
-            .with("mesh", map().with("texture", rel)))
+        place(state, name, {
+            "shape3d": { "shape": { "kind": render::SHAPE_BOX, "size": [1.0, 0.002, 1.0] } },
+            "mesh": { "texture": rel },
+        })
     }
 }
 
@@ -173,9 +174,10 @@ fn drop_shader(state: &mut editor::State, path: str) -> Node {
     let name = stem_of(path);
     let material = "materials/{name}.toml";
     fs::create_directory(state.game_root + "/materials");
-    fs::write(state.game_root + "/" + material, toml::encode(map()
-        .with("type", "material")
-        .with("shader", rel)));
+    fs::write(state.game_root + "/" + material, toml::encode({
+        "type": "material",
+        "shader": rel,
+    }));
     model::forget(state, nil);
     log::info("wrote " + material);
     nil
@@ -200,12 +202,12 @@ pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
     // retargeted rather than joined by a second.
     for found in state.nodes {
         if found.has_component("environment") {
-            found.patch_component("environment", map().with("sky", rel));
+            found.patch_component("environment", { "sky": rel });
             log::info("sky is now " + rel);
             return found;
         }
     }
-    place(state, "Environment", map().with("environment", map().with("sky", rel)))
+    place(state, "Environment", { "environment": { "sky": rel } })
 }
 
 /// A font is copied and nothing is placed: a font is named by a `text`
@@ -279,7 +281,7 @@ pub fn in_flight(state: editor::State) -> int {
 pub fn sweep(state: &mut editor::State) {
     let until = kept_until(state);
     if until > 0.0 && engine::unix_time() > until {
-        state.jobs = map();
+        state.jobs = {};
     }
 }
 
@@ -319,7 +321,7 @@ fn ended(state: &mut editor::State, source: str, over: str) {
 
 // One import's line in the list, as it starts.
 fn new_job(source: str, files: int) -> any {
-    map().with("name", file_name(source)).with("done", 0).with("files", files).with("over", "").with("at", 0.0)
+    { "name": file_name(source), "done": 0, "files": files, "over": "", "at": 0.0 }
 }
 
 /// Every import reports here, one call per step: what is coming, each file as
@@ -375,13 +377,13 @@ pub fn place_file(state: &mut editor::State, rel: str) -> bool {
         model::instance_scene(state, rel);
         return true;
     }
-    let placed = if kind == "image" {
+    let placed: any = if kind == "image" {
         place_image(state, rel, stem_of(rel))
     } else if kind == "sky" {
         name_sky(state, rel, "drop sky")
     } else if recipes::is_model(rel) && !model::is_2d(state) {
         history::record(state, "drop " + rel, nil);
-        place(state, stem_of(rel), map().with("mesh", map().with("source", map().with("source", rel))))
+        place(state, stem_of(rel), { "mesh": { "source": { "source": rel } } })
     } else {
         log::warn("{file_name(rel)} is not a thing to place in the scene");
         nothing()

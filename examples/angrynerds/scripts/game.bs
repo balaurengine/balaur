@@ -54,7 +54,7 @@ impl Game {
         // Capture initial state so R can rebuild the level in place. Each entry
         // remembers its top-level owner so popping a pig pops its whole subtree.
         self.level = [];
-        self.pigs = map();
+        self.pigs = {};
         self.capture(self.root, nil);
         for entry in self.level {
             if entry.owner.starts_with("Pig") && entry.name == entry.owner {
@@ -150,7 +150,7 @@ impl Game {
     fn rearm_bird() {
         self.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
         self.bird.transform.rotation_euler = [0.0, 0.0, 0.0];
-        self.bird.set_component("body2d", map().with("kind", physics2d::BODY_KINEMATIC));
+        self.bird.set_component("body2d", { "kind": physics2d::BODY_KINEMATIC });
         self.launched = false;
         self.rest_timer = 0.0;
     }
@@ -193,7 +193,7 @@ impl Game {
                     let ix = (ANCHOR_X - p.x) * POWER;
                     let iy = (ANCHOR_Y - p.y) * POWER;
                     if math::sqrt(ix * ix + iy * iy) > 1.0 {
-                        self.bird.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
+                        self.bird.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
                         self.bird.body2d.apply_impulse(ix, iy);
                         self.launched = true;
                         self.birds_left -= 1;

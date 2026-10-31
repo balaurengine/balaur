@@ -100,7 +100,7 @@ pub class Editor { s: State, said: str }
 impl Editor {
     pub fn click() {
         self.s = State { log: "" };
-        let spec = map().with("on", "handle").with("data", map().with("fn", picked).with("row", "a"));
+        let spec: any = { "on": "handle", "data": { "fn": picked, "row": "a" } };
         handle(self.s, spec.data, 3);
         handle(self.s, spec.data, "b");
         self.said = self.s.log;

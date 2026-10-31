@@ -254,11 +254,7 @@ impl Gen {
                     E::Index(r, Box::new(at))
                 }
             }
-            3 => {
-                let r = Box::new(self.any_expr(s, d));
-                let k = self.key();
-                E::Method(r, "with", vec![k, self.any_arg(s, d)])
-            }
+            3 => E::MapAny,
             4 => {
                 let r = Box::new(self.any_expr(s, d));
                 let k = if self.rng.chance(2) {
@@ -311,11 +307,6 @@ impl Gen {
         match self.rng.below(6) {
             0 => E::NilAny,
             1 => E::MapAny,
-            2 => {
-                let r = Box::new(self.any_expr(s, d));
-                let k = self.key();
-                E::Method(r, "with", vec![k, self.any_arg(s, d)])
-            }
             _ => self.boxed(s, d),
         }
     }
@@ -384,7 +375,7 @@ impl Gen {
     }
 
     /// Whether to read an `any` here: always when one is in scope, now and
-    /// then from `nil()` or `map()` when none is.
+    /// then from `nil()` or `any_map()` when none is.
     fn reads_any(&mut self, s: &Scope) -> bool {
         !s.of(T::Any).is_empty() || self.rng.chance(8)
     }

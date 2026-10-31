@@ -48,7 +48,7 @@ pub fn boxed() -> any {
 }
 
 pub fn unboxed() -> int {
-    let cell: any = map().with("x", 3).with("y", 4);
+    let cell: any = { "x": 3, "y": 4 };
     let point: {str: int} = cell;
     point["x"].unwrap() * 10 + point["y"].unwrap()
 }

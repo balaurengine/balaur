@@ -380,13 +380,13 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
         (
             "click",
             &[],
-            "(node: node, opts: map?) -> bool",
+            "(node: node, opts: ClickOptions?) -> bool",
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
             "reread",
             &[],
-            "(node: node, component: string?, properties: list?) -> bool",
+            "(node: node, component: string?, properties: [string]?) -> bool",
             "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         ),
         (
@@ -396,6 +396,11 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
             "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
         ),
     ]);
+    m.records(&[(
+        "ClickOptions",
+        "{ hidden: bool? }",
+        "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
+    )]);
     m.function(
         "reread",
         |eng: &Engine,

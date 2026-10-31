@@ -143,5 +143,5 @@ pub fn decode(topic: str, event: str, payload: any) -> any {
             break;
         }
     }
-    map().with("kind", named).with("topic", topic).with("event", event).with("payload", payload)
+    { "kind": named, "topic": topic, "event": event, "payload": payload }
 }

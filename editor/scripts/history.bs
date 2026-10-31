@@ -119,7 +119,7 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
 
 // The scene's `[[assets]]` as text, to tell two apart.
 fn blocks_text(assets: any) -> str {
-    if assets.is_nil() { "" } else { toml::encode(map().with("assets", assets)) }
+    if assets.is_nil() { "" } else { toml::encode({ "assets": assets }) }
 }
 
 // Both return the label of the step they moved through, or `nil` when the

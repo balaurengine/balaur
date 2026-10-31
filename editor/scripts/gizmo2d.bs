@@ -617,15 +617,16 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
                     // Empty space starts a marquee; the selection only
                     // changes when the drag is released. Screen and world
                     // both, because one draws and the other tests.
-                    state.gizmo.marquee = map()
-                        .with("start_x", pointer.x)
-                        .with("start_y", pointer.y)
-                        .with("end_x", pointer.x)
-                        .with("end_y", pointer.y)
-                        .with("world_start_x", world_x)
-                        .with("world_start_y", world_y)
-                        .with("world_end_x", world_x)
-                        .with("world_end_y", world_y);
+                    state.gizmo.marquee = {
+                        "start_x": pointer.x,
+                        "start_y": pointer.y,
+                        "end_x": pointer.x,
+                        "end_y": pointer.y,
+                        "world_start_x": world_x,
+                        "world_start_y": world_y,
+                        "world_end_x": world_x,
+                        "world_end_y": world_y,
+                    };
                 }
             }
         }

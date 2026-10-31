@@ -194,12 +194,24 @@ type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
 
 pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: table)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
-        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: table)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: table)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_polygon_2d", &[], "(points: list, color: color, opts: table)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
-        ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: table)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: table)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
+        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
+        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_polygon_2d", &[], "(points: list, color: color, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
+        ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+    ]);
+    m.records(&[
+        (
+            "DrawOptions",
+            "{ z_index: int? }",
+            "Where a 2D shape drawn for a frame goes: `z_index` among the nodes of that index, else over everything the scene drew.",
+        ),
+        (
+            "TextureOptions",
+            "{ z_index: int?, region_origin: vec2?, region_size: vec2? }",
+            "A drawn image's `z_index`, and the part of it drawn: `region_origin` and `region_size` in the image's pixels.",
+        ),
     ]);
     m.function(
         "draw_circle_2d",

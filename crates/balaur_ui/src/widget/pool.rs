@@ -926,20 +926,46 @@ pub(crate) fn fill_rows_at(
     Ok(controls)
 }
 
+/// A pooled control's fields: the pool's own, then the widget rows a script
+/// sets on one, typed as the `widget` schema and those beside it read them.
+const CONTROL: &str = "{ kind: string?, controls: [Control]?, on: string?, on_submit: string?, data: any, \
+    role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
+    font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
+    align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, \
+    target: string?, component: string?, relative_to: string?, \
+    grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
+    font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, label_width: float?, \
+    min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
+    visible: bool?, enabled: bool?, interactive: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
+    absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
+    options: [string]?, value: any, text_color: any, picked_color: any, padding: any, inset: any, margin: any, gap: any }";
+
 /// `ui.fill_strip` and `ui.fill_rows`.
 pub(crate) fn install_pool(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
             "fill_strip",
             &[],
-            "(host: string, controls: list) -> bool",
+            "(host: string, controls: [Control]) -> bool",
             "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             "fill_rows",
             &[],
-            "(host: string, rows: list, label_width: number, stacked: bool) -> bool",
+            "(host: string, rows: [Row], label_width: float, stacked: bool) -> bool",
             "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+        ),
+    ]);
+    m.records(&[
+        (
+            "Control",
+            CONTROL,
+            "One pooled control: its `kind`, the `widget` rows it sets and those of the component beside it that holds them, what hears its edit (`on`, `on_submit`, a method on the nearest node above it) and the `data` that handler is called with; a control with `controls` is a row holding them.",
+        ),
+        (
+            "Row",
+            "{ label: string?, controls: [Control], full: bool?, height: float?, tooltip: string?, label_role: string?, slot_role: string? }",
+            "One row of a form: its `label` and `controls`, `full` across both columns, `height` and `tooltip`, and the roles that dress the label and the control column.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

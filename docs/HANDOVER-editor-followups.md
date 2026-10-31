@@ -103,20 +103,27 @@ is rewritten in the same commit).
 3. **One source for a widget's values**: done. `input.rs` writes
    `WidgetProperties` and `schema::follow` brings the `Widget` after it,
    field by field from the `cache_fields!` table.
-4. **A stricter language** (§9 step 5).
-   - Engine records for the functions that take or give an `any` options
-     table, then `map()` and `with` go: 1,428 `map()` and 4,056 `.with(` in
-     `editor/`. Component patches are the easy part (112 `patch_component(…,
-     map()…)`): a struct literal, or one property write each, which costs
-     one field since the widget derive.
+4. **A stricter language** (§9 step 5): built 2026-10-31 but for two parts.
+   - Engine records: 108, from 47; 73 functions take one where they took an
+     options table, 68 give one. `map()` and `with` are gone and the
+     compiler names them; an `any` map is a literal, `{ "k": v }`. The
+     editor's 1,466 `map()` and 4,086 `.with(` are literals or records.
+   - Left: the pool's control and row specs are any literals that
+     `fill_strip` and `fill_rows` read into `ui::Control` and `ui::Row` (351
+     control literals, 145 row literals, 70 fill sites), and the 111 widget
+     patches are any literals, not one property write each.
+     The gamend addon's hand-written modules are copies of gamend's
+     `clients/balaur_template` and its generated ones `sdkgen/balaur.py`'s
+     output: both still write `map()`, outside this repository.
    - Typed calls between scripts: blocked. A whole-file build (profiler,
      debugger, browser) makes each file its own instance, so
      `let editor: editor::Editor? = node.script;` is nil there; tried on the
      39 panels and reverted (the profiler rebuild also went from 4 s to 64 s).
      Needs those builds to link a project as units first
-     (`balaur_script_bs/src/host/units.rs`, `as_units`); a native build does
-     since 2026-10-30. `dock.bs` calling
-     the shown panel's `refresh` by name is the one dynamic dispatch left.
+     (`balaur_script_bs/src/host/units.rs`, `as_units`), and the compiler to
+     build a unit with probes, counters and metering; a native build links
+     units since 2026-10-30. `dock.bs` calling the shown panel's `refresh`
+     by name is the one dynamic dispatch left.
 5. **The editor runs native** (§9 step 7): done. A native build holds
    units and links them; the editor downloads carry the library, and
    `scripts/editor_native.sh` runs the editor's states on it in CI.

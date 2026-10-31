@@ -60,7 +60,7 @@ pub struct Capture {
 /// The debugger's own state, hung on `state.debug`. `demo` drives the breakdemo
 /// self-test's step/continue alternation.
 pub fn debug_state() -> DebugState {
-    DebugState { frame: 0, breakpoints: map(), paused: nil, paused_rel: "", demo: nil, rows: [], owners: [] }
+    DebugState { frame: 0, breakpoints: {}, paused: nil, paused_rel: "", demo: nil, rows: [], owners: [] }
 }
 
 pub fn choose(state: &mut editor::State, row: int) {
@@ -202,7 +202,7 @@ pub fn toggle_focus(state: &mut editor::State) {
         log::warn("nothing to focus: the selection has no script");
         return;
     }
-    let was = map().with("split", state.split);
+    let was: any = { "split": state.split };
     for side in docks::sides() {
         was.set(side, state.docks.get(side).shut);
         state.docks.get(side).shut = true;
@@ -797,7 +797,7 @@ pub fn picture_done(event: any) {
 // Rebuild every attached script's unit from disk, the way a save does for the
 // one file it wrote. A recording cannot span the change, so it ends first.
 pub fn reload_scripts(state: &mut editor::State) {
-    let paths = map();
+    let paths: any = {};
     for found in state.nodes {
         let rel = model::script_rel(found);
         if !rel.is_nil() {
@@ -838,91 +838,90 @@ fn select_named(state: &mut editor::State, name: str) {
 // One handler per start-up state, looked up rather than branched on, so a
 // self-test or a plugin registers its own.
 fn states() -> any {
-    map()
-        .with("palette", state_palette)
-        .with("newnode", newnode::open)
-        .with("test:picker", selftest::node_picker)
-        .with("test:every_node", selftest::every_node)
-        .with("test:rename", selftest::rename)
-        .with("test:autosave", selftest::autosaving)
-        .with("light", state_light)
-        .with("dark", state_dark)
-        .with("play", state_play)
-        .with("input", state_input)
-        .with("pose", state_animdemo)
-        .with("test:layout", selftest::layout)
-        .with("manager", manager::open)
-        .with("examples", manager::open_examples)
-        .with("about", about::open)
-        .with("populate", populate::open)
-        .with("theme", themewin::open)
-        .with("engine", manager::open_versions)
-        .with("newproject", manager::open_new)
-        .with("versions", manager::open_versions)
-        .with("test:manager", selftest::manager_screen)
-        .with("test:start_screen", selftest::start_screen)
-        .with("test:gestures", selftest::gestures)
-        .with("font_sheet", state_fontdemo)
-        .with("menu", state_menudemo)
-        .with("test:undo", selftest::undo)
-        .with("test:populate", selftest::populate)
-        .with("test:marks", selftest::tree_marks)
-        .with("breakpoint", break_demo)
-        .with("test:rig", selftest::rigging)
-        .with("test:polygons", selftest::polygons)
-        .with("test:weights", selftest::weighting)
-        .with("test:bone_map", selftest::bonemap_panel)
-        .with("test:state_machine", statemachine::selftest)
-        .with("test:ragdoll", selftest::physical_bones)
-        .with("test:physics", selftest::physics_panel)
-        .with("test:deselect", selftest::deselected)
-        .with("test:viewport_clicks", selftest::viewport_clicks)
-        .with("test:camera", selftest::camera_keeps_pointer)
-        .with("test:tiles", selftest::tiles_tool)
-        .with("test:clipboard", selftest::clipboard)
-        .with("test:assets", selftest::assets)
-        .with("test:imports", selftest::imports)
-        .with("test:picking", selftest::picking)
-        .with("test:script_props", selftest::script_props)
-        .with("test:composite_props", selftest::composite_props)
-        .with("test:record_assets", selftest::record_assets)
-        .with("test:system_fonts", selftest::system_fonts)
-        .with("test:font_catalogue", selftest::font_catalogue)
-        .with("test:script_paths", selftest::script_paths)
-        .with("test:instances", selftest::instances)
-        .with("test:timings", selftest::timings)
-        .with("test:profiler", selftest::profiler)
-        .with("test:placing", selftest::placing)
-        .with("test:lint", selftest::linting)
-        .with("test:tools", selftest::tooling)
-        .with("test:recordings", selftest::sessions)
-        .with("test:theme_switch", selftest::theme_switch)
-        .with("test:theme_editing", selftest::theme_editing)
-        .with("test:sheet_close", selftest::sheet_closing)
-        .with("test:settings", selftest::settings_screen)
-        .with("test:export_runtime", selftest::export_runtime)
-        .with("test:panels", selftest::menu_panels)
-        .with("test:palette", selftest::palette_screen)
-        .with("test:focus", selftest::focusing)
-        .with("focus", state_focus)
-        .with("test:selection", selftest::selecting)
-        .with("test:drop", selftest::dropping)
-        .with("test:events", selftest::eventviews)
-        .with("test:library", selftest::librarydemo)
-        .with("test:rows", selftest::row_views)
-        .with("test:pool", selftest::pool_kinds)
-        .with("test:camera_document", selftest::camera_document)
-        .with("test:picture", selftest::picture)
-        .with("test:warnings", selftest::warning_marks)
-        .with("test:recipes", selftest::soft_recipes)
-        .with("test:change_types", selftest::change_types)
-        .with("test:import_job", selftest::importing)
-        .with("test:pen", selftest::pendemo)
-        // The editor's half of the plugin seam; `counter.bs` registers the
-        // plugin's half under the same name and both run.
-        .with("test:plugin_docks", selftest::plugin_docks)
-        .with("settings", settings::open)
-        .with("export", exporter::open)
+    {
+        "palette": state_palette,
+        "newnode": newnode::open,
+        "test:picker": selftest::node_picker,
+        "test:every_node": selftest::every_node,
+        "test:rename": selftest::rename,
+        "test:autosave": selftest::autosaving,
+        "light": state_light,
+        "dark": state_dark,
+        "play": state_play,
+        "input": state_input,
+        "pose": state_animdemo,
+        "test:layout": selftest::layout,
+        "manager": manager::open,
+        "examples": manager::open_examples,
+        "about": about::open,
+        "populate": populate::open,
+        "theme": themewin::open,
+        "engine": manager::open_versions,
+        "newproject": manager::open_new,
+        "versions": manager::open_versions,
+        "test:manager": selftest::manager_screen,
+        "test:start_screen": selftest::start_screen,
+        "test:gestures": selftest::gestures,
+        "font_sheet": state_fontdemo,
+        "menu": state_menudemo,
+        "test:undo": selftest::undo,
+        "test:populate": selftest::populate,
+        "test:marks": selftest::tree_marks,
+        "breakpoint": break_demo,
+        "test:rig": selftest::rigging,
+        "test:polygons": selftest::polygons,
+        "test:weights": selftest::weighting,
+        "test:bone_map": selftest::bonemap_panel,
+        "test:state_machine": statemachine::selftest,
+        "test:ragdoll": selftest::physical_bones,
+        "test:physics": selftest::physics_panel,
+        "test:deselect": selftest::deselected,
+        "test:viewport_clicks": selftest::viewport_clicks,
+        "test:camera": selftest::camera_keeps_pointer,
+        "test:tiles": selftest::tiles_tool,
+        "test:clipboard": selftest::clipboard,
+        "test:assets": selftest::assets,
+        "test:imports": selftest::imports,
+        "test:picking": selftest::picking,
+        "test:script_props": selftest::script_props,
+        "test:composite_props": selftest::composite_props,
+        "test:record_assets": selftest::record_assets,
+        "test:system_fonts": selftest::system_fonts,
+        "test:font_catalogue": selftest::font_catalogue,
+        "test:script_paths": selftest::script_paths,
+        "test:instances": selftest::instances,
+        "test:timings": selftest::timings,
+        "test:profiler": selftest::profiler,
+        "test:placing": selftest::placing,
+        "test:lint": selftest::linting,
+        "test:tools": selftest::tooling,
+        "test:recordings": selftest::sessions,
+        "test:theme_switch": selftest::theme_switch,
+        "test:theme_editing": selftest::theme_editing,
+        "test:sheet_close": selftest::sheet_closing,
+        "test:settings": selftest::settings_screen,
+        "test:export_runtime": selftest::export_runtime,
+        "test:panels": selftest::menu_panels,
+        "test:palette": selftest::palette_screen,
+        "test:focus": selftest::focusing,
+        "focus": state_focus,
+        "test:selection": selftest::selecting,
+        "test:drop": selftest::dropping,
+        "test:events": selftest::eventviews,
+        "test:library": selftest::librarydemo,
+        "test:rows": selftest::row_views,
+        "test:pool": selftest::pool_kinds,
+        "test:camera_document": selftest::camera_document,
+        "test:picture": selftest::picture,
+        "test:warnings": selftest::warning_marks,
+        "test:recipes": selftest::soft_recipes,
+        "test:change_types": selftest::change_types,
+        "test:import_job": selftest::importing,
+        "test:pen": selftest::pendemo,
+        "test:plugin_docks": selftest::plugin_docks,
+        "settings": settings::open,
+        "export": exporter::open,
+    }
 }
 
 // States written `<prefix><argument>`, which take the rest of the string.
@@ -1102,7 +1101,7 @@ fn state_page(state: &mut editor::State, argument: str) {
         return;
     }
     if state.kit_state.is_nil() {
-        state.kit_state = map();
+        state.kit_state = {};
     }
     state.kit_state.set("tab:" + parts[0], parts[1]);
 }

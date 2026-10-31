@@ -106,11 +106,11 @@ fn global_y(app: &App, entity: Entity) -> f32 {
 fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let (app, errors) = run(
         RIG,
-        r#"pub class Scenario { node: Node }
+        r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
+    fn init() { physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 0.0 }); }
 }
-"#,
+",
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -147,7 +147,7 @@ fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
         RIG,
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map()); }
+    fn init() { physics2d::ragdoll(self.node, nil); }
 }
 ",
         90,
@@ -162,11 +162,11 @@ impl Scenario {
 fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
     let (app, errors) = run(
         RIG,
-        r#"pub class Scenario { node: Node }
+        r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0)); }
+    fn init() { physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 0.0 }); }
 }
-"#,
+",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -186,10 +186,10 @@ impl Scenario {
 fn ragdoll_blend_turns_it_on_partway_through() {
     let (app, errors) = run(
         RIG,
-        r#"pub class Scenario { node: Node, ticks: int }
+        r"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
-        physics2d::ragdoll(self.node, map().with("influence", 0.0));
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 0.0 });
     }
 
     fn update(dt: float) {
@@ -199,7 +199,7 @@ impl Scenario {
         }
     }
 }
-"#,
+",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -219,7 +219,7 @@ fn a_limp_rig_starts_from_the_pose_it_was_built_in() {
         RIG,
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map()); }
+    fn init() { physics2d::ragdoll(self.node, nil); }
 }
 ",
         1,
@@ -240,10 +240,10 @@ fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
     // limp for half a second, then the blend returns and they must too.
     let (app, errors) = run(
         RIG,
-        r#"pub class Scenario { node: Node, ticks: int }
+        r"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
-        physics2d::ragdoll(self.node, map().with("influence", 1.0));
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 1.0 });
     }
 
     fn update(dt: float) {
@@ -253,7 +253,7 @@ impl Scenario {
         }
     }
 }
-"#,
+",
         60,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -274,11 +274,11 @@ impl Scenario {
 fn a_rollback_to_a_limp_tick_gets_back_up_the_same_way() {
     let (mut app, errors) = run(
         RIG,
-        r#"pub class Scenario { node: Node }
+        r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map().with("influence", 1.0)); }
+    fn init() { physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 1.0 }); }
 }
-"#,
+",
         29,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -310,7 +310,7 @@ script = { source = "scripts/scenario.bs" }
 "#,
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map()); }
+    fn init() { physics2d::ragdoll(self.node, nil); }
 }
 ",
         2,
@@ -328,12 +328,20 @@ fn a_ragdoll_carries_the_body_shape_and_joint_options_it_was_built_with() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics2d::ragdoll(self.node, map()
-            .with("influence", 0.0).with("shape", "rectangle").with("restitution", 0.3)
-            .with("collision_layer", [2]).with("linear_damping", 0.5).with("gravity_scale", 0.25)
-            .with("continuous_collision", true).with("articulation", true)
-            .with("collide_connected", true).with("drive", "motors").with("stiffness", 40.0)
-            .with("axes", [map().with("axis", physics2d::AXIS_ROTATION).with("limits", [-0.5, 0.5])]));
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions {
+            influence: 0.0,
+            shape: "rectangle",
+            restitution: 0.3,
+            collision_layer: [2],
+            linear_damping: 0.5,
+            gravity_scale: 0.25,
+            continuous_collision: true,
+            articulation: true,
+            collide_connected: true,
+            drive: "motors",
+            stiffness: 40.0,
+            axes: [{ "axis": physics2d::AXIS_ROTATION, "limits": [-0.5, 0.5] }],
+        });
     }
 }
 "#,
@@ -412,7 +420,7 @@ fn a_follow_drive_holds_a_limp_rig_on_its_bones() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics2d::ragdoll(self.node, map().with("drive", "follow").with("follow", map().with("kind", "pid")));
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions { drive: "follow", follow: { "kind": "pid" } });
     }
 }
 "#,
@@ -449,11 +457,11 @@ fn a_ragdoll_joint_measures_its_angle_from_the_built_pose() {
     );
     let (app, errors) = run(
         &rig,
-        r#"pub class Scenario { node: Node }
+        r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { physics2d::ragdoll(self.node, map().with("influence", 0.0).with("gravity_scale", 0.0)); }
+    fn init() { physics2d::ragdoll(self.node, physics2d::RagdollOptions { influence: 0.0, gravity_scale: 0.0 }); }
 }
-"#,
+",
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");

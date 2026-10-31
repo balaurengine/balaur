@@ -13,23 +13,52 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.",
     );
+    m.records(RECORDS);
     m.describe(DOCS);
     install_constants(m);
     install_lifecycle(m);
     install_play(m);
 }
 
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "HostOptions",
+        "{ transport: string?, address: string?, players: int?, scene: string?, depth: int?, timeout_seconds: float?, name: string?, token: string? }",
+        "What `host` opens a match with, over the project's `[multiplayer]` table.",
+    ),
+    (
+        "JoinOptions",
+        "{ cert_hash: string?, name: string?, token: string?, timeout_seconds: float? }",
+        "What `join` dials with: a self-signed host's `cert_hash`, this player's `name` and `token`, and how long it waits.",
+    ),
+    (
+        "Hosted",
+        "{ url: string, cert_hash: string?, transport: string }",
+        "What a joiner needs of a host: where it listens, its certificate's hash when self-signed, and the transport.",
+    ),
+    (
+        "Player",
+        "{ slot: int, name: string, bot: bool, local: bool, status: string }",
+        "One slot of a match, and whether it is a bot, this machine's own, and present as of the tick being simulated.",
+    ),
+    (
+        "Stats",
+        "{ rtt_ms: float, loss: float, bytes_in: int, bytes_out: int }",
+        "The link a slot is reached over: its round trip, the share of packets lost, and the bytes either way.",
+    ),
+];
+
 const DOCS: &[balaur_script::FnDoc] = &[
     (
         "host",
         &[],
-        "(options: map?) -> map",
+        "(options: HostOptions?) -> Hosted",
         "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout_seconds`, `name`, `token`.",
     ),
     (
         "join",
         &[],
-        "(url: string, options: map?)",
+        "(url: string, options: JoinOptions?)",
         "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout_seconds`.",
     ),
     (
@@ -65,7 +94,7 @@ const DOCS: &[balaur_script::FnDoc] = &[
     (
         "players",
         &[],
-        "() -> [map]",
+        "() -> [Player]",
         "Every slot as `{ slot, name, bot, local, status }`, `status` as of the tick being simulated.",
     ),
     (
@@ -101,7 +130,7 @@ const DOCS: &[balaur_script::FnDoc] = &[
     (
         "stats",
         &[],
-        "(slot: int) -> map?",
+        "(slot: int) -> Stats?",
         "`{ rtt_ms, loss, bytes_in, bytes_out }` for the link a slot is reached over; nil for this machine's own. An observer: never simulate from it.",
     ),
 ];

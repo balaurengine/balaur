@@ -744,18 +744,18 @@ impl<'a> FnGen<'a> {
                 return self.expr_as(&lit, want);
             }
         }
-        // A list literal where a `[T]?` goes: the list, there.
+        // A list literal where a `[T]?`, a `Vec3?` or the like goes: the
+        // list or the vector, there.
         if let (ExprKind::ArrayLit(_), Ty::Optional(inner)) = (&e.kind, want)
-            && matches!(**inner, Ty::Array(_))
+            && (matches!(**inner, Ty::Array(_))
+                || matches!(&**inner, Ty::Struct(s) if matches!(s.as_str(), "Vec2" | "Vec3" | "Color")))
         {
             self.expr_as(e, inner)?;
             self.e(I::I32Const(1));
             return Ok(());
         }
-        // `[]` where an `any` goes: an empty list of anys.
-        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want)
-            && items.is_empty()
-        {
+        // `[..]` where an `any` goes: a list of anys, each item boxed.
+        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want) {
             let list = Ty::Array(Box::new(Ty::Any));
             self.array_lit(items, Some(&Ty::Any), e.pos)?;
             return self.coerce(&list, want, e.pos);
@@ -770,6 +770,9 @@ impl<'a> FnGen<'a> {
         }
         if self.script_as(e, want)? {
             return Ok(());
+        }
+        if let (ExprKind::MapLit(entries), Ty::Any) = (&e.kind, want) {
+            return self.any_map(entries, e.pos);
         }
         if let ExprKind::MapLit(entries) = &e.kind
             && let Some(class) = map_wanted(want)

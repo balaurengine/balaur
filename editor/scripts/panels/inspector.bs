@@ -53,21 +53,22 @@ impl Inspector {
         let nothing = self.node.get_node("Nothing");
         if !view.get("selected").as_bool() {
             for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
-                one.patch_component("widget", map().with("visible", false));
+                one.patch_component("widget", { "visible": false });
             }
-            nothing.patch_component("widget", map().with("visible", true));
+            nothing.patch_component("widget", { "visible": true });
             return;
         }
-        nothing.patch_component("widget", map().with("visible", false));
+        nothing.patch_component("widget", { "visible": false });
         for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
-            one.patch_component("widget", map().with("visible", true));
+            one.patch_component("widget", { "visible": true });
         }
-        head.get_node("Name").patch_component("widget", map()
-            .with("text", view.get("name"))
-            .with("icon", view.get("icon"))
-            .with("icon_color", view.get("icon_color")));
-        head.get_node("Type").patch_component("widget", map().with("text", view.get("kind")));
-        self.node.get_node("Foot").get_node("Add").patch_component("widget", map().with("icon", view.get("add_icon")));
+        head.get_node("Name").patch_component("widget", {
+            "text": view.get("name"),
+            "icon": view.get("icon"),
+            "icon_color": view.get("icon_color"),
+        });
+        head.get_node("Type").patch_component("widget", { "text": view.get("kind") });
+        self.node.get_node("Foot").get_node("Add").patch_component("widget", { "icon": view.get("add_icon") });
         self.editor.call("inspector_fill", self.query);
     }
 }

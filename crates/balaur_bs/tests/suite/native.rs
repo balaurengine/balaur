@@ -99,7 +99,7 @@ pub fn arrays() -> int {
     total * 100 + i
 }
 pub fn anys() -> str {
-    let m = map().with("hp", 3);
+    let m: any = { "hp": 3 };
     m.set("name", "imp");
     let tags: [any] = ["a"];
     let l: any = tags;

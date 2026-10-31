@@ -37,7 +37,7 @@ impl Library {
             // A pick places, so the same card twice places twice: the row is
             // read and let go rather than kept lit.
             let row = node.get_component("widget", "text");
-            node.patch_component("widget", map().with("text", ""));
+            node.patch_component("widget", { "text": "" });
             if row.as_str() != "" {
                 self.editor.call("library_pick", row);
             }
@@ -56,17 +56,19 @@ impl Library {
         }
         let kinds = self.node.get_node("Kinds");
         for kind in KINDS() {
-            kinds.get_node(kind).patch_component("widget", map().with("checked", kind == view.get("kind").as_str()));
+            kinds.get_node(kind).patch_component("widget", { "checked": kind == view.get("kind").as_str() });
         }
-        self.node.get_node("Note").patch_component("widget", map().with("visible", view.get("says").as_str() != "").with("text", view.get("says")));
+        self.node.get_node("Note").patch_component("widget", { "visible": view.get("says").as_str() != "", "text": view.get("says") });
         let cards = !view.get("templates").as_bool() && view.get("items").len() > 0;
         let table = view.get("templates") && view.get("items").len() > 0;
-        self.node.get_node("Cards").patch_component("widget", map()
-            .with("visible", cards)
-            .with("options", if cards { view.get("items") } else { [] }));
-        self.node.get_node("Table").patch_component("widget", map()
-            .with("visible", table)
-            .with("options", if table { view.get("items") } else { [] }));
+        self.node.get_node("Cards").patch_component("widget", {
+            "visible": cards,
+            "options": if cards { view.get("items") } else { [] },
+        });
+        self.node.get_node("Table").patch_component("widget", {
+            "visible": table,
+            "options": if table { view.get("items") } else { [] },
+        });
     }
 }
 

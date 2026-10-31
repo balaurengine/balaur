@@ -63,8 +63,8 @@ pub fn body(w: World, at: Vec3, shape: any) -> Node {
     let node = row_for(w, i).add_child("b{i % ROW}");
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, map().with("kind", "dynamic").with("can_sleep", false));
-    node.set_component(collider_key(w), map().with("shape", shape));
+    node.set_component(kind, { "kind": "dynamic", "can_sleep": false });
+    node.set_component(collider_key(w), { "shape": shape });
     draw(w, node, shape);
     w.bodies.push(node);
     node
@@ -84,8 +84,8 @@ pub fn wall(w: World, at: Vec3, shape: any) -> Node {
     w.statics += 1;
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, map().with("kind", "static"));
-    node.set_component(collider_key(w), map().with("shape", shape));
+    node.set_component(kind, { "kind": "static" });
+    node.set_component(collider_key(w), { "shape": shape });
     node
 }
 
@@ -127,17 +127,19 @@ pub fn pin(w: World, a: Node, b: Node, at_a: Vec3, at_b: Vec3) -> Node {
     let other = sub(mid, at_b);
     let path = relative(b);
     if w.dimensions == 2 {
-        node.set_component("joint2d", map()
-            .with("kind", "hinge")
-            .with("connected_body", path)
-            .with("anchor", [anchor.x, anchor.y])
-            .with("connected_anchor", [other.x, other.y]));
+        node.set_component("joint2d", {
+            "kind": "hinge",
+            "connected_body": path,
+            "anchor": [anchor.x, anchor.y],
+            "connected_anchor": [other.x, other.y],
+        });
     } else {
-        node.set_component("joint3d", map()
-            .with("kind", "ball_socket")
-            .with("connected_body", path)
-            .with("anchor", [anchor.x, anchor.y, anchor.z])
-            .with("connected_anchor", [other.x, other.y, other.z]));
+        node.set_component("joint3d", {
+            "kind": "ball_socket",
+            "connected_body": path,
+            "anchor": [anchor.x, anchor.y, anchor.z],
+            "connected_anchor": [other.x, other.y, other.z],
+        });
     }
     node
 }
@@ -178,16 +180,16 @@ fn draw(w: World, node: Node, shape: any) {
     } else {
         "box"
     };
-    let drawn = if kind != "convex_hull" {
+    let drawn: any = if kind != "convex_hull" {
         copy(shape)
     } else if w.dimensions == 2 {
-        map().with("kind", "circle").with("radius", 13.0)
+        { "kind": "circle", "radius": 13.0 }
     } else {
-        map().with("kind", "sphere").with("radius", 0.45)
+        { "kind": "sphere", "radius": 0.45 }
     };
     // A few colours in turn, so a stack reads as bodies rather than as a slab.
     let colour = palette()[(w.bodies.len() + w.statics) % 5];
-    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, map().with("shape", drawn).with("color", colour));
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, { "shape": drawn, "color": colour });
 }
 
 fn palette() -> [Color] {
@@ -202,10 +204,10 @@ fn palette() -> [Color] {
 
 /// A shape table without the collider-only keys the renderer would reject.
 fn copy(shape: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in ["kind", "radius", "height", "size"] {
         if shape.has(key) {
-            out = out.with(key, shape.get(key));
+            out.set(key, shape.get(key));
         }
     }
     out

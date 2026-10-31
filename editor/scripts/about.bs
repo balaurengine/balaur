@@ -39,26 +39,29 @@ pub fn fill(state: &mut editor::State) {
 /// where to read more.
 fn specs(state: editor::State) -> [any] {
     let mine = util::map_or_empty(release::installed());
-    let out = [
-        map()
-            .with("full", true)
-            .with("height", 56)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map()
-                    .with("kind", "panel")
-                    .with("role", "sheet_logo")
-                    .with("controls", [
-                        map().with("kind", "image").with("image", manager::LOGO).with("width", 44),
-                    ]),
-                map()
-                    .with("kind", "column")
-                    .with("role", "layout_about")
-                    .with("controls", [
-                        map().with("kind", "label").with("role", "text_title").with("text", "Balaur " + mine.get("version").as_str()),
-                        map().with("kind", "label").with("role", "text_caption").with("text", manager::build_line(mine)),
-                    ]),
-            ]),
+    let out: [any] = [
+        {
+            "full": true,
+            "height": 56,
+            "slot_role": "layout_actions",
+            "controls": [
+                {
+                    "kind": "panel",
+                    "role": "sheet_logo",
+                    "controls": [
+                        { "kind": "image", "image": manager::LOGO, "width": 44 },
+                    ],
+                },
+                {
+                    "kind": "column",
+                    "role": "layout_about",
+                    "controls": [
+                        { "kind": "label", "role": "text_title", "text": "Balaur " + mine.get("version").as_str() },
+                        { "kind": "label", "role": "text_caption", "text": manager::build_line(mine) },
+                    ],
+                },
+            ],
+        },
     ];
     fact(out, "Version", mine.get("version").as_str());
     fact(out, "Build", (if mine.get("source").as_bool() == true { "from a checkout" } else { mine.get("id") }).as_str());
@@ -69,40 +72,44 @@ fn specs(state: editor::State) -> [any] {
     if !manager::in_tab() {
         update_rows(state, mine, out);
     }
-    out.push(map()
-        .with("full", true)
-        .with("height", 30)
-        .with("slot_role", "layout_actions")
-        .with("controls", [
+    out.push({
+        "full": true,
+        "height": 30,
+        "slot_role": "layout_actions",
+        "controls": [
             link("balaurengine.org", SITE),
             link("Source", SOURCE),
-        ]));
+        ],
+    });
     out
 }
 
 // One label and its value, the value in the monospace a build id reads in.
 fn fact(out: [any], name: str, value: str) {
-    out.push(map()
-        .with("full", false)
-        .with("height", 22)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_code")
-                .with("grow", 1)
-                .with("text", value),
-        ])
-        .with("label", name));
+    out.push({
+        "full": false,
+        "height": 22,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_code",
+                "grow": 1,
+                "text": value,
+            },
+        ],
+        "label": name,
+    });
 }
 
 fn link(text: str, url: str) -> any {
-    map()
-        .with("kind", "button")
-        .with("role", "chip")
-        .with("text", text)
-        .with("tooltip", url)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_link_clicked).with("url", url))
+    {
+        "kind": "button",
+        "role": "chip",
+        "text": text,
+        "tooltip": url,
+        "on": "handle",
+        "data": { "fn": on_link_clicked, "url": url },
+    }
 }
 
 fn on_link_clicked(state: any, data: any, _value: any) {
@@ -120,13 +127,14 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
     let newest = manager::newest_on(state, line.as_str());
     let fresh = newest.get("order").as_str() == "newer";
     let controls: [any] = [
-        map()
-            .with("kind", "label")
-            .with("role", "text_code")
-            .with("font_size", 11)
-            .with("grow", 1)
-            .with("text", line.as_str() + ": " + manager::standing(state, line.as_str()))
-            .with("text_color", (if fresh { tokens.get("success_text") } else { tokens.get("text_subtle") }).as_str()),
+        {
+            "kind": "label",
+            "role": "text_code",
+            "font_size": 11,
+            "grow": 1,
+            "text": line.as_str() + ": " + manager::standing(state, line.as_str()),
+            "text_color": (if fresh { tokens.get("success_text") } else { tokens.get("text_subtle") }).as_str(),
+        },
     ];
     // Up to date already says it; only a release to move to gets a press.
     if newest.get("id").as_str() != "" && newest.get("order").as_str() != "same" {
@@ -135,13 +143,14 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
             controls.push(press);
         }
     }
-    controls.push(map()
-        .with("kind", "button")
-        .with("role", "action_form")
-        .with("text", if state.manager.reading { "Checking" } else { "Check" })
-        .with("on", "handle")
-        .with("data", map().with("fn", on_check_clicked)));
-    out.push(map().with("full", true).with("height", 30).with("slot_role", "layout_actions").with("controls", controls));
+    controls.push({
+        "kind": "button",
+        "role": "action_form",
+        "text": if state.manager.reading { "Checking" } else { "Check" },
+        "on": "handle",
+        "data": { "fn": on_check_clicked },
+    });
+    out.push({ "full": true, "height": 30, "slot_role": "layout_actions", "controls": controls });
     if mine.get("held").as_str() != "" {
         out.push(say(mine.get("held").as_str(), tokens.get("text_subtle").as_str()));
     }
@@ -150,11 +159,12 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
         out.push(say(said, (if state.manager.failed != "" { tokens.get("warning_text") } else { tokens.get("text_subtle") }).as_str()));
     }
     if manager::installing(state) {
-        out.push(map()
-            .with("full", true)
-            .with("height", 22)
-            .with("slot_role", "layout_actions")
-            .with("controls", manager::progress_controls(state)));
+        out.push({
+            "full": true,
+            "height": 22,
+            "slot_role": "layout_actions",
+            "controls": manager::progress_controls(state),
+        });
     }
 }
 
@@ -163,17 +173,19 @@ fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn say(text: str, ink: str) -> any {
-    map()
-        .with("full", true)
-        .with("height", 0)
-        .with("controls", [
-            map()
-                .with("kind", "label")
-                .with("role", "text_code_quiet")
-                .with("font_size", 11)
-                .with("grow", 1)
-                .with("wrap", true)
-                .with("text", text)
-                .with("text_color", ink),
-        ])
+    {
+        "full": true,
+        "height": 0,
+        "controls": [
+            {
+                "kind": "label",
+                "role": "text_code_quiet",
+                "font_size": 11,
+                "grow": 1,
+                "wrap": true,
+                "text": text,
+                "text_color": ink,
+            },
+        ],
+    }
 }

@@ -36,7 +36,7 @@ pub struct Counts {
 /// `at` is when the last sweep ran and `typed` when the buffer last changed,
 /// which is what `due` compares to hold a check off until typing stops.
 pub fn state() -> LintState {
-    LintState { found: [], at: -1.0, due: 0.0, roots: "", warned: map(), stale: true }
+    LintState { found: [], at: -1.0, due: 0.0, roots: "", warned: {}, stale: true }
 }
 
 const IDLE: float = 0.4;
@@ -47,7 +47,7 @@ const IDLE: float = 0.4;
 /// compiled on its own fails on its own imports, and its diagnostics reach us
 /// through the root that reaches it.
 fn roots(state: editor::State) -> [any] {
-    let seen = map();
+    let seen: any = {};
     let out: [any] = [];
     for found in state.nodes {
         let rel = model::script_rel(found);
@@ -172,7 +172,7 @@ pub fn describe(warning: any) -> str {
 /// play started or stopped.
 pub fn node_warnings(state: &mut editor::State) {
     state.lint.stale = false;
-    let out = map();
+    let out: any = {};
     for live in state.nodes {
         if live.is_valid() {
             let found = util::list_or_empty(scene::warnings(live));
@@ -226,7 +226,7 @@ pub fn run(state: &mut editor::State) {
 pub fn touched(state: &mut editor::State) {
     state.lint.due = engine::unix_time() + IDLE;
     // The frame the sweep runs in: under `low_processor` nothing else draws one.
-    ui::request_repaint(map().with("after", IDLE + 0.02));
+    ui::request_repaint(ui::RepaintOptions { after: IDLE + 0.02 });
 }
 
 /// The document moved: when the scripts it attaches did, the sweep runs on

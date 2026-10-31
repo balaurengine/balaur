@@ -16,7 +16,7 @@ const SETUP: &str = r#"
     let greeting = "hello world";
     let padded = "  padded  ";
     let wide = "Ünïcödé Straße";
-    let scores = map().with("a", 1).with("b", 2).with("c", 3).with("d", 4).with("e", 5).with("f", 6).with("g", 7).with("h", 8);
+    let scores: any = { "a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8 };
     let tags: [any] = ["a", "b", "c"];
     let letters: any = tags;
     let item = Item { weight: 1.5, name: "item", tags: ["a", "b"] };
@@ -45,10 +45,6 @@ const CASES: &[(&str, u64)] = &[
     (r#"scores.set("e", step);"#, 1600),
     (r#"if scores.has("h") { total += scores.len(); }"#, 1950),
     ("total += scores.keys().len();", 2200),
-    (
-        r#"let wider = scores.with("e", step); total += wider.len();"#,
-        8200,
-    ),
     (r#"total += typed["e"].or(0);"#, 700),
     (r#"typed["e"] = step;"#, 760),
     (r#"if typed.has("h") { total += typed.len(); }"#, 680),

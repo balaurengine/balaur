@@ -68,7 +68,7 @@ What is flagged in the editor: 1,581 flags on its 1,315 flagged lines.
 | `match s { "a" => .., _ => .. }` | `if s == "a" { .. } else { .. }` |
 | `(a, b)`, `let (a, b) = f()` | a `_0`/`_1` struct, then `let a = t._0;` |
 | `#{ .. }` | a struct, named from where it sits (`let row`, `rows.push`, `history:`, `fn state`) |
-| `#{ .. }` read by computed key, handed to the engine, a property bag | `map().with("k", v)`, an `any` |
+| `#{ .. }` read by computed key, handed to the engine, a property bag | `{ "k": v }`, an `any` |
 | `this.x` in `fn f(this, ..)` | `self.x` in `impl File { fn f(..) }`, fields on `pub struct File` |
 | `exports()` | `pub` fields with defaults |
 | `xs.iter().any(\|x\| ..)`, `filter`, `map`, `find`, `count`, `collect` | a helper with the loop, called with the captures |

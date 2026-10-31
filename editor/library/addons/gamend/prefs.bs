@@ -15,7 +15,7 @@ pub fn all() -> any {
             }
         }
     }
-    map()
+    {}
 }
 
 /// One pref, or `fallback` when it was never set.
@@ -26,16 +26,18 @@ pub fn get(key: str, fallback: any) -> any {
 
 /// Set one pref and write the slot.
 pub fn set(key: str, value: any) {
-    save::write(SLOT, all().with(key, value));
+    let held = all();
+    held.set(key, value);
+    save::write(SLOT, held);
 }
 
 /// Forget one pref: the slot written again without it.
 pub fn remove(key: str) {
     let kept = all();
-    let left = map();
+    let left: any = {};
     for name in kept.keys() {
         if name != key {
-            left = left.with(name, kept.get(name));
+            left.set(name, kept.get(name));
         }
     }
     save::write(SLOT, left);

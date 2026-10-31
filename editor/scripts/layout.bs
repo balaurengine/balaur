@@ -14,13 +14,6 @@ pub struct Chrome {
     height: float,
 }
 
-pub struct Step {
-    property: str,
-    to: any,
-    duration: float,
-    ease: any,
-}
-
 pub struct ShellBoxes {
     head: any,
     left: any,
@@ -89,54 +82,40 @@ const SHELL: str = "Editor/Shell";
 const EASE_SECONDS: float = 0.16;
 
 fn rect(origin_x: float, origin_y: float, width: float, height: float) -> any {
-    map().with("x", origin_x).with("y", origin_y).with("width", width).with("height", height)
+    { "x": origin_x, "y": origin_y, "width": width, "height": height }
 }
 
 pub fn state() -> any {
-    map()
-        .with("bar", rect(0.0, 0.0, 0.0, 0.0))
-        .with("left", rect(0.0, 0.0, 0.0, 0.0))
-        .with("rail", rect(0.0, 0.0, 0.0, 0.0))
-        .with("railtop", rect(0.0, 0.0, 0.0, 0.0))
-        .with("right", rect(0.0, 0.0, 0.0, 0.0))
-        .with("bottom", rect(0.0, 0.0, 0.0, 0.0))
-        .with("stage", rect(0.0, 0.0, 0.0, 0.0))
-        .with("doc", rect(0.0, 0.0, 0.0, 0.0))
-        // The two strips over the stage, and the row the HUD runs along.
-        .with("chips", rect(0.0, 0.0, 0.0, 0.0))
-        .with("hud", rect(0.0, 0.0, 0.0, 0.0))
-        .with("upper", rect(0.0, 0.0, 0.0, 0.0))
-        // The stage's own box, which a split shares between the scene and
-        // the code: what the code sheet's inset is measured against.
-        .with("stage_box", rect(0.0, 0.0, 0.0, 0.0))
-        .with("hooks", rect(0.0, 0.0, 0.0, 0.0))
-        .with("split_width", 560.0)
-        // How tall the tool rail's column is, read back a frame late; the
-        // rail flows into a second column rather than overrun it.
-        .with("rail_room", 400.0)
-        // Passes in a row that wrote no box. Every rect is read back a pass
-        // late, so the shell settles over several: this is what says it has.
-        .with("quiet", 0)
-        // The scene's own numbers, adopted before anything writes over them.
-        // Zero until `adopt` has run, which is what `asked` says.
-        .with("asked", false)
-        .with("gutter", 0.0)
-        .with("gap", 0.0)
-        .with("padding", 0.0)
-        .with("tree_width", 0.0)
-        .with("inspector_width", 0.0)
-        .with("dock_height", 0.0)
-        .with("hooks_width", 0.0)
-        .with("status_height", 0.0)
-        // The shell's nodes, resolved once: the tree is the editor's own and
-        // does not change under a running editor.
-        .with("nodes", map())
-        // What was last written to a node, so a size that has not moved is
-        // not a component write every frame.
-        .with("sent", map())
-        // The tween each eased box is riding, so a second change replaces it
-        // rather than fighting it.
-        .with("tweens", map())
+    {
+        "bar": rect(0.0, 0.0, 0.0, 0.0),
+        "left": rect(0.0, 0.0, 0.0, 0.0),
+        "rail": rect(0.0, 0.0, 0.0, 0.0),
+        "railtop": rect(0.0, 0.0, 0.0, 0.0),
+        "right": rect(0.0, 0.0, 0.0, 0.0),
+        "bottom": rect(0.0, 0.0, 0.0, 0.0),
+        "stage": rect(0.0, 0.0, 0.0, 0.0),
+        "doc": rect(0.0, 0.0, 0.0, 0.0),
+        "chips": rect(0.0, 0.0, 0.0, 0.0),
+        "hud": rect(0.0, 0.0, 0.0, 0.0),
+        "upper": rect(0.0, 0.0, 0.0, 0.0),
+        "stage_box": rect(0.0, 0.0, 0.0, 0.0),
+        "hooks": rect(0.0, 0.0, 0.0, 0.0),
+        "split_width": 560.0,
+        "rail_room": 400.0,
+        "quiet": 0,
+        "asked": false,
+        "gutter": 0.0,
+        "gap": 0.0,
+        "padding": 0.0,
+        "tree_width": 0.0,
+        "inspector_width": 0.0,
+        "dock_height": 0.0,
+        "hooks_width": 0.0,
+        "status_height": 0.0,
+        "nodes": {},
+        "sent": {},
+        "tweens": {},
+    }
 }
 
 /// The shell's boxes, by the name `state.layout` publishes them under.
@@ -206,7 +185,7 @@ fn node(state: editor::State, id: any) -> any {
 fn widget_of(state: editor::State, id: str) -> any {
     let found = node(state, id);
     if util::is_nil(found) {
-        return map();
+        return {};
     }
     util::map_or_empty(found.get_component("widget"))
 }
@@ -400,7 +379,7 @@ fn size(state: editor::State, id: str, key: str, value: any) {
             let handle = running;
             animation::stop(handle);
         }
-        layout_state.get("tweens").set(mark, animation::tween(found.as_node(), map().with("steps", [Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }])));
+        layout_state.get("tweens").set(mark, animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] }));
         return;
     }
     let parameters = util::map_or_empty(found.get_component("widget"));
@@ -423,7 +402,7 @@ fn show(state: editor::State, id: str, on: bool) {
     }
     layout_state.get("sent").set(mark, want);
     layout_state.set("quiet", 0);
-    found.patch_component("widget", map().with("visible", on));
+    found.patch_component("widget", { "visible": on });
 }
 
 /// Where a box was laid out, in design pixels; a zero rect until it has

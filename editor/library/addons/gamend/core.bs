@@ -78,7 +78,7 @@ pub fn error_of(reply: any) -> str {
 /// where the server wrapped it, and the body itself where it did not.
 pub fn unpack(reply: any) -> any {
     if reply.is_nil() {
-        return map().with("ok", false).with("data", nil()).with("error", "gamend: the call sent no reply");
+        return { "ok": false, "data": nil(), "error": "gamend: the call sent no reply" };
     }
     let status = reply.get("status");
     let payload = reply.get("body");
@@ -88,8 +88,8 @@ pub fn unpack(reply: any) -> any {
         } else {
             "gamend: the call answered " + status.text()
         };
-        return map().with("ok", false).with("data", nil()).with("error", message).with("status", status);
+        return { "ok": false, "data": nil(), "error": message, "status": status };
     }
     let data = if payload.has("data") { payload.get("data") } else { payload };
-    map().with("ok", true).with("data", data).with("error", "").with("status", status)
+    { "ok": true, "data": data, "error": "", "status": status }
 }

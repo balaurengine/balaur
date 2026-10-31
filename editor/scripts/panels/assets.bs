@@ -66,8 +66,8 @@ impl Assets {
             return;
         }
         let tools = self.node.get_node("Tools");
-        tools.get_node("Up").patch_component("widget", map().with("visible", view.get("dir").as_str() != ""));
-        tools.get_node("Where").patch_component("widget", map().with("visible", !view.get("renaming").as_bool()).with("text", view.get("where")));
+        tools.get_node("Up").patch_component("widget", { "visible": view.get("dir").as_str() != "" });
+        tools.get_node("Where").patch_component("widget", { "visible": !view.get("renaming").as_bool(), "text": view.get("where") });
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
         let field = Field { visible: view.get("renaming"), text: nil };
@@ -76,27 +76,32 @@ impl Assets {
         }
         self.renaming = view.get("renaming").as_bool();
         tools.get_node("Name").patch_component("widget", field);
-        tools.get_node("Count").patch_component("widget", map().with("text", view.get("count")));
-        tools.get_node("Import").patch_component("widget", map()
-            .with("text", view.get("import_text"))
-            .with("tooltip", view.get("import_tip"))
-            .with("checked", view.get("importing")));
-        tools.get_node("Folder").patch_component("widget", map().with("text", view.get("folder_text")));
-        tools.get_node("Local").patch_component("widget", map().with("visible", view.get("local")));
-        tools.get_node("Move").patch_component("widget", map()
-            .with("visible", view.get("move_to").as_str() != "")
-            .with("tooltip", "Move the selected item into deps/{view.get("move_to").as_str()}"));
-        tools.get_node("Update").patch_component("widget", map().with("visible", view.get("update")));
-        tools.get_node("Source").patch_component("widget", map()
-            .with("visible", view.get("source_tip").as_str() != "")
-            .with("tooltip", view.get("source_tip")));
-        tools.get_node("Rename").patch_component("widget", map()
-            .with("role", if view.get("chosen").as_bool() { "action_dock" } else { "action_dock_quiet" })
-            .with("tooltip", if view.get("chosen").as_bool() { "Rename the selected item" } else { "Select an item first" }));
-        tools.get_node("Delete").patch_component("widget", map()
-            .with("role", if view.get("chosen").as_bool() { "action_dock_danger" } else { "action_dock_quiet" })
-            .with("tooltip", if view.get("chosen").as_bool() { "Delete the selected item" } else { "Select an item first" }));
-        self.node.get_node("Cards").patch_component("widget", map().with("options", view.get("items")).with("text", view.get("picked")));
+        tools.get_node("Count").patch_component("widget", { "text": view.get("count") });
+        tools.get_node("Import").patch_component("widget", {
+            "text": view.get("import_text"),
+            "tooltip": view.get("import_tip"),
+            "checked": view.get("importing"),
+        });
+        tools.get_node("Folder").patch_component("widget", { "text": view.get("folder_text") });
+        tools.get_node("Local").patch_component("widget", { "visible": view.get("local") });
+        tools.get_node("Move").patch_component("widget", {
+            "visible": view.get("move_to").as_str() != "",
+            "tooltip": "Move the selected item into deps/{view.get("move_to").as_str()}",
+        });
+        tools.get_node("Update").patch_component("widget", { "visible": view.get("update") });
+        tools.get_node("Source").patch_component("widget", {
+            "visible": view.get("source_tip").as_str() != "",
+            "tooltip": view.get("source_tip"),
+        });
+        tools.get_node("Rename").patch_component("widget", {
+            "role": if view.get("chosen").as_bool() { "action_dock" } else { "action_dock_quiet" },
+            "tooltip": if view.get("chosen").as_bool() { "Rename the selected item" } else { "Select an item first" },
+        });
+        tools.get_node("Delete").patch_component("widget", {
+            "role": if view.get("chosen").as_bool() { "action_dock_danger" } else { "action_dock_quiet" },
+            "tooltip": if view.get("chosen").as_bool() { "Delete the selected item" } else { "Select an item first" },
+        });
+        self.node.get_node("Cards").patch_component("widget", { "options": view.get("items"), "text": view.get("picked") });
     }
 }
 

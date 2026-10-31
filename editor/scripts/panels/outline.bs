@@ -31,7 +31,7 @@ impl Outline {
             return;
         }
         let row = node.get_component("widget", "text");
-        node.patch_component("widget", map().with("text", ""));
+        node.patch_component("widget", { "text": "" });
         if row.as_str() != "" {
             self.editor.call("secondary_pick", row);
         }
@@ -40,7 +40,7 @@ impl Outline {
     fn refresh() {
         let items = self.editor.call("secondary_view");
         if items.kind() == "list" {
-            self.node.get_node("List").patch_component("widget", map().with("options", items));
+            self.node.get_node("List").patch_component("widget", { "options": items });
         }
     }
 }

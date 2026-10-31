@@ -17,7 +17,7 @@ pub async fn providers(node: Node) -> any {
     let reply = await task::wait(authentication::list_auth_providers(node).as_int());
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
-        return map();
+        return {};
     }
     data_of(core::body(reply))
 }
@@ -114,7 +114,7 @@ async fn provider_page(node: Node, provider: str, start: fn(Node, str) -> any, s
 /// codes; the code is void, so ask for a new one with
 /// `client::resend_confirmation`), or `validation_failed` (the password).
 pub async fn confirm_registration(node: Node, email: str, code: str, password: str) -> any {
-    let params = map().with("email", email).with("code", code).with("password", password);
+    let params: any = { "email": email, "code": code, "password": password };
     let reply = await task::wait(authentication::confirm_registration(node, params).as_int());
     if !core::ok(reply) {
         log::warn(core::error_of(reply));

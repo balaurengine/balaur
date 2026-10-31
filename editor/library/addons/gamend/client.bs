@@ -57,12 +57,12 @@ pub fn plugin() -> str {
 /// Open a session from a device id. The reply reaches `node`'s handler as
 /// `kind = "login"`, and the returned id can be awaited instead.
 pub fn login_device(node: Node, device_id: str) -> int {
-    gamend::login(node, map().with("device_id", device_id), nil())
+    gamend::login(node, gamend::Credentials { device_id: device_id }, nil())
 }
 
 /// Open a session from an email and a password.
 pub fn login_email(node: Node, email: str, password: str) -> int {
-    gamend::login(node, map().with("email", email).with("password", password), nil())
+    gamend::login(node, gamend::Credentials { email: email, password: password }, nil())
 }
 
 /// Make an account from an email, with no password yet. Not a sign-in, as
@@ -72,9 +72,9 @@ pub fn login_email(node: Node, email: str, password: str) -> int {
 /// takes the code and the password the player chooses, and opens a session.
 /// An empty `username` lets the server pick one.
 pub fn register_email(node: Node, email: str, username: str) -> any {
-    let account = map().with("email", email);
+    let account: any = { "email": email };
     if username != "" {
-        account = account.with("username", username);
+        account.set("username", username);
     }
     authentication::register(node, account)
 }
@@ -82,7 +82,7 @@ pub fn register_email(node: Node, email: str, username: str) -> any {
 /// Email a `register_email` account a new code; only the newest works. The
 /// reply is `ok` whether or not the address has an account waiting.
 pub fn resend_confirmation(node: Node, email: str) -> any {
-    authentication::resend_confirmation(node, map().with("email", email))
+    authentication::resend_confirmation(node, { "email": email })
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
@@ -119,7 +119,7 @@ pub fn route(node: Node, e: any) -> bool {
 }
 
 pub fn close(socket: int) -> bool {
-    script::store(TOPICS_KEY, map());
+    script::store(TOPICS_KEY, {});
     gamend::close(socket)
 }
 
@@ -163,7 +163,7 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     if socket <= 0 {
         return false;
     }
-    gamend::push(socket, "user", "hook", map().with("plugin", plugin()).with("fn", name).with("args", args)) > 0
+    gamend::push(socket, "user", "hook", { "plugin": plugin(), "fn": name, "args": args }) > 0
 }
 
 /// A hook reply as a `HookReply`.
@@ -191,7 +191,7 @@ pub fn register_kv(socket: int, key: str) -> bool {
         held.push(key);
         script::store(KEYS_KEY, held);
     }
-    gamend::push(socket, "user", "kv:subscribe", map().with("key", key)) > 0
+    gamend::push(socket, "user", "kv:subscribe", { "key": key }) > 0
 }
 
 pub fn unregister_kv(socket: int, key: str) -> bool {
@@ -199,7 +199,7 @@ pub fn unregister_kv(socket: int, key: str) -> bool {
         return false;
     }
     script::store(KEYS_KEY, without(registered(), key));
-    gamend::push(socket, "user", "kv:unsubscribe", map().with("key", key)) > 0
+    gamend::push(socket, "user", "kv:unsubscribe", { "key": key }) > 0
 }
 
 /// Every key this session subscribed, in the order it asked for them.
@@ -261,8 +261,8 @@ pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
     let reply = await task::wait(kv::get_kv(node, key, nil()).as_int());
     if !core::ok(reply) {
         if reply.get("status").as_int() == 404 {
-            keep_row(key, map());
-            return map();
+            keep_row(key, {});
+            return {};
         }
         log::warn(core::error_of(reply));
         return nil();
@@ -291,7 +291,9 @@ pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: a
     if writes().get(key).text() == sent {
         return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
     }
-    script::store(WRITES_KEY, writes().with(key, sent));
+    let held = writes();
+    held.set(key, sent);
+    script::store(WRITES_KEY, held);
     let reply = await call(socket, hook, args);
     if writes().get(key).text() == sent {
         script::store(WRITES_KEY, dropped(writes(), key));
@@ -317,7 +319,9 @@ pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
 /// File a value under a key as if the server had sent it: what a caller with
 /// its own fetch, a hook rather than `kv`, keeps its answer with.
 pub fn keep_row(key: str, value: any) {
-    script::store(ROWS_KEY, rows().with(key, value));
+    let held = rows();
+    held.set(key, value);
+    script::store(ROWS_KEY, held);
 }
 
 /// Forget one row, or all of them: what a sign-out does.
@@ -326,7 +330,7 @@ pub fn clear_row(key: str) {
 }
 
 pub fn clear_rows() {
-    script::store(ROWS_KEY, map());
+    script::store(ROWS_KEY, {});
 }
 
 /// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
@@ -363,12 +367,12 @@ fn note_socket(kind: str) {
 
 fn rows() -> any {
     let held = script::stored(ROWS_KEY);
-    if held.kind() == "map" { held } else { map() }
+    if held.kind() == "map" { held } else { {} }
 }
 
 fn writes() -> any {
     let held = script::stored(WRITES_KEY);
-    if held.kind() == "map" { held } else { map() }
+    if held.kind() == "map" { held } else { {} }
 }
 
 /// A list of names the store holds, as names.
@@ -402,10 +406,10 @@ fn without(names: [str], name: str) -> [str] {
 
 /// A map without one key.
 fn dropped(table: any, key: str) -> any {
-    let out = map();
+    let out: any = {};
     for name in table.keys() {
         if name != key {
-            out = out.with(name, table.get(name));
+            out.set(name, table.get(name));
         }
     }
     out
