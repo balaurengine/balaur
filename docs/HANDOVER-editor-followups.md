@@ -109,8 +109,9 @@ is rewritten in the same commit).
      compiler names them; an `any` map is a literal, `{ "k": v }`. The
      editor's 1,466 `map()` and 4,086 `.with(` are literals or records.
    - Left: the pool's control and row specs are any literals that
-     `fill_strip` and `fill_rows` read into `ui::Control` and `ui::Row`, and
-     the 112 widget patches are any literals, not one property write each.
+     `fill_strip` and `fill_rows` read into `ui::Control` and `ui::Row` (351
+     control literals, 145 row literals, 70 fill sites), and the 111 widget
+     patches are any literals, not one property write each.
      The gamend addon's hand-written modules are copies of gamend's
      `clients/balaur_template` and its generated ones `sdkgen/balaur.py`'s
      output: both still write `map()`, outside this repository.
