@@ -224,13 +224,26 @@ pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
 
 /// `own_pack`, against a named file — the same logic a test can drive.
 pub fn extract_from(exe: &Path) -> Result<Option<Vec<u8>>> {
-    // Read once and slice: a game pack is a handful of megabytes, and the
-    // alternative is three seeks into a file that may be being replaced.
+    // Mapped, not read: only the trailer, a PE header and the pack page in.
     // A binary we cannot read is not a standalone game; let the CLI carry on.
-    let Ok(bytes) = std::fs::read(exe) else {
+    let Some(map) = mapped(exe) else {
         return Ok(None);
     };
-    Ok(extract(&bytes).map(<[u8]>::to_vec))
+    Ok(extract(&map).map(<[u8]>::to_vec))
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn mapped(exe: &Path) -> Option<memmap2::Mmap> {
+    let file = std::fs::File::open(exe).ok()?; // os files: the running executable
+    // SAFETY: mapped read-only and dropped before this returns; a file
+    // replaced by renaming over the path leaves this mapping on the old one.
+    unsafe { memmap2::Mmap::map(&file) }.ok()
+}
+
+/// A browser runs no executable file.
+#[cfg(target_family = "wasm")]
+fn mapped(_: &Path) -> Option<Vec<u8>> {
+    None
 }
 
 /// Write a standalone executable, and make sure it can actually be run.

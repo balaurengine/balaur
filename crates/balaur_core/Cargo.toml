@@ -50,6 +50,9 @@ workspace = true
 mio.workspace = true
 # The process's CPU time, for how many cores a frame kept busy (`timings`).
 libc = "0.2"
+# The running executable mapped to read a fused game's trailer without
+# loading the whole binary (`standalone`).
+memmap2 = "0.9"
 # A typed system's batches on the thread pool (`Query::par_for_each`): native
 # only, since a web build runs them in order.
 rayon = "1"
