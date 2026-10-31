@@ -1,4 +1,5 @@
-> **Status:** planned 2026-10-30. Steps 1, 3 to 10 built 2026-10-30: 60
+> **Status:** planned 2026-10-30. Steps 1, 3 to 10 built 2026-10-30, and
+> §8's structs, enums, maps, optionals and native code 2026-10-31: 60
 > programs on wasmi, wasmtime, native code and the browser's engine, a
 > mutation test on every push, `cargo fuzz` targets, and
 > `scripts/check_scripts.sh` in CI. Step 2 is part done (below). Steps 1 to 7 are step 6 of
@@ -119,8 +120,18 @@ an int widened beside a float, and arrays shared by two names. Each function
 folds every variable it holds into its answer, so a wrong value anywhere
 shows. 60 programs a push on wasmi and wasmtime (`BS_RANDOM_PROGRAMS`,
 `BS_RANDOM_SEED`, `BS_RANDOM_SHOW`); 24,000 agreed on the first runs, and at
-least 70% must answer rather than trap. Not yet in it: structs, enums, maps,
-`any`, optionals and native code. Shrinking is by hand.
+least 70% must answer rather than trap. Structs, enums, maps, optionals and
+native code added 2026-10-31: every program declares `struct Point { x:
+int, y: int }` and `enum Shade { Dark, Lit(int) }` and may hold a Point
+(fields read and written), a Shade (read by `match`, its `Lit` bound in the
+arm), a `{str: int}` (keys written, read with `.or`, counted) and an `int?`
+(`nil` or an int, read with `.or`). A struct and a map are only ever
+literals, so the generator never gives one two names and copy-or-share
+cannot tell the engines from the interpreter. With the `c` and `native`
+features every program also runs as native code, all of them one C build;
+600 programs agree on wasmi, wasmtime and native code in 20 s, 2,000 on
+wasmi in a second. Not yet in it: `any`, a struct or map passed between
+functions, and automatic shrinking.
 
 ## 9. A language reference
 

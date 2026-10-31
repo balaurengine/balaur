@@ -1,13 +1,10 @@
-// Random well-typed programs, run on every engine and on a small interpreter
-// that is the language's meaning in code: the engines share one compiler, so
-// only this catches it writing the wrong code. `BS_RANDOM_SEED`, `_PROGRAMS`.
+// Random well-typed programs, run on every engine and on an interpreter that
+// is the language's meaning in code (PLAN-script-tests §8). `BS_RANDOM_*`.
 
 use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum T {
@@ -16,7 +13,21 @@ enum T {
     Bool,
     Str,
     Ints,
+    /// `struct Point { x: int, y: int }`.
+    Point,
+    /// `enum Shade { Dark, Lit(int) }`.
+    Shade,
+    /// `{str: int}`.
+    Ages,
+    /// `int?`.
+    Maybe,
 }
+
+/// What every program declares before its functions.
+const DECLARATIONS: &str = "struct Point { x: int, y: int }\nenum Shade { Dark, Lit(int) }\n";
+
+/// The keys a map literal and a map write may name.
+const KEYS: [&str; 3] = ["a", "b", "c"];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Op {
@@ -70,6 +81,24 @@ enum E {
     /// `"a{n}b{flag}"`: text and variables.
     Interp(Vec<(String, String)>),
     Array(Vec<E>),
+    /// `Point { x: .., y: .. }`.
+    Point(Box<E>, Box<E>),
+    /// `p.x` or `p.y` of a variable.
+    Field(String, &'static str),
+    Dark,
+    Lit(Box<E>),
+    /// `match s { Shade::Dark => .., Shade::Lit(n) => .. }`, `n` an int in the
+    /// second arm.
+    Match(String, Box<E>, String, Box<E>),
+    /// `{"a": .., "b": ..}`, each key once.
+    Ages(Vec<(&'static str, E)>),
+    /// `m["k"].or(..)`.
+    Get(String, &'static str, Box<E>),
+    /// `m.len()`.
+    Count(String),
+    Nil,
+    /// `o.or(..)`.
+    Or(String, Box<E>),
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +110,13 @@ enum S {
     If(E, Vec<S>, Vec<S>),
     For(String, i64, Vec<S>),
     While(String, i64, Vec<S>),
+    /// `let n: T = e;`, for the kinds whose literal takes its type from where
+    /// it goes.
+    LetTyped(String, T, E),
+    /// `p.x = e;`
+    SetField(String, &'static str, E),
+    /// `m["k"] = e;`
+    SetKey(String, &'static str, E),
 }
 
 struct Func {
@@ -178,6 +214,7 @@ impl Gen {
                         .map(|_| E::Int(self.int_lit()))
                         .collect(),
                 ),
+                _ => self.composite(t, s, 0),
             };
         }
         let d = depth - 1;
@@ -187,11 +224,76 @@ impl Gen {
             T::Bool => self.bool_expr(s, d),
             T::Str => self.str_expr(s, d),
             T::Ints => self.ints_expr(s, d),
+            _ => self.composite(t, s, d),
         }
     }
 
+    /// A value of one of the four held kinds. A struct and a map are always a
+    /// literal, never a variable, so no two names hold one.
+    fn composite(&mut self, t: T, s: &Scope, d: u32) -> E {
+        let held = s.of(t);
+        let named = !held.is_empty() && matches!(t, T::Shade | T::Maybe) && self.rng.chance(2);
+        if named {
+            return E::Var(
+                held[usize::try_from(self.rng.below(held.len() as u64)).unwrap()].clone(),
+            );
+        }
+        match t {
+            T::Point => E::Point(
+                Box::new(self.expr(T::Int, s, d)),
+                Box::new(self.expr(T::Int, s, d)),
+            ),
+            T::Shade if self.rng.chance(3) => E::Dark,
+            T::Shade => E::Lit(Box::new(self.expr(T::Int, s, d))),
+            T::Ages => {
+                let mut keys = KEYS.to_vec();
+                let mut pairs = Vec::new();
+                for _ in 0..self.rng.below(4) {
+                    let k =
+                        keys.remove(usize::try_from(self.rng.below(keys.len() as u64)).unwrap());
+                    pairs.push((k, self.expr(T::Int, s, d)));
+                }
+                E::Ages(pairs)
+            }
+            T::Maybe if self.rng.chance(3) => E::Nil,
+            T::Maybe => self.expr(T::Int, s, d),
+            _ => unreachable!("a held kind"),
+        }
+    }
+
+    /// An int read out of a held value in scope, or `None` when none is.
+    fn read_held(&mut self, s: &Scope, d: u32) -> Option<E> {
+        let kinds: Vec<T> = [T::Point, T::Shade, T::Ages, T::Maybe]
+            .into_iter()
+            .filter(|t| !s.of(*t).is_empty())
+            .collect();
+        let t = *kinds.get(usize::try_from(self.rng.below(kinds.len().max(1) as u64)).unwrap())?;
+        let names = s.of(t);
+        let v = names[usize::try_from(self.rng.below(names.len() as u64)).unwrap()].clone();
+        Some(match t {
+            T::Point => E::Field(v, if self.rng.chance(2) { "x" } else { "y" }),
+            T::Shade => {
+                let n = self.name("m");
+                let mut inner = s.clone();
+                inner.vars.push((n.clone(), T::Int));
+                let dark = self.expr(T::Int, s, d);
+                let lit = self.expr(T::Int, &inner, d);
+                E::Match(v, Box::new(dark), n, Box::new(lit))
+            }
+            T::Ages if self.rng.chance(3) => E::Count(v),
+            T::Ages => {
+                let k = KEYS[usize::try_from(self.rng.below(3)).unwrap()];
+                E::Get(v, k, Box::new(self.expr(T::Int, s, d)))
+            }
+            _ => E::Or(v, Box::new(self.expr(T::Int, s, d))),
+        })
+    }
+
     fn int_expr(&mut self, s: &Scope, d: u32) -> E {
-        match self.rng.below(9) {
+        match self.rng.below(11) {
+            9 | 10 => self
+                .read_held(s, d)
+                .unwrap_or_else(|| E::Int(self.int_lit())),
             0..=2 => {
                 let op = [Op::Add, Op::Sub, Op::Mul][usize::try_from(self.rng.below(3)).unwrap()];
                 E::Bin(
@@ -360,14 +462,42 @@ impl Gen {
         for _ in 0..n {
             let ints = s.of(T::Int);
             let arrays = s.of(T::Ints);
-            match self.rng.below(8) {
+            match self.rng.below(10) {
                 0 | 1 => {
-                    let t = [T::Int, T::Int, T::Float, T::Bool, T::Str, T::Ints]
-                        [usize::try_from(self.rng.below(6)).unwrap()];
+                    let t = [
+                        T::Int,
+                        T::Int,
+                        T::Float,
+                        T::Bool,
+                        T::Str,
+                        T::Ints,
+                        T::Point,
+                        T::Shade,
+                        T::Ages,
+                        T::Maybe,
+                    ][usize::try_from(self.rng.below(10)).unwrap()];
                     let e = self.expr(t, s, 3);
                     let n = self.name("v");
                     s.vars.push((n.clone(), t));
-                    out.push(S::Let(n, e));
+                    if matches!(t, T::Point | T::Shade | T::Ages | T::Maybe) {
+                        out.push(S::LetTyped(n, t, e));
+                    } else {
+                        out.push(S::Let(n, e));
+                    }
+                }
+                7 if !s.of(T::Point).is_empty() => {
+                    let points = s.of(T::Point);
+                    let p = points[usize::try_from(self.rng.below(points.len() as u64)).unwrap()]
+                        .clone();
+                    let field = if self.rng.chance(2) { "x" } else { "y" };
+                    out.push(S::SetField(p, field, self.expr(T::Int, s, 2)));
+                }
+                8 if !s.of(T::Ages).is_empty() => {
+                    let maps = s.of(T::Ages);
+                    let m =
+                        maps[usize::try_from(self.rng.below(maps.len() as u64)).unwrap()].clone();
+                    let k = KEYS[usize::try_from(self.rng.below(3)).unwrap()];
+                    out.push(S::SetKey(m, k, self.expr(T::Int, s, 2)));
                 }
                 2 if ints.iter().any(|n| !n.starts_with('i')) => {
                     // A loop's own counter is never written: only `let`s and parameters.
@@ -472,6 +602,24 @@ fn fold(tail: E, ret: T, s: &Scope) -> E {
             (T::Int | T::Float, T::Str) => add(out, E::StrLen(Box::new(E::Var(name.clone())))),
             (T::Str, T::Int | T::Bool) => add(out, E::Interp(vec![("/".into(), name.clone())])),
             (T::Bool, T::Bool) => E::Bin(Op::Ne, Box::new(out), Box::new(E::Var(name.clone()))),
+            (T::Int | T::Float, T::Point) => add(
+                add(out, E::Field(name.clone(), "x")),
+                E::Field(name.clone(), "y"),
+            ),
+            (T::Int | T::Float, T::Shade) => add(
+                out,
+                E::Match(
+                    name.clone(),
+                    Box::new(E::Int(7)),
+                    "folded".into(),
+                    Box::new(E::Var("folded".into())),
+                ),
+            ),
+            (T::Int | T::Float, T::Ages) => add(
+                add(out, E::Count(name.clone())),
+                E::Get(name.clone(), "a", Box::new(E::Int(-3))),
+            ),
+            (T::Int | T::Float, T::Maybe) => add(out, E::Or(name.clone(), Box::new(E::Int(11)))),
             _ => out,
         };
     }
@@ -485,6 +633,10 @@ fn ty(t: T) -> &'static str {
         T::Bool => "bool",
         T::Str => "str",
         T::Ints => "[int]",
+        T::Point => "Point",
+        T::Shade => "Shade",
+        T::Ages => "{str: int}",
+        T::Maybe => "int?",
     }
 }
 
@@ -540,6 +692,27 @@ fn show_expr(e: &E) -> String {
             "[{}]",
             items.iter().map(show_expr).collect::<Vec<_>>().join(", ")
         ),
+        E::Point(x, y) => format!("Point {{ x: {}, y: {} }}", show_expr(x), show_expr(y)),
+        E::Field(v, f) => format!("{v}.{f}"),
+        E::Dark => "Shade::Dark".into(),
+        E::Lit(e) => format!("Shade::Lit({})", show_expr(e)),
+        E::Match(v, dark, n, lit) => format!(
+            "(match {v} {{ Shade::Dark => {}, Shade::Lit({n}) => {} }})",
+            show_expr(dark),
+            show_expr(lit)
+        ),
+        E::Ages(pairs) => format!(
+            "{{{}}}",
+            pairs
+                .iter()
+                .map(|(k, e)| format!("\"{k}\": {}", show_expr(e)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        E::Get(v, k, d) => format!("{v}[\"{k}\"].or({})", show_expr(d)),
+        E::Count(v) => format!("{v}.len()"),
+        E::Nil => "nil".into(),
+        E::Or(v, d) => format!("{v}.or({})", show_expr(d)),
     }
 }
 
@@ -581,12 +754,21 @@ fn show_stmts(stmts: &[S], indent: usize, out: &mut String) {
                 show_stmts(body, indent + 1, out);
                 let _ = writeln!(out, "{pad}    {c} += 1;\n{pad}}}");
             }
+            S::LetTyped(n, t, e) => {
+                let _ = writeln!(out, "{pad}let {n}: {} = {};", ty(*t), show_expr(e));
+            }
+            S::SetField(v, f, e) => {
+                let _ = writeln!(out, "{pad}{v}.{f} = {};", show_expr(e));
+            }
+            S::SetKey(v, k, e) => {
+                let _ = writeln!(out, "{pad}{v}[\"{k}\"] = {};", show_expr(e));
+            }
         }
     }
 }
 
 fn source(funcs: &[Func]) -> String {
-    let mut out = String::new();
+    let mut out = String::from(DECLARATIONS);
     for f in funcs {
         let params: Vec<String> = f
             .params
@@ -607,292 +789,9 @@ fn source(funcs: &[Func]) -> String {
     out
 }
 
-// The interpreter.
+mod interp;
 
-#[derive(Clone, Debug)]
-enum V {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    Str(String),
-    Ints(Rc<RefCell<Vec<i64>>>),
-}
-
-type Run<T> = Result<T, &'static str>;
-
-struct Interp<'a> {
-    funcs: &'a [Func],
-    scopes: Vec<HashMap<String, V>>,
-}
-
-impl Interp<'_> {
-    fn get(&self, n: &str) -> V {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|s| s.get(n))
-            .cloned()
-            .expect("a variable in scope")
-    }
-    fn set(&mut self, n: &str, v: V) {
-        let scope = self
-            .scopes
-            .iter_mut()
-            .rev()
-            .find(|s| s.contains_key(n))
-            .expect("a variable in scope");
-        scope.insert(n.into(), v);
-    }
-    fn int(&mut self, e: &E) -> Run<i64> {
-        match self.eval(e)? {
-            V::Int(i) => Ok(i),
-            v => panic!("an int, got {v:?}"),
-        }
-    }
-    fn float(&mut self, e: &E) -> Run<f64> {
-        match self.eval(e)? {
-            V::Float(f) => Ok(f),
-            V::Int(i) => Ok(i as f64),
-            v => panic!("a float, got {v:?}"),
-        }
-    }
-    fn index(len: usize, i: i64) -> usize {
-        let n = i64::try_from(len).unwrap();
-        usize::try_from(i.wrapping_rem(n).wrapping_add(n).wrapping_rem(n)).unwrap()
-    }
-    fn is_float(&self, e: &E) -> bool {
-        match e {
-            E::Float(_) => true,
-            E::Var(v) => matches!(self.get(v), V::Float(_)),
-            E::Bin(op, a, b) => {
-                matches!(op, Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Rem)
-                    && (self.is_float(a) || self.is_float(b))
-            }
-            E::Neg(a) => self.is_float(a),
-            E::If(_, a, b) => self.is_float(a) || self.is_float(b),
-            E::Call(f, _) => self.funcs.iter().any(|g| g.name == *f && g.ret == T::Float),
-            _ => false,
-        }
-    }
-
-    fn eval(&mut self, e: &E) -> Run<V> {
-        Ok(match e {
-            E::Int(i) => V::Int(*i),
-            E::Float(f) => V::Float(*f),
-            E::Bool(b) => V::Bool(*b),
-            E::Str(s) => V::Str(s.clone()),
-            E::Var(v) => self.get(v),
-            E::Neg(a) => match self.eval(a)? {
-                V::Int(i) => V::Int(i.wrapping_neg()),
-                V::Float(f) => V::Float(-f),
-                v => panic!("negated {v:?}"),
-            },
-            E::Not(a) => match self.eval(a)? {
-                V::Bool(b) => V::Bool(!b),
-                v => panic!("not {v:?}"),
-            },
-            E::Bin(Op::And, a, b) => match self.eval(a)? {
-                V::Bool(false) => V::Bool(false),
-                _ => self.eval(b)?,
-            },
-            E::Bin(Op::Or, a, b) => match self.eval(a)? {
-                V::Bool(true) => V::Bool(true),
-                _ => self.eval(b)?,
-            },
-            E::Bin(op, a, b) => self.binary(*op, a, b)?,
-            E::If(c, a, b) => {
-                let pick = matches!(self.eval(c)?, V::Bool(true));
-                let either_float = self.is_float(a) || self.is_float(b);
-                let v = self.eval(if pick { a } else { b })?;
-                match v {
-                    V::Int(i) if either_float => V::Float(i as f64),
-                    v => v,
-                }
-            }
-            E::Call(f, args) => {
-                let func = self.funcs.iter().find(|g| g.name == *f).expect("a helper");
-                let mut frame = HashMap::new();
-                for ((p, t), a) in func.params.iter().zip(args) {
-                    let v = if *t == T::Float {
-                        V::Float(self.float(a)?)
-                    } else {
-                        self.eval(a)?
-                    };
-                    frame.insert(p.clone(), v);
-                }
-                let saved = std::mem::replace(&mut self.scopes, vec![frame]);
-                let out = self.body(func);
-                self.scopes = saved;
-                out?
-            }
-            E::Len(a) => match self.get(a) {
-                V::Ints(xs) => V::Int(i64::try_from(xs.borrow().len()).unwrap()),
-                v => panic!("len of {v:?}"),
-            },
-            E::At(a, i) => {
-                let i = self.int(i)?;
-                match self.get(a) {
-                    V::Ints(xs) => {
-                        let xs = xs.borrow();
-                        V::Int(xs[Self::index(xs.len(), i)])
-                    }
-                    v => panic!("index into {v:?}"),
-                }
-            }
-            E::StrLen(s) => match self.eval(s)? {
-                V::Str(s) => V::Int(i64::try_from(s.len()).unwrap()),
-                v => panic!("len of {v:?}"),
-            },
-            E::Interp(pieces) => {
-                let mut out = String::new();
-                for (text, v) in pieces {
-                    out.push_str(text);
-                    match self.get(v) {
-                        V::Int(i) => out.push_str(&i.to_string()),
-                        V::Bool(b) => out.push_str(&b.to_string()),
-                        v => panic!("interpolated {v:?}"),
-                    }
-                }
-                V::Str(out)
-            }
-            E::Array(items) => {
-                let mut xs = Vec::new();
-                for i in items {
-                    xs.push(self.int(i)?);
-                }
-                V::Ints(Rc::new(RefCell::new(xs)))
-            }
-        })
-    }
-
-    fn binary(&mut self, op: Op, a: &E, b: &E) -> Run<V> {
-        if self.is_float(a) || self.is_float(b) {
-            let (x, y) = (self.float(a)?, self.float(b)?);
-            return Ok(match op {
-                Op::Add => V::Float(x + y),
-                Op::Sub => V::Float(x - y),
-                Op::Mul => V::Float(x * y),
-                Op::Div => V::Float(x / y),
-                Op::Lt => V::Bool(x < y),
-                Op::Le => V::Bool(x <= y),
-                #[allow(clippy::float_cmp, reason = "the language compares floats exactly")]
-                Op::Eq => V::Bool(x == y),
-                #[allow(clippy::float_cmp, reason = "the language compares floats exactly")]
-                Op::Ne => V::Bool(x != y),
-                _ => panic!("{op:?} on floats"),
-            });
-        }
-        Ok(match (self.eval(a)?, self.eval(b)?) {
-            (V::Int(x), V::Int(y)) => match op {
-                Op::Add => V::Int(x.wrapping_add(y)),
-                Op::Sub => V::Int(x.wrapping_sub(y)),
-                Op::Mul => V::Int(x.wrapping_mul(y)),
-                Op::Div => V::Int(x.checked_div(y).ok_or("trap")?),
-                Op::Rem if y == 0 => return Err("trap"),
-                Op::Rem => V::Int(x.wrapping_rem(y)),
-                Op::Lt => V::Bool(x < y),
-                Op::Le => V::Bool(x <= y),
-                Op::Eq => V::Bool(x == y),
-                Op::Ne => V::Bool(x != y),
-                _ => panic!("{op:?} on ints"),
-            },
-            (V::Bool(x), V::Bool(y)) => match op {
-                Op::Eq => V::Bool(x == y),
-                Op::Ne => V::Bool(x != y),
-                _ => panic!("{op:?} on bools"),
-            },
-            (V::Str(x), V::Str(y)) => match op {
-                Op::Add => V::Str(x + &y),
-                Op::Eq => V::Bool(x == y),
-                _ => panic!("{op:?} on strings"),
-            },
-            (x, y) => panic!("{op:?} on {x:?} and {y:?}"),
-        })
-    }
-
-    fn body(&mut self, f: &Func) -> Run<V> {
-        self.run(&f.body)?;
-        let v = self.eval(&f.tail)?;
-        Ok(match v {
-            V::Int(i) if f.ret == T::Float => V::Float(i as f64),
-            v => v,
-        })
-    }
-
-    fn run(&mut self, stmts: &[S]) -> Run<()> {
-        for st in stmts {
-            match st {
-                S::Let(n, e) => {
-                    let v = self.eval(e)?;
-                    self.scopes.last_mut().unwrap().insert(n.clone(), v);
-                }
-                S::Set(n, e) => {
-                    let v = self.eval(e)?;
-                    self.set(n, v);
-                }
-                S::Push(n, e) => {
-                    let v = self.int(e)?;
-                    if let V::Ints(xs) = self.get(n) {
-                        xs.borrow_mut().push(v);
-                    }
-                }
-                S::SetAt(n, i, e) => {
-                    let i = self.int(i)?;
-                    let v = self.int(e)?;
-                    if let V::Ints(xs) = self.get(n) {
-                        let len = xs.borrow().len();
-                        xs.borrow_mut()[Self::index(len, i)] = v;
-                    }
-                }
-                S::If(c, a, b) => {
-                    let pick = matches!(self.eval(c)?, V::Bool(true));
-                    self.scopes.push(HashMap::new());
-                    let r = self.run(if pick { a } else { b });
-                    self.scopes.pop();
-                    r?;
-                }
-                S::For(i, k, body) => {
-                    for n in 0..*k {
-                        self.scopes.push(HashMap::from([(i.clone(), V::Int(n))]));
-                        let r = self.run(body);
-                        self.scopes.pop();
-                        r?;
-                    }
-                }
-                S::While(c, k, body) => {
-                    self.scopes.last_mut().unwrap().insert(c.clone(), V::Int(0));
-                    loop {
-                        let V::Int(n) = self.get(c) else {
-                            unreachable!()
-                        };
-                        if n >= *k {
-                            break;
-                        }
-                        self.scopes.push(HashMap::new());
-                        let r = self.run(body);
-                        self.scopes.pop();
-                        r?;
-                        let V::Int(n) = self.get(c) else {
-                            unreachable!()
-                        };
-                        self.set(c, V::Int(n + 1));
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-fn to_value(v: &V) -> Value {
-    match v {
-        V::Int(i) => Value::Int(*i),
-        V::Float(f) => Value::Float(if f.is_nan() { f64::NAN } else { *f }),
-        V::Bool(b) => Value::Bool(*b),
-        V::Str(s) => Value::Str(s.clone()),
-        V::Ints(xs) => Value::Array(xs.borrow().iter().map(|i| Value::Int(*i)).collect()),
-    }
-}
+use interp::{Interp, to_value};
 
 fn same(a: &Value, b: &Value) -> bool {
     match (a, b) {
@@ -911,6 +810,8 @@ fn engines() -> Vec<(&'static str, EngineKind)> {
             not(target_os = "ios")
         ))]
         ("wasmtime", EngineKind::Wasmtime),
+        #[cfg(all(feature = "c", feature = "native"))]
+        ("native", EngineKind::Native),
     ]
 }
 
@@ -927,6 +828,9 @@ fn random_programs_answer_as_the_reference_interpreter_does() {
     let show = std::env::var_os("BS_RANDOM_SHOW").is_some();
     let mut failures = Vec::new();
     let mut answered = 0;
+    // Every program made and compiled first, so native code is one C build of
+    // all of them rather than a compiler run each.
+    let mut made = Vec::new();
     for n in 0..count {
         let mut g = Gen {
             rng: Rng(seed ^ (n + 1).wrapping_mul(0x9e37_79b9_7f4a_7c15)),
@@ -946,23 +850,24 @@ fn random_programs_answer_as_the_reference_interpreter_does() {
         if show {
             eprintln!("program {n}: {:?}\n{src}", want.as_ref().map(to_value));
         }
-        let compiled = match compile(&src, &Options::default()) {
-            Ok(c) => c,
-            Err(e) => {
-                failures.push(format!(
-                    "program {n} (seed {seed}) does not compile: {e}\n{src}"
-                ));
-                continue;
-            }
-        };
+        match compile(&src, &Options::default()) {
+            Ok(compiled) => made.push((n, src, want, compiled)),
+            Err(e) => failures.push(format!(
+                "program {n} (seed {seed}) does not compile: {e}\n{src}"
+            )),
+        }
+    }
+    #[cfg(all(feature = "c", feature = "native"))]
+    super::native::build(&made.iter().map(|(.., c)| c).collect::<Vec<_>>());
+    for (n, src, want, compiled) in &made {
         for (name, engine) in engines() {
             let limits = Limits {
                 engine,
                 ..Limits::default()
             };
-            let mut rt = Runtime::new(&compiled, HostFns::default(), limits).unwrap();
+            let mut rt = Runtime::new(compiled, HostFns::default(), limits).unwrap();
             let got = rt.call("main", &[]);
-            let agrees = match (&want, &got) {
+            let agrees = match (want, &got) {
                 (Ok(w), Ok(g)) => same(&to_value(w), g),
                 (Err(_), Err(_)) => true,
                 _ => false,
