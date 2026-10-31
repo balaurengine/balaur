@@ -789,9 +789,9 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
-            let hit = physics3d::raycast(map().with("origin", [0.0, 5.0, 0.0]).with("direction", [0.0, -1.0, 0.0]).with("max_distance", 20.0));
-            if hit.kind() != "map" { log::error("the ray passed through the soft body"); }
-            if hit.get("node").as_node() != self.node { log::error("the ray met a collider that names no node"); }
+            let hit = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 5.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 20.0 });
+            if hit.is_none() { log::error("the ray passed through the soft body"); }
+            if hit.is_some() && hit.unwrap().node != self.node { log::error("the ray met a collider that names no node"); }
             log::error("checked: the ray named the body");
         }
     }
@@ -913,8 +913,8 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
-            let hit = physics3d::raycast(map().with("origin", [0.0, 5.0, 0.0]).with("direction", [0.0, -1.0, 0.0]).with("max_distance", 20.0));
-            if hit.kind() == "map" { log::error("the ray met a body that does not collide"); }
+            let hit = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 5.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 20.0 });
+            if hit.is_some() { log::error("the ray met a body that does not collide"); }
             log::error("checked: passed through");
         }
     }

@@ -284,22 +284,24 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let a = phase + 6.28318 * (i as float) / (RAYS as float);
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
-        let hit = physics2d::raycast(map()
-            .with("from", [x, y])
-            .with("dir", [-x, -y])
-            .with("max", FIELD * 2.5));
-        count(w, !hit.is_nil());
+        let hit = physics2d::raycast(physics2d::RayQuery {
+            origin: [x, y],
+            direction: [-x, -y],
+            max_distance: FIELD * 2.5,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..CASTS {
         let a = phase * 1.7 + 6.28318 * (i as float) / (CASTS as float);
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
-        let hit = physics2d::shapecast(map()
-            .with("shape", map().with("kind", "circle").with("radius", 24.0))
-            .with("from", [x, y])
-            .with("dir", [-x, -y])
-            .with("max", 2.0));
-        count(w, !hit.is_nil());
+        let hit = physics2d::shapecast(physics2d::ShapeQuery {
+            shape: { "kind": "circle", "radius": 24.0 },
+            origin: [x, y],
+            direction: [-x, -y],
+            max_distance: 2.0,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as float) / (POINTS as float);

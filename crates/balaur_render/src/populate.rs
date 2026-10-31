@@ -339,8 +339,13 @@ pub(crate) fn install_populate_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "populate",
         &[MULTIMESH_3D, MULTIMESH_2D],
-        "",
+        "(node: node, options: PopulateOptions) -> any",
         "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
+    )]);
+    m.records(&[(
+        "PopulateOptions",
+        "{ kind: string, surface: node?, count: int?, counts: any, step: any, radius: float?, rotation: float?, tilt: float?, scale: float?, random_scale: float?, seed: int? }",
+        "A layout `populate` works out: its `kind`, the `surface` node or the `count`, `counts`, `step` and `radius` of a row, ring or grid, and how each instance varies around `scale`.",
     )]);
     m.function(
         "populate",

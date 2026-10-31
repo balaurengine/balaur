@@ -1,0 +1,14 @@
+// An `any` holding a list of numbers reads back as a vector or a colour, as
+// a list literal does; one holding a map reads its fields by name.
+
+struct Ray { origin: Vec3, tint: Color? }
+
+pub fn read() -> str {
+    let listed: any = { "origin": [1.0, 2.0, 3.0], "tint": [0.5, 0.5, 0.5, 1.0] };
+    let named: any = { "origin": { "x": 4.0, "y": 5.0, "z": 6.0 } };
+    let a: Ray = listed;
+    let b: Ray = named;
+    "{a.origin.y} {a.tint.unwrap().a} {b.origin.z} {b.tint.is_none()}"
+}
+
+// expect: read() == "2.0 1.0 6.0 true"

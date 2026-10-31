@@ -741,7 +741,17 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
          `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. \
          Answers the body nodes it made."
     };
-    m.describe(&[("ragdoll", &[], "(node: node, opts: table) -> list", doc)]);
+    m.records(&[(
+        "RagdollOptions",
+        "{ shape: string?, thickness: float?, density: float?, friction: float?, restitution: float?, collision_layer: any, collision_mask: any, linear_damping: float?, angular_damping: float?, gravity_scale: float?, continuous_collision: bool?, axes: any, articulation: bool?, collide_connected: bool?, drive: string?, stiffness: float?, damping: float?, follow: any, influence: float?, parent: node? }",
+        "How a ragdoll is built: each bone's shape and surface, each body's damping, the joints' limits, and how it is driven.",
+    )]);
+    m.describe(&[(
+        "ragdoll",
+        &[],
+        "(node: node, opts: RagdollOptions?) -> [node]",
+        doc,
+    )]);
     m.function(
         "ragdoll",
         move |eng: &Engine, (node, opts): (NodeId, Option<Value>)| {

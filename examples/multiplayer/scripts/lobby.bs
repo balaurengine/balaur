@@ -24,15 +24,15 @@ impl Lobby {
     }
 
     pub fn host() {
-        let at = multiplayer::host(map().with("name", "Host"));
-        let url = at.get("url");
+        let at = multiplayer::host(multiplayer::HostOptions { name: "Host" });
+        let url = at.url;
         self.say("Hosting at {url}; waiting for a second player.");
     }
 
     pub fn join() {
         let address = settings::get("multiplayer/address");
         self.joining = true;
-        multiplayer::join("ws://{address}", map().with("name", "Guest"));
+        multiplayer::join("ws://{address}", multiplayer::JoinOptions { name: "Guest" });
         self.say("Joining ws://{address}...");
     }
 

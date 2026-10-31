@@ -222,7 +222,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "() -> int",
             "How many imports are in flight.",
         ),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
+        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
         (
             "choose",
             &[],

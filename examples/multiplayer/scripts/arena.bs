@@ -46,7 +46,7 @@ impl Arena {
             multiplayer::set_input(keys());
         }
         for player in multiplayer::players() {
-            let slot = player.get("slot").as_int();
+            let slot = player.slot;
             let pressed = rollback::input(slot);
             if pressed.kind() == "map" {
                 let ship = self.node.get_node("Ship{slot}");

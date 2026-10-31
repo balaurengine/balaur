@@ -86,11 +86,16 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
             "What one file becomes in a target's pack.",
         ),
+        (
+            "StartOptions",
+            "{ download: bool?, sign: string?, output: string? }",
+            "How `start` exports: `download` fetches a missing template, `sign` names an identity, `output` overrides where it lands.",
+        ),
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
+        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
+        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),

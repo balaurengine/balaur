@@ -744,9 +744,11 @@ impl<'a> FnGen<'a> {
                 return self.expr_as(&lit, want);
             }
         }
-        // A list literal where a `[T]?` goes: the list, there.
+        // A list literal where a `[T]?`, a `Vec3?` or the like goes: the
+        // list or the vector, there.
         if let (ExprKind::ArrayLit(_), Ty::Optional(inner)) = (&e.kind, want)
-            && matches!(**inner, Ty::Array(_))
+            && (matches!(**inner, Ty::Array(_))
+                || matches!(&**inner, Ty::Struct(s) if matches!(s.as_str(), "Vec2" | "Vec3" | "Color")))
         {
             self.expr_as(e, inner)?;
             self.e(I::I32Const(1));

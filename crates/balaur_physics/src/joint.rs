@@ -754,7 +754,7 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
         ("set_joint_limits", &[c::JOINT_3D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis's `axes` record."),
         ("joint_state", &[c::JOINT_3D], "(node: node) -> map", "What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse maps hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity."),
         ("joint_force", &[c::JOINT_3D], "(node: node) -> map", "The force and the torque the joint held through the last step, `#{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so."),
-        ("solve_ik", &[c::JOINT_3D], "(node: node, x: float, y: float, z: float, opts: table)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
+        ("solve_ik", &[c::JOINT_3D], "(node: node, x: float, y: float, z: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
     m.function("remove_joint", |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
@@ -791,6 +791,11 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function("joint_state", |eng: &Engine, node: NodeId| {
         joint_state(eng, node)
     });
+    m.records(&[(
+        "IkOptions",
+        "{ rotation: any, constrain: [string]?, damping: float?, iterations: int?, tolerance: float? }",
+        "How `solve_ik` reaches: the `rotation` to turn the last link to, the world axes it matches, and the solver's damping, iterations and tolerance.",
+    )]);
     m.function(
         "solve_ik",
         |eng: &Engine, (node, x, y, z, opts): (NodeId, f32, f32, f32, Option<Value>)| {

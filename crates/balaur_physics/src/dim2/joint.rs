@@ -684,7 +684,7 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
         ("set_joint_limits", &[c::JOINT_2D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record."),
         ("joint_state", &[c::JOINT_2D], "(node: node) -> map", "What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge's turn in radians; an articulation adds each free axis's coordinate and velocity."),
         ("joint_force", &[c::JOINT_2D], "(node: node) -> map", "The force and the torque the joint held through the last step, `#{ force, torque }`. An articulation has none to read, and says so."),
-        ("solve_ik", &[c::JOINT_2D], "(node: node, x: float, y: float, opts: table)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
+        ("solve_ik", &[c::JOINT_2D], "(node: node, x: float, y: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
     m.function("remove_joint", |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
@@ -721,6 +721,11 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
     m.function("joint_state", |eng: &Engine, node: NodeId| {
         joint_state(eng, node)
     });
+    m.records(&[(
+        "IkOptions",
+        "{ rotation: float?, constrain: [string]?, damping: float?, iterations: int?, tolerance: float? }",
+        "How `solve_ik` reaches: the `rotation` to turn the last link to, the world axes it matches, and the solver's damping, iterations and tolerance.",
+    )]);
     m.function(
         "solve_ik",
         |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<Value>)| {

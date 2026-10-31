@@ -27,6 +27,40 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = project(body);
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    for _ in 0..frames {
+        app.tick(1.0 / 60.0);
+    }
+    let lines = balaur_core::logbuf::recent(500);
+    let errors = lines
+        .iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message.clone())
+        .collect();
+    let all = lines.into_iter().map(|e| e.message).collect();
+    (app, errors, all)
+}
+
+/// Why `body` does not compile as a node's `init`.
+fn refused(body: &str) -> String {
+    let dir = project(body);
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    match app.load_project() {
+        Ok(_) => panic!("`{body}` compiled"),
+        Err(error) => error.to_string(),
+    }
+}
+
+/// A project whose one node runs `body` as its `init`.
+fn project(body: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -46,24 +80,7 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
         ),
     )
     .unwrap();
-
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let mut app = standard_app(config).unwrap();
-    app.load_project().unwrap();
-    for _ in 0..frames {
-        app.tick(1.0 / 60.0);
-    }
-    let lines = balaur_core::logbuf::recent(500);
-    let errors = lines
-        .iter()
-        .filter(|e| e.level.eq_ignore_ascii_case("error"))
-        .map(|e| e.message.clone())
-        .collect();
-    let all = lines.into_iter().map(|e| e.message).collect();
-    (app, errors, all)
+    dir
 }
 
 fn run_clean(body: &str) {
@@ -207,8 +224,9 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
 /// Any file reads here: the picture is decoded when a window hands it over.
 #[test]
 fn an_app_icon_keeps_the_plate_a_script_names() {
-    let (app, errors) =
-        run(r#"window::set_app_icon("project.toml", map().with("plate", [0.1, 0.2, 0.3]));"#);
+    let (app, errors) = run(
+        r#"window::set_app_icon("project.toml", window::AppIconOptions { plate: [0.1, 0.2, 0.3] });"#,
+    );
     assert!(errors.is_empty(), "{errors:#?}");
     let icon = app.engine.resource::<balaur_render::AppIconConfig>();
     assert_eq!(icon.borrow().plate, [26, 51, 77, 255]);
@@ -218,14 +236,10 @@ fn an_app_icon_keeps_the_plate_a_script_names() {
 }
 
 #[test]
-fn an_app_icon_option_it_does_not_know_is_refused_by_name() {
-    let (_app, errors) = run(r#"window::set_app_icon("project.toml", map().with("tint", 1));"#);
-    assert!(
-        errors
-            .iter()
-            .any(|e| e.contains("plate") && e.contains("tint")),
-        "{errors:#?}"
-    );
+fn an_app_icon_option_it_does_not_know_does_not_compile() {
+    let why =
+        refused(r#"window::set_app_icon("project.toml", window::AppIconOptions { tint: 1 });"#);
+    assert!(why.contains("plate") && why.contains("tint"), "{why}");
 }
 
 /// A node with no renderable answers with an empty kind rather than unit.
@@ -260,9 +274,9 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 #[test]
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], map().with("z_index", 2));
-render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, map().with("z_index", -1));
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with("region_origin", [8, 0]).with("region_size", [8, 8]));"#,
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], render::DrawOptions { z_index: 2 });
+render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, render::DrawOptions { z_index: -1 });
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), render::TextureOptions { region_origin: [8.0, 0.0], region_size: [8.0, 8.0] });"#,
         0,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -284,11 +298,11 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with
         ),
         "{shapes:?}"
     );
-    let (_app, errors) =
-        run(r#"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), map().with("z", 1));"#);
+    let why =
+        refused(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), render::DrawOptions { z: 1 });");
     assert!(
-        errors.iter().any(|e| e.contains("not 'z'")),
-        "a misspelt option is refused: {errors:#?}"
+        why.contains("no field `z`"),
+        "a misspelt option does not compile: {why}"
     );
 }
 

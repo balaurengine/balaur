@@ -19,13 +19,7 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
     let body = match (ty, into) {
         (Ty::Struct(class), _) if crate::maps::is_map(class) => map_body(class, into, fields),
         (Ty::Struct(_), true) => struct_into(fields),
-        (Ty::Struct(struct_name), false) => tail(expr(ExprKind::StructLit(
-            struct_name.clone(),
-            fields
-                .iter()
-                .map(|(name, _)| (name.clone(), method(var("cell"), "get", vec![text(name)])))
-                .collect(),
-        ))),
+        (Ty::Struct(struct_name), false) => struct_from(struct_name, fields),
         (Ty::Array(_), true) => each_into("value", Ty::Array(Box::new(Ty::Any)), "out", true),
         (Ty::Array(_), false) => each_into("cell", ty.clone(), "out", false),
         (Ty::Optional(_), true) => tail(expr(ExprKind::If(
@@ -65,6 +59,42 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
         body,
         pos: Pos::default(),
     }
+}
+
+// A struct read back from a map, a field the map lacks its type's zero. A
+// vector or a colour may be a list of its numbers, as a literal may.
+fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
+    let by_key = expr(ExprKind::StructLit(
+        struct_name.to_string(),
+        fields
+            .iter()
+            .map(|(name, _)| (name.clone(), method(var("cell"), "get", vec![text(name)])))
+            .collect(),
+    ));
+    if !matches!(struct_name, "Vec2" | "Vec3" | "Color") {
+        return tail(by_key);
+    }
+    let by_place = expr(ExprKind::StructLit(
+        struct_name.to_string(),
+        fields
+            .iter()
+            .zip(0i64..)
+            .map(|((name, _), at)| {
+                let index = expr(ExprKind::Int(at));
+                (name.clone(), method(var("cell"), "at", vec![index]))
+            })
+            .collect(),
+    ));
+    let listed = expr(ExprKind::Bin(
+        crate::ast::BinOp::Eq,
+        Box::new(method(var("cell"), "kind", vec![])),
+        Box::new(text("list")),
+    ));
+    tail(expr(ExprKind::If(
+        Box::new(listed),
+        tail(by_place),
+        Some(tail(by_key)),
+    )))
 }
 
 // A struct as a map of its fields, each boxed; a `T?` field that is nil is

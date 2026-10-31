@@ -73,7 +73,7 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 | `jump` | `(Node, str)` |
 | `just_finished` | `(Node) -> str?` |
 | `pause` | `(Node)` |
-| `play` | `(Node, str, any)` |
+| `play` | `(Node, str, animation::PlayOptions?)` |
 | `queue` | `(Node, str)` |
 | `resume` | `(Node)` |
 | `seek` | `(Node, float)` |
@@ -81,7 +81,7 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 | `stop` | `(any)` |
 | `time` | `(Node) -> float` |
 | `travel` | `(Node, str)` |
-| `tween` | `(Node, any) -> int` |
+| `tween` | `(Node, animation::Tween) -> int` |
 | `tween_value` | `(any, any, float, str?) -> int` |
 | `tween_value_of` | `(any) -> float` |
 
@@ -130,7 +130,7 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `entitlements` | `(any, any) -> any` |
 | `finish_purchase` | `(any, any, any) -> any` |
 | `identity` | `(any, any) -> any` |
-| `listen` | `(any, any) -> any` |
+| `listen` | `(any, events::ListenOptions?) -> any` |
 | `listen_for_cloud_changes` | `() -> any` |
 | `listen_for_invites` | `() -> any` |
 | `listen_for_urls` | `() -> any` |
@@ -213,7 +213,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `listener_position` | `() -> Vec3` |
 | `pan` | `(int) -> float?` |
 | `play` | `(Node) -> int` |
-| `play_cue` | `(str, any) -> int?` |
+| `play_cue` | `(str, audio::CueOptions?) -> int?` |
 | `seek` | `(Node, float)` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, any, any, any)` |
@@ -238,7 +238,7 @@ The page a browser build runs in; off the web every query answers nil. A parent-
 | Function | Signature |
 | --- | --- |
 | `hardware_concurrency` | `() -> int?` |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 | `location` | `() -> str?` |
 | `messages` | `() -> [any]` |
 | `post_message` | `(any) -> bool` |
@@ -349,11 +349,11 @@ Exports the project being edited. `targets` lists what this install can build; `
 
 | Function | Signature |
 | --- | --- |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 | `output` | `(str) -> str` |
 | `preview` | `(str, str) -> export::Preview?` |
 | `running_count` | `() -> int` |
-| `start` | `(str, any) -> bool` |
+| `start` | `(str, export::StartOptions?) -> bool` |
 | `targets` | `() -> [export::Target]` |
 
 ## `forge`
@@ -365,7 +365,7 @@ Projects kept on Forge, for the editor's pickers, and adding one to a game as a 
 | `add` | `(str, str) -> bool` |
 | `copy` | `(str, str) -> bool` |
 | `fetch` | `(str, bool) -> bool` |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 | `search` | `(str, str) -> bool` |
 | `url` | `() -> str` |
 
@@ -396,17 +396,17 @@ The Gamend backend: session, REST API and realtime socket. Each call returns an 
 | `clear_activity` | `()` |
 | `close` | `(int) -> bool` |
 | `configure` | `(str?) -> str` |
-| `connect` | `(any, any) -> int` |
+| `connect` | `(any, events::ListenOptions?) -> int` |
 | `connection` | `() -> gamend::Connection` |
 | `interrupt` | `(int) -> bool` |
 | `join` | `(int, str, any) -> int` |
 | `leave` | `(int, str) -> int` |
-| `login` | `(any, any, any) -> int` |
+| `login` | `(any, gamend::Credentials, events::ListenOptions?) -> int` |
 | `push` | `(int, str, str, any) -> int` |
-| `register` | `(any, any, any) -> int` |
+| `register` | `(any, gamend::Credentials, events::ListenOptions?) -> int` |
 | `reply` | `(int) -> any` |
 | `rest` | `(any, str, str, any) -> any` |
-| `restore` | `(any) -> bool` |
+| `restore` | `(gamend::Session?) -> bool` |
 | `run_id` | `() -> str` |
 | `server` | `() -> gamend::Server` |
 | `session` | `() -> gamend::Session?` |
@@ -433,16 +433,16 @@ Polygons on the plane as lists of `[x, y]` points in outline order: triangulatio
 | --- | --- |
 | `area` | `(any) -> float` |
 | `contains` | `(any, any) -> bool` |
-| `convex_decomposition` | `(any, any) -> any` |
+| `convex_decomposition` | `(any, geometry2d::DecompositionOptions?) -> any` |
 | `convex_hull` | `(any) -> any` |
-| `difference` | `(any, any, any) -> any` |
-| `intersection` | `(any, any, any) -> any` |
+| `difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
+| `intersection` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `is_clockwise` | `(any) -> bool` |
-| `reverse_difference` | `(any, any, any) -> any` |
+| `reverse_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `segments_intersect` | `(any, any, any, any) -> Vec2` |
-| `symmetric_difference` | `(any, any, any) -> any` |
+| `symmetric_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `triangulate` | `(any) -> [[int]]` |
-| `union` | `(any, any, any) -> any` |
+| `union` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 
 ## `geometry3d`
 
@@ -450,12 +450,12 @@ Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean 
 
 | Function | Signature |
 | --- | --- |
-| `convex_decomposition` | `(any, any) -> [any]` |
+| `convex_decomposition` | `(any, geometry3d::DecompositionOptions?) -> [any]` |
 | `convex_hull` | `(any) -> any` |
 | `intersect` | `(any, any) -> any` |
 | `pieces` | `(any) -> [any]` |
-| `split` | `(any, any) -> [any]` |
-| `voxelize` | `(any, any) -> any` |
+| `split` | `(any, geometry3d::Plane) -> [any]` |
+| `voxelize` | `(any, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels` |
 
 ## `hash`
 
@@ -473,7 +473,7 @@ HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and 
 | Function | Signature |
 | --- | --- |
 | `cancel` | `(int) -> any` |
-| `request` | `(any, any, any) -> int` |
+| `request` | `(any, any, http::RequestOptions?) -> int` |
 
 **Constants** (5):
 
@@ -495,7 +495,7 @@ Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk`
 | `choose` | `() -> bool` |
 | `file` | `(str) -> any` |
 | `handles` | `(str) -> bool` |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 | `running_count` | `() -> int` |
 | `start` | `(str, str?) -> bool` |
 
@@ -533,7 +533,7 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `gamepad_power` | `(int) -> any` |
 | `gamepad_pressure` | `(int, str) -> float` |
 | `gamepad_repeated` | `(int, str) -> bool` |
-| `gamepad_rumble` | `(int, any) -> bool` |
+| `gamepad_rumble` | `(int, input::RumbleOptions?) -> bool` |
 | `gamepad_set_listener` | `(int, any)` |
 | `gamepad_stop_rumble` | `(int)` |
 | `gamepad_touches` | `(int) -> any` |
@@ -660,18 +660,18 @@ Host, join and play a rollback match. Set this machine's input with `set_input` 
 | Function | Signature |
 | --- | --- |
 | `add_bot` | `(str?) -> int?` |
-| `host` | `(any) -> any` |
-| `join` | `(str, any)` |
+| `host` | `(multiplayer::HostOptions?) -> multiplayer::Hosted` |
+| `join` | `(str, multiplayer::JoinOptions?)` |
 | `leave` | `()` |
 | `local_player` | `() -> int?` |
-| `players` | `() -> [any]` |
+| `players` | `() -> [multiplayer::Player]` |
 | `role` | `() -> str?` |
 | `set_input` | `(any)` |
 | `set_input_for` | `(int, any)` |
 | `settled_tick` | `() -> int` |
 | `start` | `() -> bool` |
 | `state` | `() -> str` |
-| `stats` | `(int) -> any` |
+| `stats` | `(int) -> multiplayer::Stats?` |
 | `tick` | `() -> int` |
 
 **Constants** (18):
@@ -815,7 +815,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `attach_particle` | `(Node, int, Node)` |
 | `bodies` | `() -> [Node]` |
 | `broad_phase_aabb` | `(Node) -> [float]` |
-| `closest_point` | `(any) -> any` |
+| `closest_point` | `(physics2d::PointQuery) -> physics2d::Closest?` |
 | `closest_points` | `(Node, Node) -> any` |
 | `collider_mass` | `(Node) -> float` |
 | `collider_mass_properties` | `(Node) -> any` |
@@ -850,18 +850,18 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `max_contact_impulse` | `(Node) -> float` |
 | `move_character` | `(Node, float, float) -> any` |
 | `next_position` | `(Node) -> any` |
-| `overlap_aabb` | `(any) -> [Node]` |
-| `overlap_point` | `(any) -> [Node]` |
-| `overlap_shape` | `(any) -> [Node]` |
+| `overlap_aabb` | `(physics2d::BoxQuery) -> [Node]` |
+| `overlap_point` | `(physics2d::PointQuery) -> [Node]` |
+| `overlap_shape` | `(physics2d::ShapeQuery) -> [Node]` |
 | `overlaps` | `(Node) -> [Node]` |
 | `pin_particle` | `(Node, int)` |
 | `pose_in_body` | `(Node) -> any` |
 | `potential_energy` | `(Node) -> float` |
 | `predict_position` | `(Node, float) -> any` |
 | `predict_position_with_forces` | `(Node, float) -> any` |
-| `ragdoll` | `(Node, any) -> any` |
-| `raycast` | `(any) -> any` |
-| `raycast_all` | `(any) -> [any]` |
+| `ragdoll` | `(Node, physics2d::RagdollOptions?) -> [Node]` |
+| `raycast` | `(physics2d::RayQuery) -> physics2d::Hit?` |
+| `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
 | `remove_joint` | `(Node)` |
 | `reset_follow` | `(Node)` |
 | `reset_plasticity` | `(Node)` |
@@ -885,7 +885,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `set_softbody` | `(Node, any)` |
 | `set_voxel` | `(Node, int, int, bool)` |
 | `set_voxel_size` | `(Node, float, float)` |
-| `shapecast` | `(any) -> any` |
+| `shapecast` | `(physics2d::ShapeQuery) -> physics2d::Hit?` |
 | `sleep` | `(Node)` |
 | `softbody_area` | `(Node) -> float` |
 | `softbody_attachments` | `(Node) -> any` |
@@ -907,13 +907,13 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `softbody_stress` | `(Node) -> [float]` |
 | `softbody_velocity` | `(Node, int) -> Vec2` |
 | `softbody_volume_pieces` | `(Node) -> [any]` |
-| `solve_ik` | `(Node, float, float, any)` |
+| `solve_ik` | `(Node, float, float, physics2d::IkOptions?)` |
 | `swept_aabb` | `(Node) -> [float]` |
 | `tear_cell` | `(Node, int)` |
 | `tear_edge` | `(Node, int)` |
 | `tear_softbody` | `(Node, any, any) -> any` |
-| `teleport` | `(Node, float, float, any)` |
-| `time_of_impact` | `(Node, Node, any) -> any` |
+| `teleport` | `(Node, float, float, physics2d::TeleportOptions?)` |
+| `time_of_impact` | `(Node, Node, physics2d::ImpactOptions) -> any` |
 | `time_since_can_sleep` | `(Node) -> float` |
 | `total_inertia` | `(Node) -> float` |
 | `total_mass` | `(Node) -> float` |
@@ -985,7 +985,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `attach_particle` | `(Node, int, Node)` |
 | `bodies` | `() -> [Node]` |
 | `broad_phase_aabb` | `(Node) -> [float]` |
-| `closest_point` | `(any) -> any` |
+| `closest_point` | `(physics3d::PointQuery) -> physics3d::Closest?` |
 | `closest_points` | `(Node, Node) -> any` |
 | `collider_mass` | `(Node) -> float` |
 | `collider_mass_properties` | `(Node) -> any` |
@@ -1020,18 +1020,18 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `max_contact_impulse` | `(Node) -> float` |
 | `move_character` | `(Node, float, float, float) -> any` |
 | `next_position` | `(Node) -> any` |
-| `overlap_aabb` | `(any) -> [Node]` |
-| `overlap_point` | `(any) -> [Node]` |
-| `overlap_shape` | `(any) -> [Node]` |
+| `overlap_aabb` | `(physics3d::BoxQuery) -> [Node]` |
+| `overlap_point` | `(physics3d::PointQuery) -> [Node]` |
+| `overlap_shape` | `(physics3d::ShapeQuery) -> [Node]` |
 | `overlaps` | `(Node) -> [Node]` |
 | `pin_particle` | `(Node, int)` |
 | `pose_in_body` | `(Node) -> any` |
 | `potential_energy` | `(Node) -> float` |
 | `predict_position` | `(Node, float) -> any` |
 | `predict_position_with_forces` | `(Node, float) -> any` |
-| `ragdoll` | `(Node, any) -> any` |
-| `raycast` | `(any) -> any` |
-| `raycast_all` | `(any) -> [any]` |
+| `ragdoll` | `(Node, physics3d::RagdollOptions?) -> [Node]` |
+| `raycast` | `(physics3d::RayQuery) -> physics3d::Hit?` |
+| `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
 | `remove_joint` | `(Node)` |
 | `reset_follow` | `(Node)` |
 | `reset_plasticity` | `(Node)` |
@@ -1059,7 +1059,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `set_voxel` | `(Node, int, int, int, bool)` |
 | `set_voxel_size` | `(Node, float, float, float)` |
 | `set_wheel_rotation` | `(Node, float)` |
-| `shapecast` | `(any) -> any` |
+| `shapecast` | `(physics3d::ShapeQuery) -> physics3d::Hit?` |
 | `sleep` | `(Node)` |
 | `softbody_attachments` | `(Node) -> any` |
 | `softbody_boundary` | `(Node) -> [[int]]` |
@@ -1083,14 +1083,14 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `softbody_velocity` | `(Node, int) -> Vec3` |
 | `softbody_volume` | `(Node) -> float` |
 | `softbody_volume_pieces` | `(Node) -> [any]` |
-| `solve_ik` | `(Node, float, float, float, any)` |
+| `solve_ik` | `(Node, float, float, float, physics3d::IkOptions?)` |
 | `speed` | `(Node) -> float` |
 | `swept_aabb` | `(Node) -> [float]` |
 | `tear_cell` | `(Node, int)` |
 | `tear_edge` | `(Node, int)` |
 | `tear_softbody` | `(Node, any, any) -> any` |
-| `teleport` | `(Node, float, float, float, any)` |
-| `time_of_impact` | `(Node, Node, any) -> any` |
+| `teleport` | `(Node, float, float, float, physics3d::TeleportOptions?)` |
+| `time_of_impact` | `(Node, Node, physics3d::ImpactOptions) -> any` |
 | `time_since_can_sleep` | `(Node) -> float` |
 | `total_inertia` | `(Node) -> any` |
 | `total_inertia_rotation` | `(Node) -> any` |
@@ -1144,7 +1144,7 @@ A picture of a project: its scene through its current camera, at its `[window]` 
 
 | Function | Signature |
 | --- | --- |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 | `write` | `(str, str) -> str?` |
 
 ## `platform`
@@ -1214,15 +1214,15 @@ The engine's one deterministic PCG32 stream: the same seed draws the same number
 
 ## `regex`
 
-Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.
+Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is a `Match`, with byte offsets and one string per capture group, nil for a group that took no part.
 
 | Function | Signature |
 | --- | --- |
 | `escape` | `(str) -> str` |
 | `matches` | `(str, str) -> bool` |
 | `replace` | `(str, str, str, bool?) -> str` |
-| `search` | `(str, str) -> any` |
-| `search_all` | `(str, str) -> [any]` |
+| `search` | `(str, str) -> regex::Match?` |
+| `search_all` | `(str, str) -> [regex::Match]` |
 | `split` | `(str, str) -> [str]` |
 
 ## `release`
@@ -1233,9 +1233,9 @@ Which build of the engine this is, what the channels are publishing, and replaci
 | --- | --- |
 | `channels` | `() -> [str]` |
 | `check` | `() -> bool` |
-| `install` | `(str, str, any) -> bool` |
+| `install` | `(str, str, release::InstallOptions?) -> bool` |
 | `installed` | `() -> release::Build` |
-| `listen` | `(Node, any)` |
+| `listen` | `(Node, events::ListenOptions?)` |
 
 ## `render`
 
@@ -1255,20 +1255,20 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `clear_retained` | `(str)` |
 | `debug_view` | `() -> str` |
 | `debug_views` | `() -> [str]` |
-| `draw_arc_2d` | `(float, float, float, float, float, float?, any, any)` |
+| `draw_arc_2d` | `(float, float, float, float, float, float?, any, render::DrawOptions?)` |
 | `draw_box` | `(float, float, float, float, float, float, any)` |
 | `draw_capsule` | `(float, float, float, float, float, any)` |
-| `draw_circle_2d` | `(float, float, float, any, any)` |
-| `draw_line_2d` | `(float, float, float, float, float, float, float, float?, any)` |
+| `draw_circle_2d` | `(float, float, float, any, render::DrawOptions?)` |
+| `draw_line_2d` | `(float, float, float, float, float, float, float, float?, render::DrawOptions?)` |
 | `draw_line_3d` | `(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)` |
 | `draw_lines` | `(any)` |
-| `draw_polygon_2d` | `(any, any, any)` |
-| `draw_polyline_2d` | `(any, float?, any, any)` |
-| `draw_rect_2d` | `(float, float, float, float, any, any)` |
+| `draw_polygon_2d` | `(any, any, render::DrawOptions?)` |
+| `draw_polyline_2d` | `(any, float?, any, render::DrawOptions?)` |
+| `draw_rect_2d` | `(float, float, float, float, any, render::DrawOptions?)` |
 | `draw_sphere` | `(float, float, float, float, any)` |
-| `draw_text_2d` | `(float, float, str, any)` |
-| `draw_text_3d` | `(float, float, float, str, any)` |
-| `draw_texture_2d` | `(str, float, float, float, float, any, any)` |
+| `draw_text_2d` | `(float, float, str, render::TextOptions?)` |
+| `draw_text_3d` | `(float, float, float, str, render::TextOptions?)` |
+| `draw_texture_2d` | `(str, float, float, float, float, any, render::TextureOptions?)` |
 | `end_retained` | `()` |
 | `hold_cameras` | `(Node?)` |
 | `instance_color` | `(Node, int) -> any` |
@@ -1284,7 +1284,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `outline` | `(Node) -> [float]` |
 | `pick_ray` | `(float, float, float, float, float, float) -> Node` |
 | `pick_ray_at` | `(float, float, float, float, float, float) -> render::Hit?` |
-| `populate` | `(Node, any) -> any` |
+| `populate` | `(Node, render::PopulateOptions) -> any` |
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
 | `set_box` | `(Node, float, float, float)` |
@@ -1311,11 +1311,11 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `snap_aov` | `(str, str)` |
 | `stats` | `() -> render::Stats` |
 | `terrain` | `(Node, int, int) -> int` |
-| `text_size` | `(str, any) -> Vec2` |
+| `text_size` | `(str, render::TextOptions?) -> Vec2` |
 | `texture_pixels_per_unit` | `(str) -> float` |
 | `texture_size` | `(str) -> [int]` |
 | `tile_data` | `(Node, int, int) -> any` |
-| `trace_texture` | `(str, any) -> [[Vec2]]` |
+| `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
 | `visible_instance_count` | `(Node) -> int` |
 
 **Constants** (45):
@@ -1365,7 +1365,7 @@ Records what a running game is fed and plays it back. A recording holds each tic
 | `pause` | `()` |
 | `play` | `()` |
 | `position` | `() -> int` |
-| `record` | `(str, any) -> str` |
+| `record` | `(str, replay::RecordOptions?) -> str` |
 | `recording` | `() -> str?` |
 | `recording_name` | `() -> str` |
 | `seek` | `(int)` |
@@ -1423,7 +1423,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `component_tags` | `(str) -> [str]?` |
 | `component_types` | `() -> [str]` |
 | `get_node` | `(str) -> Node` |
-| `instantiate` | `(str, Node?, any)` |
+| `instantiate` | `(str, Node?, scene::InstantiateOptions?)` |
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `preset_info` | `(str) -> scene::Preset?` |
@@ -1432,10 +1432,10 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |
 | `source` | `(str) -> str?` |
-| `switch` | `(str, any)` |
+| `switch` | `(str, scene::SwitchOptions?)` |
 | `tagged` | `(str) -> [Node]` |
-| `take_changes` | `() -> [any]` |
-| `to_toml` | `(Node, any) -> str` |
+| `take_changes` | `() -> [scene::Change]` |
+| `to_toml` | `(Node, scene::ToTomlOptions?) -> str` |
 | `variable` | `(str) -> any` |
 | `variables` | `() -> [scene::Variable]` |
 | `warnings` | `(Node) -> [scene::Warning]` |
@@ -1603,7 +1603,7 @@ A long-lived socket for text or binary frames. Events reach the node's `on_webso
 | Function | Signature |
 | --- | --- |
 | `close` | `(int) -> any` |
-| `connect` | `(any, str, any) -> any` |
+| `connect` | `(any, str, websocket::ConnectOptions?) -> int` |
 | `send` | `(int, any) -> any` |
 | `state` | `(int) -> any` |
 
@@ -1628,8 +1628,8 @@ The OS window and the display under it: mode, cursor, app icon, keep-awake, the 
 | Function | Signature |
 | --- | --- |
 | `refresh_rate` | `() -> float` |
-| `safe_area` | `() -> any` |
-| `set_app_icon` | `(str, any)` |
+| `safe_area` | `() -> window::SafeArea` |
+| `set_app_icon` | `(str, window::AppIconOptions?)` |
 | `set_cursor_grab` | `(bool)` |
 | `set_cursor_hidden` | `(bool)` |
 | `set_fullscreen` | `(bool)` |

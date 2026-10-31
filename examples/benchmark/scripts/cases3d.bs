@@ -301,23 +301,25 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let h = math::sin(phase * 0.7 + (i as float)) * FIELD * 0.5;
         let x = math::cos(a) * FIELD;
         let z = math::sin(a) * FIELD;
-        let hit = physics3d::raycast(map()
-            .with("from", [x, h, z])
-            .with("dir", [-x, -h, -z])
-            .with("max", FIELD * 2.5));
-        count(w, !hit.is_nil());
+        let hit = physics3d::raycast(physics3d::RayQuery {
+            origin: [x, h, z],
+            direction: [-x, -h, -z],
+            max_distance: FIELD * 2.5,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..CASTS {
         let a = phase * 1.7 + 6.28318 * (i as float) / (CASTS as float);
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD * 0.4;
         let z = math::sin(a) * FIELD;
-        let hit = physics3d::shapecast(map()
-            .with("shape", map().with("kind", "sphere").with("radius", 0.8))
-            .with("from", [x, y, z])
-            .with("dir", [-x, -y, -z])
-            .with("max", 2.0));
-        count(w, !hit.is_nil());
+        let hit = physics3d::shapecast(physics3d::ShapeQuery {
+            shape: { "kind": "sphere", "radius": 0.8 },
+            origin: [x, y, z],
+            direction: [-x, -y, -z],
+            max_distance: 2.0,
+        });
+        count(w, hit.is_some());
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as float) / (POINTS as float);

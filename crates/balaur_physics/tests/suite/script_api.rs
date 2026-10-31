@@ -226,9 +226,9 @@ fn voxelize_refuses_a_resolution_it_would_never_finish() {
         let mesh = map()
             .with("points", [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
             .with("indices", [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3]);
-        let fine = geometry3d::voxelize(mesh, map().with("resolution", 8.0));
-        if fine.kind() != "map" { log::error("a sane resolution stopped working"); }
-        geometry3d::voxelize(mesh, map().with("resolution", 100000.0));
+        let fine = geometry3d::voxelize(mesh, geometry3d::VoxelizeOptions { resolution: 8 });
+        if fine.cells.len() == 0 { log::error("a sane resolution stopped working"); }
+        geometry3d::voxelize(mesh, geometry3d::VoxelizeOptions { resolution: 100000 });
         log::error("a resolution of 100000 was accepted");
     "#);
     assert_eq!(errors.len(), 1, "{errors:#?}");

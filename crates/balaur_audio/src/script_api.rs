@@ -172,7 +172,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
         ("bus_effects", &[], "", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q`, `distortion_gain`, `distortion_threshold`, `reverb_time`, `reverb_level`, `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max` and `auto_gain_floor`. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
         ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
-        ("play_cue", &[], "(name: string, options: map) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
+        ("play_cue", &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
     m.function("cues", |eng: &Engine, ()| {
         cue::ensure_loaded(eng);
@@ -181,6 +181,11 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     });
     // The script says *what happened*; the cues file says what that sounds
     // like. Tuning one never touches the other.
+    m.records(&[(
+        "CueOptions",
+        "{ position: any }",
+        "Where `play_cue` places a sound, a `Vec3` or a `Vec2`, heard from the `listener`; unplaced when left out.",
+    )]);
     m.function(
         "play_cue",
         |eng: &Engine, (name, opts): (String, Option<Value>)| {

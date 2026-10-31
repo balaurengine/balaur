@@ -42,13 +42,6 @@ pub struct Was {
     data: any,
 }
 
-pub struct LabelOptions {
-    font_size: float,
-    color: [float],
-    text_align: str,
-    pixels_per_unit: float,
-}
-
 /// The rig tool's own state, hung on `state.rig`. `drag` is the modifier target
 /// handle being moved.
 pub fn state() -> RigState {
@@ -611,7 +604,7 @@ fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, color
     if state.tool != "bone" && state.rig.hover != row && row != state.selected {
         return;
     }
-    let options = LabelOptions {
+    let options = render::TextOptions {
         font_size: 28.0,
         color: color,
         text_align: "center",

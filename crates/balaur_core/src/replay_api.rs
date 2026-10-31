@@ -136,9 +136,14 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
             "{ tick: int, recorded: string, replayed: string }",
             "The first tick whose replayed digest differs from the recorded one, both digests as hex.",
         ),
+        (
+            "RecordOptions",
+            "{ project: string?, scripts: string?, digest: bool? }",
+            "What a recording is stamped with: the `project` name and the `scripts` fingerprint, and `digest` for a digest every tick.",
+        ),
     ]);
     m.describe(&[
-        ("record", &[], "(path: string, options: any?) -> string", "Start recording into a file; call it before the code it records runs."),
+        ("record", &[], "(path: string, options: RecordOptions?) -> string", "Start recording into a file; call it before the code it records runs."),
         ("stop", &[], "(reason: string?) -> string?", "Close the recording, naming why it ended, and return the file it wrote."),
         ("recording", &[], "() -> string?", "The file being recorded into, or nil."),
         ("load", &[], "(path: string) -> Header", "Read a recording and put it in front of the engine, paused before its first tick."),

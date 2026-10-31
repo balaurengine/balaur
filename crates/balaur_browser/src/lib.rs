@@ -177,7 +177,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
         "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
     );
     m.describe(&[
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
+        ("listen", &[], "(node: node, options: events::ListenOptions?)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
         ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
         ("messages", &[], "() -> [any]", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),

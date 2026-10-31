@@ -803,7 +803,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
         (
             "listen",
             &[],
-            "",
+            "(node: any, opts: events::ListenOptions?) -> any",
             "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
         ),
         (

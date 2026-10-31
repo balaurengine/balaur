@@ -519,6 +519,11 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
     );
+    m.records(&[(
+        "ListenOptions",
+        "{ on_event: string? }",
+        "How a module's `listen` calls its node: the method `on_event` names, else `on_<module>_event`.",
+    )]);
     m.describe(&[
         (
             "listen",

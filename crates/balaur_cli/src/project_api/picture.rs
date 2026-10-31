@@ -74,7 +74,7 @@ fn install_picture_api(m: &mut dyn Bindings<Engine>) {
         (
             "listen",
             &[],
-            "(node: node, options: map)",
+            "(node: node, options: events::ListenOptions?)",
             "Have the node's `on_picture_event(event)`, or the `on_event` method the options name, called when a picture is written, `{ kind: \"written\", path }`, or fails, `{ kind: \"failed\", path, message }`.",
         ),
     ]);
