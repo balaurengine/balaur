@@ -739,25 +739,17 @@ On a node carrying `screen_notifier2d`, as `node.screen_notifier2d.<method>`:
 
 ### `shape2d`
 
-`2d` · `render` · 12 properties · 1 method
+`2d` · `render` · 4 properties · 1 method
 
-A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`; a stroked line is `line2d`.
+A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>ellipse</code>, <code>star</code>, <code>ngon</code>.</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;corner_radius&quot;: 0.0, &quot;kind&quot;: &quot;rectangle&quot;, &quot;segments&quot;: 32, &quot;size&quot;: [1.0, 1.0]}</code></td><td>The shape drawn, and its dimensions <code>kind</code> is one of: <code>capsule</code> (height, radius, segments); <code>circle</code> (radius, segments); <code>ellipse</code> (segments, size); <code>ngon</code> (radius, sides); <code>rectangle</code> (corner_radius, segments, size); <code>star</code> (inner_radius, points, radius).</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, the shape draws with over its own UVs</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle or ellipse</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, when kind is capsule At least 0.01.</td></tr>
-<tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the corners are rounded off, when kind is rectangle; zero is a square corner At least 0.0.</td></tr>
-<tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
-<tr><td><code>points</code></td><td>int</td><td><code>5</code></td><td>Tips, when kind is star At least 3.</td></tr>
-<tr><td><code>inner_radius</code></td><td>float</td><td><code>0.2</code></td><td>How far the notches between a star&#x27;s tips reach At least 0.01.</td></tr>
-<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse or a rounded corner At least 3.</td></tr>
 </tbody>
 </table>
 
@@ -1879,26 +1871,17 @@ How long a `joint3d` of kind rope may stretch.
 
 ### `shape3d`
 
-`3d` · `render` · 18 properties · 2 methods
+`3d` · `render` · 9 properties · 2 methods
 
-A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
+A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Rendered 3D shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;corner_radius&quot;: 0.0, &quot;kind&quot;: &quot;box&quot;, &quot;segments&quot;: 32, &quot;size&quot;: [1.0, 1.0, 1.0]}</code></td><td>The primitive drawn, and its dimensions <code>kind</code> is one of: <code>box</code> (corner_radius, segments, size); <code>capsule</code> (height, radius, rings, segments); <code>cone</code> (height, radius, segments); <code>cylinder</code> (height, radius, segments); <code>plane</code> (segments, size); <code>prism</code> (height, radius, sides); <code>pyramid</code> (sides, size); <code>sphere</code> (radius, rings, segments); <code>torus</code> (radius, rings, segments, tube_radius); <code>tube</code> (height, inner_radius, radius, segments).</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset, drawn over the shape&#x27;s own UVs; empty draws the colour alone</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box, plane or pyramid</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but box, plane and pyramid At least 0.01.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
-<tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
-<tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
-<tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the edges are rounded off, when kind is box; zero is a square edge At least 0.0.</td></tr>
-<tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
-<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
-<tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>render_layers</code></td><td>flags</td><td><code>[]</code></td><td>The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>light_layers</code></td><td>flags</td><td><code>[]</code></td><td>The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>

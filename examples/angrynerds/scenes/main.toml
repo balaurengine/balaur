@@ -72,8 +72,7 @@ body2d = { kind = "static" }
 position = [0, -0.5, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [28, 1.0]
+shape = { kind = "rectangle", size = [28, 1.0] }
 color = [0.45, 0.63, 0.35, 1.0]
 
 [nodes.collider2d]
@@ -90,8 +89,7 @@ parent = "n_main"
 position = [-8, 0.9, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.24, 1.8]
+shape = { kind = "rectangle", size = [0.24, 1.8] }
 color = [0.42, 0.28, 0.16, 1.0]
 
 [[nodes]]
@@ -104,8 +102,7 @@ body2d = { kind = "kinematic" }
 position = [-8, 2.2, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 color = [0.85, 0.2, 0.18, 1.0]
 
 [nodes.collider2d]
@@ -124,8 +121,7 @@ body2d = { kind = "dynamic" }
 position = [6, 1.0, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
@@ -143,8 +139,7 @@ body2d = { kind = "dynamic" }
 position = [8, 1.0, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
@@ -162,8 +157,7 @@ body2d = { kind = "dynamic" }
 position = [7, 2.16, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [2.6, 0.28]
+shape = { kind = "rectangle", size = [2.6, 0.28] }
 color = [0.68, 0.5, 0.28, 1.0]
 
 [nodes.collider2d]
@@ -201,8 +195,7 @@ body2d = { kind = "dynamic" }
 position = [7, 0.45, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.45
+shape = { kind = "circle", radius = 0.45 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
@@ -220,8 +213,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.189
+shape = { kind = "circle", radius = 0.189 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -233,8 +225,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.189
+shape = { kind = "circle", radius = 0.189 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -246,8 +237,7 @@ parent = "n_pig1"
 position = [0, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.1, 0.032]
+shape = { kind = "rectangle", size = [0.1, 0.032] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -259,8 +249,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.135
+shape = { kind = "circle", radius = 0.135 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -272,8 +261,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.135
+shape = { kind = "circle", radius = 0.135 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -285,8 +273,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.05
+shape = { kind = "circle", radius = 0.05 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -298,8 +285,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.05
+shape = { kind = "circle", radius = 0.05 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -312,8 +298,7 @@ body2d = { kind = "dynamic" }
 position = [7, 2.72, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
@@ -331,8 +316,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.168
+shape = { kind = "circle", radius = 0.168 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -344,8 +328,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.168
+shape = { kind = "circle", radius = 0.168 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -357,8 +340,7 @@ parent = "n_pig2"
 position = [0, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.088, 0.028]
+shape = { kind = "rectangle", size = [0.088, 0.028] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -370,8 +352,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.12
+shape = { kind = "circle", radius = 0.12 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -383,8 +364,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.12
+shape = { kind = "circle", radius = 0.12 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -396,8 +376,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.044
+shape = { kind = "circle", radius = 0.044 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -409,8 +388,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.044
+shape = { kind = "circle", radius = 0.044 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -423,8 +401,7 @@ body2d = { kind = "dynamic" }
 position = [7, 4.55, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.36
+shape = { kind = "circle", radius = 0.36 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
@@ -441,8 +418,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.151
+shape = { kind = "circle", radius = 0.151 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -454,8 +430,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.151
+shape = { kind = "circle", radius = 0.151 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -467,8 +442,7 @@ parent = "n_pig3"
 position = [0, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.08, 0.026]
+shape = { kind = "rectangle", size = [0.08, 0.026] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -480,8 +454,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.108
+shape = { kind = "circle", radius = 0.108 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -493,8 +466,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.108
+shape = { kind = "circle", radius = 0.108 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -506,8 +478,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.04
+shape = { kind = "circle", radius = 0.04 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -519,8 +490,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.04
+shape = { kind = "circle", radius = 0.04 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 

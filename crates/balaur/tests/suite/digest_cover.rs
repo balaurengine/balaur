@@ -45,7 +45,7 @@ id = "n_shape"
 name = "Shape"
 parent = "n_root"
 [nodes.shape3d]
-kind = "box"
+shape = { kind = "box" }
 [nodes.material]
 name = ""
 

@@ -803,6 +803,7 @@ fn editors() -> any {
         .with("list", edit_list)
         .with("map", edit_map)
         .with("record", edit_record)
+        .with("variant", edit_variant)
 }
 
 // A list: what it holds and how many, then a row an entry, each drawn by the
@@ -847,6 +848,23 @@ fn edit_record(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
     let note = if spec.class.is_nil() { "{names.len()} fields" } else { "{spec.class.as_str()} · {names.len()}" };
     holder_row(state, tokens, at, spec, note, nil);
     for field in names {
+        let of = util::map_or_empty(fields.get(field));
+        let now = if held.has(field) { held.get(field) } else { of.default };
+        draw_value(state, tokens, at_step(at, field, util::property_label(field)), of, now);
+    }
+}
+
+// A variant: which of its records the value is, as a dropdown, then that
+// record's fields. Picking another kind writes it over the fields held, and
+// the engine keeps the ones the new kind reads and fills in the rest.
+fn edit_variant(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
+    let held = util::map_or_empty(value);
+    let variants = util::map_or_empty(spec.variants);
+    let kind = if held.kind.is_nil() { util::map_or_empty(spec.default).kind.as_str() } else { held.kind.as_str() };
+    let picker = map().with("type", "enum").with("options", util::keys_sorted(variants)).with("description", spec.description);
+    edit_enum(state, tokens, at_step(at, "kind", at.label), picker, kind);
+    let fields = util::map_or_empty(util::map_or_empty(variants.get(kind)).fields);
+    for field in util::keys_sorted(fields) {
         let of = util::map_or_empty(fields.get(field));
         let now = if held.has(field) { held.get(field) } else { of.default };
         draw_value(state, tokens, at_step(at, field, util::property_label(field)), of, now);

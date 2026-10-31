@@ -154,7 +154,7 @@ fn a_child_draws_once() {
         &app,
         child,
         "shape3d",
-        "kind = \"box\"\nsize = [1.0, 1.0, 1.0]",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
     );
     app.tick(1.0 / 60.0);
     balaur_render::stats::measure(&app.engine);

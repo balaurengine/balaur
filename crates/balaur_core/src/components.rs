@@ -19,6 +19,7 @@
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
 //!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3" | "vec4"
 //!          | "color" | "asset" | "flags" | "node" | "list" | "map" | "record"
+//!          | "variant"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
@@ -27,6 +28,12 @@
 //!   fields = { name = { ... } }
 //!                          (record only, and required there: one spec a
 //!                           field)
+//!   variants = { name = { type = "record", fields = { ... } } }
+//!                          (variant only, and required there: one record
+//!                           spec a variant. A value names its variant in
+//!                           `kind` and holds that record's fields beside it,
+//!                           `{ kind = "box", size = [1.0, 1.0, 1.0] }`, so a
+//!                           row only ever shows the fields its kind reads)
 //!   key = "string" | "int" (map only, optional; "string" by default)
 //!   class = "Wave"         (record only, optional: the script struct whose
 //!                           shape it is, handed to a script as that class)
@@ -119,8 +126,8 @@ pub use property::{
 };
 use schema::hex_rgba;
 pub use schema::{
-    PROPERTY_TYPES, UNITS, complete_property, inner_specs, validate_property, validate_value,
-    zero_of,
+    KIND, PROPERTY_TYPES, UNITS, active_variant, complete_property, inner_specs, validate_property,
+    validate_value, zero_of,
 };
 pub(crate) use written::{same, written_at};
 pub use written::{written, written_of};

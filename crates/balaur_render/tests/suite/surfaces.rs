@@ -36,14 +36,14 @@ fn every_shape_takes_a_texture_and_reads_it_back() {
         &app,
         solid,
         "shape3d",
-        "kind = \"sphere\"\ntexture = \"rock.png\"",
+        "shape = { kind = \"sphere\" }\ntexture = \"rock.png\"",
     );
     let flat = node(&app);
     add(
         &app,
         flat,
         "shape2d",
-        "kind = \"circle\"\ntexture = \"rock.png\"",
+        "shape = { kind = \"circle\" }\ntexture = \"rock.png\"",
     );
     let line = node(&app);
     add(&app, line, "line2d", "texture = \"rope.png\"");
@@ -81,7 +81,7 @@ fn every_shape_takes_a_texture_and_reads_it_back() {
 fn a_new_texture_rebuilds_the_shape_and_a_new_tint_does_not() {
     let (_dir, app) = app();
     let flat = node(&app);
-    add(&app, flat, "shape2d", "kind = \"circle\"");
+    add(&app, flat, "shape2d", "shape = { kind = \"circle\" }");
     let version = || {
         app.engine
             .world()
@@ -275,7 +275,12 @@ fn every_3d_renderable_takes_its_flags_and_a_debug_drawing_beside_it() {
     let keys = "segmentation_id = 9\nreceive_shadows = false";
     let drawing = "wireframe_width = 2.0\nwireframe_sizing = \"screen\"\nwireframe_color = [0.0, 1.0, 0.0, 1.0]\ndot_size = 3.0\ndraw_surface = false";
     let solid = node(&app);
-    add(&app, solid, "shape3d", &format!("kind = \"box\"\n{keys}"));
+    add(
+        &app,
+        solid,
+        "shape3d",
+        &format!("shape = {{ kind = \"box\" }}\n{keys}"),
+    );
     let cut = node(&app);
     add(
         &app,
@@ -331,7 +336,7 @@ fn a_2d_drawable_blends_and_culls_as_its_material_says() {
         &app,
         flat,
         "shape2d",
-        &format!("kind = \"circle\"\n{material}"),
+        &format!("shape = {{ kind = \"circle\" }}\n{material}"),
     );
     let quad = node(&app);
     add(&app, quad, "sprite", material);
@@ -358,7 +363,7 @@ fn a_2d_drawable_blends_and_culls_as_its_material_says() {
         &app,
         refused,
         "shape2d",
-        "kind = \"circle\"\nmaterial = { surface = { alpha = \"lighten\" } }",
+        "shape = { kind = \"circle\" }\nmaterial = { surface = { alpha = \"lighten\" } }",
     );
     let why = balaur_core::assets::load(&app.engine, &named(refused, "shape2d")).unwrap_err();
     assert!(format!("{why:#}").contains("lighten"), "{why:#}");

@@ -40,6 +40,15 @@ fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
             }
             *value = toml::Value::Table(whole);
         }
+        Some("variant") => {
+            let Some((kind, record)) = schema::active_variant(spec, value) else {
+                return;
+            };
+            fill_record_value(record, value);
+            if let Some(table) = value.as_table_mut() {
+                table.insert(schema::KIND.into(), toml::Value::String(kind));
+            }
+        }
         Some("list" | "map") => {
             if let Some(of) = spec.get("of") {
                 for inner in held_mut(value) {
@@ -116,7 +125,7 @@ fn expand_color_value(prop: &str, spec: &toml::Value, value: &mut toml::Value) {
                 }
             }
         }
-        Some("record") => {
+        Some("record" | "variant") => {
             for (field, inner) in fields_mut(spec, value) {
                 expand_color_value(prop, field, inner);
             }
@@ -134,14 +143,23 @@ pub(super) fn held_mut(value: &mut toml::Value) -> Vec<&mut toml::Value> {
     }
 }
 
-/// A `record` value's entries beside the spec each field declares. A key no
-/// field answers to is skipped; `validate_property` already refused it.
-fn fields_mut<'a>(
+/// A `record` value's entries beside the spec each field declares, or a
+/// `variant`'s beside its active variant's. A key no field answers to is
+/// skipped: `validate_property` already refused it, and a variant's `kind`
+/// is not a field.
+pub(super) fn fields_mut<'a>(
     spec: &'a toml::Value,
     value: &'a mut toml::Value,
 ) -> Vec<(&'a toml::Value, &'a mut toml::Value)> {
+    let record = match spec.get("type").and_then(toml::Value::as_str) {
+        Some("variant") => match schema::active_variant(spec, value) {
+            Some((_, record)) => record,
+            None => return Vec::new(),
+        },
+        _ => spec,
+    };
     let (Some(fields), Some(table)) = (
-        spec.get("fields").and_then(toml::Value::as_table),
+        record.get("fields").and_then(toml::Value::as_table),
         value.as_table_mut(),
     ) else {
         return Vec::new();
@@ -183,7 +201,10 @@ pub(super) fn overlay(
     match params {
         Some(toml::Value::Table(params)) => {
             for (k, v) in params {
-                out.insert(k.clone(), v.clone());
+                let merged = schema
+                    .get(k)
+                    .and_then(|spec| over_variant(spec, out.get(k), v));
+                out.insert(k.clone(), merged.unwrap_or_else(|| v.clone()));
             }
         }
         // A component is written as a table and nothing else, so a bare
@@ -209,6 +230,30 @@ pub(super) fn overlay(
         None => {}
     }
     Ok(())
+}
+
+/// A `variant` written over the one held: a table naming no `kind`, or the
+/// held one, changes only the fields it names, so a look writing a sphere's
+/// `radius` keeps it a sphere. `None` where the value replaces what was
+/// held: another kind, or a property of any other type.
+fn over_variant(
+    spec: &toml::Value,
+    held: Option<&toml::Value>,
+    written: &toml::Value,
+) -> Option<toml::Value> {
+    if spec.get("type").and_then(toml::Value::as_str) != Some("variant") {
+        return None;
+    }
+    let (held, written) = (held?.as_table()?, written.as_table()?);
+    let kind = written.get(schema::KIND);
+    if kind.is_some_and(|kind| Some(kind) != held.get(schema::KIND)) {
+        return None;
+    }
+    let mut merged = held.clone();
+    for (key, value) in written {
+        merged.insert(key.clone(), value.clone());
+    }
+    Some(toml::Value::Table(merged))
 }
 
 /// The full property table an `apply` hook receives: schema defaults, the
@@ -284,7 +329,7 @@ fn resolve_asset_value(
                 }
             }
         }
-        Some("record") => {
+        Some("record" | "variant") => {
             for (field, inner) in fields_mut(spec, value) {
                 resolve_asset_value(eng, prop, field, inner)?;
             }

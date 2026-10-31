@@ -35,7 +35,7 @@ fn plugin_components_roundtrip_through_the_registry() {
                 // component, and merges when it has it; there is no add_component.
                 n.set_component("body3d");
                 n.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.7));
-                n.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.7));
+                n.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.7)));
                 n.set_component("widget", map().with("text", "hi"));
 
                 let body = n.get_component("body3d");
@@ -172,7 +172,7 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     // A renderable's `color` property, written as the hex a scene uses.
     let e = spawn(&app, "Red");
     let params = toml::Value::Table(toml::toml! {
-        kind = "sphere"
+        shape = { kind = "sphere" }
         color = "#ff0000"
     });
     balaur::components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();

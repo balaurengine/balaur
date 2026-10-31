@@ -131,7 +131,7 @@ pub use particles::{Particles, Particles2d};
 pub use particles_3d::Particles3d;
 pub use polygon::{Polygon, PolygonMesh};
 pub use reflection::{LitProbe, ProbeUpdate, ReflectionProbe};
-pub use shape::{FlatKind, Line2d, LineCap, LineJoin, Primitive2d, Primitive3d, SolidKind};
+pub use shape::{FlatShape, Line2d, LineCap, LineJoin, Primitive2d, Primitive3d, SolidShape};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use sprite::Sprite;
 pub use text_component::{FontStyle, LineBreak, Text2d, Text3d, TruncateAt};
@@ -1103,7 +1103,7 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("shape2d", Some("kind = \"rectangle\""))],
+            &[("shape2d", Some("shape = { kind = \"rectangle\" }"))],
         )?,
     );
     reg.register_preset(

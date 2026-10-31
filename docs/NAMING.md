@@ -651,6 +651,10 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | --- | --- | --- |
 | Where this build runs | `engine.target` | Cargo |
 | What an app registers before any plugin, in order | `AppConfig::builtins`, `Builtins` (`steps`, `api`), `ApiPart`; the kernel's `Builtins::kernel` | none |
+| A value that is one of several records, by name | `type = "variant"`, `variants`, the value's `kind`; `#[derive(Variant)]`, `#[option(default)]` | Rust enums |
+| A primitive and its dimensions, on a shape | `shape` (`shape3d`, `shape2d`): `kind` and that kind's fields | Godot's mesh resources |
+| A component written by hand, not derived | `ComponentDef::by_hand(schema, apply, remove, get)` | none |
+| A component as a save writes it | `components::written`, `written_of`; `node.authored` | none |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |
 | Jobs in flight | `export.running_count`, `import.running_count` | none |

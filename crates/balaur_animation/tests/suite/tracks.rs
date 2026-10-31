@@ -58,7 +58,7 @@ fn a_clip_animates_a_component_the_animation_crate_does_not_depend_on() {
         &app,
         entity,
         "shape3d",
-        "kind = \"box\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
+        "shape = { kind = \"box\" }\ncolor = [0.0, 0.0, 0.0, 1.0]",
     );
     set(
         &app,
@@ -97,8 +97,7 @@ fn animating_one_property_leaves_the_rest_of_its_component_alone() {
         &app,
         entity,
         "shape3d",
-        r#"kind = "box"
-size = [4.0, 6.0, 8.0]"#,
+        r#"shape = { kind = "box", size = [4.0, 6.0, 8.0] }"#,
     );
     set(
         &app,
@@ -109,18 +108,19 @@ size = [4.0, 6.0, 8.0]"#,
 length = 1.0
 
 [[library.tracks]]
-property = "shape3d/radius"
-keys = [ { time = 0.0, value = 0.5 }, { time = 1.0, value = 2.0 } ]
+property = "shape3d/color"
+keys = [ { time = 0.0, value = [1.0, 0.0, 0.0, 1.0] }, { time = 1.0, value = [0.0, 0.0, 1.0, 1.0] } ]
 "#,
     );
     balaur_animation::play(&app.engine, entity, "").unwrap();
 
     tick(&mut app, 30);
 
+    let shape = property(&app, entity, "shape3d", "shape");
     assert_eq!(
-        numbers(&property(&app, entity, "shape3d", "size")),
+        numbers(&shape["size"]),
         vec![4.0, 6.0, 8.0],
-        "writing `radius` through the registry put `size` back to its \
+        "writing `color` through the registry put the shape back to its \
          schema default — which is what `components::patch` exists to prevent"
     );
 }
@@ -134,7 +134,7 @@ fn a_component_track_can_drive_a_child_node() {
         &app,
         child,
         "shape3d",
-        "kind = \"sphere\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
+        "shape = { kind = \"sphere\" }\ncolor = [0.0, 0.0, 0.0, 1.0]",
     );
     set(
         &app,
@@ -169,7 +169,7 @@ keys = [
 fn a_track_naming_a_component_nothing_registered_leaves_the_node_alone() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    set(&app, entity, "shape3d", r#"kind = "sphere""#);
+    set(&app, entity, "shape3d", r#"shape = { kind = "sphere" }"#);
     set(
         &app,
         entity,

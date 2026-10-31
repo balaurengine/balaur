@@ -4,8 +4,10 @@
 //! field in field order, each field's doc comment as its `description`; the
 //! struct's `Default`, from each field's `#[property(default = ...)]`; and a
 //! read and a write of one property by its index. `#[derive(Record)]` is the
-//! same for a struct a property holds, and `#[derive(Enum)]` makes a fieldless
-//! enum an `enum` property whose options are its variants.
+//! same for a struct a property holds, `#[derive(Enum)]` makes a fieldless
+//! enum an `enum` property whose options are its variants, and
+//! `#[derive(Variant)]` makes an enum whose every variant holds a record a
+//! `variant` property: the record of the variant its `kind` names.
 //!
 //! What the generated code reaches for lives in
 //! `balaur_core::components::derived`, so a crate deriving needs `balaur_core`
@@ -41,6 +43,18 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
 pub fn derive_enum(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
     expand_enum(&input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// `#[derive(Variant)]`: an enum whose every variant holds one record, as a
+/// `variant` property. Each variant is named in snake case unless
+/// `#[option(name = "...")]` names it; `#[option(default)]` marks the one
+/// `Default` gives, the first otherwise.
+#[proc_macro_derive(Variant, attributes(option))]
+pub fn derive_variant(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    expand_variant(&input)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }
@@ -455,6 +469,107 @@ fn expand_enum(input: &DeriveInput) -> syn::Result<Tokens> {
                 match value.as_str() {
                     #(::core::option::Option::Some(#options) => ::core::result::Result::Ok(Self::#variants),)*
                     _ => ::core::result::Result::Err(#derived::not_an_option(value, Self::OPTIONS)),
+                }
+            }
+        }
+    })
+}
+
+fn expand_variant(input: &DeriveInput) -> syn::Result<Tokens> {
+    let Data::Enum(data) = &input.data else {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "only an enum derives `Variant`",
+        ));
+    };
+    let derived = quote!(::balaur_core::components::derived);
+    let toml = quote!(#derived::toml);
+    let ident = &input.ident;
+    let mut options = Vec::new();
+    let mut variants = Vec::new();
+    let mut records = Vec::new();
+    let mut docs = Vec::new();
+    let mut default = None;
+    for variant in &data.variants {
+        let record = match &variant.fields {
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0].ty,
+            _ => {
+                return Err(syn::Error::new(
+                    variant.span(),
+                    "a variant holds one record: `Box(BoxShape)`",
+                ));
+            }
+        };
+        let mut name = snake(&variant.ident.to_string());
+        for attr in &variant.attrs {
+            if !attr.path().is_ident("option") {
+                continue;
+            }
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("name") {
+                    let text: syn::LitStr = meta.value()?.parse()?;
+                    name = text.value();
+                    Ok(())
+                } else if meta.path.is_ident("default") {
+                    default = Some(variants.len());
+                    Ok(())
+                } else {
+                    Err(meta.error("`option` takes `name` or `default`"))
+                }
+            })?;
+        }
+        options.push(name);
+        variants.push(&variant.ident);
+        records.push(record);
+        docs.push(doc_of(&variant.attrs));
+    }
+    let Some(first) = variants.first() else {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "a variant enum needs one variant",
+        ));
+    };
+    let chosen = default.map_or(*first, |at| variants[at]);
+    Ok(quote! {
+        impl #ident {
+            /// Every variant's name, in the order the enum declares them.
+            pub const OPTIONS: &'static [&'static str] = &[#(#options),*];
+
+            /// The variant's name, as a file and a script spell its `kind`.
+            #[must_use]
+            pub const fn option(&self) -> &'static str {
+                match self {
+                    #(Self::#variants(_) => #options,)*
+                }
+            }
+        }
+
+        impl ::core::default::Default for #ident {
+            fn default() -> Self {
+                Self::#chosen(::core::default::Default::default())
+            }
+        }
+
+        impl #derived::Property for #ident {
+            fn describe(spec: &mut #toml::map::Map<::std::string::String, #toml::Value>) {
+                let mut variants = #toml::map::Map::new();
+                #(variants.insert(
+                    ::std::string::String::from(#options),
+                    #derived::variant_record::<#records>(#docs),
+                );)*
+                #derived::describe_variant(spec, variants);
+            }
+
+            fn to_value(&self) -> #toml::Value {
+                match self {
+                    #(Self::#variants(held) => #derived::variant_value(#options, held),)*
+                }
+            }
+
+            fn from_value(value: &#toml::Value) -> #derived::Result<Self> {
+                match #derived::variant_kind(value, Self::OPTIONS)? {
+                    #(#options => ::core::result::Result::Ok(Self::#variants(#derived::from_table(value)?)),)*
+                    _ => ::core::unreachable!("variant_kind answers one of OPTIONS"),
                 }
             }
         }

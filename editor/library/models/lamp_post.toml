@@ -12,9 +12,7 @@ parent = "LampPost"
 position = [0, 0.06, 0]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.2
-height = 0.12
+shape = { kind = "cylinder", radius = 0.2, height = 0.12 }
 color = "#2f3236"
 
 [[nodes]]
@@ -25,9 +23,7 @@ parent = "LampPost"
 position = [0, 1.5, 0]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.06
-height = 3.0
+shape = { kind = "cylinder", radius = 0.06, height = 3.0 }
 color = "#2f3236"
 
 [[nodes]]
@@ -38,8 +34,7 @@ parent = "LampPost"
 position = [0, 3.06, 0]
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.16
+shape = { kind = "sphere", radius = 0.16 }
 color = "#ffe9b8"
 
 [[nodes]]

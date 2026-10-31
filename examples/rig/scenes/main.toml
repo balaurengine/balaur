@@ -26,8 +26,7 @@ parent = "n_main"
 position = [0, -1.5, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [12, 0.5]
+shape = { kind = "rectangle", size = [12, 0.5] }
 color = [0.35, 0.5, 0.3, 1.0]
 
 # Something for the ragdoll to land on. A collider with no body is static.
@@ -296,8 +295,7 @@ parent = "n_hero"
 position = [2.0, 1.4, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.06
+shape = { kind = "circle", radius = 0.06 }
 color = [0.9, 0.35, 0.3, 1.0]
 
 [[nodes]]

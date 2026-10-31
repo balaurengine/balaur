@@ -17,7 +17,7 @@ use std::rc::Rc;
 pub use anyhow::Result;
 use anyhow::anyhow;
 /// The derives, beside the traits they write: one import brings both.
-pub use balaur_derive::{Component, Enum, Record};
+pub use balaur_derive::{Component, Enum, Record, Variant};
 use hecs::Entity;
 pub use toml;
 
@@ -109,6 +109,52 @@ pub fn describe_record<F: Fields>(spec: &mut toml::map::Map<String, toml::Value>
         .map(|(name, field)| ((*name).to_owned(), field))
         .collect();
     spec.insert("fields".into(), toml::Value::Table(fields));
+}
+
+/// A `variant` spec: each of `variants` a record spec, by the name a value's
+/// `kind` says.
+pub fn describe_variant(
+    spec: &mut toml::map::Map<String, toml::Value>,
+    variants: toml::map::Map<String, toml::Value>,
+) {
+    spec.entry("type")
+        .or_insert_with(|| toml::Value::String("variant".into()));
+    spec.insert("variants".into(), toml::Value::Table(variants));
+}
+
+/// One variant's record spec, its doc comment as its `description`.
+pub fn variant_record<F: Fields>(doc: &str) -> toml::Value {
+    let mut spec = toml::map::Map::new();
+    describe_record::<F>(&mut spec);
+    if !doc.is_empty() {
+        spec.insert("description".into(), toml::Value::String(doc.to_owned()));
+    }
+    toml::Value::Table(spec)
+}
+
+/// A variant's value: its fields as a table, and the `kind` naming it.
+pub fn variant_value<F: Fields>(kind: &str, held: &F) -> toml::Value {
+    let mut table = to_table(held);
+    if let Some(table) = table.as_table_mut() {
+        table.insert(super::KIND.into(), toml::Value::String(kind.to_owned()));
+    }
+    table
+}
+
+/// The variant a value names, or the refusal of a value naming none.
+pub fn variant_kind<'a>(value: &'a toml::Value, options: &[&str]) -> Result<&'a str> {
+    let kind = value
+        .get(super::KIND)
+        .and_then(toml::Value::as_str)
+        .ok_or_else(|| anyhow!("names no `{}`; one of {}", super::KIND, options.join(", ")))?;
+    if options.contains(&kind) {
+        Ok(kind)
+    } else {
+        Err(not_an_option(
+            &toml::Value::String(kind.to_owned()),
+            options,
+        ))
+    }
 }
 
 /// An `enum` spec offering `options`.

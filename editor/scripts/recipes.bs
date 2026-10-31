@@ -270,9 +270,9 @@ fn fitted_2d(state: editor::State, node: any) -> any {
     if node.has("shape2d") {
         let shape = node.shape2d;
         if shape2d_kind(shape) == render::SHAPE_CIRCLE {
-            return map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", or_float(shape.get(RADIUS), 0.5));
+            return map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", or_float(form(shape).get(RADIUS), 0.5));
         }
-        return map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", util::vec2(shape.get(SIZE), [1.0, 1.0]));
+        return map().with("kind", physics2d::SHAPE_RECTANGLE).with("size", util::vec2(form(shape).get(SIZE), [1.0, 1.0]));
     }
     let mesh = outline_2d(state, node, true);
     if mesh.is_nil() {
@@ -293,9 +293,9 @@ fn fitted_3d(node: any, parts: any) -> any {
     }
     let shape = node.shape3d;
     if shape3d_kind(shape) == render::SHAPE_SPHERE {
-        return map().with("kind", physics3d::SHAPE_SPHERE).with("radius", or_float(shape.get(RADIUS), 0.5));
+        return map().with("kind", physics3d::SHAPE_SPHERE).with("radius", or_float(form(shape).get(RADIUS), 0.5));
     }
-    map().with("kind", physics3d::SHAPE_BOX).with("size", util::vec3(shape.get(SIZE), [1.0, 1.0, 1.0]))
+    map().with("kind", physics3d::SHAPE_BOX).with("size", util::vec3(form(shape).get(SIZE), [1.0, 1.0, 1.0]))
 }
 
 // A number a table states, or `fallback` where it states none.
@@ -337,7 +337,7 @@ const RIM_POINTS: int = 32;
 // A rect's corners or a circle's rim, counter-clockwise with y up.
 fn shape_points(shape: any) -> [[float]] {
     if shape2d_kind(shape) == render::SHAPE_CIRCLE {
-        let radius = or_float(shape.get(RADIUS), 0.5);
+        let radius = or_float(form(shape).get(RADIUS), 0.5);
         let points: [[float]] = [];
         for step in 0..RIM_POINTS {
             let angle = step.as_float() / RIM_POINTS.as_float() * 2.0 * math::PI;
@@ -345,7 +345,7 @@ fn shape_points(shape: any) -> [[float]] {
         }
         return points;
     }
-    let size = util::vec2(shape.get(SIZE), [1.0, 1.0]);
+    let size = util::vec2(form(shape).get(SIZE), [1.0, 1.0]);
     let half_x = size[0] / 2.0;
     let half_y = size[1] / 2.0;
     [[0.0 - half_x, 0.0 - half_y], [half_x, 0.0 - half_y], [half_x, half_y], [0.0 - half_x, half_y]]
@@ -445,15 +445,15 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
 pub fn soft_sources(state: &mut editor::State, two_d: bool) -> [newnode::Entry] {
     let out: [newnode::Entry] = [];
     if two_d {
-        out.push(source_row("Rectangle", "a block of cells", "Jelly", map().with("shape2d", map().with("kind", render::SHAPE_RECTANGLE))));
-        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", map().with("shape2d", map().with("kind", render::SHAPE_CIRCLE).with("radius", 0.5))));
+        out.push(source_row("Rectangle", "a block of cells", "Jelly", map().with("shape2d", map().with("shape", map().with("kind", render::SHAPE_RECTANGLE)))));
+        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", map().with("shape2d", map().with("shape", map().with("kind", render::SHAPE_CIRCLE).with("radius", 0.5)))));
         for rel in project_files(state, "image") {
             out.push(source_row(rel, "traced to its opaque outline", dropin::stem_of(rel), map().with("sprite", map().with("texture", rel))));
         }
     } else {
-        out.push(source_row("Box", "a block of cells", "Jelly", map().with("shape3d", map().with("kind", render::SHAPE_BOX))));
-        out.push(source_row("Sphere", "a ball of cells", "Blob", map().with("shape3d", map().with("kind", render::SHAPE_SPHERE).with("radius", 0.5))));
-        out.push(source_row("Plane", "a sheet of cloth", "Cloth", map().with("shape3d", map().with("kind", render::SHAPE_PLANE).with("size", [2.0, 0.0, 2.0]))));
+        out.push(source_row("Box", "a block of cells", "Jelly", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_BOX)))));
+        out.push(source_row("Sphere", "a ball of cells", "Blob", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_SPHERE).with("radius", 0.5)))));
+        out.push(source_row("Plane", "a sheet of cloth", "Cloth", map().with("shape3d", map().with("shape", map().with("kind", render::SHAPE_PLANE).with("size", [2.0, 0.0, 2.0])))));
         for rel in project_files(state, "model") {
             out.push(source_row(rel, "filled with cells that carry it as a skin", dropin::stem_of(rel), map().with("mesh", map().with("source", map().with("source", rel)))));
         }
@@ -614,13 +614,13 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
     let color = shape.get(COLOR);
     let tint: any = if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color };
     if shape2d_kind(shape) == render::SHAPE_RECTANGLE {
-        let size = util::vec2(shape.get(SIZE), [1.0, 1.0]);
+        let size = util::vec2(form(shape).get(SIZE), [1.0, 1.0]);
         let body = map().with("kind", physics2d::SOFT_GRID).with("color", tint);
         let grid = map().with("size", size).with("cells", cells_2d(size));
         return map().with("-shape2d", true).with("softbody2d", body).with("soft_grid2d", grid);
     }
     let body = map().with("kind", physics2d::SOFT_CIRCLE).with("color", tint);
-    let circle = map().with("radius", or_float(shape.get(RADIUS), 0.5)).with("particle_count", 32);
+    let circle = map().with("radius", or_float(form(shape).get(RADIUS), 0.5)).with("particle_count", 32);
     map().with("-shape2d", true).with("softbody2d", body).with("soft_circle2d", circle)
 }
 
@@ -637,10 +637,10 @@ fn soft_parts_3d(node: any) -> any {
     let kind = shape3d_kind(shape);
     if kind == render::SHAPE_SPHERE {
         let body = map().with("kind", physics3d::SOFT_SPHERE).with("color", tint);
-        let sphere = map().with("radius", or_float(shape.get(RADIUS), 0.5));
+        let sphere = map().with("radius", or_float(form(shape).get(RADIUS), 0.5));
         return map().with("-shape3d", true).with("softbody3d", body).with("soft_sphere3d", sphere);
     }
-    let size = util::vec3(shape.get(SIZE), [1.0, 1.0, 1.0]);
+    let size = util::vec3(form(shape).get(SIZE), [1.0, 1.0, 1.0]);
     if kind == render::SHAPE_PLANE {
         let body = map().with("kind", physics3d::SOFT_CLOTH).with("color", tint);
         let grid = map().with("size", [size[0], 0.0, size[2]]).with("cells", [12.0, 12.0, 1.0]);
@@ -765,15 +765,20 @@ fn cells_2d(size: [float]) -> [float] {
     [util::max(2.0, math::round(size[0] * per_unit)), util::max(2.0, math::round(size[1] * per_unit))]
 }
 
+// A shape component's `shape`: its kind and the dimensions that kind reads.
+fn form(shape: any) -> any {
+    util::map_or_empty(shape.get("shape"))
+}
+
 // A shape's kind when a recipe converts it, "" when it does not.
 fn shape2d_kind(shape: any) -> str {
-    let held = shape.kind;
+    let held = form(shape).kind;
     let kind = if held.is_nil() { render::SHAPE_RECTANGLE } else { held.as_str() };
     if kind == render::SHAPE_RECTANGLE || kind == render::SHAPE_CIRCLE { kind } else { "" }
 }
 
 fn shape3d_kind(shape: any) -> str {
-    let held = shape.kind;
+    let held = form(shape).kind;
     let kind = if held.is_nil() { render::SHAPE_BOX } else { held.as_str() };
     if kind == render::SHAPE_BOX || kind == render::SHAPE_SPHERE || kind == render::SHAPE_PLANE { kind } else { "" }
 }

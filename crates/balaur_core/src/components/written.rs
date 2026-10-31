@@ -122,17 +122,9 @@ fn spell(eng: &Engine, spec: &toml::Value, value: &mut toml::Value) {
                 *value = body;
             }
         }
-        Some("record") => {
-            let (Some(fields), Some(table)) = (
-                spec.get("fields").and_then(toml::Value::as_table),
-                value.as_table_mut(),
-            ) else {
-                return;
-            };
-            for (name, inner) in table.iter_mut() {
-                if let Some(field) = fields.get(name) {
-                    spell(eng, field, inner);
-                }
+        Some("record" | "variant") => {
+            for (field, inner) in super::values::fields_mut(spec, value) {
+                spell(eng, field, inner);
             }
         }
         Some("list" | "map") => {

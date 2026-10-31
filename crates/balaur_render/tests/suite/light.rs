@@ -78,7 +78,7 @@ fn a_light_is_collected_where_the_scene_tree_puts_it() {
 fn a_scene_with_no_light2d_collects_nothing() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rectangle\"");
+    add(&app, bare, "shape2d", "shape = { kind = \"rectangle\" }");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(lights(&world, app.engine.root()).is_empty());
@@ -165,7 +165,7 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -186,7 +186,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -224,7 +224,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -244,7 +244,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
 fn a_node_without_an_occluder_has_no_outline() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rectangle\"");
+    add(&app, bare, "shape2d", "shape = { kind = \"rectangle\" }");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(outline(&world, bare).is_empty());

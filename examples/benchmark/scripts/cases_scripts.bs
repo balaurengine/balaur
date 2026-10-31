@@ -41,7 +41,7 @@ fn plain(w: world::World, i: int) -> Node {
     let node = world::plain(w, i);
     let at = world::grid(i, 20000, PITCH);
     node.transform.position = [at.x, at.y, 0.0];
-    node.set_component("shape2d", map().with("kind", "circle").with("radius", 2.0));
+    node.set_component("shape2d", map().with("shape", map().with("kind", "circle").with("radius", 2.0)));
     node.add_child("a");
     node.add_child("b");
     node

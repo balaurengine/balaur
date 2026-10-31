@@ -6868,8 +6868,8 @@
     "rope_joint2d": "How long a `joint2d` of kind rope may stretch.",
     "rope_joint3d": "How long a `joint3d` of kind rope may stretch.",
     "screen_notifier2d": "A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
-    "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`; a stroked line is `line2d`.",
-    "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+    "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.",
+    "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.",
     "soft_circle2d": "The size of a `softbody2d` laid out as a circle: a disk of particles inside a rim.",
     "soft_cloth_tube3d": "The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped around a segment.",
     "soft_custom2d": "The particles and elements of a custom `softbody2d`, as the author lists them.",
@@ -7813,33 +7813,16 @@
       "offset"
     ],
     "shape2d": [
-      "kind",
+      "shape",
       "color",
       "texture",
-      "material",
-      "size",
-      "radius",
-      "height",
-      "corner_radius",
-      "sides",
-      "points",
-      "inner_radius",
-      "segments"
+      "material"
     ],
     "shape3d": [
-      "kind",
+      "shape",
       "color",
       "texture",
       "material",
-      "size",
-      "radius",
-      "height",
-      "inner_radius",
-      "tube_radius",
-      "corner_radius",
-      "sides",
-      "segments",
-      "rings",
       "cast_shadow",
       "render_layers",
       "light_layers",
@@ -13599,82 +13582,156 @@
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
-      "corner_radius": {
-        "default": 0.0,
-        "description": "How far the corners are rounded off, when kind is rectangle; zero is a square corner",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
-      "height": {
-        "default": 2.0,
-        "description": "Length along y, tip to tip, when kind is capsule",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
-      "inner_radius": {
-        "default": 0.2,
-        "description": "How far the notches between a star's tips reach",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
-      "kind": {
-        "default": "rectangle",
-        "description": "Rendered 2D shape",
-        "options": [
-          "circle",
-          "rectangle",
-          "capsule",
-          "ellipse",
-          "star",
-          "ngon"
-        ],
-        "type": "enum"
-      },
       "material": {
         "asset": "material",
         "default": "",
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
       },
-      "points": {
-        "default": 5,
-        "description": "Tips, when kind is star",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
-      "radius": {
-        "default": 0.5,
-        "description": "Radius, when kind is circle, capsule, star or ngon",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
-      "segments": {
-        "default": 32,
-        "description": "Cuts around a circle, an ellipse or a rounded corner",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
-      "sides": {
-        "default": 4,
-        "description": "Sides, when kind is ngon",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
-      "size": {
-        "default": [
-          1.0,
-          1.0
-        ],
-        "description": "Whole size along each axis, when kind is rectangle or ellipse",
-        "group": "shape",
-        "type": "vec2"
+      "shape": {
+        "default": {
+          "corner_radius": 0.0,
+          "kind": "rectangle",
+          "segments": 32,
+          "size": [
+            1.0,
+            1.0
+          ]
+        },
+        "description": "The shape drawn, and its dimensions",
+        "type": "variant",
+        "variants": {
+          "capsule": {
+            "description": "A rectangle with round ends, standing along y",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y, tip to tip",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the round ends",
+                "min": 0.01,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around each round end",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "circle": {
+            "description": "A disc",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the edge",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "ellipse": {
+            "description": "An ellipse",
+            "fields": {
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the edge",
+                "min": 3,
+                "type": "int"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          },
+          "ngon": {
+            "description": "A regular polygon",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "From the centre to each corner",
+                "min": 0.01,
+                "type": "float"
+              },
+              "sides": {
+                "default": 4,
+                "description": "Sides",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "rectangle": {
+            "description": "A rectangle, its corners rounded when `corner_radius` is above zero",
+            "fields": {
+              "corner_radius": {
+                "default": 0.0,
+                "description": "How far the corners are rounded off; zero is a square corner",
+                "min": 0.0,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around a rounded corner",
+                "min": 3,
+                "type": "int"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec2"
+              }
+            },
+            "type": "record"
+          },
+          "star": {
+            "description": "A star",
+            "fields": {
+              "inner_radius": {
+                "default": 0.2,
+                "description": "From the centre to the notch between two tips",
+                "min": 0.01,
+                "type": "float"
+              },
+              "points": {
+                "default": 5,
+                "description": "Tips",
+                "min": 3,
+                "type": "int"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "From the centre to a tip",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "texture": {
         "asset": "texture",
@@ -13699,44 +13756,6 @@
         ],
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
-      },
-      "corner_radius": {
-        "default": 0.0,
-        "description": "How far the edges are rounded off, when kind is box; zero is a square edge",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
-      "height": {
-        "default": 2.0,
-        "description": "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
-      "inner_radius": {
-        "default": 0.25,
-        "description": "Radius of the hole, when kind is tube",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
-      "kind": {
-        "default": "box",
-        "description": "Rendered 3D shape",
-        "options": [
-          "sphere",
-          "box",
-          "capsule",
-          "cylinder",
-          "cone",
-          "plane",
-          "torus",
-          "pyramid",
-          "prism",
-          "tube"
-        ],
-        "type": "enum"
       },
       "light_layers": {
         "default": [],
@@ -13784,13 +13803,6 @@
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
       },
-      "radius": {
-        "default": 0.5,
-        "description": "Radius, for every kind but box, plane and pyramid",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
-      },
       "receive_shadows": {
         "default": true,
         "description": "Whether shadows land on it; off lights it as if nothing stood between it and every light",
@@ -13837,13 +13849,6 @@
         ],
         "type": "flags"
       },
-      "rings": {
-        "default": 16,
-        "description": "Cuts along the axis, for ball, capsule and torus",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
       "segmentation_id": {
         "default": 0,
         "description": "The id `render.snap_aov(\"segmentation\")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up",
@@ -13851,42 +13856,282 @@
         "min": 0,
         "type": "int"
       },
-      "segments": {
-        "default": 32,
-        "description": "Cuts around the axis, or across a plane",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
-      "sides": {
-        "default": 4,
-        "description": "Flat faces, when kind is pyramid or prism",
-        "group": "shape",
-        "min": 3,
-        "type": "int"
-      },
-      "size": {
-        "default": [
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "Whole size along each axis, when kind is box, plane or pyramid",
-        "group": "shape",
-        "type": "vec3"
+      "shape": {
+        "default": {
+          "corner_radius": 0.0,
+          "kind": "box",
+          "segments": 32,
+          "size": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "description": "The primitive drawn, and its dimensions",
+        "type": "variant",
+        "variants": {
+          "box": {
+            "description": "A box, its edges rounded when `corner_radius` is above zero",
+            "fields": {
+              "corner_radius": {
+                "default": 0.0,
+                "description": "How far the edges are rounded off; zero is a square edge",
+                "min": 0.0,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around a rounded edge",
+                "min": 3,
+                "type": "int"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "capsule": {
+            "description": "A cylinder with round ends",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y, tip to tip",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              },
+              "rings": {
+                "default": 16,
+                "description": "Cuts across each round end",
+                "min": 3,
+                "type": "int"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "cone": {
+            "description": "A cone standing along y, its point up",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y, base to top",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the base",
+                "min": 0.01,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "cylinder": {
+            "description": "A cylinder standing along y",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y, base to top",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Radius of the base",
+                "min": 0.01,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "plane": {
+            "description": "A flat quad in the xz plane, for ground and walls",
+            "fields": {
+              "segments": {
+                "default": 32,
+                "description": "Cuts across each side",
+                "min": 3,
+                "type": "int"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  0.0,
+                  1.0
+                ],
+                "description": "Whole size along x and z; y is not read",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "prism": {
+            "description": "A prism on a regular base, standing along y",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "From the axis to each corner of the base",
+                "min": 0.01,
+                "type": "float"
+              },
+              "sides": {
+                "default": 4,
+                "description": "Flat faces around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "pyramid": {
+            "description": "A pyramid on a regular base",
+            "fields": {
+              "sides": {
+                "default": 4,
+                "description": "Flat faces around the base",
+                "min": 3,
+                "type": "int"
+              },
+              "size": {
+                "default": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "description": "Whole size along each axis",
+                "type": "vec3"
+              }
+            },
+            "type": "record"
+          },
+          "sphere": {
+            "description": "A ball",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "Radius",
+                "min": 0.01,
+                "type": "float"
+              },
+              "rings": {
+                "default": 16,
+                "description": "Cuts along the axis",
+                "min": 3,
+                "type": "int"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          },
+          "torus": {
+            "description": "A ring",
+            "fields": {
+              "radius": {
+                "default": 0.5,
+                "description": "From the centre to the middle of the ring",
+                "min": 0.01,
+                "type": "float"
+              },
+              "rings": {
+                "default": 16,
+                "description": "Cuts around the ring",
+                "min": 3,
+                "type": "int"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the centre",
+                "min": 3,
+                "type": "int"
+              },
+              "tube_radius": {
+                "default": 0.2,
+                "description": "Thickness of the ring",
+                "min": 0.01,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "tube": {
+            "description": "A cylinder with a hole down its axis",
+            "fields": {
+              "height": {
+                "default": 2.0,
+                "description": "Length along y",
+                "min": 0.01,
+                "type": "float"
+              },
+              "inner_radius": {
+                "default": 0.25,
+                "description": "Radius of the hole",
+                "min": 0.01,
+                "type": "float"
+              },
+              "radius": {
+                "default": 0.5,
+                "description": "Outer radius",
+                "min": 0.01,
+                "type": "float"
+              },
+              "segments": {
+                "default": 32,
+                "description": "Cuts around the axis",
+                "min": 3,
+                "type": "int"
+              }
+            },
+            "type": "record"
+          }
+        }
       },
       "texture": {
         "asset": "texture",
         "default": "",
         "description": "Image file, project-relative, or a `texture` asset, drawn over the shape's own UVs; empty draws the colour alone",
         "type": "asset"
-      },
-      "tube_radius": {
-        "default": 0.2,
-        "description": "Thickness of the ring, when kind is torus",
-        "group": "shape",
-        "min": 0.01,
-        "type": "float"
       }
     },
     "soft_circle2d": {

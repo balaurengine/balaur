@@ -8,8 +8,8 @@ pub class ComponentTable {
 
 impl ComponentTable {
     fn update(dt: float) {
-        let radius = self.node.get_component("shape2d").get("radius");
+        let radius = self.node.get_component("shape2d").get("shape").get("radius");
         self.seen = if radius.kind() == "float" { radius.as_float() } else { 0.0 };
-        self.node.patch_component("shape2d", map().with("radius", self.seen));
+        self.node.patch_component("shape2d", map().with("shape", map().with("radius", self.seen)));
     }
 }

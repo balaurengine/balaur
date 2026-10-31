@@ -27,8 +27,7 @@ parent = "n_flat"
 position = [-7, 2.6, 0]
 
 [nodes.shape2d]
-kind = "ellipse"
-size = [3.4, 2.1]
+shape = { kind = "ellipse", size = [3.4, 2.1] }
 color = [0.85, 0.6, 0.2, 1]
 
 [[nodes]]
@@ -40,10 +39,7 @@ parent = "n_flat"
 position = [-2.3, 2.6, 0]
 
 [nodes.shape2d]
-kind = "star"
-radius = 1.5
-inner_radius = 0.65
-points = 5
+shape = { kind = "star", radius = 1.5, inner_radius = 0.65, points = 5 }
 color = [0.35, 0.65, 0.9, 1]
 
 [[nodes]]
@@ -55,9 +51,7 @@ parent = "n_flat"
 position = [2.3, 2.6, 0]
 
 [nodes.shape2d]
-kind = "ngon"
-radius = 1.4
-sides = 6
+shape = { kind = "ngon", radius = 1.4, sides = 6 }
 color = [0.4, 0.75, 0.45, 1]
 
 [[nodes]]
@@ -69,9 +63,7 @@ parent = "n_flat"
 position = [7, 2.6, 0]
 
 [nodes.shape2d]
-kind = "capsule"
-radius = 0.7
-height = 2.4
+shape = { kind = "capsule", radius = 0.7, height = 2.4 }
 color = [0.8, 0.45, 0.5, 1]
 
 [[nodes]]
@@ -91,8 +83,7 @@ name = "A"
 parent = "n_union2d"
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [2.6, 2.6]
+shape = { kind = "rectangle", size = [2.6, 2.6] }
 
 [[nodes]]
 id = "n_union2d_b"
@@ -103,8 +94,7 @@ parent = "n_union2d"
 position = [1.1, 0.9, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 1.0
+shape = { kind = "circle", radius = 1.0 }
 
 [[nodes]]
 id = "n_difference2d"
@@ -123,8 +113,7 @@ name = "A"
 parent = "n_difference2d"
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [2.6, 2.6]
+shape = { kind = "rectangle", size = [2.6, 2.6] }
 
 [[nodes]]
 id = "n_difference2d_b"
@@ -135,8 +124,7 @@ parent = "n_difference2d"
 position = [1.1, 0.9, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 1.0
+shape = { kind = "circle", radius = 1.0 }
 
 [[nodes]]
 id = "n_intersection2d"
@@ -155,8 +143,7 @@ name = "A"
 parent = "n_intersection2d"
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [2.6, 2.6]
+shape = { kind = "rectangle", size = [2.6, 2.6] }
 
 [[nodes]]
 id = "n_intersection2d_b"
@@ -167,5 +154,4 @@ parent = "n_intersection2d"
 position = [1.1, 0.9, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 1.0
+shape = { kind = "circle", radius = 1.0 }

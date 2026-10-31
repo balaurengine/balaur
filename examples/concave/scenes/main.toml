@@ -72,8 +72,7 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [-2.35, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]
@@ -90,8 +89,7 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [0.85, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]

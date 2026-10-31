@@ -75,14 +75,14 @@ fn run_clean(body: &str) {
 fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
-        self.node.set_component("shape3d", map().with("kind", "box").with("size", [2.0, 4.0, 6.0]));
-        let kind = self.node.shape3d.kind;
+        self.node.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.5)));
+        self.node.set_component("shape3d", map().with("shape", map().with("kind", "box").with("size", [2.0, 4.0, 6.0])));
+        let kind = self.node.shape3d.shape.kind;
         if kind != "box" { log::error("the last shape set should win, got {kind}"); }
 
-        self.node.set_component("shape2d", map().with("kind", "circle").with("radius", 0.25));
-        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
-        let kind_2d = self.node.shape2d.kind;
+        self.node.set_component("shape2d", map().with("shape", map().with("kind", "circle").with("radius", 0.25)));
+        self.node.set_component("shape2d", map().with("shape", map().with("kind", "rectangle").with("size", [2.0, 4.0])));
+        let kind_2d = self.node.shape2d.shape.kind;
         if kind_2d != "rectangle" { log::error("the last 2D shape set should win, got {kind_2d}"); }
         "#,
     );
@@ -92,7 +92,7 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 fn a_colour_set_from_a_script_reads_back() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.5)));
         self.node.shape3d.color = color(0.25, 0.5, 0.75, 1.0);
         let c = self.node.shape3d.color;
         if math::abs(c.r - 0.25) >= 0.0001 { log::error("red was not kept: {c.r}"); }
@@ -106,7 +106,7 @@ fn a_colour_set_from_a_script_reads_back() {
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.set_component("shape3d", map().with("shape", map().with("kind", "sphere").with("radius", 0.5)));
         self.node.patch_component("shape3d", map().with("color", [1.0, 0.0, 0.0]));
         let r = self.node.shape3d.color.r;
         if math::abs(r - 1.0) >= 0.0001 { log::error("red was not kept: {r}"); }
@@ -150,7 +150,7 @@ fn bounds_reports_the_box_a_2d_shape_draws() {
     let (_app, errors, lines) = run_logged(
         r#"
         if render::bounds(self.node).is_some() { log::error("a node that draws nothing has no bounds"); }
-        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
+        self.node.set_component("shape2d", map().with("shape", map().with("kind", "rectangle").with("size", [2.0, 4.0])));
         let found = render::bounds(self.node);
         if found.is_none() {
             log::error("a 2D shape has bounds");

@@ -17,9 +17,7 @@ parent = "n_arena"
 position = [-2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.8, 0.8]
-corner_radius = 0.1
+shape = { kind = "rectangle", size = [0.8, 0.8], corner_radius = 0.1 }
 color = "#e0653f"
 
 [[nodes]]
@@ -31,9 +29,7 @@ parent = "n_arena"
 position = [2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.8, 0.8]
-corner_radius = 0.1
+shape = { kind = "rectangle", size = [0.8, 0.8], corner_radius = 0.1 }
 color = "#4a8fd4"
 
 # Says which ship is yours, so it reads differently on each machine. The

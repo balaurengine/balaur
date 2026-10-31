@@ -267,6 +267,12 @@ def component_row(prop, spec):
         notes.append(f"Scene shorthand: <code>{html.escape(prop)}</code>'s value can be given as the component's whole value.")
     if spec.get("readonly"):
         notes.append("Read-only: engine output the inspector shows but never writes.")
+    if spec.get("type") == "variant":
+        kinds = "; ".join(
+            f"<code>{html.escape(name)}</code> ({html.escape(', '.join(record.get('fields', {})))})"
+            for name, record in spec.get("variants", {}).items()
+        )
+        notes.append(f"<code>kind</code> is one of: {kinds}.")
     kind = datatype_of(spec)
     default = json.dumps(spec.get("default", "")).strip('"')
     cells = (

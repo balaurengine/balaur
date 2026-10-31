@@ -187,7 +187,7 @@ fn draw(w: World, node: Node, shape: any) {
     };
     // A few colours in turn, so a stack reads as bodies rather than as a slab.
     let colour = palette()[(w.bodies.len() + w.statics) % 5];
-    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, drawn.with("color", colour));
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, map().with("shape", drawn).with("color", colour));
 }
 
 fn palette() -> [Color] {

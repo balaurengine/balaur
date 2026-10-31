@@ -60,9 +60,19 @@ fn two_cubes(app: &App, op: &str) -> (Entity, Entity, Entity) {
     let owner = node(app, "Cut", root);
     add(app, owner, "boolean3d", &format!("operation = \"{op}\""));
     let a = node(app, "A", owner);
-    add(app, a, "shape3d", "kind = \"box\"\nsize = [1.0, 1.0, 1.0]");
+    add(
+        app,
+        a,
+        "shape3d",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
+    );
     let b = node(app, "B", owner);
-    add(app, b, "shape3d", "kind = \"box\"\nsize = [1.0, 1.0, 1.0]");
+    add(
+        app,
+        b,
+        "shape3d",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
+    );
     place(app, b, Vec3::splat(0.5));
     (owner, a, b)
 }
@@ -167,9 +177,19 @@ fn a_boolean_can_take_another_booleans_result() {
     let inner = node(&app, "Inner", outer);
     add(&app, inner, "boolean3d", "operation = \"union\"");
     let a = node(&app, "A", inner);
-    add(&app, a, "shape3d", "kind = \"box\"\nsize = [1.0, 1.0, 1.0]");
+    add(
+        &app,
+        a,
+        "shape3d",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
+    );
     let b = node(&app, "B", inner);
-    add(&app, b, "shape3d", "kind = \"box\"\nsize = [1.0, 1.0, 1.0]");
+    add(
+        &app,
+        b,
+        "shape3d",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
+    );
     place(&app, b, Vec3::new(3.0, 0.0, 0.0));
     // Twice: the inner one settles first, the outer one reads its result.
     app.tick(1.0 / 60.0);
@@ -192,14 +212,14 @@ fn a_two_dimensional_boolean_fills_the_shapes_combined() {
         &app,
         a,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     let b = node(&app, "B", owner);
     add(
         &app,
         b,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     place(&app, b, Vec3::new(1.0, 0.0, 0.0));
     app.tick(1.0 / 60.0);
@@ -254,13 +274,18 @@ fn two_squares(app: &App, params: &str, inner: f32, at: Vec3) -> Entity {
     let owner = node(app, "Cut", root);
     add(app, owner, "boolean2d", params);
     let a = node(app, "A", owner);
-    add(app, a, "shape2d", "kind = \"rectangle\"\nsize = [4.0, 4.0]");
+    add(
+        app,
+        a,
+        "shape2d",
+        "shape = { kind = \"rectangle\", size = [4.0, 4.0] }",
+    );
     let b = node(app, "B", owner);
     add(
         app,
         b,
         "shape2d",
-        &format!("kind = \"rectangle\"\nsize = [{inner}, {inner}]"),
+        &format!("shape = {{ kind = \"rectangle\", size = [{inner}, {inner}] }}"),
     );
     place(app, b, at);
     owner
@@ -371,7 +396,7 @@ fn a_three_dimensional_boolean_dresses_its_result() {
         "operation = \"union\"\ncolor = [0.0, 1.0, 0.0, 1.0]\ntexture = \"rock.png\"\ncast_shadow = false\nlight_layers = [\"2\"]\nrender_layers = [\"3\"]",
     );
     let a = node(&app, "A", owner);
-    add(&app, a, "shape3d", "kind = \"box\"");
+    add(&app, a, "shape3d", "shape = { kind = \"box\" }");
     app.tick(1.0 / 60.0);
     {
         let world = app.engine.world();

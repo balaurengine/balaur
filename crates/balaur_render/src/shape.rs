@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Enum, Written, to_table};
+use balaur_core::components::derived::{Component, Enum, Property, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_geometry::primitive::{Flat, Solid};
@@ -47,30 +47,254 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-/// What a `shape3d` draws.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum SolidKind {
-    Sphere,
-    Box,
-    Capsule,
-    Cylinder,
-    Cone,
-    Plane,
-    Torus,
-    Pyramid,
-    Prism,
-    Tube,
+/// What a `shape3d` draws, and the dimensions that primitive reads: the
+/// table the mesher builds from (`Solid::from_params`).
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum SolidShape {
+    /// A ball
+    Sphere(SphereSize),
+    /// A box, its edges rounded when `corner_radius` is above zero
+    #[option(default)]
+    Box(BoxSize),
+    /// A cylinder with round ends
+    Capsule(CapsuleSize),
+    /// A cylinder standing along y
+    Cylinder(RoundSize),
+    /// A cone standing along y, its point up
+    Cone(RoundSize),
+    /// A flat quad in the xz plane, for ground and walls
+    Plane(PlaneSize),
+    /// A ring
+    Torus(TorusSize),
+    /// A pyramid on a regular base
+    Pyramid(PyramidSize),
+    /// A prism on a regular base, standing along y
+    Prism(PrismSize),
+    /// A cylinder with a hole down its axis
+    Tube(TubeSize),
 }
 
-/// What a `shape2d` draws.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum FlatKind {
-    Circle,
-    Rectangle,
-    Capsule,
-    Ellipse,
-    Star,
-    Ngon,
+/// A sphere's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct SphereSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts along the axis
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
+}
+
+/// A box's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct BoxSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0, 1.0])]
+    pub size: [f32; 3],
+    /// How far the edges are rounded off; zero is a square edge
+    #[property(min = 0.0)]
+    pub corner_radius: f32,
+    /// Cuts around a rounded edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A capsule's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CapsuleSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, tip to tip
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts across each round end
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
+}
+
+/// A cylinder's or a cone's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct RoundSize {
+    /// Radius of the base
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, base to top
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A plane's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PlaneSize {
+    /// Whole size along x and z; y is not read
+    #[property(default = [1.0, 0.0, 1.0])]
+    pub size: [f32; 3],
+    /// Cuts across each side
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A torus's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct TorusSize {
+    /// From the centre to the middle of the ring
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Thickness of the ring
+    #[property(default = 0.2, min = 0.01)]
+    pub tube_radius: f32,
+    /// Cuts around the centre
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts around the ring
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
+}
+
+/// A pyramid's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PyramidSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0, 1.0])]
+    pub size: [f32; 3],
+    /// Flat faces around the base
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+}
+
+/// A prism's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PrismSize {
+    /// From the axis to each corner of the base
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Flat faces around the axis
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+}
+
+/// A tube's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct TubeSize {
+    /// Outer radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Radius of the hole
+    #[property(default = 0.25, min = 0.01)]
+    pub inner_radius: f32,
+    /// Length along y
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// What a `shape2d` draws, and the dimensions that shape reads: the table
+/// the mesher builds from (`Flat::from_params`).
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum FlatShape {
+    /// A disc
+    Circle(CircleSize),
+    /// A rectangle, its corners rounded when `corner_radius` is above zero
+    #[option(default)]
+    Rectangle(RectangleSize),
+    /// A rectangle with round ends, standing along y
+    Capsule(FlatCapsuleSize),
+    /// An ellipse
+    Ellipse(EllipseSize),
+    /// A star
+    Star(StarSize),
+    /// A regular polygon
+    Ngon(NgonSize),
+}
+
+/// A circle's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CircleSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Cuts around the edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A rectangle's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct RectangleSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0])]
+    pub size: [f32; 2],
+    /// How far the corners are rounded off; zero is a square corner
+    #[property(min = 0.0)]
+    pub corner_radius: f32,
+    /// Cuts around a rounded corner
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A 2D capsule's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FlatCapsuleSize {
+    /// Radius of the round ends
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, tip to tip
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around each round end
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// An ellipse's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct EllipseSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0])]
+    pub size: [f32; 2],
+    /// Cuts around the edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A star's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct StarSize {
+    /// Tips
+    #[property(default = 5, min = 3)]
+    pub points: i64,
+    /// From the centre to a tip
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// From the centre to the notch between two tips
+    #[property(default = 0.2, min = 0.01)]
+    pub inner_radius: f32,
+}
+
+/// A regular polygon's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct NgonSize {
+    /// Sides
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+    /// From the centre to each corner
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
 }
 
 /// How a polyline's segments meet: `balaur_geometry::stroke::Join`'s words.
@@ -89,15 +313,14 @@ pub enum LineCap {
     Square,
 }
 
-/// A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
+/// A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.
 // The `shape3d` component; the node draws the [`Renderable3d`] each write
 // leaves beside it.
 #[derive(Component)]
 #[component(name = "shape3d")]
 pub struct Primitive3d {
-    /// Rendered 3D shape
-    #[property(default = SolidKind::Box)]
-    pub kind: SolidKind,
+    /// The primitive drawn, and its dimensions
+    pub shape: SolidShape,
     /// Tint, as channel floats or #rrggbb / #rrggbbaa
     #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
     pub color: [f32; 4],
@@ -107,33 +330,6 @@ pub struct Primitive3d {
     /// The material this draws with; empty draws with the built-in one
     #[property(asset = "material")]
     pub material: String,
-    /// Whole size along each axis, when kind is box, plane or pyramid
-    #[property(default = [1.0, 1.0, 1.0], group = "shape")]
-    pub size: [f32; 3],
-    /// Radius, for every kind but box, plane and pyramid
-    #[property(default = 0.5, min = 0.01, group = "shape")]
-    pub radius: f32,
-    /// Length along y, tip to tip, for capsule, cylinder, cone, prism and tube
-    #[property(default = 2.0, min = 0.01, group = "shape")]
-    pub height: f32,
-    /// Radius of the hole, when kind is tube
-    #[property(default = 0.25, min = 0.01, group = "shape")]
-    pub inner_radius: f32,
-    /// Thickness of the ring, when kind is torus
-    #[property(default = 0.2, min = 0.01, group = "shape")]
-    pub tube_radius: f32,
-    /// How far the edges are rounded off, when kind is box; zero is a square edge
-    #[property(min = 0.0, group = "shape")]
-    pub corner_radius: f32,
-    /// Flat faces, when kind is pyramid or prism
-    #[property(default = 4, min = 3, group = "shape")]
-    pub sides: i64,
-    /// Cuts around the axis, or across a plane
-    #[property(default = 32, min = 3, group = "shape")]
-    pub segments: i64,
-    /// Cuts along the axis, for ball, capsule and torus
-    #[property(default = 16, min = 3, group = "shape")]
-    pub rings: i64,
     /// Whether this casts a shadow from the lights that cast
     #[property(default = true, group = "shadows")]
     pub cast_shadow: bool,
@@ -151,15 +347,14 @@ pub struct Primitive3d {
     pub segmentation_id: i64,
 }
 
-/// A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`; a stroked line is `line2d`.
+/// A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.
 // The `shape2d` component; the node draws the [`Renderable2d`] each write
 // leaves beside it.
 #[derive(Component)]
 #[component(name = "shape2d")]
 pub struct Primitive2d {
-    /// Rendered 2D shape
-    #[property(default = FlatKind::Rectangle)]
-    pub kind: FlatKind,
+    /// The shape drawn, and its dimensions
+    pub shape: FlatShape,
     /// Tint, as channel floats or #rrggbb / #rrggbbaa
     #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
     pub color: [f32; 4],
@@ -169,30 +364,6 @@ pub struct Primitive2d {
     /// The material this draws with; empty draws with the built-in one
     #[property(asset = "material")]
     pub material: String,
-    /// Whole size along each axis, when kind is rectangle or ellipse
-    #[property(default = [1.0, 1.0], group = "shape")]
-    pub size: [f32; 2],
-    /// Radius, when kind is circle, capsule, star or ngon
-    #[property(default = 0.5, min = 0.01, group = "shape")]
-    pub radius: f32,
-    /// Length along y, tip to tip, when kind is capsule
-    #[property(default = 2.0, min = 0.01, group = "shape")]
-    pub height: f32,
-    /// How far the corners are rounded off, when kind is rectangle; zero is a square corner
-    #[property(min = 0.0, group = "shape")]
-    pub corner_radius: f32,
-    /// Sides, when kind is ngon
-    #[property(default = 4, min = 3, group = "shape")]
-    pub sides: i64,
-    /// Tips, when kind is star
-    #[property(default = 5, min = 3, group = "shape")]
-    pub points: i64,
-    /// How far the notches between a star's tips reach
-    #[property(default = 0.2, min = 0.01, group = "shape")]
-    pub inner_radius: f32,
-    /// Cuts around a circle, an ellipse or a rounded corner
-    #[property(default = 32, min = 3, group = "shape")]
-    pub segments: i64,
 }
 
 /// A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.
@@ -256,7 +427,7 @@ fn shape3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
             return Ok(());
         };
         (
-            Solid::from_params(&to_table(&*asked)),
+            Solid::from_params(&asked.shape.to_value()),
             asked.color,
             asked.texture.clone(),
             asked.material.clone(),
@@ -306,7 +477,7 @@ fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
             return Ok(());
         };
         (
-            Flat::from_params(&to_table(&*asked)),
+            Flat::from_params(&asked.shape.to_value()),
             asked.color,
             asked.texture.clone(),
             asked.material.clone(),
@@ -399,14 +570,14 @@ mod tests {
     use balaur_geometry::primitive::words as primitive;
     use balaur_geometry::stroke;
 
-    use super::{FlatKind, LineCap, LineJoin, SolidKind};
+    use super::{FlatShape, LineCap, LineJoin, SolidShape};
 
     /// The kinds a shape offers are the ones the mesher builds, and a line's
     /// joins and caps the ones a stroke reads: core owns each list.
     #[test]
     fn a_shape_offers_the_words_core_reads() {
-        assert_eq!(SolidKind::OPTIONS, primitive::SOLIDS);
-        assert_eq!(FlatKind::OPTIONS, primitive::FLATS);
+        assert_eq!(SolidShape::OPTIONS, primitive::SOLIDS);
+        assert_eq!(FlatShape::OPTIONS, primitive::FLATS);
         assert_eq!(LineJoin::OPTIONS, stroke::JOINS);
         assert_eq!(LineCap::OPTIONS, stroke::CAPS);
     }

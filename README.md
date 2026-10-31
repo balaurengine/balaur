@@ -65,7 +65,7 @@ script = { source = "scripts/ball.bs", props = { speed = 3.5 } }
 transform = { position = [0.0, 6.0, 0.0] }        # from balaur_core
 body3d = { kind = "dynamic" }                     # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
-shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
+shape3d = { shape = { kind = "ball", radius = 0.5 } }         # from balaur_render
 ```
 
 ```rust

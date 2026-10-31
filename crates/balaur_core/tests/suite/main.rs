@@ -39,3 +39,4 @@ mod standalone;
 mod strings;
 mod task;
 mod timings;
+mod variant;

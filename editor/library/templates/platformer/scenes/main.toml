@@ -26,8 +26,7 @@ body2d = { kind = "static" }
 position = [0, -3, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [24, 1.0]
+shape = { kind = "rectangle", size = [24, 1.0] }
 color = "#3c4a3a"
 
 [nodes.collider2d]
@@ -44,9 +43,7 @@ script = { source = "scripts/player.bs" }
 position = [0, 0, 0]
 
 [nodes.shape2d]
-kind = "capsule"
-radius = 0.4
-height = 2.0
+shape = { kind = "capsule", radius = 0.4, height = 2.0 }
 color = "#e8c37a"
 
 [nodes.character2d]

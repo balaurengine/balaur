@@ -396,27 +396,6 @@ fn every_component_reports_every_property_it_holds() {
     assert!(checked > 5, "only {checked} components were reachable");
 }
 
-#[test]
-fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
-    let app = app();
-    let node = node_at(&app, app.engine.root(), Vec3::ZERO);
-    // A sphere has no size, so `shape3d` does not report the one asked
-    // for here: they are only in the table the scene handed over.
-    let asked: toml::Value =
-        toml::from_str("kind = \"sphere\"\nradius = 0.7\nsize = [4.0, 2.0, 4.0]").unwrap();
-    components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
-    let becomes: toml::Value = toml::from_str("kind = \"box\"").unwrap();
-    components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
-    let read = components::get(&app.engine, node, "shape3d").unwrap();
-    let size = read["size"].as_array().unwrap();
-    let sizes: Vec<f64> = size.iter().map(|v| v.as_float().unwrap()).collect();
-    assert_eq!(
-        sizes,
-        vec![4.0, 2.0, 4.0],
-        "the patch fell back to the schema default instead of what was asked for"
-    );
-}
-
 /// Every `current_changed` a camera heard over `frames` ticks, in order.
 fn current_changes(app: &mut App, camera: balaur_core::hecs::Entity, frames: u32) -> Vec<bool> {
     let mut heard = Vec::new();

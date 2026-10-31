@@ -116,7 +116,7 @@ fn local_point(geometry: Geometry, offset_x: float, offset_y: float) -> [float] 
 // The 2D half extents a node renders/collides with (`None` when it has none).
 fn shape_box(found: Node) -> LocalBox? {
     let shape = if found.has_component("shape2d") {
-        found.get_component("shape2d")
+        found.get_component("shape2d", "shape")
     } else if found.has_component("collider2d") {
         found.get_component("collider2d")
     } else {

@@ -15,9 +15,7 @@ script = { source = "scripts/platformer_rig.bs" }
 position = [0, 0, 0]
 
 [nodes.shape2d]
-kind = "capsule"
-radius = 0.4
-height = 2.0
+shape = { kind = "capsule", radius = 0.4, height = 2.0 }
 color = "#e8c37a"
 
 [nodes.character2d]

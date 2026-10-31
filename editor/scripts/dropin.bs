@@ -158,7 +158,7 @@ fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
         place(state, name, map().with("sprite", map().with("texture", rel)))
     } else {
         place(state, name, map()
-            .with("shape3d", map().with("kind", render::SHAPE_BOX).with("size", [1.0, 0.002, 1.0]))
+            .with("shape3d", map().with("shape", map().with("kind", render::SHAPE_BOX).with("size", [1.0, 0.002, 1.0])))
             .with("mesh", map().with("texture", rel)))
     }
 }

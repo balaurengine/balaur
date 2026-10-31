@@ -1606,7 +1606,7 @@ pub fn picking(state: &mut editor::State) {
     for index in 0..state.nodes.len() {
         let found = model::node(state, index);
         if found.is_valid() && found.has_component("shape3d") {
-            let kind = found.get_component("shape3d", "kind").as_str();
+            let kind = found.get_component("shape3d", "shape").get("kind").as_str();
             if kind != "" && kind != "mesh" {
                 target = index;
                 break;
