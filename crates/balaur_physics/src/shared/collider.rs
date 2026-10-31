@@ -1,8 +1,6 @@
 //! The collider functions both dimensions share: the material vocabulary, the
 //! hook flag, and the lookups every collider call starts from.
 
-use crate::vocabulary::{self as v, keys as k};
-
 /// The rows a mesh-backed collider tidies its triangles by, from the
 /// component beside it.
 #[allow(
@@ -59,13 +57,6 @@ pub(crate) fn mesh_edges(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
     edges
 }
 
-/// Whether `params` asks for any surface velocity, in either dimension.
-pub(crate) fn slides(params: &toml::Value) -> bool {
-    v::vec3(params, k::SURFACE_VELOCITY, [0.0; 3])
-        .iter()
-        .any(|n| *n != 0.0)
-}
-
 macro_rules! functions {
     (state = $State:ty, refit = $refit:path) => {
         fn combine_rule(name: &str) -> CoefficientCombineRule {
@@ -80,15 +71,95 @@ macro_rules! functions {
             }
         }
 
-        /// The one hook a collider can ask for: a one-way platform and a
-        /// conveyor belt are both contact modification with the answer
-        /// written for them.
-        pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
-            if v::boolean(params, k::ONE_WAY, false) || crate::shared::collider::slides(params) {
+        /// The groups a collider's layers, mask and test make. An empty mask
+        /// is every layer, and an empty set of layers is layer 1.
+        pub(crate) fn groups_of(
+            (layers, mask, test): (
+                &[balaur_core::layers::Layer],
+                &[balaur_core::layers::Layer],
+                crate::properties::LayerTest,
+            ),
+        ) -> InteractionGroups {
+            InteractionGroups::new(
+                Group::from_bits_truncate(balaur_core::layers::Layer::bits(layers, false)),
+                Group::from_bits_truncate(balaur_core::layers::Layer::bits(mask, true)),
+                match test {
+                    crate::properties::LayerTest::Either => InteractionTestMode::Or,
+                    crate::properties::LayerTest::Both => InteractionTestMode::And,
+                },
+            )
+        }
+
+        /// The body pairs a collider is tested against, as rapier counts them.
+        pub(crate) fn collision_types_of(
+            pairs: &[crate::properties::ContactPair],
+        ) -> ActiveCollisionTypes {
+            use crate::properties::ContactPair as P;
+            pairs
+                .iter()
+                .fold(ActiveCollisionTypes::empty(), |types, pair| {
+                    types
+                        | match pair {
+                            P::DynamicDynamic => ActiveCollisionTypes::DYNAMIC_DYNAMIC,
+                            P::DynamicKinematic => ActiveCollisionTypes::DYNAMIC_KINEMATIC,
+                            P::DynamicStatic => ActiveCollisionTypes::DYNAMIC_FIXED,
+                            P::KinematicKinematic => ActiveCollisionTypes::KINEMATIC_KINEMATIC,
+                            P::KinematicStatic => ActiveCollisionTypes::KINEMATIC_FIXED,
+                            P::StaticStatic => ActiveCollisionTypes::FIXED_FIXED,
+                        }
+                })
+        }
+
+        /// What a collider reports, as rapier counts it.
+        pub(crate) fn events_of(events: &[crate::properties::ColliderEvent]) -> ActiveEvents {
+            use crate::properties::ColliderEvent as E;
+            events.iter().fold(ActiveEvents::empty(), |active, event| {
+                active
+                    | match event {
+                        E::Collision => ActiveEvents::COLLISION_EVENTS,
+                        E::ContactForce => ActiveEvents::CONTACT_FORCE_EVENTS,
+                    }
+            })
+        }
+
+        /// The hook a collider's rows ask for, if any.
+        pub(crate) fn hooks_of(rows: &impl crate::properties::ColliderRows) -> ActiveHooks {
+            if rows.hooked() {
                 ActiveHooks::MODIFY_SOLVER_CONTACTS
             } else {
                 ActiveHooks::empty()
             }
+        }
+
+        /// Every row a collider carries that is not its shape or its mass's
+        /// frame: what it is made of, what it meets and what it reports.
+        pub(crate) fn with_rows(
+            builder: ColliderBuilder,
+            rows: &impl crate::properties::ColliderRows,
+            material: &crate::material::PhysicsMaterial,
+        ) -> ColliderBuilder {
+            let mut builder = builder
+                .restitution(crate::scalar::real(material.restitution))
+                .friction(crate::scalar::real(material.friction))
+                .density(crate::scalar::real(rows.density().max(0.0)))
+                .friction_combine_rule(combine_rule(&material.friction_combine))
+                .restitution_combine_rule(combine_rule(&material.restitution_combine))
+                .contact_skin(crate::scalar::real(rows.collision_margin().max(0.0)))
+                .contact_force_event_threshold(crate::scalar::real(rows.contact_force_threshold()))
+                .collision_groups(groups_of(rows.collision()))
+                .solver_groups(groups_of(rows.solver()))
+                .active_collision_types(collision_types_of(rows.contact_pairs()))
+                .active_events(events_of(rows.events()))
+                .active_hooks(hooks_of(rows))
+                .enabled(rows.enabled())
+                .sensor(rows.sensor());
+            // An explicit mass overrides what the density works out to, which
+            // is what an author who typed a number in kilograms means.
+            let mass = crate::scalar::real(rows.mass());
+            if mass > 0.0 {
+                builder = builder.mass(mass);
+            }
+            builder
         }
 
         fn test_mode(name: &str) -> InteractionTestMode {

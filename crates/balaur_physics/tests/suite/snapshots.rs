@@ -201,16 +201,32 @@ fn params_tables(app: &App) -> Vec<toml::Value> {
     let three = three.borrow();
     let two = app.engine.resource::<balaur_physics::PhysicsState2d>();
     let two = two.borrow();
+    let tables = |rows: Vec<(std::num::NonZeroU64, toml::Value)>| {
+        let mut rows = rows;
+        rows.sort_by_key(|(entity, _)| *entity);
+        rows.into_iter().map(|(_, params)| params)
+    };
     let mut out: Vec<toml::Value> = Vec::new();
-    for map in [
-        &three.collider_params,
-        &three.joint_params,
-        &two.collider_params,
-    ] {
-        let mut rows: Vec<_> = map.iter().collect();
-        rows.sort_by_key(|(entity, _)| entity.to_bits());
-        out.extend(rows.into_iter().map(|(_, params)| params.clone()));
-    }
+    out.extend(tables(
+        three
+            .collider_params
+            .iter()
+            .map(|(entity, asked)| (entity.to_bits(), asked.to_table()))
+            .collect(),
+    ));
+    out.extend(tables(
+        three
+            .joint_params
+            .iter()
+            .map(|(entity, params)| (entity.to_bits(), params.clone()))
+            .collect(),
+    ));
+    out.extend(tables(
+        two.collider_params
+            .iter()
+            .map(|(entity, asked)| (entity.to_bits(), asked.to_table()))
+            .collect(),
+    ));
     out
 }
 

@@ -30,6 +30,19 @@ pub(crate) trait Beside: Component {
 /// when it holds `C` and `main`'s kind reads it, else `C`'s defaults where
 /// `params` has no such row yet.
 ///
+/// The beside component `C` as the main one's kind reads it: the node's own
+/// where the kind reads one, its defaults otherwise.
+pub(crate) fn held<C: Beside + Clone>(world: &World, entity: Entity, main: &C::Main) -> C {
+    if C::reads(main) {
+        world
+            .get::<&C>(entity)
+            .map(|held| (*held).clone())
+            .unwrap_or_default()
+    } else {
+        C::default()
+    }
+}
+
 /// Two beside components may share a row's name (a sphere's `radius` and a
 /// cloth tube's), and the moved rows kept their defaults, so the one the
 /// kind reads wins whichever order they are written in.

@@ -89,6 +89,19 @@ pub(crate) fn of(eng: &Engine, params: &toml::Value) -> Result<Rc<PhysicsMateria
     balaur_core::assets::record(eng, params.get(k::PHYSICS_MATERIAL), k::PHYSICS_MATERIAL)
 }
 
+/// The material a component's `physics_material` names: a file, an inline
+/// one's key, or the default for none.
+pub(crate) fn named(eng: &Engine, reference: &str) -> Result<Rc<PhysicsMaterial>> {
+    let value = (!reference.is_empty()).then(|| toml::Value::String(reference.to_owned()));
+    balaur_core::assets::record(eng, value.as_ref(), k::PHYSICS_MATERIAL)
+}
+
+/// Whether a material reference is a file, which can change under the
+/// component holding it; an inline one is keyed by its own content.
+pub(crate) fn is_a_file(reference: &str) -> bool {
+    !reference.is_empty() && !reference.starts_with('#')
+}
+
 /// Whether `params` names a material kept in a file in any of `rows`, which
 /// can change under the component holding it; an inline one is keyed by its
 /// own content.

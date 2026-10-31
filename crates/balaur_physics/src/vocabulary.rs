@@ -203,7 +203,6 @@ pub(crate) mod keys {
     pub(crate) const COLLISIONS: &str = "collisions";
     pub(crate) const COLLISION_DETECTION_MS: &str = "collision_detection_ms";
     pub(crate) const COLLISION_LAYER: &str = "collision_layer";
-    pub(crate) const COLLISION_MARGIN: &str = "collision_margin";
     pub(crate) const COLLISION_MASK: &str = "collision_mask";
     pub(crate) const COLLISION_TEST: &str = "collision_test";
     pub(crate) const CONNECTED_ANCHOR: &str = "connected_anchor";
@@ -244,7 +243,6 @@ pub(crate) mod keys {
     /// A ragdoll's `follow3d`/`follow2d` table, with `drive = "follow"`.
     pub(crate) const FOLLOW: &str = "follow";
     pub(crate) const EDGE_NORMAL_COLOR: &str = "edge_normal_color";
-    pub(crate) const EDGE_RADIUS: &str = "edge_radius";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const ENGINE_FORCE: &str = "engine_force";
     pub(crate) const EVENTS: &str = "events";
@@ -253,7 +251,6 @@ pub(crate) mod keys {
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FILTER: &str = "filter";
     pub(crate) const FINAL_BROAD_PHASE_MS: &str = "final_broad_phase_ms";
-    pub(crate) const FIT: &str = "fit";
     pub(crate) const FORWARD_IMPULSE: &str = "forward_impulse";
     pub(crate) const FRICTION: &str = "friction";
     pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
@@ -319,11 +316,8 @@ pub(crate) mod keys {
     pub(crate) const NORMAL_LENGTH: &str = "normal_length";
     pub(crate) const NORMALS: &str = "normals";
     pub(crate) const OFFSET: &str = "offset";
-    pub(crate) const ONE_WAY_ANGLE: &str = "one_way_angle";
     pub(crate) const OTHER: &str = "other";
     pub(crate) const OFFSET_ROTATION: &str = "offset_rotation";
-    pub(crate) const ONE_WAY: &str = "one_way";
-    pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
     pub(crate) const ONLY: &str = "only";
     pub(crate) const ON_FLOOR: &str = "on_floor";
     pub(crate) const ORIGIN: &str = "origin";
@@ -345,10 +339,8 @@ pub(crate) mod keys {
     pub(crate) const SOFT_MATERIAL: &str = "soft_material";
     pub(crate) const PIECES: &str = "pieces";
     pub(crate) const SLEEP_READY_TINT: &str = "sleep_ready_tint";
-    pub(crate) const SOLVER_TEST: &str = "solver_test";
     pub(crate) const STARTED: &str = "started";
     pub(crate) const STATIC_COLOR: &str = "static_color";
-    pub(crate) const SURFACE_VELOCITY: &str = "surface_velocity";
     pub(crate) const SUSPENSION: &str = "suspension";
     /// The particle pairs a tear cut, in a `tear` payload.
     pub(crate) const TORN_EDGES: &str = "edges";

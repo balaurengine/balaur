@@ -211,30 +211,56 @@ fn vhacd() -> crate::rapier3d::parry::transformation::vhacd::VHACDParameters {
     crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default()
 }
 
-/// The collider a `collider3d` table describes: its `shape`, built with the
-/// components beside it as the table writes them in, and every row that is
-/// not the shape.
-pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
-    let builder = shape_builder(
-        eng,
-        &shape_of(params)?,
-        &derived::from_table(params)?,
-        &derived::from_table(params)?,
-    )?;
-    let material = crate::material::of(eng, params)?;
-    Ok(with_mass_properties(
-        with_material(builder, params, &material),
-        params,
-    ))
+/// What a node's collider is built from: the component, and the components
+/// beside it as its shape's kind reads them.
+#[derive(Clone)]
+pub struct Asked3d {
+    pub collider: Collider3d,
+    pub mesh: MeshCollider3d,
+    pub cut: ConvexDecomposition3d,
 }
 
-/// A table's `shape`, at its default where it names none.
-fn shape_of(params: &toml::Value) -> Result<ColliderShape3d> {
-    params
-        .get("shape")
-        .map(<ColliderShape3d as derived::Property>::from_value)
-        .transpose()
-        .map(Option::unwrap_or_default)
+impl Asked3d {
+    /// What `entity` asks for, `None` without a `collider3d`.
+    pub fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let collider = (*world.get::<&Collider3d>(entity).ok()?).clone();
+        Some(Self {
+            mesh: beside::held(world, entity, &collider),
+            cut: beside::held(world, entity, &collider),
+            collider,
+        })
+    }
+
+    /// The three as one table, the way a snapshot keeps them.
+    pub fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.collider);
+        for beside in [derived::to_table(&self.mesh), derived::to_table(&self.cut)] {
+            if let (Some(rows), toml::Value::Table(more)) = (table.as_table_mut(), beside) {
+                rows.extend(more);
+            }
+        }
+        table
+    }
+
+    /// The three out of one table, as [`Self::to_table`] wrote them.
+    pub(crate) fn from_table(params: &toml::Value) -> Result<Self> {
+        Ok(Self {
+            collider: derived::from_table(params)?,
+            mesh: derived::from_table(params)?,
+            cut: derived::from_table(params)?,
+        })
+    }
+}
+
+/// The collider a node asks for: its `shape`, built with the components
+/// beside it, and every row that is not the shape.
+pub(crate) fn collider_builder(eng: &Engine, asked: &Asked3d) -> Result<ColliderBuilder> {
+    let builder = shape_builder(eng, &asked.collider.shape, &asked.mesh, &asked.cut)?;
+    let material = crate::material::named(eng, &asked.collider.physics_material)?;
+    Ok(with_mass_properties(
+        with_rows(builder, &asked.collider, &material),
+        &asked.collider,
+    ))
 }
 
 /// A shape on its own, for a query: the value a `collider3d`'s `shape` holds,
@@ -361,65 +387,19 @@ pub(crate) fn shape_builder(
     })
 }
 
-/// Everything a collider carries that is not its shape: what it is made of,
-/// what it collides with, and what it reports.
-///
-/// Shared by both dimensions' builders through their own `collider_builder`,
-/// because every one of these properties is dimension-free.
-pub(crate) fn with_material(
-    builder: ColliderBuilder,
-    params: &toml::Value,
-    material: &crate::material::PhysicsMaterial,
-) -> ColliderBuilder {
-    let mut builder = builder
-        .restitution(scalar::real(material.restitution))
-        .friction(scalar::real(material.friction))
-        .density(scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)))
-        .friction_combine_rule(combine_rule(&material.friction_combine))
-        .restitution_combine_rule(combine_rule(&material.restitution_combine))
-        .contact_skin(scalar::real(
-            v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
-        ))
-        .contact_force_event_threshold(scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0)))
-        .collision_groups(interaction_groups(
-            params,
-            k::COLLISION_LAYER,
-            k::COLLISION_MASK,
-            k::COLLISION_TEST,
-        ))
-        .solver_groups(interaction_groups(
-            params,
-            k::SOLVER_LAYER,
-            k::SOLVER_MASK,
-            k::SOLVER_TEST,
-        ))
-        .active_collision_types(active_collision_types(params))
-        .active_events(active_events(params))
-        .active_hooks(active_hooks(params))
-        .enabled(v::boolean(params, k::ENABLED, true))
-        .sensor(v::boolean(params, k::SENSOR, false));
-    // An explicit mass overrides what the density works out to, which is what
-    // an author who typed a number in kilograms means.
-    let mass = scalar::real(v::f(params, k::MASS, 0.0));
-    if mass > 0.0 {
-        builder = builder.mass(mass);
-    }
-    builder
-}
-
 /// `center_of_mass`, `inertia` and `inertia_rotation`, for a collider that
 /// states any of them. The mass is `mass`, or what the density makes of the
 /// shape; an `inertia` of 0 is the shape's own, about the stated centre.
-fn with_mass_properties(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
-    let com = v::vec3(params, k::CENTER_OF_MASS, [0.0; 3]);
-    let inertia = v::vec3(params, k::INERTIA, [0.0; 3]);
+fn with_mass_properties(builder: ColliderBuilder, asked: &Collider3d) -> ColliderBuilder {
+    let com = asked.center_of_mass;
+    let inertia = asked.inertia;
     if crate::body::is_default(&com) && crate::body::is_default(&inertia) {
         return builder;
     }
     let unit = builder.shape.mass_properties(1.0);
-    let mass = match scalar::real(v::f(params, k::MASS, 0.0)) {
+    let mass = match scalar::real(asked.mass) {
         stated if stated > 0.0 => stated,
-        _ => scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)) * unit.mass(),
+        _ => scalar::real(asked.density.max(0.0)) * unit.mass(),
     };
     let com = scalar::v3a(com);
     let props = if crate::body::is_default(&inertia) {
@@ -434,8 +414,7 @@ fn with_mass_properties(builder: ColliderBuilder, params: &toml::Value) -> Colli
                 * mass;
         MassProperties::with_inertia_matrix(com, mass, shaped.reconstruct_inertia_matrix() + shift)
     } else {
-        let frame =
-            crate::body::rotation_from_euler(v::vec3(params, k::INERTIA_ROTATION, [0.0; 3]));
+        let frame = crate::body::rotation_from_euler(asked.inertia_rotation);
         MassProperties::with_principal_inertia_frame(com, mass, scalar::v3a(inertia), frame)
     };
     builder.mass_properties(props)
@@ -443,13 +422,13 @@ fn with_mass_properties(builder: ColliderBuilder, params: &toml::Value) -> Colli
 
 /// What the contact hook needs of this collider, or `None` for one that
 /// neither carries bodies through one way nor slides them along.
-pub(crate) fn surface_of(params: &toml::Value) -> Option<crate::events::Surface> {
-    let one_way = v::boolean(params, k::ONE_WAY, false).then(|| {
-        let axis = scalar::v3a(v::vec3(params, k::ONE_WAY_AXIS, [0.0, 1.0, 0.0]));
-        let angle = scalar::real(v::f(params, k::ONE_WAY_ANGLE, 0.1).max(0.0));
+pub(crate) fn surface_of(asked: &Collider3d) -> Option<crate::events::Surface> {
+    let one_way = asked.one_way.then(|| {
+        let axis = scalar::v3a(asked.one_way_axis);
+        let angle = scalar::real(asked.one_way_angle.max(0.0));
         (axis.try_normalize().unwrap_or(Vector::Y), angle)
     });
-    let velocity = scalar::v3a(v::vec3(params, k::SURFACE_VELOCITY, [0.0; 3]));
+    let velocity = scalar::v3a(asked.surface_velocity);
     (one_way.is_some() || velocity != Vector::ZERO)
         .then_some(crate::events::Surface { one_way, velocity })
 }
@@ -476,17 +455,6 @@ pub(crate) fn with_groups(builder: ColliderBuilder, params: &toml::Value) -> Col
 
 crate::shared::collider::functions!(state = PhysicsState3d, refit = crate::body::refit_mass);
 
-/// Which body-type pairs this collider is tested against. Rapier leaves
-/// static-static and kinematic-kinematic off, and a scene that wants a sensor
-/// on the ground to notice a kinematic platform has to say so.
-pub(crate) fn active_collision_types(params: &toml::Value) -> ActiveCollisionTypes {
-    ActiveCollisionTypes::from_bits_truncate(v::bits(
-        params,
-        k::CONTACT_PAIRS,
-        &v::flags::collision_types(),
-    ))
-}
-
 /// Rapier reports nothing by default, for speed. A collider opts in here, and
 /// `crate::events` turns what it reports into a call on the node's script.
 pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
@@ -497,7 +465,7 @@ pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
 /// asset cache has moved, so a material saved in the editor shows on every
 /// body naming it, as a re-read tile map's cells do.
 pub(crate) fn reread_materials(eng: &Engine) {
-    let stale: Vec<(Entity, toml::Value, bool)> = {
+    let stale: Vec<(Entity, Option<Asked3d>)> = {
         let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let generation = balaur_core::assets::generation(eng);
@@ -505,26 +473,32 @@ pub(crate) fn reread_materials(eng: &Engine) {
             return;
         }
         state.materials_read = generation;
-        let surface = [k::PHYSICS_MATERIAL];
         let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
         let colliders = state
             .collider_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &surface));
+            .filter(|(_, asked)| crate::material::is_a_file(&asked.collider.physics_material))
+            .map(|(entity, asked)| (*entity, Some(asked.clone())));
         let soft = state
             .soft_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &both));
-        colliders
-            .map(|(entity, params)| (*entity, params.clone(), false))
-            .chain(soft.map(|(entity, params)| (*entity, params.clone(), true)))
-            .collect()
+            .filter(|(_, p)| crate::material::names_a_file(p, &both))
+            .map(|(entity, _)| (*entity, None));
+        colliders.chain(soft).collect()
     };
-    for (entity, params, soft) in stale {
-        let rebuilt = if soft {
-            crate::softbody::apply_softbody(eng, entity, &params)
+    for (entity, asked) in stale {
+        let rebuilt = if let Some(asked) = asked {
+            apply_collider(eng, entity, &asked)
         } else {
-            apply_collider(eng, entity, &params)
+            let params = eng
+                .resource::<PhysicsState3d>()
+                .borrow()
+                .soft_params
+                .get(&entity)
+                .cloned();
+            params.map_or(Ok(()), |params| {
+                crate::softbody::apply_softbody(eng, entity, &params)
+            })
         };
         if let Err(why) = rebuilt {
             tracing::warn!("physics_material: {why:#}");
@@ -532,13 +506,12 @@ pub(crate) fn reread_materials(eng: &Engine) {
     }
 }
 
-/// Build and insert the collider described by `params`, replacing any
-/// existing one (attached to the entity's body when it has one).
-pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
-    let params = asked;
-    let builder = collider_builder(eng, params)?;
-    let offset = Pose::from_parts(scalar::v3a(v::vec3(params, k::OFFSET, [0.0; 3])), {
-        let r = v::vec3(params, k::OFFSET_ROTATION, [0.0; 3]);
+/// Build and insert the collider a node asks for, replacing any existing one
+/// (attached to the entity's body when it has one).
+pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked3d) -> Result<()> {
+    let builder = collider_builder(eng, asked)?;
+    let offset = Pose::from_parts(scalar::v3a(asked.collider.offset), {
+        let r = asked.collider.offset_rotation;
         scalar::rotation_of(glamx::Quat::from_euler(
             glamx::EulerRot::XYZ,
             r[0],
@@ -555,7 +528,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) 
             .collider_params
             .insert(entity, asked.clone());
     }
-    if let Some(surface) = surface_of(params) {
+    if let Some(surface) = surface_of(&asked.collider) {
         let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
@@ -655,9 +628,8 @@ fn warn_if_hollow_and_dynamic(
     }
 }
 
-/// What a node's live collider was built from, as the table its builder
-/// reads: `None` when it has none.
-pub(crate) fn authored_collider(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+/// What a node's live collider was built from: `None` when it has none.
+pub(crate) fn authored_collider(eng: &Engine, entity: Entity) -> Option<Asked3d> {
     let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     state.colliders.get(&entity)?.first()?;
@@ -732,21 +704,12 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
 
 /// What the node's `collider3d` asks for, with the rows of the components
 /// beside it written in; `None` when it has none.
-fn asked(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let held = world.get::<&Collider3d>(entity).ok()?;
-    let mut params = derived::to_table(&*held);
-    beside::write_in::<MeshCollider3d>(&world, entity, &held, &mut params);
-    beside::write_in::<ConvexDecomposition3d>(&world, entity, &held, &mut params);
-    Some(params)
-}
-
 /// The collider the component asks for, built again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let Some(params) = asked(eng, entity) else {
+    let Some(asked) = Asked3d::of(&eng.world(), entity) else {
         return Ok(());
     };
-    apply_collider(eng, entity, &params)
+    apply_collider(eng, entity, &asked)
 }
 
 /// What a removed `Collider3d` leaves behind, taken with it.
@@ -989,3 +952,4 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
         })
     });
 }
+crate::properties::collider_rows!(Collider3d);

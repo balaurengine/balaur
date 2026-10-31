@@ -10,6 +10,7 @@ use balaur_core::components::derived::{
     self, Component, Enum, Property, Record, Result, Variant, toml,
 };
 use balaur_core::hecs::Entity;
+use balaur_core::layers::Layer;
 
 /// The node a `node` property names, resolved from the node that holds it as
 /// `balaur_core::components::as_node` does: `None` for the empty default and
@@ -419,3 +420,71 @@ pub struct EdgeTearResistance {
     #[property(default = 1.0)]
     pub resistance: f32,
 }
+
+/// The rows every collider carries beside its shape and its mass, the same
+/// in both dimensions and on a tile map: what it is, what it meets, what it
+/// reports. Read from the typed component, so a builder never reads a table.
+pub(crate) trait ColliderRows {
+    fn enabled(&self) -> bool;
+    fn sensor(&self) -> bool;
+    /// The layers it is on, the layers it meets, and how the two are tested.
+    fn collision(&self) -> (&[Layer], &[Layer], LayerTest);
+    /// The same three for whether a contact pushes.
+    fn solver(&self) -> (&[Layer], &[Layer], LayerTest);
+    fn contact_pairs(&self) -> &[ContactPair];
+    fn events(&self) -> &[ColliderEvent];
+    fn contact_force_threshold(&self) -> f32;
+    fn collision_margin(&self) -> f32;
+    fn density(&self) -> f32;
+    fn mass(&self) -> f32;
+    /// Whether it asks for the contact hook: a one-way surface, or one that
+    /// carries what touches it along.
+    fn hooked(&self) -> bool;
+}
+
+/// [`ColliderRows`] for a component whose rows have the names a collider's
+/// have.
+macro_rules! collider_rows {
+    ($($component:ty),*) => {$(
+        impl crate::properties::ColliderRows for $component {
+            fn enabled(&self) -> bool {
+                self.enabled
+            }
+            fn sensor(&self) -> bool {
+                self.sensor
+            }
+            fn collision(
+                &self,
+            ) -> (&[balaur_core::layers::Layer], &[balaur_core::layers::Layer], crate::properties::LayerTest) {
+                (&self.collision_layer, &self.collision_mask, self.collision_test)
+            }
+            fn solver(
+                &self,
+            ) -> (&[balaur_core::layers::Layer], &[balaur_core::layers::Layer], crate::properties::LayerTest) {
+                (&self.solver_layer, &self.solver_mask, self.solver_test)
+            }
+            fn contact_pairs(&self) -> &[crate::properties::ContactPair] {
+                &self.contact_pairs
+            }
+            fn events(&self) -> &[crate::properties::ColliderEvent] {
+                &self.events
+            }
+            fn contact_force_threshold(&self) -> f32 {
+                self.contact_force_threshold
+            }
+            fn collision_margin(&self) -> f32 {
+                self.collision_margin
+            }
+            fn density(&self) -> f32 {
+                self.density
+            }
+            fn mass(&self) -> f32 {
+                self.mass
+            }
+            fn hooked(&self) -> bool {
+                self.one_way || self.surface_velocity.iter().any(|axis| *axis != 0.0)
+            }
+        }
+    )*};
+}
+pub(crate) use collider_rows;

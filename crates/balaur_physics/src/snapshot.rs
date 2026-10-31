@@ -291,7 +291,16 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         joints: keyed(&world, &state.joints),
         soft_bodies: keyed(&world, &state.soft_bodies),
         soft_params: authored(eng, &world, &state.soft_params, softbody::PARAMS),
-        collider_params: authored(eng, &world, &state.collider_params, collider::PARAMS),
+        collider_params: authored(
+            eng,
+            &world,
+            &state
+                .collider_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            collider::PARAMS,
+        ),
         joint_params: authored(eng, &world, &state.joint_params, joint::PARAMS),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         wheel_inputs: keyed(&world, &state.wheel_inputs),
@@ -344,7 +353,18 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.joints = joints;
     state.soft_bodies = soft_bodies;
     state.soft_params = soft_params;
-    state.collider_params = collider_params;
+    state.collider_params = collider_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match collider::Asked3d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a collider3d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.joint_params = joint_params;
     state.surfaces = frame.surfaces.into_iter().collect();
     state.wheel_inputs = wheel_inputs;

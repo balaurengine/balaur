@@ -11,7 +11,7 @@ use balaur_plugin::Registry;
 
 use super::collider_shape::ColliderShape2d;
 use crate::rapier2d::prelude::{
-    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule,
+    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, ColliderBuilder,
     ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups,
     InteractionTestMode, MassProperties, RigidBodyHandle,
 };
@@ -288,29 +288,59 @@ pub(crate) fn add_collider_at(
     Ok(())
 }
 
-/// The collider a `collider2d` table describes: its `shape`, built with the
-/// components beside it as the table writes them in, and every row that is
-/// not the shape.
-pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
-    let shape = params
-        .get("shape")
-        .map(<ColliderShape2d as derived::Property>::from_value)
-        .transpose()?
-        .unwrap_or_default();
-    let density = scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0));
-    let (builder, mass) = shape_builder(
-        eng,
-        &shape,
-        &derived::from_table(params)?,
-        &derived::from_table(params)?,
-        density,
-    )?;
-    let material = crate::material::of(eng, params)?;
-    let builder = with_material(builder, params, &material);
+/// What a node's collider is built from: the component, and the components
+/// beside it as its shape's kind reads them.
+#[derive(Clone)]
+pub struct Asked2d {
+    pub collider: Collider2d,
+    pub mesh: MeshCollider2d,
+    pub cut: ConvexDecomposition2d,
+}
+
+impl Asked2d {
+    /// What `entity` asks for, `None` without a `collider2d`.
+    pub fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let collider = (*world.get::<&Collider2d>(entity).ok()?).clone();
+        Some(Self {
+            mesh: beside::held(world, entity, &collider),
+            cut: beside::held(world, entity, &collider),
+            collider,
+        })
+    }
+
+    /// The three as one table, the way a snapshot keeps them.
+    pub fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.collider);
+        for beside in [derived::to_table(&self.mesh), derived::to_table(&self.cut)] {
+            if let (Some(rows), toml::Value::Table(more)) = (table.as_table_mut(), beside) {
+                rows.extend(more);
+            }
+        }
+        table
+    }
+
+    /// The three out of one table, as [`Self::to_table`] wrote them.
+    pub(crate) fn from_table(params: &toml::Value) -> Result<Self> {
+        Ok(Self {
+            collider: derived::from_table(params)?,
+            mesh: derived::from_table(params)?,
+            cut: derived::from_table(params)?,
+        })
+    }
+}
+
+/// The collider a node asks for: its `shape`, built with the components
+/// beside it, and every row that is not the shape.
+pub(crate) fn collider_builder(eng: &Engine, asked: &Asked2d) -> Result<ColliderBuilder2> {
+    let density = scalar::real(asked.collider.density.max(0.0));
+    let (builder, mass) =
+        shape_builder(eng, &asked.collider.shape, &asked.mesh, &asked.cut, density)?;
+    let material = crate::material::named(eng, &asked.collider.physics_material)?;
+    let builder = with_rows(builder, &asked.collider, &material);
     Ok(match mass {
         // `mass` pins the total itself, and wins where it is written.
-        Some(mass) if v::f(params, k::MASS, 0.0) <= 0.0 => builder.mass_properties(mass),
-        _ => with_mass_properties(builder, params),
+        Some(mass) if asked.collider.mass <= 0.0 => builder.mass_properties(mass),
+        _ => with_mass_properties(builder, &asked.collider),
     })
 }
 
@@ -416,17 +446,17 @@ fn shape_builder(
 /// `center_of_mass` and `inertia`, for a collider that states either, as in
 /// 3D: the mass is `mass` or what the density makes of the shape, and an
 /// `inertia` of 0 is the shape's own about the stated centre.
-fn with_mass_properties(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
-    let com = v::vec2(params, k::CENTER_OF_MASS, [0.0; 2]);
-    let inertia = scalar::real(v::f(params, k::INERTIA, 0.0));
+fn with_mass_properties(builder: ColliderBuilder2, asked: &Collider2d) -> ColliderBuilder2 {
+    let com = asked.center_of_mass;
+    let inertia = scalar::real(asked.inertia);
     if crate::body::is_default(&com) && inertia == 0.0 {
         return builder;
     }
-    let mass = match scalar::real(v::f(params, k::MASS, 0.0)) {
+    let mass = match scalar::real(asked.mass) {
         stated if stated > 0.0 => stated,
         _ => {
             let unit = builder.shape.mass_properties(1.0);
-            scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)) * unit.mass()
+            scalar::real(asked.density.max(0.0)) * unit.mass()
         }
     };
     mass_at(builder, scalar::v2a(com), mass, inertia)
@@ -470,61 +500,11 @@ pub(crate) fn with_events_2d(builder: ColliderBuilder2, params: &toml::Value) ->
         .contact_force_event_threshold(threshold)
 }
 
-/// The 2D half of `crate::collider::with_material`. The flag tables are
-/// shared (`crate::vocabulary::flags`); only the types they are poured into
-/// are per-dimension.
-pub(crate) fn with_material(
-    builder: ColliderBuilder2,
-    params: &toml::Value,
-    material: &crate::material::PhysicsMaterial,
-) -> ColliderBuilder2 {
-    let mut builder = builder
-        .restitution(scalar::real(material.restitution))
-        .friction(scalar::real(material.friction))
-        .density(scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)))
-        .friction_combine_rule(combine_rule(&material.friction_combine))
-        .restitution_combine_rule(combine_rule(&material.restitution_combine))
-        .contact_skin(scalar::real(
-            v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
-        ))
-        .contact_force_event_threshold(scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0)))
-        .collision_groups(interaction_groups(
-            params,
-            k::COLLISION_LAYER,
-            k::COLLISION_MASK,
-            k::COLLISION_TEST,
-        ))
-        .solver_groups(interaction_groups(
-            params,
-            k::SOLVER_LAYER,
-            k::SOLVER_MASK,
-            k::SOLVER_TEST,
-        ))
-        .active_collision_types(ActiveCollisionTypes::from_bits_truncate(v::bits(
-            params,
-            k::CONTACT_PAIRS,
-            &v::flags::collision_types(),
-        )))
-        .active_events(ActiveEvents::from_bits_truncate(v::bits(
-            params,
-            k::EVENTS,
-            &v::flags::events(),
-        )))
-        .active_hooks(active_hooks(params))
-        .enabled(v::boolean(params, k::ENABLED, true))
-        .sensor(v::boolean(params, k::SENSOR, false));
-    let mass = scalar::real(v::f(params, k::MASS, 0.0));
-    if mass > 0.0 {
-        builder = builder.mass(mass);
-    }
-    builder
-}
-
 /// Build again each collider and soft body naming a material file once the
 /// asset cache has moved, so a material saved in the editor shows on every
 /// body naming it, as a re-read tile map's cells do.
 pub(crate) fn reread_materials(eng: &Engine) {
-    let stale: Vec<(Entity, toml::Value, bool)> = {
+    let stale: Vec<(Entity, Option<Asked2d>)> = {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let generation = balaur_core::assets::generation(eng);
@@ -532,26 +512,32 @@ pub(crate) fn reread_materials(eng: &Engine) {
             return;
         }
         state.materials_read = generation;
-        let surface = [k::PHYSICS_MATERIAL];
         let both = [k::PHYSICS_MATERIAL, k::SOFT_MATERIAL];
         let colliders = state
             .collider_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &surface));
+            .filter(|(_, asked)| crate::material::is_a_file(&asked.collider.physics_material))
+            .map(|(entity, asked)| (*entity, Some(asked.clone())));
         let soft = state
             .soft_params
             .iter()
-            .filter(|(_, p)| crate::material::names_a_file(p, &both));
-        colliders
-            .map(|(entity, params)| (*entity, params.clone(), false))
-            .chain(soft.map(|(entity, params)| (*entity, params.clone(), true)))
-            .collect()
+            .filter(|(_, p)| crate::material::names_a_file(p, &both))
+            .map(|(entity, _)| (*entity, None));
+        colliders.chain(soft).collect()
     };
-    for (entity, params, soft) in stale {
-        let rebuilt = if soft {
-            crate::dim2::softbody::apply_softbody_2d(eng, entity, &params)
+    for (entity, asked) in stale {
+        let rebuilt = if let Some(asked) = asked {
+            apply_collider(eng, entity, &asked)
         } else {
-            apply_collider(eng, entity, &params)
+            let params = eng
+                .resource::<PhysicsState2d>()
+                .borrow()
+                .soft_params
+                .get(&entity)
+                .cloned();
+            params.map_or(Ok(()), |params| {
+                crate::dim2::softbody::apply_softbody_2d(eng, entity, &params)
+            })
         };
         if let Err(why) = rebuilt {
             tracing::warn!("physics_material: {why:#}");
@@ -559,14 +545,12 @@ pub(crate) fn reread_materials(eng: &Engine) {
     }
 }
 
-/// Build and insert the collider described by `params`, replacing any
-/// existing one.
-pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
-    let params = asked;
-    let builder = collider_builder(eng, params)?;
+/// Build and insert the collider a node asks for, replacing any existing one.
+pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked2d) -> Result<()> {
+    let builder = collider_builder(eng, asked)?;
     let offset = Pose2::from_parts(
-        scalar::v2a(v::vec2(params, k::OFFSET, [0.0; 2])),
-        Rotation2::from_angle(scalar::real(v::f(params, k::OFFSET_ROTATION, 0.0))),
+        scalar::v2a(asked.collider.offset),
+        Rotation2::from_angle(scalar::real(asked.collider.offset_rotation)),
     );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
@@ -577,7 +561,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) 
             .collider_params
             .insert(entity, asked.clone());
     }
-    if let Some(surface) = surface_of(params, [0.0, 1.0]) {
+    if let Some(surface) = surface_of(&asked.collider) {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
@@ -588,25 +572,20 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) 
     Ok(())
 }
 
-/// What the contact hook needs of this collider, as in 3D. `up` is the axis a
-/// platform holds bodies on when `one_way_axis` is left out.
-pub(crate) fn surface_of(
-    params: &toml::Value,
-    up: [f32; 2],
-) -> Option<crate::dim2::events::Surface> {
-    let one_way = v::boolean(params, k::ONE_WAY, false).then(|| {
-        let axis = scalar::v2a(v::vec2(params, k::ONE_WAY_AXIS, up));
-        let angle = scalar::real(v::f(params, k::ONE_WAY_ANGLE, 0.1).max(0.0));
+/// What the contact hook needs of this collider, as in 3D.
+pub(crate) fn surface_of(asked: &Collider2d) -> Option<crate::dim2::events::Surface> {
+    let one_way = asked.one_way.then(|| {
+        let axis = scalar::v2a(asked.one_way_axis);
+        let angle = scalar::real(asked.one_way_angle.max(0.0));
         (axis.try_normalize().unwrap_or(Vector::Y), angle)
     });
-    let velocity = scalar::v2a(v::vec2(params, k::SURFACE_VELOCITY, [0.0; 2]));
+    let velocity = scalar::v2a(asked.surface_velocity);
     (one_way.is_some() || velocity != Vector::ZERO)
         .then_some(crate::dim2::events::Surface { one_way, velocity })
 }
 
-/// What a node's live collider was built from, as the table its builder
-/// reads: `None` when it has none.
-pub(crate) fn authored_collider(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+/// What a node's live collider was built from: `None` when it has none.
+pub(crate) fn authored_collider(eng: &Engine, entity: Entity) -> Option<Asked2d> {
     let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
     state.colliders.get(&entity)?.first()?;
@@ -640,23 +619,12 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
     max
 }
 
-/// What the node's `collider2d` asks for, with the rows of the components
-/// beside it written in; `None` when it has none.
-fn asked(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let held = world.get::<&Collider2d>(entity).ok()?;
-    let mut params = derived::to_table(&*held);
-    beside::write_in::<MeshCollider2d>(&world, entity, &held, &mut params);
-    beside::write_in::<ConvexDecomposition2d>(&world, entity, &held, &mut params);
-    Some(params)
-}
-
 /// The collider the component asks for, built again.
 fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
-    let Some(params) = asked(eng, entity) else {
+    let Some(asked) = Asked2d::of(&eng.world(), entity) else {
         return Ok(());
     };
-    apply_collider(eng, entity, &params)
+    apply_collider(eng, entity, &asked)
 }
 
 /// What a removed `Collider2d` leaves behind, taken with it.
@@ -849,3 +817,5 @@ fn combine_voxels(eng: &Engine, node: NodeId, other: NodeId) -> Result<()> {
     state.shape_revision = state.shape_revision.wrapping_add(1);
     Ok(())
 }
+
+crate::properties::collider_rows!(Collider2d);
