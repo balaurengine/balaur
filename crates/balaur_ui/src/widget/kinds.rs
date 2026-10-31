@@ -61,22 +61,10 @@ fn tick_box(
 ) -> egui::Response {
     let spacing = ui.spacing().clone();
     let side = spacing.icon_width;
-    let text = (!caption.is_empty()).then(|| {
-        egui::WidgetText::from(label).into_galley(
-            ui,
-            Some(egui::TextWrapMode::Extend),
-            f32::INFINITY,
-            egui::TextStyle::Button,
-        )
-    });
-    let tall = side.max(spacing.interact_size.y);
-    let wide = text
-        .as_ref()
-        .map_or(side, |text| side + spacing.icon_spacing + text.size().x);
-    let want = vec2(
-        wide.max(spacing.interact_size.y),
-        text.as_ref().map_or(tall, |text| tall.max(text.size().y)),
-    );
+    let text = (!caption.is_empty())
+        .then(|| crate::widget::sizing::control_galley(ui.ctx(), ui.style(), label));
+    let want =
+        crate::widget::sizing::tick_box_size(&spacing, text.as_ref().map(|text| text.size()));
     let (id, rect) = ui.allocate_space(want);
     let response = ui.interact(rect, id, Sense::click());
     let enabled = ui.is_enabled();
@@ -137,8 +125,9 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         (placed.entity, placed.widget.checked)
     };
     let look = at.resting(index);
-    let height = look.style.height.unwrap_or(18.0);
-    let (rect, response) = ui.allocate_exact_size(vec2(height * 1.75, height), Sense::click());
+    let size = crate::widget::sizing::switch_size(&look.style);
+    let height = size.y;
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     if response.clicked() {
         at.clicked.push(entity);
     }
@@ -185,7 +174,11 @@ pub(crate) fn dropdown(
     let id = ui.make_persistent_id(("balaur-dropdown", entity));
     let popup = id.with("popup");
     let open = egui::Popup::is_id_open(ui.ctx(), popup);
-    let width = (want.x > 0.0).then_some(want.x);
+    // As wide as its widest option at least, so picking one does not move
+    // what is beside it.
+    let natural =
+        crate::widget::sizing::dropdown_size(ui.ctx(), ui.style(), widget, (font, color, slant));
+    let width = Some(if want.x > 0.0 { want.x } else { natural.x });
     let button = ui
         .horizontal(|ui| {
             let response = picker(ui, id, open, picked, (fold, width));
@@ -564,14 +557,11 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // picker is egui's sRGB one: its linear `Rgba` showed them too light.
     let mut srgba = crate::widget::node::rgba_color(widget.color);
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
-    if want.x > 0.0 {
+    // The swatch's width; the open picker is laid out by egui alone.
+    if want.x > 0.0 && !widget.egui.inline {
         ui.spacing_mut().interact_size.x = want.x;
     }
-    let alpha = match widget.egui.alpha.as_str() {
-        w::NONE => egui::color_picker::Alpha::Opaque,
-        w::ADDITIVE => egui::color_picker::Alpha::BlendOrAdditive,
-        _ => egui::color_picker::Alpha::OnlyBlend,
-    };
+    let alpha = crate::widget::sizing::alpha_of(widget);
     let changed = if widget.egui.inline {
         egui::color_picker::color_picker_color32(ui, &mut srgba, alpha)
     } else {

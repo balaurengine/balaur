@@ -351,12 +351,13 @@ fn list_area(id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
 /// A scroll area that keeps its size and holds to the box it was given.
 fn held_to(area: egui::ScrollArea, id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
     let mut area = area.id_salt(id).auto_shrink([false, false]);
-    // A width stated and not applied is a list drawn past what sits beside it.
+    // A width stated and not applied is a list drawn past what sits beside
+    // it, and egui's least scrolled size of 64 points one drawn past its row.
     if want.x > 0.0 {
-        area = area.max_width(want.x);
+        area = area.max_width(want.x).min_scrolled_width(want.x);
     }
     if want.y > 0.0 {
-        area = area.max_height(want.y);
+        area = area.max_height(want.y).min_scrolled_height(want.y);
     }
     area
 }

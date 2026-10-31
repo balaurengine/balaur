@@ -53,6 +53,13 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
 }
 
+/// What a widget took when the layer last drew it, in design pixels: the
+/// box it was given, unless it drew past it. `None` for one it did not draw.
+#[must_use]
+pub fn widget_drawn_size(entity: balaur_core::hecs::Entity) -> Option<egui::Vec2> {
+    widget::arrange::drawn_size(entity)
+}
+
 /// The smallest a control may be where a finger is what reaches it, in the
 /// points a platform measures its own guidance in. Apple asks for 44 and
 /// Material for 48; 44 is the smaller promise both are met by.

@@ -30,6 +30,7 @@ mod widget_roles;
 mod widget_routing;
 mod widget_rows;
 mod widget_scale;
+mod widget_sizes;
 mod widget_text;
 mod widget_tree;
 mod widget_typing;
