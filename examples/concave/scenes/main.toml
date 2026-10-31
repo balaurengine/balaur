@@ -34,7 +34,7 @@ mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
 [nodes.convex_decomposition2d]
-overlap = 0.0
+method = { kind = "exact", overlap = 0.0 }
 
 [nodes.collider2d]
 shape = { kind = "convex_decomposition", mesh = "#table" }
@@ -52,7 +52,7 @@ mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
 [nodes.convex_decomposition2d]
-overlap = 0.9
+method = { kind = "exact", overlap = 0.9 }
 
 [nodes.collider2d]
 shape = { kind = "convex_decomposition", mesh = "#table" }

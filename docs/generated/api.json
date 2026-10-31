@@ -6853,7 +6853,7 @@
     "material": "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
     "mesh": "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
     "mesh_collider2d": "How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.",
-    "mesh_collider3d": "How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.",
+    "mesh_collider3d": "How the node's `collider3d` turns its `mesh` into a shape: how a voxelized mesh or a decomposition's grid is filled, and what a triangle_mesh tidies first.",
     "meta": "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
     "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
     "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
@@ -7415,16 +7415,7 @@
       "contact_force_threshold"
     ],
     "convex_decomposition2d": [
-      "method",
-      "overlap",
-      "max_concavity",
-      "max_convex_hulls",
-      "resolution",
-      "approximate_hulls",
-      "hull_downsampling",
-      "plane_downsampling",
-      "symmetry_bias",
-      "revolution_bias"
+      "method"
     ],
     "convex_decomposition3d": [
       "method",
@@ -7616,10 +7607,7 @@
       "segmentation_id"
     ],
     "mesh_collider2d": [
-      "fit",
-      "edges",
       "oriented",
-      "keep_collinear",
       "fill",
       "fill_cavities",
       "fix_self_intersections",
@@ -7631,8 +7619,6 @@
       "connected_components"
     ],
     "mesh_collider3d": [
-      "fit",
-      "edges",
       "oriented",
       "fill",
       "fill_cavities",
@@ -10155,22 +10141,37 @@
             "fields": {
               "edge_radius": {
                 "default": 0.0,
-                "description": "Rounds the shape, or each piece, by this radius",
+                "description": "Rounds the polygon by this radius",
                 "min": 0.0,
                 "type": "float"
+              },
+              "keep_collinear": {
+                "default": false,
+                "description": "Keep the points that lie on a straight edge instead of dropping them",
+                "type": "bool"
               },
               "mesh": {
                 "asset": "mesh",
                 "default": "",
-                "description": "Points and triangles: the same asset a polygon draws",
+                "description": "Points in order, counter-clockwise: the same asset a polygon draws",
                 "type": "asset"
               }
             },
             "type": "record"
           },
           "fit": {
-            "description": "A simple shape fitted to the mesh, which a `mesh_collider2d` beside it picks",
+            "description": "A simple shape fitted to the mesh",
             "fields": {
+              "fit": {
+                "default": "convex_hull",
+                "description": "The shape fitted to the mesh; a fitted box keeps the pose it was fitted at",
+                "options": [
+                  "convex_hull",
+                  "aabb",
+                  "obb"
+                ],
+                "type": "enum"
+              },
               "mesh": {
                 "asset": "mesh",
                 "default": "",
@@ -10201,8 +10202,18 @@
             "type": "record"
           },
           "polyline": {
-            "description": "The mesh's points in order, or its triangles' edges, as a line",
+            "description": "The mesh's points in order, its outline, or every edge of its triangles, as a line",
             "fields": {
+              "edges": {
+                "default": "chain",
+                "description": "Which edges the line takes: the points in order, the outline of the triangles, or every edge of them",
+                "options": [
+                  "chain",
+                  "outline",
+                  "mesh"
+                ],
+                "type": "enum"
+              },
               "mesh": {
                 "asset": "mesh",
                 "default": "",
@@ -10909,8 +10920,19 @@
             "type": "record"
           },
           "fit": {
-            "description": "A simple shape fitted to the mesh, which a `mesh_collider3d` beside it picks",
+            "description": "A simple shape fitted to the mesh",
             "fields": {
+              "fit": {
+                "default": "convex_hull",
+                "description": "The shape fitted to the mesh; a fitted box keeps the pose it was fitted at",
+                "options": [
+                  "convex_hull",
+                  "aabb",
+                  "obb",
+                  "convex_decomposition"
+                ],
+                "type": "enum"
+              },
               "mesh": {
                 "asset": "mesh",
                 "default": "",
@@ -10949,6 +10971,15 @@
           "polyline": {
             "description": "The mesh's points in order, or its triangles' edges, as a line",
             "fields": {
+              "edges": {
+                "default": "chain",
+                "description": "Which edges the line takes: the points in order, or every edge of the triangles",
+                "options": [
+                  "chain",
+                  "mesh"
+                ],
+                "type": "enum"
+              },
               "mesh": {
                 "asset": "mesh",
                 "default": "",
@@ -11230,71 +11261,138 @@
       }
     },
     "convex_decomposition2d": {
-      "approximate_hulls": {
-        "default": true,
-        "description": "Estimate each piece's hull while cutting rather than building it exactly",
-        "type": "bool"
-      },
-      "hull_downsampling": {
-        "default": 4,
-        "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
-        "min": 1,
-        "type": "int"
-      },
-      "max_concavity": {
-        "default": 0.1,
-        "description": "How deep a dent a piece may keep before it is cut again",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_convex_hulls": {
-        "default": 1024,
-        "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
-        "min": 1,
-        "type": "int"
-      },
       "method": {
-        "default": "exact",
-        "description": "How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts",
-        "options": [
-          "exact",
-          "vhacd",
-          "voxels"
-        ],
-        "type": "enum"
-      },
-      "overlap": {
-        "default": 0.9,
-        "description": "How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "plane_downsampling": {
-        "default": 4,
-        "description": "How coarsely the cutting planes are searched first; 1 tries every one",
-        "min": 1,
-        "type": "int"
-      },
-      "resolution": {
-        "default": 256,
-        "description": "How fine the voxel grid a decomposition cuts is",
-        "min": 1,
-        "type": "int"
-      },
-      "revolution_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers an axis of revolution",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "symmetry_bias": {
-        "default": 0.05,
-        "description": "How much a cut prefers a plane of symmetry",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
+        "default": {
+          "kind": "exact",
+          "overlap": 0.9
+        },
+        "description": "How a convex_decomposition is cut, and the rows that way reads",
+        "type": "variant",
+        "variants": {
+          "exact": {
+            "description": "Over the mesh's own triangles, exactly",
+            "fields": {
+              "overlap": {
+                "default": 0.9,
+                "description": "How far each piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it",
+                "max": 1.0,
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "vhacd": {
+            "description": "Into hulls over a voxelised outline: fewer pieces, at the cost of the outline",
+            "fields": {
+              "approximate_hulls": {
+                "default": true,
+                "description": "Estimate each piece's hull while cutting rather than building it exactly",
+                "type": "bool"
+              },
+              "hull_downsampling": {
+                "default": 4,
+                "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
+                "min": 1,
+                "type": "int"
+              },
+              "max_concavity": {
+                "default": 0.1,
+                "description": "How deep a dent a piece may keep before it is cut again",
+                "min": 0.0,
+                "type": "float"
+              },
+              "max_convex_hulls": {
+                "default": 1024,
+                "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
+                "min": 1,
+                "type": "int"
+              },
+              "plane_downsampling": {
+                "default": 4,
+                "description": "How coarsely the cutting planes are searched first; 1 tries every one",
+                "min": 1,
+                "type": "int"
+              },
+              "resolution": {
+                "default": 256,
+                "description": "How fine the voxel grid a decomposition cuts is",
+                "min": 1,
+                "type": "int"
+              },
+              "revolution_bias": {
+                "default": 0.05,
+                "description": "How much a cut prefers an axis of revolution",
+                "max": 1.0,
+                "min": 0.0,
+                "type": "float"
+              },
+              "symmetry_bias": {
+                "default": 0.05,
+                "description": "How much a cut prefers a plane of symmetry",
+                "max": 1.0,
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          },
+          "voxels": {
+            "description": "Into voxel parts",
+            "fields": {
+              "approximate_hulls": {
+                "default": true,
+                "description": "Estimate each piece's hull while cutting rather than building it exactly",
+                "type": "bool"
+              },
+              "hull_downsampling": {
+                "default": 4,
+                "description": "How coarsely a piece's hull is sampled while choosing a cut; 1 uses every point",
+                "min": 1,
+                "type": "int"
+              },
+              "max_concavity": {
+                "default": 0.1,
+                "description": "How deep a dent a piece may keep before it is cut again",
+                "min": 0.0,
+                "type": "float"
+              },
+              "max_convex_hulls": {
+                "default": 1024,
+                "description": "The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet",
+                "min": 1,
+                "type": "int"
+              },
+              "plane_downsampling": {
+                "default": 4,
+                "description": "How coarsely the cutting planes are searched first; 1 tries every one",
+                "min": 1,
+                "type": "int"
+              },
+              "resolution": {
+                "default": 256,
+                "description": "How fine the voxel grid a decomposition cuts is",
+                "min": 1,
+                "type": "int"
+              },
+              "revolution_bias": {
+                "default": 0.05,
+                "description": "How much a cut prefers an axis of revolution",
+                "max": 1.0,
+                "min": 0.0,
+                "type": "float"
+              },
+              "symmetry_bias": {
+                "default": 0.05,
+                "description": "How much a cut prefers a plane of symmetry",
+                "max": 1.0,
+                "min": 0.0,
+                "type": "float"
+              }
+            },
+            "type": "record"
+          }
+        }
       }
     },
     "convex_decomposition3d": {
@@ -12889,16 +12987,6 @@
         "group": "mesh cleanup",
         "type": "bool"
       },
-      "edges": {
-        "default": "chain",
-        "description": "Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them",
-        "options": [
-          "chain",
-          "outline",
-          "mesh"
-        ],
-        "type": "enum"
-      },
       "fill": {
         "default": "solid",
         "description": "Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition",
@@ -12913,24 +13001,9 @@
         "description": "When a solid fill floods an outline, leave the holes it walls off empty",
         "type": "bool"
       },
-      "fit": {
-        "default": "convex_hull",
-        "description": "The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb"
-        ],
-        "type": "enum"
-      },
       "fix_self_intersections": {
         "default": false,
         "description": "When a solid fill floods an outline, handle the places it crosses itself",
-        "type": "bool"
-      },
-      "keep_collinear": {
-        "default": false,
-        "description": "Keep the points that lie on a straight edge of a convex_polygon instead of dropping them",
         "type": "bool"
       },
       "merge_vertices": {
@@ -12976,15 +13049,6 @@
         "group": "mesh cleanup",
         "type": "bool"
       },
-      "edges": {
-        "default": "chain",
-        "description": "Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles",
-        "options": [
-          "chain",
-          "mesh"
-        ],
-        "type": "enum"
-      },
       "fill": {
         "default": "solid",
         "description": "Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid",
@@ -12998,17 +13062,6 @@
         "default": false,
         "description": "When a solid fill floods a mesh, leave the cavities a closed surface walls off empty",
         "type": "bool"
-      },
-      "fit": {
-        "default": "convex_hull",
-        "description": "The shape fitted to the mesh, when kind is fit",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb",
-          "convex_decomposition"
-        ],
-        "type": "enum"
       },
       "merge_vertices": {
         "default": false,

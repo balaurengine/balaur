@@ -5,7 +5,7 @@ use crate::rapier2d::math::Vector;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{self, Component, Written};
+use balaur_core::components::derived::{self, Component, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
@@ -21,10 +21,8 @@ use crate::shared::beside::{self, Beside};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
-use crate::properties::{
-    ColliderEvent, ContactPair, Decomposition2d, Edges2d, Fill, Fit2d, LayerTest,
-};
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::properties::{Axis2d, ColliderEvent, ContactPair, Fill, LayerTest};
+use crate::vocabulary::{self as v, component as c, keys as k};
 use balaur_core::layers::Layer;
 
 /// The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
@@ -121,16 +119,8 @@ pub struct Collider2d {
 #[derive(Clone, Component)]
 #[component(name = "mesh_collider2d")]
 pub struct MeshCollider2d {
-    /// The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at
-    #[property(default = Fit2d::ConvexHull)]
-    pub fit: Fit2d,
-    /// Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them
-    #[property(default = Edges2d::Chain)]
-    pub edges: Edges2d,
     /// Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid
     pub oriented: bool,
-    /// Keep the points that lie on a straight edge of a convex_polygon instead of dropping them
-    pub keep_collinear: bool,
     /// Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition
     #[property(default = Fill::Solid)]
     pub fill: Fill,
@@ -166,8 +156,6 @@ impl Beside for MeshCollider2d {
             main.shape,
             ColliderShape2d::TriangleMesh(_)
                 | ColliderShape2d::Polyline(_)
-                | ColliderShape2d::Fit(_)
-                | ColliderShape2d::ConvexPolygon(_)
                 | ColliderShape2d::VoxelizedMesh(_)
                 | ColliderShape2d::ConvexDecomposition(_)
         )
@@ -178,12 +166,33 @@ impl Beside for MeshCollider2d {
 #[derive(Clone, Component)]
 #[component(name = "convex_decomposition2d")]
 pub struct ConvexDecomposition2d {
-    /// How a convex_decomposition is cut: exact, over the mesh's own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts
-    #[property(default = Decomposition2d::Exact)]
-    pub method: Decomposition2d,
-    /// How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it
+    /// How a convex_decomposition is cut, and the rows that way reads
+    pub method: Cut2d,
+}
+
+/// How a 2D outline is cut into convex pieces.
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum Cut2d {
+    /// Over the mesh's own triangles, exactly
+    #[option(default)]
+    Exact(ExactCut),
+    /// Into hulls over a voxelised outline: fewer pieces, at the cost of the outline
+    Vhacd(VhacdCut),
+    /// Into voxel parts
+    Voxels(VhacdCut),
+}
+
+/// How far an exact cut's pieces grow into each other.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct ExactCut {
+    /// How far each piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it
     #[property(default = 0.9, max = 1.0, min = 0.0)]
     pub overlap: f32,
+}
+
+/// parry's decomposition tuning, which a vhacd or voxel cut reads.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct VhacdCut {
     /// How deep a dent a piece may keep before it is cut again
     #[property(default = vhacd().concavity, min = 0.0)]
     pub max_concavity: f32,
@@ -279,47 +288,93 @@ pub(crate) fn add_collider_at(
     Ok(())
 }
 
-/// The collider described by `params`, in the `collider2d` schema's own
-/// vocabulary — so a script table and a scene-file entry build the same thing.
+/// The collider a `collider2d` table describes: its `shape`, built with the
+/// components beside it as the table writes them in, and every row that is
+/// not the shape.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
-    let kind = v::text(params, k::KIND, w::RECTANGLE);
-    let radius = scalar::real(v::f(params, k::RADIUS, 0.5)).max(0.01);
-    // `height` runs tip to tip, as in 3D; the segment is what the caps leave.
-    let height = scalar::real(v::f(params, k::HEIGHT, 2.0));
-    let half_segment = (height.max(0.01) / 2.0 - radius).max(0.0);
-    let he = |i: usize| scalar::real(v::axis(params, k::SIZE, i, 1.0) / 2.0).max(0.01);
-    let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
-    let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
-    let rounded = border > 0.0;
-    let mut mass = None;
-    let builder = match kind {
-        w::CIRCLE => ColliderBuilder2::ball(radius),
-        w::RECTANGLE if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
-        w::RECTANGLE => ColliderBuilder2::cuboid(he(0), he(1)),
+    let shape = params
+        .get("shape")
+        .map(<ColliderShape2d as derived::Property>::from_value)
+        .transpose()?
+        .unwrap_or_default();
+    let density = scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0));
+    let (builder, mass) = shape_builder(
+        eng,
+        &shape,
+        &derived::from_table(params)?,
+        &derived::from_table(params)?,
+        density,
+    )?;
+    let material = crate::material::of(eng, params)?;
+    let builder = with_material(builder, params, &material);
+    Ok(match mass {
+        // `mass` pins the total itself, and wins where it is written.
+        Some(mass) if v::f(params, k::MASS, 0.0) <= 0.0 => builder.mass_properties(mass),
+        _ => with_mass_properties(builder, params),
+    })
+}
+
+/// A shape on its own, for a query: the value a `collider2d`'s `shape` holds,
+/// built with the components beside a collider at their defaults.
+pub(crate) fn query_shape(eng: &Engine, shape: &toml::Value) -> Result<ColliderBuilder2> {
+    let shape = <ColliderShape2d as derived::Property>::from_value(shape)?;
+    let tidy = MeshCollider2d::default();
+    let cut = ConvexDecomposition2d::default();
+    Ok(shape_builder(eng, &shape, &tidy, &cut, 1.0)?.0)
+}
+
+/// The shape a kind and its rows make, with the mass an exact decomposition
+/// works out from its ungrown pieces at `density`. `tidy` and `cut` are the
+/// components beside the collider, which the kinds built from a mesh read.
+fn shape_builder(
+    eng: &Engine,
+    shape: &ColliderShape2d,
+    tidy: &MeshCollider2d,
+    cut: &ConvexDecomposition2d,
+    density: Real,
+) -> Result<(
+    ColliderBuilder2,
+    Option<crate::rapier2d::prelude::MassProperties>,
+)> {
+    use ColliderShape2d as S;
+    let radius_of = |radius: f32| scalar::real(radius).max(0.01);
+    let half = |size: [f32; 2], i: usize| scalar::real(size[i] / 2.0).max(0.01);
+    let border_of = |edge: f32| scalar::real(edge).max(0.0);
+    let builder = match shape {
+        S::Circle(circle) => ColliderBuilder2::ball(radius_of(circle.radius)),
+        S::Rectangle(rect) => match border_of(rect.edge_radius) {
+            border if border > 0.0 => {
+                ColliderBuilder2::round_cuboid(half(rect.size, 0), half(rect.size, 1), border)
+            }
+            _ => ColliderBuilder2::cuboid(half(rect.size, 0), half(rect.size, 1)),
+        },
         // `height = 0` hands the capsule's length to its two ends, as in 3D.
-        w::CAPSULE if height <= 0.0 => ColliderBuilder2::capsule_from_endpoints(
-            point(k::A, [0.0, 0.0]),
-            point(k::B, [1.0, 0.0]),
-            radius,
+        S::Capsule(capsule) if capsule.height <= 0.0 => ColliderBuilder2::capsule_from_endpoints(
+            scalar::v2a(capsule.first),
+            scalar::v2a(capsule.second),
+            radius_of(capsule.radius),
         ),
-        w::CAPSULE if v::text(params, k::UP_AXIS, w::Y) == w::X => {
-            ColliderBuilder2::capsule_x(half_segment, radius)
+        S::Capsule(capsule) => {
+            // `height` runs tip to tip, as in 3D; the segment is what the caps leave.
+            let radius = radius_of(capsule.radius);
+            let segment = (scalar::real(capsule.height).max(0.01) / 2.0 - radius).max(0.0);
+            match capsule.up_axis {
+                Axis2d::X => ColliderBuilder2::capsule_x(segment, radius),
+                Axis2d::Y => ColliderBuilder2::capsule_y(segment, radius),
+            }
         }
-        w::CAPSULE => ColliderBuilder2::capsule_y(half_segment, radius),
-        w::TRIANGLE if rounded => ColliderBuilder2::round_triangle(
-            point(k::A, [0.0, 0.0]),
-            point(k::B, [1.0, 0.0]),
-            point(k::C, [0.0, 1.0]),
-            border,
-        ),
-        w::TRIANGLE => ColliderBuilder2::triangle(
-            point(k::A, [0.0, 0.0]),
-            point(k::B, [1.0, 0.0]),
-            point(k::C, [0.0, 1.0]),
-        ),
-        w::SEGMENT => ColliderBuilder2::segment(point(k::A, [0.0, 0.0]), point(k::B, [1.0, 0.0])),
-        w::WORLD_BOUNDARY => {
-            let n = point(k::NORMAL, [0.0, 1.0]);
+        S::Triangle(corners) => {
+            let [a, b, c] = [corners.first, corners.second, corners.third].map(scalar::v2a);
+            match border_of(corners.edge_radius) {
+                border if border > 0.0 => ColliderBuilder2::round_triangle(a, b, c, border),
+                _ => ColliderBuilder2::triangle(a, b, c),
+            }
+        }
+        S::Segment(ends) => {
+            ColliderBuilder2::segment(scalar::v2a(ends.first), scalar::v2a(ends.second))
+        }
+        S::WorldBoundary(boundary) => {
+            let n = scalar::v2a(boundary.normal);
             if n.length_squared() < 1.0e-12 {
                 return Err(anyhow!(
                     "a world_boundary collider needs a non-zero `normal`"
@@ -329,29 +384,33 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 n.normalize(),
             ))
         }
-        w::TRIANGLE_MESH
-        | w::CONVEX_HULL
-        | w::CONVEX_POLYGON
-        | w::POLYLINE
-        | w::FIT
-        | w::VOXELIZED_MESH
-        | w::VOXELIZED_POINTS => shapes::mesh_collider(eng, params, kind, border)?,
-        w::CONVEX_DECOMPOSITION => {
-            let (shape, weight) = shapes::decomposition_collider(eng, params)?;
-            mass = weight;
-            shape
+        S::TriangleMesh(source) => shapes::triangle_mesh(eng, source, tidy)?,
+        S::ConvexHull(source) => {
+            shapes::convex_hull(eng, &source.mesh, border_of(source.edge_radius))?
         }
-        w::VOXELS => shapes::voxel_collider(eng, params)?,
-        w::HEIGHTFIELD => shapes::heightfield_collider(eng, params)?,
-        other => return Err(anyhow!("unknown collider2d kind '{other}'")),
+        S::ConvexPolygon(polygon) => shapes::convex_polygon(eng, polygon)?,
+        S::Fit(fitted) => shapes::fit(eng, &fitted.mesh, fitted.fit)?,
+        S::Polyline(line) => shapes::polyline(eng, &line.mesh, line.edges, tidy.oriented)?,
+        S::VoxelizedPoints(cells) => shapes::voxelized_points(eng, &cells.mesh, cells.voxel_size)?,
+        S::VoxelizedMesh(cells) => {
+            shapes::voxelized_mesh(eng, &cells.mesh, cells.voxel_size, tidy)?
+        }
+        S::ConvexDecomposition(source) => {
+            return shapes::decomposition_collider(
+                eng,
+                &source.mesh,
+                border_of(source.edge_radius),
+                cut,
+                tidy,
+                density,
+            );
+        }
+        S::Voxels(grid) => shapes::voxel_collider(eng, &grid.voxels, grid.voxel_size)?,
+        S::Heightfield(field) => {
+            shapes::heightfield_collider(eng, &field.heightfield, scalar::v2a(field.scale))?
+        }
     };
-    let material = crate::material::of(eng, params)?;
-    let builder = with_material(builder, params, &material);
-    Ok(match mass {
-        // `mass` pins the total itself, and wins where it is written.
-        Some(mass) if v::f(params, k::MASS, 0.0) <= 0.0 => builder.mass_properties(mass),
-        _ => with_mass_properties(builder, params),
-    })
+    Ok((builder, None))
 }
 
 /// `center_of_mass` and `inertia`, for a collider that states either, as in
@@ -503,9 +562,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
 /// Build and insert the collider described by `params`, replacing any
 /// existing one.
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
-    // The builder reads the shape's rows beside the others; the table is kept
-    // as the component holds it, for a snapshot and a rebuild.
-    let params = &crate::shared::collider::flat_table(asked.clone());
+    let params = asked;
     let builder = collider_builder(eng, params)?;
     let offset = Pose2::from_parts(
         scalar::v2a(v::vec2(params, k::OFFSET, [0.0; 2])),

@@ -56,8 +56,8 @@ pub fn collider_shapes(two_d: bool) -> [Shape] {
     if two_d {
         [
             shape("hull", "Convex hull: the smallest convex outline around the points. One shape, fast, and it fills every dent", map().with("kind", "convex_hull")),
-            shape_beside("pieces", "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", map().with("kind", "convex_decomposition"), map().with("convex_decomposition2d", map().with("method", "exact"))),
-            shape_beside("approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", map().with("kind", "convex_decomposition"), map().with("convex_decomposition2d", map().with("method", "vhacd"))),
+            shape_beside("pieces", "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", map().with("kind", "convex_decomposition"), map().with("convex_decomposition2d", map().with("method", map().with("kind", "exact")))),
+            shape_beside("approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", map().with("kind", "convex_decomposition"), map().with("convex_decomposition2d", map().with("method", map().with("kind", "vhacd")))),
             shape("mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", map().with("kind", "triangle_mesh")),
         ]
     } else {
@@ -66,8 +66,8 @@ pub fn collider_shapes(two_d: bool) -> [Shape] {
             shape("pieces", "Convex decomposition: parry's VHACD cuts the mesh into convex pieces held as one compound. The only way a concave shape can be a dynamic body", map().with("kind", "convex_decomposition")),
             shape("mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", map().with("kind", "triangle_mesh")),
             shape("voxels", "Voxelize: the mesh as filled cells, which a script may dig into while the game runs", map().with("kind", "voxelized_mesh")),
-            shape_beside("box", "The axis-aligned box around the mesh: the cheapest shape there is", map().with("kind", "fit"), map().with("mesh_collider3d", map().with("fit", "aabb"))),
-            shape_beside("obb", "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", map().with("kind", "fit"), map().with("mesh_collider3d", map().with("fit", "obb"))),
+            shape("box", "The axis-aligned box around the mesh: the cheapest shape there is", map().with("kind", "fit").with("fit", "aabb")),
+            shape("obb", "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", map().with("kind", "fit").with("fit", "obb")),
         ]
     }
 }

@@ -170,7 +170,7 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::dim2::collider::collider_builder(eng, &params)?;
+        let builder = crate::dim2::collider::query_shape(eng, &params)?;
         let from = scalar::v2a(opts.vec2(k::ORIGIN, [0.0; 2]));
         let dir = scalar::v2a(opts.vec2(k::DIRECTION, [0.0, -1.0]));
         let options = ShapeCastOptions {
@@ -302,7 +302,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::dim2::collider::collider_builder(eng, &params)?;
+        let builder = crate::dim2::collider::query_shape(eng, &params)?;
         let at = scalar::v2a(opts.vec2(k::AT, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();

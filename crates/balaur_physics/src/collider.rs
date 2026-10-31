@@ -19,10 +19,8 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose};
 use crate::shared::beside::{self, Beside};
 
-use crate::properties::{
-    ColliderEvent, ContactPair, Decomposition3d, Edges, Fill, Fit3d, LayerTest,
-};
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::properties::{Axis3d, ColliderEvent, ContactPair, Decomposition3d, Fill, LayerTest};
+use crate::vocabulary::{self as v, component as c, keys as k};
 use balaur_core::layers::Layer;
 
 use crate::{PhysicsState3d, node_pose};
@@ -116,7 +114,7 @@ pub struct Collider3d {
     pub contact_force_threshold: f32,
 }
 
-/// How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.
+/// How the node's `collider3d` turns its `mesh` into a shape: how a voxelized mesh or a decomposition's grid is filled, and what a triangle_mesh tidies first.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "a property a field: each switch the component offers is one"
@@ -124,12 +122,6 @@ pub struct Collider3d {
 #[derive(Clone, Component)]
 #[component(name = "mesh_collider3d")]
 pub struct MeshCollider3d {
-    /// The shape fitted to the mesh, when kind is fit
-    #[property(default = Fit3d::ConvexHull)]
-    pub fit: Fit3d,
-    /// Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles
-    #[property(default = Edges::Chain)]
-    pub edges: Edges,
     /// Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful
     pub oriented: bool,
     /// Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition's voxel grid
@@ -164,8 +156,6 @@ impl Beside for MeshCollider3d {
         matches!(
             main.shape,
             ColliderShape3d::TriangleMesh(_)
-                | ColliderShape3d::Polyline(_)
-                | ColliderShape3d::Fit(_)
                 | ColliderShape3d::VoxelizedMesh(_)
                 | ColliderShape3d::ConvexDecomposition(_)
         )
@@ -221,67 +211,117 @@ fn vhacd() -> crate::rapier3d::parry::transformation::vhacd::VHACDParameters {
     crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default()
 }
 
-/// The collider described by `params`, in the `collider` schema's own
-/// vocabulary, so a script table and a scene-file entry build the same thing.
+/// The collider a `collider3d` table describes: its `shape`, built with the
+/// components beside it as the table writes them in, and every row that is
+/// not the shape.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
-    let kind = v::text(params, k::KIND, w::BOX);
-    let he = |i: usize| scalar::real(v::axis(params, k::SIZE, i, 1.0) / 2.0).max(0.01);
-    let point = |key: &str, fallback: [f32; 3]| scalar::v3a(v::vec3(params, key, fallback));
-    let radius = scalar::real(v::f(params, k::RADIUS, 0.5)).max(0.01);
+    let builder = shape_builder(
+        eng,
+        &shape_of(params)?,
+        &derived::from_table(params)?,
+        &derived::from_table(params)?,
+    )?;
+    let material = crate::material::of(eng, params)?;
+    Ok(with_mass_properties(
+        with_material(builder, params, &material),
+        params,
+    ))
+}
+
+/// A table's `shape`, at its default where it names none.
+fn shape_of(params: &toml::Value) -> Result<ColliderShape3d> {
+    params
+        .get("shape")
+        .map(<ColliderShape3d as derived::Property>::from_value)
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
+/// A shape on its own, for a query: the value a `collider3d`'s `shape` holds,
+/// built with the components beside a collider at their defaults.
+pub(crate) fn query_shape(eng: &Engine, shape: &toml::Value) -> Result<ColliderBuilder> {
+    let shape = <ColliderShape3d as derived::Property>::from_value(shape)?;
+    shape_builder(
+        eng,
+        &shape,
+        &MeshCollider3d::default(),
+        &ConvexDecomposition3d::default(),
+    )
+}
+
+/// The shape a kind and its rows make. `mesh` and `cut` are the components
+/// beside the collider, which the kinds built from a mesh read.
+pub(crate) fn shape_builder(
+    eng: &Engine,
+    shape: &ColliderShape3d,
+    mesh: &MeshCollider3d,
+    cut: &ConvexDecomposition3d,
+) -> Result<ColliderBuilder> {
+    use ColliderShape3d as S;
+    let radius_of = |radius: f32| scalar::real(radius).max(0.01);
+    let half = |size: [f32; 3], i: usize| scalar::real(size[i] / 2.0).max(0.01);
+    // A rounded shape is a shape plus a border radius, not nine more kinds.
+    let border_of = |edge: f32| scalar::real(edge).max(0.0);
     // rapier measures these from the centre. `height` runs tip to tip, so a
     // capsule's segment is what the two caps leave of it.
-    let height = scalar::real(v::f(params, k::HEIGHT, 2.0));
-    let half_height = height.max(0.01) / 2.0;
-    let half_segment = (half_height - radius).max(0.0);
-    // A rounded shape is a shape plus a border radius, not nine more kinds.
-    // Ball and capsule are already round, so they ignore it.
-    let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
-    let rounded = border > 0.0;
-    let builder = match kind {
-        w::SPHERE => ColliderBuilder::ball(radius),
-        w::BOX if rounded => ColliderBuilder::round_cuboid(he(0), he(1), he(2), border),
-        w::BOX => ColliderBuilder::cuboid(he(0), he(1), he(2)),
+    let half_height = |height: f32| scalar::real(height).max(0.01) / 2.0;
+    Ok(match shape {
+        S::Sphere(ball) => ColliderBuilder::ball(radius_of(ball.radius)),
+        S::Box(cuboid) => {
+            let (x, y, z) = (
+                half(cuboid.size, 0),
+                half(cuboid.size, 1),
+                half(cuboid.size, 2),
+            );
+            match border_of(cuboid.edge_radius) {
+                border if border > 0.0 => ColliderBuilder::round_cuboid(x, y, z, border),
+                _ => ColliderBuilder::cuboid(x, y, z),
+            }
+        }
         // `height = 0` hands the capsule's length to its two ends.
-        w::CAPSULE if height <= 0.0 => ColliderBuilder::capsule_from_endpoints(
-            point(k::A, [0.0, 0.0, 0.0]),
-            point(k::B, [1.0, 0.0, 0.0]),
-            radius,
+        S::Capsule(capsule) if capsule.height <= 0.0 => ColliderBuilder::capsule_from_endpoints(
+            scalar::v3a(capsule.first),
+            scalar::v3a(capsule.second),
+            radius_of(capsule.radius),
         ),
-        w::CAPSULE => match v::text(params, k::UP_AXIS, w::Y) {
-            w::X => ColliderBuilder::capsule_x(half_segment, radius),
-            w::Z => ColliderBuilder::capsule_z(half_segment, radius),
-            _ => ColliderBuilder::capsule_y(half_segment, radius),
+        S::Capsule(capsule) => {
+            let radius = radius_of(capsule.radius);
+            let segment = (half_height(capsule.height) - radius).max(0.0);
+            match capsule.up_axis {
+                Axis3d::X => ColliderBuilder::capsule_x(segment, radius),
+                Axis3d::Z => ColliderBuilder::capsule_z(segment, radius),
+                Axis3d::Y => ColliderBuilder::capsule_y(segment, radius),
+            }
+        }
+        S::Cylinder(round) => match border_of(round.edge_radius) {
+            border if border > 0.0 => ColliderBuilder::round_cylinder(
+                half_height(round.height),
+                radius_of(round.radius),
+                border,
+            ),
+            _ => ColliderBuilder::cylinder(half_height(round.height), radius_of(round.radius)),
         },
-        w::CYLINDER if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
-        w::CYLINDER => ColliderBuilder::cylinder(half_height, radius),
-        w::CONE if rounded => ColliderBuilder::round_cone(half_height, radius, border),
-        w::CONE => ColliderBuilder::cone(half_height, radius),
-        w::TRIANGLE if rounded => ColliderBuilder::round_triangle(
-            point(k::A, [0.0, 0.0, 0.0]),
-            point(k::B, [1.0, 0.0, 0.0]),
-            point(k::C, [0.0, 1.0, 0.0]),
-            border,
-        ),
-        w::TRIANGLE => ColliderBuilder::triangle(
-            point(k::A, [0.0, 0.0, 0.0]),
-            point(k::B, [1.0, 0.0, 0.0]),
-            point(k::C, [0.0, 1.0, 0.0]),
-        ),
-        w::TRIANGLE_MESH
-        | w::CONVEX_HULL
-        | w::CONVEX_MESH
-        | w::POLYLINE
-        | w::CONVEX_DECOMPOSITION
-        | w::VOXELIZED_POINTS
-        | w::FIT => crate::shapes::mesh_collider(eng, params, kind, border)?,
-        w::VOXELS => crate::shapes::voxel_collider(eng, params)?,
-        w::VOXELIZED_MESH => crate::shapes::voxelized_mesh_collider(eng, params)?,
-        w::HEIGHTFIELD => {
-            crate::shapes::heightfield_collider(eng, params, point(k::SCALE, [1.0, 1.0, 1.0]))?
+        S::Cone(round) => match border_of(round.edge_radius) {
+            border if border > 0.0 => ColliderBuilder::round_cone(
+                half_height(round.height),
+                radius_of(round.radius),
+                border,
+            ),
+            _ => ColliderBuilder::cone(half_height(round.height), radius_of(round.radius)),
+        },
+        S::Triangle(corners) => {
+            let [a, b, c] = [corners.first, corners.second, corners.third].map(scalar::v3a);
+            match border_of(corners.edge_radius) {
+                border if border > 0.0 => ColliderBuilder::round_triangle(a, b, c, border),
+                _ => ColliderBuilder::triangle(a, b, c),
+            }
+        }
+        S::Segment(ends) => {
+            ColliderBuilder::segment(scalar::v3a(ends.first), scalar::v3a(ends.second))
         }
         // An infinite plane, for a floor that needs no size and no triangles.
-        w::WORLD_BOUNDARY => {
-            let n = point(k::NORMAL, [0.0, 1.0, 0.0]);
+        S::WorldBoundary(boundary) => {
+            let n = scalar::v3a(boundary.normal);
             if n.length_squared() < 1.0e-12 {
                 bail!("a world_boundary collider needs a non-zero `normal`");
             }
@@ -289,16 +329,36 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 n.normalize(),
             ))
         }
-        w::SEGMENT => {
-            ColliderBuilder::segment(point(k::A, [0.0, 0.0, 0.0]), point(k::B, [1.0, 0.0, 0.0]))
+        S::TriangleMesh(source) => crate::shapes::triangle_mesh(eng, source, mesh)?,
+        S::ConvexHull(source) => {
+            crate::shapes::convex_hull(eng, &source.mesh, border_of(source.edge_radius))?
         }
-        other => return Err(anyhow!("unknown collider kind '{other}'")),
-    };
-    let material = crate::material::of(eng, params)?;
-    Ok(with_mass_properties(
-        with_material(builder, params, &material),
-        params,
-    ))
+        S::ConvexMesh(source) => {
+            crate::shapes::convex_mesh(eng, &source.mesh, border_of(source.edge_radius))?
+        }
+        S::ConvexDecomposition(source) => crate::shapes::decomposition(
+            eng,
+            &source.mesh,
+            cut,
+            mesh,
+            border_of(source.edge_radius),
+        )?,
+        S::Polyline(line) => crate::shapes::polyline(eng, &line.mesh, line.edges)?,
+        S::Fit(fitted) => crate::shapes::fit(eng, &fitted.mesh, fitted.fit, cut, mesh)?,
+        S::VoxelizedPoints(cells) => {
+            crate::shapes::voxelized_points(eng, &cells.mesh, cells.voxel_size)?
+        }
+        S::Voxels(grid) => crate::shapes::voxel_collider(eng, &grid.voxels, grid.voxel_size)?,
+        S::VoxelizedMesh(cells) => {
+            crate::shapes::voxelized_mesh_collider(eng, &cells.mesh, cells.voxel_size, mesh)?
+        }
+        S::Heightfield(field) => crate::shapes::heightfield_collider(
+            eng,
+            &field.heightfield,
+            scalar::v3a(field.scale),
+            field.fix_internal_edges,
+        )?,
+    })
 }
 
 /// Everything a collider carries that is not its shape: what it is made of,
@@ -475,9 +535,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &toml::Value) -> Result<()> {
-    // The builder reads the shape's rows beside the others; the table is kept
-    // as the component holds it, for a snapshot and a rebuild.
-    let params = &crate::shared::collider::flat_table(asked.clone());
+    let params = asked;
     let builder = collider_builder(eng, params)?;
     let offset = Pose::from_parts(scalar::v3a(v::vec3(params, k::OFFSET, [0.0; 3])), {
         let r = v::vec3(params, k::OFFSET_ROTATION, [0.0; 3]);

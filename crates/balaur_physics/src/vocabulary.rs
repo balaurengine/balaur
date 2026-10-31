@@ -11,7 +11,7 @@ mod read;
 mod soft;
 
 pub(crate) use layers::{bits, flags, named_bits};
-pub(crate) use read::{Opts, axis, boolean, color, f, flag, indices, map, text, vec2, vec3};
+pub(crate) use read::{Opts, boolean, color, f, flag, indices, map, text, vec2, vec3};
 
 /// The closed sets of words a scene file, a script table and the inspector all
 /// spell. Written once here so a matcher, a schema's `options` list and the
@@ -170,7 +170,6 @@ pub(crate) mod keys {
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const ANGULAR_DAMPING: &str = "angular_damping";
     pub(crate) const APPLIED: &str = "applied";
-    pub(crate) const APPROXIMATE_HULLS: &str = "approximate_hulls";
     pub(crate) const ARMATURE: &str = "armature";
     pub(crate) const AT: &str = "at";
     pub(crate) const AXES: &str = "axes";
@@ -188,7 +187,6 @@ pub(crate) mod keys {
     pub(crate) const BREAK_FORCE: &str = "break_force";
     pub(crate) const BREAK_TORQUE: &str = "break_torque";
     pub(crate) const BROAD_PHASE_MS: &str = "broad_phase_ms";
-    pub(crate) const C: &str = "c";
     pub(crate) const CAN_SLEEP: &str = "can_sleep";
     pub(crate) const CCD_BROAD_PHASE_MS: &str = "ccd_broad_phase_ms";
     pub(crate) const CCD_MS: &str = "ccd_ms";
@@ -212,7 +210,6 @@ pub(crate) mod keys {
     pub(crate) const CONNECTED_ANCHOR_ROTATION: &str = "connected_anchor_rotation";
     pub(crate) const CONNECTED_AXIS: &str = "connected_axis";
     pub(crate) const CONNECTED_BODY: &str = "connected_body";
-    pub(crate) const CONNECTED_COMPONENTS: &str = "connected_components";
     pub(crate) const CONSTRAIN: &str = "constrain";
     pub(crate) const CONSTRAINT_COUNT: &str = "constraint_count";
     pub(crate) const CONTACT_CLUSTERING: &str = "contact_clustering";
@@ -234,13 +231,8 @@ pub(crate) mod keys {
     pub(crate) const COUPLED_ROTATION: &str = "coupled_rotation";
     pub(crate) const COUPLED_TRANSLATION: &str = "coupled_translation";
     pub(crate) const DISTANCE: &str = "distance";
-    pub(crate) const DROP_BAD_TOPOLOGY: &str = "drop_bad_topology";
-    pub(crate) const DROP_DEGENERATE_TRIANGLES: &str = "drop_degenerate_triangles";
-    pub(crate) const DROP_DUPLICATE_TRIANGLES: &str = "drop_duplicate_triangles";
     pub(crate) const DYNAMIC_COLOR: &str = "dynamic_color";
     pub(crate) const EDGES: &str = "edges";
-    pub(crate) const FILL_CAVITIES: &str = "fill_cavities";
-    pub(crate) const FIX_SELF_INTERSECTIONS: &str = "fix_self_intersections";
     /// A contact force's or a broken joint's size, in an event payload.
     pub(crate) const FORCE: &str = "force";
     pub(crate) const DAMPING: &str = "damping";
@@ -262,7 +254,6 @@ pub(crate) mod keys {
     pub(crate) const FILTER: &str = "filter";
     pub(crate) const FINAL_BROAD_PHASE_MS: &str = "final_broad_phase_ms";
     pub(crate) const FIT: &str = "fit";
-    pub(crate) const FIX_INTERNAL_EDGES: &str = "fix_internal_edges";
     pub(crate) const FORWARD_IMPULSE: &str = "forward_impulse";
     pub(crate) const FRICTION: &str = "friction";
     pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
@@ -276,11 +267,9 @@ pub(crate) mod keys {
     pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
     pub(crate) const GROUND: &str = "ground";
     pub(crate) const HEIGHT: &str = "height";
-    pub(crate) const HEIGHTFIELD: &str = "heightfield";
     pub(crate) const HIT_FROM_INSIDE: &str = "hit_from_inside";
     pub(crate) const HIT_SENSORS: &str = "hit_sensors";
     pub(crate) const HIT_SOLIDS: &str = "hit_solids";
-    pub(crate) const HULL_DOWNSAMPLING: &str = "hull_downsampling";
     pub(crate) const IMPULSE: &str = "impulse";
     pub(crate) const INDICES: &str = "indices";
     pub(crate) const INERTIA: &str = "inertia";
@@ -293,7 +282,6 @@ pub(crate) mod keys {
     pub(crate) const ITERATIONS: &str = "iterations";
     pub(crate) const JOINT_ANCHOR_COLOR: &str = "joint_anchor_color";
     pub(crate) const JOINT_SEPARATION_COLOR: &str = "joint_separation_color";
-    pub(crate) const KEEP_COLLINEAR: &str = "keep_collinear";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KINEMATIC_COLOR: &str = "kinematic_color";
     pub(crate) const KINEMATIC_LINK: &str = "kinematic_link";
@@ -314,9 +302,7 @@ pub(crate) mod keys {
     pub(crate) const MAX_LINEAR_VELOCITY: &str = "max_linear_velocity";
     pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MAX_TIME: &str = "max_time";
-    pub(crate) const MERGE_VERTICES: &str = "merge_vertices";
     pub(crate) const MESH: &str = "mesh";
-    pub(crate) const METHOD: &str = "method";
     pub(crate) const MIN: &str = "min";
     pub(crate) const MIN_CCD_SECONDS: &str = "min_ccd_seconds";
     pub(crate) const MOTOR: &str = "motor";
@@ -339,7 +325,6 @@ pub(crate) mod keys {
     pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
     pub(crate) const ONLY: &str = "only";
     pub(crate) const ON_FLOOR: &str = "on_floor";
-    pub(crate) const ORIENTED: &str = "oriented";
     pub(crate) const ORIGIN: &str = "origin";
     pub(crate) const OVERLAP: &str = "overlap";
     pub(crate) const OWN_NORMAL: &str = "own_normal";
@@ -358,16 +343,12 @@ pub(crate) mod keys {
     /// names.
     pub(crate) const SOFT_MATERIAL: &str = "soft_material";
     pub(crate) const PIECES: &str = "pieces";
-    pub(crate) const PLANE_DOWNSAMPLING: &str = "plane_downsampling";
-    pub(crate) const REVOLUTION_BIAS: &str = "revolution_bias";
     pub(crate) const SLEEP_READY_TINT: &str = "sleep_ready_tint";
     pub(crate) const SOLVER_TEST: &str = "solver_test";
     pub(crate) const STARTED: &str = "started";
     pub(crate) const STATIC_COLOR: &str = "static_color";
     pub(crate) const SURFACE_VELOCITY: &str = "surface_velocity";
     pub(crate) const SUSPENSION: &str = "suspension";
-    pub(crate) const SYMMETRY_BIAS: &str = "symmetry_bias";
-    pub(crate) const TOPOLOGY: &str = "topology";
     /// The particle pairs a tear cut, in a `tear` payload.
     pub(crate) const TORN_EDGES: &str = "edges";
     pub(crate) const POINT: &str = "point";
@@ -385,7 +366,6 @@ pub(crate) mod keys {
     pub(crate) const RESTITUTION_COMBINE: &str = "restitution_combine";
     pub(crate) const REST_LENGTH: &str = "rest_length";
     pub(crate) const ROTATION: &str = "rotation";
-    pub(crate) const SCALE: &str = "scale";
     pub(crate) const SELF_COLLISION: &str = "self_collision";
     pub(crate) const SENSOR: &str = "sensor";
     pub(crate) const SHAPE: &str = "shape";
@@ -430,9 +410,7 @@ pub(crate) mod keys {
     pub(crate) const TOLERANCE: &str = "tolerance";
     pub(crate) const TORQUE: &str = "torque";
     pub(crate) const TOTAL_FORCE: &str = "total_force";
-    pub(crate) const TWO_SIDED_EDGES: &str = "two_sided_edges";
     pub(crate) const UPDATE_MS: &str = "update_ms";
-    pub(crate) const UP_AXIS: &str = "up_axis";
     pub(crate) const USER_CHANGES_MS: &str = "user_changes_ms";
     pub(crate) const VELOCITIES: &str = "velocities";
     pub(crate) const VELOCITY: &str = "velocity";
@@ -448,8 +426,6 @@ pub(crate) mod keys {
     pub(crate) const VOLUME: &str = "volume";
     pub(crate) const VOLUME_GRADIENT_COLOR: &str = "volume_gradient_color";
     pub(crate) const VOLUME_NORMAL_COLOR: &str = "volume_normal_color";
-    pub(crate) const VOXELS: &str = "voxels";
-    pub(crate) const VOXEL_SIZE: &str = "voxel_size";
     pub(crate) const WARMSTART: &str = "warmstart";
     pub(crate) const WARMSTART_JOINTS: &str = "warmstart_joints";
     pub(crate) const WORLD_2D: &str = "2d";

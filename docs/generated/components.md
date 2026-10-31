@@ -265,7 +265,7 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;rectangle&quot;, &quot;size&quot;: [1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>capsule</code> (a, b, height, radius, up_axis); <code>circle</code> (radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_polygon</code> (edge_radius, mesh); <code>fit</code> (mesh); <code>heightfield</code> (heightfield, scale); <code>polyline</code> (mesh); <code>rectangle</code> (edge_radius, size); <code>segment</code> (a, b); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;rectangle&quot;, &quot;size&quot;: [1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>capsule</code> (a, b, height, radius, up_axis); <code>circle</code> (radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_polygon</code> (edge_radius, keep_collinear, mesh); <code>fit</code> (fit, mesh); <code>heightfield</code> (heightfield, scale); <code>polyline</code> (edges, mesh); <code>rectangle</code> (edge_radius, size); <code>segment</code> (a, b); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
@@ -335,23 +335,14 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 
 ### `convex_decomposition2d`
 
-`2d` · `physics` · 10 properties
+`2d` · `physics` · 1 property
 
 How the node's `collider2d` cuts its mesh into convex pieces, for a convex_decomposition.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>method</code></td><td>enum</td><td><code>exact</code></td><td>How a convex_decomposition is cut: exact, over the mesh&#x27;s own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts One of <code>exact</code>, <code>vhacd</code>, <code>voxels</code>.</td></tr>
-<tr><td><code>overlap</code></td><td>float</td><td><code>0.9</code></td><td>How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it Range 0.0–1.0.</td></tr>
-<tr><td><code>max_concavity</code></td><td>float</td><td><code>0.1</code></td><td>How deep a dent a piece may keep before it is cut again At least 0.0.</td></tr>
-<tr><td><code>max_convex_hulls</code></td><td>int</td><td><code>1024</code></td><td>The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet At least 1.</td></tr>
-<tr><td><code>resolution</code></td><td>int</td><td><code>256</code></td><td>How fine the voxel grid a decomposition cuts is At least 1.</td></tr>
-<tr><td><code>approximate_hulls</code></td><td>bool</td><td><code>true</code></td><td>Estimate each piece&#x27;s hull while cutting rather than building it exactly</td></tr>
-<tr><td><code>hull_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely a piece&#x27;s hull is sampled while choosing a cut; 1 uses every point At least 1.</td></tr>
-<tr><td><code>plane_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely the cutting planes are searched first; 1 tries every one At least 1.</td></tr>
-<tr><td><code>symmetry_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers a plane of symmetry Range 0.0–1.0.</td></tr>
-<tr><td><code>revolution_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers an axis of revolution Range 0.0–1.0.</td></tr>
+<tr><td><code>method</code></td><td>variant</td><td><code>{&quot;kind&quot;: &quot;exact&quot;, &quot;overlap&quot;: 0.9}</code></td><td>How a convex_decomposition is cut, and the rows that way reads <code>kind</code> is one of: <code>exact</code> (overlap); <code>vhacd</code> (approximate_hulls, hull_downsampling, max_concavity, max_convex_hulls, plane_downsampling, resolution, revolution_bias, symmetry_bias); <code>voxels</code> (approximate_hulls, hull_downsampling, max_concavity, max_convex_hulls, plane_downsampling, resolution, revolution_bias, symmetry_bias).</td></tr>
 </tbody>
 </table>
 
@@ -502,17 +493,14 @@ A stroked line at the node through the points of a `mesh` or `path2d` asset, tin
 
 ### `mesh_collider2d`
 
-`2d` · `physics` · 13 properties
+`2d` · `physics` · 10 properties
 
 How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>.</td></tr>
-<tr><td><code>edges</code></td><td>enum</td><td><code>chain</code></td><td>Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them One of <code>chain</code>, <code>outline</code>, <code>mesh</code>.</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid</td></tr>
-<tr><td><code>keep_collinear</code></td><td>bool</td><td><code>false</code></td><td>Keep the points that lie on a straight edge of a convex_polygon instead of dropping them</td></tr>
 <tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition One of <code>solid</code>, <code>surface</code>.</td></tr>
 <tr><td><code>fill_cavities</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods an outline, leave the holes it walls off empty</td></tr>
 <tr><td><code>fix_self_intersections</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods an outline, handle the places it crosses itself</td></tr>
@@ -1430,7 +1418,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;box&quot;, &quot;size&quot;: [1.0, 1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>box</code> (edge_radius, size); <code>capsule</code> (a, b, height, radius, up_axis); <code>cone</code> (edge_radius, height, radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_mesh</code> (edge_radius, mesh); <code>cylinder</code> (edge_radius, height, radius); <code>fit</code> (mesh); <code>heightfield</code> (fix_internal_edges, heightfield, scale); <code>polyline</code> (mesh); <code>segment</code> (a, b); <code>sphere</code> (radius); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
+<tr><td><code>shape</code></td><td>variant</td><td><code>{&quot;edge_radius&quot;: 0.0, &quot;kind&quot;: &quot;box&quot;, &quot;size&quot;: [1.0, 1.0, 1.0]}</code></td><td>The collision shape, and the dimensions or the source that kind reads <code>kind</code> is one of: <code>box</code> (edge_radius, size); <code>capsule</code> (a, b, height, radius, up_axis); <code>cone</code> (edge_radius, height, radius); <code>convex_decomposition</code> (edge_radius, mesh); <code>convex_hull</code> (edge_radius, mesh); <code>convex_mesh</code> (edge_radius, mesh); <code>cylinder</code> (edge_radius, height, radius); <code>fit</code> (fit, mesh); <code>heightfield</code> (fix_internal_edges, heightfield, scale); <code>polyline</code> (edges, mesh); <code>segment</code> (a, b); <code>sphere</code> (radius); <code>triangle</code> (a, b, c, edge_radius); <code>triangle_mesh</code> (fix_internal_edges, mesh, two_sided_edges); <code>voxelized_mesh</code> (mesh, voxel_size); <code>voxelized_points</code> (mesh, voxel_size); <code>voxels</code> (voxel_size, voxels); <code>world_boundary</code> (normal).</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
@@ -1666,15 +1654,13 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 
 ### `mesh_collider3d`
 
-`3d` · `physics` · 11 properties
+`3d` · `physics` · 9 properties
 
-How the node's `collider3d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a voxelized mesh is filled, and what a triangle_mesh tidies first.
+How the node's `collider3d` turns its `mesh` into a shape: how a voxelized mesh or a decomposition's grid is filled, and what a triangle_mesh tidies first.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>The shape fitted to the mesh, when kind is fit One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>, <code>convex_decomposition</code>.</td></tr>
-<tr><td><code>edges</code></td><td>enum</td><td><code>chain</code></td><td>Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles One of <code>chain</code>, <code>mesh</code>.</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful</td></tr>
 <tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition&#x27;s voxel grid One of <code>solid</code>, <code>surface</code>.</td></tr>
 <tr><td><code>fill_cavities</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods a mesh, leave the cavities a closed surface walls off empty</td></tr>

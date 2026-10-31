@@ -182,7 +182,7 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::collider::collider_builder(eng, &params)?;
+        let builder = crate::collider::query_shape(eng, &params)?;
         let from = scalar::v3a(opts.vec3(k::ORIGIN, [0.0; 3]));
         let dir = scalar::v3a(opts.vec3(k::DIRECTION, [0.0, -1.0, 0.0]));
         let options = ShapeCastOptions {
@@ -276,7 +276,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::collider::collider_builder(eng, &params)?;
+        let builder = crate::collider::query_shape(eng, &params)?;
         let at = scalar::v3a(opts.vec3(k::AT, [0.0; 3]));
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();

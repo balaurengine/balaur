@@ -73,9 +73,11 @@ is rewritten in the same commit).
    - The primitives' dimensions: done 2026-10-31. A `variant` property
      type holds a kind and that kind's rows; `shape2d`, `shape3d`,
      `collider2d` and `collider3d` each hold one `shape`.
-   - Inside the new physics components: `fit`, `edges`, `keep_collinear`
-     read by one kind each; 2D `overlap` only with the `exact` method. On the
-     main ones: `break_*` not for an articulation, the axis records'
+   - Inside the new physics components: done 2026-10-31. `fit`, `edges` and
+     `keep_collinear` sit in the `fit`, `polyline` and `convex_polygon`
+     kinds of a collider's `shape`; `convex_decomposition2d`'s `method` is a
+     variant, `overlap` on `exact` and the tuning on `vhacd` and `voxels`.
+     Open, on the main ones: `break_*` not for an articulation, the axis records'
      `link_damping`/`armature`/`friction` only for one, soft-body
      `collision_binding*` beside a `collision_mesh`, `skin` and
      `skin_collision` with cells, `tile_collision`'s `fit`.
@@ -102,9 +104,11 @@ is rewritten in the same commit).
    `scripts/editor_native.sh` runs the editor's states on it in CI.
 6. **Budgets** (§9 step 8): done. `tests/suite/budgets.rs` is a plain test
    in the suite `cargo nextest run --workspace` runs on every platform.
-7. **Physics builders typed**: collider, joint, softbody and tile builders
-   still read `derived::to_table` of the struct, because script calls feed
-   them tables too.
+7. **Physics builders typed**: a collider's shape is built from its typed
+   variant and the typed components beside it (`shape_builder`, both
+   dimensions; a query parses its `shape` the same way), done 2026-10-31.
+   Open: the collider's other rows (material, layers, mass) and the joint,
+   softbody and tile builders still read the table.
 8. **Not without the user**: reusing Metal buffers in the kiss3d fork
    (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
    the render's 2.4 M instructions an edit; it needs a push to that fork.

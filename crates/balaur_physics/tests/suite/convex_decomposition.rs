@@ -109,7 +109,7 @@ fn mass(app: &App) -> f32 {
 
 #[test]
 fn a_concave_polygon_becomes_convex_pieces() {
-    let plain = table_app("", "overlap = 0.0");
+    let plain = table_app("", "method = { kind = \"exact\", overlap = 0.0 }");
     let pieces = pieces(&plain);
     assert_eq!(pieces.len(), 3, "the table did not cut into three pieces");
     let covered = total_area(&pieces);
@@ -120,8 +120,14 @@ fn a_concave_polygon_becomes_convex_pieces() {
 /// the shapes the solver actually sees.
 #[test]
 fn the_pieces_grow_into_each_other() {
-    let plain = total_area(&pieces(&table_app("", "overlap = 0.0")));
-    let grown = total_area(&pieces(&table_app("", "overlap = 0.9")));
+    let plain = total_area(&pieces(&table_app(
+        "",
+        "method = { kind = \"exact\", overlap = 0.0 }",
+    )));
+    let grown = total_area(&pieces(&table_app(
+        "",
+        "method = { kind = \"exact\", overlap = 0.9 }",
+    )));
     assert!(grown > plain + 0.05, "{grown} is no larger than {plain}");
 }
 
@@ -130,7 +136,10 @@ fn the_pieces_grow_into_each_other() {
 #[test]
 fn the_pieces_weigh_what_the_polygon_weighs() {
     for overlap in ["0.0", "0.9", "1.0"] {
-        let weighed = mass(&table_app("", &format!("overlap = {overlap}")));
+        let weighed = mass(&table_app(
+            "",
+            &format!("method = {{ kind = \"exact\", overlap = {overlap} }}"),
+        ));
         assert!(
             (weighed - 1.0).abs() < 1.0e-2,
             "at overlap {overlap} the table weighs {weighed}, not 1.0"
@@ -158,10 +167,10 @@ fn density_and_mass_still_say_what_it_weighs() {
 #[test]
 fn the_other_ways_to_cut_it_build() {
     for (collider, decomposition) in [
-        ("", "method = \"vhacd\""),
+        ("", "method = { kind = \"vhacd\" }"),
         (
             "",
-            "method = \"vhacd\"\nresolution = 32\nmax_convex_hulls = 8",
+            "method = { kind = \"vhacd\", resolution = 32, max_convex_hulls = 8 }",
         ),
         (
             r##"shape = { kind = "convex_decomposition", mesh = "#table", edge_radius = 0.02 }"##,
@@ -256,7 +265,7 @@ name = "Table"
 parent = "n_world"
 
 [nodes."convex_decomposition2d"]
-overlap = {overlap}
+method = {{ kind = "exact", overlap = {overlap} }}
 
 [nodes.collider2d]
 shape = {{ kind = "convex_decomposition", mesh = "#table" }}
@@ -317,9 +326,14 @@ fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
             .def("convex_decomposition2d")
             .expect("convex_decomposition2d is registered")
             .schema;
+        // The tuning sits in the vhacd way of the `method` variant.
         let default = |key: &str| {
             schema
-                .get(key)
+                .get("method")
+                .and_then(|method| method.get("variants"))
+                .and_then(|ways| ways.get("vhacd"))
+                .and_then(|vhacd| vhacd.get("fields"))
+                .and_then(|fields| fields.get(key))
                 .and_then(|row| row.get("default"))
                 .and_then(balaur_core::components::as_f64)
                 .unwrap_or_else(|| panic!("convex_decomposition2d.{key} declares a default"))
@@ -337,10 +351,10 @@ fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
         defaults.1
     );
 
-    let left = pieces(&table_app("", "method = \"vhacd\""));
+    let left = pieces(&table_app("", "method = { kind = \"vhacd\" }"));
     let stated = pieces(&table_app(
         "",
-        "method = \"vhacd\"\nresolution = 256\nmax_concavity = 0.1",
+        "method = { kind = \"vhacd\", resolution = 256, max_concavity = 0.1 }",
     ));
     assert_eq!(
         left.len(),

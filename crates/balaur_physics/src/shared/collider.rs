@@ -3,35 +3,42 @@
 
 use crate::vocabulary::{self as v, keys as k};
 
-/// The `TriMeshFlags` bits a `triangle_mesh`'s keys ask for. rapier2d's flags
-/// take the same bits as rapier3d's (see `crate::vocabulary::flags`).
-pub(crate) fn trimesh_bits(params: &toml::Value) -> u16 {
+/// The rows a mesh-backed collider tidies its triangles by, from the
+/// component beside it.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one of rapier's flags, by name"
+)]
+pub(crate) struct Tidy {
+    pub(crate) merge_vertices: bool,
+    pub(crate) drop_degenerate_triangles: bool,
+    pub(crate) drop_duplicate_triangles: bool,
+    pub(crate) drop_bad_topology: bool,
+    pub(crate) topology: bool,
+    pub(crate) connected_components: bool,
+    pub(crate) oriented: bool,
+}
+
+/// The `TriMeshFlags` bits a `triangle_mesh` asks for. rapier2d's flags take
+/// the same bits as rapier3d's (see `crate::vocabulary::flags`).
+pub(crate) fn trimesh_bits(fix_internal_edges: bool, two_sided_edges: bool, tidy: &Tidy) -> u16 {
     use crate::rapier3d::prelude::TriMeshFlags as F;
     let mut flags = F::empty();
-    for (key, default, flag) in [
-        (k::FIX_INTERNAL_EDGES, true, F::FIX_INTERNAL_EDGES),
-        (k::TWO_SIDED_EDGES, false, F::FIX_INTERNAL_EDGES_TWO_SIDED),
-        (k::MERGE_VERTICES, false, F::MERGE_DUPLICATE_VERTICES),
+    for (on, flag) in [
+        (fix_internal_edges, F::FIX_INTERNAL_EDGES),
+        (two_sided_edges, F::FIX_INTERNAL_EDGES_TWO_SIDED),
+        (tidy.merge_vertices, F::MERGE_DUPLICATE_VERTICES),
         (
-            k::DROP_DEGENERATE_TRIANGLES,
-            false,
+            tidy.drop_degenerate_triangles,
             F::DELETE_DEGENERATE_TRIANGLES,
         ),
-        (
-            k::DROP_DUPLICATE_TRIANGLES,
-            false,
-            F::DELETE_DUPLICATE_TRIANGLES,
-        ),
-        (
-            k::DROP_BAD_TOPOLOGY,
-            false,
-            F::DELETE_BAD_TOPOLOGY_TRIANGLES,
-        ),
-        (k::TOPOLOGY, false, F::HALF_EDGE_TOPOLOGY),
-        (k::CONNECTED_COMPONENTS, false, F::CONNECTED_COMPONENTS),
-        (k::ORIENTED, false, F::ORIENTED),
+        (tidy.drop_duplicate_triangles, F::DELETE_DUPLICATE_TRIANGLES),
+        (tidy.drop_bad_topology, F::DELETE_BAD_TOPOLOGY_TRIANGLES),
+        (tidy.topology, F::HALF_EDGE_TOPOLOGY),
+        (tidy.connected_components, F::CONNECTED_COMPONENTS),
+        (tidy.oriented, F::ORIENTED),
     ] {
-        if v::boolean(params, key, default) {
+        if on {
             flags |= flag;
         }
     }
@@ -174,15 +181,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// A collider's table with its `shape` laid out beside its other rows: the
-/// kind and the dimensions or source that kind reads, as the builders read
-/// them.
-pub(crate) fn flat_table(mut params: toml::Value) -> toml::Value {
-    if let Some(table) = params.as_table_mut()
-        && let Some(toml::Value::Table(shape)) = table.remove("shape")
-    {
-        table.extend(shape);
-    }
-    params
-}

@@ -3,7 +3,7 @@
 
 use balaur_core::components::derived::{Record, Variant};
 
-use crate::properties::Axis2d;
+use crate::properties::{Axis2d, Edges2d, Fit2d};
 
 /// A 2D collision shape and what it is built from.
 #[derive(Clone, Debug, PartialEq, Variant)]
@@ -27,18 +27,18 @@ pub enum ColliderShape2d {
     ConvexHull(RoundMeshCollider2d),
     /// Convex pieces that together cover the mesh, which a `convex_decomposition2d` beside it tunes
     ConvexDecomposition(RoundMeshCollider2d),
-    /// The mesh's points in order, or its triangles' edges, as a line
-    Polyline(MeshSource2d),
+    /// The mesh's points in order, its outline, or every edge of its triangles, as a line
+    Polyline(PolylineCollider2d),
     /// A row of heights
     Heightfield(HeightfieldCollider2d),
     /// A grid of filled cells
     Voxels(VoxelsCollider2d),
     /// The mesh filled into cells
     VoxelizedMesh(VoxelizedCollider2d),
-    /// A simple shape fitted to the mesh, which a `mesh_collider2d` beside it picks
-    Fit(MeshSource2d),
+    /// A simple shape fitted to the mesh
+    Fit(FitCollider2d),
     /// The mesh's outline, taken as already convex
-    ConvexPolygon(RoundMeshCollider2d),
+    ConvexPolygon(ConvexPolygonCollider),
     /// A cell for each of the mesh's points
     VoxelizedPoints(VoxelizedCollider2d),
 }
@@ -142,12 +142,39 @@ pub struct RoundMeshCollider2d {
     pub edge_radius: f32,
 }
 
-/// A 2D shape's source mesh.
+/// A 2D polyline's source mesh and which of its edges it takes.
 #[derive(Clone, Debug, PartialEq, Record)]
-pub struct MeshSource2d {
+pub struct PolylineCollider2d {
     /// Points and triangles: the same asset a polygon draws
     #[property(asset = "mesh")]
     pub mesh: String,
+    /// Which edges the line takes: the points in order, the outline of the triangles, or every edge of them
+    #[property(default = Edges2d::Chain)]
+    pub edges: Edges2d,
+}
+
+/// The mesh a 2D shape is fitted to, and the shape.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FitCollider2d {
+    /// Points and triangles: the same asset a polygon draws
+    #[property(asset = "mesh")]
+    pub mesh: String,
+    /// The shape fitted to the mesh; a fitted box keeps the pose it was fitted at
+    #[property(default = Fit2d::ConvexHull)]
+    pub fit: Fit2d,
+}
+
+/// A convex polygon's outline mesh.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct ConvexPolygonCollider {
+    /// Points in order, counter-clockwise: the same asset a polygon draws
+    #[property(asset = "mesh")]
+    pub mesh: String,
+    /// Rounds the polygon by this radius
+    #[property(min = 0.0)]
+    pub edge_radius: f32,
+    /// Keep the points that lie on a straight edge instead of dropping them
+    pub keep_collinear: bool,
 }
 
 /// A row of heights and its scale.

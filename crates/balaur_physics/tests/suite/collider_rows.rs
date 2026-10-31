@@ -458,7 +458,7 @@ fn a_polyline_takes_every_edge_of_its_mesh_when_asked() {
             ),
             (
                 "Edges",
-                "collider3d = { shape = { kind = \"polyline\", mesh = \"#quad\" } }\nmesh_collider3d = { edges = \"mesh\" }",
+                "collider3d = { shape = { kind = \"polyline\", mesh = \"#quad\", edges = \"mesh\" } }",
             ),
         ],
     );

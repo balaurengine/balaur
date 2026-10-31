@@ -3,7 +3,7 @@
 
 use balaur_core::components::derived::{Record, Variant};
 
-use crate::properties::Axis3d;
+use crate::properties::{Axis3d, Edges, Fit3d};
 
 /// A 3D collision shape and what it is built from.
 #[derive(Clone, Debug, PartialEq, Variant)]
@@ -32,15 +32,15 @@ pub enum ColliderShape3d {
     /// Convex pieces that together cover the mesh, which a `convex_decomposition3d` beside it tunes
     ConvexDecomposition(RoundMeshCollider),
     /// The mesh's points in order, or its triangles' edges, as a line
-    Polyline(MeshSource),
+    Polyline(PolylineCollider),
     /// A terrain grid
     Heightfield(HeightfieldCollider),
     /// A grid of filled cells
     Voxels(VoxelsCollider),
     /// The mesh filled into cells
     VoxelizedMesh(VoxelizedCollider),
-    /// A simple shape fitted to the mesh, which a `mesh_collider3d` beside it picks
-    Fit(MeshSource),
+    /// A simple shape fitted to the mesh
+    Fit(FitCollider),
     /// The mesh, taken as already convex
     ConvexMesh(RoundMeshCollider),
     /// A cell for each of the mesh's points
@@ -160,12 +160,26 @@ pub struct RoundMeshCollider {
     pub edge_radius: f32,
 }
 
-/// A shape's source mesh.
+/// A polyline's source mesh and which of its edges it takes.
 #[derive(Clone, Debug, PartialEq, Record)]
-pub struct MeshSource {
+pub struct PolylineCollider {
     /// The geometry
     #[property(asset = "mesh")]
     pub mesh: String,
+    /// Which edges the line takes: the points in order, or every edge of the triangles
+    #[property(default = Edges::Chain)]
+    pub edges: Edges,
+}
+
+/// The mesh a shape is fitted to, and the shape.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FitCollider {
+    /// The geometry
+    #[property(asset = "mesh")]
+    pub mesh: String,
+    /// The shape fitted to the mesh; a fitted box keeps the pose it was fitted at
+    #[property(default = Fit3d::ConvexHull)]
+    pub fit: Fit3d,
 }
 
 /// A heightfield's grid and scale.
