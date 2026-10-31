@@ -1,8 +1,8 @@
 > **Status:** planned 2026-10-30; where each workstream stands, 2026-10-31:
 > the core split and the ECS are built (PLAN-core-split, PLAN-ecs); the
-> script tests are built but for the random programs' structs, enums, maps
-> and native code and forge's build-size page (PLAN-script-tests §2, §8,
-> §9); of the editor follow-ups, the derive is finished, the per-kind
+> script tests are built, random programs with `any`, passing and shrinking
+> included, but for step 2's last files and forge's build-size page
+> (PLAN-script-tests §2, §9); of the editor follow-ups, the derive is finished, the per-kind
 > splits are done for primitives, colliders, joints and soft bodies, and
 > every physics builder reads typed components, and `widget` is split into
 > components beside it, with the stricter language open

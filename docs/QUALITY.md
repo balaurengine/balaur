@@ -157,7 +157,9 @@ three desktop platforms. Beyond `cargo test --workspace`:
 - **Random programs** — `tests/suite/random.rs` generates well-typed programs
   and runs each on every engine and on a small interpreter kept for the
   test, which must agree: the engines share one compiler, so only this
-  catches it writing the wrong code. 60 a push; `BS_RANDOM_PROGRAMS`.
+  catches it writing the wrong code. 60 a push; `BS_RANDOM_PROGRAMS`. A
+  disagreement is shrunk, printed and saved under `tests/programs/random/`,
+  so the corpus holds it until it is fixed.
 - `scripts/check_scripts.sh` — `balaur check --strict` over the editor, its
   library and templates, and every example: CI runs it on Linux after the
   tests.
