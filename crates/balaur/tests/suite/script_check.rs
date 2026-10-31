@@ -30,7 +30,7 @@ fn project(script: &str) -> tempfile::TempDir {
 /// A script whose `init` is `body`, its first line on line 4.
 fn script(body: &str) -> String {
     format!(
-        "pub class Crate {{ node: Node }}\nimpl Crate {{\n    fn init() {{\n{body}\n    }}\n}}\n"
+        "pub class Main {{ node: Node }}\nimpl Main {{\n    fn init() {{\n{body}\n    }}\n}}\n"
     )
 }
 

@@ -484,6 +484,23 @@ impl BsHost {
     /// engine's API: the first error, where the compiler stopped.
     /// Every error in the file, one per function that does not compile;
     /// empty when it runs.
+    /// [`Self::check`], for a script a scene attaches to a node: also that it
+    /// declares the class its nodes are, which running it requires.
+    pub fn check_attached(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
+        let found = self.check(rel, source);
+        if !found.is_empty() {
+            return found;
+        }
+        let key = key_of(rel);
+        match self.compile_module(&key) {
+            Ok((_, ty)) if ty.is_empty() => vec![balaur_bs::Error {
+                pos: balaur_bs::Pos { line: 1, col: 1 },
+                msg: no_class(&key),
+            }],
+            _ => vec![],
+        }
+    }
+
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
         // As units, a file's own functions: each module answers for its own.
@@ -573,10 +590,7 @@ impl BsHost {
     fn load(&self, key: &str) -> Result<Rc<File>> {
         let (compiled, ty) = self.compile_module(key)?;
         if ty.is_empty() {
-            let name = balaur_bs::script_class(key);
-            return Err(anyhow!(
-                "{key}: a script declares `pub class {name}`, named after its file; a file without one is a module other scripts `use`"
-            ));
+            return Err(anyhow!("{key}: {}", no_class(key)));
         }
         balaur_bs::runtime::cache_compiled_in(
             &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
@@ -1033,6 +1047,14 @@ impl BsHost {
         let out = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
         Ok(out.map(|v| to_neutral(&v)))
     }
+}
+
+/// What a node's script lacks when it declares no class named after its file.
+fn no_class(key: &str) -> String {
+    let name = balaur_bs::script_class(key);
+    format!(
+        "a script declares `pub class {name}`, named after its file; a file without one is a module other scripts `use`"
+    )
 }
 
 /// The class a script's nodes are: the one named after its file,

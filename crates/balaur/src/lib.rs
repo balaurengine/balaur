@@ -393,7 +393,7 @@ fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec
         );
         return vec![Finding::error(rel, 0, 0, message)];
     }
-    host.check(rel, source)
+    host.check_attached(rel, source)
         .into_iter()
         .map(|e| Finding::error(rel, e.pos.line as usize, e.pos.col as usize, e.msg))
         .collect()
